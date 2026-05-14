@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 
+import toast, {
+  Toaster,
+} from "react-hot-toast";
+
 import {
   Search,
   Plus,
@@ -12,6 +16,10 @@ import {
   Trash2,
   Ban,
   MoreVertical,
+  Eye,
+  EyeOff,
+  Headphones,
+  Shield,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -19,12 +27,15 @@ import DashboardNavbar from "../components/Navbar";
 
 /* ================= TYPES ================= */
 
+type UserRole = "CSR" | "Admin" | "User";
+
 type User = {
   name: string;
   email: string;
   password: string;
   status: "Active" | "Inactive";
   lastActivity: string;
+  role: UserRole;
 };
 
 /* ================= DATA ================= */
@@ -36,6 +47,7 @@ const initialUsers: User[] = [
     password: "123456",
     status: "Active",
     lastActivity: "2 min ago",
+    role: "Admin",
   },
   {
     name: "Hamza Farooq",
@@ -43,6 +55,7 @@ const initialUsers: User[] = [
     password: "123456",
     status: "Active",
     lastActivity: "Just now",
+    role: "CSR",
   },
   {
     name: "Ahmed Raza",
@@ -50,6 +63,23 @@ const initialUsers: User[] = [
     password: "123456",
     status: "Inactive",
     lastActivity: "1 hour ago",
+    role: "CSR",
+  },
+  {
+    name: "Sara Ahmed",
+    email: "sara@gmail.com",
+    password: "123456",
+    status: "Active",
+    lastActivity: "5 min ago",
+    role: "Admin",
+  },
+  {
+    name: "Omar Hassan",
+    email: "omar@gmail.com",
+    password: "123456",
+    status: "Active",
+    lastActivity: "Just now",
+    role: "CSR",
   },
 ];
 
@@ -72,17 +102,20 @@ export default function UsersPage() {
   const [openMenu, setOpenMenu] =
     useState<number | null>(null);
 
+  const [showPassword, setShowPassword] =
+    useState(false);
+
+  const [
+    showDetailPassword,
+    setShowDetailPassword,
+  ] = useState(false);
+
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
+    role: "User" as UserRole,
   });
-
-  const [confirmAction, setConfirmAction] =
-    useState<{
-      type: "delete" | "toggle";
-      user: User;
-    } | null>(null);
 
   /* ================= FILTER ================= */
 
@@ -92,6 +125,16 @@ export default function UsersPage() {
       .includes(search.toLowerCase())
   );
 
+  /* ================= STATS ================= */
+
+  const activeCSRCount = users.filter(
+    (u) => u.status === "Active" && u.role === "CSR"
+  ).length;
+
+  const activeAdminCount = users.filter(
+    (u) => u.status === "Active" && u.role === "Admin"
+  ).length;
+
   /* ================= ACTIONS ================= */
 
   const handleSubmit = () => {
@@ -100,6 +143,10 @@ export default function UsersPage() {
       !form.email ||
       !form.password
     ) {
+      toast.error(
+        "Please fill all fields."
+      );
+
       return;
     }
 
@@ -113,9 +160,14 @@ export default function UsersPage() {
                 email: form.email,
                 password: form.password,
                 lastActivity: "Just now",
+                role: form.role,
               }
             : u
         )
+      );
+
+      toast.success(
+        "User updated successfully."
       );
     } else {
       setUsers([
@@ -126,6 +178,10 @@ export default function UsersPage() {
           lastActivity: "Just now",
         },
       ]);
+
+      toast.success(
+        "User created successfully."
+      );
     }
 
     setShowModal(false);
@@ -136,16 +192,33 @@ export default function UsersPage() {
       name: "",
       email: "",
       password: "",
+      role: "User",
     });
+
+    setShowPassword(false);
   };
 
-  const handleDelete = (email: string) => {
+  const handleDelete = (
+    email: string
+  ) => {
     setUsers(
-      users.filter((u) => u.email !== email)
+      users.filter(
+        (u) => u.email !== email
+      )
+    );
+
+    toast.success(
+      "User deleted successfully."
     );
   };
 
-  const toggleStatus = (email: string) => {
+  const toggleStatus = (
+    email: string
+  ) => {
+    const targetUser = users.find(
+      (u) => u.email === email
+    );
+
     setUsers(
       users.map((u) =>
         u.email === email
@@ -159,10 +232,53 @@ export default function UsersPage() {
           : u
       )
     );
+
+    toast.success(
+      targetUser?.status ===
+        "Active"
+        ? "User blocked successfully."
+        : "User activated successfully."
+    );
   };
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
+
+      {/* ================= TOASTER ================= */}
+
+      <Toaster
+        position="top-right"
+        reverseOrder={false}
+        toastOptions={{
+          duration: 3000,
+
+          style: {
+            background: "#fff",
+            color: "#111827",
+            borderRadius: "16px",
+            padding: "14px 16px",
+            border: "1px solid #E5E7EB",
+            boxShadow:
+              "0 10px 25px rgba(0,0,0,0.08)",
+            fontSize: "14px",
+            fontWeight: "500",
+          },
+
+          success: {
+            iconTheme: {
+              primary: "#16A34A",
+              secondary: "#fff",
+            },
+          },
+
+          error: {
+            iconTheme: {
+              primary: "#DC2626",
+              secondary: "#fff",
+            },
+          },
+        }}
+      />
 
       {/* SIDEBAR */}
       <DashboardSidebar />
@@ -175,7 +291,7 @@ export default function UsersPage() {
 
         {/* ================= STATS ================= */}
 
-        <div className="grid grid-cols-3 sm:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-5 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
 
           {/* TOTAL */}
           <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
@@ -207,7 +323,7 @@ export default function UsersPage() {
 
           </div>
 
-          {/* ACTIVE */}
+          {/* ACTIVE USERS */}
           <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -242,33 +358,78 @@ export default function UsersPage() {
 
           </div>
 
-          {/* INACTIVE */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
+          {/* ACTIVE CSR CARD */}
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
 
               <div>
 
-                <p className="text-xs sm:text-sm text-gray-400">
-                  Inactive Users
-                </p>
+                <div className="flex items-center gap-2 mb-1">
 
-                <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-2">
-                  {
-                    users.filter(
-                      (u) =>
-                        u.status === "Inactive"
-                    ).length
-                  }
+                  <Headphones size={16} className="text-emerald-600" />
+
+                  <p className="text-xs sm:text-sm text-emerald-600 font-medium">
+                    Active CSR
+                  </p>
+
+                </div>
+
+                <h2 className="text-2xl sm:text-3xl font-semibold text-emerald-800 mt-1">
+                  {activeCSRCount}
                 </h2>
+
+                <p className="text-xs text-emerald-500 mt-1">
+                  Customer Support Reps
+                </p>
 
               </div>
 
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
 
-                <UserX
+                <Headphones
                   size={24}
-                  className="text-gray-600"
+                  className="text-emerald-600"
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* ACTIVE ADMINS CARD */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-3xl p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <div className="flex items-center gap-2 mb-1">
+
+                  <Shield size={16} className="text-blue-600" />
+
+                  <p className="text-xs sm:text-sm text-blue-600 font-medium">
+                    Active Admins
+                  </p>
+
+                </div>
+
+                <h2 className="text-2xl sm:text-3xl font-semibold text-blue-800 mt-1">
+                  {activeAdminCount}
+                </h2>
+
+                <p className="text-xs text-blue-500 mt-1">
+                  System Administrators
+                </p>
+
+              </div>
+
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-blue-100 flex items-center justify-center">
+
+                <Shield
+                  size={24}
+                  className="text-blue-600"
                 />
 
               </div>
@@ -312,9 +473,14 @@ export default function UsersPage() {
                 name: "",
                 email: "",
                 password: "",
+                role: "User",
               });
 
               setShowModal(true);
+
+              toast(
+                "Create new user."
+              );
             }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
           >
@@ -341,11 +507,15 @@ export default function UsersPage() {
                   User
                 </th>
 
+                <th className="px-6 py-4 font-medium">
+                  Role
+                </th>
+
                 <th className="px-6 py-4 font-medium text-right">
                   Actions
                 </th>
 
-              </tr>
+               </tr>
 
             </thead>
 
@@ -362,7 +532,10 @@ export default function UsersPage() {
 
                     <div className="flex items-center gap-3">
 
-                      <div className="w-11 h-11 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold">
+                      <div className={`w-11 h-11 rounded-full flex items-center justify-center font-semibold
+                        ${u.role === "Admin" ? "bg-blue-100 text-blue-600" : 
+                          u.role === "CSR" ? "bg-emerald-100 text-emerald-600" : 
+                          "bg-[#F8ECEF] text-[#B8112D]"}`}>
                         {u.name.charAt(0)}
                       </div>
 
@@ -373,14 +546,26 @@ export default function UsersPage() {
                         </h3>
 
                         <p className="text-xs text-gray-400">
-                          CRM User
+                          {u.email}
                         </p>
 
                       </div>
 
                     </div>
 
-                  </td>
+                   </td>
+
+                  {/* ROLE */}
+                  <td className="px-4 sm:px-6 py-5">
+
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium
+                      ${u.role === "Admin" ? "bg-blue-100 text-blue-600" : 
+                        u.role === "CSR" ? "bg-emerald-100 text-emerald-600" : 
+                        "bg-gray-100 text-gray-600"}`}>
+                      {u.role}
+                    </span>
+
+                   </td>
 
                   {/* ACTIONS */}
                   <td className="px-4 sm:px-6 py-5">
@@ -389,9 +574,15 @@ export default function UsersPage() {
                     <div className="hidden md:flex items-center justify-end gap-2">
 
                       <button
-                        onClick={() =>
-                          setMobileDetailsUser(u)
-                        }
+                        onClick={() => {
+                          setMobileDetailsUser(
+                            u
+                          );
+
+                          toast(
+                            "Viewing user details."
+                          );
+                        }}
                         className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all text-sm"
                       >
                         View Details
@@ -405,9 +596,14 @@ export default function UsersPage() {
                             name: u.name,
                             email: u.email,
                             password: u.password,
+                            role: u.role,
                           });
 
                           setShowModal(true);
+
+                          toast(
+                            "Editing user..."
+                          );
                         }}
                         className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
                       >
@@ -418,10 +614,9 @@ export default function UsersPage() {
 
                       <button
                         onClick={() =>
-                          setConfirmAction({
-                            type: "toggle",
-                            user: u,
-                          })
+                          toggleStatus(
+                            u.email
+                          )
                         }
                         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all
                         ${
@@ -437,10 +632,9 @@ export default function UsersPage() {
 
                       <button
                         onClick={() =>
-                          setConfirmAction({
-                            type: "delete",
-                            user: u,
-                          })
+                          handleDelete(
+                            u.email
+                          )
                         }
                         className="w-9 h-9 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
                       >
@@ -479,6 +673,10 @@ export default function UsersPage() {
                               );
 
                               setOpenMenu(null);
+
+                              toast(
+                                "Viewing user details."
+                              );
                             }}
                             className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all"
                           >
@@ -494,11 +692,16 @@ export default function UsersPage() {
                                 email: u.email,
                                 password:
                                   u.password,
+                                role: u.role,
                               });
 
                               setShowModal(true);
 
                               setOpenMenu(null);
+
+                              toast(
+                                "Editing user..."
+                              );
                             }}
                             className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all"
                           >
@@ -507,10 +710,9 @@ export default function UsersPage() {
 
                           <button
                             onClick={() => {
-                              setConfirmAction({
-                                type: "toggle",
-                                user: u,
-                              });
+                              toggleStatus(
+                                u.email
+                              );
 
                               setOpenMenu(null);
                             }}
@@ -524,10 +726,9 @@ export default function UsersPage() {
 
                           <button
                             onClick={() => {
-                              setConfirmAction({
-                                type: "delete",
-                                user: u,
-                              });
+                              handleDelete(
+                                u.email
+                              );
 
                               setOpenMenu(null);
                             }}
@@ -541,14 +742,14 @@ export default function UsersPage() {
 
                     </div>
 
-                  </td>
+                   </td>
 
-                </tr>
+                 </tr>
               ))}
 
             </tbody>
 
-          </table>
+           </table>
 
         </div>
 
@@ -561,7 +762,10 @@ export default function UsersPage() {
 
               <div className="flex items-center gap-3 mb-5">
 
-                <div className="w-14 h-14 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] text-xl font-semibold">
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold
+                  ${mobileDetailsUser.role === "Admin" ? "bg-blue-100 text-blue-600" : 
+                    mobileDetailsUser.role === "CSR" ? "bg-emerald-100 text-emerald-600" : 
+                    "bg-[#F8ECEF] text-[#B8112D]"}`}>
                   {mobileDetailsUser.name.charAt(
                     0
                   )}
@@ -574,7 +778,7 @@ export default function UsersPage() {
                   </h2>
 
                   <p className="text-sm text-gray-400">
-                    CRM User
+                    {mobileDetailsUser.role}
                   </p>
 
                 </div>
@@ -597,12 +801,35 @@ export default function UsersPage() {
 
                 <div className="bg-[#F8F9FC] rounded-2xl p-4">
 
-                  <p className="text-xs text-gray-400 mb-1">
-                    Password
-                  </p>
+                  <div className="flex items-center justify-between mb-1">
+
+                    <p className="text-xs text-gray-400">
+                      Password
+                    </p>
+
+                    <button
+                      onClick={() =>
+                        setShowDetailPassword(
+                          !showDetailPassword
+                        )
+                      }
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+
+                      {showDetailPassword ? (
+                        <EyeOff size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+
+                    </button>
+
+                  </div>
 
                   <h3 className="text-sm font-medium text-gray-700">
-                    {mobileDetailsUser.password}
+                    {showDetailPassword
+                      ? mobileDetailsUser.password
+                      : "••••••••"}
                   </h3>
 
                 </div>
@@ -655,7 +882,169 @@ export default function UsersPage() {
           </div>
         )}
 
+        {/* ================= CREATE / EDIT MODAL ================= */}
+
+        {showModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+
+            <div className="bg-white w-full rounded-3xl p-6 max-w-md">
+
+              <h2 className="text-xl font-semibold text-gray-800 mb-6">
+                {editingUser
+                  ? "Edit User"
+                  : "Create User"}
+              </h2>
+
+              <div className="space-y-4">
+
+                <div>
+
+                  <label className="text-sm text-gray-500 block mb-2">
+                    Full Name
+                  </label>
+
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        name:
+                          e.target.value,
+                      })
+                    }
+                    placeholder="Enter full name"
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D]"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-sm text-gray-500 block mb-2">
+                    Email Address
+                  </label>
+
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        email:
+                          e.target.value,
+                      })
+                    }
+                    placeholder="Enter email"
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D]"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-sm text-gray-500 block mb-2">
+                    Password
+                  </label>
+
+                  <div className="relative">
+
+                    <input
+                      type={
+                        showPassword
+                          ? "text"
+                          : "password"
+                      }
+                      value={form.password}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          password:
+                            e.target.value,
+                        })
+                      }
+                      placeholder="Enter password"
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 pr-12 outline-none focus:border-[#B8112D]"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPassword(
+                          !showPassword
+                        )
+                      }
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+
+                      {showPassword ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+
+                    </button>
+
+                  </div>
+
+                </div>
+
+                <div>
+
+                  <label className="text-sm text-gray-500 block mb-2">
+                    Role
+                  </label>
+
+                  <select
+                    value={form.role}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        role: e.target.value as UserRole,
+                      })
+                    }
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] bg-white"
+                  >
+                    <option value="User">User</option>
+                    <option value="CSR">CSR (Customer Support)</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+
+                </div>
+
+              </div>
+
+              <div className="flex items-center gap-3 mt-6">
+
+                <button
+                  onClick={() =>
+                    setShowModal(false)
+                  }
+                  className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-2xl hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={
+                    handleSubmit
+                  }
+                  className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all"
+                >
+                  {editingUser
+                    ? "Update User"
+                    : "Create User"}
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
       </main>
+
     </div>
   );
 }
