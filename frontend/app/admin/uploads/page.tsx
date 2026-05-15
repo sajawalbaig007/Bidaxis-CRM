@@ -7,6 +7,14 @@ import {
   FileText,
   Trash2,
   CheckCircle2,
+  Search,
+  Users,
+  Database,
+  FileSpreadsheet,
+  FileImage,
+  FileArchive,
+  FileBadge,
+  Loader2,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -18,15 +26,101 @@ type UploadFile = {
   id: number;
   name: string;
   size: string;
-  status: "Uploading" | "Shared";
+  type: string;
+  progress: number;
+  leads: number;
+  distributed: boolean;
+  status:
+    | "Uploading"
+    | "Processing"
+    | "Distributed";
+};
+
+/* ================= MOCK CSRS ================= */
+
+const csrList = [
+  {
+    id: 1,
+    name: "Ahmed",
+    leads: 0,
+  },
+  {
+    id: 2,
+    name: "Usman",
+    leads: 0,
+  },
+  {
+    id: 3,
+    name: "Ali",
+    leads: 0,
+  },
+  {
+    id: 4,
+    name: "Hamza",
+    leads: 0,
+  },
+];
+
+/* ================= HELPERS ================= */
+
+const getFileIcon = (type: string) => {
+  if (
+    type.includes("sheet") ||
+    type.includes("excel") ||
+    type.includes("csv")
+  ) {
+    return (
+      <FileSpreadsheet
+        size={24}
+        className="text-green-600"
+      />
+    );
+  }
+
+  if (type.includes("image")) {
+    return (
+      <FileImage
+        size={24}
+        className="text-blue-600"
+      />
+    );
+  }
+
+  if (
+    type.includes("zip") ||
+    type.includes("rar")
+  ) {
+    return (
+      <FileArchive
+        size={24}
+        className="text-yellow-600"
+      />
+    );
+  }
+
+  return (
+    <FileBadge
+      size={24}
+      className="text-[#B8112D]"
+    />
+  );
 };
 
 /* ================= PAGE ================= */
 
 export default function UploadPage() {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef =
+    useRef<HTMLInputElement | null>(null);
 
-  const [files, setFiles] = useState<UploadFile[]>([]);
+  const [dragging, setDragging] =
+    useState(false);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [files, setFiles] = useState<
+    UploadFile[]
+  >([]);
 
   /* ================= HANDLE FILES ================= */
 
@@ -35,33 +129,86 @@ export default function UploadPage() {
   ) => {
     if (!selectedFiles) return;
 
-    const mappedFiles: UploadFile[] = Array.from(
-      selectedFiles
-    ).map((file, index) => ({
-      id: Date.now() + index,
-      name: file.name,
-      size: `${(
-        file.size /
-        (1024 * 1024)
-      ).toFixed(2)} MB`,
-      status: "Uploading",
-    }));
+    Array.from(selectedFiles).forEach(
+      (file, index) => {
+        const fakeLeads =
+          Math.floor(Math.random() * 500) +
+          50;
 
-    setFiles((prev) => [...mappedFiles, ...prev]);
+        const newFile: UploadFile = {
+          id: Date.now() + index,
+          name: file.name,
+          size: `${(
+            file.size /
+            (1024 * 1024)
+          ).toFixed(2)} MB`,
+          type: file.type,
+          progress: 0,
+          leads: fakeLeads,
+          distributed: false,
+          status: "Uploading",
+        };
 
-    /* ================= FAKE UPLOAD ================= */
+        setFiles((prev) => [
+          newFile,
+          ...prev,
+        ]);
 
-    setTimeout(() => {
-      setFiles((prev) =>
-        prev.map((f) => ({
-          ...f,
-          status: "Shared",
-        }))
-      );
-    }, 2000);
+        /* ================= FAKE PROGRESS ================= */
+
+        let progress = 0;
+
+        const interval = setInterval(() => {
+          progress += 10;
+
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === newFile.id
+                ? {
+                    ...f,
+                    progress,
+                  }
+                : f
+            )
+          );
+
+          if (progress >= 100) {
+            clearInterval(interval);
+
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === newFile.id
+                  ? {
+                      ...f,
+                      progress: 100,
+                      status:
+                        "Processing",
+                    }
+                  : f
+              )
+            );
+
+            setTimeout(() => {
+              setFiles((prev) =>
+                prev.map((f) =>
+                  f.id === newFile.id
+                    ? {
+                        ...f,
+                        status:
+                          "Distributed",
+                        distributed: true,
+                      }
+                    : f
+                )
+              );
+            }, 1500);
+          }
+        }, 200);
+      }
+    );
   };
 
-  /* ================= DELETE FILE ================= */
+  /* ================= REMOVE FILE ================= */
 
   const removeFile = (id: number) => {
     setFiles((prev) =>
@@ -69,23 +216,21 @@ export default function UploadPage() {
     );
   };
 
-  /* ================= SEND FILE ================= */
+  /* ================= FILTERED FILES ================= */
 
-  const sendFile = (file: UploadFile) => {
-    console.log("Sending file:", file);
+  const filteredFiles = files.filter(
+    (file) =>
+      file.name
+        .toLowerCase()
+        .includes(search.toLowerCase())
+  );
 
-    /*
-      BACKEND IDEA:
+  /* ================= TOTAL LEADS ================= */
 
-      socket.emit("send-file", file)
-
-      OR
-
-      await axios.post("/api/send-file", file)
-
-      Then all active CSRs receive instantly
-    */
-  };
+  const totalLeads = files.reduce(
+    (acc, file) => acc + file.leads,
+    0
+  );
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -101,24 +246,51 @@ export default function UploadPage() {
 
         {/* ================= HEADER ================= */}
 
-        <div className="mb-6">
+        <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-          <h1 className="text-3xl font-semibold text-gray-800">
-            Upload Files
-          </h1>
+          <div>
 
-          <p className="text-sm text-gray-400 mt-1">
-            Upload files and send them to
-            active CSRs.
-          </p>
+            <h1 className="text-3xl font-semibold text-gray-800">
+              Upload & Distribute Leads
+            </h1>
+
+            <p className="text-sm text-gray-400 mt-1">
+              Upload Excel or CSV files
+              and auto distribute leads
+              equally among CSRs.
+            </p>
+
+          </div>
+
+          {/* SEARCH */}
+          <div className="relative w-full lg:w-[320px]">
+
+            <Search
+              size={18}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+
+            <input
+              type="text"
+              placeholder="Search uploaded files..."
+              value={search}
+              onChange={(e) =>
+                setSearch(
+                  e.target.value
+                )
+              }
+              className="w-full h-12 rounded-2xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-[#B8112D]"
+            />
+
+          </div>
 
         </div>
 
         {/* ================= STATS ================= */}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
 
-          {/* TOTAL FILES */}
+          {/* FILES */}
           <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -148,7 +320,7 @@ export default function UploadPage() {
 
           </div>
 
-          {/* SHARED FILES */}
+          {/* DISTRIBUTED */}
           <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -156,14 +328,15 @@ export default function UploadPage() {
               <div>
 
                 <p className="text-sm text-gray-400">
-                  Shared Files
+                  Distributed Files
                 </p>
 
                 <h2 className="text-3xl font-semibold text-gray-800 mt-2">
                   {
                     files.filter(
                       (f) =>
-                        f.status === "Shared"
+                        f.status ===
+                        "Distributed"
                     ).length
                   }
                 </h2>
@@ -183,26 +356,143 @@ export default function UploadPage() {
 
           </div>
 
+          {/* TOTAL LEADS */}
+          <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-gray-400">
+                  Total Leads
+                </p>
+
+                <h2 className="text-3xl font-semibold text-gray-800 mt-2">
+                  {totalLeads}
+                </h2>
+
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center">
+
+                <Database
+                  size={26}
+                  className="text-blue-600"
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* ACTIVE CSRS */}
+          <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-gray-400">
+                  Active CSRs
+                </p>
+
+                <h2 className="text-3xl font-semibold text-gray-800 mt-2">
+                  {csrList.length}
+                </h2>
+
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-yellow-100 flex items-center justify-center">
+
+                <Users
+                  size={26}
+                  className="text-yellow-600"
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* ================= CSR DISTRIBUTION ================= */}
+
+        <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-6">
+
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+
+            <div>
+
+              <h3 className="text-xl font-semibold text-gray-800">
+                Auto Distribution System
+              </h3>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Uploaded sheet data will
+                automatically distribute
+                equally among all active
+                CSRs.
+              </p>
+
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+
+              {csrList.map((csr) => (
+                <div
+                  key={csr.id}
+                  className="px-4 py-3 rounded-2xl bg-[#F8F9FC] border border-gray-100"
+                >
+
+                  <p className="text-sm font-medium text-gray-700">
+                    {csr.name}
+                  </p>
+
+                  <p className="text-xs text-gray-400 mt-1">
+                    Equal Distribution
+                  </p>
+
+                </div>
+              ))}
+
+            </div>
+
+          </div>
+
         </div>
 
         {/* ================= UPLOAD BOX ================= */}
 
-        <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-6">
+        <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm mb-6">
 
-          {/* DROP AREA */}
           <div
             onClick={() =>
               inputRef.current?.click()
             }
-            onDragOver={(e) =>
-              e.preventDefault()
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() =>
+              setDragging(false)
             }
             onDrop={(e) => {
               e.preventDefault();
 
-              handleFiles(e.dataTransfer.files);
+              setDragging(false);
+
+              handleFiles(
+                e.dataTransfer.files
+              );
             }}
-            className="border-2 border-dashed border-gray-200 hover:border-[#B8112D] rounded-3xl p-10 transition-all cursor-pointer group"
+            className={`border-2 border-dashed rounded-3xl p-8 md:p-10 transition-all cursor-pointer group ${
+              dragging
+                ? "border-[#B8112D] bg-[#FFF6F8]"
+                : "border-gray-200 hover:border-[#B8112D]"
+            }`}
           >
 
             <div className="flex flex-col items-center justify-center text-center">
@@ -216,17 +506,35 @@ export default function UploadPage() {
 
               </div>
 
-              <h3 className="text-xl font-semibold text-gray-800">
-                Drag & Drop Files Here
+              <h3 className="text-2xl font-semibold text-gray-800">
+                Upload Excel or CSV Files
               </h3>
 
-              <p className="text-sm text-gray-400 mt-2 max-w-md">
-                Upload PDFs, Docs, Images,
-                Excel files, or project
-                documents.
+              <p className="text-sm text-gray-400 mt-2 max-w-xl leading-relaxed">
+                Upload lead sheets and the
+                system will automatically
+                divide and distribute leads
+                equally among all active
+                CSRs.
               </p>
 
-              <button className="mt-5 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-6 py-3 rounded-2xl text-sm font-medium">
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
+
+                <span className="px-4 py-2 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                  XLSX
+                </span>
+
+                <span className="px-4 py-2 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
+                  CSV
+                </span>
+
+                <span className="px-4 py-2 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">
+                  Auto Distribution
+                </span>
+
+              </div>
+
+              <button className="mt-6 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-7 py-3 rounded-2xl text-sm font-medium">
 
                 Browse Files
 
@@ -239,8 +547,11 @@ export default function UploadPage() {
               type="file"
               multiple
               hidden
+              accept=".xlsx,.xls,.csv"
               onChange={(e) =>
-                handleFiles(e.target.files)
+                handleFiles(
+                  e.target.files
+                )
               }
             />
 
@@ -252,117 +563,203 @@ export default function UploadPage() {
 
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
 
-          <div className="p-5 border-b border-gray-100">
+          {/* HEADER */}
+          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
 
-            <h3 className="text-lg font-semibold text-gray-800">
-              Uploaded Files
-            </h3>
+            <div>
+
+              <h3 className="text-lg font-semibold text-gray-800">
+                Uploaded Lead Sheets
+              </h3>
+
+              <p className="text-sm text-gray-400 mt-1">
+                Uploaded files and CSR
+                distribution status.
+              </p>
+
+            </div>
 
           </div>
 
+          {/* EMPTY */}
+          {filteredFiles.length === 0 && (
+            <div className="p-14 text-center">
+
+              <div className="w-20 h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mx-auto mb-5">
+
+                <UploadCloud
+                  size={36}
+                  className="text-[#B8112D]"
+                />
+
+              </div>
+
+              <h4 className="text-lg font-semibold text-gray-700">
+                No files uploaded yet
+              </h4>
+
+              <p className="text-sm text-gray-400 mt-2">
+                Upload your first lead
+                sheet to start automatic
+                distribution.
+              </p>
+
+            </div>
+          )}
+
+          {/* FILES */}
           <div className="divide-y divide-gray-100">
 
-            {files.length === 0 && (
-              <div className="p-10 text-center text-gray-400 text-sm">
-                No files uploaded yet.
-              </div>
-            )}
-
-            {files.map((file) => (
+            {filteredFiles.map((file) => (
               <div
                 key={file.id}
-                className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 hover:bg-[#FAFAFB] transition-all"
+                className="p-5 hover:bg-[#FAFAFB] transition-all"
               >
 
-                {/* LEFT */}
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
 
-                  <div className="w-14 h-14 rounded-2xl bg-[#F8ECEF] flex items-center justify-center">
+                  {/* LEFT */}
+                  <div className="flex items-center gap-4">
 
-                    <FileText
-                      size={24}
-                      className="text-[#B8112D]"
-                    />
+                    <div className="w-14 h-14 rounded-2xl bg-[#F8F9FC] flex items-center justify-center">
+
+                      {getFileIcon(
+                        file.type
+                      )}
+
+                    </div>
+
+                    <div>
+
+                      <h4 className="font-semibold text-gray-800">
+                        {file.name}
+                      </h4>
+
+                      <div className="flex flex-wrap items-center gap-3 mt-2">
+
+                        <p className="text-sm text-gray-400">
+                          {file.size}
+                        </p>
+
+                        <span className="w-1 h-1 rounded-full bg-gray-300" />
+
+                        <p className="text-sm text-gray-400">
+                          {file.leads} Leads
+                        </p>
+
+                      </div>
+
+                    </div>
 
                   </div>
 
-                  <div>
+                  {/* RIGHT */}
+                  <div className="flex flex-wrap items-center gap-3">
 
-                    <h4 className="font-medium text-gray-700">
-                      {file.name}
-                    </h4>
+                    {/* STATUS */}
+                    <span
+                      className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
+                        file.status ===
+                        "Distributed"
+                          ? "bg-green-100 text-green-700"
+                          : file.status ===
+                            "Processing"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
 
-                    <p className="text-sm text-gray-400 mt-1">
-                      {file.size}
+                      {file.status ===
+                      "Processing" ? (
+                        <Loader2
+                          size={14}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <CheckCircle2 size={14} />
+                      )}
+
+                      {file.status}
+
+                    </span>
+
+                    {/* DELETE */}
+                    <button
+                      onClick={() =>
+                        removeFile(
+                          file.id
+                        )
+                      }
+                      className="w-10 h-10 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
+                    >
+
+                      <Trash2 size={18} />
+
+                    </button>
+
+                  </div>
+
+                </div>
+
+                {/* PROGRESS */}
+                <div className="mt-5">
+
+                  <div className="flex items-center justify-between mb-2">
+
+                    <p className="text-xs text-gray-400">
+                      Upload Progress
+                    </p>
+
+                    <p className="text-xs font-medium text-gray-600">
+                      {file.progress}%
                     </p>
 
                   </div>
 
-                </div>
+                  <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
 
-                {/* RIGHT */}
-                <div className="flex items-center gap-3">
+                    <div
+                      className="h-full rounded-full bg-[#B8112D] transition-all duration-300"
+                      style={{
+                        width: `${file.progress}%`,
+                      }}
+                    />
 
-                  {/* STATUS */}
-                  <span
-                    className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
-                      file.status === "Shared"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-
-                    <CheckCircle2 size={14} />
-
-                    {file.status}
-
-                  </span>
-
-                  {/* SEND BUTTON */}
-                  <button
-                    onClick={() =>
-                      sendFile(file)
-                    }
-                    className="w-10 h-10 rounded-xl bg-[#F8ECEF] text-[#B8112D] hover:bg-[#eed6dc] flex items-center justify-center transition-all"
-                  >
-
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M22 2L11 13"
-                      />
-
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M22 2L15 22L11 13L2 9L22 2Z"
-                      />
-                    </svg>
-
-                  </button>
-
-                  {/* DELETE BUTTON */}
-                  <button
-                    onClick={() =>
-                      removeFile(file.id)
-                    }
-                    className="w-10 h-10 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
-                  >
-
-                    <Trash2 size={18} />
-
-                  </button>
+                  </div>
 
                 </div>
+
+                {/* DISTRIBUTION */}
+                {file.status ===
+                  "Distributed" && (
+                  <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+
+                    {csrList.map((csr) => (
+                      <div
+                        key={csr.id}
+                        className="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-4"
+                      >
+
+                        <p className="text-sm font-semibold text-gray-700">
+                          {csr.name}
+                        </p>
+
+                        <p className="text-xs text-gray-400 mt-1">
+                          Assigned Leads
+                        </p>
+
+                        <h4 className="text-xl font-bold text-[#B8112D] mt-2">
+                          {Math.floor(
+                            file.leads /
+                              csrList.length
+                          )}
+                        </h4>
+
+                      </div>
+                    ))}
+
+                  </div>
+                )}
 
               </div>
             ))}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Download, User, Settings, LogOut } from "lucide-react";
+import { Bell, Download, User } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function WelcomeHeader() {

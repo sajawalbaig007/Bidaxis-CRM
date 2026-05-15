@@ -10,7 +10,6 @@ import {
   ShoppingCart,
   Users,
   CalendarDays,
-  Download,
   Search,
   Clock3,
   FileBarChart2,
@@ -18,6 +17,16 @@ import {
   UserCheck,
   Target,
   Database,
+  ChevronDown,
+  Activity,
+  Trophy,
+  AlertTriangle,
+  ArrowUpRight,
+  ArrowDownRight,
+  Wifi,
+  Eye,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 
 import {
@@ -48,7 +57,41 @@ const reportTabs = [
    MOCK DATABASE
 ========================================= */
 
-const reportDatabase: any = {
+type CsrEntry = {
+  name: string;
+  calls: number;
+  orders: number;
+  conversion: string;
+  avgTime: string;
+  status: string;
+};
+
+type CallsChartEntry = {
+  day: string;
+  calls: number;
+};
+
+type OrdersChartEntry = {
+  day: string;
+  orders: number;
+};
+
+type LeadEntry = {
+  state: string;
+  leads: number;
+  assigned: number;
+};
+
+type ReportData = {
+  csr: CsrEntry[];
+  callsChart: CallsChartEntry[];
+  ordersChart: OrdersChartEntry[];
+  leads: LeadEntry[];
+};
+
+type ReportDatabase = Record<string, ReportData>;
+
+const reportDatabase: ReportDatabase = {
   "2026-05-10": {
     csr: [
       {
@@ -225,11 +268,9 @@ export default function ReportsPage() {
           flex-1
           overflow-y-auto
           overflow-x-hidden
-
           p-3
           sm:p-4
           md:p-6
-
           mt-[72px]
           lg:mt-0
         "
@@ -246,13 +287,29 @@ export default function ReportsPage() {
 
           <div>
 
-            <h1 className="text-[32px] font-bold text-[#111827]">
-              Reports & Performance Center
-            </h1>
+            <div className="flex items-center gap-3">
 
-            <p className="mt-1 text-sm text-gray-500">
-              Analyze CSR activity, calls, orders and lead distribution reports.
-            </p>
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#B8112D] text-white">
+
+                <FileBarChart2 size={20} />
+
+              </div>
+
+              <div>
+
+                <h1 className="text-[32px] font-bold text-[#111827]">
+                  Reports & Analytics
+                </h1>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Analyze calls, orders,
+                  CSR performance and lead
+                  activity.
+                </p>
+
+              </div>
+
+            </div>
 
           </div>
 
@@ -269,7 +326,7 @@ export default function ReportsPage() {
 
               <input
                 type="text"
-                placeholder="Search CSR..."
+                placeholder="Search reports..."
                 value={search}
                 onChange={(e) =>
                   setSearch(e.target.value)
@@ -285,7 +342,7 @@ export default function ReportsPage() {
                   text-sm
                   outline-none
                   focus:border-[#B8112D]
-                  sm:w-[240px]
+                  sm:w-[250px]
                 "
               />
 
@@ -313,7 +370,7 @@ export default function ReportsPage() {
                   border-gray-200
                   bg-white
                   pl-11
-                  pr-5
+                  pr-10
                   text-sm
                   outline-none
                   focus:border-[#B8112D]
@@ -356,10 +413,84 @@ export default function ReportsPage() {
                 hover:bg-[#a30f27]
               "
             >
-              Export Report
+              Export
 
-              <Download size={18} />
+              <ChevronDown size={18} />
             </button>
+
+          </div>
+
+        </div>
+
+        {/* =========================================
+            LIVE STATUS
+        ========================================= */}
+
+        <div className="mt-6 rounded-[28px] border border-red-100 bg-white p-5 shadow-sm">
+
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+
+            <div className="flex flex-wrap items-center gap-5">
+
+              <div className="flex items-center gap-3">
+
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100">
+
+                  <Wifi
+                    size={22}
+                    className="text-green-600"
+                  />
+
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500 animate-ping" />
+
+                </div>
+
+                <div>
+
+                  <h3 className="font-semibold text-[#111827]">
+                    Live Monitoring Active
+                  </h3>
+
+                  <p className="text-sm text-gray-500">
+                    Real-time reporting is
+                    connected
+                  </p>
+
+                </div>
+
+              </div>
+
+              <div className="h-12 w-[1px] bg-gray-200 hidden lg:block" />
+
+              <div>
+
+                <p className="text-sm text-gray-500">
+                  Last Updated
+                </p>
+
+                <h4 className="mt-1 font-semibold text-[#111827]">
+                  Just Now
+                </h4>
+
+              </div>
+
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+
+              <button className="rounded-2xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100">
+                Today
+              </button>
+
+              <button className="rounded-2xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100">
+                7 Days
+              </button>
+
+              <button className="rounded-2xl bg-[#B8112D] px-5 py-3 text-sm font-semibold text-white">
+                30 Days
+              </button>
+
+            </div>
 
           </div>
 
@@ -404,6 +535,7 @@ export default function ReportsPage() {
 
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
 
+          {/* CARD */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -426,12 +558,35 @@ export default function ReportsPage() {
 
             </div>
 
-            <p className="mt-5 text-sm font-medium text-green-600">
-              +14% this week
-            </p>
+            <div className="mt-5 flex items-center justify-between">
+
+              <div className="flex items-center gap-1 text-sm font-medium text-green-600">
+
+                <ArrowUpRight size={16} />
+
+                +14%
+
+              </div>
+
+              <div className="flex items-end gap-[3px]">
+
+                <div className="h-3 w-2 rounded-full bg-red-200" />
+
+                <div className="h-5 w-2 rounded-full bg-red-300" />
+
+                <div className="h-8 w-2 rounded-full bg-[#B8112D]" />
+
+                <div className="h-6 w-2 rounded-full bg-red-300" />
+
+                <div className="h-10 w-2 rounded-full bg-[#B8112D]" />
+
+              </div>
+
+            </div>
 
           </div>
 
+          {/* CARD */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -454,12 +609,35 @@ export default function ReportsPage() {
 
             </div>
 
-            <p className="mt-5 text-sm font-medium text-green-600">
-              +8% conversion
-            </p>
+            <div className="mt-5 flex items-center justify-between">
+
+              <div className="flex items-center gap-1 text-sm font-medium text-green-600">
+
+                <ArrowUpRight size={16} />
+
+                +8%
+
+              </div>
+
+              <div className="flex items-end gap-[3px]">
+
+                <div className="h-4 w-2 rounded-full bg-red-200" />
+
+                <div className="h-6 w-2 rounded-full bg-red-300" />
+
+                <div className="h-8 w-2 rounded-full bg-[#B8112D]" />
+
+                <div className="h-5 w-2 rounded-full bg-red-300" />
+
+                <div className="h-9 w-2 rounded-full bg-[#B8112D]" />
+
+              </div>
+
+            </div>
 
           </div>
 
+          {/* CARD */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -482,12 +660,31 @@ export default function ReportsPage() {
 
             </div>
 
-            <p className="mt-5 text-sm font-medium text-green-600">
-              All teams active
-            </p>
+            <div className="mt-5 flex items-center justify-between">
+
+              <div className="flex items-center gap-1 text-sm font-medium text-green-600">
+
+                <Activity size={16} />
+
+                Online
+
+              </div>
+
+              <div className="flex -space-x-2">
+
+                <div className="h-8 w-8 rounded-full border-2 border-white bg-red-200" />
+
+                <div className="h-8 w-8 rounded-full border-2 border-white bg-red-300" />
+
+                <div className="h-8 w-8 rounded-full border-2 border-white bg-[#B8112D]" />
+
+              </div>
+
+            </div>
 
           </div>
 
+          {/* CARD */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -510,9 +707,139 @@ export default function ReportsPage() {
 
             </div>
 
-            <p className="mt-5 text-sm font-medium text-green-600">
-              Faster than yesterday
-            </p>
+            <div className="mt-5 flex items-center justify-between">
+
+              <div className="flex items-center gap-1 text-sm font-medium text-red-500">
+
+                <ArrowDownRight size={16} />
+
+                -2%
+
+              </div>
+
+              <div className="text-sm text-gray-500">
+                Faster than yesterday
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* =========================================
+            KPI SECTION
+        ========================================= */}
+
+        <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+
+          {/* TOP CSR */}
+          <div className="rounded-[28px] bg-white p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-gray-500">
+                  Top Performer
+                </p>
+
+                <h3 className="mt-2 text-2xl font-bold text-[#111827]">
+                  John Carter
+                </h3>
+
+              </div>
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-100 text-yellow-600">
+                <Trophy size={28} />
+              </div>
+
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-yellow-50 p-4">
+
+              <div className="flex items-center justify-between">
+
+                <p className="text-sm text-gray-600">
+                  Conversion Rate
+                </p>
+
+                <p className="text-lg font-bold text-[#111827]">
+                  28%
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* WARNING */}
+          <div className="rounded-[28px] bg-white p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-gray-500">
+                  Attention Needed
+                </p>
+
+                <h3 className="mt-2 text-2xl font-bold text-[#111827]">
+                  Low Orders
+                </h3>
+
+              </div>
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                <AlertTriangle size={28} />
+              </div>
+
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-red-50 p-4">
+
+              <p className="text-sm text-gray-600">
+                Thursday order conversion
+                dropped by 11%.
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* AI INSIGHT */}
+          <div className="rounded-[28px] bg-white p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-gray-500">
+                  AI Insight
+                </p>
+
+                <h3 className="mt-2 text-2xl font-bold text-[#111827]">
+                  Smart Analysis
+                </h3>
+
+              </div>
+
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-100 text-purple-600">
+                <Sparkles size={28} />
+              </div>
+
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-purple-50 p-4">
+
+              <p className="text-sm text-gray-600 leading-relaxed">
+                CSRs with call durations
+                between 3-4 minutes show
+                higher conversion rates.
+              </p>
+
+            </div>
 
           </div>
 
@@ -527,7 +854,7 @@ export default function ReportsPage() {
           {/* LEFT */}
           <div className="xl:col-span-8 rounded-[28px] bg-white p-5 shadow-sm">
 
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
               <div>
 
@@ -536,13 +863,22 @@ export default function ReportsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Live performance analytics
+                  Advanced live analytics &
+                  reporting
                 </p>
 
               </div>
 
-              <div className="rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-[#B8112D]">
-                {selectedDate}
+              <div className="flex items-center gap-3">
+
+                <div className="rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-[#B8112D]">
+                  {selectedDate}
+                </div>
+
+                <button className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-500 transition-all hover:bg-gray-100">
+                  <Eye size={18} />
+                </button>
+
               </div>
 
             </div>
@@ -558,7 +894,6 @@ export default function ReportsPage() {
                   <BarChart
                     data={currentData.callsChart}
                   >
-
                     <CartesianGrid strokeDasharray="3 3" />
 
                     <XAxis dataKey="day" />
@@ -586,7 +921,6 @@ export default function ReportsPage() {
                       currentData.ordersChart
                     }
                   >
-
                     <CartesianGrid strokeDasharray="3 3" />
 
                     <XAxis dataKey="day" />
@@ -613,7 +947,6 @@ export default function ReportsPage() {
                       currentData.callsChart
                     }
                   >
-
                     <defs>
 
                       <linearGradient
@@ -664,7 +997,6 @@ export default function ReportsPage() {
                   <BarChart
                     data={currentData.leads}
                   >
-
                     <CartesianGrid strokeDasharray="3 3" />
 
                     <XAxis dataKey="state" />
@@ -687,7 +1019,7 @@ export default function ReportsPage() {
 
           </div>
 
-          {/* RIGHT SUMMARY */}
+          {/* RIGHT */}
           <div className="xl:col-span-4 rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
@@ -699,7 +1031,7 @@ export default function ReportsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Smart report summary
+                  AI generated summaries
                 </p>
 
               </div>
@@ -802,15 +1134,28 @@ export default function ReportsPage() {
 
         <div className="mt-6 overflow-x-auto rounded-[28px] bg-white p-5 shadow-sm">
 
-          <div className="mb-6">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-            <h2 className="text-xl font-bold text-[#111827]">
-              {activeTab} Details
-            </h2>
+            <div>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Detailed analytics based on selected date.
-            </p>
+              <h2 className="text-xl font-bold text-[#111827]">
+                {activeTab} Details
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Complete analytics based
+                on selected report filters.
+              </p>
+
+            </div>
+
+            <button className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100">
+
+              <FileText size={18} />
+
+              Generate PDF
+
+            </button>
 
           </div>
 
@@ -847,14 +1192,25 @@ export default function ReportsPage() {
                     Status
                   </th>
 
+                  <th className="pb-4 text-sm font-semibold text-gray-500">
+                    Action
+                  </th>
+
                 </tr>
 
               </thead>
 
               <tbody>
 
-                {currentData.csr
-                  .filter((item: any) =>
+                {(currentData.csr as {
+                  name: string;
+                  calls: number;
+                  orders: number;
+                  conversion: string;
+                  avgTime: string;
+                  status: string;
+                }[])
+                  .filter((item) =>
                     item.name
                       .toLowerCase()
                       .includes(
@@ -863,7 +1219,7 @@ export default function ReportsPage() {
                   )
                   .map(
                     (
-                      item: any,
+                      item,
                       i: number
                     ) => (
                       <tr
@@ -905,187 +1261,17 @@ export default function ReportsPage() {
 
                         </td>
 
+                        <td className="py-5">
+
+                          <button className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100">
+                            View
+                          </button>
+
+                        </td>
+
                       </tr>
                     )
                   )}
-
-              </tbody>
-
-            </table>
-          )}
-
-          {/* ORDERS TABLE */}
-          {activeTab ===
-            "Orders Report" && (
-            <table className="w-full min-w-[700px]">
-
-              <thead>
-
-                <tr className="border-b border-gray-100 text-left">
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Day
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Orders
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Revenue
-                  </th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                {currentData.ordersChart.map(
-                  (
-                    item: any,
-                    i: number
-                  ) => (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-50"
-                    >
-
-                      <td className="py-5 font-medium">
-                        {item.day}
-                      </td>
-
-                      <td className="py-5">
-                        {item.orders}
-                      </td>
-
-                      <td className="py-5 text-green-600 font-semibold">
-                        $
-                        {item.orders *
-                          120}
-                      </td>
-
-                    </tr>
-                  )
-                )}
-
-              </tbody>
-
-            </table>
-          )}
-
-          {/* CALLS TABLE */}
-          {activeTab ===
-            "Calls Report" && (
-            <table className="w-full min-w-[700px]">
-
-              <thead>
-
-                <tr className="border-b border-gray-100 text-left">
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Day
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Calls
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Avg Wait
-                  </th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                {currentData.callsChart.map(
-                  (
-                    item: any,
-                    i: number
-                  ) => (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-50"
-                    >
-
-                      <td className="py-5 font-medium">
-                        {item.day}
-                      </td>
-
-                      <td className="py-5">
-                        {item.calls}
-                      </td>
-
-                      <td className="py-5">
-                        1m 24s
-                      </td>
-
-                    </tr>
-                  )
-                )}
-
-              </tbody>
-
-            </table>
-          )}
-
-          {/* LEADS TABLE */}
-          {activeTab ===
-            "Leads Report" && (
-            <table className="w-full min-w-[700px]">
-
-              <thead>
-
-                <tr className="border-b border-gray-100 text-left">
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    State
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Total Leads
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Assigned
-                  </th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                {currentData.leads.map(
-                  (
-                    item: any,
-                    i: number
-                  ) => (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-50"
-                    >
-
-                      <td className="py-5 font-medium">
-                        {item.state}
-                      </td>
-
-                      <td className="py-5">
-                        {item.leads}
-                      </td>
-
-                      <td className="py-5 text-green-600 font-semibold">
-                        {
-                          item.assigned
-                        }
-                      </td>
-
-                    </tr>
-                  )
-                )}
 
               </tbody>
 
