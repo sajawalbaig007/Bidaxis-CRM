@@ -15,10 +15,41 @@ import {
   Bell,
   ChevronDown,
   X,
+  Globe, // ADD THIS
+  Calendar, // ADD THIS
 } from "lucide-react";
 
 import CSRNavbar from "./components/CSRNavbar";
 import CSRSidebar from "./components/CSRSidebar";
+
+// ADD THIS - US Timezones array
+const usTimezones = [
+  { value: "America/Adak", label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
+  { value: "America/Anchorage", label: "Alaska (UTC-09:00)", abbreviation: "AKST" },
+  { value: "America/Los_Angeles", label: "Pacific Time (UTC-08:00)", abbreviation: "PT" },
+  { value: "America/Denver", label: "Mountain Time (UTC-07:00)", abbreviation: "MT" },
+  { value: "America/Chicago", label: "Central Time (UTC-06:00)", abbreviation: "CT" },
+  { value: "America/New_York", label: "Eastern Time (UTC-05:00)", abbreviation: "ET" },
+  { value: "America/Phoenix", label: "Arizona (UTC-07:00) - No DST", abbreviation: "MST" },
+  { value: "America/Indiana/Indianapolis", label: "Indiana (UTC-05:00)", abbreviation: "EST" },
+  { value: "Pacific/Honolulu", label: "Hawaii (UTC-10:00) - No DST", abbreviation: "HST" },
+];
+
+// ADD THIS - Helper function
+const getCurrentTimeInTimezone = (timezone: string): string => {
+  try {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    };
+    return new Intl.DateTimeFormat('en-US', options).format(now);
+  } catch {
+    return "--:-- --";
+  }
+};
 
 const linksData = [
   {
@@ -30,8 +61,8 @@ const linksData = [
     status: "pending",
     nextSchedule: "",
     nextTime: "",
+    timezone: "", // ADD THIS
   },
-
   {
     id: 2,
     client: "Michael Brown",
@@ -41,8 +72,8 @@ const linksData = [
     status: "pending",
     nextSchedule: "",
     nextTime: "",
+    timezone: "", // ADD THIS
   },
-
   {
     id: 3,
     client: "David Lee",
@@ -52,6 +83,7 @@ const linksData = [
     status: "pending",
     nextSchedule: "",
     nextTime: "",
+    timezone: "", // ADD THIS
   },
 ];
 
@@ -87,6 +119,9 @@ export default function CSRPage() {
 
   const [scheduleTime, setScheduleTime] =
     useState("");
+
+  // ADD THIS - Timezone state
+  const [selectedTimezone, setSelectedTimezone] = useState("America/New_York");
 
   /* CURRENT LINK */
   const currentLink =
@@ -184,6 +219,14 @@ export default function CSRPage() {
       setSelectedImportantId(
         currentLink.id
       );
+      
+      // ADD THIS - Pre-fill existing timezone
+      const existingLink = links.find(l => l.id === currentLink.id);
+      if (existingLink?.timezone) {
+        setSelectedTimezone(existingLink.timezone);
+      } else {
+        setSelectedTimezone("America/New_York");
+      }
 
       setShowImportantModal(true);
 
@@ -222,7 +265,7 @@ export default function CSRPage() {
     );
   };
 
-  /* SAVE IMPORTANT */
+  /* SAVE IMPORTANT - MODIFIED to include timezone */
   const saveImportantCall =
     () => {
 
@@ -244,6 +287,7 @@ export default function CSRPage() {
                   scheduleDate,
                 nextTime:
                   scheduleTime,
+                timezone: selectedTimezone, // ADD THIS
               }
             : item
         )
@@ -256,7 +300,29 @@ export default function CSRPage() {
       setScheduleDate("");
 
       setScheduleTime("");
+      
+      setSelectedTimezone("America/New_York"); // ADD THIS
     };
+
+  // ADD THIS - Helper function to display scheduled time with timezone
+  const getFormattedSchedule = (link: typeof linksData[0]) => {
+    if (!link.nextSchedule || !link.nextTime) return null;
+    
+    const timezoneInfo = usTimezones.find(tz => tz.value === link.timezone);
+    const timezoneDisplay = timezoneInfo ? timezoneInfo.abbreviation : link.timezone?.split('/').pop();
+    
+    return (
+      <div className="flex flex-col">
+        <span className="text-[13px] font-medium text-[#0F172A]">
+          {link.nextSchedule} at {link.nextTime}
+        </span>
+        <span className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
+          <Globe size={10} />
+          {timezoneDisplay || link.timezone || "No TZ"}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -603,7 +669,7 @@ export default function CSRPage() {
 
             <table className="w-full min-w-[850px]">
 
-              {/* HEAD */}
+              {/* HEAD - MODIFIED to add Next Schedule column */}
               <thead className="bg-[#FAFAFA]">
 
                 <tr>
@@ -618,6 +684,11 @@ export default function CSRPage() {
 
                   <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
                     Phone
+                  </th>
+
+                  {/* ADD THIS - New column header */}
+                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
+                    Next Schedule
                   </th>
 
                   <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
@@ -682,6 +753,15 @@ export default function CSRPage() {
                       {
                         currentLink.phone
                       }
+                    </td>
+
+                    {/* ADD THIS - Next Schedule column */}
+                    <td className="py-5 px-5">
+                      {currentLink.nextSchedule && currentLink.nextTime ? (
+                        getFormattedSchedule(currentLink)
+                      ) : (
+                        <span className="text-gray-400 text-[13px]">Not scheduled</span>
+                      )}
                     </td>
 
                     {/* STATUS */}
@@ -799,7 +879,7 @@ export default function CSRPage() {
                   <tr>
 
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="py-20 text-center"
                     >
 
@@ -825,7 +905,7 @@ export default function CSRPage() {
 
         </div>
 
-        {/* IMPORTANT MODAL */}
+        {/* IMPORTANT MODAL - MODIFIED to add Timezone selector */}
         {showImportantModal && (
 
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
@@ -842,7 +922,7 @@ export default function CSRPage() {
                   </h2>
 
                   <p className="text-gray-500 text-sm mt-2">
-                    Schedule next follow-up call.
+                    Schedule next follow-up call with timezone.
                   </p>
 
                 </div>
@@ -865,7 +945,8 @@ export default function CSRPage() {
               {/* DATE */}
               <div className="mt-7">
 
-                <label className="text-sm font-semibold text-[#0F172A]">
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
+                  <Calendar size={16} />
                   Next Schedule Date
                 </label>
 
@@ -897,7 +978,8 @@ export default function CSRPage() {
               {/* TIME */}
               <div className="mt-5">
 
-                <label className="text-sm font-semibold text-[#0F172A]">
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
+                  <Clock3 size={16} />
                   Next Call Time
                 </label>
 
@@ -925,6 +1007,65 @@ export default function CSRPage() {
                 />
 
               </div>
+
+              {/* ADD THIS - Timezone Selector */}
+              <div className="mt-5 relative">
+
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
+                  <Globe size={16} />
+                  Client Timezone (US)
+                </label>
+
+                <select
+                  value={selectedTimezone}
+                  onChange={(e) => setSelectedTimezone(e.target.value)}
+                  className="
+                    mt-3
+                    w-full
+                    h-[52px]
+                    rounded-2xl
+                    border border-gray-200
+                    px-4
+                    pr-10
+                    outline-none
+                    appearance-none
+                    bg-white
+                    cursor-pointer
+                    focus:border-[#B8112D]
+                    text-[14px]
+                  "
+                >
+                  {usTimezones.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+                
+                <div className="absolute right-4 top-[42px] pointer-events-none text-gray-400">
+                  <ChevronDown size={18} />
+                </div>
+
+              </div>
+
+              {/* ADD THIS - Real time preview */}
+              {scheduleDate && scheduleTime && selectedTimezone && (
+                <div className="mt-5 p-4 bg-[#F5F6FA] rounded-2xl">
+                  <p className="text-[12px] font-medium text-gray-500 mb-2">Scheduled Meeting (Client Local Time)</p>
+                  <p className="text-[15px] font-semibold text-[#0F172A]">
+                    {scheduleDate} at {scheduleTime} {usTimezones.find(tz => tz.value === selectedTimezone)?.abbreviation}
+                  </p>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-[11px] text-gray-400 flex items-center gap-1">
+                      <Globe size={11} />
+                      Current time in {usTimezones.find(tz => tz.value === selectedTimezone)?.label.split(' ')[0]}:
+                      <span className="font-mono font-medium text-gray-600 ml-1">
+                        {getCurrentTimeInTimezone(selectedTimezone)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* BUTTONS */}
               <div className="flex gap-3 mt-7">
@@ -961,7 +1102,7 @@ export default function CSRPage() {
                     shadow-sm
                   "
                 >
-                  Save Call
+                  Schedule Call
                 </button>
 
               </div>
