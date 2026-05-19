@@ -15,7 +15,7 @@ const performers: Performer[] = [
   { name: "Ahmed Raza", tickets: 47, rating: 4.9, trend: "up" },
   { name: "Fatima Khan", tickets: 42, rating: 4.8, trend: "up" },
   { name: "Omar Hassan", tickets: 38, rating: 4.7, trend: "stable" },
-  { name: "Zainab Ali", tickets: 35, rating: 4.6, trend: "down" },
+  
 ];
 
 const getTrendIcon = (trend: string) => {

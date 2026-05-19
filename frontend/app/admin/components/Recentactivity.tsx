@@ -19,6 +19,7 @@ const recentActivities: Activity[] = [
   { id: 3, user: "Hamza Farooq", action: "updated user profile", time: "1 hour ago", type: "update" },
   { id: 4, user: "Fatima Khan", action: "completed training module", time: "2 hours ago", type: "resolve" },
   { id: 5, user: "Omar Hassan", action: "system alert: high priority task", time: "3 hours ago", type: "alert" },
+  { id: 1, user: "Ali Khan", action: "created a new ticket #T-1234", time: "2 min ago", type: "create" },
 ];
 
 const getActivityIcon = (type: string) => {

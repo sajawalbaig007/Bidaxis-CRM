@@ -16,8 +16,7 @@ type Metric = {
 const initialMetrics: Metric[] = [
   { name: "API Response Time", value: "124ms", status: "good", progress: 75, icon: Activity },
   { name: "Storage Usage", value: "68%", status: "warning", progress: 68, icon: Server },
-  { name: "Active Sessions", value: "247", status: "good", progress: 50, icon: Wifi },
-  { name: "CPU Usage", value: "32%", status: "good", progress: 32, icon: Cpu },
+
 ];
 
 const getStatusColor = (status: string) => {

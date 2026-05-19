@@ -6,13 +6,13 @@ import DashboardSidebar from "./components/Sidebar";
 import StatsCards from "./components/StatsCards";
 import PerformanceChart from "./components/PerformanceChart";
 import OverviewChart from "./components/OverviewChart";
-import AnnouncementBanner from "./Announcementbanner/page";
-import QuickActions from "./quickactions/page";
-import RecentActivity from "./recentactivity/page";
-import TopPerformers from "./topperformer/page";
-import PendingTasks from "./pendingtasks/page";
-import SystemHealth from "./systemhealth/page";
-import WelcomeHeader from "./welcomeheader/page";
+import AnnouncementBanner from "./components/Announcement";
+import QuickActions from "./components/Quickactions";
+import RecentActivity from "./components/Recentactivity";
+import TopPerformers from"./components/TopPerformer";
+
+import SystemHealth from"./components/Systemhealth";
+import WelcomeHeader from "./components/Welcome";
 
 export default function DashboardPage() {
   return (
@@ -61,7 +61,7 @@ export default function DashboardPage() {
               <OverviewChart />
             </div>
             <TopPerformers />
-            <PendingTasks />
+           
             <SystemHealth />
           </div>
           
