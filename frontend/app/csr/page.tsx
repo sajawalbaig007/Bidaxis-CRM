@@ -21,7 +21,7 @@ import {
 
 import CSRNavbar from "./components/CSRNavbar";
 import CSRSidebar from "./components/CSRSidebar";
-
+import WelcomeHeader from "./components/WelcomeHeader";
 // ADD THIS - US Timezones array
 const usTimezones = [
   { value: "America/Adak", label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
@@ -353,10 +353,8 @@ export default function CSRPage() {
 
             {/* TEXT */}
             <div>
-
-              <h1 className="text-[28px] sm:text-[32px] leading-tight font-bold text-[#0F172A] tracking-[-0.5px]">
-                Welcome back, CSR!
-              </h1>
+        <WelcomeHeader/>
+             
 
               {/* BADGES */}
               <div className="flex flex-wrap items-center gap-3 mt-3">
@@ -1103,7 +1101,7 @@ export default function CSRPage() {
                   "
                 >
                   Schedule Call
-                </button>
+                 </button>
 
               </div>
 

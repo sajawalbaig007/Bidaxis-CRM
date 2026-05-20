@@ -21,12 +21,19 @@ import {
   usePathname,
 } from "next/navigation";
 
+import toast from "react-hot-toast";
+
 export default function DashboardSidebar() {
+
   const router = useRouter();
 
-  const pathname = usePathname();
+  const pathname =
+    usePathname();
 
   const [open, setOpen] =
+    useState(false);
+
+  const [loading, setLoading] =
     useState(false);
 
   const menuItems = [
@@ -66,6 +73,45 @@ export default function DashboardSidebar() {
       route: "/admin/settings",
     },
   ];
+
+  /* ================= LOGOUT ================= */
+
+  const handleLogout =
+    async () => {
+
+      try {
+
+        setLoading(true);
+
+        await fetch(
+          "http://localhost:5000/api/auth/logout",
+          {
+            method: "POST",
+
+            credentials:
+              "include",
+          }
+        );
+
+        toast.success(
+          "Logged out successfully."
+        );
+
+        router.push("/");
+
+        router.refresh();
+
+      } catch {
+
+        toast.error(
+          "Logout failed."
+        );
+
+      } finally {
+
+        setLoading(false);
+      }
+    };
 
   return (
     <>
@@ -306,7 +352,10 @@ export default function DashboardSidebar() {
 
             <button
               onClick={() => {
-                router.push("/admin/scraper");
+
+                router.push(
+                  "/admin/scraper"
+                );
 
                 setOpen(false);
               }}
@@ -337,56 +386,69 @@ export default function DashboardSidebar() {
           {/* MENU */}
           <nav className="p-3 space-y-2">
 
-            {menuItems.map((item, i) => {
-              const Icon = item.icon;
+            {menuItems.map(
+              (item, i) => {
 
-              const isActive =
-                pathname === item.route ||
-                (item.route !== "/admin" &&
-                  pathname.startsWith(
-                    item.route
-                  ));
+                const Icon =
+                  item.icon;
 
-              return (
-                <button
-                  key={i}
-                  onClick={() => {
-                    router.push(item.route);
+                const isActive =
+                  pathname ===
+                    item.route ||
+                  (item.route !==
+                    "/admin" &&
+                    pathname.startsWith(
+                      item.route
+                    ));
 
-                    setOpen(false);
-                  }}
-                  className={`
-                    w-full
+                return (
+                  <button
+                    key={i}
+                    onClick={() => {
 
-                    flex
-                    items-center
-                    gap-3
+                      router.push(
+                        item.route
+                      );
 
-                    px-4
-                    py-3
+                      setOpen(
+                        false
+                      );
+                    }}
+                    className={`
+                      w-full
 
-                    rounded-2xl
+                      flex
+                      items-center
+                      gap-3
 
-                    transition-all
+                      px-4
+                      py-3
 
-                    text-sm
-                    font-medium
+                      rounded-2xl
 
-                    ${
-                      isActive
-                        ? "bg-[#B8112D] text-white shadow-sm"
-                        : "text-gray-500 hover:bg-gray-100"
-                    }
-                  `}
-                >
+                      transition-all
 
-                  <Icon size={18} />
+                      text-sm
+                      font-medium
 
-                  {item.name}
+                      ${
+                        isActive
+                          ? "bg-[#B8112D] text-white shadow-sm"
+                          : "text-gray-500 hover:bg-gray-100"
+                      }
+                    `}
+                  >
 
-                </button>
-              );
-            })}
+                    <Icon
+                      size={18}
+                    />
+
+                    {item.name}
+
+                  </button>
+                );
+              }
+            )}
 
           </nav>
 
@@ -396,6 +458,10 @@ export default function DashboardSidebar() {
         <div className="p-4">
 
           <button
+            onClick={
+              handleLogout
+            }
+            disabled={loading}
             className="
               w-full
 
@@ -418,12 +484,16 @@ export default function DashboardSidebar() {
 
               text-sm
               font-medium
+
+              disabled:opacity-60
             "
           >
 
             <LogOut size={16} />
 
-            Logout
+            {loading
+              ? "Logging out..."
+              : "Logout"}
 
           </button>
 

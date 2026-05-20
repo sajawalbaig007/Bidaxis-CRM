@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import toast, {
   Toaster,
@@ -11,7 +11,6 @@ import {
   Plus,
   Users,
   UserCheck,
-  UserX,
   Pencil,
   Trash2,
   Ban,
@@ -30,6 +29,7 @@ import DashboardNavbar from "../components/Navbar";
 type UserRole = "CSR" | "Admin" | "User";
 
 type User = {
+  id: string;
   name: string;
   email: string;
   password: string;
@@ -42,6 +42,7 @@ type User = {
 
 const initialUsers: User[] = [
   {
+    id: "1",
     name: "Ali Khan",
     email: "ali@gmail.com",
     password: "123456",
@@ -50,6 +51,7 @@ const initialUsers: User[] = [
     role: "Admin",
   },
   {
+    id: "2",
     name: "Hamza Farooq",
     email: "hamza@gmail.com",
     password: "123456",
@@ -58,6 +60,7 @@ const initialUsers: User[] = [
     role: "CSR",
   },
   {
+    id: "3",
     name: "Ahmed Raza",
     email: "ahmed@gmail.com",
     password: "123456",
@@ -66,6 +69,7 @@ const initialUsers: User[] = [
     role: "CSR",
   },
   {
+    id: "4",
     name: "Sara Ahmed",
     email: "sara@gmail.com",
     password: "123456",
@@ -74,6 +78,7 @@ const initialUsers: User[] = [
     role: "Admin",
   },
   {
+    id: "5",
     name: "Omar Hassan",
     email: "omar@gmail.com",
     password: "123456",
@@ -135,54 +140,227 @@ export default function UsersPage() {
     (u) => u.status === "Active" && u.role === "Admin"
   ).length;
 
-  /* ================= ACTIONS ================= */
+/* ===========================
+   FETCH USERS FROM DATABASE
+=========================== */
 
-  const handleSubmit = () => {
-    if (
-      !form.name ||
-      !form.email ||
-      !form.password
-    ) {
+const fetchUsers = async () => {
+
+  try {
+
+    const res =
+      await fetch(
+        "http://localhost:5000/api/users",
+        {
+          credentials:
+            "include",
+        }
+      );
+
+    const data =
+      await res.json();
+
+    if (!res.ok) {
+
       toast.error(
-        "Please fill all fields."
+        "Failed to fetch users."
       );
 
       return;
     }
 
+    /* FORMAT USERS */
+
+    const formattedUsers =
+      data.map((user: { id: string; name: string; email: string; role: string }) => ({
+        id: user.id,
+
+        name: user.name,
+
+        email: user.email,
+
+        role:
+          user.role === "csr"
+            ? "CSR"
+            : "Admin",
+
+        status: "Active",
+
+        lastActivity:
+          "Just now",
+          
+        password: "",
+      }));
+
+    setUsers(
+      formattedUsers
+    );
+
+  } catch {
+
+    toast.error(
+      "Something went wrong."
+    );
+  }
+};
+
+/* ===========================
+   LOAD USERS
+=========================== */
+
+useEffect(() => {
+
+  const loadUsers = async () => {
+    await fetchUsers();
+  };
+  
+  loadUsers();
+
+}, []);
+
+/* ===========================
+   HANDLE SUBMIT
+=========================== */
+
+const handleSubmit = async () => {
+
+  /* VALIDATION */
+
+  if (
+    !form.name ||
+    !form.email ||
+    !form.password
+  ) {
+
+    toast.error(
+      "Please fill all fields."
+    );
+
+    return;
+  }
+
+  try {
+
+    /* ===========================
+       EDIT USER
+    =========================== */
+
     if (editingUser) {
-      setUsers(
-        users.map((u) =>
-          u.email === editingUser.email
-            ? {
-                ...u,
-                name: form.name,
-                email: form.email,
-                password: form.password,
-                lastActivity: "Just now",
-                role: form.role,
-              }
-            : u
-        )
-      );
+
+      const res =
+        await fetch(
+          `http://localhost:5000/api/users/${editingUser.id}`,
+          {
+            method: "PUT",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            credentials:
+              "include",
+
+            body: JSON.stringify({
+              name:
+                form.name,
+
+              email:
+                form.email,
+
+              role:
+                form.role ===
+                "CSR"
+                  ? "csr"
+                  : "admin",
+            }),
+          }
+        );
+
+      const data =
+        await res.json();
+
+      if (!res.ok) {
+
+        toast.error(
+          data.message ||
+            "Failed to update user."
+        );
+
+        return;
+      }
+
+      /* REFRESH USERS */
+
+      fetchUsers();
 
       toast.success(
         "User updated successfully."
       );
-    } else {
-      setUsers([
-        ...users,
-        {
-          ...form,
-          status: "Active",
-          lastActivity: "Just now",
-        },
-      ]);
+    }
+
+    /* ===========================
+       CREATE USER
+    =========================== */
+
+    else {
+
+      const res =
+        await fetch(
+          "http://localhost:5000/api/auth/register",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            credentials:
+              "include",
+
+            body: JSON.stringify({
+              name:
+                form.name,
+
+              email:
+                form.email,
+
+              password:
+                form.password,
+
+              role:
+                form.role ===
+                "CSR"
+                  ? "csr"
+                  : "admin",
+            }),
+          }
+        );
+
+      const data =
+        await res.json();
+
+      if (!res.ok) {
+
+        toast.error(
+          data.message ||
+            "Failed to create user."
+        );
+
+        return;
+      }
+
+      /* REFRESH USERS */
+
+      fetchUsers();
 
       toast.success(
         "User created successfully."
       );
     }
+
+    /* CLOSE MODAL */
 
     setShowModal(false);
 
@@ -196,51 +374,138 @@ export default function UsersPage() {
     });
 
     setShowPassword(false);
-  };
 
-  const handleDelete = (
-    email: string
-  ) => {
-    setUsers(
-      users.filter(
-        (u) => u.email !== email
-      )
+  } catch {
+
+    toast.error(
+      "Something went wrong."
     );
+  }
+};
+
+/* ===========================
+   DELETE USER
+=========================== */
+
+const handleDelete = async (
+  id: string
+) => {
+
+  try {
+
+    const res =
+      await fetch(
+        `http://localhost:5000/api/users/${id}`,
+        {
+          method: "DELETE",
+
+          credentials:
+            "include",
+        }
+      );
+
+    const data =
+      await res.json();
+
+    if (!res.ok) {
+
+      toast.error(
+        data.message ||
+          "Delete failed."
+      );
+
+      return;
+    }
+
+    /* REFRESH USERS */
+
+    fetchUsers();
 
     toast.success(
       "User deleted successfully."
     );
-  };
 
-  const toggleStatus = (
-    email: string
-  ) => {
-    const targetUser = users.find(
-      (u) => u.email === email
-    );
+  } catch {
 
-    setUsers(
-      users.map((u) =>
-        u.email === email
-          ? {
-              ...u,
-              status:
-                u.status === "Active"
-                  ? "Inactive"
-                  : "Active",
-            }
-          : u
-      )
+    toast.error(
+      "Something went wrong."
     );
+  }
+};
+
+/* ===========================
+   TOGGLE STATUS
+=========================== */
+
+const toggleStatus = async (
+  id: string
+) => {
+
+  try {
+
+    const targetUser =
+      users.find(
+        (u) => u.id === id
+      );
+
+    const newStatus =
+      targetUser?.status ===
+      "Active"
+        ? "Inactive"
+        : "Active";
+
+    const res =
+      await fetch(
+        `http://localhost:5000/api/users/${id}`,
+        {
+          method: "PUT",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          credentials:
+            "include",
+
+          body: JSON.stringify({
+            status:
+              newStatus,
+          }),
+        }
+      );
+
+    const data =
+      await res.json();
+
+    if (!res.ok) {
+
+      toast.error(
+        data.message ||
+          "Status update failed."
+      );
+
+      return;
+    }
+
+    /* REFRESH USERS */
+
+    fetchUsers();
 
     toast.success(
-      targetUser?.status ===
-        "Active"
+      newStatus ===
+        "Inactive"
         ? "User blocked successfully."
         : "User activated successfully."
     );
-  };
 
+  } catch {
+
+    toast.error(
+      "Something went wrong."
+    );
+  }
+};
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
 
@@ -523,7 +788,7 @@ export default function UsersPage() {
 
               {filteredUsers.map((u, i) => (
                 <tr
-                  key={i}
+                  key={u.id}
                   className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all"
                 >
 
@@ -615,7 +880,7 @@ export default function UsersPage() {
                       <button
                         onClick={() =>
                           toggleStatus(
-                            u.email
+                            u.id
                           )
                         }
                         className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all
@@ -633,7 +898,7 @@ export default function UsersPage() {
                       <button
                         onClick={() =>
                           handleDelete(
-                            u.email
+                            u.id
                           )
                         }
                         className="w-9 h-9 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
@@ -711,7 +976,7 @@ export default function UsersPage() {
                           <button
                             onClick={() => {
                               toggleStatus(
-                                u.email
+                                u.id
                               );
 
                               setOpenMenu(null);
@@ -727,7 +992,7 @@ export default function UsersPage() {
                           <button
                             onClick={() => {
                               handleDelete(
-                                u.email
+                                u.id
                               );
 
                               setOpenMenu(null);
