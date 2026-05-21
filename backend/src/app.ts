@@ -12,6 +12,8 @@ import adminRoutes from "./routes/admin.routes";
 
 import csrRoutes from "./routes/csr.routes";
 
+import uploadRoutes from "./routes/upload.routes";
+
 import userRoutes from "./routes/user.routes";
 
 dotenv.config();
@@ -47,5 +49,9 @@ app.use(
 app.use(
   "/api/users",
   userRoutes
+);
+app.use(
+  "/api/uploads",
+  uploadRoutes
 );
 export default app;

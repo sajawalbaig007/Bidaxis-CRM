@@ -12,11 +12,129 @@ enum Role {
   csr
 }
 
+/* ================= USER ================= */
+
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role
-  createdAt DateTime @default(now())
+  id          String      @id @default(cuid())
+
+  name        String
+  email       String      @unique
+  password    String
+
+  role        Role
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+
+  /* RELATIONS */
+
+  leads       Lead[]      @relation("AssignedLeads")
+
+  callLogs    CallLog[]   @relation("CSRCallLogs")
+
+  reports     Report[]
+}
+
+/* ================= LEAD ================= */
+
+model Lead {
+  id              String       @id @default(cuid())
+
+  name            String?
+  phone           String?
+  email           String?
+
+  status          String       @default("pending")
+
+  comments        String?
+
+  important       Boolean      @default(false)
+
+  interested      Boolean      @default(false)
+
+  nextSchedule    String?
+
+  nextTime        String?
+
+  timezone        String?
+
+  assignedTo      String
+
+  uploadedFileId  String?
+
+  createdAt       DateTime     @default(now())
+
+  updatedAt       DateTime     @default(now()) @updatedAt
+
+  /* RELATIONS */
+
+  csr             User         @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
+
+  uploadFile      UploadFile?  @relation(fields: [uploadedFileId], references: [id])
+
+  callLogs        CallLog[]
+}
+
+/* ================= CALL LOG ================= */
+
+model CallLog {
+  id          String      @id @default(cuid())
+
+  leadId      String
+
+  csrId       String
+
+  status      String
+
+  notes       String?
+
+  duration    Int?
+
+  createdAt   DateTime    @default(now())
+
+  /* RELATIONS */
+
+  lead        Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  csr         User        @relation("CSRCallLogs", fields: [csrId], references: [id], onDelete: Cascade)
+}
+
+/* ================= UPLOAD FILE ================= */
+
+model UploadFile {
+  id              String      @id @default(cuid())
+
+  fileName        String
+
+  cloudinaryUrl   String
+
+  totalLeads      Int
+
+  uploadedBy      String
+
+  createdAt       DateTime    @default(now())
+
+  /* RELATIONS */
+
+  leads           Lead[]
+}
+
+/* ================= REPORT ================= */
+
+model Report {
+  id            String      @id @default(cuid())
+
+  reportName    String
+
+  reportUrl     String
+
+  reportType    String
+
+  generatedBy   String
+
+  createdAt     DateTime    @default(now())
+
+  /* RELATIONS */
+
+  user          User        @relation(fields: [generatedBy], references: [id], onDelete: Cascade)
 }

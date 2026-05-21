@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 
 import {
   ShieldCheck,
@@ -22,6 +22,7 @@ import {
 import CSRNavbar from "./components/CSRNavbar";
 import CSRSidebar from "./components/CSRSidebar";
 import WelcomeHeader from "./components/WelcomeHeader";
+import API from "@/lib/api";
 // ADD THIS - US Timezones array
 const usTimezones = [
   { value: "America/Adak", label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
@@ -51,41 +52,6 @@ const getCurrentTimeInTimezone = (timezone: string): string => {
   }
 };
 
-const linksData = [
-  {
-    id: 1,
-    client: "John Smith",
-    company: "BEM Design Studio",
-    phone: "+1 202 555 0192",
-    email: "john@bem.com",
-    status: "pending",
-    nextSchedule: "",
-    nextTime: "",
-    timezone: "", // ADD THIS
-  },
-  {
-    id: 2,
-    client: "Michael Brown",
-    company: "Prime Builders",
-    phone: "+1 202 888 0192",
-    email: "michael@prime.com",
-    status: "pending",
-    nextSchedule: "",
-    nextTime: "",
-    timezone: "", // ADD THIS
-  },
-  {
-    id: 3,
-    client: "David Lee",
-    company: "Urban Space",
-    phone: "+1 303 222 9999",
-    email: "david@urban.com",
-    status: "pending",
-    nextSchedule: "",
-    nextTime: "",
-    timezone: "", // ADD THIS
-  },
-];
 
 export default function CSRPage() {
 
@@ -93,10 +59,102 @@ export default function CSRPage() {
   const [isOpen, setIsOpen] =
     useState(false);
 
-  /* LINKS */
-  const [links, setLinks] =
-    useState(linksData);
+type LeadType = {
+  id: string;
 
+  client: string;
+
+  company: string;
+
+  phone: string;
+
+  email: string;
+
+  status: string;
+
+  nextSchedule: string;
+
+  nextTime: string;
+
+  timezone: string;
+};
+
+const [links, setLinks] =
+  useState<LeadType[]>([]);
+/* ================= FETCH REAL LEADS ================= */
+
+const fetchDashboard =
+  async () => {
+
+    try {
+
+      const res =
+        await API.get(
+          "/csr/dashboard"
+        );
+
+      const formatted =
+        res.data.leads.map(
+          (lead: {
+  id: string;
+  name?: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  status?: string;
+})  => ({
+
+            id: lead.id,
+
+            client:
+              lead.name ||
+              "Unknown",
+
+            company:
+              lead.company ||
+              "N/A",
+
+            phone:
+              lead.phone ||
+              "N/A",
+
+            email:
+              lead.email ||
+              "N/A",
+
+            status:
+              lead.status ||
+              "pending",
+
+            nextSchedule: "",
+
+            nextTime: "",
+
+            timezone: "",
+
+          })
+        );
+
+      setLinks(
+        formatted
+      );
+
+    } catch (error) {
+
+      console.log(error);
+    }
+  };
+ useEffect(() => {
+
+  const loadData =
+    async () => {
+
+      await fetchDashboard();
+    };
+
+  loadData();
+
+}, []);
   /* ACTIVE TAB */
   const [activeTab, setActiveTab] =
     useState("today");
@@ -108,11 +166,11 @@ export default function CSRPage() {
   ] = useState(false);
 
   const [
-    selectedImportantId,
-    setSelectedImportantId,
-  ] = useState<number | null>(
-    null
-  );
+  selectedImportantId,
+  setSelectedImportantId
+] = useState<string | null>(
+  null
+);
 
   const [scheduleDate, setScheduleDate] =
     useState("");
@@ -123,53 +181,86 @@ export default function CSRPage() {
   // ADD THIS - Timezone state
   const [selectedTimezone, setSelectedTimezone] = useState("America/New_York");
 
-  /* CURRENT LINK */
-  const currentLink =
-    links.find((item) => {
+ /* FILTERED LINKS */
 
-      if (activeTab === "today")
-        return (
-          item.status === "pending"
-        );
+const filteredLinks =
+  links.filter((item) => {
 
-      if (
-        activeTab === "completed"
-      )
-        return (
-          item.status ===
-          "completed"
-        );
-
-      if (
-        activeTab ===
-        "notcompleted"
-      )
-        return (
-          item.status ===
-          "not completed"
-        );
-
-      if (
-        activeTab === "important"
-      )
-        return (
-          item.status ===
-          "important"
-        );
-
-      if (
-        activeTab === "interested"
-      )
-        return (
-          item.status ===
-          "interested"
-        );
+    /* TODAY */
+    if (
+      activeTab ===
+      "today"
+    ) {
 
       return (
-        item.status === "pending"
+        item.status ===
+        "pending"
       );
+    }
 
-    });
+    /* COMPLETED */
+    if (
+      activeTab ===
+      "completed"
+    ) {
+
+      return (
+        item.status ===
+        "completed"
+      );
+    }
+
+    /* PENDING */
+    if (
+      activeTab ===
+      "pending"
+    ) {
+
+      return (
+        item.status ===
+        "pending"
+      );
+    }
+
+    /* NOT COMPLETED */
+    if (
+      activeTab ===
+      "notcompleted"
+    ) {
+
+      return (
+        item.status ===
+        "not completed"
+      );
+    }
+
+    /* IMPORTANT */
+    if (
+      activeTab ===
+      "important"
+    ) {
+
+      return (
+        item.status ===
+        "important"
+      );
+    }
+
+    /* INTERESTED */
+    if (
+      activeTab ===
+      "interested"
+    ) {
+
+      return (
+        item.status ===
+        "interested"
+      );
+    }
+
+    return false;
+
+  });
 
   /* COUNTS */
   const completedCount =
@@ -201,73 +292,97 @@ export default function CSRPage() {
 
   const notCompletedCount =
     links.filter(
+      
       (item) =>
         item.status ===
         "not completed"
     ).length;
 
+    
   /* UPDATE STATUS */
-  const updateStatus = (
-    status: string
-  ) => {
+  const updateStatus = async(
+  id: string,
+  status: string
+) => {
 
-    if (!currentLink) return;
-
-    /* IMPORTANT */
-    if (status === "important") {
-
-      setSelectedImportantId(
-        currentLink.id
-      );
-      
-      // ADD THIS - Pre-fill existing timezone
-      const existingLink = links.find(l => l.id === currentLink.id);
-      if (existingLink?.timezone) {
-        setSelectedTimezone(existingLink.timezone);
-      } else {
-        setSelectedTimezone("America/New_York");
-      }
-
-      setShowImportantModal(true);
-
-      return;
-    }
-
-    /* INTERESTED */
-    if (status === "interested") {
-
-      setLinks((prev) =>
-        prev.map((item) =>
-          item.id ===
-          currentLink.id
-            ? {
-                ...item,
-                status:
-                  "interested",
-              }
-            : item
-        )
-      );
-
-      return;
-    }
-
-    /* NORMAL */
-    setLinks((prev) =>
-      prev.map((item) =>
-        item.id === currentLink.id
-          ? {
-              ...item,
-              status,
-            }
-          : item
-      )
+  const selectedLink =
+    links.find(
+      (item) =>
+        item.id === id
     );
-  };
+
+  if (!selectedLink)
+    return;
+
+  /* IMPORTANT */
+  if (status === "important") {
+
+    setSelectedImportantId(
+      selectedLink.id
+    );
+
+    const existingLink =
+      links.find(
+        (l) =>
+          l.id ===
+          selectedLink.id
+      );
+
+    if (
+      existingLink?.timezone
+    ) {
+
+      setSelectedTimezone(
+        existingLink.timezone
+      );
+
+    } else {
+
+      setSelectedTimezone(
+        "America/New_York"
+      );
+    }
+
+    setShowImportantModal(
+      true
+    );
+
+    return;
+  }
+
+  /* UPDATE UI FIRST */
+
+setLinks((prev) =>
+  prev.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          status,
+        }
+      : item
+  )
+);
+
+/* SAVE TO DATABASE */
+
+try {
+
+  await API.put(
+    `/csr/lead/${id}`,
+    {
+      status,
+    }
+  );
+
+} catch (error) {
+
+  console.log(error);
+}
+};
 
   /* SAVE IMPORTANT - MODIFIED to include timezone */
   const saveImportantCall =
-    () => {
+   async () => {
 
       if (
         !scheduleDate ||
@@ -305,7 +420,7 @@ export default function CSRPage() {
     };
 
   // ADD THIS - Helper function to display scheduled time with timezone
-  const getFormattedSchedule = (link: typeof linksData[0]) => {
+  const getFormattedSchedule = (link: typeof links[0]) => {
     if (!link.nextSchedule || !link.nextTime) return null;
     
     const timezoneInfo = usTimezones.find(tz => tz.value === link.timezone);
@@ -701,201 +816,245 @@ export default function CSRPage() {
 
               </thead>
 
-              {/* BODY */}
-              <tbody>
+             <tbody>
 
-                {currentLink ? (
+  {filteredLinks.length > 0 ? (
 
-                  <tr className="border-t border-gray-100 bg-white">
+    filteredLinks.map(
+      (currentLink) => (
 
-                    {/* CLIENT */}
-                    <td className="py-5 px-5">
+        <tr
+          key={currentLink.id}
+          className="border-t border-gray-100 bg-white"
+        >
 
-                      <div className="flex items-center gap-4">
+      {/* CLIENT */}
+<td className="py-5 px-5">
 
-                        <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
-                          {currentLink.client.charAt(
-                            0
-                          )}
-                        </div>
+  <div className="flex items-center gap-3">
 
-                        <div>
+    {/* INDEX NUMBER */}
+    <div className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-xs font-bold shrink-0">
+      {
+        links.filter(
+          (item) => {
 
-                          <h4 className="text-[14px] font-semibold text-[#0F172A]">
-                            {
-                              currentLink.client
-                            }
-                          </h4>
+            if (activeTab === "today")
+              return item.status === "pending";
 
-                          <p className="text-[11px] text-gray-500 mt-1">
-                            {
-                              currentLink.email
-                            }
-                          </p>
+            if (activeTab === "completed")
+              return item.status === "completed";
 
-                        </div>
+            if (activeTab === "notcompleted")
+              return item.status === "not completed";
 
-                      </div>
+            if (activeTab === "important")
+              return item.status === "important";
 
-                    </td>
+            if (activeTab === "interested")
+              return item.status === "interested";
 
-                    {/* COMPANY */}
-                    <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">
-                      {
-                        currentLink.company
-                      }
-                    </td>
+            return item.status === "pending";
 
-                    {/* PHONE */}
-                    <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">
-                      {
-                        currentLink.phone
-                      }
-                    </td>
+          }
+        ).findIndex(
+          (item) =>
+            item.id === currentLink.id
+        ) + 1
+      }
+    </div>
 
-                    {/* ADD THIS - Next Schedule column */}
-                    <td className="py-5 px-5">
-                      {currentLink.nextSchedule && currentLink.nextTime ? (
-                        getFormattedSchedule(currentLink)
-                      ) : (
-                        <span className="text-gray-400 text-[13px]">Not scheduled</span>
-                      )}
-                    </td>
+              <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
 
-                    {/* STATUS */}
-                    <td className="py-5 px-5">
+                {currentLink.client.charAt(0)}
 
-                      <div
-                        className={`
-                          px-4 py-2 rounded-xl text-sm font-semibold w-fit
+              </div>
 
-                          ${
-                            currentLink.status ===
-                            "completed"
-                              ? "bg-[#ECFDF3] text-[#027A48]"
-                              : currentLink.status ===
-                                "important"
-                              ? "bg-[#FFF1F3] text-[#B8112D]"
-                              : currentLink.status ===
-                                "interested"
-                              ? "bg-[#FFF4E5] text-[#D97706]"
-                              : currentLink.status ===
-                                "not completed"
-                              ? "bg-[#FFF7E6] text-[#B54708]"
-                              : "bg-[#F4F4F5] text-[#52525B]"
-                          }
-                        `}
-                      >
+              <div>
 
-                        {
-                          currentLink.status
-                        }
+                <h4 className="text-[14px] font-semibold text-[#0F172A]">
 
-                      </div>
+                  {currentLink.client}
 
-                    </td>
+                </h4>
 
-                    {/* ACTION */}
-                    <td className="py-5 px-5">
+                <p className="text-[11px] text-gray-500 mt-1">
 
-                      <div className="relative w-full max-w-[230px]">
+                  {currentLink.email}
 
-                        <select
-                          onChange={(
-                            e
-                          ) =>
-                            updateStatus(
-                              e.target
-                                .value
-                            )
-                          }
-                          className="
-                            appearance-none
-                            h-[46px]
-                            w-full
-                            rounded-2xl
-                            border
-                            border-gray-200
-                            bg-white
-                            px-4
-                            pr-11
-                            text-[14px]
-                            font-semibold
-                            text-[#0F172A]
-                            outline-none
-                            transition-all
-                            shadow-sm
-                            hover:border-[#B8112D]
-                            focus:border-[#B8112D]
-                            focus:ring-4
-                            focus:ring-[#B8112D]/10
-                            cursor-pointer
-                          "
-                        >
+                </p>
 
-                          <option value="">
-                            Update Status
-                          </option>
+              </div>
 
-                          <option value="completed">
-                            Completed
-                          </option>
+            </div>
 
-                          <option value="not completed">
-                            Not Completed
-                          </option>
+          </td>
 
-                          <option value="pending">
-                            Pending
-                          </option>
+          {/* COMPANY */}
+          <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">
 
-                          <option value="important">
-                            Important
-                          </option>
+            {currentLink.company}
 
-                          <option value="interested">
-                            Interested
-                          </option>
+          </td>
 
-                        </select>
+          {/* PHONE */}
+          <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">
 
-                        {/* ICON */}
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+            {currentLink.phone}
 
-                          <ChevronDown size={18} />
+          </td>
 
-                        </div>
+          {/* SCHEDULE */}
+          <td className="py-5 px-5">
 
-                      </div>
+            {currentLink.nextSchedule &&
+            currentLink.nextTime ? (
 
-                    </td>
+              getFormattedSchedule(
+                currentLink
+              )
 
-                  </tr>
+            ) : (
 
-                ) : (
+              <span className="text-gray-400 text-[13px]">
 
-                  <tr>
+                Not scheduled
 
-                    <td
-                      colSpan={6}
-                      className="py-20 text-center"
-                    >
+              </span>
 
-                      <h2 className="text-2xl font-bold text-[#0F172A]">
-                        No Data Found 🎉
-                      </h2>
+            )}
 
-                      <p className="text-gray-500 mt-3 text-sm">
-                        No calls available in this category.
-                      </p>
+          </td>
 
-                    </td>
+          {/* STATUS */}
+          <td className="py-5 px-5">
 
-                  </tr>
+            <div
+              className={`
+                px-4 py-2 rounded-xl text-sm font-semibold w-fit
 
-                )}
+                ${
+                  currentLink.status ===
+                  "completed"
+                    ? "bg-[#ECFDF3] text-[#027A48]"
+                    : currentLink.status ===
+                      "important"
+                    ? "bg-[#FFF1F3] text-[#B8112D]"
+                    : currentLink.status ===
+                      "interested"
+                    ? "bg-[#FFF4E5] text-[#D97706]"
+                    : currentLink.status ===
+                      "not completed"
+                    ? "bg-[#FFF7E6] text-[#B54708]"
+                    : "bg-[#F4F4F5] text-[#52525B]"
+                }
+              `}
+            >
 
-              </tbody>
+              {currentLink.status}
+
+            </div>
+
+          </td>
+
+          {/* ACTION */}
+          <td className="py-5 px-5">
+
+            <div className="relative w-full max-w-[230px]">
+
+              <select
+                onChange={(e) =>
+                  updateStatus(
+                    currentLink.id,
+                    e.target.value
+                  )
+                }
+                className="
+                  appearance-none
+                  h-[46px]
+                  w-full
+                  rounded-2xl
+                  border
+                  border-gray-200
+                  bg-white
+                  px-4
+                  pr-11
+                  text-[14px]
+                  font-semibold
+                  text-[#0F172A]
+                  outline-none
+                "
+              >
+
+                <option value="">
+                  Update Status
+                </option>
+
+                <option value="completed">
+                  Completed
+                </option>
+
+                <option value="not completed">
+                  Not Completed
+                </option>
+
+                <option value="pending">
+                  Pending
+                </option>
+
+                <option value="important">
+                  Important
+                </option>
+
+                <option value="interested">
+                  Interested
+                </option>
+
+              </select>
+
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+
+                <ChevronDown size={18} />
+
+              </div>
+
+            </div>
+
+          </td>
+
+        </tr>
+
+      )
+    )
+
+  ) : (
+
+    <tr>
+
+      <td
+        colSpan={6}
+        className="py-20 text-center"
+      >
+
+        <h2 className="text-2xl font-bold text-[#0F172A]">
+
+          No Data Found 🎉
+
+        </h2>
+
+        <p className="text-gray-500 mt-3 text-sm">
+
+          No calls available in this category.
+
+        </p>
+
+      </td>
+
+    </tr>
+
+  )}
+
+</tbody>
 
             </table>
 

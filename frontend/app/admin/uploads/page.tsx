@@ -1,6 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useRef,
+  useState,
+  useEffect,
+} from "react";
+
+import toast from "react-hot-toast";
 
 import {
   UploadCloud,
@@ -18,57 +24,51 @@ import {
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
+
 import DashboardNavbar from "../components/Navbar";
+
+import API from "@/lib/api";
 
 /* ================= TYPES ================= */
 
 type UploadFile = {
   id: number;
+
   name: string;
+
   size: string;
+
   type: string;
+
   progress: number;
+
   leads: number;
+
   distributed: boolean;
+
   status:
     | "Uploading"
     | "Processing"
     | "Distributed";
 };
 
-/* ================= MOCK CSRS ================= */
-
-const csrList = [
-  {
-    id: 1,
-    name: "Ahmed",
-    leads: 0,
-  },
-  {
-    id: 2,
-    name: "Usman",
-    leads: 0,
-  },
-  {
-    id: 3,
-    name: "Ali",
-    leads: 0,
-  },
-  {
-    id: 4,
-    name: "Hamza",
-    leads: 0,
-  },
-];
+type CSRDistribution = {
+  name: string;
+  leads: number;
+};
 
 /* ================= HELPERS ================= */
 
-const getFileIcon = (type: string) => {
+const getFileIcon = (
+  type: string
+) => {
+
   if (
     type.includes("sheet") ||
     type.includes("excel") ||
     type.includes("csv")
   ) {
+
     return (
       <FileSpreadsheet
         size={24}
@@ -77,7 +77,10 @@ const getFileIcon = (type: string) => {
     );
   }
 
-  if (type.includes("image")) {
+  if (
+    type.includes("image")
+  ) {
+
     return (
       <FileImage
         size={24}
@@ -90,6 +93,7 @@ const getFileIcon = (type: string) => {
     type.includes("zip") ||
     type.includes("rar")
   ) {
+
     return (
       <FileArchive
         size={24}
@@ -109,8 +113,11 @@ const getFileIcon = (type: string) => {
 /* ================= PAGE ================= */
 
 export default function UploadPage() {
+
   const inputRef =
-    useRef<HTMLInputElement | null>(null);
+    useRef<HTMLInputElement | null>(
+      null
+    );
 
   const [dragging, setDragging] =
     useState(false);
@@ -118,119 +125,238 @@ export default function UploadPage() {
   const [search, setSearch] =
     useState("");
 
-  const [files, setFiles] = useState<
-    UploadFile[]
+  const [files, setFiles] =
+    useState<UploadFile[]>(
+      []
+    );
+
+  const [
+    latestDistribution,
+    setLatestDistribution,
+  ] = useState<
+    CSRDistribution[]
   >([]);
+
+  const [
+    latestTotalLeads,
+    setLatestTotalLeads,
+  ] = useState(0);
+
+  /* ================= FETCH LATEST ================= */
+
+  const fetchLatestUpload =
+    async () => {
+
+      try {
+
+        const res =
+          await API.get(
+            "/uploads/latest"
+          );
+
+        if (
+          res.data.file
+        ) {
+
+          setLatestDistribution(
+            res.data.file
+              .distribution
+          );
+
+          setLatestTotalLeads(
+            res.data.file
+              .totalLeads
+          );
+        }
+
+      } catch (error) {
+
+        console.log(error);
+      }
+    };
+
+  useEffect(() => {
+
+  const loadData =
+    async () => {
+
+      await fetchLatestUpload();
+    };
+
+  loadData();
+
+}, []);
 
   /* ================= HANDLE FILES ================= */
 
-  const handleFiles = (
-    selectedFiles: FileList | null
-  ) => {
-    if (!selectedFiles) return;
+  const handleFiles =
+    async (
+      selectedFiles:
+        | FileList
+        | null
+    ) => {
 
-    Array.from(selectedFiles).forEach(
-      (file, index) => {
-        const fakeLeads =
-          Math.floor(Math.random() * 500) +
-          50;
+      if (!selectedFiles)
+        return;
 
-        const newFile: UploadFile = {
-          id: Date.now() + index,
+      const file =
+        selectedFiles[0];
+
+      const tempId =
+        Date.now();
+
+      const tempFile: UploadFile =
+        {
+          id: tempId,
+
           name: file.name,
+
           size: `${(
             file.size /
             (1024 * 1024)
           ).toFixed(2)} MB`,
+
           type: file.type,
+
           progress: 0,
-          leads: fakeLeads,
+
+          leads: 0,
+
           distributed: false,
-          status: "Uploading",
+
+          status:
+            "Uploading",
         };
 
-        setFiles((prev) => [
-          newFile,
-          ...prev,
-        ]);
+      setFiles((prev) => [
+        tempFile,
+        ...prev,
+      ]);
+
+      try {
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file
+        );
 
         /* ================= FAKE PROGRESS ================= */
 
         let progress = 0;
 
-        const interval = setInterval(() => {
-          progress += 10;
+        const interval =
+          setInterval(() => {
 
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === newFile.id
-                ? {
-                    ...f,
-                    progress,
-                  }
-                : f
-            )
-          );
+            progress += 10;
 
-          if (progress >= 100) {
-            clearInterval(interval);
-
-            setFiles((prev) =>
-              prev.map((f) =>
-                f.id === newFile.id
-                  ? {
-                      ...f,
-                      progress: 100,
-                      status:
-                        "Processing",
-                    }
-                  : f
-              )
-            );
-
-            setTimeout(() => {
-              setFiles((prev) =>
+            setFiles(
+              (prev) =>
                 prev.map((f) =>
-                  f.id === newFile.id
+                  f.id ===
+                  tempId
                     ? {
                         ...f,
-                        status:
-                          "Distributed",
-                        distributed: true,
+                        progress:
+                          progress >=
+                          90
+                            ? 90
+                            : progress,
                       }
                     : f
                 )
-              );
-            }, 1500);
-          }
-        }, 200);
+            );
+
+          }, 200);
+
+        /* ================= API ================= */
+
+        const res =
+          await API.post(
+            "/uploads",
+            formData,
+            {
+              headers: {
+                "Content-Type":
+                  "multipart/form-data",
+              },
+            }
+          );
+
+        clearInterval(
+          interval
+        );
+
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === tempId
+              ? {
+                  ...f,
+
+                  progress: 100,
+
+                  leads:
+                    res.data
+                      .totalLeads,
+
+                  distributed: true,
+
+                  status:
+                    "Distributed",
+                }
+              : f
+          )
+        );
+
+        toast.success(
+          "Leads uploaded & distributed successfully"
+        );
+
+        fetchLatestUpload();
+
+      } catch (error) {
+
+        console.log(error);
+
+        setFiles((prev) =>
+          prev.filter(
+            (f) =>
+              f.id !== tempId
+          )
+        );
+
+        toast.error(
+          "Upload failed"
+        );
       }
-    );
-  };
+    };
 
   /* ================= REMOVE FILE ================= */
 
-  const removeFile = (id: number) => {
+  const removeFile = (
+    id: number
+  ) => {
+
     setFiles((prev) =>
-      prev.filter((f) => f.id !== id)
+      prev.filter(
+        (f) =>
+          f.id !== id
+      )
     );
   };
 
   /* ================= FILTERED FILES ================= */
 
-  const filteredFiles = files.filter(
-    (file) =>
+  const filteredFiles =
+    files.filter((file) =>
       file.name
         .toLowerCase()
-        .includes(search.toLowerCase())
-  );
-
-  /* ================= TOTAL LEADS ================= */
-
-  const totalLeads = files.reduce(
-    (acc, file) => acc + file.leads,
-    0
-  );
+        .includes(
+          search.toLowerCase()
+        )
+    );
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -257,7 +383,8 @@ export default function UploadPage() {
             <p className="text-sm text-gray-400 mt-1">
               Upload Excel or CSV files
               and auto distribute leads
-              equally among CSRs.
+              equally among all active
+              CSRs.
             </p>
 
           </div>
@@ -368,7 +495,7 @@ export default function UploadPage() {
                 </p>
 
                 <h2 className="text-3xl font-semibold text-gray-800 mt-2">
-                  {totalLeads}
+                  {latestTotalLeads}
                 </h2>
 
               </div>
@@ -398,7 +525,7 @@ export default function UploadPage() {
                 </p>
 
                 <h2 className="text-3xl font-semibold text-gray-800 mt-2">
-                  {csrList.length}
+                  {latestDistribution.length}
                 </h2>
 
               </div>
@@ -418,47 +545,51 @@ export default function UploadPage() {
 
         </div>
 
-        {/* ================= CSR DISTRIBUTION ================= */}
+        {/* ================= LIVE DISTRIBUTION ================= */}
 
         <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-6">
 
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div className="flex items-center justify-between mb-5">
 
             <div>
 
               <h3 className="text-xl font-semibold text-gray-800">
-                Auto Distribution System
+                Latest CSR Distribution
               </h3>
 
               <p className="text-sm text-gray-400 mt-1">
-                Uploaded sheet data will
-                automatically distribute
-                equally among all active
-                CSRs.
+                Latest uploaded leads distribution.
               </p>
 
             </div>
 
-            <div className="flex flex-wrap gap-3">
+          </div>
 
-              {csrList.map((csr) => (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            {latestDistribution.map(
+              (csr, index) => (
+
                 <div
-                  key={csr.id}
-                  className="px-4 py-3 rounded-2xl bg-[#F8F9FC] border border-gray-100"
+                  key={index}
+                  className="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-4"
                 >
 
-                  <p className="text-sm font-medium text-gray-700">
+                  <p className="text-sm font-semibold text-gray-700">
                     {csr.name}
                   </p>
 
                   <p className="text-xs text-gray-400 mt-1">
-                    Equal Distribution
+                    Assigned Leads
                   </p>
 
-                </div>
-              ))}
+                  <h4 className="text-2xl font-bold text-[#B8112D] mt-2">
+                    {csr.leads}
+                  </h4>
 
-            </div>
+                </div>
+              )
+            )}
 
           </div>
 
@@ -474,12 +605,14 @@ export default function UploadPage() {
             }
             onDragOver={(e) => {
               e.preventDefault();
+
               setDragging(true);
             }}
             onDragLeave={() =>
               setDragging(false)
             }
             onDrop={(e) => {
+
               e.preventDefault();
 
               setDragging(false);
@@ -518,22 +651,6 @@ export default function UploadPage() {
                 CSRs.
               </p>
 
-              <div className="flex flex-wrap justify-center gap-3 mt-4">
-
-                <span className="px-4 py-2 rounded-full bg-green-100 text-green-700 text-xs font-medium">
-                  XLSX
-                </span>
-
-                <span className="px-4 py-2 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
-                  CSV
-                </span>
-
-                <span className="px-4 py-2 rounded-full bg-yellow-100 text-yellow-700 text-xs font-medium">
-                  Auto Distribution
-                </span>
-
-              </div>
-
               <button className="mt-6 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-7 py-3 rounded-2xl text-sm font-medium">
 
                 Browse Files
@@ -545,7 +662,6 @@ export default function UploadPage() {
             <input
               ref={inputRef}
               type="file"
-              multiple
               hidden
               accept=".xlsx,.xls,.csv"
               onChange={(e) =>
@@ -559,210 +675,159 @@ export default function UploadPage() {
 
         </div>
 
-        {/* ================= FILE LIST ================= */}
+        {/* ================= FILES ================= */}
 
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
 
-          {/* HEADER */}
-          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <div className="p-5 border-b border-gray-100">
 
-            <div>
-
-              <h3 className="text-lg font-semibold text-gray-800">
-                Uploaded Lead Sheets
-              </h3>
-
-              <p className="text-sm text-gray-400 mt-1">
-                Uploaded files and CSR
-                distribution status.
-              </p>
-
-            </div>
+            <h3 className="text-lg font-semibold text-gray-800">
+              Uploaded Lead Sheets
+            </h3>
 
           </div>
 
-          {/* EMPTY */}
-          {filteredFiles.length === 0 && (
+          {filteredFiles.length ===
+            0 && (
             <div className="p-14 text-center">
 
-              <div className="w-20 h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mx-auto mb-5">
+              <UploadCloud
+                size={42}
+                className="mx-auto text-[#B8112D]"
+              />
 
-                <UploadCloud
-                  size={36}
-                  className="text-[#B8112D]"
-                />
-
-              </div>
-
-              <h4 className="text-lg font-semibold text-gray-700">
+              <p className="mt-4 text-gray-500">
                 No files uploaded yet
-              </h4>
-
-              <p className="text-sm text-gray-400 mt-2">
-                Upload your first lead
-                sheet to start automatic
-                distribution.
               </p>
 
             </div>
           )}
 
-          {/* FILES */}
           <div className="divide-y divide-gray-100">
 
-            {filteredFiles.map((file) => (
-              <div
-                key={file.id}
-                className="p-5 hover:bg-[#FAFAFB] transition-all"
-              >
+            {filteredFiles.map(
+              (file) => (
+                <div
+                  key={file.id}
+                  className="p-5"
+                >
 
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
 
-                  {/* LEFT */}
-                  <div className="flex items-center gap-4">
+                    {/* LEFT */}
+                    <div className="flex items-center gap-4">
 
-                    <div className="w-14 h-14 rounded-2xl bg-[#F8F9FC] flex items-center justify-center">
+                      <div className="w-14 h-14 rounded-2xl bg-[#F8F9FC] flex items-center justify-center">
 
-                      {getFileIcon(
-                        file.type
-                      )}
+                        {getFileIcon(
+                          file.type
+                        )}
 
-                    </div>
+                      </div>
 
-                    <div>
+                      <div>
 
-                      <h4 className="font-semibold text-gray-800">
-                        {file.name}
-                      </h4>
+                        <h4 className="font-semibold text-gray-800">
+                          {file.name}
+                        </h4>
 
-                      <div className="flex flex-wrap items-center gap-3 mt-2">
-
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-gray-400 mt-1">
                           {file.size}
                         </p>
 
-                        <span className="w-1 h-1 rounded-full bg-gray-300" />
-
-                        <p className="text-sm text-gray-400">
-                          {file.leads} Leads
+                        <p className="text-sm text-gray-400 mt-1">
+                          {
+                            file.leads
+                          }{" "}
+                          Leads
                         </p>
 
                       </div>
 
                     </div>
 
-                  </div>
+                    {/* RIGHT */}
+                    <div className="flex items-center gap-3">
 
-                  {/* RIGHT */}
-                  <div className="flex flex-wrap items-center gap-3">
-
-                    {/* STATUS */}
-                    <span
-                      className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
-                        file.status ===
-                        "Distributed"
-                          ? "bg-green-100 text-green-700"
-                          : file.status ===
-                            "Processing"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-
-                      {file.status ===
-                      "Processing" ? (
-                        <Loader2
-                          size={14}
-                          className="animate-spin"
-                        />
-                      ) : (
-                        <CheckCircle2 size={14} />
-                      )}
-
-                      {file.status}
-
-                    </span>
-
-                    {/* DELETE */}
-                    <button
-                      onClick={() =>
-                        removeFile(
-                          file.id
-                        )
-                      }
-                      className="w-10 h-10 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
-                    >
-
-                      <Trash2 size={18} />
-
-                    </button>
-
-                  </div>
-
-                </div>
-
-                {/* PROGRESS */}
-                <div className="mt-5">
-
-                  <div className="flex items-center justify-between mb-2">
-
-                    <p className="text-xs text-gray-400">
-                      Upload Progress
-                    </p>
-
-                    <p className="text-xs font-medium text-gray-600">
-                      {file.progress}%
-                    </p>
-
-                  </div>
-
-                  <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-
-                    <div
-                      className="h-full rounded-full bg-[#B8112D] transition-all duration-300"
-                      style={{
-                        width: `${file.progress}%`,
-                      }}
-                    />
-
-                  </div>
-
-                </div>
-
-                {/* DISTRIBUTION */}
-                {file.status ===
-                  "Distributed" && (
-                  <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-
-                    {csrList.map((csr) => (
-                      <div
-                        key={csr.id}
-                        className="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-4"
+                      <span
+                        className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
+                          file.status ===
+                          "Distributed"
+                            ? "bg-green-100 text-green-700"
+                            : file.status ===
+                              "Processing"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
                       >
 
-                        <p className="text-sm font-semibold text-gray-700">
-                          {csr.name}
-                        </p>
+                        {file.status ===
+                        "Uploading" ? (
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <CheckCircle2 size={14} />
+                        )}
 
-                        <p className="text-xs text-gray-400 mt-1">
-                          Assigned Leads
-                        </p>
+                        {file.status}
 
-                        <h4 className="text-xl font-bold text-[#B8112D] mt-2">
-                          {Math.floor(
-                            file.leads /
-                              csrList.length
-                          )}
-                        </h4>
+                      </span>
 
-                      </div>
-                    ))}
+                      <button
+                        onClick={() =>
+                          removeFile(
+                            file.id
+                          )
+                        }
+                        className="w-10 h-10 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
+                      >
+
+                        <Trash2
+                          size={18}
+                        />
+
+                      </button>
+
+                    </div>
 
                   </div>
-                )}
 
-              </div>
-            ))}
+                  {/* PROGRESS */}
+                  <div className="mt-5">
+
+                    <div className="flex items-center justify-between mb-2">
+
+                      <p className="text-xs text-gray-400">
+                        Upload Progress
+                      </p>
+
+                      <p className="text-xs font-medium text-gray-600">
+                        {
+                          file.progress
+                        }
+                        %
+                      </p>
+
+                    </div>
+
+                    <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+
+                      <div
+                        className="h-full rounded-full bg-[#B8112D] transition-all duration-300"
+                        style={{
+                          width: `${file.progress}%`,
+                        }}
+                      />
+
+                    </div>
+
+                  </div>
+
+                </div>
+              )
+            )}
 
           </div>
 
