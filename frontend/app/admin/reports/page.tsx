@@ -10,7 +10,7 @@ import jsPDF from "jspdf";
 
 import autoTable from "jspdf-autotable";
 
-import API from "@/lib/api";
+import API from "./../../../lib/api";
 
 import DashboardNavbar from "../components/Navbar";
 import DashboardSidebar from "../components/Sidebar";
@@ -18,13 +18,11 @@ import DashboardSidebar from "../components/Sidebar";
 import {
   PhoneCall,
   ShoppingCart,
-  Users,
   CalendarDays,
   Search,
   Clock3,
   FileBarChart2,
   TrendingUp,
-  UserCheck,
   Target,
   Database,
   ChevronDown,
@@ -34,7 +32,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Wifi,
-  Eye,
   FileText,
   Sparkles,
 } from "lucide-react";
@@ -142,120 +139,169 @@ export default function ReportsPage() {
 
   }, []);
 
+  /* =========================================
+     GENERATE PDF
+     FIX: Build the PDF entirely in memory
+     first, then open a local blob URL
+     synchronously (never blocked by popup
+     blockers). Upload to backend in the
+     background after the tab is already open.
+  ========================================= */
+
   const generatePDF =
-  async () => {
+    async () => {
 
-    try {
+      try {
 
-      const doc =
-        new jsPDF();
+        /* BUILD PDF */
 
-      doc.setFontSize(20);
+        const doc =
+          new jsPDF();
 
-      doc.text(
-        "CSR Performance Report",
-        14,
-        20
-      );
+        doc.setFontSize(20);
 
-      autoTable(doc, {
+        doc.text(
+          "CSR Performance Report",
+          14,
+          20
+        );
 
-        startY: 35,
+        autoTable(doc, {
 
-        head: [[
-          "CSR",
-          "Total Leads",
-          "Completed",
-          "Pending",
-          "Important",
-        ]],
+          startY: 35,
 
-        body:
-          (
-            reportData
-              ?.csrPerformance ||
-            []
-          ).map(
-            (item) => [
-              item.name,
-              item.totalLeads,
-              item.completed,
-              item.pending,
-              item.important,
-            ]
-          ),
-      });
+          head: [[
+            "CSR",
+            "Total Leads",
+            "Completed",
+            "Pending",
+            "Important",
+          ]],
 
-      /* ===============================
-         CONVERT PDF TO FILE
-      =============================== */
+          body:
+            (
+              reportData
+                ?.csrPerformance ||
+              []
+            ).map(
+              (item) => [
+                item.name,
+                item.totalLeads,
+                item.completed,
+                item.pending,
+                item.important,
+              ]
+            ),
+        });
 
-      const pdfBlob =
-        doc.output("blob");
+        /* ===============================
+           OPEN LOCAL BLOB IN NEW TAB
+           This is synchronous — no await
+           before it — so browsers never
+           treat it as a blocked popup.
+           The user sees the PDF instantly
+           without waiting for the upload.
+        =============================== */
 
-      const file =
-        new File(
-          [pdfBlob],
-          `report-${Date.now()}.pdf`,
+        const pdfBlob =
+          doc.output("blob");
+
+        const localUrl =
+          URL.createObjectURL(pdfBlob);
+
+        window.open(localUrl, "_blank");
+
+        /* ===============================
+           UPLOAD TO BACKEND IN BACKGROUND
+        =============================== */
+
+        const file =
+          new Blob(
+            [pdfBlob],
+            { type: "application/pdf" }
+          );
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file,
+          `report-${Date.now()}.pdf`
+        );
+
+        await API.post(
+          "/report-uploads",
+          formData,
           {
-            type:
-              "application/pdf",
+            headers: {
+              "Content-Type":
+                "multipart/form-data",
+            },
           }
         );
 
-      /* ===============================
-         FORM DATA
-      =============================== */
+        /* REFRESH REPORTS */
 
-      const formData =
-        new FormData();
+        const updated =
+          await API.get("/reports");
 
-      formData.append(
-        "file",
-        file
-      );
+        setReportData(updated.data);
 
-      /* ===============================
-         UPLOAD TO BACKEND
-      =============================== */
+        /* RELEASE LOCAL BLOB URL */
 
-      await API.post(
-        "/report-uploads",
-        formData,
-        {
-          headers: {
-            "Content-Type":
-              "multipart/form-data",
-          },
-        }
-      );
+        URL.revokeObjectURL(localUrl);
 
-      /* ===============================
-         REFRESH REPORTS
-      =============================== */
+        alert("PDF generated successfully");
 
-      const updated =
-        await API.get(
-          "/reports"
+      } catch (error) {
+
+        console.log(error);
+
+        alert("Failed to generate PDF");
+      }
+    };
+
+  /* =========================================
+     HANDLE DELETE REPORT
+  ========================================= */
+
+  const handleDeleteReport =
+    async (id: string) => {
+
+      if (
+        !window.confirm(
+          "Are you sure you want to delete this report?"
+        )
+      )
+        return;
+
+      try {
+
+        await API.delete(
+          `/report-uploads/${id}`
         );
 
-      setReportData(
-        updated.data
-      );
+        setReportData((prev) => {
 
-      alert(
-        "PDF generated successfully"
-      );
+          if (!prev) return prev;
 
-    } catch (error) {
+          return {
+            ...prev,
+            reports:
+              prev.reports.filter(
+                (r) => r.id !== id
+              ),
+          };
+        });
 
-      console.log(error);
+      } catch (error) {
 
-      alert(
-        "Failed to generate PDF"
-      );
-    }
-  };
+        console.log(error);
+
+        alert("Failed to delete report");
+      }
+    };
 
   /* CHART DATA */
 
@@ -457,20 +503,14 @@ export default function ReportsPage() {
                 items-center
                 justify-center
                 gap-2
-
                 rounded-2xl
-
                 bg-[#B8112D]
-
                 px-5
-
                 text-sm
                 font-semibold
                 text-white
-
                 transition-all
                 duration-200
-
                 hover:bg-[#a30f27]
               "
             >
@@ -579,10 +619,9 @@ export default function ReportsPage() {
                 font-semibold
                 transition-all
 
-                ${
-                  activeTab === tab
-                    ? "bg-[#B8112D] text-white shadow-sm"
-                    : "bg-white text-gray-500 hover:bg-gray-100"
+                ${activeTab === tab
+                  ? "bg-[#B8112D] text-white shadow-sm"
+                  : "bg-white text-gray-500 hover:bg-gray-100"
                 }
               `}
             >
@@ -729,7 +768,7 @@ export default function ReportsPage() {
             <div className="h-[340px]">
 
               {activeTab ===
-              "CSR Performance" ? (
+                "CSR Performance" ? (
 
                 <ResponsiveContainer
                   width="100%"
@@ -897,7 +936,7 @@ export default function ReportsPage() {
         </div>
 
         {/* =========================================
-            TABLE
+            CSR PERFORMANCE TABLE
         ========================================= */}
 
         <div className="mt-6 overflow-x-auto rounded-[28px] bg-white p-5 shadow-sm">
@@ -918,30 +957,30 @@ export default function ReportsPage() {
             </div>
 
             <button
-  onClick={generatePDF}
-  className="
-    flex
-    items-center
-    gap-2
-    rounded-2xl
-    border
-    border-gray-200
-    bg-white
-    px-5
-    py-3
-    text-sm
-    font-medium
-    text-gray-600
-    transition-all
-    hover:bg-gray-100
-  "
->
+              onClick={generatePDF}
+              className="
+                flex
+                items-center
+                gap-2
+                rounded-2xl
+                border
+                border-gray-200
+                bg-white
+                px-5
+                py-3
+                text-sm
+                font-medium
+                text-gray-600
+                transition-all
+                hover:bg-gray-100
+              "
+            >
 
-  <FileText size={18} />
+              <FileText size={18} />
 
-  Generate PDF
+              Generate PDF
 
-</button>
+            </button>
 
           </div>
 
@@ -1023,113 +1062,188 @@ export default function ReportsPage() {
 
         </div>
 
+        {/* =========================================
+            GENERATED REPORTS TABLE
+        ========================================= */}
+
         <div className="mt-6 rounded-[28px] bg-white p-5 shadow-sm">
 
-  <div className="mb-6">
+          <div className="mb-6">
 
-    <h2 className="text-xl font-bold text-[#111827]">
-      Generated Reports
-    </h2>
+            <h2 className="text-xl font-bold text-[#111827]">
+              Generated Reports
+            </h2>
 
-    <p className="mt-1 text-sm text-gray-500">
-      Uploaded PDF & Excel reports
-    </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Uploaded PDF & Excel reports
+            </p>
+
+          </div>
+
+          <div className="overflow-x-auto">
+
+            <table className="w-full min-w-[900px]">
+
+              <thead>
+
+                <tr className="border-b border-gray-100 text-left">
+
+                  <th className="pb-4 text-sm font-semibold text-gray-500">
+                    Report Name
+                  </th>
+
+                  <th className="pb-4 text-sm font-semibold text-gray-500">
+                    Type
+                  </th>
+
+                  <th className="pb-4 text-sm font-semibold text-gray-500">
+                    Generated By
+                  </th>
+
+                  <th className="pb-4 text-sm font-semibold text-gray-500">
+                    Date
+                  </th>
+
+                  <th className="pb-4 text-sm font-semibold text-gray-500">
+                    Action
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {(reportData?.reports || [])
+                  .map((report) => (
+
+                    <tr
+                      key={report.id}
+                      className="border-b border-gray-50"
+                    >
+
+                      <td className="py-5 font-semibold text-[#111827]">
+                        {report.reportName}
+                      </td>
+
+                      <td className="py-5">
+                        {report.reportType}
+                      </td>
+
+                      <td className="py-5">
+                        {report.generatedBy}
+                      </td>
+
+                      <td className="py-5">
+
+                        {new Date(
+                          report.createdAt
+                        ).toLocaleDateString()}
+
+                      </td>
+
+                      <td className="py-5">
+
+  <div className="flex items-center gap-3">
+
+    {/* VIEW PDF */}
+
+    <button
+      onClick={async () => {
+
+  try {
+
+    const response =
+      await fetch(
+        report.reportUrl
+      );
+
+    const blob =
+      await response.blob();
+
+    /* FORCE PDF MIME TYPE */
+
+    const pdfBlob =
+      new Blob(
+        [blob],
+        {
+          type:
+            "application/pdf",
+        }
+      );
+
+    const url =
+      URL.createObjectURL(
+        pdfBlob
+      );
+
+    /* OPEN PDF */
+
+    window.open(
+      url,
+      "_blank"
+    );
+
+  } catch (error) {
+
+    console.log(error);
+
+    alert(
+      "Failed to open PDF"
+    );
+  }
+}}
+      className="
+        rounded-xl
+        bg-[#B8112D]
+        px-4
+        py-2
+        text-sm
+        font-medium
+        text-white
+      "
+    >
+      View
+    </button>
+
+    {/* DELETE */}
+
+    <button
+      onClick={() =>
+        handleDeleteReport(
+          report.id
+        )
+      }
+      className="
+        rounded-xl
+        bg-red-100
+        px-4
+        py-2
+        text-sm
+        font-medium
+        text-[#B8112D]
+        transition-all
+        hover:bg-[#B8112D]
+        hover:text-white
+      "
+    >
+      Delete
+    </button>
 
   </div>
 
-  <div className="overflow-x-auto">
+</td>
 
-    <table className="w-full min-w-[900px]">
+                    </tr>
+                  ))}
 
-      <thead>
+              </tbody>
 
-        <tr className="border-b border-gray-100 text-left">
+            </table>
 
-          <th className="pb-4 text-sm font-semibold text-gray-500">
-            Report Name
-          </th>
+          </div>
 
-          <th className="pb-4 text-sm font-semibold text-gray-500">
-            Type
-          </th>
-
-          <th className="pb-4 text-sm font-semibold text-gray-500">
-            Generated By
-          </th>
-
-          <th className="pb-4 text-sm font-semibold text-gray-500">
-            Date
-          </th>
-
-          <th className="pb-4 text-sm font-semibold text-gray-500">
-            Action
-          </th>
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        {(reportData?.reports || [])
-          .map((report) => (
-
-            <tr
-              key={report.id}
-              className="border-b border-gray-50"
-            >
-
-              <td className="py-5 font-semibold text-[#111827]">
-                {report.reportName}
-              </td>
-
-              <td className="py-5">
-                {report.reportType}
-              </td>
-
-              <td className="py-5">
-                {report.generatedBy}
-              </td>
-
-              <td className="py-5">
-
-                {new Date(
-                  report.createdAt
-                ).toLocaleDateString()}
-
-              </td>
-
-              <td className="py-5">
-
-                <a
-                  href={report.reportUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="
-                    rounded-xl
-                    bg-[#B8112D]
-                    px-4
-                    py-2
-                    text-sm
-                    font-medium
-                    text-white
-                  "
-                >
-                  View
-                </a>
-
-              </td>
-
-            </tr>
-          ))}
-
-      </tbody>
-
-    </table>
-
-  </div>
-
-</div>
+        </div>
 
       </main>
 
