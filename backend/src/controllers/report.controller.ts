@@ -15,6 +15,7 @@ export const getReports = async (
 
     const leads =
       await prisma.lead.findMany({
+
         include: {
           csr: true,
         },
@@ -64,25 +65,36 @@ export const getReports = async (
 
     leads.forEach((lead) => {
 
+      const csrId =
+        lead.csr?.id ||
+        "unknown";
+
       const csrName =
         lead.csr?.name ||
         "Unknown";
 
       if (
-        !csrMap.has(csrName)
+        !csrMap.has(csrId)
       ) {
 
-        csrMap.set(csrName, {
+        csrMap.set(csrId, {
+
+          id: csrId,
+
           name: csrName,
+
           totalLeads: 0,
+
           completed: 0,
+
           pending: 0,
+
           important: 0,
         });
       }
 
       const csr =
-        csrMap.get(csrName);
+        csrMap.get(csrId);
 
       csr.totalLeads++;
 
@@ -91,6 +103,7 @@ export const getReports = async (
           ?.toLowerCase() ===
         "completed"
       ) {
+
         csr.completed++;
       }
 
@@ -99,6 +112,7 @@ export const getReports = async (
           ?.toLowerCase() ===
         "pending"
       ) {
+
         csr.pending++;
       }
 
@@ -107,6 +121,7 @@ export const getReports = async (
           ?.toLowerCase() ===
         "important"
       ) {
+
         csr.important++;
       }
 
@@ -123,6 +138,7 @@ export const getReports = async (
 
     const reports =
       await prisma.report.findMany({
+
         orderBy: {
           createdAt: "desc",
         },
@@ -133,12 +149,19 @@ export const getReports = async (
     ========================================= */
 
     res.json({
+
       totalLeads,
+
       completed,
+
       pending,
+
       important,
+
       interested,
+
       csrPerformance,
+
       reports,
     });
 
@@ -147,6 +170,7 @@ export const getReports = async (
     console.log(error);
 
     res.status(500).json({
+
       message:
         "Failed to fetch reports",
     });
