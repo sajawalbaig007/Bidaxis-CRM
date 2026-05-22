@@ -1,154 +1,98 @@
 import express from "express";
-
 import prisma from "../config/db";
+import { verifyToken } from "../middleware/auth.middleware";
+import { allowRoles } from "../middleware/role.middleware";
 
-import {
-  verifyToken,
-} from "../middleware/auth.middleware";
-
-import {
-  allowRoles,
-} from "../middleware/role.middleware";
-
-const router =
-  express.Router();
+const router = express.Router();
 
 /* ================= CSR DASHBOARD ================= */
 
 router.get(
   "/dashboard",
-
   verifyToken,
-
   allowRoles("csr"),
-
-  async (
-    req: any,
-    res
-  ) => {
-
+  async (req: any, res) => {
     try {
+      const csrId = req.user.id;
 
-      const csrId =
-        req.user.id;
-
-      /* ================= GET LATEST FILE ================= */
-
-      const latestFile =
-        await prisma.uploadFile.findFirst({
-          orderBy: {
-            createdAt:
-              "desc",
-          },
-        });
+      const latestFile = await prisma.uploadFile.findFirst({
+        orderBy: { createdAt: "desc" },
+      });
 
       if (!latestFile) {
-
-        return res.json({
-          success: true,
-
-          totalLeads: 0,
-
-          leads: [],
-        });
+        return res.json({ success: true, totalLeads: 0, leads: [] });
       }
 
-      /* ================= GET ONLY LATEST FILE LEADS ================= */
-
-      const leads =
-        await prisma.lead.findMany({
-          where: {
-
-            assignedTo:
-              csrId,
-
-            uploadedFileId:
-              latestFile.id,
-          },
-
-          orderBy: {
-            createdAt:
-              "desc",
-          },
-        });
-
-      return res.json({
-        success: true,
-
-        totalLeads:
-          leads.length,
-
-        leads,
+      const leads = await prisma.lead.findMany({
+        where: {
+          assignedTo: csrId,
+          uploadedFileId: latestFile.id,
+        },
+        orderBy: { createdAt: "desc" },
       });
 
+      return res.json({ success: true, totalLeads: leads.length, leads });
     } catch (error) {
-
       console.log(error);
-
-      return res.status(500).json({
-        success: false,
-
-        message:
-          "Failed to fetch dashboard",
-      });
+      return res.status(500).json({ success: false, message: "Failed to fetch dashboard" });
     }
   }
 );
-/* ================= UPDATE LEAD STATUS ================= */
+
+/* ================= UPDATE LEAD ================= */
 
 router.put(
   "/lead/:id",
-
   verifyToken,
-
   allowRoles("csr"),
-
-  async (
-    req: any,
-    res
-  ) => {
-
+  async (req: any, res) => {
     try {
-
       const {
         status,
         nextSchedule,
         nextTime,
         timezone,
+        followUpNotes,
+        // NEW — Interested service
+        interestedService,
+        // NEW — Project Won fields
+        projectTitle,
+        projectDeadline,
+        projectBudget,
+        projectNotes,
       } = req.body;
 
-      const updatedLead =
-        await prisma.lead.update({
-          where: {
-            id: req.params.id,
-          },
+      /* Build update object — only include fields that were sent */
+      const updateData: Record<string, any> = {};
 
-          data: {
-            status,
+      if (status !== undefined)            updateData.status            = status;
+      if (nextSchedule !== undefined)      updateData.nextSchedule      = nextSchedule;
+      if (nextTime !== undefined)          updateData.nextTime          = nextTime;
+      if (timezone !== undefined)          updateData.timezone          = timezone;
+      if (followUpNotes !== undefined)     updateData.followUpNotes     = followUpNotes;
+      if (interestedService !== undefined) updateData.interestedService = interestedService;
+      if (projectTitle !== undefined)      updateData.projectTitle      = projectTitle;
+      if (projectDeadline !== undefined)   updateData.projectDeadline   = projectDeadline;
+      if (projectBudget !== undefined)     updateData.projectBudget     = projectBudget;
+      if (projectNotes !== undefined)      updateData.projectNotes      = projectNotes;
 
-            nextSchedule,
+      /* Sync boolean flags based on status */
+      if (status !== undefined) {
+        updateData.important  = status === "important";
+        updateData.interested = status === "interested";
+      }
 
-            nextTime,
-
-            timezone,
-          },
-        });
-
-      return res.json({
-        success: true,
-        lead: updatedLead,
+      const updatedLead = await prisma.lead.update({
+        where: { id: req.params.id },
+        data: updateData,
       });
 
+      return res.json({ success: true, lead: updatedLead });
     } catch (error) {
-
       console.log(error);
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to update lead",
-      });
+      return res.status(500).json({ success: false, message: "Failed to update lead" });
     }
   }
 );
+
 export default router;

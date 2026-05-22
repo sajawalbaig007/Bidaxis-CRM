@@ -1148,63 +1148,81 @@ export default function ReportsPage() {
 
     {/* VIEW PDF */}
 
-    <button
-      onClick={async () => {
+   <button
+  onClick={() => {
 
-  try {
+    /* PDF */
 
-    const response =
-      await fetch(
-        report.reportUrl
+    if (
+      report.reportType.includes(
+        "pdf"
+      )
+    ) {
+
+      window.open(
+        report.reportUrl,
+        "_blank"
       );
 
-    const blob =
-      await response.blob();
+      return;
+    }
 
-    /* FORCE PDF MIME TYPE */
+    /* EXCEL / CSV */
 
-    const pdfBlob =
-      new Blob(
-        [blob],
-        {
-          type:
-            "application/pdf",
-        }
+    if (
+      report.reportType.includes(
+        "csv"
+      ) ||
+
+      report.reportType.includes(
+        "excel"
+      ) ||
+
+      report.reportType.includes(
+        "sheet"
+      )
+    ) {
+
+      const link =
+        document.createElement(
+          "a"
+        );
+
+      link.href =
+        report.reportUrl;
+
+      link.download =
+        report.reportName;
+
+      document.body.appendChild(
+        link
       );
 
-    const url =
-      URL.createObjectURL(
-        pdfBlob
+      link.click();
+
+      document.body.removeChild(
+        link
       );
 
-    /* OPEN PDF */
-
-    window.open(
-      url,
-      "_blank"
-    );
-
-  } catch (error) {
-
-    console.log(error);
+      return;
+    }
 
     alert(
-      "Failed to open PDF"
+      "Unsupported file type"
     );
-  }
-}}
-      className="
-        rounded-xl
-        bg-[#B8112D]
-        px-4
-        py-2
-        text-sm
-        font-medium
-        text-white
-      "
-    >
-      View
-    </button>
+  }}
+  className="
+    rounded-xl
+    bg-[#B8112D]
+    px-4
+    py-2
+    text-sm
+    font-medium
+    text-white
+  "
+>
+  View
+</button>
 
     {/* DELETE */}
 

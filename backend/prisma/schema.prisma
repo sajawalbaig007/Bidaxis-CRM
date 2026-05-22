@@ -38,19 +38,28 @@ model User {
 /* ================= LEAD ================= */
 
 model Lead {
+
   id              String       @id @default(cuid())
 
   name            String?
+
+  company         String?
+
   phone           String?
+
   email           String?
 
   status          String       @default("pending")
 
   comments        String?
 
+  /* ================= FLAGS ================= */
+
   important       Boolean      @default(false)
 
   interested      Boolean      @default(false)
+
+  /* ================= FOLLOW UP ================= */
 
   nextSchedule    String?
 
@@ -58,15 +67,37 @@ model Lead {
 
   timezone        String?
 
+  followUpNotes   String?
+
+  followUpExpiry  DateTime?
+
+  /* ================= INTERESTED SERVICE ================= */
+
+  interestedService  String?
+
+  /* ================= PROJECT WON DETAILS ================= */
+
+  projectTitle    String?
+
+  projectDeadline String?
+
+  projectBudget   String?
+
+  projectNotes    String?
+
+  /* ================= ASSIGNMENT ================= */
+
   assignedTo      String
 
   uploadedFileId  String?
+
+  /* ================= DATES ================= */
 
   createdAt       DateTime     @default(now())
 
   updatedAt       DateTime     @default(now()) @updatedAt
 
-  /* RELATIONS */
+  /* ================= RELATIONS ================= */
 
   csr             User         @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
 

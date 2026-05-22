@@ -1,33 +1,28 @@
-import { Router } from "express";
-
-import {
-  uploadReport,
-  deleteReport,
-} from "../controllers/reportUpload.controller";
+import express from "express";
 
 import upload from "../middleware/upload.middleware";
 
 import {
-  verifyToken,
-} from "../middleware/auth.middleware";
+  uploadLeads,
+  getLatestUpload,
+} from "../controllers/upload.controller";
 
-const router = Router();
+const router =
+  express.Router();
 
-/* UPLOAD REPORT */
+/* ================= UPLOAD ================= */
 
 router.post(
   "/",
-  verifyToken,
   upload.single("file"),
-  uploadReport
+  uploadLeads
 );
 
-/* DELETE REPORT */
+/* ================= LATEST ================= */
 
-router.delete(
-  "/:id",
-  verifyToken,
-  deleteReport
+router.get(
+  "/latest",
+  getLatestUpload
 );
 
 export default router;
