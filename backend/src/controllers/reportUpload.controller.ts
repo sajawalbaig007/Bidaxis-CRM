@@ -91,22 +91,22 @@ export const uploadReport =
       ========================================= */
 
       const report =
-        await prisma.report.create({
-          data: {
+  await prisma.report.create({
+    data: {
 
-            reportName:
-              file.originalname,
+      reportName:
+        file.originalname,
 
-            reportUrl:
-              uploaded.secure_url,
+      reportUrl:
+        uploaded.secure_url,
 
-            reportType:
-              file.mimetype,
+      reportType:
+        file.mimetype,
 
-            generatedBy:
-              req.user.id,
-          },
-        });
+      generatedBy:
+        null,
+    },
+  });
 
       return res.status(201).json({
         success: true,

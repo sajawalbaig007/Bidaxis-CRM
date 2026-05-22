@@ -10,14 +10,26 @@ import prisma from "../config/db";
 import cloudinary from "../config/cloudinary";
 
 type ExcelRow = {
+
   name?: string;
   Name?: string;
+
+  company?: string;
+  Company?: string;
 
   phone?: string | number;
   Phone?: string | number;
 
+  mobile?: string | number;
+  Mobile?: string | number;
+
   email?: string;
   Email?: string;
+
+  address?: string;
+  Address?: string;
+
+  [key: string]: any;
 };
 
 /* ================= UPLOAD LEADS ================= */
@@ -35,11 +47,22 @@ export const uploadLeads =
       if (!req.file) {
 
         return res.status(400).json({
+
           success: false,
+
           message:
             "No file uploaded",
         });
       }
+
+      /* ================= GET SELECTED CSRS ================= */
+
+      const selectedCSRs =
+        req.body.selectedCSRs
+          ? JSON.parse(
+              req.body.selectedCSRs
+            )
+          : [];
 
       /* ================= GET ADMIN ================= */
 
@@ -122,18 +145,31 @@ export const uploadLeads =
           worksheet
         );
 
-      /* ================= GET CSRS ================= */
+      /* ================= GET ACTIVE CSRS ================= */
 
       const csrs =
         await prisma.user.findMany({
+
           where: {
-            role:
-              "csr",
+
+            role: "csr",
+
+            isActive: true,
+
+            ...(selectedCSRs.length > 0 && {
+
+              id: {
+                in: selectedCSRs,
+              },
+            }),
           },
 
           select: {
+
             id: true,
+
             name: true,
+
             email: true,
           },
         });
@@ -143,10 +179,11 @@ export const uploadLeads =
       ) {
 
         return res.status(400).json({
+
           success: false,
 
           message:
-            "No CSR users found",
+            "No active CSR users found",
         });
       }
 
@@ -154,7 +191,9 @@ export const uploadLeads =
 
       const uploadedFile =
         await prisma.uploadFile.create({
+
           data: {
+
             fileName:
               req.file
                 .originalname,
@@ -169,7 +208,7 @@ export const uploadLeads =
           },
         });
 
-      /* ================= DISTRIBUTE LEADS ================= */
+      /* ================= DISTRIBUTION ================= */
 
       const distributionMap:
         Record<
@@ -180,10 +219,11 @@ export const uploadLeads =
       const createdLeads =
         [];
 
+      /* ================= LOOP ROWS ================= */
+
       for (
         let i = 0;
-        i <
-        data.length;
+        i < data.length;
         i++
       ) {
 
@@ -196,25 +236,99 @@ export const uploadLeads =
               csrs.length
           ];
 
+        /* ================= SMART FIELD DETECTION ================= */
+
+        const keys =
+          Object.keys(row);
+
+        const findValue =
+          (
+            possibleKeys: string[]
+          ) => {
+
+            const foundKey =
+              keys.find(
+                (key) =>
+
+                  possibleKeys.some(
+                    (possible) =>
+
+                      key
+                        .toLowerCase()
+                        .includes(
+                          possible.toLowerCase()
+                        )
+                  )
+              );
+
+            return foundKey
+              ? row[
+                  foundKey
+                ]
+              : "";
+          };
+
+        /* ================= EXTRACT VALUES ================= */
+
+        const finalName =
+          String(
+            findValue([
+              "name",
+              "client",
+              "customer",
+              "contact person",
+            ])
+          ).trim();
+
+        const finalCompany =
+          String(
+            findValue([
+              "company",
+              "business",
+              "organization",
+              "address",
+            ])
+          ).trim();
+
+        const finalPhone =
+          String(
+            findValue([
+              "phone",
+              "mobile",
+              "cell",
+              "contact",
+              "telephone",
+              "number",
+            ])
+          ).trim();
+
+        const finalEmail =
+          String(
+            findValue([
+              "email",
+              "mail",
+              "e-mail",
+            ])
+          ).trim();
+
+        /* ================= CREATE LEAD ================= */
+
         const lead =
           await prisma.lead.create({
+
             data: {
+
               name:
-                row.name ||
-                row.Name ||
-                "",
+                finalName,
+
+              company:
+                finalCompany,
 
               phone:
-                String(
-                  row.phone ||
-                    row.Phone ||
-                    ""
-                ),
+                finalPhone,
 
               email:
-                row.email ||
-                row.Email ||
-                "",
+                finalEmail,
 
               assignedTo:
                 csr.id,
@@ -244,7 +358,7 @@ export const uploadLeads =
         ] += 1;
       }
 
-      /* ================= DISTRIBUTION ================= */
+      /* ================= FINAL DISTRIBUTION ================= */
 
       const distribution =
         Object.entries(
@@ -254,7 +368,9 @@ export const uploadLeads =
             name,
             leads,
           ]) => ({
+
             name,
+
             leads,
           })
         );
@@ -262,6 +378,7 @@ export const uploadLeads =
       /* ================= RESPONSE ================= */
 
       return res.json({
+
         success: true,
 
         totalLeads:
@@ -281,6 +398,7 @@ export const uploadLeads =
       console.log(error);
 
       return res.status(500).json({
+
         success: false,
 
         message:
@@ -301,18 +419,26 @@ export const getLatestUpload =
 
       const latestFile =
         await prisma.uploadFile.findFirst({
+
           orderBy: {
             createdAt:
               "desc",
           },
 
           include: {
+
             leads: {
+
               include: {
+
                 csr: {
+
                   select: {
+
                     id: true,
+
                     name: true,
+
                     email: true,
                   },
                 },
@@ -326,7 +452,9 @@ export const getLatestUpload =
       ) {
 
         return res.json({
+
           success: true,
+
           file: null,
         });
       }
@@ -370,15 +498,19 @@ export const getLatestUpload =
             name,
             leads,
           ]) => ({
+
             name,
+
             leads,
           })
         );
 
       return res.json({
+
         success: true,
 
         file: {
+
           id:
             latestFile.id,
 
@@ -403,6 +535,7 @@ export const getLatestUpload =
       console.log(error);
 
       return res.status(500).json({
+
         success: false,
 
         message:

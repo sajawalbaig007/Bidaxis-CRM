@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Lead" ALTER COLUMN "updatedAt" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "isActive" BOOLEAN NOT NULL DEFAULT true,
+ALTER COLUMN "updatedAt" DROP DEFAULT;
