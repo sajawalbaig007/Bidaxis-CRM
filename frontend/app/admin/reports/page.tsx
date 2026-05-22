@@ -23,17 +23,11 @@ import {
   Clock3,
   FileBarChart2,
   TrendingUp,
-  Target,
   Database,
   ChevronDown,
-  Activity,
-  Trophy,
   AlertTriangle,
-  ArrowUpRight,
-  ArrowDownRight,
   Wifi,
   FileText,
-  Sparkles,
 } from "lucide-react";
 
 import {
@@ -65,6 +59,7 @@ const reportTabs = [
 ========================================= */
 
 type CSRPerformance = {
+  id: string;
   name: string;
   totalLeads: number;
   completed: number;
@@ -107,170 +102,265 @@ export default function ReportsPage() {
     useState("2026-05-10");
 
   const [reportData, setReportData] =
-    useState<ReportResponse | null>(
-      null
-    );
-
+    useState<ReportResponse | null>(null);
 
   const [selectedCSR, setSelectedCSR] =
-    useState<any>(null);
+    useState<CSRPerformance | null>(null);
 
   const [showCSRModal, setShowCSRModal] =
     useState(false);
 
-    const [csrHistory, setCSRHistory] =
-  useState<any>(null);
+  const [csrHistory, setCSRHistory] =
+    useState<{ leads: any[] } | null>(null);
 
-const [loadingCSR, setLoadingCSR] =
-  useState(false);
-  /* FETCH REPORTS */
+  const [loadingCSR, setLoadingCSR] =
+    useState(false);
+
+  /* =========================================
+     FETCH REPORTS
+  ========================================= */
 
   useEffect(() => {
 
-    const fetchReports =
-      async () => {
+    const fetchReports = async () => {
 
-        try {
+      try {
 
-          const res =
-            await API.get(
-              "/reports"
-            );
+        const res = await API.get("/reports");
 
-          setReportData(
-            res.data
-          );
+        setReportData(res.data);
 
-        } catch (error) {
+      } catch (error) {
 
-          console.log(error);
-        }
-      };
+        console.log(error);
+      }
+    };
 
     fetchReports();
 
   }, []);
 
   /* =========================================
-     GENERATE PDF
-     FIX: Build the PDF entirely in memory
-     first, then open a local blob URL
-     synchronously (never blocked by popup
-     blockers). Upload to backend in the
-     background after the tab is already open.
+     OPEN CSR MODAL
+     FIX: reset csrHistory to null before
+     every API call so the modal never shows
+     stale data from a previous CSR while the
+     new request is in flight.
   ========================================= */
 
-  const generatePDF =
-    async () => {
+  const openCSRModal =
+    async (item: CSRPerformance) => {
 
       try {
 
-        /* BUILD PDF */
+        /* Clear previous data immediately */
+        setCSRHistory(null);
+        setLoadingCSR(true);
+        setSelectedCSR(item);
+        setShowCSRModal(true);
 
-        const doc =
-          new jsPDF();
+        const res =
+          await API.get(
+            `/admin/csr-history/${item.id}`
+          );
 
+        /*
+          FIX: normalise both possible API
+          response shapes:
+            - { leads: [...] }   ← object with leads key
+            - [...]              ← array directly
+        */
+        const leads =
+          Array.isArray(res.data)
+            ? res.data
+            : res.data?.leads ?? [];
+
+        setCSRHistory({ leads });
+
+      } catch (error) {
+
+        console.log(error);
+
+        alert("Failed to load CSR history");
+
+      } finally {
+
+        setLoadingCSR(false);
+      }
+    };
+
+  /* =========================================
+     GENERATE PDF — MASTER REPORT
+     Opens local blob immediately (no popup
+     block), uploads to backend in background.
+  ========================================= */
+
+  const generatePDF = async () => {
+
+    try {
+
+      const doc = new jsPDF();
+
+      doc.setFontSize(20);
+
+      doc.text("CSR Performance Report", 14, 20);
+
+      autoTable(doc, {
+
+        startY: 35,
+
+        head: [[
+          "CSR",
+          "Total Leads",
+          "Completed",
+          "Pending",
+          "Important",
+        ]],
+
+        body:
+          (reportData?.csrPerformance || []).map(
+            (item) => [
+              item.name,
+              item.totalLeads,
+              item.completed,
+              item.pending,
+              item.important,
+            ]
+          ),
+      });
+
+      const pdfBlob = doc.output("blob");
+
+      const localUrl =
+        URL.createObjectURL(pdfBlob);
+
+      /* Open synchronously — never blocked */
+      window.open(localUrl, "_blank");
+
+      /* Upload in background */
+      const file = new Blob(
+        [pdfBlob],
+        { type: "application/pdf" }
+      );
+
+      const formData = new FormData();
+
+      formData.append(
+        "file",
+        file,
+        `report-${Date.now()}.pdf`
+      );
+
+      await API.post(
+        "/report-uploads",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      const updated = await API.get("/reports");
+
+      setReportData(updated.data);
+
+      URL.revokeObjectURL(localUrl);
+
+      alert("PDF generated successfully");
+
+    } catch (error) {
+
+      console.log(error);
+
+      alert("Failed to generate PDF");
+    }
+  };
+
+  /* =========================================
+     GENERATE CSR PDF — INDIVIDUAL REPORT
+  ========================================= */
+
+  const generateCSRPDF =
+    async (item: CSRPerformance) => {
+
+      try {
+
+        const res =
+          await API.get(
+            `/admin/csr-history/${item.id}`
+          );
+
+        const leads =
+          Array.isArray(res.data)
+            ? res.data
+            : res.data?.leads ?? [];
+
+        const doc = new jsPDF();
+
+        /* HEADER */
         doc.setFontSize(20);
+        doc.text(`${item.name} Report`, 14, 20);
 
+        doc.setFontSize(11);
         doc.text(
-          "CSR Performance Report",
+          `Generated: ${new Date().toLocaleString()}`,
           14,
-          20
+          30
         );
 
+        /* SUMMARY TABLE */
         autoTable(doc, {
 
-          startY: 35,
+          startY: 40,
 
           head: [[
-            "CSR",
             "Total Leads",
             "Completed",
             "Pending",
             "Important",
           ]],
 
-          body:
-            (
-              reportData
-                ?.csrPerformance ||
-              []
-            ).map(
-              (item) => [
-                item.name,
-                item.totalLeads,
-                item.completed,
-                item.pending,
-                item.important,
-              ]
-            ),
+          body: [[
+            item.totalLeads,
+            item.completed,
+            item.pending,
+            item.important,
+          ]],
         });
 
-        /* ===============================
-           OPEN LOCAL BLOB IN NEW TAB
-           This is synchronous — no await
-           before it — so browsers never
-           treat it as a blocked popup.
-           The user sees the PDF instantly
-           without waiting for the upload.
-        =============================== */
+        /* LEADS TABLE */
+        autoTable(doc, {
 
-        const pdfBlob =
-          doc.output("blob");
+          startY:
+            (doc as any).lastAutoTable.finalY + 15,
 
-        const localUrl =
-          URL.createObjectURL(pdfBlob);
+          head: [[
+            "Name",
+            "Company",
+            "Phone",
+            "Email",
+            "Status",
+            "Next Schedule",
+          ]],
 
-        window.open(localUrl, "_blank");
+          body: leads.map((lead: any) => [
+            lead.name || "-",
+            lead.company || "-",
+            lead.phone || "-",
+            lead.email || "-",
+            lead.status || "-",
+            lead.nextSchedule || "-",
+          ]),
+        });
 
-        /* ===============================
-           UPLOAD TO BACKEND IN BACKGROUND
-        =============================== */
-
-        const file =
-          new Blob(
-            [pdfBlob],
-            { type: "application/pdf" }
-          );
-
-        const formData =
-          new FormData();
-
-        formData.append(
-          "file",
-          file,
-          `report-${Date.now()}.pdf`
-        );
-
-        await API.post(
-          "/report-uploads",
-          formData,
-          {
-            headers: {
-              "Content-Type":
-                "multipart/form-data",
-            },
-          }
-        );
-
-        /* REFRESH REPORTS */
-
-        const updated =
-          await API.get("/reports");
-
-        setReportData(updated.data);
-
-        /* RELEASE LOCAL BLOB URL */
-
-        URL.revokeObjectURL(localUrl);
-
-        alert("PDF generated successfully");
+        doc.save(`${item.name}-report.pdf`);
 
       } catch (error) {
 
         console.log(error);
 
-        alert("Failed to generate PDF");
+        alert("Failed to generate CSR PDF");
       }
     };
 
@@ -290,9 +380,7 @@ const [loadingCSR, setLoadingCSR] =
 
       try {
 
-        await API.delete(
-          `/report-uploads/${id}`
-        );
+        await API.delete(`/report-uploads/${id}`);
 
         setReportData((prev) => {
 
@@ -300,10 +388,9 @@ const [loadingCSR, setLoadingCSR] =
 
           return {
             ...prev,
-            reports:
-              prev.reports.filter(
-                (r) => r.id !== id
-              ),
+            reports: prev.reports.filter(
+              (r) => r.id !== id
+            ),
           };
         });
 
@@ -315,61 +402,52 @@ const [loadingCSR, setLoadingCSR] =
       }
     };
 
-  /* CHART DATA */
+  /* =========================================
+     CHART DATA
+  ========================================= */
 
-  const callsChart =
-    useMemo(() => {
+  const callsChart = useMemo(() => {
 
-      if (
-        !reportData?.csrPerformance
-      )
-        return [];
+    if (!reportData?.csrPerformance) return [];
 
-      return reportData.csrPerformance.map(
-        (item) => ({
-          day: item.name,
-          calls:
-            item.totalLeads,
-        })
-      );
+    return reportData.csrPerformance.map(
+      (item) => ({
+        day: item.name,
+        calls: item.totalLeads,
+      })
+    );
 
-    }, [reportData]);
+  }, [reportData]);
 
-  const ordersChart =
-    useMemo(() => {
+  const ordersChart = useMemo(() => {
 
-      if (
-        !reportData?.csrPerformance
-      )
-        return [];
+    if (!reportData?.csrPerformance) return [];
 
-      return reportData.csrPerformance.map(
-        (item) => ({
-          day: item.name,
-          orders:
-            item.completed,
-        })
-      );
+    return reportData.csrPerformance.map(
+      (item) => ({
+        day: item.name,
+        orders: item.completed,
+      })
+    );
 
-    }, [reportData]);
+  }, [reportData]);
 
-  const leadsChart =
-    useMemo(() => {
+  const leadsChart = useMemo(() => {
 
-      if (
-        !reportData?.csrPerformance
-      )
-        return [];
+    if (!reportData?.csrPerformance) return [];
 
-      return reportData.csrPerformance.map(
-        (item) => ({
-          state: item.name,
-          leads:
-            item.totalLeads,
-        })
-      );
+    return reportData.csrPerformance.map(
+      (item) => ({
+        state: item.name,
+        leads: item.totalLeads,
+      })
+    );
 
-    }, [reportData]);
+  }, [reportData]);
+
+  /* =========================================
+     RENDER
+  ========================================= */
 
   return (
 
@@ -401,29 +479,22 @@ const [loadingCSR, setLoadingCSR] =
 
         <div className="mt-5 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
 
-          <div>
+          <div className="flex items-center gap-3">
 
-            <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#B8112D] text-white">
+              <FileBarChart2 size={20} />
+            </div>
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#B8112D] text-white">
+            <div>
 
-                <FileBarChart2 size={20} />
+              <h1 className="text-[32px] font-bold text-[#111827]">
+                Reports & Analytics
+              </h1>
 
-              </div>
-
-              <div>
-
-                <h1 className="text-[32px] font-bold text-[#111827]">
-                  Reports & Analytics
-                </h1>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  Analyze calls, orders,
-                  CSR performance and lead
-                  activity.
-                </p>
-
-              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                Analyze calls, orders, CSR performance
+                and lead activity.
+              </p>
 
             </div>
 
@@ -434,7 +505,6 @@ const [loadingCSR, setLoadingCSR] =
           <div className="flex flex-col gap-3 sm:flex-row">
 
             {/* SEARCH */}
-
             <div className="relative">
 
               <Search
@@ -446,11 +516,7 @@ const [loadingCSR, setLoadingCSR] =
                 type="text"
                 placeholder="Search reports..."
                 value={search}
-                onChange={(e) =>
-                  setSearch(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setSearch(e.target.value)}
                 className="
                   h-[50px]
                   rounded-2xl
@@ -469,7 +535,6 @@ const [loadingCSR, setLoadingCSR] =
             </div>
 
             {/* DATE */}
-
             <div className="relative">
 
               <CalendarDays
@@ -480,9 +545,7 @@ const [loadingCSR, setLoadingCSR] =
               <select
                 value={selectedDate}
                 onChange={(e) =>
-                  setSelectedDate(
-                    e.target.value
-                  )
+                  setSelectedDate(e.target.value)
                 }
                 className="
                   h-[50px]
@@ -497,17 +560,14 @@ const [loadingCSR, setLoadingCSR] =
                   focus:border-[#B8112D]
                 "
               >
-
                 <option value="2026-05-10">
                   May 10, 2026
                 </option>
-
               </select>
 
             </div>
 
             {/* EXPORT */}
-
             <button
               className="
                 flex
@@ -526,11 +586,8 @@ const [loadingCSR, setLoadingCSR] =
                 hover:bg-[#a30f27]
               "
             >
-
               Export
-
               <ChevronDown size={18} />
-
             </button>
 
           </div>
@@ -551,10 +608,7 @@ const [loadingCSR, setLoadingCSR] =
 
                 <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-green-100">
 
-                  <Wifi
-                    size={22}
-                    className="text-green-600"
-                  />
+                  <Wifi size={22} className="text-green-600" />
 
                   <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500 animate-ping" />
 
@@ -567,8 +621,7 @@ const [loadingCSR, setLoadingCSR] =
                   </h3>
 
                   <p className="text-sm text-gray-500">
-                    Real-time reporting is
-                    connected
+                    Real-time reporting is connected
                   </p>
 
                 </div>
@@ -620,9 +673,7 @@ const [loadingCSR, setLoadingCSR] =
           {reportTabs.map((tab, i) => (
             <button
               key={i}
-              onClick={() =>
-                setActiveTab(tab)
-              }
+              onClick={() => setActiveTab(tab)}
               className={`
                 rounded-2xl
                 px-5
@@ -630,7 +681,6 @@ const [loadingCSR, setLoadingCSR] =
                 text-sm
                 font-semibold
                 transition-all
-
                 ${activeTab === tab
                   ? "bg-[#B8112D] text-white shadow-sm"
                   : "bg-white text-gray-500 hover:bg-gray-100"
@@ -651,102 +701,62 @@ const [loadingCSR, setLoadingCSR] =
 
           {/* TOTAL LEADS */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
-
             <div className="flex items-center justify-between">
-
               <div>
-
-                <p className="text-sm text-gray-500">
-                  Total Leads
-                </p>
-
+                <p className="text-sm text-gray-500">Total Leads</p>
                 <h2 className="mt-2 text-3xl font-bold text-[#111827]">
                   {reportData?.totalLeads || 0}
                 </h2>
-
               </div>
-
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-[#B8112D]">
                 <PhoneCall size={28} />
               </div>
-
             </div>
-
           </div>
 
           {/* COMPLETED */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
-
             <div className="flex items-center justify-between">
-
               <div>
-
-                <p className="text-sm text-gray-500">
-                  Completed
-                </p>
-
+                <p className="text-sm text-gray-500">Completed</p>
                 <h2 className="mt-2 text-3xl font-bold text-[#111827]">
                   {reportData?.completed || 0}
                 </h2>
-
               </div>
-
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-50 text-green-600">
                 <ShoppingCart size={28} />
               </div>
-
             </div>
-
           </div>
 
           {/* PENDING */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
-
             <div className="flex items-center justify-between">
-
               <div>
-
-                <p className="text-sm text-gray-500">
-                  Pending
-                </p>
-
+                <p className="text-sm text-gray-500">Pending</p>
                 <h2 className="mt-2 text-3xl font-bold text-[#111827]">
                   {reportData?.pending || 0}
                 </h2>
-
               </div>
-
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-50 text-yellow-600">
                 <Clock3 size={28} />
               </div>
-
             </div>
-
           </div>
 
           {/* IMPORTANT */}
           <div className="rounded-[28px] bg-white p-5 shadow-sm">
-
             <div className="flex items-center justify-between">
-
               <div>
-
-                <p className="text-sm text-gray-500">
-                  Important
-                </p>
-
+                <p className="text-sm text-gray-500">Important</p>
                 <h2 className="mt-2 text-3xl font-bold text-[#111827]">
                   {reportData?.important || 0}
                 </h2>
-
               </div>
-
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
                 <AlertTriangle size={28} />
               </div>
-
             </div>
-
           </div>
 
         </div>
@@ -757,107 +767,60 @@ const [loadingCSR, setLoadingCSR] =
 
         <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-12">
 
-          {/* LEFT */}
+          {/* LEFT CHART */}
           <div className="xl:col-span-8 rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
               <div>
-
                 <h2 className="text-xl font-bold text-[#111827]">
                   {activeTab}
                 </h2>
-
                 <p className="mt-1 text-sm text-gray-500">
-                  Advanced live analytics &
-                  reporting
+                  Advanced live analytics & reporting
                 </p>
-
               </div>
-
             </div>
 
             <div className="h-[340px]">
 
-              {activeTab ===
-                "CSR Performance" ? (
+              {activeTab === "CSR Performance" ? (
 
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                >
-
-                  <BarChart
-                    data={callsChart}
-                  >
-
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={callsChart}>
                     <CartesianGrid strokeDasharray="3 3" />
-
                     <XAxis dataKey="day" />
-
                     <Tooltip />
-
                     <Bar
                       dataKey="calls"
                       fill="#B8112D"
-                      radius={[
-                        10,
-                        10,
-                        0,
-                        0,
-                      ]}
+                      radius={[10, 10, 0, 0]}
                     />
-
                   </BarChart>
-
                 </ResponsiveContainer>
 
-              ) : activeTab ===
-                "Orders Report" ? (
+              ) : activeTab === "Orders Report" ? (
 
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                >
-
-                  <LineChart
-                    data={ordersChart}
-                  >
-
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={ordersChart}>
                     <CartesianGrid strokeDasharray="3 3" />
-
                     <XAxis dataKey="day" />
-
                     <Tooltip />
-
                     <Line
                       type="monotone"
                       dataKey="orders"
                       stroke="#B8112D"
                       strokeWidth={4}
                     />
-
                   </LineChart>
-
                 </ResponsiveContainer>
 
               ) : (
 
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                >
-
-                  <AreaChart
-                    data={leadsChart}
-                  >
-
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={leadsChart}>
                     <CartesianGrid strokeDasharray="3 3" />
-
                     <XAxis dataKey="state" />
-
                     <Tooltip />
-
                     <Area
                       type="monotone"
                       dataKey="leads"
@@ -865,9 +828,7 @@ const [loadingCSR, setLoadingCSR] =
                       fill="#FEE2E2"
                       strokeWidth={4}
                     />
-
                   </AreaChart>
-
                 </ResponsiveContainer>
 
               )}
@@ -876,69 +837,49 @@ const [loadingCSR, setLoadingCSR] =
 
           </div>
 
-          {/* RIGHT */}
+          {/* RIGHT — QUICK INSIGHTS */}
           <div className="xl:col-span-4 rounded-[28px] bg-white p-5 shadow-sm">
 
             <div className="flex items-center justify-between">
-
               <div>
-
                 <h2 className="text-xl font-bold text-[#111827]">
                   Quick Insights
                 </h2>
-
                 <p className="mt-1 text-sm text-gray-500">
                   AI generated summaries
                 </p>
-
               </div>
-
               <FileBarChart2 className="text-[#B8112D]" />
-
             </div>
 
             <div className="mt-7 space-y-5">
 
               <div className="flex items-center gap-4 rounded-2xl bg-red-50 p-4">
-
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#B8112D] text-white">
                   <TrendingUp size={22} />
                 </div>
-
                 <div>
-
                   <h3 className="font-semibold text-[#111827]">
                     Interested Leads
                   </h3>
-
                   <p className="text-sm text-gray-500">
-                    {reportData?.interested || 0}
-                    {" "}Interested
+                    {reportData?.interested || 0} Interested
                   </p>
-
                 </div>
-
               </div>
 
               <div className="flex items-center gap-4 rounded-2xl bg-gray-50 p-4">
-
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#111827] text-white">
                   <Database size={22} />
                 </div>
-
                 <div>
-
                   <h3 className="font-semibold text-[#111827]">
                     Total Leads
                   </h3>
-
                   <p className="text-sm text-gray-500">
-                    {reportData?.totalLeads || 0}
-                    {" "}Distributed
+                    {reportData?.totalLeads || 0} Distributed
                   </p>
-
                 </div>
-
               </div>
 
             </div>
@@ -956,16 +897,12 @@ const [loadingCSR, setLoadingCSR] =
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
-
               <h2 className="text-xl font-bold text-[#111827]">
                 CSR Performance Details
               </h2>
-
               <p className="mt-1 text-sm text-gray-500">
-                Complete analytics based
-                on selected report filters.
+                Complete analytics based on selected report filters.
               </p>
-
             </div>
 
             <button
@@ -987,11 +924,8 @@ const [loadingCSR, setLoadingCSR] =
                 hover:bg-gray-100
               "
             >
-
               <FileText size={18} />
-
               Generate PDF
-
             </button>
 
           </div>
@@ -999,31 +933,14 @@ const [loadingCSR, setLoadingCSR] =
           <table className="w-full min-w-[900px]">
 
             <thead>
-
               <tr className="border-b border-gray-100 text-left">
-
-                <th className="pb-4 text-sm font-semibold text-gray-500">
-                  CSR
-                </th>
-
-                <th className="pb-4 text-sm font-semibold text-gray-500">
-                  Total Leads
-                </th>
-
-                <th className="pb-4 text-sm font-semibold text-gray-500">
-                  Completed
-                </th>
-
-                <th className="pb-4 text-sm font-semibold text-gray-500">
-                  Pending
-                </th>
-
-                <th className="pb-4 text-sm font-semibold text-gray-500">
-                  Important
-                </th>
-
+                <th className="pb-4 text-sm font-semibold text-gray-500">CSR</th>
+                <th className="pb-4 text-sm font-semibold text-gray-500">Total Leads</th>
+                <th className="pb-4 text-sm font-semibold text-gray-500">Completed</th>
+                <th className="pb-4 text-sm font-semibold text-gray-500">Pending</th>
+                <th className="pb-4 text-sm font-semibold text-gray-500">Important</th>
+                <th className="pb-4 text-sm font-semibold text-gray-500">Action</th>
               </tr>
-
             </thead>
 
             <tbody>
@@ -1032,215 +949,59 @@ const [loadingCSR, setLoadingCSR] =
                 .filter((item) =>
                   item.name
                     .toLowerCase()
-                    .includes(
-                      search.toLowerCase()
-                    )
+                    .includes(search.toLowerCase())
                 )
-                .map(
-                  (item, i) => (
+                /* FIX: use item.id as key — no more duplicate key warning */
+                .map((item) => (
 
-                    <tr
-                      key={i}
-                      className="border-b border-gray-50"
-                    >
+                  <tr
+                    key={item.id}
+                    className="border-b border-gray-50"
+                  >
 
-                      <td className="py-5">
+                    {/* CSR NAME — click opens modal */}
+                    <td className="py-5">
+                      <button
+                        onClick={() => openCSRModal(item)}
+                        className="
+                          font-semibold
+                          text-[#111827]
+                          transition-all
+                          hover:text-[#B8112D]
+                          hover:underline
+                        "
+                      >
+                        {item.name}
+                      </button>
+                    </td>
 
-                        <button
-                          onClick={async () => {
+                    <td className="py-5">{item.totalLeads}</td>
+                    <td className="py-5">{item.completed}</td>
+                    <td className="py-5">{item.pending}</td>
+                    <td className="py-5">{item.important}</td>
 
-  try {
+                    {/* DOWNLOAD PDF */}
+                    <td className="py-5">
+                      <button
+                        onClick={() => generateCSRPDF(item)}
+                        className="
+                          rounded-xl
+                          bg-[#111827]
+                          px-4
+                          py-2
+                          text-sm
+                          font-medium
+                          text-white
+                          transition-all
+                          hover:bg-black
+                        "
+                      >
+                        Download PDF
+                      </button>
+                    </td>
 
-    setLoadingCSR(true);
-
-    setShowCSRModal(true);
-
-    setSelectedCSR(item);
-
-    const res =
-      await API.get(
-        `/admin/csr-history/${item.name}`
-      );
-
-    setCSRHistory(
-      res.data
-    );
-
-  } catch (error) {
-
-    console.log(error);
-
-    alert(
-      "Failed to load CSR history"
-    );
-
-  } finally {
-
-    setLoadingCSR(false);
-  }
-}}
-                          className="
-      font-semibold
-      text-[#111827]
-      transition-all
-      hover:text-[#B8112D]
-      hover:underline
-    "
-                        >
-                          {item.name}
-                        </button>
-
-                      </td>
-
-                      <td className="py-5">
-                        {item.totalLeads}
-                      </td>
-
-                      <td className="py-5">
-                        {item.completed}
-                      </td>
-
-                      <td className="py-5">
-                        {item.pending}
-                      </td>
-
-                      <td className="py-5">
-                        {item.important}
-                      </td>
-
-                      <td className="py-5">
-
-  <button
-
-    onClick={async () => {
-
-      try {
-
-        const res =
-          await API.get(
-            `/admin/csr-history/${item.name}`
-          );
-
-        const data =
-          res.data;
-
-        const doc =
-          new jsPDF();
-
-        /* ================= HEADER ================= */
-
-        doc.setFontSize(20);
-
-        doc.text(
-          `${item.name} Report`,
-          14,
-          20
-        );
-
-        doc.setFontSize(11);
-
-        doc.text(
-          `Generated: ${new Date().toLocaleString()}`,
-          14,
-          30
-        );
-
-        /* ================= SUMMARY ================= */
-
-        autoTable(doc, {
-
-          startY: 40,
-
-          head: [[
-            "Total Leads",
-            "Completed",
-            "Pending",
-            "Important",
-          ]],
-
-          body: [[
-            item.totalLeads,
-            item.completed,
-            item.pending,
-            item.important,
-          ]],
-        });
-
-        /* ================= LEADS ================= */
-
-        autoTable(doc, {
-
-          startY:
-            (doc as any)
-              .lastAutoTable
-              .finalY + 15,
-
-          head: [[
-            "Name",
-            "Company",
-            "Phone",
-            "Email",
-            "Status",
-            "Next Schedule",
-          ]],
-
-          body:
-            data.leads.map(
-              (lead: any) => [
-
-                lead.name || "-",
-
-                lead.company || "-",
-
-                lead.phone || "-",
-
-                lead.email || "-",
-
-                lead.status || "-",
-
-                lead.nextSchedule || "-",
-              ]
-            ),
-        });
-
-        /* ================= SAVE PDF ================= */
-
-        doc.save(
-          `${item.name}-report.pdf`
-        );
-
-      } catch (error) {
-
-        console.log(error);
-
-        alert(
-          "Failed to generate CSR PDF"
-        );
-      }
-    }}
-
-    className="
-      rounded-xl
-      bg-[#111827]
-      px-4
-      py-2
-      text-sm
-      font-medium
-      text-white
-      transition-all
-      hover:bg-black
-    "
-  >
-
-    Download PDF
-
-  </button>
-
-</td>
-
-                    </tr>
-                  )
-                )}
+                  </tr>
+                ))}
 
             </tbody>
 
@@ -1255,15 +1016,12 @@ const [loadingCSR, setLoadingCSR] =
         <div className="mt-6 rounded-[28px] bg-white p-5 shadow-sm">
 
           <div className="mb-6">
-
             <h2 className="text-xl font-bold text-[#111827]">
               Generated Reports
             </h2>
-
             <p className="mt-1 text-sm text-gray-500">
               Uploaded PDF & Excel reports
             </p>
-
           </div>
 
           <div className="overflow-x-auto">
@@ -1271,175 +1029,104 @@ const [loadingCSR, setLoadingCSR] =
             <table className="w-full min-w-[900px]">
 
               <thead>
-
                 <tr className="border-b border-gray-100 text-left">
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Report Name
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Type
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Generated By
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Date
-                  </th>
-
-                  <th className="pb-4 text-sm font-semibold text-gray-500">
-                    Action
-                  </th>
-
+                  <th className="pb-4 text-sm font-semibold text-gray-500">Report Name</th>
+                  <th className="pb-4 text-sm font-semibold text-gray-500">Type</th>
+                  <th className="pb-4 text-sm font-semibold text-gray-500">Generated By</th>
+                  <th className="pb-4 text-sm font-semibold text-gray-500">Date</th>
+                  <th className="pb-4 text-sm font-semibold text-gray-500">Action</th>
                 </tr>
-
               </thead>
 
               <tbody>
 
-                {(reportData?.reports || [])
-                  .map((report) => (
+                {(reportData?.reports || []).map((report) => (
 
-                    <tr
-                      key={report.id}
-                      className="border-b border-gray-50"
-                    >
+                  <tr
+                    key={report.id}
+                    className="border-b border-gray-50"
+                  >
 
-                      <td className="py-5 font-semibold text-[#111827]">
-                        {report.reportName}
-                      </td>
+                    <td className="py-5 font-semibold text-[#111827]">
+                      {report.reportName}
+                    </td>
 
-                      <td className="py-5">
-                        {report.reportType}
-                      </td>
+                    <td className="py-5">{report.reportType}</td>
 
-                      <td className="py-5">
-                        {report.generatedBy}
-                      </td>
+                    <td className="py-5">{report.generatedBy}</td>
 
-                      <td className="py-5">
+                    <td className="py-5">
+                      {new Date(report.createdAt).toLocaleDateString()}
+                    </td>
 
-                        {new Date(
-                          report.createdAt
-                        ).toLocaleDateString()}
+                    <td className="py-5">
 
-                      </td>
+                      <div className="flex items-center gap-3">
 
-                      <td className="py-5">
-
-                        <div className="flex items-center gap-3">
-
-                          {/* VIEW PDF */}
-
-                          <button
-                            onClick={() => {
-
-                              /* PDF */
-
-                              if (
-                                report.reportType.includes(
-                                  "pdf"
-                                )
-                              ) {
-
-                                window.open(
-                                  report.reportUrl,
-                                  "_blank"
-                                );
-
-                                return;
-                              }
-
-                              /* EXCEL / CSV */
-
-                              if (
-                                report.reportType.includes(
-                                  "csv"
-                                ) ||
-
-                                report.reportType.includes(
-                                  "excel"
-                                ) ||
-
-                                report.reportType.includes(
-                                  "sheet"
-                                )
-                              ) {
-
-                                const link =
-                                  document.createElement(
-                                    "a"
-                                  );
-
-                                link.href =
-                                  report.reportUrl;
-
-                                link.download =
-                                  report.reportName;
-
-                                document.body.appendChild(
-                                  link
-                                );
-
-                                link.click();
-
-                                document.body.removeChild(
-                                  link
-                                );
-
-                                return;
-                              }
-
-                              alert(
-                                "Unsupported file type"
-                              );
-                            }}
-                            className="
-    rounded-xl
-    bg-[#B8112D]
-    px-4
-    py-2
-    text-sm
-    font-medium
-    text-white
-  "
-                          >
-                            View
-                          </button>
-
-                          {/* DELETE */}
-
-                          <button
-                            onClick={() =>
-                              handleDeleteReport(
-                                report.id
-                              )
+                        {/* VIEW */}
+                        <button
+                          onClick={() => {
+                            if (report.reportType.includes("pdf")) {
+                              window.open(report.reportUrl, "_blank");
+                              return;
                             }
-                            className="
-        rounded-xl
-        bg-red-100
-        px-4
-        py-2
-        text-sm
-        font-medium
-        text-[#B8112D]
-        transition-all
-        hover:bg-[#B8112D]
-        hover:text-white
-      "
-                          >
-                            Delete
-                          </button>
+                            if (
+                              report.reportType.includes("csv") ||
+                              report.reportType.includes("excel") ||
+                              report.reportType.includes("sheet")
+                            ) {
+                              const link = document.createElement("a");
+                              link.href = report.reportUrl;
+                              link.download = report.reportName;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              return;
+                            }
+                            alert("Unsupported file type");
+                          }}
+                          className="
+                            rounded-xl
+                            bg-[#B8112D]
+                            px-4
+                            py-2
+                            text-sm
+                            font-medium
+                            text-white
+                            transition-all
+                            hover:bg-[#a30f27]
+                          "
+                        >
+                          View
+                        </button>
 
-                        </div>
+                        {/* DELETE */}
+                        <button
+                          onClick={() =>
+                            handleDeleteReport(report.id)
+                          }
+                          className="
+                            rounded-xl
+                            bg-red-100
+                            px-4
+                            py-2
+                            text-sm
+                            font-medium
+                            text-[#B8112D]
+                            transition-all
+                            hover:bg-[#B8112D]
+                            hover:text-white
+                          "
+                        >
+                          Delete
+                        </button>
 
-                      </td>
+                      </div>
 
-                    </tr>
-                  ))}
+                    </td>
+
+                  </tr>
+                ))}
 
               </tbody>
 
@@ -1450,295 +1137,190 @@ const [loadingCSR, setLoadingCSR] =
         </div>
 
         {/* =========================================
-    CSR DETAILS MODAL
-========================================= */}
+            CSR DETAILS MODAL
+        ========================================= */}
 
-        {
-          showCSRModal && selectedCSR && (
+        {showCSRModal && selectedCSR && (
 
-            <div
-              className="
-        fixed
-        inset-0
-        z-50
-        flex
-        items-center
-        justify-center
-        bg-black/50
-        p-4
-      "
-            >
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
 
-              <div
-                className="
-          max-h-[90vh]
-          w-full
-          max-w-4xl
-          overflow-y-auto
-          rounded-[28px]
-          bg-white
-          p-6
-          shadow-2xl
-        "
-              >
+            <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl">
 
-                {/* HEADER */}
+              {/* MODAL HEADER */}
+              <div className="flex items-center justify-between">
 
-                <div className="flex items-center justify-between">
-
-                  <div>
-
-                    <h2 className="text-2xl font-bold text-[#111827]">
-                      {selectedCSR.name}
-                    </h2>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                      CSR Complete Performance Details
-                    </p>
-
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setShowCSRModal(false)
-                    }
-                    className="
-              rounded-xl
-              bg-red-100
-              px-4
-              py-2
-              text-sm
-              font-semibold
-              text-[#B8112D]
-            "
-                  >
-                    Close
-                  </button>
-
+                <div>
+                  <h2 className="text-2xl font-bold text-[#111827]">
+                    {selectedCSR.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    CSR Complete Performance Details
+                  </p>
                 </div>
 
-                {/* STATS */}
-
-                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-                  <div className="rounded-2xl bg-gray-50 p-4">
-
-                    <p className="text-sm text-gray-500">
-                      Total Leads
-                    </p>
-
-                    <h3 className="mt-2 text-2xl font-bold text-[#111827]">
-                      {selectedCSR.totalLeads}
-                    </h3>
-
-                  </div>
-
-                  <div className="rounded-2xl bg-green-50 p-4">
-
-                    <p className="text-sm text-gray-500">
-                      Completed
-                    </p>
-
-                    <h3 className="mt-2 text-2xl font-bold text-green-600">
-                      {selectedCSR.completed}
-                    </h3>
-
-                  </div>
-
-                  <div className="rounded-2xl bg-yellow-50 p-4">
-
-                    <p className="text-sm text-gray-500">
-                      Pending
-                    </p>
-
-                    <h3 className="mt-2 text-2xl font-bold text-yellow-600">
-                      {selectedCSR.pending}
-                    </h3>
-
-                  </div>
-
-                  <div className="rounded-2xl bg-red-50 p-4">
-
-                    <p className="text-sm text-gray-500">
-                      Important
-                    </p>
-
-                    <h3 className="mt-2 text-2xl font-bold text-[#B8112D]">
-                      {selectedCSR.important}
-                    </h3>
-
-                  </div>
-
-                </div>
-
-                {/* PLACEHOLDER */}
-
-                <div className="mt-8">
-
-  <h3 className="mb-4 text-lg font-bold text-[#111827]">
-    Lead History
-  </h3>
-
-  {
-    loadingCSR ? (
-
-      <div className="py-10 text-center">
-        Loading...
-      </div>
-
-    ) : (
-
-      <div className="space-y-4">
-
-        {
-          csrHistory?.leads?.map(
-            (lead: any) => (
-
-              <div
-                key={lead.id}
-                className="
-                  rounded-2xl
-                  border
-                  border-gray-200
-                  p-5
-                "
-              >
-
-                <div className="flex items-start justify-between">
-
-                  <div>
-
-                    <h4 className="text-lg font-semibold text-[#111827]">
-
-  {
-    lead.name
-      ?.split(" ")
-      ?.slice(0, 3)
-      ?.join(" ")
-  || "No Name"}
-
-</h4>
-
-<p className="mt-1 text-sm text-gray-500">
-
-  {
-    lead.company ||
-
-    lead.name
-      ?.split(" ")
-      ?.slice(3)
-      ?.join(" ")
-
-    ||
-
-    "No Company"
-  }
-
-</p>
-
-                  </div>
-
-                  <span
-                    className="
-                      rounded-xl
-                      bg-[#B8112D]
-                      px-3
-                      py-1
-                      text-xs
-                      font-semibold
-                      text-white
-                    "
-                  >
-                    {lead.status}
-                  </span>
-
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-                  <div>
-
-                    <p className="text-sm text-gray-500">
-                      Email
-                    </p>
-
-                    <p className="font-medium">
-                      {lead.email || "-"}
-                    </p>
-
-                  </div>
-
-                  <div>
-
-                    <p className="text-sm text-gray-500">
-                      Phone
-                    </p>
-
-                    <p className="font-medium">
-                      {lead.phone || "-"}
-                    </p>
-
-                  </div>
-
-                  <div>
-
-                    <p className="text-sm text-gray-500">
-                      Next Schedule
-                    </p>
-
-                    <p className="font-medium">
-                      {lead.nextSchedule || "-"}
-                    </p>
-
-                  </div>
-
-                  <div>
-
-                    <p className="text-sm text-gray-500">
-                      Interested Service
-                    </p>
-
-                    <p className="font-medium">
-                      {lead.interestedService || "-"}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {
-                  lead.followUpNotes && (
-
-                    <div className="mt-4 rounded-xl bg-gray-50 p-4">
-
-                      <p className="text-sm text-gray-500">
-                        Notes
-                      </p>
-
-                      <p className="mt-1">
-                        {lead.followUpNotes}
-                      </p>
-
-                    </div>
-                  )
-                }
+                <button
+                  onClick={() => setShowCSRModal(false)}
+                  className="
+                    rounded-xl
+                    bg-red-100
+                    px-4
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-[#B8112D]
+                    transition-all
+                    hover:bg-[#B8112D]
+                    hover:text-white
+                  "
+                >
+                  Close
+                </button>
 
               </div>
-            )
-          )
-        }
 
-      </div>
-    )
-  }
+              {/* STATS CARDS */}
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-</div>
+                <div className="rounded-2xl bg-gray-50 p-4">
+                  <p className="text-sm text-gray-500">Total Leads</p>
+                  <h3 className="mt-2 text-2xl font-bold text-[#111827]">
+                    {selectedCSR.totalLeads}
+                  </h3>
+                </div>
+
+                <div className="rounded-2xl bg-green-50 p-4">
+                  <p className="text-sm text-gray-500">Completed</p>
+                  <h3 className="mt-2 text-2xl font-bold text-green-600">
+                    {selectedCSR.completed}
+                  </h3>
+                </div>
+
+                <div className="rounded-2xl bg-yellow-50 p-4">
+                  <p className="text-sm text-gray-500">Pending</p>
+                  <h3 className="mt-2 text-2xl font-bold text-yellow-600">
+                    {selectedCSR.pending}
+                  </h3>
+                </div>
+
+                <div className="rounded-2xl bg-red-50 p-4">
+                  <p className="text-sm text-gray-500">Important</p>
+                  <h3 className="mt-2 text-2xl font-bold text-[#B8112D]">
+                    {selectedCSR.important}
+                  </h3>
+                </div>
+
+              </div>
+
+              {/* LEAD HISTORY */}
+              <div className="mt-8">
+
+                <h3 className="mb-4 text-lg font-bold text-[#111827]">
+                  Lead History
+                </h3>
+
+                {/* LOADING */}
+                {loadingCSR ? (
+
+                  <div className="py-10 text-center text-gray-500">
+                    Loading...
+                  </div>
+
+                /* FIX: proper empty state when no leads */
+                ) : !csrHistory?.leads?.length ? (
+
+                  <div className="py-10 text-center text-gray-400">
+                    No lead history found for this CSR.
+                  </div>
+
+                ) : (
+
+                  <div className="space-y-4">
+
+                    {csrHistory.leads.map((lead: any) => (
+
+                      /* FIX: use lead.id as key */
+                      <div
+                        key={lead.id}
+                        className="rounded-2xl border border-gray-200 p-5"
+                      >
+
+                        <div className="flex items-start justify-between">
+
+                          <div>
+
+                            <h4 className="text-lg font-semibold text-[#111827]">
+                              {lead.name
+                                ?.split(" ")
+                                ?.slice(0, 3)
+                                ?.join(" ") || "No Name"}
+                            </h4>
+
+                            <p className="mt-1 text-sm text-gray-500">
+                              {lead.company ||
+                                lead.name
+                                  ?.split(" ")
+                                  ?.slice(3)
+                                  ?.join(" ") ||
+                                "No Company"}
+                            </p>
+
+                          </div>
+
+                          <span className="rounded-xl bg-[#B8112D] px-3 py-1 text-xs font-semibold text-white">
+                            {lead.status}
+                          </span>
+
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                          <div>
+                            <p className="text-sm text-gray-500">Email</p>
+                            <p className="font-medium">{lead.email || "-"}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-sm text-gray-500">Phone</p>
+                            <p className="font-medium">{lead.phone || "-"}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-sm text-gray-500">Next Schedule</p>
+                            <p className="font-medium">
+                              {lead.nextSchedule || "-"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-sm text-gray-500">
+                              Interested Service
+                            </p>
+                            <p className="font-medium">
+                              {lead.interestedService || "-"}
+                            </p>
+                          </div>
+
+                        </div>
+
+                        {lead.followUpNotes && (
+                          <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                            <p className="text-sm text-gray-500">Notes</p>
+                            <p className="mt-1">{lead.followUpNotes}</p>
+                          </div>
+                        )}
+
+                      </div>
+                    ))}
+
+                  </div>
+                )}
 
               </div>
 
             </div>
-          )
-        }
+
+          </div>
+        )}
 
       </main>
 
