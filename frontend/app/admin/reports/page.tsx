@@ -111,6 +111,18 @@ export default function ReportsPage() {
       null
     );
 
+
+  const [selectedCSR, setSelectedCSR] =
+    useState<any>(null);
+
+  const [showCSRModal, setShowCSRModal] =
+    useState(false);
+
+    const [csrHistory, setCSRHistory] =
+  useState<any>(null);
+
+const [loadingCSR, setLoadingCSR] =
+  useState(false);
   /* FETCH REPORTS */
 
   useEffect(() => {
@@ -1032,8 +1044,52 @@ export default function ReportsPage() {
                       className="border-b border-gray-50"
                     >
 
-                      <td className="py-5 font-semibold text-[#111827]">
-                        {item.name}
+                      <td className="py-5">
+
+                        <button
+                          onClick={async () => {
+
+  try {
+
+    setLoadingCSR(true);
+
+    setShowCSRModal(true);
+
+    setSelectedCSR(item);
+
+    const res =
+      await API.get(
+        `/admin/csr-history/${item.name}`
+      );
+
+    setCSRHistory(
+      res.data
+    );
+
+  } catch (error) {
+
+    console.log(error);
+
+    alert(
+      "Failed to load CSR history"
+    );
+
+  } finally {
+
+    setLoadingCSR(false);
+  }
+}}
+                          className="
+      font-semibold
+      text-[#111827]
+      transition-all
+      hover:text-[#B8112D]
+      hover:underline
+    "
+                        >
+                          {item.name}
+                        </button>
+
                       </td>
 
                       <td className="py-5">
@@ -1051,6 +1107,136 @@ export default function ReportsPage() {
                       <td className="py-5">
                         {item.important}
                       </td>
+
+                      <td className="py-5">
+
+  <button
+
+    onClick={async () => {
+
+      try {
+
+        const res =
+          await API.get(
+            `/admin/csr-history/${item.name}`
+          );
+
+        const data =
+          res.data;
+
+        const doc =
+          new jsPDF();
+
+        /* ================= HEADER ================= */
+
+        doc.setFontSize(20);
+
+        doc.text(
+          `${item.name} Report`,
+          14,
+          20
+        );
+
+        doc.setFontSize(11);
+
+        doc.text(
+          `Generated: ${new Date().toLocaleString()}`,
+          14,
+          30
+        );
+
+        /* ================= SUMMARY ================= */
+
+        autoTable(doc, {
+
+          startY: 40,
+
+          head: [[
+            "Total Leads",
+            "Completed",
+            "Pending",
+            "Important",
+          ]],
+
+          body: [[
+            item.totalLeads,
+            item.completed,
+            item.pending,
+            item.important,
+          ]],
+        });
+
+        /* ================= LEADS ================= */
+
+        autoTable(doc, {
+
+          startY:
+            (doc as any)
+              .lastAutoTable
+              .finalY + 15,
+
+          head: [[
+            "Name",
+            "Company",
+            "Phone",
+            "Email",
+            "Status",
+            "Next Schedule",
+          ]],
+
+          body:
+            data.leads.map(
+              (lead: any) => [
+
+                lead.name || "-",
+
+                lead.company || "-",
+
+                lead.phone || "-",
+
+                lead.email || "-",
+
+                lead.status || "-",
+
+                lead.nextSchedule || "-",
+              ]
+            ),
+        });
+
+        /* ================= SAVE PDF ================= */
+
+        doc.save(
+          `${item.name}-report.pdf`
+        );
+
+      } catch (error) {
+
+        console.log(error);
+
+        alert(
+          "Failed to generate CSR PDF"
+        );
+      }
+    }}
+
+    className="
+      rounded-xl
+      bg-[#111827]
+      px-4
+      py-2
+      text-sm
+      font-medium
+      text-white
+      transition-all
+      hover:bg-black
+    "
+  >
+
+    Download PDF
+
+  </button>
+
+</td>
 
                     </tr>
                   )
@@ -1144,74 +1330,74 @@ export default function ReportsPage() {
 
                       <td className="py-5">
 
-  <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
 
-    {/* VIEW PDF */}
+                          {/* VIEW PDF */}
 
-   <button
-  onClick={() => {
+                          <button
+                            onClick={() => {
 
-    /* PDF */
+                              /* PDF */
 
-    if (
-      report.reportType.includes(
-        "pdf"
-      )
-    ) {
+                              if (
+                                report.reportType.includes(
+                                  "pdf"
+                                )
+                              ) {
 
-      window.open(
-        report.reportUrl,
-        "_blank"
-      );
+                                window.open(
+                                  report.reportUrl,
+                                  "_blank"
+                                );
 
-      return;
-    }
+                                return;
+                              }
 
-    /* EXCEL / CSV */
+                              /* EXCEL / CSV */
 
-    if (
-      report.reportType.includes(
-        "csv"
-      ) ||
+                              if (
+                                report.reportType.includes(
+                                  "csv"
+                                ) ||
 
-      report.reportType.includes(
-        "excel"
-      ) ||
+                                report.reportType.includes(
+                                  "excel"
+                                ) ||
 
-      report.reportType.includes(
-        "sheet"
-      )
-    ) {
+                                report.reportType.includes(
+                                  "sheet"
+                                )
+                              ) {
 
-      const link =
-        document.createElement(
-          "a"
-        );
+                                const link =
+                                  document.createElement(
+                                    "a"
+                                  );
 
-      link.href =
-        report.reportUrl;
+                                link.href =
+                                  report.reportUrl;
 
-      link.download =
-        report.reportName;
+                                link.download =
+                                  report.reportName;
 
-      document.body.appendChild(
-        link
-      );
+                                document.body.appendChild(
+                                  link
+                                );
 
-      link.click();
+                                link.click();
 
-      document.body.removeChild(
-        link
-      );
+                                document.body.removeChild(
+                                  link
+                                );
 
-      return;
-    }
+                                return;
+                              }
 
-    alert(
-      "Unsupported file type"
-    );
-  }}
-  className="
+                              alert(
+                                "Unsupported file type"
+                              );
+                            }}
+                            className="
     rounded-xl
     bg-[#B8112D]
     px-4
@@ -1220,19 +1406,19 @@ export default function ReportsPage() {
     font-medium
     text-white
   "
->
-  View
-</button>
+                          >
+                            View
+                          </button>
 
-    {/* DELETE */}
+                          {/* DELETE */}
 
-    <button
-      onClick={() =>
-        handleDeleteReport(
-          report.id
-        )
-      }
-      className="
+                          <button
+                            onClick={() =>
+                              handleDeleteReport(
+                                report.id
+                              )
+                            }
+                            className="
         rounded-xl
         bg-red-100
         px-4
@@ -1244,13 +1430,13 @@ export default function ReportsPage() {
         hover:bg-[#B8112D]
         hover:text-white
       "
-    >
-      Delete
-    </button>
+                          >
+                            Delete
+                          </button>
 
-  </div>
+                        </div>
 
-</td>
+                      </td>
 
                     </tr>
                   ))}
@@ -1262,6 +1448,297 @@ export default function ReportsPage() {
           </div>
 
         </div>
+
+        {/* =========================================
+    CSR DETAILS MODAL
+========================================= */}
+
+        {
+          showCSRModal && selectedCSR && (
+
+            <div
+              className="
+        fixed
+        inset-0
+        z-50
+        flex
+        items-center
+        justify-center
+        bg-black/50
+        p-4
+      "
+            >
+
+              <div
+                className="
+          max-h-[90vh]
+          w-full
+          max-w-4xl
+          overflow-y-auto
+          rounded-[28px]
+          bg-white
+          p-6
+          shadow-2xl
+        "
+              >
+
+                {/* HEADER */}
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+
+                    <h2 className="text-2xl font-bold text-[#111827]">
+                      {selectedCSR.name}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      CSR Complete Performance Details
+                    </p>
+
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      setShowCSRModal(false)
+                    }
+                    className="
+              rounded-xl
+              bg-red-100
+              px-4
+              py-2
+              text-sm
+              font-semibold
+              text-[#B8112D]
+            "
+                  >
+                    Close
+                  </button>
+
+                </div>
+
+                {/* STATS */}
+
+                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                  <div className="rounded-2xl bg-gray-50 p-4">
+
+                    <p className="text-sm text-gray-500">
+                      Total Leads
+                    </p>
+
+                    <h3 className="mt-2 text-2xl font-bold text-[#111827]">
+                      {selectedCSR.totalLeads}
+                    </h3>
+
+                  </div>
+
+                  <div className="rounded-2xl bg-green-50 p-4">
+
+                    <p className="text-sm text-gray-500">
+                      Completed
+                    </p>
+
+                    <h3 className="mt-2 text-2xl font-bold text-green-600">
+                      {selectedCSR.completed}
+                    </h3>
+
+                  </div>
+
+                  <div className="rounded-2xl bg-yellow-50 p-4">
+
+                    <p className="text-sm text-gray-500">
+                      Pending
+                    </p>
+
+                    <h3 className="mt-2 text-2xl font-bold text-yellow-600">
+                      {selectedCSR.pending}
+                    </h3>
+
+                  </div>
+
+                  <div className="rounded-2xl bg-red-50 p-4">
+
+                    <p className="text-sm text-gray-500">
+                      Important
+                    </p>
+
+                    <h3 className="mt-2 text-2xl font-bold text-[#B8112D]">
+                      {selectedCSR.important}
+                    </h3>
+
+                  </div>
+
+                </div>
+
+                {/* PLACEHOLDER */}
+
+                <div className="mt-8">
+
+  <h3 className="mb-4 text-lg font-bold text-[#111827]">
+    Lead History
+  </h3>
+
+  {
+    loadingCSR ? (
+
+      <div className="py-10 text-center">
+        Loading...
+      </div>
+
+    ) : (
+
+      <div className="space-y-4">
+
+        {
+          csrHistory?.leads?.map(
+            (lead: any) => (
+
+              <div
+                key={lead.id}
+                className="
+                  rounded-2xl
+                  border
+                  border-gray-200
+                  p-5
+                "
+              >
+
+                <div className="flex items-start justify-between">
+
+                  <div>
+
+                    <h4 className="text-lg font-semibold text-[#111827]">
+
+  {
+    lead.name
+      ?.split(" ")
+      ?.slice(0, 3)
+      ?.join(" ")
+  || "No Name"}
+
+</h4>
+
+<p className="mt-1 text-sm text-gray-500">
+
+  {
+    lead.company ||
+
+    lead.name
+      ?.split(" ")
+      ?.slice(3)
+      ?.join(" ")
+
+    ||
+
+    "No Company"
+  }
+
+</p>
+
+                  </div>
+
+                  <span
+                    className="
+                      rounded-xl
+                      bg-[#B8112D]
+                      px-3
+                      py-1
+                      text-xs
+                      font-semibold
+                      text-white
+                    "
+                  >
+                    {lead.status}
+                  </span>
+
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                  <div>
+
+                    <p className="text-sm text-gray-500">
+                      Email
+                    </p>
+
+                    <p className="font-medium">
+                      {lead.email || "-"}
+                    </p>
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-sm text-gray-500">
+                      Phone
+                    </p>
+
+                    <p className="font-medium">
+                      {lead.phone || "-"}
+                    </p>
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-sm text-gray-500">
+                      Next Schedule
+                    </p>
+
+                    <p className="font-medium">
+                      {lead.nextSchedule || "-"}
+                    </p>
+
+                  </div>
+
+                  <div>
+
+                    <p className="text-sm text-gray-500">
+                      Interested Service
+                    </p>
+
+                    <p className="font-medium">
+                      {lead.interestedService || "-"}
+                    </p>
+
+                  </div>
+
+                </div>
+
+                {
+                  lead.followUpNotes && (
+
+                    <div className="mt-4 rounded-xl bg-gray-50 p-4">
+
+                      <p className="text-sm text-gray-500">
+                        Notes
+                      </p>
+
+                      <p className="mt-1">
+                        {lead.followUpNotes}
+                      </p>
+
+                    </div>
+                  )
+                }
+
+              </div>
+            )
+          )
+        }
+
+      </div>
+    )
+  }
+
+</div>
+
+              </div>
+
+            </div>
+          )
+        }
 
       </main>
 

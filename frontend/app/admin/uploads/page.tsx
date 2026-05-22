@@ -21,6 +21,7 @@ import {
   FileArchive,
   FileBadge,
   Loader2,
+  X,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -55,6 +56,17 @@ type UploadFile = {
 type CSRDistribution = {
   name: string;
   leads: number;
+};
+
+type CSR = {
+
+  id: string;
+
+  name: string;
+
+  email: string;
+
+  isActive: boolean;
 };
 
 /* ================= HELPERS ================= */
@@ -142,6 +154,54 @@ export default function UploadPage() {
     setLatestTotalLeads,
   ] = useState(0);
 
+  /* ================= CSR MODAL ================= */
+
+const [
+  showCSRModal,
+  setShowCSRModal,
+] = useState(false);
+
+const [
+  selectedFile,
+  setSelectedFile,
+] = useState<File | null>(
+  null
+);
+
+const [csrs, setCsrs] =
+  useState<CSR[]>([]);
+
+const [
+  selectedCSRs,
+  setSelectedCSRs,
+] = useState<string[]>([]);
+
+/* ================= FETCH CSRS ================= */
+
+const fetchCSRs =
+  async () => {
+
+    try {
+
+      const res =
+        await API.get(
+          "/admin/csrs"
+        );
+
+      setCsrs(
+        res.data.csrs
+      );
+
+    } catch (error) {
+
+      console.log(error);
+
+      toast.error(
+        "Failed to fetch CSRs"
+      );
+    }
+  };
+
   /* ================= FETCH LATEST ================= */
 
   const fetchLatestUpload =
@@ -181,157 +241,224 @@ export default function UploadPage() {
     async () => {
 
       await fetchLatestUpload();
+
+      await fetchCSRs();
     };
 
   loadData();
 
 }, []);
 
+/* ================= OPEN CSR MODAL ================= */
+
+const openCSRModal =
+  (
+    selectedFiles:
+      | FileList
+      | null
+  ) => {
+
+    if (
+      !selectedFiles
+    )
+      return;
+
+    const file =
+      selectedFiles[0];
+
+    setSelectedFile(
+      file
+    );
+
+    const activeCSRIds =
+      csrs
+        .filter(
+          (csr) =>
+            csr.isActive
+        )
+        .map(
+          (csr) =>
+            csr.id
+        );
+
+    setSelectedCSRs(
+      activeCSRIds
+    );
+
+    setShowCSRModal(
+      true
+    );
+  };
+
   /* ================= HANDLE FILES ================= */
 
   const handleFiles =
-    async (
-      selectedFiles:
-        | FileList
-        | null
-    ) => {
+  async () => {
 
-      if (!selectedFiles)
-        return;
+    if (
+      !selectedFile
+    )
+      return;
 
-      const file =
-        selectedFiles[0];
+    if (
+      selectedCSRs.length ===
+      0
+    ) {
 
-      const tempId =
-        Date.now();
+      toast.error(
+        "Select at least one CSR"
+      );
 
-      const tempFile: UploadFile =
-        {
-          id: tempId,
+      return;
+    }
 
-          name: file.name,
+    const file =
+      selectedFile;
 
-          size: `${(
-            file.size /
-            (1024 * 1024)
-          ).toFixed(2)} MB`,
+    setShowCSRModal(
+      false
+    );
 
-          type: file.type,
+    const tempId =
+      Date.now();
 
-          progress: 0,
+    const tempFile: UploadFile =
+      {
+        id: tempId,
 
-          leads: 0,
+        name: file.name,
 
-          distributed: false,
+        size: `${(
+          file.size /
+          (1024 * 1024)
+        ).toFixed(2)} MB`,
 
-          status:
-            "Uploading",
-        };
+        type: file.type,
 
-      setFiles((prev) => [
-        tempFile,
-        ...prev,
-      ]);
+        progress: 0,
 
-      try {
+        leads: 0,
 
-        const formData =
-          new FormData();
+        distributed: false,
 
-        formData.append(
-          "file",
-          file
-        );
+        status:
+          "Uploading",
+      };
 
-        /* ================= FAKE PROGRESS ================= */
+    setFiles((prev) => [
+      tempFile,
+      ...prev,
+    ]);
 
-        let progress = 0;
+    try {
 
-        const interval =
-          setInterval(() => {
+      const formData =
+        new FormData();
 
-            progress += 10;
+      formData.append(
+        "file",
+        file
+      );
 
-            setFiles(
-              (prev) =>
-                prev.map((f) =>
-                  f.id ===
-                  tempId
-                    ? {
-                        ...f,
-                        progress:
-                          progress >=
-                          90
-                            ? 90
-                            : progress,
-                      }
-                    : f
-                )
-            );
+      
+      /* ================= SELECTED CSRS ================= */
 
-          }, 200);
+      formData.append(
+        "selectedCSRs",
+        JSON.stringify(
+          selectedCSRs
+        )
+      );
 
-        /* ================= API ================= */
+      /* ================= FAKE PROGRESS ================= */
 
-        const res =
-          await API.post(
-            "/uploads",
-            formData,
-            {
-              headers: {
-                "Content-Type":
-                  "multipart/form-data",
-              },
-            }
+      let progress = 0;
+
+      const interval =
+        setInterval(() => {
+
+          progress += 10;
+
+          setFiles(
+            (prev) =>
+              prev.map((f) =>
+                f.id ===
+                tempId
+                  ? {
+                      ...f,
+                      progress:
+                        progress >=
+                        90
+                          ? 90
+                          : progress,
+                    }
+                  : f
+              )
           );
 
-        clearInterval(
-          interval
+        }, 200);
+
+      /* ================= API ================= */
+
+      const res =
+        await API.post(
+          "/uploads",
+          formData,
+          {
+            headers: {
+              "Content-Type":
+                "multipart/form-data",
+            },
+          }
         );
 
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === tempId
-              ? {
-                  ...f,
+      clearInterval(
+        interval
+      );
 
-                  progress: 100,
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === tempId
+            ? {
+                ...f,
 
-                  leads:
-                    res.data
-                      .totalLeads,
+                progress: 100,
 
-                  distributed: true,
+                leads:
+                  res.data
+                    .totalLeads,
 
-                  status:
-                    "Distributed",
-                }
-              : f
-          )
-        );
+                distributed: true,
 
-        toast.success(
-          "Leads uploaded & distributed successfully"
-        );
+                status:
+                  "Distributed",
+              }
+            : f
+        )
+      );
 
-        fetchLatestUpload();
+      toast.success(
+        "Leads uploaded & distributed successfully"
+      );
 
-      } catch (error) {
+      fetchLatestUpload();
 
-        console.log(error);
+    } catch (error) {
 
-        setFiles((prev) =>
-          prev.filter(
-            (f) =>
-              f.id !== tempId
-          )
-        );
+      console.log(error);
 
-        toast.error(
-          "Upload failed"
-        );
-      }
-    };
+      setFiles((prev) =>
+        prev.filter(
+          (f) =>
+            f.id !== tempId
+        )
+      );
+
+      toast.error(
+        "Upload failed"
+      );
+    }
+  };
 
   /* ================= REMOVE FILE ================= */
 
@@ -360,6 +487,136 @@ export default function UploadPage() {
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
+
+      {/* ================= CSR MODAL ================= */}
+
+{showCSRModal && (
+
+  <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+
+    <div className="bg-white rounded-3xl w-full max-w-2xl p-6">
+
+      <div className="flex items-center justify-between mb-6">
+
+        <div>
+
+          <h2 className="text-2xl font-semibold text-gray-800">
+            Select Active CSRs
+          </h2>
+
+          <p className="text-sm text-gray-400 mt-1">
+            Choose which CSRs should receive leads.
+          </p>
+
+        </div>
+
+        <button
+          onClick={() =>
+            setShowCSRModal(false)
+          }
+          className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center"
+        >
+
+          <X size={18} />
+
+        </button>
+
+      </div>
+
+      <div className="space-y-4 max-h-[400px] overflow-y-auto">
+
+        {csrs.map((csr) => (
+
+          <div
+            key={csr.id}
+            className="border border-gray-200 rounded-2xl p-4 flex items-center justify-between"
+          >
+
+            <div>
+
+              <h3 className="font-semibold text-gray-800">
+                {csr.name}
+              </h3>
+
+              <p className="text-sm text-gray-400">
+                {csr.email}
+              </p>
+
+            </div>
+
+            <div className="flex items-center gap-4">
+
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  csr.isActive
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+
+                {csr.isActive
+                  ? "Active"
+                  : "Inactive"}
+
+              </span>
+
+              <input
+                type="checkbox"
+
+                checked={selectedCSRs.includes(
+                  csr.id
+                )}
+
+                disabled={!csr.isActive}
+
+                onChange={(e) => {
+
+                  if (e.target.checked) {
+
+                    setSelectedCSRs(
+                      (prev) => [
+                        ...prev,
+                        csr.id,
+                      ]
+                    );
+
+                  } else {
+
+                    setSelectedCSRs(
+                      (prev) =>
+                        prev.filter(
+                          (id) =>
+                            id !== csr.id
+                        )
+                    );
+                  }
+                }}
+
+                className="w-5 h-5 accent-[#B8112D]"
+              />
+
+            </div>
+
+          </div>
+        ))}
+
+      </div>
+
+      <button
+
+        onClick={handleFiles}
+
+        className="w-full mt-6 h-12 rounded-2xl bg-[#B8112D] text-white font-medium hover:bg-[#9e0f27] transition-all"
+      >
+
+        Upload & Distribute
+
+      </button>
+
+    </div>
+
+  </div>
+)}
 
       {/* SIDEBAR */}
       <DashboardSidebar />
@@ -617,9 +874,9 @@ export default function UploadPage() {
 
               setDragging(false);
 
-              handleFiles(
-                e.dataTransfer.files
-              );
+              openCSRModal(
+  e.dataTransfer.files
+)
             }}
             className={`border-2 border-dashed rounded-3xl p-8 md:p-10 transition-all cursor-pointer group ${
               dragging
@@ -665,7 +922,7 @@ export default function UploadPage() {
               hidden
               accept=".xlsx,.xls,.csv"
               onChange={(e) =>
-                handleFiles(
+                openCSRModal(
                   e.target.files
                 )
               }

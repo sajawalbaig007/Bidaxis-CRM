@@ -12,160 +12,200 @@ enum Role {
   csr
 }
 
-/* ================= USER ================= */
+/**
+ * ================= USER =================
+ */
 
 model User {
-  id          String      @id @default(cuid())
+  id String @id @default(cuid())
 
-  name        String
-  email       String      @unique
-  password    String
+  name String
 
-  role        Role
+  email String @unique
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
+  password String
 
-  /* RELATIONS */
+  role Role
 
-  leads       Lead[]      @relation("AssignedLeads")
+  /**
+   * ================= ACTIVE STATUS =================
+   */
 
-  callLogs    CallLog[]   @relation("CSRCallLogs")
+  isActive Boolean @default(true)
 
-  reports     Report[]
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  /**
+   * ================= RELATIONS =================
+   */
+
+  leads Lead[] @relation("AssignedLeads")
+
+  callLogs CallLog[] @relation("CSRCallLogs")
+
+  reports Report[]
 }
 
-/* ================= LEAD ================= */
+/**
+ * ================= LEAD =================
+ */
 
 model Lead {
+  id String @id @default(cuid())
 
-  id              String       @id @default(cuid())
+  name String?
 
-  name            String?
+  company String?
 
-  company         String?
+  phone String?
 
-  phone           String?
+  email String?
 
-  email           String?
+  status String @default("pending")
 
-  status          String       @default("pending")
+  comments String?
 
-  comments        String?
+  /**
+   * ================= FLAGS =================
+   */
 
-  /* ================= FLAGS ================= */
+  important Boolean @default(false)
 
-  important       Boolean      @default(false)
+  interested Boolean @default(false)
 
-  interested      Boolean      @default(false)
+  /**
+   * ================= FOLLOW UP =================
+   */
 
-  /* ================= FOLLOW UP ================= */
+  nextSchedule String?
 
-  nextSchedule    String?
+  nextTime String?
 
-  nextTime        String?
+  timezone String?
 
-  timezone        String?
+  followUpNotes String?
 
-  followUpNotes   String?
+  followUpExpiry DateTime?
 
-  followUpExpiry  DateTime?
+  /**
+   * ================= INTERESTED SERVICE =================
+   */
 
-  /* ================= INTERESTED SERVICE ================= */
+  interestedService String?
 
-  interestedService  String?
+  /**
+   * ================= PROJECT WON DETAILS =================
+   */
 
-  /* ================= PROJECT WON DETAILS ================= */
-
-  projectTitle    String?
+  projectTitle String?
 
   projectDeadline String?
 
-  projectBudget   String?
+  projectBudget String?
 
-  projectNotes    String?
+  projectNotes String?
 
-  /* ================= ASSIGNMENT ================= */
+  /**
+   * ================= ASSIGNMENT =================
+   */
 
-  assignedTo      String
+  assignedTo String
 
-  uploadedFileId  String?
+  uploadedFileId String?
 
-  /* ================= DATES ================= */
+  /**
+   * ================= DATES =================
+   */
 
-  createdAt       DateTime     @default(now())
+  createdAt DateTime @default(now())
 
-  updatedAt       DateTime     @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
 
-  /* ================= RELATIONS ================= */
+  /**
+   * ================= RELATIONS =================
+   */
 
-  csr             User         @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
+  csr User @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
 
-  uploadFile      UploadFile?  @relation(fields: [uploadedFileId], references: [id])
+  uploadFile UploadFile? @relation(fields: [uploadedFileId], references: [id])
 
-  callLogs        CallLog[]
+  callLogs CallLog[]
 }
 
-/* ================= CALL LOG ================= */
+/**
+ * ================= CALL LOG =================
+ */
 
 model CallLog {
-  id          String      @id @default(cuid())
+  id String @id @default(cuid())
 
-  leadId      String
+  leadId String
 
-  csrId       String
+  csrId String
 
-  status      String
+  status String
 
-  notes       String?
+  notes String?
 
-  duration    Int?
+  duration Int?
 
-  createdAt   DateTime    @default(now())
+  createdAt DateTime @default(now())
 
-  /* RELATIONS */
+  /**
+   * ================= RELATIONS =================
+   */
 
-  lead        Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
-  csr         User        @relation("CSRCallLogs", fields: [csrId], references: [id], onDelete: Cascade)
+  csr User @relation("CSRCallLogs", fields: [csrId], references: [id], onDelete: Cascade)
 }
 
-/* ================= UPLOAD FILE ================= */
+/**
+ * ================= UPLOAD FILE =================
+ */
 
 model UploadFile {
-  id              String      @id @default(cuid())
+  id String @id @default(cuid())
 
-  fileName        String
+  fileName String
 
-  cloudinaryUrl   String
+  cloudinaryUrl String
 
-  totalLeads      Int
+  totalLeads Int
 
-  uploadedBy      String
+  uploadedBy String
 
-  createdAt       DateTime    @default(now())
+  createdAt DateTime @default(now())
 
-  /* RELATIONS */
+  /**
+   * ================= RELATIONS =================
+   */
 
-  leads           Lead[]
+  leads Lead[]
 }
 
-/* ================= REPORT ================= */
+/**
+ * ================= REPORT =================
+ */
 
 model Report {
-  id            String      @id @default(cuid())
+  id String @id @default(cuid())
 
-  reportName    String
+  reportName String
 
-  reportUrl     String
+  reportUrl String
 
-  reportType    String
+  reportType String
 
-  generatedBy   String
+  generatedBy String?
 
-  createdAt     DateTime    @default(now())
+  createdAt DateTime @default(now())
 
-  /* RELATIONS */
+  /**
+   * ================= RELATIONS =================
+   */
 
-  user          User        @relation(fields: [generatedBy], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [generatedBy], references: [id], onDelete: Cascade)
 }
