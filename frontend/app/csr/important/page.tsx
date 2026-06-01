@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 import {
   PhoneCall, CalendarDays, Clock3, CircleAlert, Phone, User2,
@@ -10,20 +9,21 @@ import {
   BarChart2, PenTool, Building2, Monitor,
 } from "lucide-react";
 
-import CSRNavbar from "../components/CSRNavbar";
+import CSRNavbar  from "../components/CSRNavbar";
 import CSRSidebar from "../components/CSRSidebar";
 import API from "@/lib/api";
 
+/* ── Timezones ── */
 const usTimezones = [
-  { value: "America/Adak", label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
-  { value: "America/Anchorage", label: "Alaska (UTC-09:00)", abbreviation: "AKST" },
-  { value: "America/Los_Angeles", label: "Pacific Time (UTC-08:00)", abbreviation: "PT" },
-  { value: "America/Denver", label: "Mountain Time (UTC-07:00)", abbreviation: "MT" },
-  { value: "America/Chicago", label: "Central Time (UTC-06:00)", abbreviation: "CT" },
-  { value: "America/New_York", label: "Eastern Time (UTC-05:00)", abbreviation: "ET" },
-  { value: "America/Phoenix", label: "Arizona (UTC-07:00) - No DST", abbreviation: "MST" },
-  { value: "America/Indiana/Indianapolis", label: "Indiana (UTC-05:00)", abbreviation: "EST" },
-  { value: "Pacific/Honolulu", label: "Hawaii (UTC-10:00) - No DST", abbreviation: "HST" },
+  { value: "America/Adak",                  label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
+  { value: "America/Anchorage",             label: "Alaska (UTC-09:00)",          abbreviation: "AKST" },
+  { value: "America/Los_Angeles",           label: "Pacific Time (UTC-08:00)",    abbreviation: "PT"   },
+  { value: "America/Denver",               label: "Mountain Time (UTC-07:00)",   abbreviation: "MT"   },
+  { value: "America/Chicago",              label: "Central Time (UTC-06:00)",    abbreviation: "CT"   },
+  { value: "America/New_York",             label: "Eastern Time (UTC-05:00)",    abbreviation: "ET"   },
+  { value: "America/Phoenix",              label: "Arizona (UTC-07:00) - No DST",abbreviation: "MST"  },
+  { value: "America/Indiana/Indianapolis", label: "Indiana (UTC-05:00)",          abbreviation: "EST"  },
+  { value: "Pacific/Honolulu",             label: "Hawaii (UTC-10:00) - No DST", abbreviation: "HST"  },
 ];
 
 const serviceOptions = [
@@ -35,12 +35,23 @@ const serviceOptions = [
   { value: "IT",           label: "IT",           Icon: Monitor     },
 ];
 
-type LeadType = {
-  id: string; status?: string; name?: string; company?: string; phone?: string;
-  nextSchedule?: string; nextTime?: string; timezone?: string; followUpNotes?: string;
-  interestedService?: string; interested_service?: string; service?: string;
-  serviceInterested?: string; serviceName?: string;
-};
+/* ── Types ── */
+interface BackendLead {
+  id: string;
+  status?: string;
+  name?: string;
+  company?: string;
+  phone?: string;
+  nextSchedule?: string;
+  nextTime?: string;
+  timezone?: string;
+  followUpNotes?: string;
+  interestedService?: string;
+  interested_service?: string;
+  service?: string;
+  serviceInterested?: string;
+  serviceName?: string;
+}
 
 type CallType = {
   id: string; type: string; client: string; company: string; phone: string;
@@ -50,101 +61,101 @@ type CallType = {
 
 type EditAction = "reschedule" | "projectwon" | "closeclient" | null;
 
-// Today's date in YYYY-MM-DD format
 const todayStr = new Date().toISOString().split("T")[0];
 
 export default function ImportantCallsPage() {
-  const router = useRouter();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [importantCalls, setImportantCalls] = useState<CallType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("important");
-  const [selectedCall, setSelectedCall] = useState<CallType | null>(null);
+  const [isOpen,          setIsOpen]          = useState(false);
+  const [importantCalls,  setImportantCalls]  = useState<CallType[]>([]);
+  const [loading,         setLoading]         = useState(true);
+  const [activeTab,       setActiveTab]       = useState("important");
+  const [selectedCall,    setSelectedCall]    = useState<CallType | null>(null);
 
-  /* EDIT MODAL */
+  /* Edit modal */
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingCall, setEditingCall] = useState<CallType | null>(null);
-  const [editAction, setEditAction] = useState<EditAction>(null);
+  const [editingCall,   setEditingCall]   = useState<CallType | null>(null);
+  const [editAction,    setEditAction]    = useState<EditAction>(null);
 
-  /* RESCHEDULE */
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("");
-  const [selectedTimezone, setSelectedTimezone] = useState("America/New_York");
+  /* Reschedule */
+  const [scheduleDate,      setScheduleDate]      = useState("");
+  const [scheduleTime,      setScheduleTime]      = useState("");
+  const [selectedTimezone,  setSelectedTimezone]  = useState("America/New_York");
 
-  /* PROJECT WON */
-  const [projectTitle, setProjectTitle] = useState("");
-  const [projectDeadline, setProjectDeadline] = useState("");
-  const [projectBudget, setProjectBudget] = useState("");
-  const [projectNotes, setProjectNotes] = useState("");
-  const [projectService, setProjectService] = useState("");
+  /* Project Won */
+  const [projectTitle,    setProjectTitle]   = useState("");
+  const [projectDeadline, setProjectDeadline]= useState("");
+  const [projectBudget,   setProjectBudget]  = useState("");
+  const [projectNotes,    setProjectNotes]   = useState("");
+  const [projectService,  setProjectService] = useState("");
 
-  /* ================= FETCH — ESLint-safe: async defined inside effect ================= */
+  /* ── FETCH (ESLint-safe) ── */
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
         const res = await API.get("/csr/dashboard");
 
-        const formatted: CallType[] = res.data.leads
-          .filter((lead: LeadType) =>
+        const formatted: CallType[] = (res.data.leads ?? [])
+          .filter((lead: BackendLead) =>
             lead.status === "important" ||
             lead.status === "interested" ||
             lead.status === "project won"
           )
-          .map((lead: LeadType) => ({
-            id: lead.id,
-            type: lead.status === "important" ? "important" : "interested",
-            client: lead.name || "Unknown",
-            company: lead.company || "N/A",
-            phone: lead.phone || "N/A",
-            priority: lead.status === "important" ? "High" : "Medium",
-            nextFollowup: lead.nextSchedule || "",
-            time: lead.nextTime || "N/A",
-            timezone: lead.timezone || "N/A",
-            notes: lead.followUpNotes || "No notes added",
-            status: lead.status,
+          .map((lead: BackendLead) => ({
+            id:       lead.id,
+            type:     lead.status === "important" ? "important" : "interested",
+            client:   lead.name    ?? "Unknown",
+            company:  lead.company ?? "N/A",
+            phone:    lead.phone   ?? "N/A",
+            priority: lead.status  === "important" ? "High" : "Medium",
+            nextFollowup:     lead.nextSchedule ?? "",
+            time:             lead.nextTime     ?? "N/A",
+            timezone:         lead.timezone     ?? "N/A",
+            notes:            lead.followUpNotes ?? "No notes added",
+            status:           lead.status,
             interestedService:
-              lead.interestedService || lead.interested_service ||
-              lead.service || lead.serviceInterested || lead.serviceName || "",
+              lead.interestedService    ??
+              lead.interested_service   ??
+              lead.service              ??
+              lead.serviceInterested    ??
+              lead.serviceName          ??
+              "",
           }));
 
         setImportantCalls(formatted);
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        console.log(err);
       } finally {
         setLoading(false);
       }
     };
-
     load();
   }, []);
 
-  /* FILTERED */
+  /* ── FILTERED ── */
   const filteredCalls = importantCalls.filter(call =>
     activeTab === "important"
-      ? call.status === "important" || call.status === "project won"
+      ? call.status === "important"   // project won excluded — they're gone from this list
       : call.status === "interested"
   );
 
   const activeSelectedCall = selectedCall ?? filteredCalls[0] ?? null;
 
-  /* ================= REAL-TIME STATS from fetched data ================= */
-  const totalImportantCount  = importantCalls.filter(c => c.status === "important").length;
-  const interestedCount      = importantCalls.filter(c => c.status === "interested").length;
-  const projectWonCount      = importantCalls.filter(c => c.status === "project won").length;
+  /* ── REAL-TIME STATS — all from fetched leads ── */
+  const totalImportantCount = importantCalls.filter(c => c.status === "important").length;
+  const interestedCount     = importantCalls.filter(c => c.status === "interested").length;
+  const projectWonCount     = importantCalls.filter(c => c.status === "project won").length;
+  const callsTodayCount     = importantCalls.filter(c => c.status === "important" && c.nextFollowup === todayStr).length;
 
-  // Calls Today = important leads whose nextFollowup == today
-  const callsTodayCount = importantCalls.filter(
-    c => c.status === "important" && c.nextFollowup === todayStr
-  ).length;
+  /* ── STAT CARDS ── */
+  const statCards = [
+    { label:"Important Calls",       value: totalImportantCount, sub:"total flagged",       color:"bg-[#FFF1F3] text-[#B8112D]", Icon: CircleAlert },
+    { label:"Important Calls Today", value: callsTodayCount,     sub:"scheduled for today", color:"bg-[#EAF5FF] text-[#0B84F3]", Icon: PhoneCall   },
+    { label:"Interested",            value: interestedCount,     sub:"service interest",    color:"bg-[#ECFDF3] text-[#027A48]", Icon: Briefcase   },
+    { label:"Project Won",           value: projectWonCount,     sub:"closed deals",        color:"bg-[#ECFDF5] text-[#065F46]", Icon: Trophy      },
+  ];
 
-  // Rescheduled = important leads that have any nextFollowup set
-  const rescheduledCount = importantCalls.filter(
-    c => c.status === "important" && c.nextFollowup && c.nextFollowup !== ""
-  ).length;
-
-  /* OPEN EDIT MODAL */
+  /* ── EDIT MODAL helpers ── */
   const openEditModal = (call: CallType) => {
     setEditingCall(call);
     setEditAction(null);
@@ -158,11 +169,10 @@ export default function ImportantCallsPage() {
   const closeEditModal = () => {
     setShowEditModal(false); setEditingCall(null); setEditAction(null);
     setScheduleDate(""); setScheduleTime("");
-    setProjectTitle(""); setProjectDeadline(""); setProjectBudget("");
-    setProjectNotes(""); setProjectService("");
+    setProjectTitle(""); setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
   };
 
-  /* SAVE RESCHEDULE */
+  /* ── SAVE RESCHEDULE ── */
   const saveReschedule = async () => {
     if (!scheduleDate || !scheduleTime || !editingCall) return;
     try {
@@ -182,10 +192,10 @@ export default function ImportantCallsPage() {
         );
       }
       closeEditModal();
-    } catch (error) { console.log(error); }
+    } catch (err) { console.log(err); }
   };
 
-  /* SAVE PROJECT WON */
+  /* ── SAVE PROJECT WON ── */
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !projectService || !editingCall) return;
     try {
@@ -194,12 +204,14 @@ export default function ImportantCallsPage() {
         projectTitle, projectDeadline, projectBudget, projectNotes,
         interestedService: projectService,
       });
+      /* Remove from important calls list immediately */
+      setImportantCalls(prev => prev.filter(c => c.id !== editingCall.id));
+      if (selectedCall?.id === editingCall.id) setSelectedCall(null);
       closeEditModal();
-      router.push("/csr/projects");
-    } catch (error) { console.log(error); }
+    } catch (err) { console.log(err); }
   };
 
-  /* CLOSE CLIENT */
+  /* ── CLOSE CLIENT ── */
   const saveCloseClient = async () => {
     if (!editingCall) return;
     try {
@@ -207,24 +219,15 @@ export default function ImportantCallsPage() {
       setImportantCalls(prev => prev.filter(c => c.id !== editingCall.id));
       if (selectedCall?.id === editingCall.id) setSelectedCall(null);
       closeEditModal();
-    } catch (error) { console.log(error); }
+    } catch (err) { console.log(err); }
   };
 
   const getTzAbbr = (tzValue: string) => {
     const found = usTimezones.find(tz => tz.value === tzValue);
-    return found ? found.abbreviation : tzValue?.split("/").pop() ?? tzValue;
+    return found ? found.abbreviation : (tzValue?.split("/").pop() ?? tzValue);
   };
 
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "";
-
-  /* STAT CARDS CONFIG */
-  const statCards = [
-    { label: "Important Calls", value: totalImportantCount, sub: "total flagged", color: "bg-[#FFF1F3] text-[#B8112D]", Icon: CircleAlert },
-    { label: "Important Calls Today",     value: callsTodayCount,     sub: "scheduled for today", color: "bg-[#EAF5FF] text-[#0B84F3]", Icon: PhoneCall },
-  
-    { label: "Interested",      value: interestedCount,     sub: "service interest", color: "bg-[#ECFDF3] text-[#027A48]", Icon: Briefcase },
-    { label: "Project Won",     value: projectWonCount,     sub: "closed deals", color: "bg-[#ECFDF5] text-[#065F46]", Icon: Trophy },
-  ];
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -238,9 +241,9 @@ export default function ImportantCallsPage() {
           <p className="text-gray-500 mt-2 text-sm">Manage important and interested clients.</p>
         </div>
 
-        {/* STATS — 5 cards, real-time from fetched data */}
+        {/* STATS — real-time from fetched data */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
-          {statCards.map((card) => (
+          {statCards.map(card => (
             <div key={card.label} className="bg-white rounded-[24px] p-5 border border-white shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -264,13 +267,13 @@ export default function ImportantCallsPage() {
         <div className="flex flex-wrap gap-3 mt-7">
           <button
             onClick={() => { setActiveTab("important"); setSelectedCall(importantCalls.find(c => c.status==="important") ?? null); }}
-            className={`h-12 px-5 rounded-2xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 shadow-sm ${activeTab==="important" ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"}`}>
+            className={`h-12 px-5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm ${activeTab==="important" ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"}`}>
             <CircleAlert size={17}/>Important Calls
             <span className={`px-2 py-0.5 rounded-lg text-[11px] ${activeTab==="important" ? "bg-white/20" : "bg-[#FFF1F3]"}`}>{totalImportantCount}</span>
           </button>
           <button
             onClick={() => { setActiveTab("interested"); setSelectedCall(importantCalls.find(c => c.status==="interested") ?? null); }}
-            className={`h-12 px-5 rounded-2xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 shadow-sm ${activeTab==="interested" ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"}`}>
+            className={`h-12 px-5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm ${activeTab==="interested" ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"}`}>
             <PhoneCall size={17}/>Interested Clients
             <span className={`px-2 py-0.5 rounded-lg text-[11px] ${activeTab==="interested" ? "bg-white/20" : "bg-[#FFF1F3]"}`}>{interestedCount}</span>
           </button>
@@ -279,7 +282,7 @@ export default function ImportantCallsPage() {
         {/* ==================== IMPORTANT UI ==================== */}
         {activeTab === "important" && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 mt-7">
-            {/* LEFT */}
+            {/* LEFT — client list */}
             <div className="xl:col-span-5 bg-white rounded-[30px] border border-white shadow-sm p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -291,7 +294,6 @@ export default function ImportantCallsPage() {
 
               <div className="space-y-4 mt-7">
                 {loading ? (
-                  // SKELETON
                   [1,2,3].map(i => (
                     <div key={i} className="rounded-[24px] border border-gray-100 p-5 animate-pulse">
                       <div className="flex items-center gap-4">
@@ -308,7 +310,9 @@ export default function ImportantCallsPage() {
                     className={`w-full text-left rounded-[24px] border p-5 transition-all ${selectedCall?.id===call.id ? "border-[#B8112D] bg-[#FFF8F9]" : "border-gray-100 bg-white hover:border-[#B8112D]/30"}`}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold shrink-0">{call.client.charAt(0)}</div>
+                        <div className="w-12 h-12 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold shrink-0">
+                          {call.client.charAt(0)}
+                        </div>
                         <div>
                           <h4 className="font-semibold text-[#0F172A] text-[15px]">{call.client}</h4>
                           <p className="text-gray-500 text-sm mt-1">{call.company}</p>
@@ -317,9 +321,11 @@ export default function ImportantCallsPage() {
                           )}
                         </div>
                       </div>
-                      <div className={`px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${call.priority==="Urgent" ? "bg-[#FFF1F3] text-[#B42318]" : call.priority==="High" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#ECFDF3] text-[#027A48]"}`}>
-                        {call.priority}
-                      </div>
+                      <div className={`px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${
+                        call.priority==="Urgent" ? "bg-[#FFF1F3] text-[#B42318]" :
+                        call.priority==="High"   ? "bg-[#FFF7E6] text-[#B54708]" :
+                        "bg-[#ECFDF3] text-[#027A48]"
+                      }`}>{call.priority}</div>
                     </div>
                   </button>
                 )) : (
@@ -331,7 +337,7 @@ export default function ImportantCallsPage() {
               </div>
             </div>
 
-            {/* RIGHT */}
+            {/* RIGHT — detail */}
             {activeSelectedCall ? (
               <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
@@ -347,9 +353,9 @@ export default function ImportantCallsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-7">
                   {[
-                    { label:"Contact Number", value: activeSelectedCall.phone,       Icon: Phone },
+                    { label:"Contact Number", value: activeSelectedCall.phone,                     Icon: Phone       },
                     { label:"Next Schedule",  value: activeSelectedCall.nextFollowup || "Not set", Icon: CalendarDays },
-                    { label:"Time",           value: activeSelectedCall.time,        Icon: Clock3 },
+                    { label:"Time",           value: activeSelectedCall.time,                      Icon: Clock3      },
                   ].map(({ label, value, Icon }) => (
                     <div key={label} className="bg-[#FAFAFA] rounded-2xl p-5">
                       <div className="flex items-center gap-3">
@@ -382,7 +388,7 @@ export default function ImportantCallsPage() {
                 </div>
               </div>
             ) : !loading && (
-              <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm p-5 flex items-center justify-center">
+              <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm p-5 flex items-center justify-center min-h-[300px]">
                 <div className="text-center">
                   <CircleAlert size={40} className="text-gray-200 mx-auto mb-3"/>
                   <p className="text-gray-400 text-sm">Select a client to view details</p>
@@ -400,7 +406,9 @@ export default function ImportantCallsPage() {
                 <h3 className="text-[26px] font-bold text-[#0F172A]">Interested Clients</h3>
                 <p className="text-gray-500 text-sm mt-1">Clients who have shown interest in our services.</p>
               </div>
-              <div className="bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold px-4 py-2 rounded-2xl w-fit">{filteredCalls.length} Interested Leads</div>
+              <div className="bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold px-4 py-2 rounded-2xl w-fit">
+                {filteredCalls.length} Interested Leads
+              </div>
             </div>
 
             <div className="overflow-x-auto mt-7">
@@ -417,7 +425,9 @@ export default function ImportantCallsPage() {
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
                         {[1,2,3,4,5,6].map(j => (
-                          <td key={j} className="py-5 px-2"><div className="h-4 bg-gray-100 rounded animate-pulse w-20"/></td>
+                          <td key={j} className="py-5 px-2">
+                            <div className="h-4 bg-gray-100 rounded animate-pulse w-20"/>
+                          </td>
                         ))}
                       </tr>
                     ))
@@ -425,12 +435,19 @@ export default function ImportantCallsPage() {
                     <tr key={call.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       <td className="py-5 px-2">
                         <div className="flex items-center gap-4">
-                          <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm">{call.client.charAt(0)}</div>
-                          <div><h4 className="font-semibold text-[#0F172A] text-[14px]">{call.client}</h4><p className="text-gray-500 text-[12px] mt-1">Interested Lead</p></div>
+                          <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm">
+                            {call.client.charAt(0)}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-[#0F172A] text-[14px]">{call.client}</h4>
+                            <p className="text-gray-500 text-[12px] mt-1">Interested Lead</p>
+                          </div>
                         </div>
                       </td>
                       <td className="py-5 px-2"><h4 className="font-medium text-[#0F172A] text-[14px]">{call.company}</h4></td>
-                      <td className="py-5 px-2"><div className="bg-[#FFF6F7] text-[#B8112D] px-4 py-2 rounded-xl text-sm font-medium w-fit">{call.phone}</div></td>
+                      <td className="py-5 px-2">
+                        <div className="bg-[#FFF6F7] text-[#B8112D] px-4 py-2 rounded-xl text-sm font-medium w-fit">{call.phone}</div>
+                      </td>
                       <td className="py-5 px-2">
                         {call.interestedService ? (
                           <div className="flex items-center gap-1.5 bg-[#FFF4E5] text-[#D97706] px-4 py-2 rounded-xl text-sm font-semibold w-fit">
@@ -438,7 +455,9 @@ export default function ImportantCallsPage() {
                           </div>
                         ) : <span className="text-gray-400 text-sm">Not specified</span>}
                       </td>
-                      <td className="py-5 px-2"><div className="bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl text-sm font-semibold w-fit">Interested</div></td>
+                      <td className="py-5 px-2">
+                        <div className="bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl text-sm font-semibold w-fit">Interested</div>
+                      </td>
                       <td className="py-5 px-2">
                         <button onClick={() => openEditModal(call)}
                           className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
@@ -447,7 +466,9 @@ export default function ImportantCallsPage() {
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={6} className="py-20 text-center text-gray-400 text-sm">No interested clients found.</td></tr>
+                    <tr>
+                      <td colSpan={6} className="py-20 text-center text-gray-400 text-sm">No interested clients found.</td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -457,14 +478,17 @@ export default function ImportantCallsPage() {
 
         {/* ===================== EDIT MODAL ===================== */}
         {showEditModal && editingCall && (
-          <div className="fixed inset-0 z-100 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-[24px] font-bold text-[#0F172A]">Edit Client</h2>
                   <p className="text-gray-500 text-sm mt-1">{editingCall.client} — {editingCall.company}</p>
                 </div>
-                <button onClick={closeEditModal} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
+                <button onClick={closeEditModal}
+                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0">
+                  <X size={18}/>
+                </button>
               </div>
 
               {/* ACTION CARDS */}
@@ -489,24 +513,26 @@ export default function ImportantCallsPage() {
                 </div>
               )}
 
-              {/* RESCHEDULE FORM */}
+              {/* RESCHEDULE */}
               {editAction === "reschedule" && (
                 <div className="mt-7">
                   <div>
                     <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><CalendarDays size={16}/>New Schedule Date</label>
-                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="mt-3 w-full h-13 rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
+                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
                   </div>
                   <div className="mt-5">
                     <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Clock3 size={16}/>New Call Time</label>
-                    <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="mt-3 w-full h-13 rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
+                    <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
+                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
                   </div>
                   <div className="mt-5 relative">
                     <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Globe size={16}/>Client Timezone (US)</label>
                     <select value={selectedTimezone} onChange={e => setSelectedTimezone(e.target.value)}
-                      className="mt-3 w-full h-13 rounded-2xl border border-gray-200 px-4 pr-10 outline-none appearance-none bg-white cursor-pointer focus:border-[#B8112D] text-[14px]">
+                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 pr-10 outline-none appearance-none bg-white focus:border-[#B8112D] text-[14px]">
                       {usTimezones.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
                     </select>
-                    <div className="absolute right-4 top-11.5 pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
+                    <div className="absolute right-4 top-[46px] pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
                   </div>
                   {scheduleDate && scheduleTime && (
                     <div className="mt-5 p-4 bg-[#F5F6FA] rounded-2xl">
@@ -517,16 +543,16 @@ export default function ImportantCallsPage() {
                     </div>
                   )}
                   <div className="flex gap-3 mt-7">
-                    <button onClick={() => setEditAction(null)} className="flex-1 h-13 rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
+                    <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
                     <button onClick={saveReschedule} disabled={!scheduleDate || !scheduleTime}
-                      className={`flex-1 h-13 rounded-2xl font-semibold text-white transition-all ${scheduleDate && scheduleTime ? "bg-[#B8112D]" : "bg-gray-300 cursor-not-allowed"}`}>
+                      className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${scheduleDate && scheduleTime ? "bg-[#B8112D]" : "bg-gray-300 cursor-not-allowed"}`}>
                       Save Schedule
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* PROJECT WON FORM */}
+              {/* PROJECT WON */}
               {editAction === "projectwon" && (
                 <div className="mt-7">
                   <div className="bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3 mb-6">
@@ -542,7 +568,7 @@ export default function ImportantCallsPage() {
                     </label>
                     <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle}
                       onChange={e => setProjectTitle(e.target.value)}
-                      className="mt-3 w-full h-13 rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
+                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
                   </div>
                   <div className="mt-6">
                     <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-3">
@@ -550,14 +576,14 @@ export default function ImportantCallsPage() {
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {serviceOptions.map(({ value, label, Icon }) => {
-                        const isSelected = projectService === value;
+                        const sel = projectService === value;
                         return (
                           <button key={value} onClick={() => setProjectService(value)}
-                            className={`h-18 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${
-                              isSelected ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
+                            className={`h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${
+                              sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
                             }`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSelected ? "bg-[#065F46]/10" : "bg-white shadow-sm"}`}>
-                              <Icon size={15} className={isSelected ? "text-[#065F46]" : "text-gray-500"}/>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel ? "bg-[#065F46]/10" : "bg-white shadow-sm"}`}>
+                              <Icon size={15} className={sel ? "text-[#065F46]" : "text-gray-500"}/>
                             </div>
                             <span>{label}</span>
                           </button>
@@ -570,7 +596,7 @@ export default function ImportantCallsPage() {
                       <CalendarDays size={15}/>Project Deadline <span className="text-[#B8112D] text-xs">*required</span>
                     </label>
                     <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
-                      className="mt-3 w-full h-13 rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
+                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
                   </div>
                   <div className="mt-5">
                     <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
@@ -578,7 +604,7 @@ export default function ImportantCallsPage() {
                     </label>
                     <input type="text" placeholder="e.g. $5,000" value={projectBudget}
                       onChange={e => setProjectBudget(e.target.value)}
-                      className="mt-3 w-full h-13 rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
+                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
                   </div>
                   <div className="mt-5">
                     <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
@@ -589,9 +615,9 @@ export default function ImportantCallsPage() {
                       className="mt-3 w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-[#065F46] text-[14px] resize-none"/>
                   </div>
                   <div className="flex gap-3 mt-7">
-                    <button onClick={() => setEditAction(null)} className="flex-1 h-13 rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
+                    <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
                     <button onClick={saveProjectWon} disabled={!projectWonValid}
-                      className={`flex-1 h-13 rounded-2xl font-semibold text-white transition-all ${projectWonValid ? "bg-[#065F46]" : "bg-gray-300 cursor-not-allowed"}`}>
+                      className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${projectWonValid ? "bg-[#065F46]" : "bg-gray-300 cursor-not-allowed"}`}>
                       Confirm &amp; Move
                     </button>
                   </div>
@@ -609,8 +635,8 @@ export default function ImportantCallsPage() {
                     </div>
                   </div>
                   <div className="flex gap-3 mt-7">
-                    <button onClick={() => setEditAction(null)} className="flex-1 h-13 rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
-                    <button onClick={saveCloseClient} className="flex-1 h-13 rounded-2xl bg-[#B42318] text-white font-semibold shadow-sm">Close Client</button>
+                    <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
+                    <button onClick={saveCloseClient} className="flex-1 h-[52px] rounded-2xl bg-[#B42318] text-white font-semibold shadow-sm">Close Client</button>
                   </div>
                 </div>
               )}

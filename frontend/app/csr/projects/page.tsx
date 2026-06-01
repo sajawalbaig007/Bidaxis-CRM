@@ -93,7 +93,13 @@ export default function CSRProjectsPage() {
     } catch (error) { console.log(error); }
   };
 
-  useEffect(() => { fetchProjects(); }, []);
+  useEffect(() => {
+  const timer = window.setTimeout(() => {
+    void fetchProjects();
+  }, 0);
+
+  return () => window.clearTimeout(timer);
+}, []);
 
   /* FILTER */
   const filteredProjects = useMemo(() => {
