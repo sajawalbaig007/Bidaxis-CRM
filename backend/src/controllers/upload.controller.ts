@@ -65,8 +65,78 @@ export const uploadLeads = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "No active CSR users found" });
     }
 
-    /* ── RESET MODE — delete all old leads if requested ── */
+    /* ── RESET MODE ──
+       Before deleting leads, save a snapshot so report history is preserved.
+       Reports are INDEPENDENT of leads — reset only affects CSR dashboard. ── */
     if (resetMode === "reset") {
+
+      /* Fetch current leads to snapshot */
+      const currentLeads = await prisma.lead.findMany({
+        include: { csr: true },
+      });
+
+      if (currentLeads.length > 0) {
+        /* Build summary */
+        const snapshotDate = new Date().toISOString().split("T")[0];
+        const csrSnap: Record<string, { name: string; total: number; completed: number; pending: number }> = {};
+
+        currentLeads.forEach(l => {
+          const key  = l.assignedTo;
+          const name = l.csr?.name ?? "Unknown";
+          if (!csrSnap[key]) csrSnap[key] = { name, total: 0, completed: 0, pending: 0 };
+          csrSnap[key].total++;
+          const s = l.status?.toLowerCase();
+          if (s === "completed") csrSnap[key].completed++;
+          if (s === "pending")   csrSnap[key].pending++;
+        });
+
+        const snapshot = {
+          type:       "pre-reset-snapshot",
+          date:       snapshotDate,
+          totalLeads: currentLeads.length,
+          completed:  currentLeads.filter(l => l.status?.toLowerCase() === "completed").length,
+          pending:    currentLeads.filter(l => l.status?.toLowerCase() === "pending").length,
+          important:  currentLeads.filter(l => l.status?.toLowerCase() === "important").length,
+          interested: currentLeads.filter(l => l.status?.toLowerCase() === "interested").length,
+          projectWon: currentLeads.filter(l => l.status?.toLowerCase() === "project won").length,
+          csrs:       Object.values(csrSnap),
+        };
+
+        /* Upload snapshot to Cloudinary */
+        try {
+          const jsonBuf  = Buffer.from(JSON.stringify(snapshot, null, 2));
+          const pubId    = `pre-reset-${snapshotDate}-${Date.now()}`;
+
+          const snapUrl = await new Promise<string>((resolve, reject) => {
+            cloudinary.uploader
+              .upload_stream(
+                { resource_type: "raw", folder: "crm_reports", public_id: pubId, format: "json" },
+                (err, result) => {
+                  if (err || !result) reject(err);
+                  else resolve(result.secure_url);
+                }
+              )
+              .end(jsonBuf);
+          });
+
+          /* Save Report record — stays forever, unaffected by lead resets */
+          const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+          await prisma.report.create({
+            data: {
+              reportName:  `Snapshot before reset — ${snapshotDate}`,
+              reportUrl:   snapUrl,
+              reportType:  "json",
+              generatedBy: admin?.id ?? null,
+            },
+          });
+
+          console.log(`[Reset] Snapshot saved for ${snapshotDate} — ${currentLeads.length} leads`);
+        } catch (snapErr) {
+          console.log("[Reset] Snapshot upload failed (non-critical):", snapErr);
+        }
+      }
+
+      /* Now safe to delete — report history is preserved */
       await prisma.lead.deleteMany({});
     }
 

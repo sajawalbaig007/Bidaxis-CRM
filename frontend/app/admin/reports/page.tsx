@@ -17,7 +17,6 @@ import {
 
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, CartesianGrid,
-  AreaChart, Area,
 } from "recharts";
 
 /* ── jspdf-autotable type ── */
@@ -26,8 +25,7 @@ declare module "jspdf" {
 }
 
 /* ── Types ── */
-/* Only 2 meaningful tabs — remove Orders/Calls (no real data) */
-const reportTabs = ["CSR Performance", "Leads Report"];
+const reportTabs = ["CSR Performance"];
 
 type CSRPerformance = {
   id: string;      // = csrId, used for /admin/csr-history/:id calls
@@ -43,6 +41,7 @@ type LeadHistory = {
   id: string; name?: string; company?: string; phone?: string;
   email?: string; status?: string; nextSchedule?: string;
   interestedService?: string; followUpNotes?: string;
+  comments?: string;                                    // ← CSR comments
   uploadFile?: { companyName?: string | null };
   state?: string;
 };
@@ -97,21 +96,36 @@ function extractState(text?: string): string {
 export default function ReportsPage() {
   const [activeTab,    setActiveTab]    = useState("CSR Performance");
   const [search,       setSearch]       = useState("");
-  const [selectedDate, setSelectedDate] = useState("2026-05-10");
+ 
   const [reportData,   setReportData]   = useState<ReportResponse | null>(null);
   const [downloading,  setDownloading]  = useState<string | null>(null);
   const [activePeriod, setActivePeriod] = useState<"today" | "week" | "month" | "all">("today");
   const [loadingReport,setLoadingReport]= useState(false);
-
+  const [fromDate, setFromDate] = useState("");
+const [toDate, setToDate] = useState("");
   /* FETCH — ESLint-safe: async defined inside effect */
-  const fetchReports = async (period: string = "today") => {
-    try {
-      setLoadingReport(true);
-      const res = await API.get(`/reports?period=${period}`);
-      setReportData(res.data);
-    } catch (err) { console.log(err); }
-    finally { setLoadingReport(false); }
-  };
+  const fetchReports = async (
+  period: string = "today",
+  customFromDate?: string,
+  customToDate?: string
+) => {
+  try {
+    setLoadingReport(true);
+
+    let url = `/reports?period=${period}`;
+
+    if (customFromDate && customToDate) {
+      url = `/reports?fromDate=${customFromDate}&toDate=${customToDate}`;
+    }
+
+    const res = await API.get(url);
+    setReportData(res.data);
+  } catch (err) {
+    console.log(err);
+  } finally {
+    setLoadingReport(false);
+  }
+};
 
   useEffect(() => {
     const load = async () => { await fetchReports("today"); };
@@ -236,18 +250,18 @@ export default function ReportsPage() {
             "Email",
             "Status",
             "Schedule",
+            "Comments",
             "State",
           ]],
           body: leads.map((l, idx) => [
             idx + 1,
-            /* Client name + address on separate lines */
             `${l.name || "-"}\n${l.company || ""}`.trim(),
-            /* Upload company (PS Estimating / Devcon etc.) */
             l.uploadFile?.companyName || "-",
             l.phone || "-",
             l.email || "-",
             (l.status || "-").toUpperCase(),
             l.nextSchedule || "-",
+            l.comments || "-",                          // ← CSR comment
             l.state || extractState(l.company) || "-",
           ]),
           styles: {
@@ -267,14 +281,15 @@ export default function ReportsPage() {
             fillColor: [248, 249, 252],
           },
           columnStyles: {
-            0: { cellWidth: 8,  halign: "center" },
-            1: { cellWidth: 52 },   /* Client / Address — wider for two lines */
-            2: { cellWidth: 28 },   /* Company (PS Est / Devcon) */
-            3: { cellWidth: 26 },   /* Phone */
-            4: { cellWidth: 44 },   /* Email */
-            5: { cellWidth: 26, halign: "center" },   /* Status */
-            6: { cellWidth: 26, halign: "center" },   /* Schedule */
-            7: { cellWidth: 18, halign: "center" },   /* State */
+            0: { cellWidth: 7,  halign: "center" },
+            1: { cellWidth: 42 },   /* Client / Address */
+            2: { cellWidth: 24 },   /* Company */
+            3: { cellWidth: 24 },   /* Phone */
+            4: { cellWidth: 38 },   /* Email */
+            5: { cellWidth: 24, halign: "center" },   /* Status */
+            6: { cellWidth: 22, halign: "center" },   /* Schedule */
+            7: { cellWidth: 38 },   /* Comments */
+            8: { cellWidth: 16, halign: "center" },   /* State */
           },
           /* FIX: use didParseCell — sets color BEFORE drawing, no double text */
           didParseCell: (data) => {
@@ -329,18 +344,7 @@ export default function ReportsPage() {
   };
 
   /* DELETE REPORT */
-  const handleDeleteReport = async (id: string) => {
-    if (!window.confirm("Delete this report?")) return;
-    try {
-      await API.delete(`/report-uploads/${id}`);
-      setReportData(prev => prev
-        ? { ...prev, reports: prev.reports.filter(r => r.id !== id) }
-        : prev
-      );
-    } catch (err) { console.log(err); }
-  };
-
-  /* CHART DATA — use timeChart when period is selected, else CSR performance */
+  /* CHART DATA */
   const isFiltered = activePeriod !== "all";
 
   const callsChart = useMemo(() => {
@@ -348,13 +352,6 @@ export default function ReportsPage() {
       return reportData.timeChart.map(t => ({ day: t.label, calls: t.leads }));
     }
     return (reportData?.csrPerformance || []).map(i => ({ day: i.name, calls: i.totalLeads }));
-  }, [reportData, isFiltered]);
-
-  const leadsChart = useMemo(() => {
-    if (isFiltered && reportData?.timeChart?.length) {
-      return reportData.timeChart.map(t => ({ state: t.label, leads: t.leads }));
-    }
-    return (reportData?.csrPerformance || []).map(i => ({ state: i.name, leads: i.totalLeads }));
   }, [reportData, isFiltered]);
 
   return (
@@ -376,24 +373,46 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative">
-              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input type="text" placeholder="Search reports..." value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="h-12.5 rounded-2xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-[#B8112D] sm:w-62.5"/>
-            </div>
-            <div className="relative">
-              <CalendarDays size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <select value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                className="h-12.5 rounded-2xl border border-gray-200 bg-white pl-11 pr-10 text-sm outline-none focus:border-[#B8112D]">
-                <option value="2026-05-10">May 10, 2026</option>
-              </select>
-            </div>
-            <button className="flex h-12.5 items-center justify-center gap-2 rounded-2xl bg-[#B8112D] px-5 text-sm font-semibold text-white hover:bg-[#a30f27] transition-all">
-              Export<ChevronDown size={18}/>
-            </button>
-          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:flex-nowrap">
+ 
+
+  <input
+    type="date"
+    value={fromDate}
+    onChange={(e) => setFromDate(e.target.value)}
+    className="h-12.5 rounded-2xl border border-gray-200 bg-white px-4 text-sm outline-none focus:border-[#B8112D]"
+  />
+
+  <input
+    type="date"
+    value={toDate}
+    onChange={(e) => setToDate(e.target.value)}
+    className="h-12.5 rounded-2xl border border-gray-200 bg-white px-4 text-sm outline-none focus:border-[#B8112D]"
+  />
+
+  <button
+    onClick={() => {
+      if (!fromDate || !toDate) return alert("Please select both dates");
+      setActivePeriod("all");
+      fetchReports("all", fromDate, toDate);
+    }}
+    className="h-12.5 rounded-2xl bg-[#B8112D] px-6 text-sm font-semibold text-white hover:bg-[#a30f27]"
+  >
+    Filter
+  </button>
+
+  <button
+    onClick={() => {
+      setFromDate("");
+      setToDate("");
+      setActivePeriod("today");
+      fetchReports("today");
+    }}
+    className="h-12.5 rounded-2xl border border-gray-200 bg-white px-6 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+  >
+    Reset
+  </button>
+</div>
         </div>
 
         {/* LIVE STATUS */}
@@ -406,8 +425,8 @@ export default function ReportsPage() {
                   <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500 animate-ping"/>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-[#111827]">Live Monitoring Active</h3>
-                  <p className="text-sm text-gray-500">Real-time reporting is connected</p>
+                  <h3 className="font-semibold text-[#111827]">Live Stats — Current Links</h3>
+                  <p className="text-sm text-gray-500">Stats above reflect active links only · Historical reports saved below ↓</p>
                 </div>
               </div>
               <div className="h-12 w-px bg-gray-200 hidden lg:block"/>
@@ -490,11 +509,7 @@ export default function ReportsPage() {
               )}
             </div>
             <div className="h-85">
-              {/* Empty state when no data for selected period */}
-              {(activeTab === "CSR Performance" ? callsChart : leadsChart).every(d =>
-                (d as { calls?: number; leads?: number }).calls === 0 ||
-                (d as { calls?: number; leads?: number }).leads === 0
-              ) && (callsChart.length === 0 || leadsChart.length === 0) ? (
+              {callsChart.length === 0 || callsChart.every(d => d.calls === 0) ? (
                 <div className="h-full flex flex-col items-center justify-center text-center">
                   <Database size={40} className="text-gray-200 mb-3"/>
                   <h3 className="font-semibold text-gray-400">No data for this period</h3>
@@ -505,7 +520,7 @@ export default function ReportsPage() {
                      "No leads found."}
                   </p>
                 </div>
-              ) : activeTab === "CSR Performance" ? (
+              ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={callsChart}>
                     <CartesianGrid strokeDasharray="3 3"/>
@@ -513,15 +528,6 @@ export default function ReportsPage() {
                     <Tooltip formatter={(v) => [`${v} leads`, "Leads"]}/>
                     <Bar dataKey="calls" fill="#B8112D" radius={[8,8,0,0]} name="Leads"/>
                   </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={leadsChart}>
-                    <CartesianGrid strokeDasharray="3 3"/>
-                    <XAxis dataKey="state" tick={{ fontSize: 11 }}/>
-                    <Tooltip formatter={(v) => [`${v} leads`, "Leads"]}/>
-                    <Area type="monotone" dataKey="leads" stroke="#B8112D" fill="#FEE2E2" strokeWidth={3} name="Leads"/>
-                  </AreaChart>
                 </ResponsiveContainer>
               )}
             </div>
@@ -614,53 +620,6 @@ export default function ReportsPage() {
           </table>
         </div>
 
-        {/* GENERATED REPORTS TABLE */}
-        <div className="mt-6 rounded-[28px] bg-white p-5 shadow-sm">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-[#111827]">Generated Reports</h2>
-            <p className="mt-1 text-sm text-gray-500">Uploaded PDF & Excel reports</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-175">
-              <thead>
-                <tr className="border-b border-gray-100 text-left">
-                  {["Report Name","Type","Generated By","Date","Action"].map(h => (
-                    <th key={h} className="pb-4 text-sm font-semibold text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(reportData?.reports || []).map(report => (
-                  <tr key={report.id} className="border-b border-gray-50">
-                    <td className="py-5 font-semibold text-[#111827]">{report.reportName}</td>
-                    <td className="py-5 text-gray-600">{report.reportType}</td>
-                    <td className="py-5 text-gray-600">{report.generatedBy}</td>
-                    <td className="py-5 text-gray-600">{new Date(report.createdAt).toLocaleDateString()}</td>
-                    <td className="py-5">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => {
-                            const type = report.reportType.toLowerCase();
-                            if (type.includes("pdf")) { window.open(report.reportUrl, "_blank"); return; }
-                            const a = document.createElement("a");
-                            a.href = report.reportUrl; a.download = report.reportName;
-                            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                          }}
-                          className="rounded-xl bg-[#B8112D] px-4 py-2 text-sm font-medium text-white hover:bg-[#a30f27] transition-all">
-                          View
-                        </button>
-                        <button onClick={() => handleDeleteReport(report.id)}
-                          className="rounded-xl bg-red-100 px-4 py-2 text-sm font-medium text-[#B8112D] hover:bg-[#B8112D] hover:text-white transition-all">
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
       </main>
     </div>

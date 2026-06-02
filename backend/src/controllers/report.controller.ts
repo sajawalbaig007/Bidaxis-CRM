@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
-
+import { Prisma } from "@prisma/client";
 /* ── Date range helper ── */
 function getDateRange(period: string): { gte: Date; lte: Date } {
   const now   = new Date();
@@ -113,13 +113,34 @@ function buildTimeChart(
 export const getReports = async (req: Request, res: Response) => {
   try {
     const period = (req.query.period as string) || "all";
-    const range  = getDateRange(period);
+const fromDate = req.query.fromDate as string | undefined;
+const toDate = req.query.toDate as string | undefined;
 
-    /* ── Filter leads by period ── */
-    const whereClause = period === "all"
-      ? {}
-      : { createdAt: { gte: range.gte, lte: range.lte } };
+let whereClause: Prisma.LeadWhereInput = {};
 
+if (fromDate && toDate) {
+  const start = new Date(fromDate);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(toDate);
+  end.setHours(23, 59, 59, 999);
+
+  whereClause = {
+    createdAt: {
+      gte: start,
+      lte: end,
+    },
+  };
+} else if (period !== "all") {
+  const range = getDateRange(period);
+
+  whereClause = {
+    createdAt: {
+      gte: range.gte,
+      lte: range.lte,
+    },
+  };
+}
     const leads = await prisma.lead.findMany({
       where:   whereClause,
       include: { csr: true },

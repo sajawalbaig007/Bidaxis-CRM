@@ -14,13 +14,13 @@ import DashboardNavbar  from "../components/Navbar";
 type UserRole = "CSR" | "Admin" | "User";
 
 type User = {
-  id: string;
-  name: string;
-  email: string;
-  password: string;
-  status: "Active" | "Inactive";
-  role: UserRole;
-  isOnline: boolean;
+  id:         string;
+  name:       string;
+  email:      string;
+  password:   string;
+  status:     "Active" | "Inactive";
+  role:       UserRole;
+  isOnline:   boolean;
   lastActive: string | null;
 };
 
@@ -43,27 +43,40 @@ const formatLastActive = (iso: string | null): string => {
   return new Date(iso).toLocaleDateString();
 };
 
+/* ── Online indicator (outside component) ── */
+function OnlineBadge({ isOnline, lastActive }: { isOnline: boolean; lastActive: string | null }) {
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold ${
+      isOnline ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#F4F4F5] text-[#52525B]"
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-[#12B76A] animate-pulse" : "bg-gray-400"}`}/>
+      {isOnline ? "Online" : formatLastActive(lastActive)}
+    </div>
+  );
+}
+
 export default function UsersPage() {
-  const [users,              setUsers]              = useState<User[]>([]);
-  const [search,             setSearch]             = useState("");
-  const [showModal,          setShowModal]          = useState(false);
-  const [editingUser,        setEditingUser]        = useState<User | null>(null);
-  const [mobileDetailsUser,  setMobileDetailsUser]  = useState<User | null>(null);
-  const [openMenu,           setOpenMenu]           = useState<string | null>(null);
-  const [showPassword,       setShowPassword]       = useState(false);
-  const [showDetailPassword, setShowDetailPassword] = useState(false);
-  const [loading,            setLoading]            = useState(true);
+  const [users,             setUsers]             = useState<User[]>([]);
+  const [search,            setSearch]            = useState("");
+  const [showModal,         setShowModal]         = useState(false);
+  const [editingUser,       setEditingUser]       = useState<User | null>(null);
+  const [mobileDetailsUser, setMobileDetailsUser] = useState<User | null>(null);
+  const [openMenu,          setOpenMenu]          = useState<string | null>(null);
+  const [showPassword,      setShowPassword]      = useState(false);
+  const [showDetailPw,      setShowDetailPw]      = useState(false);
+  const [loading,           setLoading]           = useState(true);
 
   const [form, setForm] = useState({
     name: "", email: "", password: "", role: "CSR" as UserRole,
   });
 
   /* ── FETCH ── */
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const res  = await fetch(`${BASE}/users`, { credentials: "include" });
       const data = await res.json();
-      if (!res.ok) { toast.error("Failed to fetch users."); return; }
+      if (!res.ok) { if (!silent) toast.error("Failed to fetch users."); return; }
 
       const formatted: User[] = data.map((u: {
         id: string; name: string; email: string; role: string;
@@ -81,38 +94,43 @@ export default function UsersPage() {
 
       setUsers(formatted);
     } catch {
-      toast.error("Something went wrong.");
+      if (!silent) toast.error("Something went wrong.");
     } finally {
       setLoading(false);
     }
   }, []);
 
- useEffect(() => {
-  const timer = window.setTimeout(() => {
-    void fetchUsers();
-  }, 0);
-
-  return () => window.clearTimeout(timer);
-}, [fetchUsers]);
-
-  /* Auto-refresh every 30s to keep online status updated */
+  /* Initial load */
   useEffect(() => {
-    const interval = setInterval(fetchUsers, 30_000);
+    const load = async () => { await fetchUsers(); };
+    load();
+  }, [fetchUsers]);
+
+  /* Auto-refresh every 10s — picks up online status + profile changes */
+  useEffect(() => {
+    const interval = setInterval(() => fetchUsers(true), 10_000);
     return () => clearInterval(interval);
   }, [fetchUsers]);
 
-  /* ── STATS (real from fetched data) ── */
-  const totalUsers    = users.length;
-  const onlineNow     = users.filter(u => u.isOnline).length;
-  const activeCSR     = users.filter(u => u.role === "CSR"   && u.isOnline).length;
-  const activeAdmins  = users.filter(u => u.role === "Admin" && u.status === "Active").length;
+  /* Refresh when tab comes back into focus — instant update after settings change */
+  useEffect(() => {
+    const onFocus = () => fetchUsers(true);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchUsers]);
+
+  /* Stats */
+  const totalUsers   = users.length;
+  const onlineNow    = users.filter(u => u.isOnline).length;
+  const activeCSR    = users.filter(u => u.role === "CSR"   && u.isOnline).length;
+  const activeAdmins = users.filter(u => u.role === "Admin" && u.status === "Active").length;
 
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  /* ── SUBMIT (create / edit) ── */
+  /* ── SUBMIT ── */
   const handleSubmit = async () => {
     if (!form.name || !form.email || (!editingUser && !form.password)) {
       toast.error("Please fill all required fields.");
@@ -131,7 +149,6 @@ export default function UsersPage() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-
       if (!res.ok) { toast.error(data.message || "Operation failed."); return; }
 
       toast.success(editingUser ? "User updated." : "User created.");
@@ -147,7 +164,7 @@ export default function UsersPage() {
 
   /* ── DELETE ── */
   const handleDelete = async (id: string) => {
-    toast((t) => (
+    toast(t => (
       <div className="flex flex-col gap-3 min-w-[200px]">
         <p className="font-semibold text-[#111827]">Delete this user?</p>
         <div className="flex gap-2">
@@ -168,7 +185,7 @@ export default function UsersPage() {
     ), { duration: Infinity });
   };
 
-  /* ── TOGGLE STATUS (block/unblock) ── */
+  /* ── TOGGLE STATUS ── */
   const toggleStatus = async (user: User) => {
     const newStatus = user.status === "Active" ? "Inactive" : "Active";
     try {
@@ -184,16 +201,6 @@ export default function UsersPage() {
     } catch { toast.error("Something went wrong."); }
   };
 
-  /* ── Online indicator ── */
-  const OnlineBadge = ({ isOnline, lastActive }: { isOnline: boolean; lastActive: string | null }) => (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold ${
-      isOnline ? "bg-[#ECFDF3] text-[#027A48]" : "bg-[#F4F4F5] text-[#52525B]"
-    }`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-[#12B76A] animate-pulse" : "bg-gray-400"}`}/>
-      {isOnline ? "Online" : formatLastActive(lastActive)}
-    </div>
-  );
-
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster position="top-right" toastOptions={{
@@ -207,82 +214,30 @@ export default function UsersPage() {
       <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[72px] lg:mt-0">
         <DashboardNavbar/>
 
-        {/* ── STATS ── */}
+        {/* STATS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
-          {/* Total */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-400">Total Users</p>
-                {loading ? <div className="h-8 w-10 bg-gray-100 rounded-lg mt-2 animate-pulse"/> : (
-                  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-2">{totalUsers}</h2>
-                )}
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#F8ECEF] flex items-center justify-center">
-                <Users size={24} className="text-[#B8112D]"/>
-              </div>
-            </div>
-          </div>
-
-          {/* Online Now */}
-          <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-400">Online Now</p>
-                {loading ? <div className="h-8 w-10 bg-gray-100 rounded-lg mt-2 animate-pulse"/> : (
-                  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-2">{onlineNow}</h2>
-                )}
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#12B76A] animate-pulse"/>
-                  <p className="text-[10px] text-gray-400">Live</p>
+          {[
+            { label:"Total Users",  value:totalUsers,  bg:"bg-[#F8ECEF]",   icon:<Users size={24} className="text-[#B8112D]"/>,       extra:null },
+            { label:"Online Now",   value:onlineNow,   bg:"bg-green-100",   icon:<Wifi size={24} className="text-green-600"/>,          extra:<div className="flex items-center gap-1 mt-1"><span className="w-1.5 h-1.5 rounded-full bg-[#12B76A] animate-pulse"/><p className="text-[10px] text-gray-400">Live</p></div> },
+            { label:"CSR Online",   value:activeCSR,   bg:"bg-emerald-100", icon:<Headphones size={24} className="text-emerald-600"/>,  extra:null },
+            { label:"Active Admins",value:activeAdmins,bg:"bg-blue-100",    icon:<Shield size={24} className="text-blue-600"/>,         extra:null },
+          ].map((c, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-400">{c.label}</p>
+                  {loading ? <div className="h-8 w-10 bg-gray-100 rounded-lg mt-2 animate-pulse"/> : (
+                    <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-2">{c.value}</h2>
+                  )}
+                  {c.extra}
                 </div>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-green-100 flex items-center justify-center">
-                <Wifi size={24} className="text-green-600"/>
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${c.bg} flex items-center justify-center`}>{c.icon}</div>
               </div>
             </div>
-          </div>
-
-          {/* Active CSR */}
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Headphones size={14} className="text-emerald-600"/>
-                  <p className="text-xs sm:text-sm text-emerald-600 font-medium">CSR Online</p>
-                </div>
-                {loading ? <div className="h-8 w-10 bg-emerald-100 rounded-lg mt-1 animate-pulse"/> : (
-                  <h2 className="text-2xl sm:text-3xl font-semibold text-emerald-800 mt-1">{activeCSR}</h2>
-                )}
-                <p className="text-[10px] text-emerald-500 mt-1">Support Reps</p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                <Headphones size={24} className="text-emerald-600"/>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Admins */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-3xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Shield size={14} className="text-blue-600"/>
-                  <p className="text-xs sm:text-sm text-blue-600 font-medium">Active Admins</p>
-                </div>
-                {loading ? <div className="h-8 w-10 bg-blue-100 rounded-lg mt-1 animate-pulse"/> : (
-                  <h2 className="text-2xl sm:text-3xl font-semibold text-blue-800 mt-1">{activeAdmins}</h2>
-                )}
-                <p className="text-[10px] text-blue-500 mt-1">Administrators</p>
-              </div>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-blue-100 flex items-center justify-center">
-                <Shield size={24} className="text-blue-600"/>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* ── SEARCH + CREATE ── */}
+        {/* SEARCH + CREATE */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
           <div className="relative w-full sm:w-[300px]">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
@@ -290,14 +245,13 @@ export default function UsersPage() {
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
           </div>
-          <button
-            onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR" }); setShowModal(true); }}
+          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR" }); setShowModal(true); }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
         </div>
 
-        {/* ── TABLE ── */}
+        {/* TABLE */}
         <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[600px]">
@@ -330,12 +284,10 @@ export default function UsersPage() {
                 ) : filteredUsers.length > 0 ? filteredUsers.map(u => (
                   <tr key={u.id} className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all">
 
-                    {/* USER */}
                     <td className="px-4 sm:px-6 py-5">
                       <div className="flex items-center gap-3">
                         <div className={`w-11 h-11 rounded-full flex items-center justify-center font-semibold relative ${roleColor(u.role)}`}>
-                          {u.name.charAt(0)}
-                          {/* online dot on avatar */}
+                          {u.name.charAt(0).toUpperCase()}
                           <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${u.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
                         </div>
                         <div>
@@ -345,23 +297,18 @@ export default function UsersPage() {
                       </div>
                     </td>
 
-                    {/* ROLE */}
                     <td className="px-4 sm:px-6 py-5">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${roleColor(u.role)}`}>
-                        {u.role}
-                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${roleColor(u.role)}`}>{u.role}</span>
                     </td>
 
-                    {/* ONLINE STATUS */}
                     <td className="px-4 sm:px-6 py-5">
                       <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive}/>
                     </td>
 
-                    {/* ACTIONS */}
                     <td className="px-4 sm:px-6 py-5">
                       {/* Desktop */}
                       <div className="hidden md:flex items-center justify-end gap-2">
-                        <button onClick={() => { setMobileDetailsUser(u); }}
+                        <button onClick={() => setMobileDetailsUser(u)}
                           className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all text-sm">
                           Details
                         </button>
@@ -411,13 +358,13 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* ── DETAIL MODAL ── */}
+        {/* DETAIL MODAL */}
         {mobileDetailsUser && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="bg-white w-full rounded-3xl p-6 max-w-sm">
               <div className="flex items-center gap-3 mb-5">
                 <div className={`relative w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold ${roleColor(mobileDetailsUser.role)}`}>
-                  {mobileDetailsUser.name.charAt(0)}
+                  {mobileDetailsUser.name.charAt(0).toUpperCase()}
                   <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${mobileDetailsUser.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
                 </div>
                 <div>
@@ -428,8 +375,8 @@ export default function UsersPage() {
 
               <div className="space-y-3">
                 {[
-                  { label:"Email",   value: mobileDetailsUser.email },
-                  { label:"Role",    value: mobileDetailsUser.role  },
+                  { label:"Email",          value: mobileDetailsUser.email  },
+                  { label:"Role",           value: mobileDetailsUser.role   },
                   { label:"Account Status", value: mobileDetailsUser.status },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#F8F9FC] rounded-2xl p-4">
@@ -442,10 +389,10 @@ export default function UsersPage() {
                   <p className="text-xs text-gray-400 mb-1">Password</p>
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium text-gray-700">
-                      {showDetailPassword ? (mobileDetailsUser.password || "Hidden") : "••••••••"}
+                      {showDetailPw ? (mobileDetailsUser.password || "Hidden") : "••••••••"}
                     </h3>
-                    <button onClick={() => setShowDetailPassword(!showDetailPassword)} className="text-gray-400 hover:text-gray-600">
-                      {showDetailPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                    <button onClick={() => setShowDetailPw(!showDetailPw)} className="text-gray-400 hover:text-gray-600">
+                      {showDetailPw ? <EyeOff size={16}/> : <Eye size={16}/>}
                     </button>
                   </div>
                 </div>
@@ -461,7 +408,7 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              <button onClick={() => { setMobileDetailsUser(null); setShowDetailPassword(false); }}
+              <button onClick={() => { setMobileDetailsUser(null); setShowDetailPw(false); }}
                 className="w-full mt-5 bg-[#B8112D] text-white py-3 rounded-2xl font-medium">
                 Close
               </button>
@@ -469,7 +416,7 @@ export default function UsersPage() {
           </div>
         )}
 
-        {/* ── CREATE / EDIT MODAL ── */}
+        {/* CREATE / EDIT MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="bg-white w-full rounded-3xl p-6 max-w-md">
@@ -478,8 +425,8 @@ export default function UsersPage() {
               </h2>
               <div className="space-y-4">
                 {[
-                  { label:"Full Name",      key:"name",  type:"text",  placeholder:"Enter full name"  },
-                  { label:"Email Address",  key:"email", type:"email", placeholder:"Enter email"       },
+                  { label:"Full Name",     key:"name",  type:"text",  placeholder:"Enter full name" },
+                  { label:"Email Address", key:"email", type:"email", placeholder:"Enter email"      },
                 ].map(({ label, key, type, placeholder }) => (
                   <div key={key}>
                     <label className="text-sm text-gray-500 block mb-2">{label}</label>
@@ -490,7 +437,6 @@ export default function UsersPage() {
                   </div>
                 ))}
 
-                {/* Password — only on create */}
                 {!editingUser && (
                   <div>
                     <label className="text-sm text-gray-500 block mb-2">Password</label>

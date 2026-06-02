@@ -36,6 +36,8 @@ model User {
   leads    Lead[]    @relation("AssignedLeads")
   callLogs CallLog[] @relation("CSRCallLogs")
   reports  Report[]
+  twoFAEnabled  Boolean  @default(false)
+tokenVersion  Int      @default(0)
 }
 
 /**
