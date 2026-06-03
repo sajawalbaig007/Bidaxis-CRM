@@ -142,34 +142,83 @@ export default function CSRPage() {
   }, []);
 
   /* ── HEARTBEAT — marks CSR as online every 30s, offline on close ── */
+  /* ─────────────────────────────────────────────────────────────
+   Replace the heartbeat useEffect in csr/page.tsx with this:
+─────────────────────────────────────────────────────────────── */
+
   useEffect(() => {
-    const sendHeartbeat = () => {
-      API.post("/csr/heartbeat").catch(() => {});
+    let tabId = sessionStorage.getItem("crm_tab_id");
+    if (!tabId) {
+      tabId = Math.random().toString(36).slice(2, 10);
+      sessionStorage.setItem("crm_tab_id", tabId);
+    }
+    const openedAt = sessionStorage.getItem("crm_tab_opened") ?? new Date().toISOString();
+    sessionStorage.setItem("crm_tab_opened", openedAt);
+
+    /* hiddenAt stored in ref — set ONCE when leaving, cleared on return
+       This prevents timer reset on every 3s heartbeat while away */
+    let hiddenAt: string | null = null;
+
+    const sendHeartbeat = (forceVisible?: boolean) => {
+      const visible = forceVisible ?? document.visibilityState === "visible";
+
+      /* Set hiddenAt only on FIRST leave — preserve it while away */
+      if (!visible && hiddenAt === null) {
+        hiddenAt = new Date().toISOString();
+      }
+      if (visible) {
+        hiddenAt = null;   // clear when back on dashboard
+      }
+
+      API.post("/csr/heartbeat", {
+        userAgent:  navigator.userAgent,
+        tabId,
+        openedAt,
+        tabVisible: visible,
+        hiddenAt,
+      }).catch(() => {});
     };
 
     const markOffline = () => {
-      /* sendBeacon works even during page unload */
       if (navigator.sendBeacon) {
-        const token = typeof window !== "undefined"
-          ? localStorage.getItem("token") ?? ""
-          : "";
+        const blob = new Blob(
+          [JSON.stringify({ tabId })],
+          { type: "application/json" }
+        );
         navigator.sendBeacon(
-          `${process.env.NEXT_PUBLIC_API_URL ?? ""}/csr/offline`,
-          JSON.stringify({ token })
+          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/csr/offline`,
+          blob
         );
       } else {
         API.post("/csr/offline").catch(() => {});
       }
     };
 
-    sendHeartbeat(); // immediate on mount
-    const interval = setInterval(sendHeartbeat, 8_000); // every 8s
+    /* visibilitychange — same browser, different tab */
+    const handleVisibility = () => {
+      sendHeartbeat(document.visibilityState === "visible");
+    };
+
+    /* blur/focus — different browser or application
+       blur fires instantly when window loses focus */
+    const handleBlur  = () => sendHeartbeat(false);
+    const handleFocus = () => sendHeartbeat(true);
+
+    sendHeartbeat(true);                                  // immediate on mount
+    const interval = setInterval(sendHeartbeat, 3_000);   // keep-alive every 3s
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("blur",         handleBlur);
+    window.addEventListener("focus",        handleFocus);
     window.addEventListener("beforeunload", markOffline);
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("blur",         handleBlur);
+      window.removeEventListener("focus",        handleFocus);
       window.removeEventListener("beforeunload", markOffline);
-      markOffline(); // mark offline on component unmount
+      markOffline();
     };
   }, []);
 
