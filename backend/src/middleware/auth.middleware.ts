@@ -1,71 +1,33 @@
-import {
-  Request,
-  Response,
-  NextFunction,
-} from "express";
-
+import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-export interface AuthRequest
-  extends Request {
-
-  user?: {
-    id: string;
-    role: string;
-  };
+export interface AuthRequest extends Request {
+  user?: { id: string; role: string; iat?: number };
 }
+
+const JWT_SECRET = process.env.JWT_SECRET || "secret";
 
 export const verifyToken = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-
   try {
-
-    /* GET TOKEN */
-
     const token =
-      req.cookies.token;
-
-    /* NO TOKEN */
+      req.cookies?.token ??
+      req.headers.authorization?.replace("Bearer ", "");
 
     if (!token) {
-
-      return res.status(401).json({
-        success: false,
-        message:
-          "Unauthorized",
-      });
+      return res.status(401).json({ success: false, message: "No token provided" });
     }
 
-    /* VERIFY TOKEN */
-
-    const decoded =
-      jwt.verify(
-        token,
-        process.env
-          .JWT_SECRET as string
-      ) as {
-        id: string;
-        role: string;
-      };
-
-    /* SAVE USER */
-
-    req.user = {
-      id: decoded.id,
-      role: decoded.role,
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      id: string; role: string; iat: number;
     };
 
+    req.user = { id: decoded.id, role: decoded.role, iat: decoded.iat };
     next();
-
   } catch {
-
-    return res.status(401).json({
-      success: false,
-      message:
-        "Invalid token",
-    });
+    return res.status(401).json({ success: false, message: "Invalid or expired token" });
   }
 };

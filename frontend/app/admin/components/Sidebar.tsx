@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Settings,
+  FolderKanban,
 } from "lucide-react";
 
 import {
@@ -59,6 +60,12 @@ export default function DashboardSidebar() {
       name: "Reports",
       icon: BarChart3,
       route: "/admin/reports",
+    },
+
+    {
+      name: "Active Projects",
+      icon: FolderKanban,
+      route: "/admin/active-projects",
     },
 
     {
@@ -222,10 +229,9 @@ export default function DashboardSidebar() {
 
           lg:hidden
 
-          ${
-            open
-              ? "opacity-100 visible"
-              : "opacity-0 invisible"
+          ${open
+            ? "opacity-100 visible"
+            : "opacity-0 invisible"
           }
         `}
       />
@@ -259,10 +265,9 @@ export default function DashboardSidebar() {
 
           lg:translate-x-0
 
-          ${
-            open
-              ? "translate-x-0"
-              : "-translate-x-full"
+          ${open
+            ? "translate-x-0"
+            : "-translate-x-full"
           }
         `}
       >
@@ -394,7 +399,7 @@ export default function DashboardSidebar() {
 
                 const isActive =
                   pathname ===
-                    item.route ||
+                  item.route ||
                   (item.route !==
                     "/admin" &&
                     pathname.startsWith(
@@ -431,10 +436,9 @@ export default function DashboardSidebar() {
                       text-sm
                       font-medium
 
-                      ${
-                        isActive
-                          ? "bg-[#B8112D] text-white shadow-sm"
-                          : "text-gray-500 hover:bg-gray-100"
+                      ${isActive
+                        ? "bg-[#B8112D] text-white shadow-sm"
+                        : "text-gray-500 hover:bg-gray-100"
                       }
                     `}
                   >

@@ -15,18 +15,14 @@ router.get(
     try {
       const csrId = req.user.id;
 
-      const latestFile = await prisma.uploadFile.findFirst({
-        orderBy: { createdAt: "desc" },
-      });
-
-      if (!latestFile) {
-        return res.json({ success: true, totalLeads: 0, leads: [] });
-      }
-
       const leads = await prisma.lead.findMany({
         where: {
           assignedTo: csrId,
-          uploadedFileId: latestFile.id,
+        },
+        include: {
+          uploadFile: {
+            select: { companyName: true },
+          },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -53,30 +49,29 @@ router.put(
         nextTime,
         timezone,
         followUpNotes,
-        // NEW — Interested service
         interestedService,
-        // NEW — Project Won fields
         projectTitle,
         projectDeadline,
         projectBudget,
         projectNotes,
+        comments,
       } = req.body;
 
-      /* Build update object — only include fields that were sent */
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, unknown> = {};
 
-      if (status !== undefined)            updateData.status            = status;
-      if (nextSchedule !== undefined)      updateData.nextSchedule      = nextSchedule;
-      if (nextTime !== undefined)          updateData.nextTime          = nextTime;
-      if (timezone !== undefined)          updateData.timezone          = timezone;
-      if (followUpNotes !== undefined)     updateData.followUpNotes     = followUpNotes;
+      if (status            !== undefined) updateData.status            = status;
+      if (nextSchedule      !== undefined) updateData.nextSchedule      = nextSchedule;
+      if (nextTime          !== undefined) updateData.nextTime          = nextTime;
+      if (timezone          !== undefined) updateData.timezone          = timezone;
+      if (followUpNotes     !== undefined) updateData.followUpNotes     = followUpNotes;
       if (interestedService !== undefined) updateData.interestedService = interestedService;
-      if (projectTitle !== undefined)      updateData.projectTitle      = projectTitle;
-      if (projectDeadline !== undefined)   updateData.projectDeadline   = projectDeadline;
-      if (projectBudget !== undefined)     updateData.projectBudget     = projectBudget;
-      if (projectNotes !== undefined)      updateData.projectNotes      = projectNotes;
+      if (projectTitle      !== undefined) updateData.projectTitle      = projectTitle;
+      if (projectDeadline   !== undefined) updateData.projectDeadline   = projectDeadline;
+      if (projectBudget     !== undefined) updateData.projectBudget     = projectBudget;
+      if (projectNotes      !== undefined) updateData.projectNotes      = projectNotes;
+      if (comments          !== undefined) updateData.comments          = comments;
 
-      /* Sync boolean flags based on status */
+      /* Sync boolean flags */
       if (status !== undefined) {
         updateData.important  = status === "important";
         updateData.interested = status === "interested";
@@ -84,13 +79,56 @@ router.put(
 
       const updatedLead = await prisma.lead.update({
         where: { id: req.params.id },
-        data: updateData,
+        data:  updateData,
       });
 
       return res.json({ success: true, lead: updatedLead });
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to update lead" });
+    }
+  }
+);
+
+/* ================= HEARTBEAT — mark CSR online ================= */
+
+router.post(
+  "/heartbeat",
+  verifyToken,
+  allowRoles("csr"),
+  async (req: any, res) => {
+    try {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          isOnline:   true,
+          lastActive: new Date(),
+        },
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false });
+    }
+  }
+);
+
+/* ================= OFFLINE — mark CSR offline ================= */
+
+router.post(
+  "/offline",
+  verifyToken,
+  allowRoles("csr"),
+  async (req: any, res) => {
+    try {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { isOnline: false },
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false });
     }
   }
 );
