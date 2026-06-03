@@ -165,7 +165,7 @@ export default function UsersPage() {
   /* ── DELETE ── */
   const handleDelete = async (id: string) => {
     toast(t => (
-      <div className="flex flex-col gap-3 min-w-[200px]">
+      <div className="flex flex-col gap-3 min-w-[200px] ">
         <p className="font-semibold text-[#111827]">Delete this user?</p>
         <div className="flex gap-2">
           <button onClick={async () => {

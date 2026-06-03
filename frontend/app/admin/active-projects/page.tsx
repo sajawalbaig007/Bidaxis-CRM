@@ -108,8 +108,8 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
-        <span className="font-medium text-[#065F46]">CSR: {p.csr.name}</span>
-        {p.projectBudget && <span className="font-bold text-gray-700">{p.projectBudget}</span>}
+        <span className="font-medium text-[#065F46] whitespace-nowrap">CSR: {p.csr.name}</span>
+        {p.projectBudget && <span className="font-bold text-gray-700">${p.projectBudget}</span>}
       </div>
     </div>
   );
@@ -250,19 +250,19 @@ export default function AdminProjectsPage() {
                 <tr key={p.id} className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all">
 
                   {/* CLIENT */}
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <p className="font-semibold text-gray-800 text-sm">{p.name ?? "—"}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{p.phone ?? "—"}</p>
                   </td>
 
                   {/* PROJECT */}
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <p className="font-semibold text-gray-800 text-sm">{p.projectTitle ?? "—"}</p>
                     <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[160px]">{p.company ?? "—"}</p>
                   </td>
 
                   {/* COMPANY */}
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     {p.uploadFile?.companyName ? (
                       <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 rounded-xl text-xs font-semibold">
                         <Building2 size={10}/>{p.uploadFile.companyName}
@@ -271,7 +271,7 @@ export default function AdminProjectsPage() {
                   </td>
 
                   {/* SERVICE */}
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     {p.interestedService ? (
                       <span className={`px-2.5 py-1 rounded-xl text-xs font-semibold ${getServiceColor(p.interestedService)}`}>
                         {p.interestedService}
@@ -280,14 +280,14 @@ export default function AdminProjectsPage() {
                   </td>
 
                   {/* BUDGET */}
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <span className={`text-sm font-semibold ${p.projectBudget ? "text-[#065F46]" : "text-gray-400"}`}>
-                      {p.projectBudget ?? "Not set"}
+                      {p.projectBudget ? `$${p.projectBudget}` : "Not set"}
                     </span>
                   </td>
 
                   {/* DEADLINE */}
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     {p.projectDeadline ? (
                       <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-xl ${
                         isOverdue(p.projectDeadline) ? "bg-red-100 text-red-600" : "bg-[#ECFDF5] text-[#065F46]"
@@ -298,8 +298,8 @@ export default function AdminProjectsPage() {
                     ) : <span className="text-gray-400 text-sm">—</span>}
                   </td>
 
-                  {/* CSR — name only, no avatar */}
-                  <td className="px-5 py-4">
+                  {/* CSR */}
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <span className="text-sm font-semibold text-[#065F46]">{p.csr.name}</span>
                   </td>
 
@@ -359,7 +359,7 @@ export default function AdminProjectsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#F8F9FC] rounded-2xl p-4">
                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2"><DollarSign size={12}/>Budget</p>
-                    <p className="font-bold text-gray-800 text-lg">{selected.projectBudget ?? "Not set"}</p>
+                    <p className="font-bold text-gray-800 text-lg">{selected.projectBudget ? `$${selected.projectBudget}` : "Not set"}</p>
                   </div>
                   <div className={`rounded-2xl p-4 ${isOverdue(selected.projectDeadline) ? "bg-red-50" : "bg-[#F8F9FC]"}`}>
                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2"><Calendar size={12}/>Deadline</p>
