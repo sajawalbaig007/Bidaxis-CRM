@@ -23,21 +23,25 @@ model User {
   password String
   role     Role
 
-  isActive   Boolean   @default(true)
+  isActive Boolean @default(true)
 
-  /* ── ONLINE PRESENCE ── */
+  /**
+   * ── ONLINE PRESENCE ──
+   */
   isOnline   Boolean   @default(false)
   lastActive DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /* ── RELATIONS ── */
-  leads    Lead[]    @relation("AssignedLeads")
-  callLogs CallLog[] @relation("CSRCallLogs")
-  reports  Report[]
-  twoFAEnabled  Boolean  @default(false)
-tokenVersion  Int      @default(0)
+  /**
+   * ── RELATIONS ──
+   */
+  leads        Lead[]    @relation("AssignedLeads")
+  callLogs     CallLog[] @relation("CSRCallLogs")
+  reports      Report[]
+  twoFAEnabled Boolean   @default(false)
+  tokenVersion Int       @default(0)
 }
 
 /**
@@ -45,40 +49,50 @@ tokenVersion  Int      @default(0)
  */
 
 model Lead {
-  id      String  @id @default(cuid())
-  name    String?
-  company String?
-  phone   String?
-  email   String?
-  status  String  @default("pending")
+  id       String  @id @default(cuid())
+  name     String?
+  company  String?
+  phone    String?
+  email    String?
+  status   String  @default("pending")
   comments String?
 
-  /* ── FLAGS ── */
+  /**
+   * ── FLAGS ──
+   */
   important  Boolean @default(false)
   interested Boolean @default(false)
 
-  /* ── FOLLOW UP ── */
-  nextSchedule  String?
-  nextTime      String?
-  timezone      String?
-  followUpNotes String?
+  /**
+   * ── FOLLOW UP ──
+   */
+  nextSchedule   String?
+  nextTime       String?
+  timezone       String?
+  followUpNotes  String?
   followUpExpiry DateTime?
 
-  /* ── SERVICE & PROJECT ── */
+  /**
+   * ── SERVICE & PROJECT ──
+   */
   interestedService String?
   projectTitle      String?
   projectDeadline   String?
   projectBudget     String?
   projectNotes      String?
 
-  /* ── ASSIGNMENT ── */
+  /**
+   * ── ASSIGNMENT ──
+   */
   assignedTo     String
   uploadedFileId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /* ── RELATIONS ── */
+  /**
+   * ── RELATIONS ──
+   */
   csr        User        @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
   uploadFile UploadFile? @relation(fields: [uploadedFileId], references: [id])
   callLogs   CallLog[]
@@ -107,13 +121,13 @@ model CallLog {
  */
 
 model UploadFile {
-  id            String @id @default(cuid())
+  id            String   @id @default(cuid())
   fileName      String
   cloudinaryUrl String
   totalLeads    Int
   uploadedBy    String
   companyName   String?
-  createdAt DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   leads Lead[]
 }
