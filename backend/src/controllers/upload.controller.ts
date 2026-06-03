@@ -139,8 +139,19 @@ export const uploadLeads = async (req: Request, res: Response) => {
       }
 
       /* Delete ALL leads — fresh start */
-      await prisma.lead.deleteMany({});
-      console.log("[Renew] All leads cleared — new leads incoming ✅");
+/* Delete only completed leads */
+await prisma.lead.deleteMany({
+  where: {
+    status: {
+      equals: "completed",
+      mode: "insensitive",
+    },
+  },
+});
+
+console.log(
+  "[Renew] Only completed leads cleared. Pending, Not Completed, Important, Interested & Project Won preserved ✅"
+);
     }
 
     /* ── SAVE UPLOAD FILE RECORD ── */
@@ -176,7 +187,39 @@ export const uploadLeads = async (req: Request, res: Response) => {
       const finalCompany = String(findValue(["company","business","organization","address"])).trim();
       const finalPhone   = String(findValue(["phone","mobile","cell","contact","telephone","number"])).trim();
       const finalEmail   = String(findValue(["email","mail","e-mail"])).trim();
+      const duplicateConditions = [];
 
+if (finalPhone && finalPhone.length >= 7) {
+  duplicateConditions.push({ phone: finalPhone });
+}
+
+if (finalEmail && finalEmail.includes("@")) {
+  duplicateConditions.push({ email: finalEmail });
+}
+
+if (finalName && finalCompany) {
+  duplicateConditions.push({
+    AND: [
+      { name: finalName },
+      { company: finalCompany },
+    ],
+  });
+}
+
+if (duplicateConditions.length > 0) {
+  const duplicateLead = await prisma.lead.findFirst({
+    where: {
+      OR: duplicateConditions,
+    },
+  });
+
+  if (duplicateLead) {
+    console.log(
+      `[Duplicate Skipped] ${finalName || finalCompany || finalPhone || finalEmail}`
+    );
+    continue;
+  }
+}
       const lead = await prisma.lead.create({
         data: {
           name:           finalName,

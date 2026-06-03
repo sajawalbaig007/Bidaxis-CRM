@@ -13,12 +13,12 @@ app.use("/reports", reportRoutes);
 
 /* ═══════════════════════════════════════════════
    AUTO OFFLINE CRON
-   Every 10s — mark users offline if no heartbeat
-   in last 15 seconds
+   Every 5s — mark offline if no heartbeat in 6s
+   Fast detection: CSR goes offline within 5s
 ═══════════════════════════════════════════════ */
 setInterval(async () => {
   try {
-    const threshold = new Date(Date.now() - 15_000);
+    const threshold = new Date(Date.now() - 6_000);   // 6s threshold
     await prisma.user.updateMany({
       where: { lastActive: { lt: threshold }, isOnline: true },
       data:  { isOnline: false },
@@ -26,17 +26,13 @@ setInterval(async () => {
   } catch (err) {
     console.log("Auto-offline cron error:", err);
   }
-}, 10_000);
+}, 5_000);   // runs every 5s
 
 /* ═══════════════════════════════════════════════
-   AUTO DAILY REPORT
-   Runs every 24h at midnight.
-   Generates yesterday's report PDF summary,
-   uploads to Cloudinary, saves in DB.
+   AUTO DAILY REPORT — 3:30 AM every day
 ═══════════════════════════════════════════════ */
 async function generateDailyReport() {
   try {
-    /* Yesterday date range */
     const now       = new Date();
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
@@ -45,11 +41,8 @@ async function generateDailyReport() {
     const endOfYesterday = new Date(yesterday);
     endOfYesterday.setHours(23, 59, 59, 999);
 
-    /* Fetch yesterday's leads */
     const leads = await prisma.lead.findMany({
-      where: {
-        createdAt: { gte: yesterday, lte: endOfYesterday },
-      },
+      where: { createdAt: { gte: yesterday, lte: endOfYesterday } },
       include: { csr: true },
     });
 
@@ -58,7 +51,6 @@ async function generateDailyReport() {
       return;
     }
 
-    /* Build simple JSON summary (upload as .json to Cloudinary) */
     const dateLabel = yesterday.toISOString().split("T")[0];
 
     const csrMap = new Map<string, { name: string; total: number; completed: number; pending: number }>();
@@ -73,14 +65,13 @@ async function generateDailyReport() {
     });
 
     const summary = {
-      date:        dateLabel,
-      totalLeads:  leads.length,
-      completed:   leads.filter(l => l.status?.toLowerCase() === "completed").length,
-      pending:     leads.filter(l => l.status?.toLowerCase() === "pending").length,
-      csrs:        Array.from(csrMap.values()),
+      date:       dateLabel,
+      totalLeads: leads.length,
+      completed:  leads.filter(l => l.status?.toLowerCase() === "completed").length,
+      pending:    leads.filter(l => l.status?.toLowerCase() === "pending").length,
+      csrs:       Array.from(csrMap.values()),
     };
 
-    /* Upload summary JSON to Cloudinary as raw */
     const jsonBuffer = Buffer.from(JSON.stringify(summary, null, 2));
     const filename   = `daily-report-${dateLabel}`;
 
@@ -96,10 +87,8 @@ async function generateDailyReport() {
         .end(jsonBuffer);
     });
 
-    /* Find first admin to link report */
     const admin = await prisma.user.findFirst({ where: { role: "admin" } });
 
-    /* Save report record in DB */
     await prisma.report.create({
       data: {
         reportName:  `Daily Report — ${dateLabel}`,
@@ -109,38 +98,31 @@ async function generateDailyReport() {
       },
     });
 
-    console.log(`[Auto Report] ✅ Generated for ${dateLabel} — ${leads.length} leads`);
+    console.log(`[Auto Report] ✅ ${dateLabel} — ${leads.length} leads`);
   } catch (err) {
     console.log("[Auto Report] Error:", err);
   }
 }
 
-/* Schedule — run at next 3:30 AM, then every 24h */
 function scheduleAutoReport() {
-  const now      = new Date();
-  const next330  = new Date(now);
+  const now     = new Date();
+  const next330 = new Date(now);
+  next330.setHours(3, 30, 0, 0);
+  if (next330.getTime() <= now.getTime()) next330.setDate(next330.getDate() + 1);
 
-  next330.setHours(3, 30, 0, 0); // 3:30 AM
-
-  /* If 3:30 AM already passed today, schedule for tomorrow */
-  if (next330.getTime() <= now.getTime()) {
-    next330.setDate(next330.getDate() + 1);
-  }
-
-  const msUntil = next330.getTime() - now.getTime();
+  const msUntil    = next330.getTime() - now.getTime();
   const hoursUntil = Math.round(msUntil / 3600000 * 10) / 10;
-
-  console.log(`[Auto Report] Scheduled at 3:30 AM — next run in ${hoursUntil}h`);
+  console.log(`[Auto Report] Scheduled at 3:30 AM — next in ${hoursUntil}h`);
 
   setTimeout(() => {
     generateDailyReport();
-    setInterval(generateDailyReport, 24 * 60 * 60 * 1000); // every 24h
+    setInterval(generateDailyReport, 24 * 60 * 60 * 1000);
   }, msUntil);
 }
 
 scheduleAutoReport();
 
-/* ── START SERVER ── */
+/* ── START ── */
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
