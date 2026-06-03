@@ -22,20 +22,15 @@ export const uploadLeads = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "No file uploaded" });
     }
 
-    /* ── SELECTED CSRS ── */
     const selectedCSRs: string[] = req.body.selectedCSRs
       ? JSON.parse(req.body.selectedCSRs)
       : [];
 
-    /* ── COMPANY NAME — sent from frontend modal ── */
     const companyName: string = req.body.companyName?.trim() || "";
+    const resetMode:   string = req.body.resetMode || "keep";
+    const uploadedBy           = "admin";
 
-    /* ── RESET MODE — "keep" keeps old data, "reset" deletes all previous leads ── */
-    const resetMode: string = req.body.resetMode || "keep";
-
-    const uploadedBy = "admin";
-
-    /* ── UPLOAD TO CLOUDINARY ── */
+    /* ── UPLOAD FILE TO CLOUDINARY ── */
     const uploaded = await new Promise<{ secure_url: string }>((resolve, reject) => {
       cloudinary.uploader
         .upload_stream({ resource_type: "raw", folder: "crm_uploads" }, (error, result) => {
@@ -66,51 +61,58 @@ export const uploadLeads = async (req: Request, res: Response) => {
     }
 
     /* ── RESET MODE ──
-       Before deleting leads, save a snapshot so report history is preserved.
-       Reports are INDEPENDENT of leads — reset only affects CSR dashboard. ── */
+       1. Save snapshot of ALL current leads to Report table (permanent history)
+       2. Delete ALL leads
+       3. Fresh new leads distributed to CSRs ── */
     if (resetMode === "reset") {
 
-      /* Fetch current leads to snapshot */
-      const currentLeads = await prisma.lead.findMany({
+      const allLeads = await prisma.lead.findMany({
         include: { csr: true },
       });
 
-      if (currentLeads.length > 0) {
-        /* Build summary */
+      if (allLeads.length > 0) {
         const snapshotDate = new Date().toISOString().split("T")[0];
-        const csrSnap: Record<string, { name: string; total: number; completed: number; pending: number }> = {};
 
-        currentLeads.forEach(l => {
+        /* Build per-CSR summary */
+        const csrSnap: Record<string, {
+          name: string; total: number; completed: number;
+          pending: number; important: number; interested: number; projectWon: number;
+        }> = {};
+
+        allLeads.forEach(l => {
           const key  = l.assignedTo;
           const name = l.csr?.name ?? "Unknown";
-          if (!csrSnap[key]) csrSnap[key] = { name, total: 0, completed: 0, pending: 0 };
+          if (!csrSnap[key]) csrSnap[key] = { name, total:0, completed:0, pending:0, important:0, interested:0, projectWon:0 };
           csrSnap[key].total++;
-          const s = l.status?.toLowerCase();
-          if (s === "completed") csrSnap[key].completed++;
-          if (s === "pending")   csrSnap[key].pending++;
+          const s = (l.status ?? "").toLowerCase();
+          if (s === "completed")   csrSnap[key].completed++;
+          if (s === "pending")     csrSnap[key].pending++;
+          if (s === "important")   csrSnap[key].important++;
+          if (s === "interested")  csrSnap[key].interested++;
+          if (s === "project won") csrSnap[key].projectWon++;
         });
 
         const snapshot = {
-          type:       "pre-reset-snapshot",
-          date:       snapshotDate,
-          totalLeads: currentLeads.length,
-          completed:  currentLeads.filter(l => l.status?.toLowerCase() === "completed").length,
-          pending:    currentLeads.filter(l => l.status?.toLowerCase() === "pending").length,
-          important:  currentLeads.filter(l => l.status?.toLowerCase() === "important").length,
-          interested: currentLeads.filter(l => l.status?.toLowerCase() === "interested").length,
-          projectWon: currentLeads.filter(l => l.status?.toLowerCase() === "project won").length,
-          csrs:       Object.values(csrSnap),
+          type:        "reset-snapshot",
+          date:        snapshotDate,
+          totalLeads:  allLeads.length,
+          completed:   allLeads.filter(l => (l.status ?? "").toLowerCase() === "completed").length,
+          pending:     allLeads.filter(l => (l.status ?? "").toLowerCase() === "pending").length,
+          important:   allLeads.filter(l => (l.status ?? "").toLowerCase() === "important").length,
+          interested:  allLeads.filter(l => (l.status ?? "").toLowerCase() === "interested").length,
+          projectWon:  allLeads.filter(l => (l.status ?? "").toLowerCase() === "project won").length,
+          csrs:        Object.values(csrSnap),
         };
 
-        /* Upload snapshot to Cloudinary */
+        /* Save snapshot to Cloudinary */
         try {
-          const jsonBuf  = Buffer.from(JSON.stringify(snapshot, null, 2));
-          const pubId    = `pre-reset-${snapshotDate}-${Date.now()}`;
+          const jsonBuf = Buffer.from(JSON.stringify(snapshot, null, 2));
+          const pubId   = `reset-snapshot-${snapshotDate}-${Date.now()}`;
 
           const snapUrl = await new Promise<string>((resolve, reject) => {
             cloudinary.uploader
               .upload_stream(
-                { resource_type: "raw", folder: "crm_reports", public_id: pubId, format: "json" },
+                { resource_type:"raw", folder:"crm_reports", public_id:pubId, format:"json" },
                 (err, result) => {
                   if (err || !result) reject(err);
                   else resolve(result.secure_url);
@@ -119,35 +121,36 @@ export const uploadLeads = async (req: Request, res: Response) => {
               .end(jsonBuf);
           });
 
-          /* Save Report record — stays forever, unaffected by lead resets */
+          /* Save permanent Report record */
           const admin = await prisma.user.findFirst({ where: { role: "admin" } });
           await prisma.report.create({
             data: {
-              reportName:  `Snapshot before reset — ${snapshotDate}`,
+              reportName:  `Report saved before renew — ${snapshotDate}`,
               reportUrl:   snapUrl,
               reportType:  "json",
               generatedBy: admin?.id ?? null,
             },
           });
 
-          console.log(`[Reset] Snapshot saved for ${snapshotDate} — ${currentLeads.length} leads`);
+          console.log(`[Renew] Snapshot saved: ${allLeads.length} leads → Report table ✅`);
         } catch (snapErr) {
-          console.log("[Reset] Snapshot upload failed (non-critical):", snapErr);
+          console.log("[Renew] Snapshot upload failed (non-critical):", snapErr);
         }
       }
 
-      /* Now safe to delete — report history is preserved */
+      /* Delete ALL leads — fresh start */
       await prisma.lead.deleteMany({});
+      console.log("[Renew] All leads cleared — new leads incoming ✅");
     }
 
-    /* ── SAVE FILE RECORD (with companyName) ── */
+    /* ── SAVE UPLOAD FILE RECORD ── */
     const uploadedFile = await prisma.uploadFile.create({
       data: {
-        fileName:     req.file.originalname,
+        fileName:      req.file.originalname,
         cloudinaryUrl: uploaded.secure_url,
-        totalLeads:   data.length,
+        totalLeads:    data.length,
         uploadedBy,
-        companyName:  companyName || null,  // ← SAVE COMPANY NAME
+        companyName:   companyName || null,
       },
     });
 
@@ -160,7 +163,6 @@ export const uploadLeads = async (req: Request, res: Response) => {
       const csr = csrs[i % csrs.length];
 
       const keys = Object.keys(row);
-
       const findValue = (possibleKeys: string[]) => {
         const foundKey = keys.find(key =>
           possibleKeys.some(possible =>
@@ -187,7 +189,6 @@ export const uploadLeads = async (req: Request, res: Response) => {
       });
 
       createdLeads.push(lead);
-
       if (!distributionMap[csr.name]) distributionMap[csr.name] = 0;
       distributionMap[csr.name] += 1;
     }
@@ -195,10 +196,10 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const distribution = Object.entries(distributionMap).map(([name, leads]) => ({ name, leads }));
 
     return res.json({
-      success:      true,
-      totalLeads:   createdLeads.length,
+      success:       true,
+      totalLeads:    createdLeads.length,
       cloudinaryUrl: uploaded.secure_url,
-      file:         uploadedFile,
+      file:          uploadedFile,
       distribution,
     });
 
@@ -212,7 +213,6 @@ export const uploadLeads = async (req: Request, res: Response) => {
 
 export const getLatestUpload = async (req: Request, res: Response) => {
   try {
-
     const latestFile = await prisma.uploadFile.findFirst({
       orderBy: { createdAt: "desc" },
       include: {
@@ -240,12 +240,12 @@ export const getLatestUpload = async (req: Request, res: Response) => {
     return res.json({
       success: true,
       file: {
-        id:           latestFile.id,
-        fileName:     latestFile.fileName,
-        totalLeads:   latestFile.totalLeads,
+        id:            latestFile.id,
+        fileName:      latestFile.fileName,
+        totalLeads:    latestFile.totalLeads,
         cloudinaryUrl: latestFile.cloudinaryUrl,
-        companyName:  latestFile.companyName,   // ← INCLUDE IN RESPONSE
-        createdAt:    latestFile.createdAt,
+        companyName:   latestFile.companyName,
+        createdAt:     latestFile.createdAt,
         distribution,
       },
     });
