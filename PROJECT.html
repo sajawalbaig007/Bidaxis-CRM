@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CRM Dashboard — Documentation</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+    .layout { display: flex; min-height: 100vh; }
+    nav { width: 240px; background: #1e293b; border-right: 1px solid #334155; padding: 28px 0; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 100; }
+    nav .logo { font-size: 15px; font-weight: 700; color: #f8fafc; padding: 0 20px 24px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 10px; }
+    nav .logo span { background: #B8112D; color: #fff; width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+    nav ul { list-style: none; padding: 16px 0; }
+    nav ul li a { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 13.5px; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; }
+    nav ul li a:hover, nav ul li a.active { color: #f8fafc; background: #0f172a; border-left-color: #B8112D; }
+    main { margin-left: 240px; flex: 1; padding: 40px; max-width: calc(100vw - 240px); }
+    .page-header { margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid #1e293b; }
+    .page-header h1 { font-size: 28px; font-weight: 700; color: #f8fafc; }
+    .page-header p { color: #64748b; font-size: 14px; margin-top: 6px; }
+    .badge-generated { display: inline-flex; align-items: center; gap: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; font-size: 12px; padding: 4px 12px; border-radius: 999px; margin-top: 12px; }
+    .badge-generated::before { content: ""; width: 6px; height: 6px; background: #22c55e; border-radius: 50%; display: inline-block; }
+    section { margin-bottom: 48px; scroll-margin-top: 24px; }
+    section h2 { font-size: 18px; font-weight: 600; color: #f1f5f9; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    section h2::after { content: ""; flex: 1; height: 1px; background: #1e293b; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; overflow: auto; }
+    .tree { font-family: "Courier New", monospace; font-size: 13px; color: #94a3b8; white-space: pre; line-height: 1.7; }
+    .diagram-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px 24px; overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 200px; }
+    .mermaid { width: 100%; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead tr { background: #0f172a; border-bottom: 1px solid #334155; }
+    th { text-align: left; padding: 12px 16px; color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 12px 16px; border-bottom: 1px solid #1e293b; color: #cbd5e1; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #0f172a; }
+    .badge { display: inline-flex; align-items: center; justify-content: center; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #fff; letter-spacing: 0.04em; }
+    code { background: #0f172a; color: #7dd3fc; padding: 2px 8px; border-radius: 6px; font-size: 12.5px; font-family: "Courier New", monospace; }
+    code.file { color: #a5b4fc; }
+    .pages-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .pages-list li { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #94a3b8; }
+    .pages-list li code { background: transparent; color: #7dd3fc; padding: 0; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 40px; }
+    .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 18px; }
+    .stat-card .num { font-size: 28px; font-weight: 700; color: #f8fafc; }
+    .stat-card .lbl { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .accent { color: #B8112D; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="logo"><span>C</span> CRM Docs</div>
+    <ul>
+      <li><a href="#overview" class="active">📊 Overview</a></li>
+      <li><a href="#structure">📁 Project Structure</a></li>
+      <li><a href="#erd">🗄️ Database ERD</a></li>
+      <li><a href="#apiflow">⚡ API Flow</a></li>
+      <li><a href="#pages">🖥️ Frontend Pages</a></li>
+      <li><a href="#routes">🔗 API Routes</a></li>
+    </ul>
+  </nav>
+  <main>
+    <div class="page-header" id="overview">
+      <h1>CRM Dashboard Documentation</h1>
+      <p>Auto-generated from project source files.</p>
+      <div class="badge-generated">Auto-generated · 6/3/2026, 12:59:17 PM</div>
+    </div>
+    <div class="stats">
+      <div class="stat-card"><div class="num accent">11</div><div class="lbl">API Routes</div></div>
+      <div class="stat-card"><div class="num accent">12</div><div class="lbl">Frontend Pages</div></div>
+      <div class="stat-card"><div class="num accent">5</div><div class="lbl">GET Routes</div></div>
+      <div class="stat-card"><div class="num accent">5</div><div class="lbl">POST Routes</div></div>
+    </div>
+    <section id="structure">
+      <h2>📁 Project Structure</h2>
+      <div class="card"><pre class="tree">├── PROJECT.md
+├── backend
+│   ├── .env
+│   ├── .gitignore
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── prisma
+│   │   ├── migrations
+│   │   │   ├── 20260520143742_init
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260520185508_upload_system
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260520190735_enterprise_crm
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260522144955_add_project_and_service_fields
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260522153312_make_report_user_optional
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260522195906_add_is_active_to_user
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260601152157_init_with_online_status
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260601153240_add_online_status
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260601185145_add_company_name
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20260602194741_add_2fa_token_version
+│   │   │   │   └── migration.sql
+│   │   │   └── migration_lock.toml
+│   │   ├── schema.prisma
+│   │   └── seed.ts
+│   ├── prisma.config.ts
+│   ├── src
+│   │   ├── app.ts
+│   │   ├── config
+│   │   │   ├── cloudinary.ts
+│   │   │   └── db.ts
+│   │   ├── controllers
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── csr.controller.ts
+│   │   │   ├── report.controller.ts
+│   │   │   ├── reportUpload.controller.ts
+│   │   │   ├── upload.controller.ts
+│   │   │   └── user.controller.ts
+│   │   ├── middleware
+│   │   │   ├── auth.middleware.ts
+│   │   │   ├── role.middleware.ts
+│   │   │   └── upload.middleware.ts
+│   │   ├── routes
+│   │   │   ├── admin.routes.ts
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── csr.routes.ts
+│   │   │   ├── report.routes.ts
+│   │   │   ├── reportUpload.routes.ts
+│   │   │   ├── upload.routes.ts
+│   │   │   └── user.routes.ts
+│   │   ├── server.ts
+│   │   └── utils
+│   │       ├── hash.ts
+│   │       ├── jwt.ts
+│   │       └── sessions.ts
+│   └── tsconfig.json
+├── frontend
+│   ├── .gitignore
+│   ├── AGENTS.md
+│   ├── CLAUDE.md
+│   ├── README.md
+│   ├── app
+│   │   ├── admin
+│   │   │   ├── active-projects
+│   │   │   │   └── page.tsx
+│   │   │   ├── components
+│   │   │   │   ├── Announcement.tsx
+│   │   │   │   ├── Navbar.tsx
+│   │   │   │   ├── OverviewChart.tsx
+│   │   │   │   ├── PerformanceChart.tsx
+│   │   │   │   ├── Quickactions.tsx
+│   │   │   │   ├── Recentactivity.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── StatsCards.tsx
+│   │   │   │   ├── Systemhealth.tsx
+│   │   │   │   ├── TopPerformer.tsx
+│   │   │   │   └── Welcome.tsx
+│   │   │   ├── leads
+│   │   │   │   └── page.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── reports
+│   │   │   │   └── page.tsx
+│   │   │   ├── settings
+│   │   │   │   └── page.tsx
+│   │   │   ├── uploads
+│   │   │   │   └── page.tsx
+│   │   │   └── users
+│   │   │       └── page.tsx
+│   │   ├── csr
+│   │   │   ├── components
+│   │   │   │   ├── ActivityCard.tsx
+│   │   │   │   ├── AnnouncementBanner.tsx
+│   │   │   │   ├── CSRNavbar.tsx
+│   │   │   │   ├── CSRSidebar.tsx
+│   │   │   │   ├── CSRStats.tsx
+│   │   │   │   ├── DailyCalls.tsx
+│   │   │   │   ├── DailyTasks.tsx
+│   │   │   │   ├── ImportantCalls.tsx
+│   │   │   │   ├── LinkTabs.tsx
+│   │   │   │   ├── LinksTable.tsx
+│   │   │   │   ├── MonthlyProjects.tsx
+│   │   │   │   ├── PendingTasks.tsx
+│   │   │   │   ├── QuickActions.tsx
+│   │   │   │   ├── RecentActivity.tsx
+│   │   │   │   ├── StatusBadge.tsx
+│   │   │   │   ├── WelcomeHeader.tsx
+│   │   │   │   └── types.ts
+│   │   │   ├── important
+│   │   │   │   └── page.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── profile
+│   │   │   │   └── page.tsx
+│   │   │   └── projects
+│   │   │       └── page.tsx
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── eslint.config.mjs
+│   ├── lib
+│   │   └── api.ts
+│   ├── middleware.ts
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── public
+│   │   ├── globe.svg
+│   │   ├── images
+│   │   │   ├── image.png
+│   │   │   └── logo.jpeg
+│   │   ├── next.svg
+│   │   ├── vercel.svg
+│   │   └── window.svg
+│   └── tsconfig.json
+├── generate-docs.js
+├── package-lock.json
+└── package.json
+</pre></div>
+    </section>
+    <section id="erd">
+      <h2>🗄️ Database ERD</h2>
+      <div class="diagram-wrap"><div class="mermaid">erDiagram
+  User {
+    string id
+    string name
+    string email
+    string password
+    boolean isActive
+    boolean isOnline
+    datetime lastActive
+    datetime createdAt
+    datetime updatedAt
+    boolean twoFAEnabled
+    int tokenVersion
+  }
+  Lead {
+    string id
+    string name
+    string company
+    string phone
+    string email
+    string status
+    string comments
+    boolean important
+    boolean interested
+    string nextSchedule
+    string nextTime
+    string timezone
+    string followUpNotes
+    datetime followUpExpiry
+    string interestedService
+    string projectTitle
+    string projectDeadline
+    string projectBudget
+    string projectNotes
+    string assignedTo
+    string uploadedFileId
+    datetime createdAt
+    datetime updatedAt
+  }
+  CallLog {
+    string id
+    string leadId
+    string csrId
+    string status
+    string notes
+    int duration
+    datetime createdAt
+  }
+  UploadFile {
+    string id
+    string fileName
+    string cloudinaryUrl
+    int totalLeads
+    string uploadedBy
+    string companyName
+    datetime createdAt
+  }
+  Report {
+    string id
+    string reportName
+    string reportUrl
+    string reportType
+    string generatedBy
+    datetime createdAt
+  }
+  User ||--o{ Lead : "assigned"
+  UploadFile ||--o{ Lead : "contains"
+  Lead ||--o{ CallLog : "has"
+  User ||--o{ CallLog : "creates"
+  User ||--o{ Report : "generates"</div></div>
+    </section>
+    <section id="apiflow">
+      <h2>⚡ Backend API Flow</h2>
+      <div class="diagram-wrap"><div class="mermaid">flowchart TD
+  Frontend["Next.js Frontend"]
+  API["Express API"]
+  DB[("PostgreSQL")]
+  Frontend --> API
+  API --> DB
+  R0["GET /dashboard"]
+  API --> R0
+  R1["GET /csrs"]
+  API --> R1
+  R2["GET /clients"]
+  API --> R2
+  R3["PUT /csr-status/:id"]
+  API --> R3
+  R4["GET /csr-history/:csrId"]
+  API --> R4
+  R5["GET /projects"]
+  API --> R5
+  R6["POST /register"]
+  API --> R6
+  R7["POST /login"]
+  API --> R7
+  R8["POST /logout"]
+  API --> R8
+  R9["POST /verify-otp"]
+  API --> R9
+  R10["POST /resend-otp"]
+  API --> R10</div></div>
+    </section>
+    <section id="pages">
+      <h2>🖥️ Frontend Pages</h2>
+      <div class="diagram-wrap" style="margin-bottom:20px"><div class="mermaid">flowchart LR
+  App["Next.js App"]
+  P0["/admin/active-projects"]
+  App --> P0
+  P1["/admin/leads"]
+  App --> P1
+  P2["/admin"]
+  App --> P2
+  P3["/admin/reports"]
+  App --> P3
+  P4["/admin/settings"]
+  App --> P4
+  P5["/admin/uploads"]
+  App --> P5
+  P6["/admin/users"]
+  App --> P6
+  P7["/csr/important"]
+  App --> P7
+  P8["/csr"]
+  App --> P8
+  P9["/csr/profile"]
+  App --> P9
+  P10["/csr/projects"]
+  App --> P10
+  P11["/"]
+  App --> P11</div></div>
+      <div class="card"><ul class="pages-list"><li><code>/admin/active-projects</code></li><li><code>/admin/leads</code></li><li><code>/admin</code></li><li><code>/admin/reports</code></li><li><code>/admin/settings</code></li><li><code>/admin/uploads</code></li><li><code>/admin/users</code></li><li><code>/csr/important</code></li><li><code>/csr</code></li><li><code>/csr/profile</code></li><li><code>/csr/projects</code></li><li><code>/</code></li></ul></div>
+    </section>
+    <section id="routes">
+      <h2>🔗 API Routes</h2>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table>
+          <thead><tr><th>Method</th><th>Path</th><th>File</th></tr></thead>
+          <tbody>
+    <tr>
+      <td><span class="badge" style="background:#22c55e">GET</span></td>
+      <td><code>/dashboard</code></td>
+      <td><code class="file">backend/src/routes/admin.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#22c55e">GET</span></td>
+      <td><code>/csrs</code></td>
+      <td><code class="file">backend/src/routes/admin.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#22c55e">GET</span></td>
+      <td><code>/clients</code></td>
+      <td><code class="file">backend/src/routes/admin.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#f59e0b">PUT</span></td>
+      <td><code>/csr-status/:id</code></td>
+      <td><code class="file">backend/src/routes/admin.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#22c55e">GET</span></td>
+      <td><code>/csr-history/:csrId</code></td>
+      <td><code class="file">backend/src/routes/admin.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#22c55e">GET</span></td>
+      <td><code>/projects</code></td>
+      <td><code class="file">backend/src/routes/admin.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#3b82f6">POST</span></td>
+      <td><code>/register</code></td>
+      <td><code class="file">backend/src/routes/auth.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#3b82f6">POST</span></td>
+      <td><code>/login</code></td>
+      <td><code class="file">backend/src/routes/auth.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#3b82f6">POST</span></td>
+      <td><code>/logout</code></td>
+      <td><code class="file">backend/src/routes/auth.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#3b82f6">POST</span></td>
+      <td><code>/verify-otp</code></td>
+      <td><code class="file">backend/src/routes/auth.routes.ts</code></td>
+    </tr>
+    <tr>
+      <td><span class="badge" style="background:#3b82f6">POST</span></td>
+      <td><code>/resend-otp</code></td>
+      <td><code class="file">backend/src/routes/auth.routes.ts</code></td>
+    </tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "dark",
+    themeVariables: {
+      primaryColor: "#1e293b",
+      primaryTextColor: "#e2e8f0",
+      primaryBorderColor: "#334155",
+      lineColor: "#B8112D",
+      secondaryColor: "#0f172a",
+      tertiaryColor: "#0f172a",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    },
+    er: { diagramPadding: 30 },
+    flowchart: { curve: "basis", padding: 20 },
+  });
+  const sections = document.querySelectorAll("section, .page-header");
+  const links    = document.querySelectorAll("nav a");
+  window.addEventListener("scroll", () => {
+    let current = "";
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+    links.forEach(a => { a.classList.toggle("active", a.getAttribute("href") === "#" + current); });
+  });
+</script>
+</body>
+</html>

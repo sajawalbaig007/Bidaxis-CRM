@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import {
   PhoneCall, CalendarDays, Clock3, CircleAlert, Phone, User2,
   X, Globe, ChevronDown, Pencil, Trophy, UserX, CalendarClock,
   Briefcase, FileText, DollarSign, AlignLeft,
-  BarChart2, PenTool, Building2, Monitor,
+  BarChart2, PenTool, Building2, Monitor, Search, Filter,
 } from "lucide-react";
 
 import CSRNavbar  from "../components/CSRNavbar";
@@ -71,6 +71,10 @@ export default function ImportantCallsPage() {
   const [activeTab,       setActiveTab]       = useState("important");
   const [selectedCall,    setSelectedCall]    = useState<CallType | null>(null);
 
+  /* Search & Date Filter */
+  const [searchQuery,     setSearchQuery]     = useState("");
+  const [filterDate,      setFilterDate]      = useState("");
+
   /* Edit modal */
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingCall,   setEditingCall]   = useState<CallType | null>(null);
@@ -88,7 +92,7 @@ export default function ImportantCallsPage() {
   const [projectNotes,    setProjectNotes]   = useState("");
   const [projectService,  setProjectService] = useState("");
 
-  /* ── FETCH (ESLint-safe) ── */
+  /* ── FETCH ── */
   useEffect(() => {
     const load = async () => {
       try {
@@ -132,22 +136,34 @@ export default function ImportantCallsPage() {
     load();
   }, []);
 
-  /* ── FILTERED ── */
-  const filteredCalls = importantCalls.filter(call =>
-    activeTab === "important"
-      ? call.status === "important"   // project won excluded — they're gone from this list
-      : call.status === "interested"
-  );
+  /* ── FILTERED with search + date ── */
+  const filteredCalls = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return importantCalls.filter(call => {
+      const matchesTab = activeTab === "important"
+        ? call.status === "important"
+        : call.status === "interested";
+
+      const matchesSearch = !q ||
+        call.client.toLowerCase().includes(q) ||
+        call.company.toLowerCase().includes(q) ||
+        call.phone.toLowerCase().includes(q);
+
+      const matchesDate = !filterDate ||
+        call.nextFollowup === filterDate;
+
+      return matchesTab && matchesSearch && matchesDate;
+    });
+  }, [importantCalls, activeTab, searchQuery, filterDate]);
 
   const activeSelectedCall = selectedCall ?? filteredCalls[0] ?? null;
 
-  /* ── REAL-TIME STATS — all from fetched leads ── */
+  /* ── STATS ── */
   const totalImportantCount = importantCalls.filter(c => c.status === "important").length;
   const interestedCount     = importantCalls.filter(c => c.status === "interested").length;
   const projectWonCount     = importantCalls.filter(c => c.status === "project won").length;
   const callsTodayCount     = importantCalls.filter(c => c.status === "important" && c.nextFollowup === todayStr).length;
 
-  /* ── STAT CARDS ── */
   const statCards = [
     { label:"Important Calls",       value: totalImportantCount, sub:"total flagged",       color:"bg-[#FFF1F3] text-[#B8112D]", Icon: CircleAlert },
     { label:"Important Calls Today", value: callsTodayCount,     sub:"scheduled for today", color:"bg-[#EAF5FF] text-[#0B84F3]", Icon: PhoneCall   },
@@ -204,7 +220,6 @@ export default function ImportantCallsPage() {
         projectTitle, projectDeadline, projectBudget, projectNotes,
         interestedService: projectService,
       });
-      /* Remove from important calls list immediately */
       setImportantCalls(prev => prev.filter(c => c.id !== editingCall.id));
       if (selectedCall?.id === editingCall.id) setSelectedCall(null);
       closeEditModal();
@@ -241,7 +256,7 @@ export default function ImportantCallsPage() {
           <p className="text-gray-500 mt-2 text-sm">Manage important and interested clients.</p>
         </div>
 
-        {/* STATS — real-time from fetched data */}
+        {/* STATS */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map(card => (
             <div key={card.label} className="bg-white rounded-[24px] p-5 border border-white shadow-sm">
@@ -266,13 +281,13 @@ export default function ImportantCallsPage() {
         {/* FILTER BUTTONS */}
         <div className="flex flex-wrap gap-3 mt-7">
           <button
-            onClick={() => { setActiveTab("important"); setSelectedCall(importantCalls.find(c => c.status==="important") ?? null); }}
+            onClick={() => { setActiveTab("important"); setSelectedCall(null); setSearchQuery(""); setFilterDate(""); }}
             className={`h-12 px-5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm ${activeTab==="important" ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"}`}>
             <CircleAlert size={17}/>Important Calls
             <span className={`px-2 py-0.5 rounded-lg text-[11px] ${activeTab==="important" ? "bg-white/20" : "bg-[#FFF1F3]"}`}>{totalImportantCount}</span>
           </button>
           <button
-            onClick={() => { setActiveTab("interested"); setSelectedCall(importantCalls.find(c => c.status==="interested") ?? null); }}
+            onClick={() => { setActiveTab("interested"); setSelectedCall(null); setSearchQuery(""); setFilterDate(""); }}
             className={`h-12 px-5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm ${activeTab==="interested" ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"}`}>
             <PhoneCall size={17}/>Interested Clients
             <span className={`px-2 py-0.5 rounded-lg text-[11px] ${activeTab==="interested" ? "bg-white/20" : "bg-[#FFF1F3]"}`}>{interestedCount}</span>
@@ -281,139 +296,215 @@ export default function ImportantCallsPage() {
 
         {/* ==================== IMPORTANT UI ==================== */}
         {activeTab === "important" && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 mt-7">
-            {/* LEFT — client list */}
-            <div className="xl:col-span-5 bg-white rounded-[30px] border border-white shadow-sm p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-[22px] font-bold text-[#0F172A]">Important Clients</h3>
-                  <p className="text-gray-500 text-sm mt-1">Scheduled follow-up meetings.</p>
-                </div>
-                <div className="bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold px-4 py-2 rounded-2xl">Live</div>
+          <>
+            {/* SEARCH + DATE FILTER BAR */}
+            <div className="bg-white rounded-[26px] shadow-sm px-5 py-4 mt-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Search */}
+              <div className="relative w-full sm:max-w-[380px]">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
+                <input
+                  type="text"
+                  placeholder="Search by client, company or phone..."
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setSelectedCall(null); }}
+                  className="w-full h-[48px] rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"
+                />
               </div>
-
-              <div className="space-y-4 mt-7">
-                {loading ? (
-                  [1,2,3].map(i => (
-                    <div key={i} className="rounded-[24px] border border-gray-100 p-5 animate-pulse">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gray-100 shrink-0"/>
-                        <div className="flex-1">
-                          <div className="h-4 bg-gray-100 rounded w-32 mb-2"/>
-                          <div className="h-3 bg-gray-100 rounded w-20"/>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : filteredCalls.length > 0 ? filteredCalls.map(call => (
-                  <button key={call.id} onClick={() => setSelectedCall(call)}
-                    className={`w-full text-left rounded-[24px] border p-5 transition-all ${selectedCall?.id===call.id ? "border-[#B8112D] bg-[#FFF8F9]" : "border-gray-100 bg-white hover:border-[#B8112D]/30"}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold shrink-0">
-                          {call.client.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-[#0F172A] text-[15px]">{call.client}</h4>
-                          <p className="text-gray-500 text-sm mt-1">{call.company}</p>
-                          {call.nextFollowup && call.nextFollowup === todayStr && (
-                            <span className="inline-block mt-1 px-2 py-0.5 bg-[#EAF5FF] text-[#0B84F3] text-[10px] font-semibold rounded-lg">📅 Today</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className={`px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${
-                        call.priority==="Urgent" ? "bg-[#FFF1F3] text-[#B42318]" :
-                        call.priority==="High"   ? "bg-[#FFF7E6] text-[#B54708]" :
-                        "bg-[#ECFDF3] text-[#027A48]"
-                      }`}>{call.priority}</div>
-                    </div>
+              {/* Date filter — right side */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-1.5 text-[#B8112D] font-semibold text-sm whitespace-nowrap">
+                  <Filter size={15}/>Filter by Schedule
+                </div>
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={e => { setFilterDate(e.target.value); setSelectedCall(null); }}
+                  className="h-[48px] rounded-2xl border border-gray-200 px-4 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
+                />
+                {filterDate && (
+                  <button
+                    onClick={() => { setFilterDate(""); setSelectedCall(null); }}
+                    className="h-[48px] px-4 rounded-2xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-500 hover:text-[#B8112D] transition-all whitespace-nowrap"
+                  >
+                    Clear
                   </button>
-                )) : (
-                  <div className="text-center py-10">
-                    <CircleAlert size={32} className="text-gray-200 mx-auto mb-3"/>
-                    <p className="text-gray-400 text-sm">No important clients found.</p>
-                  </div>
                 )}
               </div>
             </div>
 
-            {/* RIGHT — detail */}
-            {activeSelectedCall ? (
-              <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-                  <div>
-                    <h3 className="text-[26px] font-bold text-[#0F172A]">{activeSelectedCall.client}</h3>
-                    <p className="text-gray-500 mt-1">Detailed follow-up information.</p>
-                  </div>
-                  <button onClick={() => openEditModal(activeSelectedCall)}
-                    className="h-12 px-5 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold shadow-sm flex items-center gap-2">
-                    <Pencil size={16}/>Edit
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-7">
-                  {[
-                    { label:"Contact Number", value: activeSelectedCall.phone,                     Icon: Phone       },
-                    { label:"Next Schedule",  value: activeSelectedCall.nextFollowup || "Not set", Icon: CalendarDays },
-                    { label:"Time",           value: activeSelectedCall.time,                      Icon: Clock3      },
-                  ].map(({ label, value, Icon }) => (
-                    <div key={label} className="bg-[#FAFAFA] rounded-2xl p-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center"><Icon size={20}/></div>
-                        <div><p className="text-gray-500 text-sm">{label}</p><h4 className="font-semibold text-[#0F172A] mt-1">{value}</h4></div>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="bg-[#FAFAFA] rounded-2xl p-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center"><Globe size={20}/></div>
-                      <div>
-                        <p className="text-gray-500 text-sm">Timezone</p>
-                        <h4 className="font-semibold text-[#0F172A] mt-1">
-                          {getTzAbbr(activeSelectedCall.timezone ?? "")} ({activeSelectedCall.timezone})
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-7">
-                  <h4 className="text-[18px] font-bold text-[#0F172A]">Follow-up Notes</h4>
-                  <div className="bg-[#FAFAFA] rounded-2xl p-5 mt-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0"><User2 size={18}/></div>
-                      <p className="text-gray-600 leading-7 text-[15px]">{activeSelectedCall.notes}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : !loading && (
-              <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm p-5 flex items-center justify-center min-h-[300px]">
-                <div className="text-center">
-                  <CircleAlert size={40} className="text-gray-200 mx-auto mb-3"/>
-                  <p className="text-gray-400 text-sm">Select a client to view details</p>
-                </div>
-              </div>
+            {/* RESULT COUNT */}
+            {(searchQuery || filterDate) && (
+              <p className="text-sm text-gray-500 mt-3 px-1">
+                Showing <span className="font-semibold text-[#0F172A]">{filteredCalls.length}</span> result{filteredCalls.length !== 1 ? "s" : ""}
+                {filterDate && <span> for <span className="font-semibold text-[#B8112D]">{filterDate}</span></span>}
+                {searchQuery && <span> matching <span className="font-semibold text-[#B8112D]">&quot;{searchQuery}&quot;</span></span>}
+              </p>
             )}
-          </div>
+
+            {/* TWO PANEL LAYOUT with independent scroll */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 mt-5">
+
+              {/* LEFT — scrollable client list */}
+              <div className="xl:col-span-5 bg-white rounded-[30px] border border-white shadow-sm flex flex-col" style={{ maxHeight: "calc(100vh - 320px)", minHeight: "400px" }}>
+                {/* Panel header — sticky */}
+                <div className="p-5 pb-4 border-b border-[#F3F3F3] shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-[20px] font-bold text-[#0F172A]">Important Clients</h3>
+                      <p className="text-gray-500 text-sm mt-0.5">Scheduled follow-up meetings.</p>
+                    </div>
+                    <div className="bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold px-3 py-1.5 rounded-xl">Live</div>
+                  </div>
+                </div>
+
+                {/* Scrollable list */}
+                <div className="overflow-y-auto flex-1 p-5 space-y-3">
+                  {loading ? (
+                    [1,2,3].map(i => (
+                      <div key={i} className="rounded-[24px] border border-gray-100 p-5 animate-pulse">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 shrink-0"/>
+                          <div className="flex-1">
+                            <div className="h-4 bg-gray-100 rounded w-32 mb-2"/>
+                            <div className="h-3 bg-gray-100 rounded w-20"/>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : filteredCalls.length > 0 ? filteredCalls.map(call => (
+                    <button key={call.id} onClick={() => setSelectedCall(call)}
+                      className={`w-full text-left rounded-[22px] border p-4 transition-all ${selectedCall?.id===call.id || (!selectedCall && filteredCalls[0]?.id===call.id) ? "border-[#B8112D] bg-[#FFF8F9]" : "border-gray-100 bg-white hover:border-[#B8112D]/30"}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                            {call.client.charAt(0)}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-[#0F172A] text-[14px]">{call.client}</h4>
+                            <p className="text-gray-500 text-[12px] mt-0.5">{call.company}</p>
+                            {call.nextFollowup && (
+                              <span className={`inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold rounded-lg ${
+                                call.nextFollowup === todayStr
+                                  ? "bg-[#EAF5FF] text-[#0B84F3]"
+                                  : "bg-[#F5F6FA] text-gray-500"
+                              }`}>
+                                📅 {call.nextFollowup === todayStr ? "Today" : call.nextFollowup}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold shrink-0 ${
+                          call.priority==="Urgent" ? "bg-[#FFF1F3] text-[#B42318]" :
+                          call.priority==="High"   ? "bg-[#FFF7E6] text-[#B54708]" :
+                          "bg-[#ECFDF3] text-[#027A48]"
+                        }`}>{call.priority}</div>
+                      </div>
+                    </button>
+                  )) : (
+                    <div className="text-center py-10">
+                      <Search size={28} className="text-gray-200 mx-auto mb-3"/>
+                      <p className="text-gray-400 text-sm">No clients found.</p>
+                      {(searchQuery || filterDate) && (
+                        <button
+                          onClick={() => { setSearchQuery(""); setFilterDate(""); }}
+                          className="mt-3 text-[#B8112D] text-sm font-semibold hover:underline"
+                        >
+                          Clear filters
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* RIGHT — scrollable detail */}
+              {activeSelectedCall ? (
+                <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm flex flex-col" style={{ maxHeight: "calc(100vh - 320px)", minHeight: "400px" }}>
+                  {/* Detail header — sticky */}
+                  <div className="p-5 pb-4 border-b border-[#F3F3F3] shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <h3 className="text-[22px] font-bold text-[#0F172A]">{activeSelectedCall.client}</h3>
+                        <p className="text-gray-500 text-sm mt-0.5">Detailed follow-up information.</p>
+                      </div>
+                      <button onClick={() => openEditModal(activeSelectedCall)}
+                        className="h-11 px-5 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold shadow-sm flex items-center gap-2 w-fit shrink-0">
+                        <Pencil size={15}/>Edit
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Scrollable detail body */}
+                  <div className="overflow-y-auto flex-1 p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { label:"Contact Number", value: activeSelectedCall.phone,                     Icon: Phone       },
+                        { label:"Next Schedule",  value: activeSelectedCall.nextFollowup || "Not set", Icon: CalendarDays },
+                        { label:"Time",           value: activeSelectedCall.time,                      Icon: Clock3      },
+                      ].map(({ label, value, Icon }) => (
+                        <div key={label} className="bg-[#FAFAFA] rounded-2xl p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0"><Icon size={18}/></div>
+                            <div><p className="text-gray-500 text-sm">{label}</p><h4 className="font-semibold text-[#0F172A] mt-0.5 text-[14px]">{value}</h4></div>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="bg-[#FAFAFA] rounded-2xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0"><Globe size={18}/></div>
+                          <div>
+                            <p className="text-gray-500 text-sm">Timezone</p>
+                            <h4 className="font-semibold text-[#0F172A] mt-0.5 text-[14px]">
+                              {getTzAbbr(activeSelectedCall.timezone ?? "")} ({activeSelectedCall.timezone})
+                            </h4>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6">
+                      <h4 className="text-[17px] font-bold text-[#0F172A]">Follow-up Notes</h4>
+                      <div className="bg-[#FAFAFA] rounded-2xl p-4 mt-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0"><User2 size={16}/></div>
+                          <p className="text-gray-600 leading-7 text-[14px]">{activeSelectedCall.notes}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : !loading && (
+                <div className="xl:col-span-7 bg-white rounded-[30px] border border-white shadow-sm flex items-center justify-center" style={{ minHeight: "400px" }}>
+                  <div className="text-center">
+                    <CircleAlert size={40} className="text-gray-200 mx-auto mb-3"/>
+                    <p className="text-gray-400 text-sm">Select a client to view details</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* ==================== INTERESTED TABLE ==================== */}
         {activeTab === "interested" && (
-          <div className="bg-white rounded-[30px] border border-white shadow-sm p-5 sm:p-6 mt-7">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h3 className="text-[26px] font-bold text-[#0F172A]">Interested Clients</h3>
-                <p className="text-gray-500 text-sm mt-1">Clients who have shown interest in our services.</p>
-              </div>
-              <div className="bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold px-4 py-2 rounded-2xl w-fit">
-                {filteredCalls.length} Interested Leads
+          <div className="bg-white rounded-[30px] border border-white shadow-sm mt-7 flex flex-col" style={{ maxHeight: "calc(100vh - 280px)", minHeight: "400px" }}>
+            {/* Table header — sticky */}
+            <div className="p-5 sm:p-6 border-b border-[#F3F3F3] shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="text-[22px] font-bold text-[#0F172A]">Interested Clients</h3>
+                  <p className="text-gray-500 text-sm mt-1">Clients who have shown interest in our services.</p>
+                </div>
+                <div className="bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold px-4 py-2 rounded-2xl w-fit">
+                  {filteredCalls.length} Interested Leads
+                </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto mt-7">
+            {/* Scrollable table */}
+            <div className="overflow-auto flex-1 px-5 sm:px-6 pb-5">
               <table className="w-full min-w-[760px]">
-                <thead>
+                <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
                     {["Client","Company","Contact","Interested In","Status","Action"].map(h => (
                       <th key={h} className="text-left py-4 px-2 text-[13px] font-semibold text-gray-500">{h}</th>
