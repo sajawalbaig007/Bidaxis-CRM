@@ -94,12 +94,11 @@ export default function CSRProjectsPage() {
   };
 
   useEffect(() => {
-  const timer = window.setTimeout(() => {
-    void fetchProjects();
-  }, 0);
-
-  return () => window.clearTimeout(timer);
-}, []);
+    const timer = window.setTimeout(() => {
+      void fetchProjects();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   /* FILTER */
   const filteredProjects = useMemo(() => {
@@ -216,71 +215,101 @@ export default function CSRProjectsPage() {
           </div>
         </div>
 
-        {/* PROJECTS GRID */}
+        {/* ===================== PROJECTS TABLE ===================== */}
         {filteredProjects.length > 0 ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-7">
-            {filteredProjects.map(project => (
-              <div key={project.id} className="bg-white rounded-[30px] shadow-sm p-6 border border-white">
-                {/* TOP */}
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                    <FolderKanban size={24}/>
+          <div className="bg-white rounded-[30px] shadow-sm mt-7 overflow-hidden">
+            {/* TABLE HEADER */}
+            <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-4 border-b border-[#F3F3F3] bg-[#FAFAFA] rounded-t-[30px]">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Project / Client</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Company</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Scope</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Contact</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Deadline</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</span>
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</span>
+            </div>
+
+            {/* TABLE ROWS */}
+            <div className="divide-y divide-[#F3F3F3]">
+              {filteredProjects.map(project => (
+                <div
+                  key={project.id}
+                  className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-4 items-center hover:bg-[#FAFAFA] transition-colors"
+                >
+                  {/* Project / Client */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
+                      <span className="text-sm font-bold">
+                        {project.projectTitle.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                      <p className="text-xs text-gray-400 truncate mt-0.5">{project.client}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-[17px] font-bold text-[#0F172A] leading-snug truncate">{project.projectTitle}</h3>
-                    <p className="text-gray-500 text-sm mt-1">
-                      {project.client}{project.company !== "N/A" && project.company !== project.client ? ` · ${project.company}` : ""}
+
+                  {/* Company */}
+                  <div className="min-w-0">
+                    <p className="text-sm text-[#0F172A] truncate">
+                      {project.company !== "N/A" ? project.company : <span className="text-gray-400">N/A</span>}
                     </p>
                   </div>
-                </div>
 
-                {/* QUICK INFO ROW */}
-                <div className="flex flex-wrap gap-3 mt-5">
-                  {project.service && project.service !== "N/A" && (
-                    <div className="flex items-center gap-1.5 bg-[#FFF4E5] text-[#D97706] px-3 py-1.5 rounded-xl text-[12px] font-semibold">
-                      <Briefcase size={12}/>{project.service}
-                    </div>
-                  )}
-                  {project.deadline && project.deadline !== "N/A" && (
-                    <div className="flex items-center gap-1.5 bg-[#EAF5FF] text-[#0B84F3] px-3 py-1.5 rounded-xl text-[12px] font-semibold">
-                      <Clock3 size={12}/>{project.deadline}
-                    </div>
-                  )}
-                  {project.budget && project.budget !== "" && project.budget !== "undefined" && (
-                    <div className="flex items-center gap-1.5 bg-[#ECFDF5] text-[#027A48] px-3 py-1.5 rounded-xl text-[12px] font-semibold">
-                      <DollarSign size={12}/>{project.budget}
-                    </div>
-                  )}
-                  {project.phone && project.phone !== "N/A" && (
-                    <div className="flex items-center gap-1.5 bg-[#F4F4F5] text-[#52525B] px-3 py-1.5 rounded-xl text-[12px] font-medium">
-                      <Phone size={12}/>{project.phone}
-                    </div>
-                  )}
-                </div>
-
-                {/* NOTES PREVIEW */}
-                {project.notes && project.notes !== "undefined" && project.notes !== "" && (
-                  <div className="mt-4 bg-[#FAFAFA] rounded-2xl px-4 py-3">
-                    <p className="text-[13px] text-gray-600 leading-relaxed line-clamp-2">{project.notes}</p>
-                  </div>
-                )}
-
-                {/* FOOTER */}
-                <div className="flex items-center justify-between mt-5 pt-5 border-t border-[#F3F3F3]">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-[#FFF7E6] text-[#B54708] px-3 py-1.5 rounded-xl text-[12px] font-semibold">In Progress</div>
-                    {project.timezone && project.timezone !== "N/A" && (
-                      <span className="text-gray-400 text-[12px]">· {project.timezone}</span>
+                  {/* Scope / Service */}
+                  <div>
+                    {project.service && project.service !== "N/A" ? (
+                      <span className="text-sm text-[#0F172A]">{project.service}</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">N/A</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => openDetail(project)}
-                    className="h-[42px] px-5 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition-all shadow-sm">
-                    <Eye size={15}/>View Details
-                  </button>
+
+                  {/* Contact */}
+                  <div>
+                    {project.phone && project.phone !== "N/A" ? (
+                      <span className="text-sm text-[#0F172A]">{project.phone}</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">N/A</span>
+                    )}
+                  </div>
+
+                  {/* Deadline */}
+                  <div>
+                    {project.deadline && project.deadline !== "N/A" ? (
+                      <span className="text-sm text-[#0F172A]">{project.deadline}</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">N/A</span>
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <span className="inline-block bg-[#FFF7E6] text-[#B54708] px-3 py-1 rounded-xl text-[12px] font-semibold whitespace-nowrap">
+                      {project.status}
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openDetail(project)}
+                      className="w-9 h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity"
+                      title="View Details"
+                    >
+                      <Eye size={15}/>
+                    </button>
+                    <button
+                      onClick={() => { openDetail(project); setTimeout(() => startEdit(), 50); }}
+                      className="w-9 h-9 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center hover:opacity-80 transition-opacity"
+                      title="Edit"
+                    >
+                      <Pencil size={15}/>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-[30px] shadow-sm p-16 mt-7 text-center">
