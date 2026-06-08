@@ -67,7 +67,7 @@ export default function CSRProjectsPage() {
     try {
       const res = await API.get("/csr/dashboard");
       const formatted = res.data.leads
-        .filter((lead: LeadType) => lead.status === "project won")
+        .filter((lead: LeadType) => lead.status === "Close Client")
         .map((lead: LeadType) => {
           const projectTitle = lead.projectTitle ?? lead.project_title ?? lead.ProjectTitle ?? lead.title ?? lead.projectName ?? lead.project_name ?? lead.name ?? "Untitled Project";
           const deadline = lead.projectDeadline ?? lead.project_deadline ?? lead.ProjectDeadline ?? lead.deadline ?? lead.nextSchedule ?? "N/A";
@@ -315,7 +315,7 @@ export default function CSRProjectsPage() {
           <div className="bg-white rounded-[30px] shadow-sm p-16 mt-7 text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center mx-auto mb-5"><FolderKanban size={28}/></div>
             <h2 className="text-[22px] font-bold text-[#0F172A]">No Projects Yet</h2>
-            <p className="text-gray-500 mt-2 text-sm">Projects will appear here once a client is marked as &quot;Project Won&quot;.</p>
+            <p className="text-gray-500 mt-2 text-sm">Projects will appear here once a client is marked as &quot;Close Client&quot;.</p>
           </div>
         )}
 

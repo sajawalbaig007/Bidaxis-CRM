@@ -169,7 +169,7 @@ export default function AdminProjectsPage() {
         {/* HEADER */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold text-gray-800">Project Won</h1>
+            <h1 className="text-3xl font-semibold text-gray-800">Close Client</h1>
             <p className="text-sm text-gray-400 mt-1">All client projects across every CSR — real-time.</p>
           </div>
           <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-4 py-2 rounded-2xl text-sm font-semibold w-fit">
@@ -317,7 +317,7 @@ export default function AdminProjectsPage() {
                     <FolderKanban size={40} className="text-gray-200 mx-auto mb-3"/>
                     <p className="font-semibold text-gray-400">No projects found</p>
                     <p className="text-sm text-gray-300 mt-1">
-                      {search ? "Try a different search." : "No leads marked as Project Won yet."}
+                      {search ? "Try a different search." : "No leads marked as Close Client yet."}
                     </p>
                   </td>
                 </tr>
@@ -406,7 +406,7 @@ export default function AdminProjectsPage() {
                 )}
 
                 <p className="flex items-center gap-1.5 text-xs text-gray-400">
-                  <Clock3 size={11}/>Project Won on {formatDate(selected.updatedAt)}
+                  <Clock3 size={11}/>Close Client on {formatDate(selected.updatedAt)}
                 </p>
               </div>
             </div>

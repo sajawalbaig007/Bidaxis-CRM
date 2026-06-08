@@ -59,7 +59,7 @@ type CallType = {
   notes?: string; status?: string; interestedService?: string;
 };
 
-type EditAction = "reschedule" | "projectwon" | "closeclient" | null;
+type EditAction = "reschedule" | "closeclient" | "deleteclient" | null;
 
 const todayStr = new Date().toISOString().split("T")[0];
 
@@ -85,7 +85,7 @@ export default function ImportantCallsPage() {
   const [scheduleTime,      setScheduleTime]      = useState("");
   const [selectedTimezone,  setSelectedTimezone]  = useState("America/New_York");
 
-  /* Project Won */
+  /* Close Client */
   const [projectTitle,    setProjectTitle]   = useState("");
   const [projectDeadline, setProjectDeadline]= useState("");
   const [projectBudget,   setProjectBudget]  = useState("");
@@ -103,7 +103,7 @@ export default function ImportantCallsPage() {
           .filter((lead: BackendLead) =>
             lead.status === "important" ||
             lead.status === "interested" ||
-            lead.status === "project won"
+            lead.status === "Close Client"
           )
           .map((lead: BackendLead) => ({
             id:       lead.id,
@@ -161,14 +161,14 @@ export default function ImportantCallsPage() {
   /* ── STATS ── */
   const totalImportantCount = importantCalls.filter(c => c.status === "important").length;
   const interestedCount     = importantCalls.filter(c => c.status === "interested").length;
-  const projectWonCount     = importantCalls.filter(c => c.status === "project won").length;
+  const projectWonCount     = importantCalls.filter(c => c.status === "Close Client").length;
   const callsTodayCount     = importantCalls.filter(c => c.status === "important" && c.nextFollowup === todayStr).length;
 
   const statCards = [
     { label:"Important Calls",       value: totalImportantCount, sub:"total flagged",       color:"bg-[#FFF1F3] text-[#B8112D]", Icon: CircleAlert },
     { label:"Important Calls Today", value: callsTodayCount,     sub:"scheduled for today", color:"bg-[#EAF5FF] text-[#0B84F3]", Icon: PhoneCall   },
     { label:"Interested",            value: interestedCount,     sub:"service interest",    color:"bg-[#ECFDF3] text-[#027A48]", Icon: Briefcase   },
-    { label:"Project Won",           value: projectWonCount,     sub:"closed deals",        color:"bg-[#ECFDF5] text-[#065F46]", Icon: Trophy      },
+    { label:"Close Client",           value: projectWonCount,     sub:"closed deals",        color:"bg-[#ECFDF5] text-[#065F46]", Icon: Trophy      },
   ];
 
   /* ── EDIT MODAL helpers ── */
@@ -211,12 +211,12 @@ export default function ImportantCallsPage() {
     } catch (err) { console.log(err); }
   };
 
-  /* ── SAVE PROJECT WON ── */
+  /* ── SAVE Close Client ── */
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !projectService || !editingCall) return;
     try {
       await API.put(`/csr/lead/${editingCall.id}`, {
-        status: "project won",
+        status: "Close Client",
         projectTitle, projectDeadline, projectBudget, projectNotes,
         interestedService: projectService,
       });
@@ -226,7 +226,7 @@ export default function ImportantCallsPage() {
     } catch (err) { console.log(err); }
   };
 
-  /* ── CLOSE CLIENT ── */
+  /* ──Delete Client ── */
   const saveCloseClient = async () => {
     if (!editingCall) return;
     try {
@@ -591,15 +591,15 @@ export default function ImportantCallsPage() {
                     <div className="w-12 h-12 rounded-2xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center shrink-0"><CalendarClock size={22}/></div>
                     <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Reschedule</h4><p className="text-gray-500 text-sm mt-0.5">Pick a new date, time &amp; timezone</p></div>
                   </button>
-                  <button onClick={() => setEditAction("projectwon")}
+                  <button onClick={() => setEditAction("closeclient")}
                     className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 hover:border-[#065F46] hover:bg-[#ECFDF5] transition-all text-left">
                     <div className="w-12 h-12 rounded-2xl bg-[#ECFDF5] text-[#065F46] flex items-center justify-center shrink-0"><Trophy size={22}/></div>
-                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Project Won</h4><p className="text-gray-500 text-sm mt-0.5">Fill project details &amp; move to Projects</p></div>
+                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Close Client</h4><p className="text-gray-500 text-sm mt-0.5">Fill project details &amp; move to Projects</p></div>
                   </button>
-                  <button onClick={() => setEditAction("closeclient")}
+                  <button onClick={() => setEditAction("deleteclient")}
                     className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 hover:border-[#B42318] hover:bg-[#FFF1F3] transition-all text-left">
                     <div className="w-12 h-12 rounded-2xl bg-[#FFF1F3] text-[#B42318] flex items-center justify-center shrink-0"><UserX size={22}/></div>
-                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Close Client</h4><p className="text-gray-500 text-sm mt-0.5">Remove this client from the list</p></div>
+                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Delete Client</h4><p className="text-gray-500 text-sm mt-0.5">Remove this client from the list</p></div>
                   </button>
                 </div>
               )}
@@ -643,13 +643,13 @@ export default function ImportantCallsPage() {
                 </div>
               )}
 
-              {/* PROJECT WON */}
-              {editAction === "projectwon" && (
+              {/* Close Client */}
+              {editAction === "closeclient" && (
                 <div className="mt-7">
                   <div className="bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-xl bg-white text-[#065F46] flex items-center justify-center shrink-0 shadow-sm"><Trophy size={20}/></div>
                     <div>
-                      <h4 className="font-bold text-[#065F46] text-[15px]">Project Won 🎉</h4>
+                      <h4 className="font-bold text-[#065F46] text-[15px]">Close Client </h4>
                       <p className="text-[#065F46]/70 text-[12px] mt-0.5">Fill in the project details for <strong>{editingCall.client}</strong></p>
                     </div>
                   </div>
@@ -715,19 +715,19 @@ export default function ImportantCallsPage() {
                 </div>
               )}
 
-              {/* CLOSE CLIENT */}
-              {editAction === "closeclient" && (
+              {/* Close Client */}
+              {editAction === "deleteclient" && (
                 <div className="mt-7">
                   <div className="bg-[#FFF1F3] rounded-2xl p-5 flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-white text-[#B42318] flex items-center justify-center shrink-0 shadow-sm"><UserX size={22}/></div>
                     <div>
-                      <h4 className="font-bold text-[#B42318] text-[16px]">Confirm Close Client</h4>
+                      <h4 className="font-bold text-[#B42318] text-[16px]">Confirm Delete Client</h4>
                       <p className="text-[#B42318]/70 text-sm mt-1"><strong>{editingCall.client}</strong> will be removed from your list permanently.</p>
                     </div>
                   </div>
                   <div className="flex gap-3 mt-7">
                     <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
-                    <button onClick={saveCloseClient} className="flex-1 h-[52px] rounded-2xl bg-[#B42318] text-white font-semibold shadow-sm">Close Client</button>
+                    <button onClick={saveCloseClient} className="flex-1 h-[52px] rounded-2xl bg-[#B42318] text-white font-semibold shadow-sm">Delete Client</button>
                   </div>
                 </div>
               )}
