@@ -72,7 +72,7 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
           l.status?.toLowerCase() === "interested" || l.interested === true
       ).length,
       closed: leads.filter((l) =>
-        ["closed", "completed", "project won"].includes(
+        ["closed", "completed", "Close Client"].includes(
           l.status?.toLowerCase() || ""
         )
       ).length,
@@ -210,7 +210,7 @@ router.get(
       ).length;
 
       const projectWon = leads.filter(
-        (l) => l.status?.toLowerCase() === "project won"
+        (l) => l.status?.toLowerCase() === "Close Client"
       ).length;
 
       return res.json({
@@ -236,11 +236,11 @@ router.get(
   }
 );
 
-/* ================= ALL PROJECT WON LEADS ================= */
+/* ================= ALL Close Client LEADS ================= */
 router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const leads = await prisma.lead.findMany({
-      where: { status: "project won" },
+      where: { status: "Close Client" },
       include: {
         csr: {
           select: {

@@ -312,7 +312,7 @@ export default function ReportsPage() {
                   { label:"Important",      value: stats.important,    bg:"bg-red-50",    color:"text-red-600",    icon:<AlertTriangle size={16}/> },
                   ...(selectedCSR ? [
                     { label:"Not Completed", value: stats.notCompleted, bg:"bg-gray-50",   color:"text-gray-500",   icon:<Clock3 size={16}/> },
-                    { label:"Project Won",   value: stats.projectWon,   bg:"bg-emerald-50",color:"text-emerald-600",icon:<ShoppingCart size={16}/> },
+                    { label:"Close Client",   value: stats.projectWon,   bg:"bg-emerald-50",color:"text-emerald-600",icon:<ShoppingCart size={16}/> },
                   ] : []),
                 ].map((s, i) => (
                   <div key={i} className="flex items-center gap-3 rounded-2xl bg-gray-50 p-3">

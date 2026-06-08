@@ -74,7 +74,7 @@ const formatDate = (iso?: string): string => {
 const activityIcon = (type: string) => {
   if (type === "completed")   return <CircleCheckBig size={18}/>;
   if (type === "important")   return <AlertTriangle  size={18}/>;
-  if (type === "project won") return <FolderKanban   size={18}/>;
+  if (type === "Close Client") return <FolderKanban   size={18}/>;
   if (type === "interested")  return <Briefcase      size={18}/>;
   return <Clock3 size={18}/>;
 };
@@ -82,7 +82,7 @@ const activityIcon = (type: string) => {
 const activityColor = (type: string): string => {
   if (type === "completed")   return "bg-[#ECFDF3] text-[#027A48]";
   if (type === "important")   return "bg-[#FFF1F3] text-[#B8112D]";
-  if (type === "project won") return "bg-[#ECFDF5] text-[#065F46]";
+  if (type === "Close Client") return "bg-[#ECFDF5] text-[#065F46]";
   if (type === "interested")  return "bg-[#FFF4E5] text-[#D97706]";
   return "bg-[#FFF1F3] text-[#B8112D]";
 };
@@ -92,7 +92,7 @@ const statusLabel: Record<string, string> = {
   pending:         "Link is Pending",
   important:       "Marked as Important",
   interested:      "Client Interested",
-  "project won":   "Project Won 🎉",
+  "Close Client":   "Close Client 🎉",
   "not completed": "Marked Not Completed",
   closed:          "Client Closed",
 };
@@ -146,10 +146,10 @@ export default function CSRProfilePage() {
         setCompletedCount(leads.filter(l => l.status === "completed").length);
         setPendingCount(leads.filter(l => l.status === "pending").length);
         setImportantCount(leads.filter(l => l.status === "important").length);
-        setProjectWonCount(leads.filter(l => l.status === "project won").length);
+        setProjectWonCount(leads.filter(l => l.status === "Close Client").length);
 
         setProjects(
-          leads.filter(l => l.status === "project won").map(l => ({
+          leads.filter(l => l.status === "Close Client").map(l => ({
             id:      l.id,
             title:   l.projectTitle ?? l.project_title ?? l.company ?? "Untitled",
             client:  l.name ?? "Unknown",
@@ -189,7 +189,7 @@ export default function CSRProfilePage() {
   const statCards = [
     { label:"Total Leads",             value: totalLeads,                    bg:"bg-[#FFF1F3]", color:"text-[#B8112D]", icon:<FolderKanban   size={24}/> },
     { label:"Completed",               value: completedCount,                bg:"bg-[#ECFDF3]", color:"text-[#027A48]", icon:<CircleCheckBig size={24}/> },
-    { label:"Project Won",             value: projectWonCount,               bg:"bg-[#ECFDF5]", color:"text-[#065F46]", icon:<DollarSign     size={24}/> },
+    { label:"Close Client",             value: projectWonCount,               bg:"bg-[#ECFDF5]", color:"text-[#065F46]", icon:<DollarSign     size={24}/> },
     { label:"Active (Pending + Imp.)", value: pendingCount + importantCount, bg:"bg-[#FFF7E6]", color:"text-[#B54708]", icon:<Activity       size={24}/> },
   ];
 
@@ -197,7 +197,7 @@ export default function CSRProfilePage() {
     { label:"Completed",   value: completedCount,  color:"bg-[#027A48]" },
     { label:"Pending",     value: pendingCount,    color:"bg-[#B54708]" },
     { label:"Important",   value: importantCount,  color:"bg-[#B8112D]" },
-    { label:"Project Won", value: projectWonCount, color:"bg-[#065F46]" },
+    { label:"Close Client", value: projectWonCount, color:"bg-[#065F46]" },
   ];
 
   const personalDetails = [
@@ -443,7 +443,7 @@ export default function CSRProfilePage() {
                   <FolderKanban size={28}/>
                 </div>
                 <h2 className="text-[22px] font-bold text-[#0F172A]">No Projects Yet</h2>
-                <p className="text-gray-500 mt-2 text-sm">Projects appear once a client is marked as &quot;Project Won&quot;.</p>
+                <p className="text-gray-500 mt-2 text-sm">Projects appear once a client is marked as &quot;Close Client&quot;.</p>
               </div>
             )}
           </div>

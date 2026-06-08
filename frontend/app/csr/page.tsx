@@ -91,7 +91,7 @@ export default function CSRPage() {
   const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState("");
 
-  /* Project Won modal */
+  /* Close Client modal */
   const [showProjectWonModal, setShowProjectWonModal] = useState(false);
   const [selectedProjectLead, setSelectedProjectLead] = useState<LeadType | null>(null);
   const [projectTitle,    setProjectTitle]   = useState("");
@@ -225,22 +225,22 @@ export default function CSRPage() {
 
   const totalLeads        = links.length;
   const pendingCount      = links.filter(i => i.status === "pending").length;
-  const completedCount    = links.filter(i => ["completed","important","interested","project won"].includes(i.status)).length;
+  const completedCount    = links.filter(i => ["completed","important","interested","Close Client"].includes(i.status)).length;
   const importantCount    = links.filter(i => i.status === "important").length;
   const interestedCount   = links.filter(i => i.status === "interested").length;
-  const projectWonCount   = links.filter(i => i.status === "project won").length;
+  const projectWonCount   = links.filter(i => i.status === "Close Client").length;
   const notCompletedCount = links.filter(i => i.status === "not completed").length;
   const todayImportant    = links.filter(i => i.status === "important" && i.nextSchedule === todayStr).length;
 
   /* FILTERED */
   const filteredLinks = links.filter(item => {
     if (activeTab === "today")        return item.status === "pending";
-    if (activeTab === "completed")    return ["completed","important","interested","project won"].includes(item.status);
+    if (activeTab === "completed")    return ["completed","important","interested","Close Client"].includes(item.status);
     if (activeTab === "pending")      return item.status === "pending";
     if (activeTab === "notcompleted") return item.status === "not completed";
     if (activeTab === "important")    return item.status === "important";
     if (activeTab === "interested")   return item.status === "interested";
-    if (activeTab === "projectwon")   return item.status === "project won";
+    if (activeTab === "projectwon")   return item.status === "Close Client";
     return true;
   });
 
@@ -273,7 +273,7 @@ export default function CSRPage() {
       setShowInterestedModal(true);
       return;
     }
-    if (status === "project won") {
+    if (status === "Close Client") {
       setSelectedProjectLead(link);
       setProjectTitle(link.company !== "N/A" ? link.company : link.client);
       setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
@@ -321,17 +321,17 @@ export default function CSRPage() {
     setSelectedService(""); setSelectedInterestedId(null);
   };
 
-  /* SAVE PROJECT WON */
+  /* SAVE Close Client */
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !selectedProjectLead) return;
     try {
       await API.put(`/csr/lead/${selectedProjectLead.id}`, {
-        status: "project won",
+        status: "Close Client",
         projectTitle, projectDeadline, projectBudget, projectNotes,
         interestedService: projectService,
       });
       setLinks(prev => prev.map(i =>
-        i.id === selectedProjectLead.id ? { ...i, status:"project won" } : i
+        i.id === selectedProjectLead.id ? { ...i, status:"Close Client" } : i
       ));
       setShowProjectWonModal(false);
       router.push("/csr/projects");
@@ -437,11 +437,8 @@ export default function CSRPage() {
             {[
               { tab:"today",        label:"Today Links",   count:pendingCount,      icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm", inactive:"bg-[#F8F8F8] text-gray-700" },
               { tab:"completed",    label:"Completed",     count:completedCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#027A48] text-white",            inactive:"bg-[#ECFDF3] text-[#027A48]" },
-              { tab:"pending",      label:"Pending",       count:pendingCount,      icon:<Clock3 size={17}/>,         active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]" },
               { tab:"notcompleted", label:"Not Completed", count:notCompletedCount, icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]" },
-              { tab:"important",    label:"Important",     count:importantCount,    icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]" },
-              { tab:"interested",   label:"Interested",    count:interestedCount,   icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]" },
-              { tab:"projectwon",   label:"Project Won",   count:projectWonCount,   icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]" },
+             
             ].map(btn => (
               <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
                 className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab===btn.tab ? btn.active : btn.inactive}`}>
@@ -540,7 +537,7 @@ export default function CSRPage() {
                         currentLink.status==="completed"    ?"bg-[#ECFDF3] text-[#027A48]":
                         currentLink.status==="important"    ?"bg-[#FFF1F3] text-[#B8112D]":
                         currentLink.status==="interested"   ?"bg-[#FFF4E5] text-[#D97706]":
-                        currentLink.status==="project won"  ?"bg-[#ECFDF5] text-[#065F46]":
+                        currentLink.status==="Close Client"  ?"bg-[#ECFDF5] text-[#065F46]":
                         currentLink.status==="not completed"?"bg-[#FFF7E6] text-[#B54708]":
                         "bg-[#F4F4F5] text-[#52525B]"
                       }`}>{currentLink.status}</div>
@@ -555,10 +552,9 @@ export default function CSRPage() {
                           <option value="">Update Status</option>
                           <option value="completed">Completed</option>
                           <option value="not completed">Not Completed</option>
-                          <option value="pending">Pending</option>
                           <option value="important">Important</option>
                           <option value="interested">Interested</option>
-                          <option value="project won">Project Won</option>
+                          <option value="Close Client">Close Client</option>
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                           <ChevronDown size={18}/>
@@ -677,13 +673,13 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* ===================== PROJECT WON MODAL ===================== */}
+        {/* ===================== Close Client MODAL ===================== */}
         {showProjectWonModal && selectedProjectLead && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[24px] font-bold text-[#0F172A]">Project Won 🎉</h2>
+                  <h2 className="text-[24px] font-bold text-[#0F172A]">Close Client 🎉</h2>
                   <p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p>
                 </div>
                 <button onClick={() => setShowProjectWonModal(false)}
