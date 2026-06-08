@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Lead" ADD COLUMN     "notInterestedCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "notPickedCount" INTEGER NOT NULL DEFAULT 0;

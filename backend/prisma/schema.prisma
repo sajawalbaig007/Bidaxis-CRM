@@ -61,11 +61,9 @@ model Lead {
   assignedTo     String
   uploadedFileId String?
 
-  /* ── SHUFFLE TRACKING ──
-     Counts how many times this "not completed" lead
-     has been shuffled to another CSR.
-     At 3 attempts → auto deleted. */
-  shuffleAttempts Int @default(0)
+  shuffleAttempts    Int @default(0)
+  notInterestedCount Int @default(0)
+  notPickedCount     Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
