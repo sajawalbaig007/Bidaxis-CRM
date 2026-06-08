@@ -25,6 +25,7 @@ type ProjectType = {
   id: string; projectTitle: string; client: string; company: string;
   status: string; deadline: string; budget: string; budgetNum: number;
   notes: string; service: string; timezone: string; phone: string;
+  closedAt: string;
 };
 
 type LeadType = {
@@ -38,6 +39,7 @@ type LeadType = {
   notes?: string; followUpNotes?: string; interestedService?: string;
   interested_service?: string; service?: string; serviceInterested?: string;
   serviceName?: string; services?: string; timezone?: string; phone?: string;
+  updatedAt?: string;
 };
 
 const parseBudget = (raw: string | number | null | undefined): number => {
@@ -103,9 +105,8 @@ export default function CSRProjectsPage() {
   /* FETCH */
   const fetchProjects = async () => {
     try {
-      const res = await API.get("/csr/dashboard");
-      const formatted = res.data.leads
-        .filter((lead: LeadType) => lead.status === "Close Client" || lead.status === "completed")
+      const res = await API.get("/csr/projects");
+      const formatted = (res.data.leads ?? [])
         .map((lead: LeadType) => {
           const projectTitle = lead.projectTitle ?? lead.project_title ?? lead.ProjectTitle
             ?? lead.title ?? lead.projectName ?? lead.project_name ?? lead.name ?? "Untitled Project";
@@ -135,6 +136,7 @@ export default function CSRProjectsPage() {
             service:      String(service),
             timezone:     String(lead.timezone || "N/A"),
             phone:        String(lead.phone    || "N/A"),
+            closedAt:     lead.updatedAt ? String(lead.updatedAt).split("T")[0] : "N/A",
           };
         });
       setProjects(formatted);
@@ -163,7 +165,7 @@ export default function CSRProjectsPage() {
   const totalProjects   = projects.length;
   const allTimeSales    = projects.reduce((acc, p) => acc + p.budgetNum, 0);
   const todayStr        = new Date().toISOString().split("T")[0];
-  const todaySales      = projects.filter(p => p.deadline === todayStr).reduce((acc, p) => acc + p.budgetNum, 0);
+  const todaySales      = projects.filter(p => p.closedAt === todayStr).reduce((acc, p) => acc + p.budgetNum, 0);
   const inProgressCount = projects.filter(p => p.status === "In Progress").length;
 
   /* OPEN DETAIL */
@@ -262,6 +264,7 @@ export default function CSRProjectsPage() {
         service:      addForm.service,
         timezone:     "N/A",
         phone:        addForm.clientPhone.trim() || "N/A",
+        closedAt:     new Date().toISOString().split("T")[0],
       };
 
       setProjects(prev => [newProject, ...prev]);
@@ -411,7 +414,7 @@ export default function CSRProjectsPage() {
           <div className="bg-white rounded-[30px] shadow-sm p-16 mt-7 text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center mx-auto mb-5"><FolderKanban size={28}/></div>
             <h2 className="text-[22px] font-bold text-[#0F172A]">No Projects Yet</h2>
-            <p className="text-gray-500 mt-2 text-sm">Projects appear when a client is marked "Close Client" — or add one manually.</p>
+            <p className="text-gray-500 mt-2 text-sm">Projects appear when a client is marked &ldquo;Close Client&rdquo; — or add one manually.</p>
             <button onClick={() => { setAddForm(emptyForm); setAddError(""); setShowAddModal(true); }}
               className="mt-5 inline-flex items-center gap-2 h-11 px-6 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] transition-colors">
               <Plus size={15}/>Add New Project

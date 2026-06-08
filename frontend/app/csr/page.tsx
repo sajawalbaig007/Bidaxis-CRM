@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 import {
   ShieldCheck, Activity, PhoneCall, CircleCheckBig, AlertTriangle,
@@ -151,12 +152,14 @@ export default function CSRPage() {
     };
 
     const markOffline = () => {
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ tabId })], { type: "application/json" });
-        navigator.sendBeacon(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/csr/offline`, blob);
-      } else {
-        API.post("/csr/offline").catch(() => {});
-      }
+      fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/csr/offline`,
+        {
+          method: "POST", credentials: "include", keepalive: true,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tabId }),
+        }
+      ).catch(() => {});
     };
 
     const handleVisibility = () => sendHeartbeat(document.visibilityState === "visible");
@@ -198,7 +201,7 @@ export default function CSRPage() {
 
   const filteredLinks = links.filter(item => {
     if (activeTab === "today")         return item.status === "pending";
-    if (activeTab === "notinterested") return item.status === "Not Interested" || item.status === "completed";
+    if (activeTab === "notinterested") return item.status === "Not Interested";
     if (activeTab === "pending")       return item.status === "pending";
     if (activeTab === "notpicked")     return item.status === "not picked" || item.status === "not completed";
     if (activeTab === "important")     return item.status === "important";
@@ -242,8 +245,13 @@ export default function CSRPage() {
       return;
     }
     try {
-      await API.put(`/csr/lead/${id}`, { status });
-      setLinks(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+      const res = await API.put(`/csr/lead/${id}`, { status });
+      if (res.data.redistributed) {
+        setLinks(prev => prev.filter(i => i.id !== id));
+        toast.success("Lead limit reached — reassigned to another CSR.");
+      } else {
+        setLinks(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+      }
     } catch (err) { console.log(err); }
   };
 

@@ -54,9 +54,8 @@ export default function NotInterestedPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"notinterested" | "notpicked">("notinterested");
 
-  /* search + date filter */
-  const [search,     setSearch]     = useState("");
-  const [filterDate, setFilterDate] = useState("");
+  /* search filter */
+  const [search, setSearch] = useState("");
 
   /* selected lead for detail panel */
   const [selected, setSelected] = useState<Lead | null>(null);
@@ -96,11 +95,14 @@ export default function NotInterestedPage() {
     }
   };
 
-  useEffect(() => { void fetchLeads(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchLeads(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   /* ─── DERIVED LISTS ─── */
   const notInterested = useMemo(() =>
-    leads.filter(l => l.status === "Not Interested" || l.status === "completed"),
+    leads.filter(l => l.status === "Not Interested"),
   [leads]);
 
   const notPicked = useMemo(() =>

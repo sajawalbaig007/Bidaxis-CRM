@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 import jwt from "jsonwebtoken";
 
-export function middleware(
+export function proxy(
   request: NextRequest
 ) {
 
@@ -42,7 +42,7 @@ export function middleware(
     try {
 
       const decoded: any =
-        jwt.decode(token);
+        jwt.verify(token, process.env.JWT_SECRET || "SUPER_SECRET_KEY");
 
       /* ADMIN ACCESS */
 

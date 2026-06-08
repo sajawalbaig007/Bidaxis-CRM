@@ -4,11 +4,8 @@ dotenv.config();
 import app          from "./app";
 import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
-import reportRoutes from "./routes/report.routes";
 
 const PORT = process.env.PORT || 5000;
-
-app.use("/reports", reportRoutes);
 
 /* ═══════════════════════════════════════════════
    AUTO OFFLINE CRON — every 5s
