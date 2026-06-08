@@ -131,7 +131,7 @@ export const getReports = async (req: Request, res: Response) => {
     const important    = leads.filter(l => l.status?.toLowerCase() === "important").length;
     const interested   = leads.filter(l => l.status?.toLowerCase() === "interested").length;
     const notCompleted = leads.filter(l => l.status?.toLowerCase() === "not completed").length;
-    const projectWon   = leads.filter(l => l.status?.toLowerCase() === "project won").length;
+    const projectWon   = leads.filter(l => l.status?.toLowerCase() === "Close Client").length;
 
     /* ── CSR PERFORMANCE — all statuses ── */
     const csrMap = new Map<string, {
@@ -168,7 +168,7 @@ export const getReports = async (req: Request, res: Response) => {
       if (s === "important")    e.important++;
       if (s === "interested")   e.interested++;
       if (s === "not completed") e.notCompleted++;
-      if (s === "project won")  e.projectWon++;
+      if (s === "Close Client")  e.projectWon++;
     });
 
     const csrPerformance = Array.from(csrMap.values())

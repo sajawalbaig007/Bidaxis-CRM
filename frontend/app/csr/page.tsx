@@ -234,7 +234,7 @@ export default function CSRPage() {
       setShowInterestedModal(true);
       return;
     }
-    if (status === "project won") {
+    if (status === "Close Client") {
       setSelectedProjectLead(link);
       setProjectTitle(link.company !== "N/A" ? link.company : link.client);
       setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
@@ -284,12 +284,12 @@ export default function CSRPage() {
     if (!projectTitle || !projectDeadline || !selectedProjectLead) return;
     try {
       await API.put(`/csr/lead/${selectedProjectLead.id}`, {
-        status: "project won",
+        status: "Close Client",
         projectTitle, projectDeadline, projectBudget, projectNotes,
         interestedService: projectService,
       });
       setLinks(prev => prev.map(i =>
-        i.id === selectedProjectLead.id ? { ...i, status:"project won" } : i
+        i.id === selectedProjectLead.id ? { ...i, status:"Close Client" } : i
       ));
       setShowProjectWonModal(false);
       router.push("/csr/projects");
@@ -488,7 +488,7 @@ export default function CSRPage() {
                           <option value="pending">Pending</option>
                           <option value="important">Important</option>
                           <option value="interested">Interested</option>
-                          <option value="project won">Project Won</option>
+                          <option value="Close Client">Close Client</option>
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
                       </div>

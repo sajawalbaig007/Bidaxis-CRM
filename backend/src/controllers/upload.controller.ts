@@ -89,7 +89,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
           if (s === "pending")     csrSnap[key].pending++;
           if (s === "important")   csrSnap[key].important++;
           if (s === "interested")  csrSnap[key].interested++;
-          if (s === "project won") csrSnap[key].projectWon++;
+          if (s === "Close Client") csrSnap[key].projectWon++;
         });
 
         const snapshot = {
@@ -100,7 +100,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
           pending:     allLeads.filter(l => (l.status ?? "").toLowerCase() === "pending").length,
           important:   allLeads.filter(l => (l.status ?? "").toLowerCase() === "important").length,
           interested:  allLeads.filter(l => (l.status ?? "").toLowerCase() === "interested").length,
-          projectWon:  allLeads.filter(l => (l.status ?? "").toLowerCase() === "project won").length,
+          projectWon:  allLeads.filter(l => (l.status ?? "").toLowerCase() === "Close Client").length,
           csrs:        Object.values(csrSnap),
         };
 
@@ -150,7 +150,7 @@ await prisma.lead.deleteMany({
 });
 
 console.log(
-  "[Renew] Only completed leads cleared. Pending, Not Completed, Important, Interested & Project Won preserved ✅"
+  "[Renew] Only completed leads cleared. Pending, Not Completed, Important, Interested & Close Client preserved ✅"
 );
     }
 
