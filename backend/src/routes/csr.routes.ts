@@ -62,7 +62,7 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
     const leads = await prisma.lead.findMany({
       where: {
         assignedTo: csrId,
-        status: { in: ["Not Interested", "not picked", "completed", "not completed"] },
+        status: { in: ["Not Interested", "not picked", "not completed"] },
       },
       include: { uploadFile: { select: { companyName: true } } },
       orderBy: { updatedAt: "desc" },
@@ -166,7 +166,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       updateData.status = status;
 
       /* ── NOT INTERESTED (limit = 7) ── */
-      if (status === "Not Interested" || status === "completed") {
+      if (status === "Not Interested") {
         const newCount = (lead.notInterestedCount ?? 0) + 1;
         updateData.notInterestedCount = newCount;
         updateData.important  = false;
@@ -228,7 +228,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       }
 
       /* ── OTHER (pending, Close Client, etc.) ── */
-      if (["pending", "Close Client"].includes(status)) {
+      if (["pending", "Close Client", "completed"].includes(status)) {
         updateData.important  = false;
         updateData.interested = false;
       }
@@ -243,6 +243,26 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to update lead" });
+  }
+});
+
+/* ================= CSR PROJECTS ================= */
+
+router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+    const leads = await prisma.lead.findMany({
+      where: {
+        assignedTo: csrId,
+        status:     { in: ["Close Client", "completed"] },
+      },
+      include: { uploadFile: { select: { companyName: true } } },
+      orderBy: { updatedAt: "desc" },
+    });
+    return res.json({ success: true, leads });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch projects" });
   }
 });
 

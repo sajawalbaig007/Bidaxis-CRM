@@ -20,7 +20,7 @@ const REFRESH_INTERVAL = 30_000; // 30 seconds
 export default function DashboardPage() {
   const [selectedRange,   setSelectedRange]   = useState("week");
   const [refreshTrigger,  setRefreshTrigger]  = useState(0);   // increments → child components re-fetch
-  const [lastUpdated,     setLastUpdated]     = useState<Date>(new Date());
+  const [lastUpdated,     setLastUpdated]     = useState<Date | null>(null);
   const [countdown,       setCountdown]       = useState(REFRESH_INTERVAL / 1000);
   const [isRefreshing,    setIsRefreshing]    = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -39,7 +39,11 @@ export default function DashboardPage() {
 
   /* ── Auto-refresh every REFRESH_INTERVAL ── */
   useEffect(() => {
-    resetCountdown();
+    const initTimer = setTimeout(() => {
+      setLastUpdated(new Date());
+      resetCountdown();
+    }, 0);
+
     const autoRefresh = setInterval(() => {
       setRefreshTrigger(t => t + 1);
       setLastUpdated(new Date());
@@ -47,6 +51,7 @@ export default function DashboardPage() {
     }, REFRESH_INTERVAL);
 
     return () => {
+      clearTimeout(initTimer);
       clearInterval(autoRefresh);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
@@ -61,10 +66,10 @@ export default function DashboardPage() {
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
-  /* ── Format last updated time ── */
-  const formattedTime = lastUpdated.toLocaleTimeString("en-US", {
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
+  /* ── Format last updated time (client-only to avoid hydration mismatch) ── */
+  const formattedTime = lastUpdated
+    ? lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "--:--:--";
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
