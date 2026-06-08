@@ -191,8 +191,8 @@ export const updateLead = async (req: AuthRequest, res: Response) => {
         updateData.interested = true;
       }
 
-      /* ─ OTHER (pending, project won, etc.) ─ */
-      if (["pending", "project won"].includes(status)) {
+      /* ─ OTHER (pending, Close Client, etc.) ─ */
+      if (["pending", "Close Client"].includes(status)) {
         updateData.important  = false;
         updateData.interested = false;
       }

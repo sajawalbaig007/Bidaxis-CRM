@@ -138,7 +138,7 @@ export default function ClientsPage() {
               status:
                 raw === "interested"
                   ? "Interested"
-                  : ["closed", "completed", "project won"].includes(raw)
+                  : ["closed", "completed", "Close Client"].includes(raw)
                   ? "Closed"
                   : raw === "pending"
                   ? "Pending"
@@ -196,7 +196,7 @@ export default function ClientsPage() {
   }, [filteredByCSR]);
 
   const projectWonCount = useMemo(() => {
-    return filteredByCSR.filter((c) => c.rawStatus === "project won").length;
+    return filteredByCSR.filter((c) => c.rawStatus === "Close Client").length;
   }, [filteredByCSR]);
 
   const impTodayCount = useMemo(() => {
@@ -338,7 +338,7 @@ export default function ClientsPage() {
               Icon: Briefcase,
             },
             {
-              label: "Project Won",
+              label: "Close Client",
               value: projectWonCount,
               sub: "closed deals",
               color: "bg-[#ECFDF5] text-[#065F46]",

@@ -31,7 +31,7 @@ export default function TopPerformers({ refreshTrigger }: Props) {
           const name = l.csr?.name ?? "Unassigned";
           if (!map[name]) map[name] = { resolved: 0, total: 0 };
           map[name].total++;
-          if (["project won", "interested", "important"].includes(l.status ?? ""))
+          if (["Close Client", "interested", "important"].includes(l.status ?? ""))
             map[name].resolved++;
         });
 

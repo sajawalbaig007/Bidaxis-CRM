@@ -44,7 +44,7 @@ export default function SystemHealth({ refreshTrigger }: Props) {
   const buildMetrics = (leads: { status?: string; createdAt?: string }[]): Metric[] => {
     const total    = leads.length || 1;
     const pending  = leads.filter(l => l.status === "pending").length;
-    const resolved = leads.filter(l => ["project won","interested"].includes(l.status ?? "")).length;
+    const resolved = leads.filter(l => ["Close Client","interested"].includes(l.status ?? "")).length;
     const important= leads.filter(l => l.status === "important").length;
 
     const pendingPct  = Math.round((pending   / total) * 100);
