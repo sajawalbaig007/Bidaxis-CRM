@@ -16,7 +16,6 @@ import CSRSidebar  from "./components/CSRSidebar";
 import WelcomeHeader from "./components/WelcomeHeader";
 import API from "@/lib/api";
 
-/* ── US Timezones ── */
 const usTimezones = [
   { value: "America/Adak",                  label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
   { value: "America/Anchorage",             label: "Alaska (UTC-09:00)",          abbreviation: "AKST" },
@@ -46,7 +45,6 @@ const getCurrentTimeInTimezone = (tz: string): string => {
   } catch { return "--:-- --"; }
 };
 
-/* ── Types ── */
 interface BackendLead {
   id: string; name?: string; company?: string; phone?: string; email?: string;
   status?: string; nextSchedule?: string; nextTime?: string; timezone?: string;
@@ -70,28 +68,23 @@ export default function CSRPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("today");
 
-  /* Notification */
   const [showNotification,   setShowNotification]   = useState(false);
   const [todayImportantCalls,setTodayImportantCalls]= useState<LeadType[]>([]);
 
-  /* Inline comment */
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [commentDraft,     setCommentDraft]     = useState("");
   const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
 
-  /* Important modal */
   const [showImportantModal,  setShowImportantModal]  = useState(false);
   const [selectedImportantId, setSelectedImportantId] = useState<string | null>(null);
   const [scheduleDate,   setScheduleDate]   = useState("");
   const [scheduleTime,   setScheduleTime]   = useState("");
   const [selectedTimezone,setSelectedTimezone]= useState("America/New_York");
 
-  /* Interested modal */
   const [showInterestedModal,  setShowInterestedModal]  = useState(false);
   const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState("");
 
-  /* Project Won modal */
   const [showProjectWonModal, setShowProjectWonModal] = useState(false);
   const [selectedProjectLead, setSelectedProjectLead] = useState<LeadType | null>(null);
   const [projectTitle,    setProjectTitle]   = useState("");
@@ -100,7 +93,6 @@ export default function CSRPage() {
   const [projectNotes,    setProjectNotes]   = useState("");
   const [projectService,  setProjectService] = useState("");
 
-  /* ── FETCH ── */
   useEffect(() => {
     const load = async () => {
       try {
@@ -140,7 +132,6 @@ export default function CSRPage() {
     load();
   }, []);
 
-  /* ── HEARTBEAT ── */
   useEffect(() => {
     let tabId = sessionStorage.getItem("crm_tab_id");
     if (!tabId) {
@@ -190,7 +181,6 @@ export default function CSRPage() {
     };
   }, []);
 
-  /* ── COUNTS ── */
   const totalLeads      = links.length;
   const pendingCount    = links.filter(i => i.status === "pending").length;
   const importantCount  = links.filter(i => i.status === "important").length;
@@ -198,9 +188,6 @@ export default function CSRPage() {
   const projectWonCount = links.filter(i => i.status === "project won").length;
   const todayImportant  = links.filter(i => i.status === "important" && i.nextSchedule === todayStr).length;
 
-  /* ── RENAMED STATUSES ── */
-  /* "Not Interested" = was "completed" / "Completed"  */
-  /* "Not Picked"     = was "not completed"             */
   const notInterestedCount = links.filter(i =>
     i.status === "Not Interested" || i.status === "completed"
   ).length;
@@ -209,7 +196,6 @@ export default function CSRPage() {
     i.status === "not picked" || i.status === "not completed"
   ).length;
 
-  /* ── FILTERED LINKS ── */
   const filteredLinks = links.filter(item => {
     if (activeTab === "today")         return item.status === "pending";
     if (activeTab === "notinterested") return item.status === "Not Interested" || item.status === "completed";
@@ -221,7 +207,6 @@ export default function CSRPage() {
     return true;
   });
 
-  /* ── SAVE COMMENT ── */
   const saveComment = async (id: string, comment: string) => {
     setSavingCommentId(id);
     try {
@@ -232,7 +217,6 @@ export default function CSRPage() {
     setSavingCommentId(null);
   };
 
-  /* ── UPDATE STATUS ── */
   const updateStatus = async (id: string, status: string) => {
     if (!status) return;
     const link = links.find(i => i.id === id);
@@ -263,7 +247,6 @@ export default function CSRPage() {
     } catch (err) { console.log(err); }
   };
 
-  /* ── SAVE IMPORTANT ── */
   const saveImportantCall = async () => {
     if (!scheduleDate || !scheduleTime) return;
     try {
@@ -281,7 +264,6 @@ export default function CSRPage() {
     setScheduleDate(""); setScheduleTime(""); setSelectedTimezone("America/New_York");
   };
 
-  /* ── SAVE INTERESTED ── */
   const saveInterestedCall = async () => {
     if (!selectedService) return;
     try {
@@ -298,7 +280,6 @@ export default function CSRPage() {
     setSelectedService(""); setSelectedInterestedId(null);
   };
 
-  /* ── SAVE PROJECT WON ── */
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !selectedProjectLead) return;
     try {
@@ -317,7 +298,6 @@ export default function CSRPage() {
 
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "";
 
-  /* ── STAT CARDS ── */
   const statCards = [
     { label:"Total Leads",   value: totalLeads,     bg:"bg-[#F4ECFF]", color:"text-[#7A3FFD]", icon:<Phone size={22}/> },
     { label:"Pending",       value: pendingCount,   bg:"bg-[#EAF5FF]", color:"text-[#0B84F3]", icon:<Users size={22}/> },
@@ -325,14 +305,12 @@ export default function CSRPage() {
     { label:"Notifications", value: importantCount + interestedCount, bg:"bg-[#FFEAF5]", color:"text-[#FF4DA6]", icon:<Bell size={22}/> },
   ];
 
-  /* ── STATUS LABEL HELPER — maps raw status → display label ── */
   const statusLabel = (s: string) => {
-    if (s === "Not Interested" || s === "completed")    return "Not Interested";
+    if (s === "Not Interested" || s === "completed")     return "Not Interested";
     if (s === "not picked"     || s === "not completed") return "Not Picked";
     return s;
   };
 
-  /* ── STATUS BADGE COLOR ── */
   const statusBadgeClass = (s: string) => {
     if (s === "not picked" || s === "not completed") return "bg-[#FFF7E6] text-[#B54708]";
     if (s === "Not Interested" || s === "completed") return "bg-[#F1F5F9] text-[#475569]";
@@ -348,12 +326,9 @@ export default function CSRPage() {
       <main className="flex-1 p-4 sm:p-5 pt-[95px] overflow-x-hidden">
         <CSRNavbar setIsOpen={setIsOpen}/>
 
-        {/* TODAY IMPORTANT NOTIFICATION */}
         {showNotification && todayImportantCalls.length > 0 && (
           <div className="mt-5 bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-2xl p-4 flex items-start gap-4 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/15 text-[#B45309] flex items-center justify-center shrink-0 mt-0.5">
-              <Bell size={20}/>
-            </div>
+            <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/15 text-[#B45309] flex items-center justify-center shrink-0 mt-0.5"><Bell size={20}/></div>
             <div className="flex-1 min-w-0">
               <h4 className="font-bold text-[#92400E] text-[15px]">
                 📅 You have {todayImportantCalls.length} important call{todayImportantCalls.length > 1 ? "s" : ""} scheduled for today!
@@ -374,7 +349,6 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* HEADER */}
         <div className="mt-7">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-lg font-bold shadow-sm shrink-0">C</div>
@@ -393,49 +367,38 @@ export default function CSRPage() {
           </div>
         </div>
 
-        {/* STATS */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map((c, i) => (
             <div key={i} className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-gray-500 text-[12px] sm:text-[13px] font-medium">{c.label}</p>
-                {loading ? (
-                  <div className="h-8 w-12 bg-gray-100 rounded-lg mt-2 animate-pulse"/>
-                ) : (
-                  <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">{c.value.toLocaleString()}</h2>
-                )}
+                {loading ? <div className="h-8 w-12 bg-gray-100 rounded-lg mt-2 animate-pulse"/> : <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">{c.value.toLocaleString()}</h2>}
               </div>
               <div className={`w-12 h-12 rounded-2xl ${c.bg} ${c.color} flex items-center justify-center shrink-0`}>{c.icon}</div>
             </div>
           ))}
         </div>
 
-        {/* MAIN CARD */}
         <div className="bg-white rounded-[28px] p-4 sm:p-6 shadow-sm mt-7 border border-white">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-[22px] font-bold text-[#0F172A]">Client Calls</h3>
               <p className="text-gray-500 mt-1 text-[13px]">Manage assigned client calls.</p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="bg-[#ECFDF3] text-[#027A48] px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#12B76A]"/>Live Tracking
-              </div>
+            <div className="bg-[#ECFDF3] text-[#027A48] px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#12B76A]"/>Live Tracking
             </div>
           </div>
 
-          {/* FILTER TABS */}
           <div className="flex flex-wrap gap-3 mt-7 mb-7">
             {[
-              { tab:"today",         label:"Today Links",    count: pendingCount,        icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700"       },
-              /* ── RENAMED: Completed → Not Interested ── */
-              { tab:"notinterested", label:"Not Interested", count: notInterestedCount,  icon:<CircleCheckBig size={17}/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"      },
-              { tab:"pending",       label:"Pending",        count: pendingCount,        icon:<Clock3 size={17}/>,         active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"      },
-              /* ── RENAMED: Not Completed → Not Picked ── */
-              { tab:"notpicked",     label:"Not Picked",     count: notPickedCount,      icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"      },
-              { tab:"important",     label:"Important",      count: importantCount,      icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"      },
-              { tab:"interested",    label:"Interested",     count: interestedCount,     icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"      },
-              { tab:"projectwon",    label:"Project Won",    count: projectWonCount,     icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"      },
+              { tab:"today",         label:"Today Links",    count: pendingCount,       icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm", inactive:"bg-[#F8F8F8] text-gray-700"    },
+              { tab:"notinterested", label:"Not Interested", count: notInterestedCount, icon:<CircleCheckBig size={17}/>, active:"bg-[#475569] text-white",           inactive:"bg-[#F1F5F9] text-[#475569]"   },
+              { tab:"pending",       label:"Pending",        count: pendingCount,       icon:<Clock3 size={17}/>,         active:"bg-[#B54708] text-white",           inactive:"bg-[#FFF7E6] text-[#B54708]"   },
+              { tab:"notpicked",     label:"Not Picked",     count: notPickedCount,     icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",           inactive:"bg-[#FFF1E8] text-[#F97316]"   },
+              { tab:"important",     label:"Important",      count: importantCount,     icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",           inactive:"bg-[#FFF1F3] text-[#B42318]"   },
+              { tab:"interested",    label:"Interested",     count: interestedCount,    icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",           inactive:"bg-[#FFF1F3] text-[#B42318]"   },
+              { tab:"projectwon",    label:"Project Won",    count: projectWonCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",           inactive:"bg-[#ECFDF5] text-[#065F46]"   },
             ].map(btn => (
               <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
                 className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab===btn.tab ? btn.active : btn.inactive}`}>
@@ -445,7 +408,6 @@ export default function CSRPage() {
             ))}
           </div>
 
-          {/* TABLE */}
           <div className="overflow-x-auto rounded-2xl border border-gray-100">
             <table className="w-full min-w-[960px]">
               <thead className="bg-[#FAFAFA]">
@@ -459,17 +421,11 @@ export default function CSRPage() {
                 {loading ? (
                   [1,2,3,4,5].map(i => (
                     <tr key={i} className="border-t border-gray-100">
-                      {[1,2,3,4,5,6].map(j => (
-                        <td key={j} className="py-5 px-5">
-                          <div className="h-4 bg-gray-100 rounded animate-pulse w-24"/>
-                        </td>
-                      ))}
+                      {[1,2,3,4,5,6].map(j => <td key={j} className="py-5 px-5"><div className="h-4 bg-gray-100 rounded animate-pulse w-24"/></td>)}
                     </tr>
                   ))
                 ) : filteredLinks.length > 0 ? filteredLinks.map(currentLink => (
                   <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
-
-                    {/* CLIENT */}
                     <td className="py-5 px-5">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-xs font-bold shrink-0">
@@ -484,31 +440,21 @@ export default function CSRPage() {
                         </div>
                       </div>
                     </td>
-
-                    {/* COMPANY */}
                     <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">{currentLink.company}</td>
-
-                    {/* PHONE */}
                     <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">{currentLink.phone}</td>
-
-                    {/* COMMENTS */}
                     <td className="py-5 px-5">
                       {editingCommentId === currentLink.id ? (
                         <div className="flex flex-col gap-2 w-full max-w-[240px]">
-                          <textarea autoFocus value={commentDraft}
-                            onChange={e => setCommentDraft(e.target.value)} rows={2}
+                          <textarea autoFocus value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={2}
                             placeholder="Type your comment..."
                             className="w-full rounded-xl border border-[#B8112D] px-3 py-2 text-[13px] outline-none resize-none text-[#0F172A]"/>
                           <div className="flex gap-2">
-                            <button onClick={() => saveComment(currentLink.id, commentDraft)}
-                              disabled={savingCommentId === currentLink.id}
+                            <button onClick={() => saveComment(currentLink.id, commentDraft)} disabled={savingCommentId === currentLink.id}
                               className="flex-1 h-[34px] rounded-xl bg-[#B8112D] text-white text-[12px] font-semibold flex items-center justify-center gap-1">
                               <Check size={13}/>{savingCommentId === currentLink.id ? "Saving..." : "Save"}
                             </button>
                             <button onClick={() => setEditingCommentId(null)}
-                              className="flex-1 h-[34px] rounded-xl bg-[#F5F6FA] text-gray-500 text-[12px] font-semibold">
-                              Cancel
-                            </button>
+                              className="flex-1 h-[34px] rounded-xl bg-[#F5F6FA] text-gray-500 text-[12px] font-semibold">Cancel</button>
                           </div>
                         </div>
                       ) : (
@@ -527,22 +473,16 @@ export default function CSRPage() {
                         </div>
                       )}
                     </td>
-
-                    {/* STATUS BADGE — uses statusLabel() helper */}
                     <td className="py-5 px-5">
                       <div className={`px-4 py-2 rounded-xl text-sm font-semibold w-fit ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
                     </td>
-
-                    {/* ACTION DROPDOWN */}
                     <td className="py-5 px-5">
                       <div className="relative w-full max-w-[230px]">
-                        <select onChange={e => updateStatus(currentLink.id, e.target.value)}
-                          defaultValue=""
+                        <select onChange={e => updateStatus(currentLink.id, e.target.value)} defaultValue=""
                           className="appearance-none h-[46px] w-full rounded-2xl border border-gray-200 bg-white px-4 pr-11 text-[14px] font-semibold text-[#0F172A] outline-none">
                           <option value="">Update Status</option>
-                          {/* RENAMED OPTIONS */}
                           <option value="Not Interested">Not Interested</option>
                           <option value="not picked">Not Picked</option>
                           <option value="pending">Pending</option>
@@ -550,9 +490,7 @@ export default function CSRPage() {
                           <option value="interested">Interested</option>
                           <option value="project won">Project Won</option>
                         </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                          <ChevronDown size={18}/>
-                        </div>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
                       </div>
                     </td>
                   </tr>
@@ -569,27 +507,21 @@ export default function CSRPage() {
           </div>
         </div>
 
-        {/* ── IMPORTANT MODAL ── */}
+        {/* IMPORTANT MODAL */}
         {showImportantModal && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-[26px] font-bold text-[#0F172A]">Important Call</h2>
-                  <p className="text-gray-500 text-sm mt-2">Schedule next follow-up call with timezone.</p>
-                </div>
-                <button onClick={() => setShowImportantModal(false)}
-                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500"><X size={18}/></button>
+                <div><h2 className="text-[26px] font-bold text-[#0F172A]">Important Call</h2><p className="text-gray-500 text-sm mt-2">Schedule next follow-up call with timezone.</p></div>
+                <button onClick={() => setShowImportantModal(false)} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500"><X size={18}/></button>
               </div>
               <div className="mt-7">
                 <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Calendar size={16}/>Next Schedule Date</label>
-                <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
+                <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
               </div>
               <div className="mt-5">
                 <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Clock3 size={16}/>Next Call Time</label>
-                <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
+                <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
               </div>
               <div className="mt-5 relative">
                 <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Globe size={16}/>Client Timezone (US)</label>
@@ -602,12 +534,8 @@ export default function CSRPage() {
               {scheduleDate && scheduleTime && (
                 <div className="mt-5 p-4 bg-[#F5F6FA] rounded-2xl">
                   <p className="text-[12px] font-medium text-gray-500 mb-2">Scheduled (Client Local Time)</p>
-                  <p className="text-[15px] font-semibold text-[#0F172A]">
-                    {scheduleDate} at {scheduleTime} {usTimezones.find(tz=>tz.value===selectedTimezone)?.abbreviation}
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1">
-                    <Globe size={11}/>Current: <span className="font-mono font-medium text-gray-600 ml-1">{getCurrentTimeInTimezone(selectedTimezone)}</span>
-                  </p>
+                  <p className="text-[15px] font-semibold text-[#0F172A]">{scheduleDate} at {scheduleTime} {usTimezones.find(tz=>tz.value===selectedTimezone)?.abbreviation}</p>
+                  <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1"><Globe size={11}/>Current: <span className="font-mono font-medium text-gray-600 ml-1">{getCurrentTimeInTimezone(selectedTimezone)}</span></p>
                 </div>
               )}
               <div className="flex gap-3 mt-7">
@@ -618,29 +546,21 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* ── INTERESTED MODAL ── */}
+        {/* INTERESTED MODAL */}
         {showInterestedModal && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-[26px] font-bold text-[#0F172A]">Client Interested In</h2>
-                  <p className="text-gray-500 text-sm mt-2">Select the service the client is interested in.</p>
-                </div>
-                <button onClick={() => { setShowInterestedModal(false); setSelectedService(""); }}
-                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500"><X size={18}/></button>
+                <div><h2 className="text-[26px] font-bold text-[#0F172A]">Client Interested In</h2><p className="text-gray-500 text-sm mt-2">Select the service the client is interested in.</p></div>
+                <button onClick={() => { setShowInterestedModal(false); setSelectedService(""); }} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500"><X size={18}/></button>
               </div>
               <div className="mt-7 grid grid-cols-2 gap-3">
                 {serviceOptions.map(({ value, label, Icon }) => {
                   const sel = selectedService === value;
                   return (
                     <button key={value} onClick={() => setSelectedService(value)}
-                      className={`h-[84px] rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all font-semibold text-[14px] ${
-                        sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
-                      }`}>
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${sel?"bg-[#B8112D]/10":"bg-white shadow-sm"}`}>
-                        <Icon size={18} className={sel?"text-[#B8112D]":"text-gray-500"}/>
-                      </div>
+                      className={`h-[84px] rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all font-semibold text-[14px] ${sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${sel?"bg-[#B8112D]/10":"bg-white shadow-sm"}`}><Icon size={18} className={sel?"text-[#B8112D]":"text-gray-500"}/></div>
                       <span>{label}</span>
                     </button>
                   );
@@ -649,68 +569,43 @@ export default function CSRPage() {
               {selectedService && (
                 <div className="mt-5 p-4 bg-[#FFF4E5] rounded-2xl flex items-center gap-3">
                   <Briefcase size={18} className="text-[#D97706] shrink-0"/>
-                  <div>
-                    <p className="text-[12px] font-medium text-gray-500">Selected Service</p>
-                    <p className="text-[15px] font-bold text-[#D97706]">{selectedService}</p>
-                  </div>
+                  <div><p className="text-[12px] font-medium text-gray-500">Selected Service</p><p className="text-[15px] font-bold text-[#D97706]">{selectedService}</p></div>
                 </div>
               )}
               <div className="flex gap-3 mt-7">
-                <button onClick={() => { setShowInterestedModal(false); setSelectedService(""); }}
-                  className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
+                <button onClick={() => { setShowInterestedModal(false); setSelectedService(""); }} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
                 <button onClick={saveInterestedCall} disabled={!selectedService}
-                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${selectedService?"bg-[#B8112D]":"bg-gray-300 cursor-not-allowed"}`}>
-                  Save Interest
-                </button>
+                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${selectedService?"bg-[#B8112D]":"bg-gray-300 cursor-not-allowed"}`}>Save Interest</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── PROJECT WON MODAL ── */}
+        {/* PROJECT WON MODAL */}
         {showProjectWonModal && selectedProjectLead && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-[24px] font-bold text-[#0F172A]">Project Won 🎉</h2>
-                  <p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p>
-                </div>
-                <button onClick={() => setShowProjectWonModal(false)}
-                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
+                <div><h2 className="text-[24px] font-bold text-[#0F172A]">Project Won 🎉</h2><p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p></div>
+                <button onClick={() => setShowProjectWonModal(false)} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
               </div>
               <div className="mt-6 bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-[#065F46] text-white flex items-center justify-center font-bold text-sm shrink-0">
-                  {selectedProjectLead.client.charAt(0)}
-                </div>
-                <div>
-                  <p className="font-bold text-[#065F46] text-[15px]">{selectedProjectLead.client}</p>
-                  <p className="text-[#065F46]/70 text-[12px]">{selectedProjectLead.company} · {selectedProjectLead.phone}</p>
-                </div>
+                <div className="w-11 h-11 rounded-full bg-[#065F46] text-white flex items-center justify-center font-bold text-sm shrink-0">{selectedProjectLead.client.charAt(0)}</div>
+                <div><p className="font-bold text-[#065F46] text-[15px]">{selectedProjectLead.client}</p><p className="text-[#065F46]/70 text-[12px]">{selectedProjectLead.company} · {selectedProjectLead.phone}</p></div>
               </div>
               <div className="mt-6">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <FileText size={15}/>Project Title <span className="text-[#B8112D] text-xs">*required</span>
-                </label>
-                <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle}
-                  onChange={e => setProjectTitle(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><FileText size={15}/>Project Title <span className="text-[#B8112D] text-xs">*required</span></label>
+                <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle} onChange={e => setProjectTitle(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
               </div>
               <div className="mt-6">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-3">
-                  <Briefcase size={15}/>Service to Provide <span className="text-[#B8112D] text-xs">*required</span>
-                </label>
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-3"><Briefcase size={15}/>Service to Provide <span className="text-[#B8112D] text-xs">*required</span></label>
                 <div className="grid grid-cols-3 gap-2">
                   {serviceOptions.map(({ value, label, Icon }) => {
                     const sel = projectService === value;
                     return (
                       <button key={value} onClick={() => setProjectService(value)}
-                        className={`h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${
-                          sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
-                        }`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel?"bg-[#065F46]/10":"bg-white shadow-sm"}`}>
-                          <Icon size={15} className={sel?"text-[#065F46]":"text-gray-500"}/>
-                        </div>
+                        className={`h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel?"bg-[#065F46]/10":"bg-white shadow-sm"}`}><Icon size={15} className={sel?"text-[#065F46]":"text-gray-500"}/></div>
                         <span>{label}</span>
                       </button>
                     );
@@ -718,27 +613,16 @@ export default function CSRPage() {
                 </div>
               </div>
               <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <CalendarDays size={15}/>Project Deadline <span className="text-[#B8112D] text-xs">*required</span>
-                </label>
-                <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><CalendarDays size={15}/>Project Deadline <span className="text-[#B8112D] text-xs">*required</span></label>
+                <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
               </div>
               <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <DollarSign size={15}/>Project Budget <span className="text-gray-400 text-xs font-normal">(optional)</span>
-                </label>
-                <input type="text" placeholder="e.g. $5,000" value={projectBudget}
-                  onChange={e => setProjectBudget(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><DollarSign size={15}/>Project Budget <span className="text-gray-400 text-xs font-normal">(optional)</span></label>
+                <input type="text" placeholder="e.g. $5,000" value={projectBudget} onChange={e => setProjectBudget(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
               </div>
               <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <AlignLeft size={15}/>Project Notes <span className="text-gray-400 text-xs font-normal">(optional)</span>
-                </label>
-                <textarea placeholder="Any additional notes..." value={projectNotes}
-                  onChange={e => setProjectNotes(e.target.value)} rows={3}
-                  className="mt-3 w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-[#065F46] text-[14px] resize-none"/>
+                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><AlignLeft size={15}/>Project Notes <span className="text-gray-400 text-xs font-normal">(optional)</span></label>
+                <textarea placeholder="Any additional notes..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} rows={3} className="mt-3 w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-[#065F46] text-[14px] resize-none"/>
               </div>
               <div className="flex gap-3 mt-7">
                 <button onClick={() => setShowProjectWonModal(false)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
@@ -750,7 +634,6 @@ export default function CSRPage() {
             </div>
           </div>
         )}
-
       </main>
     </div>
   );
