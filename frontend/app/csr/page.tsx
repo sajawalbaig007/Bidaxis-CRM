@@ -100,7 +100,7 @@ export default function CSRPage() {
   const [projectNotes,    setProjectNotes]   = useState("");
   const [projectService,  setProjectService] = useState("");
 
-  /* ── FETCH (ESLint-safe) ── */
+  /* ── FETCH ── */
   useEffect(() => {
     const load = async () => {
       try {
@@ -124,7 +124,6 @@ export default function CSRPage() {
 
         setLinks(formatted);
 
-        /* today's important calls notification */
         const todayCalls = formatted.filter(
           l => l.status === "important" && l.nextSchedule === todayStr
         );
@@ -141,11 +140,7 @@ export default function CSRPage() {
     load();
   }, []);
 
-  /* ── HEARTBEAT — marks CSR as online every 30s, offline on close ── */
-  /* ─────────────────────────────────────────────────────────────
-   Replace the heartbeat useEffect in csr/page.tsx with this:
-─────────────────────────────────────────────────────────────── */
-
+  /* ── HEARTBEAT ── */
   useEffect(() => {
     let tabId = sessionStorage.getItem("crm_tab_id");
     if (!tabId) {
@@ -155,57 +150,30 @@ export default function CSRPage() {
     const openedAt = sessionStorage.getItem("crm_tab_opened") ?? new Date().toISOString();
     sessionStorage.setItem("crm_tab_opened", openedAt);
 
-    /* hiddenAt stored in ref — set ONCE when leaving, cleared on return
-       This prevents timer reset on every 3s heartbeat while away */
     let hiddenAt: string | null = null;
 
     const sendHeartbeat = (forceVisible?: boolean) => {
       const visible = forceVisible ?? document.visibilityState === "visible";
-
-      /* Set hiddenAt only on FIRST leave — preserve it while away */
-      if (!visible && hiddenAt === null) {
-        hiddenAt = new Date().toISOString();
-      }
-      if (visible) {
-        hiddenAt = null;   // clear when back on dashboard
-      }
-
-      API.post("/csr/heartbeat", {
-        userAgent:  navigator.userAgent,
-        tabId,
-        openedAt,
-        tabVisible: visible,
-        hiddenAt,
-      }).catch(() => {});
+      if (!visible && hiddenAt === null) { hiddenAt = new Date().toISOString(); }
+      if (visible) { hiddenAt = null; }
+      API.post("/csr/heartbeat", { userAgent: navigator.userAgent, tabId, openedAt, tabVisible: visible, hiddenAt }).catch(() => {});
     };
 
     const markOffline = () => {
       if (navigator.sendBeacon) {
-        const blob = new Blob(
-          [JSON.stringify({ tabId })],
-          { type: "application/json" }
-        );
-        navigator.sendBeacon(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/csr/offline`,
-          blob
-        );
+        const blob = new Blob([JSON.stringify({ tabId })], { type: "application/json" });
+        navigator.sendBeacon(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/csr/offline`, blob);
       } else {
         API.post("/csr/offline").catch(() => {});
       }
     };
 
-    /* visibilitychange — same browser, different tab */
-    const handleVisibility = () => {
-      sendHeartbeat(document.visibilityState === "visible");
-    };
-
-    /* blur/focus — different browser or application
-       blur fires instantly when window loses focus */
+    const handleVisibility = () => sendHeartbeat(document.visibilityState === "visible");
     const handleBlur  = () => sendHeartbeat(false);
     const handleFocus = () => sendHeartbeat(true);
 
-    sendHeartbeat(true);                                  // immediate on mount
-    const interval = setInterval(sendHeartbeat, 3_000);   // keep-alive every 3s
+    sendHeartbeat(true);
+    const interval = setInterval(sendHeartbeat, 3_000);
 
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("blur",         handleBlur);
@@ -222,29 +190,38 @@ export default function CSRPage() {
     };
   }, []);
 
+  /* ── COUNTS ── */
+  const totalLeads      = links.length;
+  const pendingCount    = links.filter(i => i.status === "pending").length;
+  const importantCount  = links.filter(i => i.status === "important").length;
+  const interestedCount = links.filter(i => i.status === "interested").length;
+  const projectWonCount = links.filter(i => i.status === "project won").length;
+  const todayImportant  = links.filter(i => i.status === "important" && i.nextSchedule === todayStr).length;
 
-  const totalLeads        = links.length;
-  const pendingCount      = links.filter(i => i.status === "pending").length;
-  const completedCount    = links.filter(i => ["completed","important","interested","project won"].includes(i.status)).length;
-  const importantCount    = links.filter(i => i.status === "important").length;
-  const interestedCount   = links.filter(i => i.status === "interested").length;
-  const projectWonCount   = links.filter(i => i.status === "project won").length;
-  const notCompletedCount = links.filter(i => i.status === "not completed").length;
-  const todayImportant    = links.filter(i => i.status === "important" && i.nextSchedule === todayStr).length;
+  /* ── RENAMED STATUSES ── */
+  /* "Not Interested" = was "completed" / "Completed"  */
+  /* "Not Picked"     = was "not completed"             */
+  const notInterestedCount = links.filter(i =>
+    i.status === "Not Interested" || i.status === "completed"
+  ).length;
 
-  /* FILTERED */
+  const notPickedCount = links.filter(i =>
+    i.status === "not picked" || i.status === "not completed"
+  ).length;
+
+  /* ── FILTERED LINKS ── */
   const filteredLinks = links.filter(item => {
-    if (activeTab === "today")        return item.status === "pending";
-    if (activeTab === "completed")    return ["completed","important","interested","project won"].includes(item.status);
-    if (activeTab === "pending")      return item.status === "pending";
-    if (activeTab === "notcompleted") return item.status === "not completed";
-    if (activeTab === "important")    return item.status === "important";
-    if (activeTab === "interested")   return item.status === "interested";
-    if (activeTab === "projectwon")   return item.status === "project won";
+    if (activeTab === "today")         return item.status === "pending";
+    if (activeTab === "notinterested") return item.status === "Not Interested" || item.status === "completed";
+    if (activeTab === "pending")       return item.status === "pending";
+    if (activeTab === "notpicked")     return item.status === "not picked" || item.status === "not completed";
+    if (activeTab === "important")     return item.status === "important";
+    if (activeTab === "interested")    return item.status === "interested";
+    if (activeTab === "projectwon")    return item.status === "project won";
     return true;
   });
 
-  /* SAVE COMMENT */
+  /* ── SAVE COMMENT ── */
   const saveComment = async (id: string, comment: string) => {
     setSavingCommentId(id);
     try {
@@ -255,7 +232,7 @@ export default function CSRPage() {
     setSavingCommentId(null);
   };
 
-  /* UPDATE STATUS */
+  /* ── UPDATE STATUS ── */
   const updateStatus = async (id: string, status: string) => {
     if (!status) return;
     const link = links.find(i => i.id === id);
@@ -286,7 +263,7 @@ export default function CSRPage() {
     } catch (err) { console.log(err); }
   };
 
-  /* SAVE IMPORTANT */
+  /* ── SAVE IMPORTANT ── */
   const saveImportantCall = async () => {
     if (!scheduleDate || !scheduleTime) return;
     try {
@@ -304,7 +281,7 @@ export default function CSRPage() {
     setScheduleDate(""); setScheduleTime(""); setSelectedTimezone("America/New_York");
   };
 
-  /* SAVE INTERESTED */
+  /* ── SAVE INTERESTED ── */
   const saveInterestedCall = async () => {
     if (!selectedService) return;
     try {
@@ -321,7 +298,7 @@ export default function CSRPage() {
     setSelectedService(""); setSelectedInterestedId(null);
   };
 
-  /* SAVE PROJECT WON */
+  /* ── SAVE PROJECT WON ── */
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !selectedProjectLead) return;
     try {
@@ -340,13 +317,30 @@ export default function CSRPage() {
 
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "";
 
-  /* ── STAT CARDS — all real-time from leads ── */
+  /* ── STAT CARDS ── */
   const statCards = [
     { label:"Total Leads",   value: totalLeads,     bg:"bg-[#F4ECFF]", color:"text-[#7A3FFD]", icon:<Phone size={22}/> },
     { label:"Pending",       value: pendingCount,   bg:"bg-[#EAF5FF]", color:"text-[#0B84F3]", icon:<Users size={22}/> },
     { label:"Calls Today 🔔",value: todayImportant, bg:"bg-[#FFF3E8]", color:"text-[#FF7A00]", icon:<UserCheck size={22}/> },
     { label:"Notifications", value: importantCount + interestedCount, bg:"bg-[#FFEAF5]", color:"text-[#FF4DA6]", icon:<Bell size={22}/> },
   ];
+
+  /* ── STATUS LABEL HELPER — maps raw status → display label ── */
+  const statusLabel = (s: string) => {
+    if (s === "Not Interested" || s === "completed")    return "Not Interested";
+    if (s === "not picked"     || s === "not completed") return "Not Picked";
+    return s;
+  };
+
+  /* ── STATUS BADGE COLOR ── */
+  const statusBadgeClass = (s: string) => {
+    if (s === "not picked" || s === "not completed") return "bg-[#FFF7E6] text-[#B54708]";
+    if (s === "Not Interested" || s === "completed") return "bg-[#F1F5F9] text-[#475569]";
+    if (s === "important")   return "bg-[#FFF1F3] text-[#B8112D]";
+    if (s === "interested")  return "bg-[#FFF4E5] text-[#D97706]";
+    if (s === "project won") return "bg-[#ECFDF5] text-[#065F46]";
+    return "bg-[#F4F4F5] text-[#52525B]";
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -399,7 +393,7 @@ export default function CSRPage() {
           </div>
         </div>
 
-        {/* STATS — real-time from leads data */}
+        {/* STATS */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map((c, i) => (
             <div key={i} className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
@@ -418,8 +412,6 @@ export default function CSRPage() {
 
         {/* MAIN CARD */}
         <div className="bg-white rounded-[28px] p-4 sm:p-6 shadow-sm mt-7 border border-white">
-
-          {/* CARD HEADER */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-[22px] font-bold text-[#0F172A]">Client Calls</h3>
@@ -435,13 +427,15 @@ export default function CSRPage() {
           {/* FILTER TABS */}
           <div className="flex flex-wrap gap-3 mt-7 mb-7">
             {[
-              { tab:"today",        label:"Today Links",   count:pendingCount,      icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm", inactive:"bg-[#F8F8F8] text-gray-700" },
-              { tab:"completed",    label:"Completed",     count:completedCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#027A48] text-white",            inactive:"bg-[#ECFDF3] text-[#027A48]" },
-              { tab:"pending",      label:"Pending",       count:pendingCount,      icon:<Clock3 size={17}/>,         active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]" },
-              { tab:"notcompleted", label:"Not Completed", count:notCompletedCount, icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]" },
-              { tab:"important",    label:"Important",     count:importantCount,    icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]" },
-              { tab:"interested",   label:"Interested",    count:interestedCount,   icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]" },
-              { tab:"projectwon",   label:"Project Won",   count:projectWonCount,   icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]" },
+              { tab:"today",         label:"Today Links",    count: pendingCount,        icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700"       },
+              /* ── RENAMED: Completed → Not Interested ── */
+              { tab:"notinterested", label:"Not Interested", count: notInterestedCount,  icon:<CircleCheckBig size={17}/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"      },
+              { tab:"pending",       label:"Pending",        count: pendingCount,        icon:<Clock3 size={17}/>,         active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"      },
+              /* ── RENAMED: Not Completed → Not Picked ── */
+              { tab:"notpicked",     label:"Not Picked",     count: notPickedCount,      icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"      },
+              { tab:"important",     label:"Important",      count: importantCount,      icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"      },
+              { tab:"interested",    label:"Interested",     count: interestedCount,     icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"      },
+              { tab:"projectwon",    label:"Project Won",    count: projectWonCount,     icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"      },
             ].map(btn => (
               <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
                 className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab===btn.tab ? btn.active : btn.inactive}`}>
@@ -534,27 +528,23 @@ export default function CSRPage() {
                       )}
                     </td>
 
-                    {/* STATUS */}
+                    {/* STATUS BADGE — uses statusLabel() helper */}
                     <td className="py-5 px-5">
-                      <div className={`px-4 py-2 rounded-xl text-sm font-semibold w-fit ${
-                        currentLink.status==="completed"    ?"bg-[#ECFDF3] text-[#027A48]":
-                        currentLink.status==="important"    ?"bg-[#FFF1F3] text-[#B8112D]":
-                        currentLink.status==="interested"   ?"bg-[#FFF4E5] text-[#D97706]":
-                        currentLink.status==="project won"  ?"bg-[#ECFDF5] text-[#065F46]":
-                        currentLink.status==="not completed"?"bg-[#FFF7E6] text-[#B54708]":
-                        "bg-[#F4F4F5] text-[#52525B]"
-                      }`}>{currentLink.status}</div>
+                      <div className={`px-4 py-2 rounded-xl text-sm font-semibold w-fit ${statusBadgeClass(currentLink.status)}`}>
+                        {statusLabel(currentLink.status)}
+                      </div>
                     </td>
 
-                    {/* ACTION */}
+                    {/* ACTION DROPDOWN */}
                     <td className="py-5 px-5">
                       <div className="relative w-full max-w-[230px]">
                         <select onChange={e => updateStatus(currentLink.id, e.target.value)}
                           defaultValue=""
                           className="appearance-none h-[46px] w-full rounded-2xl border border-gray-200 bg-white px-4 pr-11 text-[14px] font-semibold text-[#0F172A] outline-none">
                           <option value="">Update Status</option>
-                          <option value="completed">Completed</option>
-                          <option value="not completed">Not Completed</option>
+                          {/* RENAMED OPTIONS */}
+                          <option value="Not Interested">Not Interested</option>
+                          <option value="not picked">Not Picked</option>
                           <option value="pending">Pending</option>
                           <option value="important">Important</option>
                           <option value="interested">Interested</option>
@@ -579,7 +569,7 @@ export default function CSRPage() {
           </div>
         </div>
 
-        {/* ===================== IMPORTANT MODAL ===================== */}
+        {/* ── IMPORTANT MODAL ── */}
         {showImportantModal && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
@@ -628,7 +618,7 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* ===================== INTERESTED MODAL ===================== */}
+        {/* ── INTERESTED MODAL ── */}
         {showInterestedModal && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
@@ -677,7 +667,7 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* ===================== PROJECT WON MODAL ===================== */}
+        {/* ── PROJECT WON MODAL ── */}
         {showProjectWonModal && selectedProjectLead && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
