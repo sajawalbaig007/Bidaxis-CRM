@@ -105,7 +105,7 @@ export default function CSRProjectsPage() {
     try {
       const res = await API.get("/csr/dashboard");
       const formatted = res.data.leads
-        .filter((lead: LeadType) => lead.status === "project won" || lead.status === "completed")
+        .filter((lead: LeadType) => lead.status === "Close Client" || lead.status === "completed")
         .map((lead: LeadType) => {
           const projectTitle = lead.projectTitle ?? lead.project_title ?? lead.ProjectTitle
             ?? lead.title ?? lead.projectName ?? lead.project_name ?? lead.name ?? "Untitled Project";
@@ -202,7 +202,7 @@ export default function CSRProjectsPage() {
     if (!viewingProject || !editTitle || !editDeadline) return;
     setSaving(true);
     const autoComplete  = isDeadlinePast(editDeadline);
-    const newStatus     = autoComplete ? "completed" : "project won";
+    const newStatus     = autoComplete ? "completed" : "Close Client";
     const displayStatus = autoComplete ? "Completed" : "In Progress";
     try {
       await API.put(`/csr/lead/${viewingProject.id}`, {
@@ -242,7 +242,7 @@ export default function CSRProjectsPage() {
         projectDeadline:  addForm.deadline,
         projectBudget:    addForm.budget.trim() || undefined,
         projectNotes:     addForm.notes.trim()  || undefined,
-        status:           "project won",
+        status:           "Close Client",
       });
 
       /* Add to local state immediately */
@@ -411,7 +411,7 @@ export default function CSRProjectsPage() {
           <div className="bg-white rounded-[30px] shadow-sm p-16 mt-7 text-center">
             <div className="w-16 h-16 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center mx-auto mb-5"><FolderKanban size={28}/></div>
             <h2 className="text-[22px] font-bold text-[#0F172A]">No Projects Yet</h2>
-            <p className="text-gray-500 mt-2 text-sm">Projects appear when a client is marked "Project Won" — or add one manually.</p>
+            <p className="text-gray-500 mt-2 text-sm">Projects appear when a client is marked "Close Client" — or add one manually.</p>
             <button onClick={() => { setAddForm(emptyForm); setAddError(""); setShowAddModal(true); }}
               className="mt-5 inline-flex items-center gap-2 h-11 px-6 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] transition-colors">
               <Plus size={15}/>Add New Project

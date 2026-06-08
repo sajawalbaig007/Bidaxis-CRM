@@ -42,7 +42,7 @@ const getBg = (type: string) => {
 const statusToType = (s: string): ActivityItem["type"] => {
   if (s === "important")   return "alert";
   if (s === "interested")  return "call";
-  if (s === "project won") return "resolve";
+  if (s === "Close Client") return "resolve";
   if (s === "pending")     return "create";
   return "update";
 };

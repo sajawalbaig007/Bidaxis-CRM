@@ -24,7 +24,7 @@ export default function OverviewChart({ refreshTrigger }: Props) {
           Pending:      0,
           Important:    0,
           Interested:   0,
-          "Project Won":0,
+          "Close Client":0,
           Closed:       0,
         };
 
@@ -33,7 +33,7 @@ export default function OverviewChart({ refreshTrigger }: Props) {
           if (s === "pending")      counts["Pending"]++;
           else if (s === "important")   counts["Important"]++;
           else if (s === "interested")  counts["Interested"]++;
-          else if (s === "project won") counts["Project Won"]++;
+          else if (s === "Close Client") counts["Close Client"]++;
           else if (["closed","completed","not completed","Not Interested","not picked"].includes(s)) counts["Closed"]++;
         });
 

@@ -185,7 +185,7 @@ export default function CSRPage() {
   const pendingCount    = links.filter(i => i.status === "pending").length;
   const importantCount  = links.filter(i => i.status === "important").length;
   const interestedCount = links.filter(i => i.status === "interested").length;
-  const projectWonCount = links.filter(i => i.status === "project won").length;
+  const projectWonCount = links.filter(i => i.status === "Close Client").length;
   const todayImportant  = links.filter(i => i.status === "important" && i.nextSchedule === todayStr).length;
 
   const notInterestedCount = links.filter(i =>
@@ -203,7 +203,7 @@ export default function CSRPage() {
     if (activeTab === "notpicked")     return item.status === "not picked" || item.status === "not completed";
     if (activeTab === "important")     return item.status === "important";
     if (activeTab === "interested")    return item.status === "interested";
-    if (activeTab === "projectwon")    return item.status === "project won";
+    if (activeTab === "projectwon")    return item.status === "Close Client";
     return true;
   });
 
@@ -316,7 +316,7 @@ export default function CSRPage() {
     if (s === "Not Interested" || s === "completed") return "bg-[#F1F5F9] text-[#475569]";
     if (s === "important")   return "bg-[#FFF1F3] text-[#B8112D]";
     if (s === "interested")  return "bg-[#FFF4E5] text-[#D97706]";
-    if (s === "project won") return "bg-[#ECFDF5] text-[#065F46]";
+    if (s === "Close Client") return "bg-[#ECFDF5] text-[#065F46]";
     return "bg-[#F4F4F5] text-[#52525B]";
   };
 
@@ -398,7 +398,7 @@ export default function CSRPage() {
               { tab:"notpicked",     label:"Not Picked",     count: notPickedCount,     icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",           inactive:"bg-[#FFF1E8] text-[#F97316]"   },
               { tab:"important",     label:"Important",      count: importantCount,     icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",           inactive:"bg-[#FFF1F3] text-[#B42318]"   },
               { tab:"interested",    label:"Interested",     count: interestedCount,    icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",           inactive:"bg-[#FFF1F3] text-[#B42318]"   },
-              { tab:"projectwon",    label:"Project Won",    count: projectWonCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",           inactive:"bg-[#ECFDF5] text-[#065F46]"   },
+              { tab:"projectwon",    label:"Close Client",    count: projectWonCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",           inactive:"bg-[#ECFDF5] text-[#065F46]"   },
             ].map(btn => (
               <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
                 className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab===btn.tab ? btn.active : btn.inactive}`}>
@@ -581,12 +581,12 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* PROJECT WON MODAL */}
+        {/* Close Client MODAL */}
         {showProjectWonModal && selectedProjectLead && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
-                <div><h2 className="text-[24px] font-bold text-[#0F172A]">Project Won 🎉</h2><p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p></div>
+                <div><h2 className="text-[24px] font-bold text-[#0F172A]">Close Client 🎉</h2><p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p></div>
                 <button onClick={() => setShowProjectWonModal(false)} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
               </div>
               <div className="mt-6 bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3">

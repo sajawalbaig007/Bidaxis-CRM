@@ -105,7 +105,7 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         name,
         company:           company           ?? null,
         phone:             phone             ?? null,
-        status:            status            ?? "project won",
+        status:            status            ?? "Close Client",
         projectTitle,
         interestedService,
         projectDeadline,
@@ -227,8 +227,8 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         updateData.interested = true;
       }
 
-      /* ── OTHER (pending, project won, etc.) ── */
-      if (["pending", "project won"].includes(status)) {
+      /* ── OTHER (pending, Close Client, etc.) ── */
+      if (["pending", "Close Client"].includes(status)) {
         updateData.important  = false;
         updateData.interested = false;
       }
