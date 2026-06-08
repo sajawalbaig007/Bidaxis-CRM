@@ -12,10 +12,6 @@ enum Role {
   csr
 }
 
-/**
- * ================= USER =================
- */
-
 model User {
   id       String @id @default(cuid())
   name     String
@@ -25,28 +21,18 @@ model User {
 
   isActive Boolean @default(true)
 
-  /**
-   * ── ONLINE PRESENCE ──
-   */
   isOnline   Boolean   @default(false)
   lastActive DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /**
-   * ── RELATIONS ──
-   */
   leads        Lead[]    @relation("AssignedLeads")
   callLogs     CallLog[] @relation("CSRCallLogs")
   reports      Report[]
   twoFAEnabled Boolean   @default(false)
   tokenVersion Int       @default(0)
 }
-
-/**
- * ================= LEAD =================
- */
 
 model Lead {
   id       String  @id @default(cuid())
@@ -57,50 +43,37 @@ model Lead {
   status   String  @default("pending")
   comments String?
 
-  /**
-   * ── FLAGS ──
-   */
   important  Boolean @default(false)
   interested Boolean @default(false)
 
-  /**
-   * ── FOLLOW UP ──
-   */
   nextSchedule   String?
   nextTime       String?
   timezone       String?
   followUpNotes  String?
   followUpExpiry DateTime?
 
-  /**
-   * ── SERVICE & PROJECT ──
-   */
   interestedService String?
   projectTitle      String?
   projectDeadline   String?
   projectBudget     String?
   projectNotes      String?
 
-  /**
-   * ── ASSIGNMENT ──
-   */
   assignedTo     String
   uploadedFileId String?
+
+  /* ── SHUFFLE TRACKING ──
+     Counts how many times this "not completed" lead
+     has been shuffled to another CSR.
+     At 3 attempts → auto deleted. */
+  shuffleAttempts Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /**
-   * ── RELATIONS ──
-   */
   csr        User        @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
   uploadFile UploadFile? @relation(fields: [uploadedFileId], references: [id])
   callLogs   CallLog[]
 }
-
-/**
- * ================= CALL LOG =================
- */
 
 model CallLog {
   id       String  @id @default(cuid())
@@ -116,10 +89,6 @@ model CallLog {
   csr  User @relation("CSRCallLogs", fields: [csrId], references: [id], onDelete: Cascade)
 }
 
-/**
- * ================= UPLOAD FILE =================
- */
-
 model UploadFile {
   id            String   @id @default(cuid())
   fileName      String
@@ -131,10 +100,6 @@ model UploadFile {
 
   leads Lead[]
 }
-
-/**
- * ================= REPORT =================
- */
 
 model Report {
   id          String  @id @default(cuid())
