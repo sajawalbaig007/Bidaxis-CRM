@@ -24,7 +24,7 @@ type User = {
   hiddenAt:    string | null;
 };
 
-const BASE = "http://localhost:5000/api";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 
 const roleColor = (role: UserRole) => {
   if (role === "Admin") return "bg-blue-100 text-blue-600";
