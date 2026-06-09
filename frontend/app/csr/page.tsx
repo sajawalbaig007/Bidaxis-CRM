@@ -481,7 +481,7 @@ export default function CSRPage() {
         </div>
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map((c, i) => (
             <div key={i} className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
               <div>

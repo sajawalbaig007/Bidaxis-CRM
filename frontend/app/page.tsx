@@ -137,7 +137,6 @@ export default function LoginPage() {
   };
 
   function saveToken(token: string) {
-    localStorage.setItem("token", token);
     const isHttps = window.location.protocol === "https:";
     const sameSite = isHttps ? "None" : "Lax";
     const secure   = isHttps ? "; Secure" : "";

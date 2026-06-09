@@ -67,7 +67,7 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
     try {
       setLoading(true);
       await API.post("/auth/logout", {});
-      localStorage.removeItem("token");
+      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
       toast.success("Logged out successfully.");
       router.push("/");
       router.refresh();

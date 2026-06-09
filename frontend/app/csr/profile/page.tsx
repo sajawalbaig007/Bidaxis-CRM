@@ -270,7 +270,7 @@ export default function CSRProfilePage() {
         </div>
 
         {/* ── STATS ── */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map((c, i) => (
             <div key={i} className="bg-white rounded-[28px] p-5 shadow-sm">
               <div className="flex items-center justify-between">

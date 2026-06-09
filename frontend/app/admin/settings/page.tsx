@@ -107,8 +107,7 @@ export default function AdminSettingsPage() {
   const handleLogout = async () => {
     setShowLogoutModal(false);
     try { await API.post("/auth/logout", {}, { withCredentials: true }); } catch { /* ignore */ }
-    localStorage.removeItem("token");
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
     toast.success("Logged out.");
     setTimeout(() => { window.location.href = "/"; }, 600);
   };
@@ -197,7 +196,7 @@ export default function AdminSettingsPage() {
         </div>
 
         {/* STAT CARDS */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-[28px] border border-gray-100 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm text-gray-400">Security Level</p>

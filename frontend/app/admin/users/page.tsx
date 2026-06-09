@@ -366,7 +366,7 @@ export default function UsersPage() {
         <DashboardNavbar/>
 
         {/* STATS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
           {[
             { label:"Total Users",   value:totalUsers,   bg:"bg-[#F8ECEF]",   icon:<Users size={24} className="text-[#B8112D]"/>,      extra:null },
             { label:"Online Now",    value:onlineNow,    bg:"bg-green-100",   icon:<Wifi size={24} className="text-green-600"/>,         extra:<div className="flex items-center gap-1 mt-1"><span className="w-1.5 h-1.5 rounded-full bg-[#12B76A] animate-pulse"/><p className="text-[10px] text-gray-400">Live · 2s</p></div> },
