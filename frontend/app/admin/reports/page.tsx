@@ -221,7 +221,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── STAT CARDS ── */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {[
             { label:"Total Leads", value: stats.totalLeads,  bg:"bg-red-50",    color:"text-[#B8112D]",     icon:<PhoneCall size={24}/> },
             { label:"Completed",   value: stats.completed,   bg:"bg-green-50",  color:"text-green-600",     icon:<ShoppingCart size={24}/> },

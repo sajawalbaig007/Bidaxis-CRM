@@ -222,7 +222,7 @@ export default function LeadsPage() {
         </div>
 
         {/* STATS */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {([
             { label:"Total Leads", value: leads.length,       sub:"all assigned",       color:"bg-[#EFF6FF] text-[#1D4ED8]", Icon: Users      },
             { label:"New Clients", value: newLeads.length,    sub:"first-time clients", color:"bg-[#F0FDF4] text-[#15803D]", Icon: UserPlus   },

@@ -266,7 +266,7 @@ export default function NotInterestedPage() {
         </div>
 
         {/* STATS */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {[
             { label:"Not Interested",    value: notInterested.length, sub:`limit ${NOT_INTERESTED_LIMIT} tries`, color:"bg-[#FFF1F3] text-[#B8112D]", Icon: ThumbsDown  },
             { label:"Not Picked",        value: notPicked.length,     sub:`limit ${NOT_PICKED_LIMIT} tries`,     color:"bg-[#FFF7E6] text-[#B54708]", Icon: PhoneOff    },

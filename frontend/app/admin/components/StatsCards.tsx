@@ -49,7 +49,7 @@ export default function StatsCards({ refreshTrigger }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
       {cards.map((card, i) => {
         const Icon = card.icon;
         return (

@@ -246,7 +246,7 @@ export default function ImportantCallsPage() {
         </div>
 
         {/* STATS */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map(card => (
             <div key={card.label} className="bg-white rounded-[24px] p-5 border border-white shadow-sm">
               <div className="flex items-center justify-between">
