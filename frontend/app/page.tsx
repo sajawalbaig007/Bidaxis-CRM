@@ -47,8 +47,7 @@ export default function LoginPage() {
         setStep("otp");
         toast.success(data.message ?? "OTP sent to your email");
       } else {
-        /* Save token to localStorage for API calls (logout-all etc.) */
-        if (data.token) localStorage.setItem("token", data.token);
+        if (data.token) saveToken(data.token);
         toast.success("Login successful");
         redirect(data.role);
       }
@@ -69,8 +68,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await API.post("/auth/verify-otp", { userId, otp: code }, { withCredentials: true });
-      /* Save token to localStorage */
-      if (res.data.token) localStorage.setItem("token", res.data.token);
+      if (res.data.token) saveToken(res.data.token);
       toast.success("Login successful");
       redirect(res.data.role);
     } catch (err: unknown) {
@@ -137,6 +135,14 @@ export default function LoginPage() {
       otpRefs.current[5]?.focus();
     }
   };
+
+  function saveToken(token: string) {
+    localStorage.setItem("token", token);
+    const isHttps = window.location.protocol === "https:";
+    const sameSite = isHttps ? "None" : "Lax";
+    const secure   = isHttps ? "; Secure" : "";
+    document.cookie = `token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=${sameSite}${secure}`;
+  }
 
   function redirect(role: string) {
     if (role === "admin") window.location.href = "/admin";
