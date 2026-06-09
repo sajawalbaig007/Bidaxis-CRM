@@ -101,6 +101,7 @@ export default function LeadsPage() {
     }
   };
 
+  /// Fetch leads on mount with a slight delay to ensure smooth initial render
   useEffect(() => {
     const t = window.setTimeout(() => { void fetchLeads(); }, 0);
     return () => window.clearTimeout(t);
