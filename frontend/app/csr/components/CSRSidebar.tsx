@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import API from "@/lib/api";
 
 import {
   Link2,
@@ -65,10 +66,8 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
   const handleLogout = async () => {
     try {
       setLoading(true);
-      await fetch("http://localhost:5000/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
+      await API.post("/auth/logout", {});
+      localStorage.removeItem("token");
       toast.success("Logged out successfully.");
       router.push("/");
       router.refresh();

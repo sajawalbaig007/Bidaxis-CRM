@@ -23,6 +23,7 @@ import {
 } from "next/navigation";
 
 import toast from "react-hot-toast";
+import API from "@/lib/api";
 
 export default function DashboardSidebar() {
 
@@ -90,15 +91,8 @@ export default function DashboardSidebar() {
 
         setLoading(true);
 
-        await fetch(
-          "http://localhost:5000/api/auth/logout",
-          {
-            method: "POST",
-
-            credentials:
-              "include",
-          }
-        );
+        await API.post("/auth/logout", {});
+        localStorage.removeItem("token");
 
         toast.success(
           "Logged out successfully."
