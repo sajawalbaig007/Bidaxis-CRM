@@ -26,7 +26,7 @@ export default function CSRNavbar({
         <div className="flex items-center">
 
           <Image
-            src="/images/logo2.jpeg"
+            src="/images/logo.jpeg"
             alt="logo"
             width={135}
             height={40}

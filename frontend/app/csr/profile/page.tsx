@@ -215,7 +215,7 @@ export default function CSRProfilePage() {
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen}/>
 
-      <main className="flex-1 p-4 sm:p-5 pt-23.75 overflow-x-hidden">
+      <main className="flex-1 p-4 sm:p-5 pt-[95px] overflow-x-hidden">
         <CSRNavbar setIsOpen={setIsOpen}/>
 
         {/* ── PROFILE HEADER ── */}

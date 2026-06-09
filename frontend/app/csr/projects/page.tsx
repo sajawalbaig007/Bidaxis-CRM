@@ -339,6 +339,8 @@ export default function CSRProjectsPage() {
         {/* TABLE */}
         {filteredProjects.length > 0 ? (
           <div className="bg-white rounded-[30px] shadow-sm mt-7 overflow-hidden">
+            <div className="overflow-x-auto">
+            <div className="min-w-[900px]">
             <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-4 border-b border-[#F3F3F3] bg-[#FAFAFA] rounded-t-[30px]">
               {["Project / Client","Company","Scope","Contact","Deadline","Status","Actions"].map(h => (
                 <span key={h} className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
@@ -408,6 +410,8 @@ export default function CSRProjectsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+            </div>
             </div>
           </div>
         ) : (

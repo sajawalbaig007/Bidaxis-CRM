@@ -163,7 +163,7 @@ export default function AdminProjectsPage() {
       <Toaster position="top-right" toastOptions={{ style:{ borderRadius:"16px", fontSize:"14px" } }}/>
       <DashboardSidebar/>
 
-      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-18 lg:mt-0">
+      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[72px] lg:mt-0">
         <DashboardNavbar/>
 
         {/* HEADER */}
