@@ -6,6 +6,7 @@ import {
   UploadCloud, FileText, Trash2, CheckCircle2, Search, Users,
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, RefreshCw, RotateCcw,
+  PhoneCall,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -55,8 +56,12 @@ export default function UploadPage() {
   /* Company state */
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
-  const [modalStep,       setModalStep]       = useState<"reset" | "company" | "csrs">("reset");
+  const [modalStep,       setModalStep]       = useState<"reset" | "company" | "pane" | "csrs">("reset");
   const [resetMode,       setResetMode]       = useState<"keep" | "reset" | null>(null);
+
+  /* Pane selection */
+  const [selectedPane,     setSelectedPane]     = useState<"pending" | "lead">("pending");
+  const [selectedLeadType, setSelectedLeadType] = useState<"new" | "old">("new");
 
   /* FETCH */
   const fetchCSRs = async () => {
@@ -91,6 +96,8 @@ export default function UploadPage() {
     setSelectedCompany("");
     setCustomCompany("");
     setResetMode(null);
+    setSelectedPane("pending");
+    setSelectedLeadType("new");
     setModalStep("reset");
     const activeCSRIds = csrs.filter(c => c.isActive).map(c => c.id);
     setSelectedCSRs(activeCSRIds);
@@ -121,7 +128,9 @@ export default function UploadPage() {
       formData.append("file", selectedFile);
       formData.append("selectedCSRs", JSON.stringify(selectedCSRs));
       formData.append("companyName", finalCompany.trim());
-      formData.append("resetMode", resetMode ?? "keep");
+      formData.append("resetMode",       resetMode ?? "keep");
+      formData.append("initialStatuses", JSON.stringify([selectedPane]));
+      formData.append("leadType",        selectedLeadType);
 
       let progress = 0;
       const interval = setInterval(() => {
@@ -142,7 +151,12 @@ export default function UploadPage() {
           : f
       ));
 
-      toast.success(`Leads uploaded & distributed to CSRs for ${finalCompany.trim()}`);
+      const created = res.data.totalLeads as number;
+      if (created === 0) {
+        toast.error(`No new leads added — all rows were duplicates already in the system.`);
+      } else {
+        toast.success(`${created} leads uploaded & distributed to CSRs for ${finalCompany.trim()}`);
+      }
       fetchLatestUpload();
     } catch {
       setFiles(prev => prev.filter(f => f.id !== tempId));
@@ -165,12 +179,16 @@ export default function UploadPage() {
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
               <div>
                 <h2 className="text-2xl font-semibold text-gray-800">
-                  {modalStep === "company" ? "Select Company" : "Select CSRs"}
+                  {modalStep === "reset"   ? "Data Mode"
+                  : modalStep === "company" ? "Select Company"
+                  : modalStep === "pane"    ? "Select CSR Pane"
+                  : "Select CSRs"}
                 </h2>
                 <p className="text-sm text-gray-400 mt-1">
-                  {modalStep === "company"
-                    ? "Which company does this data belong to?"
-                    : "Choose which CSRs should receive leads."}
+                  {modalStep === "reset"   ? "What should happen to existing lead data?"
+                  : modalStep === "company" ? "Which company does this data belong to?"
+                  : modalStep === "pane"    ? "Which section of the CSR dashboard should these leads appear in?"
+                  : "Choose which CSRs should receive leads."}
                 </p>
               </div>
               <button onClick={() => setShowCSRModal(false)}
@@ -180,23 +198,32 @@ export default function UploadPage() {
             </div>
 
             {/* Step indicators */}
-            <div className="flex items-center gap-0 px-6 pt-4">
-              {["reset","company","csrs"].map((step, i) => (
-                <div key={step} className="flex items-center flex-1">
-                  <div className={`flex items-center gap-2 text-sm font-semibold ${
-                    modalStep === step ? "text-[#B8112D]" :
-                    (step === "csrs" && modalStep === "csrs") || (step === "company") ? "text-gray-400" : "text-gray-400"
-                  }`}>
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                      modalStep === step ? "bg-[#B8112D] text-white" :
-                      ((step === "reset" && (modalStep === "company" || modalStep === "csrs")) || (step === "company" && modalStep === "csrs")) ? "bg-[#ECFDF3] text-[#027A48]" : "bg-gray-100 text-gray-400"
-                    }`}>{i === 0 && modalStep === "csrs" ? "✓" : i + 1}</span>
-                    {step === "reset" ? "Data Mode" : step === "company" ? "Company" : "CSRs"}
-                  </div>
-                  {i === 0 && <div className={`flex-1 h-0.5 mx-3 ${modalStep === "csrs" ? "bg-[#027A48]" : "bg-gray-200"}`}/>}
+            {(() => {
+              const steps = ["reset","company","pane","csrs"] as const;
+              const currentIdx = steps.indexOf(modalStep);
+              const labels = ["Data Mode","Company","CSR Pane","CSRs"];
+              return (
+                <div className="flex items-center px-6 pt-4">
+                  {steps.map((step, i) => {
+                    const done   = i < currentIdx;
+                    const active = i === currentIdx;
+                    return (
+                      <div key={step} className="flex items-center flex-1 last:flex-none">
+                        <div className={`flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap ${active ? "text-[#B8112D]" : done ? "text-[#027A48]" : "text-gray-400"}`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                            active ? "bg-[#B8112D] text-white" : done ? "bg-[#ECFDF3] text-[#027A48]" : "bg-gray-100 text-gray-400"
+                          }`}>{done ? "✓" : i + 1}</span>
+                          {labels[i]}
+                        </div>
+                        {i < steps.length - 1 && (
+                          <div className={`flex-1 h-0.5 mx-2 ${i < currentIdx ? "bg-[#027A48]" : "bg-gray-200"}`}/>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             <div className="px-6 py-5">
 
@@ -303,30 +330,115 @@ export default function UploadPage() {
                   )}
 
                   <div className="flex gap-3">
-                  <button onClick={() => setModalStep("reset")} className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">Back</button>
-                  <button
-                    onClick={() => {
-                      if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
-                      setModalStep("csrs");
-                    }}
-                    disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
-                    className={`w-full h-12 rounded-2xl font-semibold text-sm transition-all ${
-                      selectedCompany && (selectedCompany !== "Other" || customCompany.trim())
-                        ? "bg-[#B8112D] text-white hover:bg-[#a30f27]"
-                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    }`}>
-                    Next — Select CSRs <ChevronDown size={16} className="inline ml-1 rotate-[-90deg]"/>
-                  </button>
+                    <button onClick={() => setModalStep("reset")} className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">Back</button>
+                    <button
+                      onClick={() => {
+                        if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
+                        setModalStep("pane");
+                      }}
+                      disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
+                      className={`w-full h-12 rounded-2xl font-semibold text-sm transition-all ${
+                        selectedCompany && (selectedCompany !== "Other" || customCompany.trim())
+                          ? "bg-[#B8112D] text-white hover:bg-[#a30f27]"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}>
+                      Next — Select Pane <ChevronDown size={16} className="inline ml-1 rotate-[-90deg]"/>
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* STEP 2 — CSRs */}
-              {modalStep === "csrs" && (
+              {/* STEP 2 — Pane */}
+              {modalStep === "pane" && (
                 <div className="space-y-4">
                   {/* Company badge */}
                   <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl w-fit text-sm font-semibold">
                     <Building2 size={15}/>{finalCompany}
+                  </div>
+
+                  {/* ── My Links / My Leads selector ── */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {([
+                      { value: "pending" as const, label: "My Links", sub: "Leads go to Today Links (daily call list)", Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
+                      { value: "lead"    as const, label: "My Leads", sub: "Previous clients & project history",       Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
+                    ]).map(opt => {
+                      const sel = selectedPane === opt.value;
+                      return (
+                        <button key={opt.value} onClick={() => setSelectedPane(opt.value)}
+                          className={`relative p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all text-center ${
+                            sel ? `${opt.border} ${opt.bg}` : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                          }`}>
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${sel ? opt.iconBg : "bg-white shadow-sm"}`}>
+                            <opt.Icon size={22} className={sel ? "text-white" : "text-gray-400"}/>
+                          </div>
+                          <div>
+                            <p className={`font-bold text-sm ${sel ? opt.text : "text-gray-800"}`}>{opt.label}</p>
+                            <p className="text-[11px] text-gray-400 mt-1 leading-snug">{opt.sub}</p>
+                          </div>
+                          {sel && (
+                            <span className={`w-5 h-5 rounded-full ${opt.iconBg} flex items-center justify-center absolute top-2.5 right-2.5`}>
+                              <CheckCircle2 size={12} className="text-white"/>
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── New / Old client sub-option (only for My Leads) ── */}
+                  {selectedPane === "lead" && (
+                    <div className="border border-[#7A3FFD]/20 bg-[#FDFBFF] rounded-2xl p-4 space-y-3">
+                      <p className="text-sm font-semibold text-[#7A3FFD]">Upload as which client type?</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([
+                          { value: "new" as const, label: "New Client",  sub: "First-time clients",        border: "border-[#15803D]", bg: "bg-[#F0FDF4]", text: "text-[#15803D]", dot: "bg-[#15803D]" },
+                          { value: "old" as const, label: "Old Client",  sub: "Returning / repeat clients", border: "border-[#B45309]", bg: "bg-[#FFFBEB]", text: "text-[#B45309]", dot: "bg-[#B45309]" },
+                        ]).map(opt => {
+                          const sel = selectedLeadType === opt.value;
+                          return (
+                            <button key={opt.value} onClick={() => setSelectedLeadType(opt.value)}
+                              className={`p-4 rounded-2xl border-2 flex flex-col gap-2 transition-all text-left ${
+                                sel ? `${opt.border} ${opt.bg}` : "border-gray-100 bg-white hover:border-gray-300"
+                              }`}>
+                              <div className={`w-3 h-3 rounded-full ${sel ? opt.dot : "bg-gray-200"}`}/>
+                              <p className={`font-bold text-sm ${sel ? opt.text : "text-gray-700"}`}>{opt.label}</p>
+                              <p className="text-[11px] text-gray-400 leading-snug">{opt.sub}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button onClick={() => setModalStep("company")}
+                      className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">Back</button>
+                    <button
+                      onClick={() => {
+                        setModalStep("csrs");
+                      }}
+                      className="flex-1 h-12 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all">
+                      Next — Select CSRs <ChevronDown size={16} className="inline ml-1 rotate-[-90deg]"/>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3 — CSRs */}
+              {modalStep === "csrs" && (
+                <div className="space-y-4">
+                  {/* Company + pane badges */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl w-fit text-sm font-semibold">
+                      <Building2 size={15}/>{finalCompany}
+                    </div>
+                    {selectedPane === "pending" ? (
+                      <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#EAF5FF] text-[#0B84F3]">My Links</span>
+                    ) : (
+                      <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#F4ECFF] text-[#7A3FFD]">
+                        My Leads — {selectedLeadType === "new" ? "New Client" : "Old Client"}
+                      </span>
+                    )}
                   </div>
 
                   <div className="space-y-3 max-h-[320px] overflow-y-auto">
@@ -360,7 +472,7 @@ export default function UploadPage() {
                   </div>
 
                   <div className="flex gap-3">
-                    <button onClick={() => setModalStep("company")}
+                    <button onClick={() => setModalStep("pane")}
                       className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">
                       Back
                     </button>

@@ -58,6 +58,9 @@ model Lead {
   projectBudget     String?
   projectNotes      String?
 
+  state          String?
+  isOldClient    Boolean @default(false)
+
   assignedTo     String
   uploadedFileId String?
 

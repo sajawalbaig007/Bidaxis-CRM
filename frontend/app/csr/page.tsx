@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
@@ -9,14 +9,15 @@ import {
   Clock3, Phone, Users, UserCheck, Bell, ChevronDown, X, Globe,
   Calendar, Briefcase, FileText, DollarSign, AlignLeft, CalendarDays,
   BarChart2, PenTool, Pencil, Building2, Monitor, MessageSquare,
-  Check,
+  Check, MapPin, Search,
 } from "lucide-react";
 
-import CSRNavbar   from "./components/CSRNavbar";
-import CSRSidebar  from "./components/CSRSidebar";
+import CSRNavbar    from "./components/CSRNavbar";
+import CSRSidebar   from "./components/CSRSidebar";
 import WelcomeHeader from "./components/WelcomeHeader";
 import API from "@/lib/api";
 
+/* ─── TIMEZONE OPTIONS ─── */
 const usTimezones = [
   { value: "America/Adak",                  label: "Hawaii-Aleutian (UTC-10:00)", abbreviation: "HAST" },
   { value: "America/Anchorage",             label: "Alaska (UTC-09:00)",          abbreviation: "AKST" },
@@ -29,6 +30,7 @@ const usTimezones = [
   { value: "Pacific/Honolulu",             label: "Hawaii (UTC-10:00) - No DST", abbreviation: "HST"  },
 ];
 
+/* ─── SERVICE OPTIONS ─── */
 const serviceOptions = [
   { value: "Estimating",   label: "Estimating",   Icon: BarChart2   },
   { value: "Scheduling",   label: "Scheduling",   Icon: CalendarDays },
@@ -37,6 +39,60 @@ const serviceOptions = [
   { value: "BIM",          label: "BIM",          Icon: Building2   },
   { value: "IT",           label: "IT",           Icon: Monitor     },
 ];
+
+/* ─── US STATES ─── */
+const US_STATES = [
+  { code:"AL", name:"Alabama"             }, { code:"AK", name:"Alaska"              },
+  { code:"AZ", name:"Arizona"             }, { code:"AR", name:"Arkansas"            },
+  { code:"CA", name:"California"          }, { code:"CO", name:"Colorado"            },
+  { code:"CT", name:"Connecticut"         }, { code:"DE", name:"Delaware"            },
+  { code:"FL", name:"Florida"             }, { code:"GA", name:"Georgia"             },
+  { code:"HI", name:"Hawaii"              }, { code:"ID", name:"Idaho"               },
+  { code:"IL", name:"Illinois"            }, { code:"IN", name:"Indiana"             },
+  { code:"IA", name:"Iowa"                }, { code:"KS", name:"Kansas"              },
+  { code:"KY", name:"Kentucky"            }, { code:"LA", name:"Louisiana"           },
+  { code:"ME", name:"Maine"               }, { code:"MD", name:"Maryland"            },
+  { code:"MA", name:"Massachusetts"       }, { code:"MI", name:"Michigan"            },
+  { code:"MN", name:"Minnesota"           }, { code:"MS", name:"Mississippi"         },
+  { code:"MO", name:"Missouri"            }, { code:"MT", name:"Montana"             },
+  { code:"NE", name:"Nebraska"            }, { code:"NV", name:"Nevada"              },
+  { code:"NH", name:"New Hampshire"       }, { code:"NJ", name:"New Jersey"          },
+  { code:"NM", name:"New Mexico"          }, { code:"NY", name:"New York"            },
+  { code:"NC", name:"North Carolina"      }, { code:"ND", name:"North Dakota"        },
+  { code:"OH", name:"Ohio"                }, { code:"OK", name:"Oklahoma"            },
+  { code:"OR", name:"Oregon"              }, { code:"PA", name:"Pennsylvania"        },
+  { code:"RI", name:"Rhode Island"        }, { code:"SC", name:"South Carolina"      },
+  { code:"SD", name:"South Dakota"        }, { code:"TN", name:"Tennessee"           },
+  { code:"TX", name:"Texas"               }, { code:"UT", name:"Utah"                },
+  { code:"VT", name:"Vermont"             }, { code:"VA", name:"Virginia"            },
+  { code:"WA", name:"Washington"          }, { code:"WV", name:"West Virginia"       },
+  { code:"WI", name:"Wisconsin"           }, { code:"WY", name:"Wyoming"             },
+  { code:"DC", name:"Washington D.C."     },
+];
+
+/* ─── CANADIAN PROVINCES ─── */
+const CA_PROVINCES = [
+  { code:"AB", name:"Alberta"                    }, { code:"BC", name:"British Columbia"       },
+  { code:"MB", name:"Manitoba"                   }, { code:"NB", name:"New Brunswick"          },
+  { code:"NL", name:"Newfoundland and Labrador"  }, { code:"NS", name:"Nova Scotia"            },
+  { code:"NT", name:"Northwest Territories"      }, { code:"NU", name:"Nunavut"                },
+  { code:"ON", name:"Ontario"                    }, { code:"PE", name:"Prince Edward Island"   },
+  { code:"QC", name:"Quebec"                     }, { code:"SK", name:"Saskatchewan"           },
+  { code:"YT", name:"Yukon"                      },
+];
+
+/* match lead.state (code or name) against selected filter name */
+const stateMatches = (itemState: string, filterName: string): boolean => {
+  const s = (itemState ?? "").trim().toLowerCase();
+  if (!s) return false;
+  const f = filterName.trim().toLowerCase();
+  if (s === f) return true;
+  const byName = [...US_STATES, ...CA_PROVINCES].find(l => l.name.toLowerCase() === f);
+  if (byName && s === byName.code.toLowerCase()) return true;
+  const byCode = [...US_STATES, ...CA_PROVINCES].find(l => l.code.toLowerCase() === f);
+  if (byCode && s === byCode.name.toLowerCase()) return true;
+  return false;
+};
 
 const getCurrentTimeInTimezone = (tz: string): string => {
   try {
@@ -49,7 +105,7 @@ const getCurrentTimeInTimezone = (tz: string): string => {
 interface BackendLead {
   id: string; name?: string; company?: string; phone?: string; email?: string;
   status?: string; nextSchedule?: string; nextTime?: string; timezone?: string;
-  followUpNotes?: string; interestedService?: string; comments?: string;
+  followUpNotes?: string; interestedService?: string; comments?: string; state?: string;
   uploadFile?: { companyName?: string };
 }
 
@@ -57,6 +113,8 @@ type LeadType = {
   id: string; client: string; company: string; phone: string; email: string;
   status: string; nextSchedule: string; nextTime: string; timezone: string;
   followUpNotes?: string; interestedService?: string; comments?: string;
+  rawInfo: string;   /* lead.company from Excel (address / individual company) */
+  state:   string;   /* lead.state from Excel */
 };
 
 const todayStr = new Date().toISOString().split("T")[0];
@@ -69,31 +127,48 @@ export default function CSRPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("today");
 
-  const [showNotification,   setShowNotification]   = useState(false);
-  const [todayImportantCalls,setTodayImportantCalls]= useState<LeadType[]>([]);
+  /* state / province filter */
+  const [stateFilter,  setStateFilter]  = useState("");
+  const [stateSearch,  setStateSearch]  = useState("");
+  const [showStateDD,  setShowStateDD]  = useState(false);
+  const stateDDRef = useRef<HTMLDivElement>(null);
+
+  const [showNotification,    setShowNotification]    = useState(false);
+  const [todayImportantCalls, setTodayImportantCalls] = useState<LeadType[]>([]);
 
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [commentDraft,     setCommentDraft]     = useState("");
   const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
 
-  const [showImportantModal,  setShowImportantModal]  = useState(false);
-  const [selectedImportantId, setSelectedImportantId] = useState<string | null>(null);
-  const [scheduleDate,   setScheduleDate]   = useState("");
-  const [scheduleTime,   setScheduleTime]   = useState("");
+  const [showImportantModal,   setShowImportantModal]   = useState(false);
+  const [selectedImportantId,  setSelectedImportantId]  = useState<string | null>(null);
+  const [scheduleDate,    setScheduleDate]    = useState("");
+  const [scheduleTime,    setScheduleTime]    = useState("");
   const [selectedTimezone,setSelectedTimezone]= useState("America/New_York");
 
-  const [showInterestedModal,  setShowInterestedModal]  = useState(false);
-  const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
-  const [selectedService, setSelectedService] = useState("");
+  const [showInterestedModal,   setShowInterestedModal]   = useState(false);
+  const [selectedInterestedId,  setSelectedInterestedId]  = useState<string | null>(null);
+  const [selectedService,       setSelectedService]       = useState("");
 
-  const [showProjectWonModal, setShowProjectWonModal] = useState(false);
-  const [selectedProjectLead, setSelectedProjectLead] = useState<LeadType | null>(null);
-  const [projectTitle,    setProjectTitle]   = useState("");
-  const [projectDeadline, setProjectDeadline]= useState("");
-  const [projectBudget,   setProjectBudget]  = useState("");
-  const [projectNotes,    setProjectNotes]   = useState("");
-  const [projectService,  setProjectService] = useState("");
+  const [showProjectWonModal,  setShowProjectWonModal]  = useState(false);
+  const [selectedProjectLead,  setSelectedProjectLead]  = useState<LeadType | null>(null);
+  const [projectTitle,   setProjectTitle]   = useState("");
+  const [projectDeadline,setProjectDeadline]= useState("");
+  const [projectBudget,  setProjectBudget]  = useState("");
+  const [projectNotes,   setProjectNotes]   = useState("");
+  const [projectService, setProjectService] = useState("");
 
+  /* close state dropdown on outside click */
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (stateDDRef.current && !stateDDRef.current.contains(e.target as Node))
+        setShowStateDD(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  /* ─── FETCH ─── */
   useEffect(() => {
     const load = async () => {
       try {
@@ -101,18 +176,20 @@ export default function CSRPage() {
         const res = await API.get("/csr/dashboard");
 
         const formatted: LeadType[] = (res.data.leads ?? []).map((lead: BackendLead) => ({
-          id:              lead.id,
-          client:          lead.name            ?? "Unknown",
-          company:         lead.uploadFile?.companyName ?? lead.company ?? "N/A",
-          phone:           lead.phone           ?? "N/A",
-          email:           lead.email           ?? "N/A",
-          status:          lead.status          ?? "pending",
-          nextSchedule:    lead.nextSchedule    ?? "",
-          nextTime:        lead.nextTime        ?? "",
-          timezone:        lead.timezone        ?? "",
-          followUpNotes:   lead.followUpNotes   ?? "",
-          interestedService: lead.interestedService ?? "",
-          comments:        lead.comments        ?? "",
+          id:               lead.id,
+          client:           lead.name             ?? "Unknown",
+          company:          lead.uploadFile?.companyName ?? lead.company ?? "N/A",
+          rawInfo:          lead.company           ?? "",
+          phone:            lead.phone             ?? "N/A",
+          email:            lead.email             ?? "N/A",
+          status:           lead.status            ?? "pending",
+          nextSchedule:     lead.nextSchedule      ?? "",
+          nextTime:         lead.nextTime          ?? "",
+          timezone:         lead.timezone          ?? "",
+          followUpNotes:    lead.followUpNotes      ?? "",
+          interestedService:lead.interestedService  ?? "",
+          comments:         lead.comments          ?? "",
+          state:            lead.state             ?? "",
         }));
 
         setLinks(formatted);
@@ -133,6 +210,7 @@ export default function CSRPage() {
     load();
   }, []);
 
+  /* ─── HEARTBEAT ─── */
   useEffect(() => {
     let tabId = sessionStorage.getItem("crm_tab_id");
     if (!tabId) {
@@ -184,6 +262,7 @@ export default function CSRPage() {
     };
   }, []);
 
+  /* ─── COUNTS ─── */
   const totalLeads      = links.length;
   const pendingCount    = links.filter(i => i.status === "pending").length;
   const importantCount  = links.filter(i => i.status === "important").length;
@@ -194,22 +273,41 @@ export default function CSRPage() {
   const notInterestedCount = links.filter(i =>
     i.status === "Not Interested" || i.status === "completed"
   ).length;
-
   const notPickedCount = links.filter(i =>
     i.status === "not picked" || i.status === "not completed"
   ).length;
 
+  /* ─── FILTERED STATE DROPDOWN OPTIONS ─── */
+  const filteredUSStates = useMemo(() => {
+    const q = stateSearch.toLowerCase();
+    return !q ? US_STATES : US_STATES.filter(s =>
+      s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
+    );
+  }, [stateSearch]);
+
+  const filteredCAProvinces = useMemo(() => {
+    const q = stateSearch.toLowerCase();
+    return !q ? CA_PROVINCES : CA_PROVINCES.filter(p =>
+      p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    );
+  }, [stateSearch]);
+
+  /* ─── TABLE FILTER ─── */
   const filteredLinks = links.filter(item => {
-    if (activeTab === "today")         return item.status === "pending";
-    if (activeTab === "notinterested") return item.status === "Not Interested";
-    if (activeTab === "pending")       return item.status === "pending";
-    if (activeTab === "notpicked")     return item.status === "not picked" || item.status === "not completed";
-    if (activeTab === "important")     return item.status === "important";
-    if (activeTab === "interested")    return item.status === "interested";
-    if (activeTab === "projectwon")    return item.status === "Close Client";
-    return true;
+    const matchesTab =
+      activeTab === "today"         ? item.status === "pending"
+      : activeTab === "notinterested" ? item.status === "Not Interested"
+      : activeTab === "pending"       ? item.status === "pending"
+      : activeTab === "notpicked"     ? (item.status === "not picked" || item.status === "not completed")
+      : activeTab === "important"     ? item.status === "important"
+      : activeTab === "interested"    ? item.status === "interested"
+      : activeTab === "projectwon"    ? item.status === "Close Client"
+      : true;
+    const matchesState = stateFilter ? stateMatches(item.state, stateFilter) : true;
+    return matchesTab && matchesState;
   });
 
+  /* ─── SAVE COMMENT ─── */
   const saveComment = async (id: string, comment: string) => {
     setSavingCommentId(id);
     try {
@@ -220,6 +318,7 @@ export default function CSRPage() {
     setSavingCommentId(null);
   };
 
+  /* ─── UPDATE STATUS ─── */
   const updateStatus = async (id: string, status: string) => {
     if (!status) return;
     const link = links.find(i => i.id === id);
@@ -255,6 +354,7 @@ export default function CSRPage() {
     } catch (err) { console.log(err); }
   };
 
+  /* ─── SAVE IMPORTANT CALL ─── */
   const saveImportantCall = async () => {
     if (!scheduleDate || !scheduleTime) return;
     try {
@@ -272,6 +372,7 @@ export default function CSRPage() {
     setScheduleDate(""); setScheduleTime(""); setSelectedTimezone("America/New_York");
   };
 
+  /* ─── SAVE INTERESTED ─── */
   const saveInterestedCall = async () => {
     if (!selectedService) return;
     try {
@@ -288,6 +389,7 @@ export default function CSRPage() {
     setSelectedService(""); setSelectedInterestedId(null);
   };
 
+  /* ─── SAVE PROJECT WON ─── */
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !selectedProjectLead) return;
     try {
@@ -307,10 +409,10 @@ export default function CSRPage() {
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "";
 
   const statCards = [
-    { label:"Total Leads",   value: totalLeads,     bg:"bg-[#F4ECFF]", color:"text-[#7A3FFD]", icon:<Phone size={22}/> },
-    { label:"Pending",       value: pendingCount,   bg:"bg-[#EAF5FF]", color:"text-[#0B84F3]", icon:<Users size={22}/> },
-    { label:"Calls Today 🔔",value: todayImportant, bg:"bg-[#FFF3E8]", color:"text-[#FF7A00]", icon:<UserCheck size={22}/> },
-    { label:"Notifications", value: importantCount + interestedCount, bg:"bg-[#FFEAF5]", color:"text-[#FF4DA6]", icon:<Bell size={22}/> },
+    { label:"Total Leads",    value: totalLeads,     bg:"bg-[#F4ECFF]", color:"text-[#7A3FFD]", icon:<Phone size={22}/> },
+    { label:"Pending",        value: pendingCount,   bg:"bg-[#EAF5FF]", color:"text-[#0B84F3]", icon:<Users size={22}/> },
+    { label:"Calls Today 🔔", value: todayImportant, bg:"bg-[#FFF3E8]", color:"text-[#FF7A00]", icon:<UserCheck size={22}/> },
+    { label:"Notifications",  value: importantCount + interestedCount, bg:"bg-[#FFEAF5]", color:"text-[#FF4DA6]", icon:<Bell size={22}/> },
   ];
 
   const statusLabel = (s: string) => {
@@ -328,18 +430,20 @@ export default function CSRPage() {
     return "bg-[#F4F4F5] text-[#52525B]";
   };
 
+  /* ══════════════════════════════════════════════════════════════ */
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen}/>
       <main className="flex-1 p-4 sm:p-5 pt-[95px] overflow-x-hidden">
         <CSRNavbar setIsOpen={setIsOpen}/>
 
+        {/* TODAY IMPORTANT NOTIFICATION */}
         {showNotification && todayImportantCalls.length > 0 && (
           <div className="mt-5 bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-2xl p-4 flex items-start gap-4 shadow-sm">
             <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/15 text-[#B45309] flex items-center justify-center shrink-0 mt-0.5"><Bell size={20}/></div>
             <div className="flex-1 min-w-0">
               <h4 className="font-bold text-[#92400E] text-[15px]">
-                📅 You have {todayImportantCalls.length} important call{todayImportantCalls.length > 1 ? "s" : ""} scheduled for today!
+                You have {todayImportantCalls.length} important call{todayImportantCalls.length > 1 ? "s" : ""} scheduled for today!
               </h4>
               <div className="flex flex-wrap gap-2 mt-2">
                 {todayImportantCalls.map(call => (
@@ -357,6 +461,7 @@ export default function CSRPage() {
           </div>
         )}
 
+        {/* WELCOME */}
         <div className="mt-7">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-lg font-bold shadow-sm shrink-0">C</div>
@@ -375,29 +480,131 @@ export default function CSRPage() {
           </div>
         </div>
 
+        {/* STAT CARDS */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
           {statCards.map((c, i) => (
             <div key={i} className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-gray-500 text-[12px] sm:text-[13px] font-medium">{c.label}</p>
-                {loading ? <div className="h-8 w-12 bg-gray-100 rounded-lg mt-2 animate-pulse"/> : <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">{c.value.toLocaleString()}</h2>}
+                {loading
+                  ? <div className="h-8 w-12 bg-gray-100 rounded-lg mt-2 animate-pulse"/>
+                  : <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">{c.value.toLocaleString()}</h2>
+                }
               </div>
               <div className={`w-12 h-12 rounded-2xl ${c.bg} ${c.color} flex items-center justify-center shrink-0`}>{c.icon}</div>
             </div>
           ))}
         </div>
 
+        {/* TABLE SECTION */}
         <div className="bg-white rounded-[28px] p-4 sm:p-6 shadow-sm mt-7 border border-white">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-[22px] font-bold text-[#0F172A]">Client Calls</h3>
               <p className="text-gray-500 mt-1 text-[13px]">Manage assigned client calls.</p>
             </div>
-            <div className="bg-[#ECFDF3] text-[#027A48] px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#12B76A]"/>Live Tracking
+            <div className="flex flex-wrap items-center gap-3">
+              {/* ── STATE / PROVINCE FILTER ── */}
+              <div className="relative" ref={stateDDRef}>
+                <button
+                  onClick={() => setShowStateDD(v => !v)}
+                  className={`h-[42px] px-4 rounded-2xl border flex items-center gap-2 text-sm font-medium transition-colors min-w-[190px] ${
+                    stateFilter
+                      ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                      : "border-gray-200 bg-[#FAFAFA] text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  <MapPin size={14} className={stateFilter ? "text-[#B8112D]" : "text-gray-400"} />
+                  <span className="flex-1 text-left truncate text-[13px]">
+                    {stateFilter || "Filter by State / Province"}
+                  </span>
+                  {stateFilter ? (
+                    <span
+                      role="button"
+                      onClick={e => { e.stopPropagation(); setStateFilter(""); setStateSearch(""); }}
+                      className="ml-1 text-[#B8112D] hover:text-[#8b0d22]"
+                    >
+                      <X size={13}/>
+                    </span>
+                  ) : (
+                    <ChevronDown size={13} className="text-gray-400 shrink-0"/>
+                  )}
+                </button>
+
+                {showStateDD && (
+                  <div className="absolute top-12 right-0 z-50 w-[270px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+                    {/* search */}
+                    <div className="p-3 border-b border-gray-100">
+                      <div className="relative">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                        <input
+                          type="text"
+                          value={stateSearch}
+                          onChange={e => setStateSearch(e.target.value)}
+                          placeholder="Search states / provinces..."
+                          autoFocus
+                          className="w-full h-9 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-[13px] outline-none focus:border-[#B8112D]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* options */}
+                    <div className="overflow-y-auto" style={{ maxHeight: "280px" }}>
+                      {/* US States */}
+                      {filteredUSStates.length > 0 && (
+                        <>
+                          <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-gray-100">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">United States</p>
+                          </div>
+                          {filteredUSStates.map(s => (
+                            <button key={s.code}
+                              onClick={() => { setStateFilter(s.name); setShowStateDD(false); setStateSearch(""); }}
+                              className={`w-full text-left px-4 py-2.5 text-[13px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
+                                stateFilter === s.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
+                              }`}
+                            >
+                              <span>{s.name}</span>
+                              <span className="text-[11px] text-gray-400 font-mono">{s.code}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {/* Canadian Provinces */}
+                      {filteredCAProvinces.length > 0 && (
+                        <>
+                          <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-t border-gray-100">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Canada</p>
+                          </div>
+                          {filteredCAProvinces.map(p => (
+                            <button key={p.code}
+                              onClick={() => { setStateFilter(p.name); setShowStateDD(false); setStateSearch(""); }}
+                              className={`w-full text-left px-4 py-2.5 text-[13px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
+                                stateFilter === p.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
+                              }`}
+                            >
+                              <span>{p.name}</span>
+                              <span className="text-[11px] text-gray-400 font-mono">{p.code}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {filteredUSStates.length === 0 && filteredCAProvinces.length === 0 && (
+                        <div className="py-8 text-center text-gray-400 text-sm">No results found</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-[#ECFDF3] text-[#027A48] px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#12B76A]"/>Live Tracking
+              </div>
             </div>
           </div>
 
+          {/* TABS */}
           <div className="flex flex-wrap gap-3 mt-7 mb-7">
             {[
               { tab:"today",         label:"Today Links",    count: pendingCount,       icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm", inactive:"bg-[#F8F8F8] text-gray-700"    },
@@ -406,21 +613,22 @@ export default function CSRPage() {
               { tab:"notpicked",     label:"Not Picked",     count: notPickedCount,     icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",           inactive:"bg-[#FFF1E8] text-[#F97316]"   },
               { tab:"important",     label:"Important",      count: importantCount,     icon:<AlertTriangle size={17}/>,  active:"bg-[#B42318] text-white",           inactive:"bg-[#FFF1F3] text-[#B42318]"   },
               { tab:"interested",    label:"Interested",     count: interestedCount,    icon:<Users size={17}/>,          active:"bg-[#B8112D] text-white",           inactive:"bg-[#FFF1F3] text-[#B42318]"   },
-              { tab:"projectwon",    label:"Close Client",    count: projectWonCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",           inactive:"bg-[#ECFDF5] text-[#065F46]"   },
+              { tab:"projectwon",    label:"Close Client",   count: projectWonCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",           inactive:"bg-[#ECFDF5] text-[#065F46]"   },
             ].map(btn => (
               <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
-                className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab===btn.tab ? btn.active : btn.inactive}`}>
+                className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
                 {btn.icon}{btn.label}
                 <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">{btn.count}</span>
               </button>
             ))}
           </div>
 
+          {/* TABLE */}
           <div className="overflow-x-auto rounded-2xl border border-gray-100">
-            <table className="w-full min-w-[960px]">
+            <table className="w-full min-w-[1100px]">
               <thead className="bg-[#FAFAFA]">
                 <tr>
-                  {["Client","Company","Phone","Comments","Status","Action"].map(h => (
+                  {["Client","Company","Phone","State","Comments","Status","Action"].map(h => (
                     <th key={h} className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -429,11 +637,17 @@ export default function CSRPage() {
                 {loading ? (
                   [1,2,3,4,5].map(i => (
                     <tr key={i} className="border-t border-gray-100">
-                      {[1,2,3,4,5,6].map(j => <td key={j} className="py-5 px-5"><div className="h-4 bg-gray-100 rounded animate-pulse w-24"/></td>)}
+                      {[1,2,3,4,5,6,7].map(j => (
+                        <td key={j} className="py-5 px-5">
+                          <div className="h-4 bg-gray-100 rounded animate-pulse w-24"/>
+                        </td>
+                      ))}
                     </tr>
                   ))
                 ) : filteredLinks.length > 0 ? filteredLinks.map(currentLink => (
                   <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
+
+                    {/* CLIENT */}
                     <td className="py-5 px-5">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-xs font-bold shrink-0">
@@ -442,14 +656,37 @@ export default function CSRPage() {
                         <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
                           {currentLink.client.charAt(0)}
                         </div>
-                        <div>
-                          <h4 className="text-[14px] font-semibold text-[#0F172A]">{currentLink.client}</h4>
-                          <p className="text-[11px] text-gray-500 mt-1">{currentLink.email}</p>
+                        <div className="min-w-0">
+                          <h4 className="text-[14px] font-semibold text-[#0F172A] leading-tight">{currentLink.client}</h4>
+                          {/* show raw Excel address/company if available */}
+                          {currentLink.rawInfo && currentLink.rawInfo !== currentLink.company && (
+                            <p className="text-[11px] text-gray-400 mt-0.5 max-w-[180px] truncate">{currentLink.rawInfo}</p>
+                          )}
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
+                          </p>
                         </div>
                       </div>
                     </td>
+
+                    {/* COMPANY */}
                     <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">{currentLink.company}</td>
+
+                    {/* PHONE */}
                     <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">{currentLink.phone}</td>
+
+                    {/* STATE */}
+                    <td className="py-5 px-5">
+                      {currentLink.state ? (
+                        <span className="inline-flex items-center gap-1.5 bg-[#EFF6FF] text-[#1D4ED8] px-3 py-1 rounded-xl text-[12px] font-semibold">
+                          <MapPin size={11}/>{currentLink.state}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 text-[13px]">—</span>
+                      )}
+                    </td>
+
+                    {/* COMMENTS */}
                     <td className="py-5 px-5">
                       {editingCommentId === currentLink.id ? (
                         <div className="flex flex-col gap-2 w-full max-w-[240px]">
@@ -466,8 +703,10 @@ export default function CSRPage() {
                           </div>
                         </div>
                       ) : (
-                        <div onClick={() => { setEditingCommentId(currentLink.id); setCommentDraft(currentLink.comments || ""); }}
-                          className="group cursor-pointer flex items-start gap-2 max-w-[220px]">
+                        <div
+                          onClick={() => { setEditingCommentId(currentLink.id); setCommentDraft(currentLink.comments || ""); }}
+                          className="group cursor-pointer flex items-start gap-2 max-w-[220px]"
+                        >
                           {currentLink.comments ? (
                             <div className="bg-[#F5F6FA] rounded-xl px-3 py-2 w-full">
                               <p className="text-[13px] text-[#0F172A] leading-snug line-clamp-2">{currentLink.comments}</p>
@@ -481,11 +720,15 @@ export default function CSRPage() {
                         </div>
                       )}
                     </td>
+
+                    {/* STATUS */}
                     <td className="py-5 px-5">
                       <div className={`px-4 py-2 rounded-xl text-sm font-semibold w-fit ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
                     </td>
+
+                    {/* ACTION */}
                     <td className="py-5 px-5">
                       <div className="relative w-full max-w-[230px]">
                         <select onChange={e => updateStatus(currentLink.id, e.target.value)} defaultValue=""
@@ -498,15 +741,25 @@ export default function CSRPage() {
                           <option value="interested">Interested</option>
                           <option value="Close Client">Close Client</option>
                         </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                          <ChevronDown size={18}/>
+                        </div>
                       </div>
                     </td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="py-20 text-center">
-                      <h2 className="text-2xl font-bold text-[#0F172A]">No Data Found 🎉</h2>
-                      <p className="text-gray-500 mt-3 text-sm">No calls available in this category.</p>
+                    <td colSpan={7} className="py-20 text-center">
+                      <h2 className="text-2xl font-bold text-[#0F172A]">No Data Found</h2>
+                      <p className="text-gray-500 mt-3 text-sm">
+                        {stateFilter ? `No leads in "${stateFilter}".` : "No calls available in this category."}
+                      </p>
+                      {stateFilter && (
+                        <button onClick={() => setStateFilter("")}
+                          className="mt-4 h-10 px-5 rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold hover:bg-[#fce8ec] transition-colors">
+                          Clear state filter
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -515,7 +768,7 @@ export default function CSRPage() {
           </div>
         </div>
 
-        {/* IMPORTANT MODAL */}
+        {/* ══ IMPORTANT MODAL ══ */}
         {showImportantModal && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
@@ -542,7 +795,7 @@ export default function CSRPage() {
               {scheduleDate && scheduleTime && (
                 <div className="mt-5 p-4 bg-[#F5F6FA] rounded-2xl">
                   <p className="text-[12px] font-medium text-gray-500 mb-2">Scheduled (Client Local Time)</p>
-                  <p className="text-[15px] font-semibold text-[#0F172A]">{scheduleDate} at {scheduleTime} {usTimezones.find(tz=>tz.value===selectedTimezone)?.abbreviation}</p>
+                  <p className="text-[15px] font-semibold text-[#0F172A]">{scheduleDate} at {scheduleTime} {usTimezones.find(tz => tz.value === selectedTimezone)?.abbreviation}</p>
                   <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1"><Globe size={11}/>Current: <span className="font-mono font-medium text-gray-600 ml-1">{getCurrentTimeInTimezone(selectedTimezone)}</span></p>
                 </div>
               )}
@@ -554,7 +807,7 @@ export default function CSRPage() {
           </div>
         )}
 
-        {/* INTERESTED MODAL */}
+        {/* ══ INTERESTED MODAL ══ */}
         {showInterestedModal && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
@@ -568,7 +821,7 @@ export default function CSRPage() {
                   return (
                     <button key={value} onClick={() => setSelectedService(value)}
                       className={`h-[84px] rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all font-semibold text-[14px] ${sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"}`}>
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${sel?"bg-[#B8112D]/10":"bg-white shadow-sm"}`}><Icon size={18} className={sel?"text-[#B8112D]":"text-gray-500"}/></div>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}><Icon size={18} className={sel ? "text-[#B8112D]" : "text-gray-500"}/></div>
                       <span>{label}</span>
                     </button>
                   );
@@ -583,18 +836,18 @@ export default function CSRPage() {
               <div className="flex gap-3 mt-7">
                 <button onClick={() => { setShowInterestedModal(false); setSelectedService(""); }} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
                 <button onClick={saveInterestedCall} disabled={!selectedService}
-                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${selectedService?"bg-[#B8112D]":"bg-gray-300 cursor-not-allowed"}`}>Save Interest</button>
+                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${selectedService ? "bg-[#B8112D]" : "bg-gray-300 cursor-not-allowed"}`}>Save Interest</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Close Client MODAL */}
+        {/* ══ CLOSE CLIENT MODAL ══ */}
         {showProjectWonModal && selectedProjectLead && (
           <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
-                <div><h2 className="text-[24px] font-bold text-[#0F172A]">Close Client 🎉</h2><p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p></div>
+                <div><h2 className="text-[24px] font-bold text-[#0F172A]">Close Client</h2><p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p></div>
                 <button onClick={() => setShowProjectWonModal(false)} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
               </div>
               <div className="mt-6 bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3">
@@ -613,7 +866,7 @@ export default function CSRPage() {
                     return (
                       <button key={value} onClick={() => setProjectService(value)}
                         className={`h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel?"bg-[#065F46]/10":"bg-white shadow-sm"}`}><Icon size={15} className={sel?"text-[#065F46]":"text-gray-500"}/></div>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel ? "bg-[#065F46]/10" : "bg-white shadow-sm"}`}><Icon size={15} className={sel ? "text-[#065F46]" : "text-gray-500"}/></div>
                         <span>{label}</span>
                       </button>
                     );
@@ -635,7 +888,7 @@ export default function CSRPage() {
               <div className="flex gap-3 mt-7">
                 <button onClick={() => setShowProjectWonModal(false)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
                 <button onClick={saveProjectWon} disabled={!projectWonValid}
-                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${projectWonValid?"bg-[#065F46]":"bg-gray-300 cursor-not-allowed"}`}>
+                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${projectWonValid ? "bg-[#065F46]" : "bg-gray-300 cursor-not-allowed"}`}>
                   Confirm &amp; Move to Projects
                 </button>
               </div>

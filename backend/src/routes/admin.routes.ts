@@ -350,6 +350,43 @@ router.get(
   }
 );
 
+/* ================= RESET A SINGLE CSR'S LEADS ================= */
+router.delete(
+  "/csr-leads/:csrId",
+  verifyToken,
+  allowRoles("admin"),
+  async (req, res) => {
+    try {
+      const csrId = String(req.params.csrId);
+
+      const csr = await prisma.user.findUnique({
+        where: { id: csrId },
+        select: { id: true, name: true, role: true },
+      });
+
+      if (!csr) {
+        return res.status(404).json({ success: false, message: "CSR not found" });
+      }
+
+      if (csr.role !== "csr") {
+        return res.status(400).json({ success: false, message: "User is not a CSR" });
+      }
+
+      const { count } = await prisma.lead.deleteMany({ where: { assignedTo: csrId } });
+
+      return res.json({
+        success: true,
+        message: `Deleted ${count} leads for ${csr.name}`,
+        deleted: count,
+        csrName: csr.name,
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to reset CSR data" });
+    }
+  }
+);
+
 /* ================= RUN SHUFFLE MANUALLY ================= */
 router.post(
   "/run-shuffle",
