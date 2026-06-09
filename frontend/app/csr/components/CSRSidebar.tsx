@@ -14,6 +14,7 @@ import {
   LogOut,
   X,
   ThumbsDown,
+  Users,
 } from "lucide-react";
 
 const menuItems = [
@@ -28,9 +29,14 @@ const menuItems = [
     icon: AlertTriangle,
   },
   {
-    title: "Not Interested",          // ← NEW
-    href: "/csr/not-interested",      // ← NEW
-    icon: ThumbsDown,                 // ← NEW
+    title: "Not Interested",
+    href: "/csr/not-interested",
+    icon: ThumbsDown,
+  },
+  {
+    title: "My Leads",
+    href: "/csr/leads",
+    icon: Users,
   },
   {
     title: "My Projects",

@@ -24,43 +24,26 @@ export const getUsers =
     }
 };
 
-export const updateUser =
-  async (
-    req: Request,
-    res: Response
-  ) => {
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { name, email, role, isActive } = req.body;
 
-    try {
+    const data: Record<string, unknown> = {};
+    if (name     !== undefined) data.name     = name;
+    if (email    !== undefined) data.email    = email;
+    if (role     !== undefined) data.role     = role;
+    if (isActive !== undefined) data.isActive = isActive;
 
-      const id =
-        req.params.id as string;
-
-      const {
-        name,
-        email,
-        role,
-      } = req.body;
-
-      const user =
-        await prisma.user.update({
-          where: { id },
-
-          data: {
-            name,
-            email,
-            role,
-          },
-        });
-
-      res.json(user);
-
-    } catch {
-
-      res.status(500).json({
-        message:
-          "Update failed",
-      });
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ message: "No fields to update" });
     }
+
+    const user = await prisma.user.update({ where: { id }, data });
+    return res.json(user);
+  } catch {
+    return res.status(500).json({ message: "Update failed" });
+  }
 };
 
 export const deleteUser =

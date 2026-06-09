@@ -26,9 +26,16 @@ export const uploadLeads = async (req: Request, res: Response) => {
       ? JSON.parse(req.body.selectedCSRs)
       : [];
 
-    const companyName: string = req.body.companyName?.trim() || "";
+    const companyName:  string = req.body.companyName?.trim() || "";
     const resetMode:   string = req.body.resetMode || "keep";
-    const uploadedBy           = "admin";
+    const leadType:    string = req.body.leadType || "new";   /* "new" | "old" — only used when pane = "lead" */
+    const uploadedBy          = "admin";
+
+    /* accept array of statuses for multi-pane distribution */
+    const rawStatuses = req.body.initialStatuses;
+    const initialStatuses: string[] = rawStatuses
+      ? JSON.parse(rawStatuses)
+      : [req.body.initialStatus?.trim() || "pending"];
 
     /* ── UPLOAD FILE TO CLOUDINARY ── */
     const uploaded = await new Promise<{ secure_url: string }>((resolve, reject) => {
@@ -174,19 +181,24 @@ console.log(
       const csr = csrs[i % csrs.length];
 
       const keys = Object.keys(row);
-      const findValue = (possibleKeys: string[]) => {
-        const foundKey = keys.find(key =>
-          possibleKeys.some(possible =>
-            key.toLowerCase().includes(possible.toLowerCase())
-          )
+
+      /* Returns a clean string; undefined/null/N/A/empty → "" */
+      const findValue = (possibleKeys: string[]): string => {
+        const foundKey = keys.find(k =>
+          possibleKeys.some(p => k.toLowerCase().includes(p.toLowerCase()))
         );
-        return foundKey ? row[foundKey] : "";
+        const raw = foundKey ? row[foundKey] : undefined;
+        if (raw === undefined || raw === null) return "";
+        const s = String(raw).trim();
+        if (!s || s.toLowerCase() === "n/a" || s.toLowerCase() === "na" || s === "-") return "";
+        return s;
       };
 
-      const finalName    = String(findValue(["name","client","customer","contact person"])).trim();
-      const finalCompany = String(findValue(["company","business","organization","address"])).trim();
-      const finalPhone   = String(findValue(["phone","mobile","cell","contact","telephone","number"])).trim();
-      const finalEmail   = String(findValue(["email","mail","e-mail"])).trim();
+      const finalName    = findValue(["name","client","customer","contact person"]);
+      const finalCompany = findValue(["company","business","organization","address"]);
+      const finalPhone   = findValue(["phone","mobile","cell","contact","telephone","number"]);
+      const finalEmail   = findValue(["email","mail","e-mail"]);
+      const finalState   = findValue(["state","province","prov","st","region"]);
       const duplicateConditions = [];
 
 if (finalPhone && finalPhone.length >= 7) {
@@ -220,12 +232,18 @@ if (duplicateConditions.length > 0) {
     continue;
   }
 }
+      const leadStatus    = initialStatuses[i % initialStatuses.length];
+      const isOldClient   = leadStatus === "lead" && leadType === "old";
+
       const lead = await prisma.lead.create({
         data: {
           name:           finalName,
           company:        finalCompany,
           phone:          finalPhone,
           email:          finalEmail,
+          state:          finalState || null,
+          status:         leadStatus,
+          isOldClient,
           assignedTo:     csr.id,
           uploadedFileId: uploadedFile.id,
         },

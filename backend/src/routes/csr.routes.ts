@@ -7,8 +7,8 @@ import { userBrowserMap, detectBrowser } from "../utils/sessions";
 const router = express.Router();
 
 /* ─── LIMITS ─── */
-const NOT_INTERESTED_LIMIT = 7;
-const NOT_PICKED_LIMIT     = 3;
+const NOT_INTERESTED_LIMIT = 3;
+const NOT_PICKED_LIMIT     = 7;
 
 /* ─── Helper: redistribute lead to a random other CSR ─── */
 async function redistributeLead(leadId: string, currentCsrId: string) {
@@ -165,12 +165,17 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (status !== undefined) {
       updateData.status = status;
 
-      /* ── NOT INTERESTED (limit = 7) ── */
+      /* ── NOT INTERESTED (limit = 3) ── */
       if (status === "Not Interested") {
         const newCount = (lead.notInterestedCount ?? 0) + 1;
         updateData.notInterestedCount = newCount;
         updateData.important  = false;
         updateData.interested = false;
+
+        const ts  = new Date().toLocaleString("en-US", { dateStyle:"medium", timeStyle:"short" });
+        const tag = newCount >= NOT_INTERESTED_LIMIT ? " — LIMIT REACHED" : "";
+        const entry = `[Try ${newCount}/${NOT_INTERESTED_LIMIT} · ${ts}] Not Interested${tag}`;
+        updateData.followUpNotes = [lead.followUpNotes, entry].filter(Boolean).join("\n");
 
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
 
@@ -190,12 +195,17 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         });
       }
 
-      /* ── NOT PICKED (limit = 3) ── */
+      /* ── NOT PICKED (limit = 7) ── */
       if (status === "not picked" || status === "not completed") {
         const newCount = (lead.notPickedCount ?? 0) + 1;
         updateData.notPickedCount = newCount;
         updateData.important  = false;
         updateData.interested = false;
+
+        const ts  = new Date().toLocaleString("en-US", { dateStyle:"medium", timeStyle:"short" });
+        const tag = newCount >= NOT_PICKED_LIMIT ? " — LIMIT REACHED" : "";
+        const entry = `[Try ${newCount}/${NOT_PICKED_LIMIT} · ${ts}] Not Picked${tag}`;
+        updateData.followUpNotes = [lead.followUpNotes, entry].filter(Boolean).join("\n");
 
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
 
@@ -243,6 +253,80 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to update lead" });
+  }
+});
+
+/* ================= CREATE LEAD (CSR manual add) ================= */
+
+router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+    const { name, phone, company, interestedService, comments } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Client name is required." });
+    }
+
+    const lead = await prisma.lead.create({
+      data: {
+        name:              name.trim(),
+        phone:             phone?.trim()             || null,
+        company:           company?.trim()           || null,
+        interestedService: interestedService?.trim() || null,
+        comments:          comments?.trim()          || null,
+        status:            "pending",
+        assignedTo:        csrId,
+        important:         false,
+        interested:        false,
+      },
+    });
+
+    return res.status(201).json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to create lead" });
+  }
+});
+
+/* ================= CSR LEADS (new vs returning) ================= */
+
+router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+
+    const csrLeads = await prisma.lead.findMany({
+      where:   { assignedTo: csrId },
+      include: { uploadFile: { select: { companyName: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    /* Collect unique non-null phones from this CSR's leads */
+    const phones = [...new Set(
+      csrLeads.map(l => l.phone).filter((p): p is string => !!p)
+    )];
+
+    /* Count total appearances of each phone across ALL leads in the system */
+    const phoneCountMap = new Map<string, number>();
+    if (phones.length > 0) {
+      const allWithPhone = await prisma.lead.findMany({
+        where:  { phone: { in: phones } },
+        select: { phone: true },
+      });
+      for (const l of allWithPhone) {
+        if (l.phone) phoneCountMap.set(l.phone, (phoneCountMap.get(l.phone) ?? 0) + 1);
+      }
+    }
+
+    const leads = csrLeads.map(lead => ({
+      ...lead,
+      /* stored flag wins; fall back to phone-count detection */
+      isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
+    }));
+
+    return res.json({ success: true, leads });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch leads" });
   }
 });
 
