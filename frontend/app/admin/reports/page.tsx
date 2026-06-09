@@ -117,7 +117,7 @@ export default function ReportsPage() {
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
       <DashboardSidebar/>
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 mt-18 lg:mt-0">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 mt-[72px] lg:mt-0">
         <DashboardNavbar/>
 
         {/* ── HEADER ── */}

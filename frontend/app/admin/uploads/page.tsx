@@ -512,7 +512,7 @@ export default function UploadPage() {
         </div>
 
         {/* STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
           {[
             { label:"Uploaded Files",    value: files.length,                                   bg:"bg-[#F8ECEF]", color:"text-[#B8112D]", icon:<FileText size={26}/> },
             { label:"Distributed Files", value: files.filter(f=>f.status==="Distributed").length, bg:"bg-green-100", color:"text-green-600",  icon:<CheckCircle2 size={26}/> },
@@ -537,7 +537,7 @@ export default function UploadPage() {
             <h3 className="text-xl font-semibold text-gray-800">Latest CSR Distribution</h3>
             <p className="text-sm text-gray-400 mt-1">Latest uploaded leads distribution.</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {latestDistribution.map((csr, i) => (
               <div key={i} className="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-4">
                 <p className="text-sm font-semibold text-gray-700">{csr.name}</p>
