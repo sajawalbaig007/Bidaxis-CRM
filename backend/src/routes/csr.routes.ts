@@ -259,6 +259,23 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         updateData.important  = false;
         updateData.interested = false;
       }
+
+      /* ── AUTO isOldClient when Close Client ── */
+      if (status === "Close Client" || status === "completed") {
+        const company = lead.company?.trim().toLowerCase();
+        if (company) {
+          const previousWin = await prisma.lead.findFirst({
+            where: {
+              id:      { not: leadId },
+              company: { equals: lead.company ?? "", mode: "insensitive" },
+              status:  { in: ["Close Client", "completed"] },
+            },
+          });
+          updateData.isOldClient = !!previousWin;
+        } else {
+          updateData.isOldClient = false;
+        }
+      }
     }
 
     const updatedLead = await prisma.lead.update({

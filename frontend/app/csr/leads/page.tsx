@@ -134,11 +134,13 @@ export default function LeadsPage() {
   }, []);
 
   /* ─── DERIVED ─── */
-  const newLeads    = useMemo(() => leads.filter(l => !l.isOldClient), [leads]);
-  const oldLeads    = useMemo(() => leads.filter(l =>  l.isOldClient), [leads]);
-  const closedLeads = useMemo(() =>
+  const wonLeads = useMemo(() =>
     leads.filter(l => l.status === "Close Client" || l.status === "completed"),
   [leads]);
+
+  const newLeads    = useMemo(() => wonLeads.filter(l => !l.isOldClient), [wonLeads]);
+  const oldLeads    = useMemo(() => wonLeads.filter(l =>  l.isOldClient), [wonLeads]);
+  const closedLeads = wonLeads;
 
   const baseList = activeTab === "new" ? newLeads : oldLeads;
 
@@ -251,10 +253,10 @@ export default function LeadsPage() {
         {/* STATS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {([
-            { label:"Total Leads", value: leads.length,       sub:"all assigned",       color:"bg-[#EFF6FF] text-[#1D4ED8]", Icon: Users      },
-            { label:"New Clients", value: newLeads.length,    sub:"first-time clients", color:"bg-[#F0FDF4] text-[#15803D]", Icon: UserPlus   },
+            { label:"Total Won",   value: wonLeads.length,    sub:"projects won",       color:"bg-[#EFF6FF] text-[#1D4ED8]", Icon: TrendingUp },
+            { label:"New Clients", value: newLeads.length,    sub:"first-time wins",    color:"bg-[#F0FDF4] text-[#15803D]", Icon: UserPlus   },
             { label:"Old Clients", value: oldLeads.length,    sub:"repeat business",    color:"bg-[#FFFBEB] text-[#B45309]", Icon: User2      },
-            { label:"Closed",      value: closedLeads.length, sub:"projects done",      color:"bg-[#F0FDF4] text-[#15803D]", Icon: TrendingUp },
+            { label:"All Leads",   value: leads.length,       sub:"all assigned",       color:"bg-[#F0FDF4] text-[#15803D]", Icon: Users      },
           ] as const).map(card => (
             <div key={card.label} className="bg-white rounded-[22px] p-4 border border-white shadow-sm">
               <div className="flex items-center justify-between">
