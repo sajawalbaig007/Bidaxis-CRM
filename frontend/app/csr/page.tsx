@@ -511,7 +511,7 @@ export default function CSRPage() {
               <div className="relative" ref={stateDDRef}>
                 <button
                   onClick={() => setShowStateDD(v => !v)}
-                  className={`h-[42px] px-4 rounded-2xl border flex items-center gap-2 text-sm font-medium transition-colors min-w-[190px] ${
+                  className={`h-[42px] px-4 rounded-2xl border flex items-center gap-2 text-sm font-medium transition-colors min-w-[160px] ${
                     stateFilter
                       ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
                       : "border-gray-200 bg-[#FAFAFA] text-gray-600 hover:border-gray-300"
@@ -535,7 +535,7 @@ export default function CSRPage() {
                 </button>
 
                 {showStateDD && (
-                  <div className="absolute top-12 right-0 z-50 w-[270px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+                  <div className="absolute top-12 right-0 z-50 w-[250px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
                     {/* search */}
                     <div className="p-3 border-b border-gray-100">
                       <div className="relative">
@@ -608,9 +608,9 @@ export default function CSRPage() {
           </div>
 
           {/* TABS */}
-          <div className="flex flex-wrap gap-3 mt-7 mb-7">
+          <div className="flex flex-wrap gap-2 mt-7 mb-7">
             {[
-              { tab:"today",         label:"Today Links",    count: pendingCount,       icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm", inactive:"bg-[#F8F8F8] text-gray-700"    },
+              { tab:"today",         label:"Today Leads",    count: pendingCount,       icon:<PhoneCall size={17}/>,      active:"bg-[#B8112D] text-white shadow-sm", inactive:"bg-[#F8F8F8] text-gray-700"    },
               { tab:"notinterested", label:"Not Interested", count: notInterestedCount, icon:<CircleCheckBig size={17}/>, active:"bg-[#475569] text-white",           inactive:"bg-[#F1F5F9] text-[#475569]"   },
               { tab:"pending",       label:"Pending",        count: pendingCount,       icon:<Clock3 size={17}/>,         active:"bg-[#B54708] text-white",           inactive:"bg-[#FFF7E6] text-[#B54708]"   },
               { tab:"notpicked",     label:"Not Picked",     count: notPickedCount,     icon:<Clock3 size={17}/>,         active:"bg-[#F97316] text-white",           inactive:"bg-[#FFF1E8] text-[#F97316]"   },
@@ -619,7 +619,7 @@ export default function CSRPage() {
               { tab:"projectwon",    label:"Close Client",   count: projectWonCount,    icon:<CircleCheckBig size={17}/>, active:"bg-[#065F46] text-white",           inactive:"bg-[#ECFDF5] text-[#065F46]"   },
             ].map(btn => (
               <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
-                className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
+                className={`h-[44px] px-4 rounded-2xl flex items-center gap-2 text-[13px] font-semibold transition-all ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
                 {btn.icon}{btn.label}
                 <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">{btn.count}</span>
               </button>
@@ -628,11 +628,11 @@ export default function CSRPage() {
 
           {/* TABLE */}
           <div className="overflow-x-auto rounded-2xl border border-gray-100">
-            <table className="w-full min-w-[1100px]">
+            <table className="w-full min-w-[1000px]">
               <thead className="bg-[#FAFAFA]">
                 <tr>
                   {["Client","Company","Phone","State","Comments","Status","Action"].map(h => (
-                    <th key={h} className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">{h}</th>
+                    <th key={h} className="text-left py-3 px-3 text-[12px] font-semibold text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -641,7 +641,7 @@ export default function CSRPage() {
                   [1,2,3,4,5].map(i => (
                     <tr key={i} className="border-t border-gray-100">
                       {[1,2,3,4,5,6,7].map(j => (
-                        <td key={j} className="py-5 px-5">
+                        <td key={j} className="py-4 px-3">
                           <div className="h-4 bg-gray-100 rounded animate-pulse w-24"/>
                         </td>
                       ))}
@@ -651,17 +651,17 @@ export default function CSRPage() {
                   <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
 
                     {/* CLIENT */}
-                    <td className="py-5 px-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-xs font-bold shrink-0">
+                    <td className="py-4 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-xs font-bold shrink-0">
                           {filteredLinks.findIndex(i => i.id === currentLink.id) + 1}
                         </div>
-                        <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0">
                           {currentLink.client.charAt(0)}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-[14px] font-semibold text-[#0F172A] leading-tight truncate">{currentLink.client}</h4>
+                            <h4 className="text-[13px] font-semibold text-[#0F172A] leading-tight truncate">{currentLink.client}</h4>
                             <button
                               onClick={() => setViewingLead(currentLink)}
                               className="w-6 h-6 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
@@ -672,7 +672,7 @@ export default function CSRPage() {
                           </div>
                           {/* show raw Excel address/company if available */}
                           {currentLink.rawInfo && currentLink.rawInfo !== currentLink.company && (
-                            <p className="text-[11px] text-gray-400 mt-0.5 max-w-[180px] truncate">{currentLink.rawInfo}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5 max-w-[140px] truncate">{currentLink.rawInfo}</p>
                           )}
                           <p className="text-[11px] text-gray-500 mt-0.5">
                             {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
@@ -682,15 +682,15 @@ export default function CSRPage() {
                     </td>
 
                     {/* COMPANY */}
-                    <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">{currentLink.company}</td>
+                    <td className="py-4 px-3 text-[13px] font-medium text-[#0F172A]">{currentLink.company}</td>
 
                     {/* PHONE */}
-                    <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">{currentLink.phone}</td>
+                    <td className="py-4 px-3 text-[13px] font-medium text-[#0F172A]">{currentLink.phone}</td>
 
                     {/* STATE */}
-                    <td className="py-5 px-5">
+                    <td className="py-4 px-3">
                       {currentLink.state ? (
-                        <span className="inline-flex items-center gap-1.5 bg-[#EFF6FF] text-[#1D4ED8] px-3 py-1 rounded-xl text-[12px] font-semibold">
+                        <span className="inline-flex items-center gap-1.5 bg-[#EFF6FF] text-[#1D4ED8] px-2.5 py-1 rounded-xl text-[11px] font-semibold">
                           <MapPin size={11}/>{currentLink.state}
                         </span>
                       ) : (
@@ -699,9 +699,9 @@ export default function CSRPage() {
                     </td>
 
                     {/* COMMENTS */}
-                    <td className="py-5 px-5">
+                    <td className="py-4 px-3">
                       {editingCommentId === currentLink.id ? (
-                        <div className="flex flex-col gap-2 w-full max-w-[240px]">
+                        <div className="flex flex-col gap-2 w-full max-w-[200px]">
                           <textarea autoFocus value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={2}
                             placeholder="Type your comment..."
                             className="w-full rounded-xl border border-[#B8112D] px-3 py-2 text-[13px] outline-none resize-none text-[#0F172A]"/>
@@ -717,7 +717,7 @@ export default function CSRPage() {
                       ) : (
                         <div
                           onClick={() => { setEditingCommentId(currentLink.id); setCommentDraft(currentLink.comments || ""); }}
-                          className="group cursor-pointer flex items-start gap-2 max-w-[220px]"
+                          className="group cursor-pointer flex items-start gap-2 max-w-[180px]"
                         >
                           {currentLink.comments ? (
                             <div className="bg-[#F5F6FA] rounded-xl px-3 py-2 w-full">
@@ -726,7 +726,7 @@ export default function CSRPage() {
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5 text-gray-400 hover:text-[#B8112D] transition-colors">
-                              <MessageSquare size={14}/><span className="text-[13px]">Add comment</span>
+                              <MessageSquare size={14}/><span className="text-[13px]">Comment</span>
                             </div>
                           )}
                         </div>
@@ -734,17 +734,17 @@ export default function CSRPage() {
                     </td>
 
                     {/* STATUS */}
-                    <td className="py-5 px-5">
-                      <div className={`px-4 py-2 rounded-xl text-sm font-semibold w-fit ${statusBadgeClass(currentLink.status)}`}>
+                    <td className="py-4 px-3">
+                      <div className={`px-3 py-1.5 rounded-xl text-[13px] font-semibold w-fit ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
                     </td>
 
                     {/* ACTION */}
-                    <td className="py-5 px-5">
-                      <div className="relative w-full max-w-[230px]">
+                    <td className="py-4 px-3">
+                      <div className="relative w-full max-w-[190px]">
                         <select onChange={e => updateStatus(currentLink.id, e.target.value)} defaultValue=""
-                          className="appearance-none h-[46px] w-full rounded-2xl border border-gray-200 bg-white px-4 pr-11 text-[14px] font-semibold text-[#0F172A] outline-none">
+                          className="appearance-none h-[42px] w-full rounded-2xl border border-gray-200 bg-white px-3 pr-10 text-[13px] font-semibold text-[#0F172A] outline-none">
                           <option value="">Update Status</option>
                           <option value="Not Interested">Not Interested</option>
                           <option value="not picked">Not Picked</option>
