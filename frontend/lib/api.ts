@@ -4,7 +4,7 @@ const API = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api",
   withCredentials: true,
 });
-
+//updated
 API.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = document.cookie
