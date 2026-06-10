@@ -20,7 +20,7 @@ import {
 
 const menuItems = [
   {
-    title: "My Links",
+    title: "Call Data",
     href: "/csr",
     icon: Link2,
   },
