@@ -75,6 +75,31 @@ export default function ClientsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
 
+  /* ── notepad ── */
+  const [noteModal, setNoteModal] = useState<{ id: string; name: string; note: string; mode: "view" | "edit" } | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  const openNote = (client: Client, mode: "view" | "edit") => {
+    setNoteModal({ id: client.id, name: client.clientName, note: client.lastComment === "No comments" ? "" : client.lastComment, mode });
+    setNoteDraft(client.lastComment === "No comments" ? "" : client.lastComment);
+  };
+
+  const saveNote = async () => {
+    if (!noteModal) return;
+    setNoteSaving(true);
+    try {
+      await API.patch(`/admin/lead/${noteModal.id}/note`, { comments: noteDraft });
+      setClients(prev => prev.map(c => c.id === noteModal.id ? { ...c, lastComment: noteDraft || "No comments" } : c));
+      setNoteModal(null);
+      toast.success("Note saved");
+    } catch {
+      toast.error("Failed to save note");
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
   const emptyClient: Client = {
     id: "",
     clientName: "",
@@ -631,8 +656,23 @@ export default function ClientsPage() {
                               <button
                                 onClick={() => setSelectedClient(client)}
                                 className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"
+                                title="View details"
                               >
                                 <Eye size={15} />
+                              </button>
+                              <button
+                                onClick={() => openNote(client, "view")}
+                                className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all"
+                                title="View note"
+                              >
+                                <MessageSquare size={15} />
+                              </button>
+                              <button
+                                onClick={() => openNote(client, "edit")}
+                                className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all"
+                                title="Edit note"
+                              >
+                                <Pencil size={15} />
                               </button>
                               <button
                                 onClick={() => {
@@ -641,6 +681,7 @@ export default function ClientsPage() {
                                   setNewClient(client);
                                 }}
                                 className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
+                                title="Edit lead"
                               >
                                 <Pencil size={15} />
                               </button>
@@ -666,14 +707,27 @@ export default function ClientsPage() {
                               {openMenu === i && (
                                 <div className="absolute right-0 top-12 w-44 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
                                   <button
-                                    onClick={() => {
-                                      setSelectedClient(client);
-                                      setOpenMenu(null);
-                                    }}
+                                    onClick={() => { setSelectedClient(client); setOpenMenu(null); }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                   >
                                     <Eye size={15} />
                                     View
+                                  </button>
+
+                                  <button
+                                    onClick={() => { openNote(client, "view"); setOpenMenu(null); }}
+                                    className="w-full px-4 py-3 text-left text-sm hover:bg-amber-50 text-amber-700 flex items-center gap-2"
+                                  >
+                                    <MessageSquare size={15} />
+                                    View Note
+                                  </button>
+
+                                  <button
+                                    onClick={() => { openNote(client, "edit"); setOpenMenu(null); }}
+                                    className="w-full px-4 py-3 text-left text-sm hover:bg-emerald-50 text-emerald-700 flex items-center gap-2"
+                                  >
+                                    <Pencil size={15} />
+                                    Edit Note
                                   </button>
 
                                   <button
@@ -686,7 +740,7 @@ export default function ClientsPage() {
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                   >
                                     <Pencil size={15} />
-                                    Edit
+                                    Edit Lead
                                   </button>
 
                                   <button
@@ -991,6 +1045,73 @@ export default function ClientsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── NOTE MODAL ── */}
+        {noteModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <MessageSquare size={18}/>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-[#0F172A]">Note</h2>
+                    <p className="text-xs text-gray-400">{noteModal.name}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {noteModal.mode === "view" ? (
+                    <button onClick={() => setNoteModal(m => m ? { ...m, mode: "edit" } : m)}
+                      className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all" title="Edit note">
+                      <Pencil size={15}/>
+                    </button>
+                  ) : (
+                    <button onClick={() => setNoteModal(m => m ? { ...m, mode: "view" } : m)}
+                      className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all" title="View note">
+                      <Eye size={15}/>
+                    </button>
+                  )}
+                  <button onClick={() => setNoteModal(null)}
+                    className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all">
+                    <X size={15}/>
+                  </button>
+                </div>
+              </div>
+
+              {noteModal.mode === "view" ? (
+                <div className="min-h-[160px] bg-[#FAFAFA] rounded-2xl border border-gray-100 p-4">
+                  {noteDraft ? (
+                    <p className="text-sm text-[#0F172A] leading-relaxed whitespace-pre-wrap">{noteDraft}</p>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No note written yet. Click the pen icon to add one.</p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={noteDraft}
+                    onChange={e => setNoteDraft(e.target.value)}
+                    placeholder="Write your note here..."
+                    rows={6}
+                    className="w-full rounded-2xl border border-gray-200 bg-[#FAFAFA] p-4 text-sm outline-none focus:border-[#B8112D] resize-none transition-colors"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => setNoteModal(null)}
+                      className="px-5 py-2.5 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all">
+                      Cancel
+                    </button>
+                    <button onClick={saveNote} disabled={noteSaving}
+                      className="px-6 py-2.5 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60 transition-all">
+                      {noteSaving ? "Saving…" : "Save Note"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

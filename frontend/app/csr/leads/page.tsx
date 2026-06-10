@@ -12,6 +12,7 @@ import {
 import CSRNavbar  from "../components/CSRNavbar";
 import CSRSidebar from "../components/CSRSidebar";
 import API from "@/lib/api";
+import toast, { Toaster } from "react-hot-toast";
 
 /* ─── service options (same as projects page) ─── */
 const serviceOptions = [
@@ -71,6 +72,31 @@ export default function LeadsPage() {
   const [addForm,   setAddForm]   = useState(emptyAdd);
   const [addSaving, setAddSaving] = useState(false);
   const [addError,  setAddError]  = useState("");
+
+  /* ── notepad ── */
+  const [noteModal,  setNoteModal]  = useState<{ id: string; name: string; mode: "view" | "edit" } | null>(null);
+  const [noteDraft,  setNoteDraft]  = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  const openNote = (lead: Lead, mode: "view" | "edit") => {
+    setNoteModal({ id: lead.id, name: lead.name, mode });
+    setNoteDraft(lead.comments ?? "");
+  };
+
+  const saveNote = async () => {
+    if (!noteModal) return;
+    setNoteSaving(true);
+    try {
+      await API.patch(`/csr/lead/${noteModal.id}/note`, { comments: noteDraft });
+      setLeads(prev => prev.map(l => l.id === noteModal.id ? { ...l, comments: noteDraft } : l));
+      setNoteModal(null);
+      toast.success("Note saved");
+    } catch {
+      toast.error("Failed to save note");
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   /* ─── FETCH ─── */
   const fetchLeads = async () => {
@@ -203,6 +229,7 @@ export default function LeadsPage() {
   /* ══════════════════════════════════════════════════════════════ */
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
+      <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }}/>
       <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen}/>
       <main className="flex-1 p-4 sm:p-5 pt-[95px] overflow-x-hidden">
         <CSRNavbar setIsOpen={setIsOpen}/>
@@ -354,8 +381,22 @@ export default function LeadsPage() {
                     </span>
                   </div>
 
-                  {/* Eye icon */}
-                  <div className="flex justify-end md:justify-center">
+                  {/* Action icons */}
+                  <div className="flex justify-end md:justify-center gap-2">
+                    <button
+                      onClick={() => openNote(lead, "view")}
+                      className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                      title="View note"
+                    >
+                      <AlignLeft size={15}/>
+                    </button>
+                    <button
+                      onClick={() => openNote(lead, "edit")}
+                      className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                      title="Edit note"
+                    >
+                      <Pencil size={15}/>
+                    </button>
                     <button
                       onClick={() => openDetail(lead)}
                       className="w-9 h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
@@ -385,6 +426,75 @@ export default function LeadsPage() {
                 <Plus size={15}/>Add New Lead
               </button>
             )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            NOTE MODAL
+        ══════════════════════════════════════ */}
+        {noteModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+            <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <AlignLeft size={18}/>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-[#0F172A]">Note</h2>
+                    <p className="text-xs text-gray-400">{noteModal.name}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {noteModal.mode === "view" ? (
+                    <button onClick={() => setNoteModal(m => m ? { ...m, mode: "edit" } : m)}
+                      className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all" title="Edit note">
+                      <Pencil size={15}/>
+                    </button>
+                  ) : (
+                    <button onClick={() => setNoteModal(m => m ? { ...m, mode: "view" } : m)}
+                      className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all" title="View note">
+                      <Eye size={15}/>
+                    </button>
+                  )}
+                  <button onClick={() => setNoteModal(null)}
+                    className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all">
+                    <X size={15}/>
+                  </button>
+                </div>
+              </div>
+
+              {noteModal.mode === "view" ? (
+                <div className="min-h-[160px] bg-[#FAFAFA] rounded-2xl border border-gray-100 p-4">
+                  {noteDraft ? (
+                    <p className="text-sm text-[#0F172A] leading-relaxed whitespace-pre-wrap">{noteDraft}</p>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No note written yet. Click the pen icon to add one.</p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={noteDraft}
+                    onChange={e => setNoteDraft(e.target.value)}
+                    placeholder="Write your note here..."
+                    rows={6}
+                    className="w-full rounded-2xl border border-gray-200 bg-[#FAFAFA] p-4 text-sm outline-none focus:border-[#B8112D] resize-none transition-colors"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => setNoteModal(null)}
+                      className="px-5 py-2.5 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all">
+                      Cancel
+                    </button>
+                    <button onClick={saveNote} disabled={noteSaving}
+                      className="px-6 py-2.5 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60 transition-all">
+                      {noteSaving ? "Saving…" : "Save Note"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 

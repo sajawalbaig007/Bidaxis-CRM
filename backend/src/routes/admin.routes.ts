@@ -92,6 +92,20 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
   }
 });
 
+/* ================= UPDATE LEAD NOTE ================= */
+router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const { comments } = req.body;
+    await prisma.lead.update({
+      where: { id: String(req.params.id) },
+      data:  { comments: comments ?? "" },
+    });
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to save note" });
+  }
+});
+
 /* ================= UPDATE CSR STATUS ================= */
 router.put(
   "/csr-status/:id",

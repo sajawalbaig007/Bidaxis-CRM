@@ -125,6 +125,23 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
   }
 });
 
+/* ================= UPDATE LEAD NOTE ================= */
+router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const leadId = req.params.id as string;
+    const { comments } = req.body;
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    await prisma.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to save note" });
+  }
+});
+
 /* ================= UPDATE LEAD ================= */
 
 router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) => {
