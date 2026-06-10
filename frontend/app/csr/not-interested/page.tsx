@@ -7,7 +7,7 @@ import {
   RefreshCw, History, ChevronDown, ChevronUp, Eye,
   Calendar, Clock, Globe, BarChart2, CalendarDays,
   PenTool, Pencil, Building2, Monitor, FileText,
-  DollarSign, AlignLeft,
+  DollarSign, AlignLeft, MessageSquare, Check,
 } from "lucide-react";
 
 import CSRNavbar  from "../components/CSRNavbar";
@@ -57,6 +57,7 @@ type Lead = {
   notPickedCount: number;
   interestedService?: string;
   followUpNotes?: string;
+  comments?: string;
 };
 
 function TriesBar({ used, limit, color }: { used: number; limit: number; color: string }) {
@@ -86,6 +87,11 @@ export default function NotInterestedPage() {
   const [expandedRow,  setExpandedRow]  = useState<string | null>(null);
   const [editingNote,  setEditingNote]  = useState<{ leadId: string; index: number; value: string } | null>(null);
   const [savingNote,   setSavingNote]   = useState(false);
+
+  /* Comments (inline edit) */
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [commentDraft,     setCommentDraft]     = useState("");
+  const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
@@ -119,7 +125,7 @@ export default function NotInterestedPage() {
         id: string; name?: string; company?: string; uploadFile?: { companyName?: string };
         phone?: string; email?: string; state?: string; status?: string; notInterestedCount?: number;
         notPickedCount?: number; interestedService?: string;
-        followUpNotes?: string;
+        followUpNotes?: string; comments?: string;
       }) => ({
         id:                 l.id,
         client:             l.name    ?? "Unknown",
@@ -132,6 +138,7 @@ export default function NotInterestedPage() {
         notPickedCount:     l.notPickedCount     ?? 0,
         interestedService:  l.interestedService ?? "",
         followUpNotes:      l.followUpNotes ?? "",
+        comments:           l.comments ?? "",
       }));
       setLeads(formatted);
     } catch (err) {
@@ -245,6 +252,19 @@ export default function NotInterestedPage() {
     showToast("Client closed & moved to Projects.");
   };
 
+  /* ── SAVE COMMENT ── */
+  const saveComment = async (id: string, comment: string) => {
+    setSavingCommentId(id);
+    try {
+      await API.put(`/csr/lead/${id}`, { comments: comment });
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, comments: comment } : l));
+    } catch (err) {
+      console.log(err);
+    }
+    setEditingCommentId(null);
+    setSavingCommentId(null);
+  };
+
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen}/>
@@ -350,10 +370,10 @@ export default function NotInterestedPage() {
 
           {/* Scrollable table */}
           <div className="overflow-auto flex-1 px-5 sm:px-6 pb-5">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1050px]">
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-[#F1F1F1]">
-                  {["Client","Company","Contact","Service","Tries","Status","Action"].map(h => (
+                  {["Client","Company","Contact","Service","Comments","Tries","Status","Action"].map(h => (
                     <th key={h} className="text-left py-4 px-2 text-[13px] font-semibold text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -362,7 +382,7 @@ export default function NotInterestedPage() {
                 {loading ? (
                   [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
-                      {[1,2,3,4,5,6,7].map(j => (
+                      {[1,2,3,4,5,6,7,8].map(j => (
                         <td key={j} className="py-5 px-2">
                           <div className="h-4 bg-gray-100 rounded animate-pulse w-20"/>
                         </td>
@@ -421,6 +441,41 @@ export default function NotInterestedPage() {
                           </div>
                         ) : (
                           <span className="text-gray-300 text-sm">—</span>
+                        )}
+                      </td>
+
+                      {/* Comments */}
+                      <td className="py-5 px-2">
+                        {editingCommentId === lead.id ? (
+                          <div className="flex flex-col gap-2 w-full max-w-[220px]">
+                            <textarea autoFocus value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={2}
+                              placeholder="Type your comment..."
+                              className="w-full rounded-xl border border-[#B8112D] px-3 py-2 text-[13px] outline-none resize-none text-[#0F172A]"/>
+                            <div className="flex gap-2">
+                              <button onClick={() => saveComment(lead.id, commentDraft)} disabled={savingCommentId === lead.id}
+                                className="flex-1 h-[34px] rounded-xl bg-[#B8112D] text-white text-[12px] font-semibold flex items-center justify-center gap-1">
+                                <Check size={13}/>{savingCommentId === lead.id ? "Saving..." : "Save"}
+                              </button>
+                              <button onClick={() => setEditingCommentId(null)}
+                                className="flex-1 h-[34px] rounded-xl bg-[#F5F6FA] text-gray-500 text-[12px] font-semibold">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => { setEditingCommentId(lead.id); setCommentDraft(lead.comments || ""); }}
+                            className="group cursor-pointer flex items-start gap-2 max-w-[200px]"
+                          >
+                            {lead.comments ? (
+                              <div className="bg-[#F5F6FA] rounded-xl px-3 py-2 w-full">
+                                <p className="text-[13px] text-[#0F172A] leading-snug line-clamp-2">{lead.comments}</p>
+                                <p className="text-[11px] text-[#B8112D] mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Click to edit</p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-gray-400 hover:text-[#B8112D] transition-colors">
+                                <MessageSquare size={14}/><span className="text-[13px]">Add comment</span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
 
@@ -502,7 +557,7 @@ export default function NotInterestedPage() {
                     {/* ── History row ── */}
                     {expandedRow === lead.id && lead.followUpNotes && (
                       <tr className="bg-[#F8FAFF]">
-                        <td colSpan={7} className="px-6 py-4">
+                        <td colSpan={8} className="px-6 py-4">
                           <div className="flex items-start gap-3">
                             <div className="mt-0.5 w-7 h-7 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                               <History size={14}/>
@@ -573,7 +628,7 @@ export default function NotInterestedPage() {
                   );
                 }) : (
                   <tr>
-                    <td colSpan={7} className="py-20 text-center">
+                    <td colSpan={8} className="py-20 text-center">
                       {activeTab === "notinterested"
                         ? <ThumbsDown size={28} className="text-gray-200 mx-auto mb-3"/>
                         : <PhoneOff size={28} className="text-gray-200 mx-auto mb-3"/>
@@ -679,61 +734,87 @@ export default function NotInterestedPage() {
 
         {/* ══ CLOSE CLIENT MODAL ══ */}
         {showCloseModal && statusLead && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <h2 className="text-[22px] font-bold text-[#0F172A]">Close Client</h2>
-                  <p className="text-gray-500 text-sm mt-1">Fill project details to confirm.</p>
-                </div>
-                <button onClick={() => setShowCloseModal(false)} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
-              </div>
-              <div className="bg-[#ECFDF5] rounded-2xl p-3 flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 rounded-full bg-[#065F46] text-white flex items-center justify-center font-bold text-sm shrink-0">{statusLead.client.charAt(0)}</div>
-                <div><p className="font-bold text-[#065F46] text-[14px]">{statusLead.client}</p><p className="text-[#065F46]/70 text-[11px]">{statusLead.phone}</p></div>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-2"><FileText size={14}/>Project Title <span className="text-[#B8112D] text-[11px]">*</span></label>
-                  <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle} onChange={e => setProjectTitle(e.target.value)}
-                    className="w-full h-[50px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[13px]"/>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-2"><Briefcase size={14}/>Service <span className="text-[#B8112D] text-[11px]">*</span></label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {serviceOptions.map(({ value, label, Icon }) => {
-                      const sel = projectService === value;
-                      return (
-                        <button key={value} onClick={() => setProjectService(value)}
-                          className={`h-[64px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all text-[11px] font-semibold ${
-                            sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46]" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
-                          }`}>
-                          <Icon size={14} className={sel ? "text-[#065F46]" : "text-gray-500"}/>{label}
-                        </button>
-                      );
-                    })}
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="w-full sm:max-w-[540px] bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight:"92vh" }}>
+
+              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none"/>
+                <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none"/>
+                <button onClick={() => setShowCloseModal(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
+                  <X size={15}/>
+                </button>
+                <div className="flex items-center gap-3 pr-10">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white text-xl font-bold shrink-0">
+                    {statusLead.client.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight truncate">Close Client</h2>
+                    <p className="text-white/65 text-xs mt-0.5 truncate">{statusLead.client}{statusLead.phone ? ` · ${statusLead.phone}` : ""}</p>
                   </div>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-2"><CalendarDays size={14}/>Deadline <span className="text-[#B8112D] text-[11px]">*</span></label>
-                  <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
-                    className="w-full h-[50px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-2"><DollarSign size={14}/>Budget <span className="text-gray-400 text-[11px] font-normal">(optional)</span></label>
-                  <input type="text" placeholder="e.g. $5,000" value={projectBudget} onChange={e => setProjectBudget(e.target.value)}
-                    className="w-full h-[50px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[13px]"/>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-2"><AlignLeft size={14}/>Notes <span className="text-gray-400 text-[11px] font-normal">(optional)</span></label>
-                  <textarea placeholder="Any additional notes..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)}
-                    rows={3} className="w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-[#065F46] text-[13px] resize-none"/>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 bg-green-500/25 text-green-100 border border-green-400/30 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+                    <Check size={10}/> Fill in project details to confirm
+                  </span>
                 </div>
               </div>
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setShowCloseModal(false)} className="flex-1 h-[50px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
-                <button onClick={saveCloseClient} disabled={!projectTitle || !projectDeadline || !projectService}
-                  className="flex-1 h-[50px] rounded-2xl bg-[#065F46] text-white font-semibold disabled:opacity-40">Confirm</button>
+
+              <div className="flex-1 overflow-y-auto overscroll-contain">
+                <div className="px-5 sm:px-6 py-5 space-y-5">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><FileText size={11} className="text-[#B8112D]"/>Project Title <span className="text-[#B8112D] normal-case">*required</span></label>
+                    <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle} onChange={e => setProjectTitle(e.target.value)}
+                      className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Briefcase size={11} className="text-[#B8112D]"/>Service to Provide <span className="text-[#B8112D] normal-case">*required</span></label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {serviceOptions.map(({ value, label, Icon }) => {
+                        const sel = projectService === value;
+                        return (
+                          <button key={value} onClick={() => setProjectService(value)}
+                            className={`relative py-3 px-1 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[11px] font-semibold ${sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"}`}>
+                            {sel && <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center"><Check size={9} className="text-white"/></span>}
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}><Icon size={15} className={sel ? "text-[#B8112D]" : "text-gray-400"}/></div>
+                            <span>{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><CalendarDays size={11} className="text-[#B8112D]"/>Deadline <span className="text-[#B8112D] normal-case">*required</span></label>
+                      <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"/>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><DollarSign size={11} className="text-[#B8112D]"/>Budget <span className="text-gray-300 normal-case">(optional)</span></label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                        <input type="text" placeholder="0.00" value={projectBudget.replace(/^\$/, "")} onChange={e => setProjectBudget(e.target.value)}
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-7 pr-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><AlignLeft size={11} className="text-[#B8112D]"/>Notes <span className="text-gray-300 normal-case">(optional)</span></label>
+                    <textarea placeholder="Any additional notes..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} rows={3}
+                      className="w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"/>
+                  </div>
+
+                  <div className="flex gap-3 pb-1">
+                    <button onClick={() => setShowCloseModal(false)} className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
+                    <button onClick={saveCloseClient} disabled={!projectTitle || !projectDeadline || !projectService}
+                      className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${projectTitle && projectDeadline && projectService ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
+                      Confirm &amp; Move to Projects
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

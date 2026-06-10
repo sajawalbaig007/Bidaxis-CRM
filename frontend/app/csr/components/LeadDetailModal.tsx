@@ -65,6 +65,98 @@ const parseNotes = (raw?: string): { tag: string | null; text: string }[] => {
   });
 };
 
+/* US state → timezone (best-effort, primary timezone per state) */
+const STATE_TIMEZONES: Record<string, { label: string; abbreviation: string }> = {
+  "washington d c": { label: "Eastern Time",          abbreviation: "ET"   },
+  "washington dc":  { label: "Eastern Time",          abbreviation: "ET"   },
+  "district of columbia": { label: "Eastern Time",    abbreviation: "ET"   },
+  "north carolina": { label: "Eastern Time",          abbreviation: "ET"   },
+  "south carolina": { label: "Eastern Time",          abbreviation: "ET"   },
+  "new hampshire":  { label: "Eastern Time",          abbreviation: "ET"   },
+  "rhode island":   { label: "Eastern Time",          abbreviation: "ET"   },
+  "west virginia":  { label: "Eastern Time",          abbreviation: "ET"   },
+  "north dakota":   { label: "Central Time",          abbreviation: "CT"   },
+  "south dakota":   { label: "Central Time",          abbreviation: "CT"   },
+  "new jersey":     { label: "Eastern Time",          abbreviation: "ET"   },
+  "new mexico":     { label: "Mountain Time",         abbreviation: "MT"   },
+  "new york":       { label: "Eastern Time",          abbreviation: "ET"   },
+  alabama:          { label: "Central Time",          abbreviation: "CT"   },
+  alaska:           { label: "Alaska Time",           abbreviation: "AKT"  },
+  arizona:          { label: "Mountain Time (no DST)",abbreviation: "MST"  },
+  arkansas:         { label: "Central Time",          abbreviation: "CT"   },
+  california:       { label: "Pacific Time",          abbreviation: "PT"   },
+  colorado:         { label: "Mountain Time",         abbreviation: "MT"   },
+  connecticut:      { label: "Eastern Time",          abbreviation: "ET"   },
+  delaware:         { label: "Eastern Time",          abbreviation: "ET"   },
+  florida:          { label: "Eastern Time",          abbreviation: "ET"   },
+  georgia:          { label: "Eastern Time",          abbreviation: "ET"   },
+  hawaii:           { label: "Hawaii Time",           abbreviation: "HST"  },
+  idaho:            { label: "Mountain Time",         abbreviation: "MT"   },
+  illinois:         { label: "Central Time",          abbreviation: "CT"   },
+  indiana:          { label: "Eastern Time",          abbreviation: "ET"   },
+  iowa:             { label: "Central Time",          abbreviation: "CT"   },
+  kansas:           { label: "Central Time",          abbreviation: "CT"   },
+  kentucky:         { label: "Eastern Time",          abbreviation: "ET"   },
+  louisiana:        { label: "Central Time",          abbreviation: "CT"   },
+  maine:            { label: "Eastern Time",          abbreviation: "ET"   },
+  maryland:         { label: "Eastern Time",          abbreviation: "ET"   },
+  massachusetts:    { label: "Eastern Time",          abbreviation: "ET"   },
+  michigan:         { label: "Eastern Time",          abbreviation: "ET"   },
+  minnesota:        { label: "Central Time",          abbreviation: "CT"   },
+  mississippi:      { label: "Central Time",          abbreviation: "CT"   },
+  missouri:         { label: "Central Time",          abbreviation: "CT"   },
+  montana:          { label: "Mountain Time",         abbreviation: "MT"   },
+  nebraska:         { label: "Central Time",          abbreviation: "CT"   },
+  nevada:           { label: "Pacific Time",          abbreviation: "PT"   },
+  ohio:             { label: "Eastern Time",          abbreviation: "ET"   },
+  oklahoma:         { label: "Central Time",          abbreviation: "CT"   },
+  oregon:           { label: "Pacific Time",          abbreviation: "PT"   },
+  pennsylvania:     { label: "Eastern Time",          abbreviation: "ET"   },
+  tennessee:        { label: "Central Time",          abbreviation: "CT"   },
+  texas:            { label: "Central Time",          abbreviation: "CT"   },
+  utah:             { label: "Mountain Time",         abbreviation: "MT"   },
+  vermont:          { label: "Eastern Time",          abbreviation: "ET"   },
+  virginia:         { label: "Eastern Time",          abbreviation: "ET"   },
+  washington:       { label: "Pacific Time",          abbreviation: "PT"   },
+  wisconsin:        { label: "Central Time",          abbreviation: "CT"   },
+  wyoming:          { label: "Mountain Time",         abbreviation: "MT"   },
+};
+
+/* 2-letter state code → full state name (for "TX", "Dallas, TX", etc.) */
+const STATE_ABBREVIATIONS: Record<string, string> = {
+  al: "alabama", ak: "alaska", az: "arizona", ar: "arkansas", ca: "california",
+  co: "colorado", ct: "connecticut", de: "delaware", fl: "florida", ga: "georgia",
+  hi: "hawaii", id: "idaho", il: "illinois", in: "indiana", ia: "iowa",
+  ks: "kansas", ky: "kentucky", la: "louisiana", me: "maine", md: "maryland",
+  ma: "massachusetts", mi: "michigan", mn: "minnesota", ms: "mississippi", mo: "missouri",
+  mt: "montana", ne: "nebraska", nv: "nevada", nh: "new hampshire", nj: "new jersey",
+  nm: "new mexico", ny: "new york", nc: "north carolina", nd: "north dakota", oh: "ohio",
+  ok: "oklahoma", or: "oregon", pa: "pennsylvania", ri: "rhode island", sc: "south carolina",
+  sd: "south dakota", tn: "tennessee", tx: "texas", ut: "utah", vt: "vermont",
+  va: "virginia", wa: "washington", wv: "west virginia", wi: "wisconsin", wy: "wyoming",
+  dc: "district of columbia",
+};
+
+const SORTED_STATE_NAMES = Object.keys(STATE_TIMEZONES).sort((a, b) => b.length - a.length);
+
+/* Derive a US timezone from a free-form location string (state name, abbreviation, "City, State", etc.) */
+const getTimezoneForState = (state?: string): { label: string; abbreviation: string } | null => {
+  if (!state) return null;
+  const normalized = state.toLowerCase().replace(/[^a-z]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  for (const name of SORTED_STATE_NAMES) {
+    if (normalized.includes(name)) return STATE_TIMEZONES[name];
+  }
+
+  for (const token of normalized.split(" ")) {
+    const fullName = STATE_ABBREVIATIONS[token];
+    if (fullName) return STATE_TIMEZONES[fullName];
+  }
+
+  return null;
+};
+
 export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [name,  setName]  = useState(lead.name ?? "");
@@ -121,6 +213,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailMo
 
   const title = lead.company || lead.name;
   const noteEntries = parseNotes(notesRaw).reverse();
+  const locationTimezone = getTimezoneForState(lead.state);
 
   const infoItems: { label: string; value: string; Icon: typeof Phone }[] = [
     { label: "Contact Person", value: lead.name, Icon: User2 },
@@ -166,6 +259,11 @@ export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailMo
               <h2 className="text-base sm:text-lg font-bold text-white leading-tight truncate">{title}</h2>
               {lead.company && lead.company !== lead.name && (
                 <p className="text-white/65 text-xs mt-0.5 truncate">{lead.name}</p>
+              )}
+              {locationTimezone && (
+                <p className="text-white/55 text-[11px] mt-0.5 truncate flex items-center gap-1">
+                  <Globe size={10}/> {locationTimezone.label} ({locationTimezone.abbreviation})
+                </p>
               )}
             </div>
           </div>

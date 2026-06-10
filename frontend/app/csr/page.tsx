@@ -856,53 +856,91 @@ export default function CSRPage() {
 
         {/* ══ CLOSE CLIENT MODAL ══ */}
         {showProjectWonModal && selectedProjectLead && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-start justify-between gap-4">
-                <div><h2 className="text-[24px] font-bold text-[#0F172A]">Close Client</h2><p className="text-gray-500 text-sm mt-1">Fill in the project details to confirm.</p></div>
-                <button onClick={() => setShowProjectWonModal(false)} className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0"><X size={18}/></button>
-              </div>
-              <div className="mt-6 bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-[#065F46] text-white flex items-center justify-center font-bold text-sm shrink-0">{selectedProjectLead.client.charAt(0)}</div>
-                <div><p className="font-bold text-[#065F46] text-[15px]">{selectedProjectLead.client}</p><p className="text-[#065F46]/70 text-[12px]">{selectedProjectLead.company} · {selectedProjectLead.phone}</p></div>
-              </div>
-              <div className="mt-6">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><FileText size={15}/>Project Title <span className="text-[#B8112D] text-xs">*required</span></label>
-                <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle} onChange={e => setProjectTitle(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
-              </div>
-              <div className="mt-6">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-3"><Briefcase size={15}/>Service to Provide <span className="text-[#B8112D] text-xs">*required</span></label>
-                <div className="grid grid-cols-3 gap-2">
-                  {serviceOptions.map(({ value, label, Icon }) => {
-                    const sel = projectService === value;
-                    return (
-                      <button key={value} onClick={() => setProjectService(value)}
-                        className={`h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel ? "bg-[#065F46]/10" : "bg-white shadow-sm"}`}><Icon size={15} className={sel ? "text-[#065F46]" : "text-gray-500"}/></div>
-                        <span>{label}</span>
-                      </button>
-                    );
-                  })}
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="w-full sm:max-w-[540px] bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight:"92vh" }}>
+
+              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none"/>
+                <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none"/>
+                <button onClick={() => setShowProjectWonModal(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
+                  <X size={15}/>
+                </button>
+                <div className="flex items-center gap-3 pr-10">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white text-xl font-bold shrink-0">
+                    {selectedProjectLead.client.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight truncate">Close Client</h2>
+                    <p className="text-white/65 text-xs mt-0.5 truncate">
+                      {selectedProjectLead.client}
+                      {selectedProjectLead.company && selectedProjectLead.company !== selectedProjectLead.client ? ` · ${selectedProjectLead.company}` : ""}
+                      {selectedProjectLead.phone ? ` · ${selectedProjectLead.phone}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 bg-green-500/25 text-green-100 border border-green-400/30 px-2.5 py-1 rounded-full text-[11px] font-semibold">
+                    <CircleCheckBig size={10}/> Fill in project details to confirm
+                  </span>
                 </div>
               </div>
-              <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><CalendarDays size={15}/>Project Deadline <span className="text-[#B8112D] text-xs">*required</span></label>
-                <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
-              </div>
-              <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><DollarSign size={15}/>Project Budget <span className="text-gray-400 text-xs font-normal">(optional)</span></label>
-                <input type="text" placeholder="e.g. $5,000" value={projectBudget} onChange={e => setProjectBudget(e.target.value)} className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
-              </div>
-              <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><AlignLeft size={15}/>Project Notes <span className="text-gray-400 text-xs font-normal">(optional)</span></label>
-                <textarea placeholder="Any additional notes..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} rows={3} className="mt-3 w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-[#065F46] text-[14px] resize-none"/>
-              </div>
-              <div className="flex gap-3 mt-7">
-                <button onClick={() => setShowProjectWonModal(false)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Cancel</button>
-                <button onClick={saveProjectWon} disabled={!projectWonValid}
-                  className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${projectWonValid ? "bg-[#065F46]" : "bg-gray-300 cursor-not-allowed"}`}>
-                  Confirm &amp; Move to Projects
-                </button>
+
+              <div className="flex-1 overflow-y-auto overscroll-contain">
+                <div className="px-5 sm:px-6 py-5 space-y-5">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><FileText size={11} className="text-[#B8112D]"/>Project Title <span className="text-[#B8112D] normal-case">*required</span></label>
+                    <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle} onChange={e => setProjectTitle(e.target.value)}
+                      className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Briefcase size={11} className="text-[#B8112D]"/>Service to Provide <span className="text-[#B8112D] normal-case">*required</span></label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {serviceOptions.map(({ value, label, Icon }) => {
+                        const sel = projectService === value;
+                        return (
+                          <button key={value} onClick={() => setProjectService(value)}
+                            className={`relative py-3 px-1 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[11px] font-semibold ${sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"}`}>
+                            {sel && <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center"><CircleCheckBig size={9} className="text-white"/></span>}
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}><Icon size={15} className={sel ? "text-[#B8112D]" : "text-gray-400"}/></div>
+                            <span>{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><CalendarDays size={11} className="text-[#B8112D]"/>Deadline <span className="text-[#B8112D] normal-case">*required</span></label>
+                      <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"/>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><DollarSign size={11} className="text-[#B8112D]"/>Budget <span className="text-gray-300 normal-case">(optional)</span></label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                        <input type="text" placeholder="0.00" value={projectBudget.replace(/^\$/, "")} onChange={e => setProjectBudget(e.target.value)}
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-7 pr-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><AlignLeft size={11} className="text-[#B8112D]"/>Notes <span className="text-gray-300 normal-case">(optional)</span></label>
+                    <textarea placeholder="Any additional notes..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} rows={3}
+                      className="w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"/>
+                  </div>
+
+                  <div className="flex gap-3 pb-1">
+                    <button onClick={() => setShowProjectWonModal(false)} className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
+                    <button onClick={saveProjectWon} disabled={!projectWonValid}
+                      className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${projectWonValid ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
+                      Confirm &amp; Move to Projects
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
