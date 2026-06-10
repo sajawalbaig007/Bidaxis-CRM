@@ -5,12 +5,13 @@ import { useState, useEffect, useMemo } from "react";
 import {
   PhoneCall, CalendarDays, Clock3, CircleAlert, Phone,
   X, Globe, ChevronDown, Pencil, Trophy, UserX, CalendarClock,
-  Briefcase, FileText, DollarSign, AlignLeft,
+  Briefcase, FileText, DollarSign, AlignLeft, Eye,
   BarChart2, PenTool, Building2, Monitor, Search,
 } from "lucide-react";
 
 import CSRNavbar  from "../components/CSRNavbar";
 import CSRSidebar from "../components/CSRSidebar";
+import LeadDetailModal from "../components/LeadDetailModal";
 import API from "@/lib/api";
 
 /* ── Timezones ── */
@@ -42,6 +43,8 @@ interface BackendLead {
   name?: string;
   company?: string;
   phone?: string;
+  email?: string;
+  state?: string;
   nextSchedule?: string;
   nextTime?: string;
   timezone?: string;
@@ -55,6 +58,7 @@ interface BackendLead {
 
 type CallType = {
   id: string; type: string; client: string; company: string; phone: string;
+  email?: string; state?: string;
   priority: string; nextFollowup?: string; time?: string; timezone?: string;
   notes?: string; status?: string; interestedService?: string;
 };
@@ -78,6 +82,9 @@ export default function ImportantCallsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingCall,   setEditingCall]   = useState<CallType | null>(null);
   const [editAction,    setEditAction]    = useState<EditAction>(null);
+
+  /* Detail (eye) modal */
+  const [viewingCall, setViewingCall] = useState<CallType | null>(null);
 
   /* Reschedule */
   const [scheduleDate,      setScheduleDate]      = useState("");
@@ -110,6 +117,8 @@ export default function ImportantCallsPage() {
             client:   lead.name    ?? "Unknown",
             company:  lead.company ?? "N/A",
             phone:    lead.phone   ?? "N/A",
+            email:    lead.email   ?? "",
+            state:    lead.state   ?? "",
             priority: lead.status  === "important" ? "High" : "Medium",
             nextFollowup:     lead.nextSchedule ?? "",
             time:             lead.nextTime     ?? "N/A",
@@ -402,10 +411,17 @@ export default function ImportantCallsPage() {
                       </td>
                       {/* Action */}
                       <td className="py-5 px-2">
-                        <button onClick={() => openEditModal(call)}
-                          className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
-                          <Pencil size={14}/>Edit
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setViewingCall(call)}
+                            className="w-10 h-10 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                            title="View details">
+                            <Eye size={15}/>
+                          </button>
+                          <button onClick={() => openEditModal(call)}
+                            className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
+                            <Pencil size={14}/>Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )) : (
@@ -493,10 +509,17 @@ export default function ImportantCallsPage() {
                         <div className="bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl text-sm font-semibold w-fit">Interested</div>
                       </td>
                       <td className="py-5 px-2">
-                        <button onClick={() => openEditModal(call)}
-                          className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
-                          <Pencil size={14}/>Edit
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setViewingCall(call)}
+                            className="w-10 h-10 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                            title="View details">
+                            <Eye size={15}/>
+                          </button>
+                          <button onClick={() => openEditModal(call)}
+                            className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
+                            <Pencil size={14}/>Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )) : (
@@ -676,6 +699,37 @@ export default function ImportantCallsPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ══ LEAD DETAIL MODAL ══ */}
+        {viewingCall && (
+          <LeadDetailModal
+            lead={{
+              id: viewingCall.id,
+              name: viewingCall.client,
+              company: viewingCall.company !== "N/A" ? viewingCall.company : undefined,
+              phone: viewingCall.phone !== "N/A" ? viewingCall.phone : undefined,
+              email: viewingCall.email,
+              state: viewingCall.state || undefined,
+              status: viewingCall.status,
+              interestedService: viewingCall.interestedService,
+              followUpNotes: viewingCall.notes !== "No notes added" ? viewingCall.notes : undefined,
+              nextSchedule: viewingCall.nextFollowup || undefined,
+              nextTime: viewingCall.time && viewingCall.time !== "N/A" ? viewingCall.time : undefined,
+              timezone: viewingCall.timezone && viewingCall.timezone !== "N/A" ? viewingCall.timezone : undefined,
+            }}
+            onClose={() => setViewingCall(null)}
+            onSaved={(id, updates) => {
+              const merged: Partial<CallType> = {};
+              if (updates.name  !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.phone !== undefined) merged.phone  = updates.phone.trim() || "N/A";
+              if (updates.email !== undefined) merged.email  = updates.email.trim();
+              if (updates.state !== undefined) merged.state  = updates.state.trim();
+              if (updates.followUpNotes !== undefined) merged.notes = updates.followUpNotes || "No notes added";
+              setImportantCalls(prev => prev.map(c => c.id === id ? { ...c, ...merged } : c));
+              setViewingCall(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+          />
         )}
       </main>
     </div>

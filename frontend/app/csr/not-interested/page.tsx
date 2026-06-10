@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ThumbsDown, PhoneOff, Search, Users, X,
   Phone, Briefcase, ArrowRightLeft, CircleAlert,
-  RefreshCw, History, ChevronDown, ChevronUp,
+  RefreshCw, History, ChevronDown, ChevronUp, Eye,
   Calendar, Clock, Globe, BarChart2, CalendarDays,
   PenTool, Pencil, Building2, Monitor, FileText,
   DollarSign, AlignLeft,
@@ -12,6 +12,7 @@ import {
 
 import CSRNavbar  from "../components/CSRNavbar";
 import CSRSidebar from "../components/CSRSidebar";
+import LeadDetailModal from "../components/LeadDetailModal";
 import API from "@/lib/api";
 
 const NOT_INTERESTED_LIMIT = 3;
@@ -49,10 +50,11 @@ type Lead = {
   client: string;
   company: string;
   phone: string;
+  email?: string;
+  state?: string;
   status: string;
   notInterestedCount: number;
   notPickedCount: number;
-  comments?: string;
   interestedService?: string;
   followUpNotes?: string;
 };
@@ -85,6 +87,8 @@ export default function NotInterestedPage() {
   const [editingNote,  setEditingNote]  = useState<{ leadId: string; index: number; value: string } | null>(null);
   const [savingNote,   setSavingNote]   = useState(false);
 
+  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+
   /* ── Status-update modals ── */
   const [statusLead,          setStatusLead]         = useState<Lead | null>(null);
   const [showImportantModal,  setShowImportantModal]  = useState(false);
@@ -113,18 +117,19 @@ export default function NotInterestedPage() {
       const res = await API.get("/csr/not-interested");
       const formatted: Lead[] = (res.data.leads ?? []).map((l: {
         id: string; name?: string; company?: string; uploadFile?: { companyName?: string };
-        phone?: string; status?: string; notInterestedCount?: number;
-        notPickedCount?: number; comments?: string; interestedService?: string;
+        phone?: string; email?: string; state?: string; status?: string; notInterestedCount?: number;
+        notPickedCount?: number; interestedService?: string;
         followUpNotes?: string;
       }) => ({
         id:                 l.id,
         client:             l.name    ?? "Unknown",
         company:            l.uploadFile?.companyName ?? l.company ?? "N/A",
         phone:              l.phone   ?? "N/A",
+        email:              l.email   ?? "",
+        state:              l.state   ?? "",
         status:             l.status  ?? "",
         notInterestedCount: l.notInterestedCount ?? 0,
         notPickedCount:     l.notPickedCount     ?? 0,
-        comments:           l.comments ?? "",
         interestedService:  l.interestedService ?? "",
         followUpNotes:      l.followUpNotes ?? "",
       }));
@@ -450,8 +455,13 @@ export default function NotInterestedPage() {
                       {/* Action */}
                       <td className="py-4 px-2">
                         <div className="flex flex-col gap-2 min-w-[200px]">
-                          {/* Retry + History */}
+                          {/* Eye + Retry + History */}
                           <div className="flex items-center gap-2">
+                            <button onClick={() => setViewingLead(lead)}
+                              title="View details"
+                              className="h-9 w-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0">
+                              <Eye size={13}/>
+                            </button>
                             {!isAtLimit ? (
                               <button onClick={() => handleRetry(lead)}
                                 className="h-9 px-3 rounded-xl bg-[#F5F6FA] text-gray-700 text-[12px] font-semibold flex items-center gap-1.5 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap">
@@ -727,6 +737,34 @@ export default function NotInterestedPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ══ LEAD DETAIL MODAL ══ */}
+        {viewingLead && (
+          <LeadDetailModal
+            lead={{
+              id: viewingLead.id,
+              name: viewingLead.client,
+              company: viewingLead.company !== "N/A" ? viewingLead.company : undefined,
+              phone: viewingLead.phone !== "N/A" ? viewingLead.phone : undefined,
+              email: viewingLead.email,
+              state: viewingLead.state || undefined,
+              status: viewingLead.status,
+              interestedService: viewingLead.interestedService,
+              followUpNotes: viewingLead.followUpNotes,
+            }}
+            onClose={() => setViewingLead(null)}
+            onSaved={(id, updates) => {
+              const merged: Partial<Lead> = {};
+              if (updates.name  !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.phone !== undefined) merged.phone  = updates.phone.trim() || "N/A";
+              if (updates.email !== undefined) merged.email  = updates.email.trim();
+              if (updates.state !== undefined) merged.state  = updates.state.trim();
+              if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
+              setLeads(prev => prev.map(l => l.id === id ? { ...l, ...merged } : l));
+              setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+          />
         )}
 
       </main>

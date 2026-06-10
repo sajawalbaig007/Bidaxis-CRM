@@ -9,12 +9,13 @@ import {
   Clock3, Phone, Users, UserCheck, Bell, ChevronDown, X, Globe,
   Calendar, Briefcase, FileText, DollarSign, AlignLeft, CalendarDays,
   BarChart2, PenTool, Pencil, Building2, Monitor, MessageSquare,
-  Check, MapPin, Search,
+  Check, MapPin, Search, Eye,
 } from "lucide-react";
 
 import CSRNavbar    from "./components/CSRNavbar";
 import CSRSidebar   from "./components/CSRSidebar";
 import WelcomeHeader from "./components/WelcomeHeader";
+import LeadDetailModal from "./components/LeadDetailModal";
 import API from "@/lib/api";
 
 /* ─── TIMEZONE OPTIONS ─── */
@@ -139,6 +140,8 @@ export default function CSRPage() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [commentDraft,     setCommentDraft]     = useState("");
   const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
+
+  const [viewingLead, setViewingLead] = useState<LeadType | null>(null);
 
   const [showImportantModal,   setShowImportantModal]   = useState(false);
   const [selectedImportantId,  setSelectedImportantId]  = useState<string | null>(null);
@@ -657,7 +660,16 @@ export default function CSRPage() {
                           {currentLink.client.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-[14px] font-semibold text-[#0F172A] leading-tight">{currentLink.client}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[14px] font-semibold text-[#0F172A] leading-tight truncate">{currentLink.client}</h4>
+                            <button
+                              onClick={() => setViewingLead(currentLink)}
+                              className="w-6 h-6 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                              title="View details"
+                            >
+                              <Eye size={12}/>
+                            </button>
+                          </div>
                           {/* show raw Excel address/company if available */}
                           {currentLink.rawInfo && currentLink.rawInfo !== currentLink.company && (
                             <p className="text-[11px] text-gray-400 mt-0.5 max-w-[180px] truncate">{currentLink.rawInfo}</p>
@@ -894,6 +906,37 @@ export default function CSRPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ══ LEAD DETAIL MODAL ══ */}
+        {viewingLead && (
+          <LeadDetailModal
+            lead={{
+              id: viewingLead.id,
+              name: viewingLead.client,
+              company: viewingLead.company !== "N/A" ? viewingLead.company : undefined,
+              phone: viewingLead.phone !== "N/A" ? viewingLead.phone : undefined,
+              email: viewingLead.email !== "N/A" ? viewingLead.email : undefined,
+              state: viewingLead.state || undefined,
+              status: viewingLead.status,
+              interestedService: viewingLead.interestedService,
+              followUpNotes: viewingLead.followUpNotes,
+              nextSchedule: viewingLead.nextSchedule || undefined,
+              nextTime: viewingLead.nextTime || undefined,
+              timezone: viewingLead.timezone || undefined,
+            }}
+            onClose={() => setViewingLead(null)}
+            onSaved={(id, updates) => {
+              const merged: Partial<LeadType> = {};
+              if (updates.name  !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.phone !== undefined) merged.phone  = updates.phone.trim() || "N/A";
+              if (updates.email !== undefined) merged.email  = updates.email.trim() || "N/A";
+              if (updates.state !== undefined) merged.state  = updates.state.trim();
+              if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
+              setLinks(prev => prev.map(i => i.id === id ? { ...i, ...merged } : i));
+              setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+          />
         )}
       </main>
     </div>
