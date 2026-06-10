@@ -153,6 +153,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       status, nextSchedule, nextTime, timezone, followUpNotes,
       interestedService, projectTitle, projectDeadline,
       projectBudget, projectNotes, comments,
+      name, phone, email, state,
     } = req.body;
 
     /* Fetch current lead to get existing counts */
@@ -177,6 +178,10 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (projectBudget     !== undefined) updateData.projectBudget     = projectBudget;
     if (projectNotes      !== undefined) updateData.projectNotes      = projectNotes;
     if (comments          !== undefined) updateData.comments          = comments;
+    if (name              !== undefined) updateData.name              = name;
+    if (phone             !== undefined) updateData.phone             = phone;
+    if (email             !== undefined) updateData.email             = email;
+    if (state             !== undefined) updateData.state             = state;
 
     /* ── STATUS HANDLING ── */
     if (status !== undefined) {

@@ -5,12 +5,14 @@ import { useState, useEffect, useMemo } from "react";
 import {
   PhoneCall, CalendarDays, Clock3, CircleAlert, Phone,
   X, Globe, ChevronDown, Pencil, Trophy, UserX, CalendarClock,
-  Briefcase, FileText, DollarSign, AlignLeft,
+  Briefcase, FileText, DollarSign, AlignLeft, Eye,
   BarChart2, PenTool, Building2, Monitor, Search,
+  MessageSquare, Check,
 } from "lucide-react";
 
 import CSRNavbar  from "../components/CSRNavbar";
 import CSRSidebar from "../components/CSRSidebar";
+import LeadDetailModal from "../components/LeadDetailModal";
 import API from "@/lib/api";
 
 /* ── Timezones ── */
@@ -42,6 +44,8 @@ interface BackendLead {
   name?: string;
   company?: string;
   phone?: string;
+  email?: string;
+  state?: string;
   nextSchedule?: string;
   nextTime?: string;
   timezone?: string;
@@ -51,12 +55,14 @@ interface BackendLead {
   service?: string;
   serviceInterested?: string;
   serviceName?: string;
+  comments?: string;
 }
 
 type CallType = {
   id: string; type: string; client: string; company: string; phone: string;
+  email?: string; state?: string;
   priority: string; nextFollowup?: string; time?: string; timezone?: string;
-  notes?: string; status?: string; interestedService?: string;
+  notes?: string; status?: string; interestedService?: string; comments?: string;
 };
 
 type EditAction = "reschedule" | "closeclient" | "deleteclient" | null;
@@ -78,6 +84,14 @@ export default function ImportantCallsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingCall,   setEditingCall]   = useState<CallType | null>(null);
   const [editAction,    setEditAction]    = useState<EditAction>(null);
+
+  /* Detail (eye) modal */
+  const [viewingCall, setViewingCall] = useState<CallType | null>(null);
+
+  /* Comments (inline edit) */
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [commentDraft,     setCommentDraft]     = useState("");
+  const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
 
   /* Reschedule */
   const [scheduleDate,      setScheduleDate]      = useState("");
@@ -110,11 +124,14 @@ export default function ImportantCallsPage() {
             client:   lead.name    ?? "Unknown",
             company:  lead.company ?? "N/A",
             phone:    lead.phone   ?? "N/A",
+            email:    lead.email   ?? "",
+            state:    lead.state   ?? "",
             priority: lead.status  === "important" ? "High" : "Medium",
             nextFollowup:     lead.nextSchedule ?? "",
             time:             lead.nextTime     ?? "N/A",
             timezone:         lead.timezone     ?? "N/A",
             notes:            lead.followUpNotes ?? "No notes added",
+            comments:         lead.comments ?? "",
             status:           lead.status,
             interestedService:
               lead.interestedService    ??
@@ -226,6 +243,19 @@ export default function ImportantCallsPage() {
     } catch (err) { console.log(err); }
   };
 
+  /* ── SAVE COMMENT ── */
+  const saveComment = async (id: string, comment: string) => {
+    setSavingCommentId(id);
+    try {
+      await API.put(`/csr/lead/${id}`, { comments: comment });
+      setImportantCalls(prev => prev.map(c => c.id === id ? { ...c, comments: comment } : c));
+    } catch (err) {
+      console.log(err);
+    }
+    setEditingCommentId(null);
+    setSavingCommentId(null);
+  };
+
   const getTzAbbr = (tzValue: string) => {
     const found = usTimezones.find(tz => tz.value === tzValue);
     return found ? found.abbreviation : (tzValue?.split("/").pop() ?? tzValue);
@@ -327,10 +357,10 @@ export default function ImportantCallsPage() {
 
             {/* Scrollable table */}
             <div className="overflow-auto flex-1 px-5 sm:px-6 pb-5">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[1050px]">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Next Schedule","Time & Timezone","Status","Action"].map(h => (
+                    {["Client","Company","Contact","Next Schedule","Time & Timezone","Comments","Status","Action"].map(h => (
                       <th key={h} className="text-left py-4 px-2 text-[13px] font-semibold text-gray-500">{h}</th>
                     ))}
                   </tr>
@@ -339,7 +369,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6,7].map(j => (
+                        {[1,2,3,4,5,6,7,8].map(j => (
                           <td key={j} className="py-5 px-2">
                             <div className="h-4 bg-gray-100 rounded animate-pulse w-20"/>
                           </td>
@@ -392,6 +422,40 @@ export default function ImportantCallsPage() {
                           )}
                         </div>
                       </td>
+                      {/* Comments */}
+                      <td className="py-5 px-2">
+                        {editingCommentId === call.id ? (
+                          <div className="flex flex-col gap-2 w-full max-w-[220px]">
+                            <textarea autoFocus value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={2}
+                              placeholder="Type your comment..."
+                              className="w-full rounded-xl border border-[#B8112D] px-3 py-2 text-[13px] outline-none resize-none text-[#0F172A]"/>
+                            <div className="flex gap-2">
+                              <button onClick={() => saveComment(call.id, commentDraft)} disabled={savingCommentId === call.id}
+                                className="flex-1 h-[34px] rounded-xl bg-[#B8112D] text-white text-[12px] font-semibold flex items-center justify-center gap-1">
+                                <Check size={13}/>{savingCommentId === call.id ? "Saving..." : "Save"}
+                              </button>
+                              <button onClick={() => setEditingCommentId(null)}
+                                className="flex-1 h-[34px] rounded-xl bg-[#F5F6FA] text-gray-500 text-[12px] font-semibold">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => { setEditingCommentId(call.id); setCommentDraft(call.comments || ""); }}
+                            className="group cursor-pointer flex items-start gap-2 max-w-[200px]"
+                          >
+                            {call.comments ? (
+                              <div className="bg-[#F5F6FA] rounded-xl px-3 py-2 w-full">
+                                <p className="text-[13px] text-[#0F172A] leading-snug line-clamp-2">{call.comments}</p>
+                                <p className="text-[11px] text-[#B8112D] mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Click to edit</p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-gray-400 hover:text-[#B8112D] transition-colors">
+                                <MessageSquare size={14}/><span className="text-[13px]">Add comment</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       {/* Status */}
                       <td className="py-5 px-2">
                         <div className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold w-fit ${
@@ -402,15 +466,22 @@ export default function ImportantCallsPage() {
                       </td>
                       {/* Action */}
                       <td className="py-5 px-2">
-                        <button onClick={() => openEditModal(call)}
-                          className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
-                          <Pencil size={14}/>Edit
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setViewingCall(call)}
+                            className="w-10 h-10 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                            title="View details">
+                            <Eye size={15}/>
+                          </button>
+                          <button onClick={() => openEditModal(call)}
+                            className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
+                            <Pencil size={14}/>Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={7} className="py-20 text-center">
+                      <td colSpan={8} className="py-20 text-center">
                         <Search size={28} className="text-gray-200 mx-auto mb-3"/>
                         <p className="text-gray-400 text-sm">No important clients found.</p>
                         {(searchQuery || filterDate) && (
@@ -446,10 +517,10 @@ export default function ImportantCallsPage() {
 
             {/* Scrollable table */}
             <div className="overflow-auto flex-1 px-5 sm:px-6 pb-5">
-              <table className="w-full min-w-[760px]">
+              <table className="w-full min-w-[900px]">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Interested In","Status","Action"].map(h => (
+                    {["Client","Company","Contact","Interested In","Comments","Status","Action"].map(h => (
                       <th key={h} className="text-left py-4 px-2 text-[13px] font-semibold text-gray-500">{h}</th>
                     ))}
                   </tr>
@@ -458,7 +529,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6].map(j => (
+                        {[1,2,3,4,5,6,7].map(j => (
                           <td key={j} className="py-5 px-2">
                             <div className="h-4 bg-gray-100 rounded animate-pulse w-20"/>
                           </td>
@@ -489,19 +560,60 @@ export default function ImportantCallsPage() {
                           </div>
                         ) : <span className="text-gray-400 text-sm">Not specified</span>}
                       </td>
+                      {/* Comments */}
+                      <td className="py-5 px-2">
+                        {editingCommentId === call.id ? (
+                          <div className="flex flex-col gap-2 w-full max-w-[220px]">
+                            <textarea autoFocus value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={2}
+                              placeholder="Type your comment..."
+                              className="w-full rounded-xl border border-[#B8112D] px-3 py-2 text-[13px] outline-none resize-none text-[#0F172A]"/>
+                            <div className="flex gap-2">
+                              <button onClick={() => saveComment(call.id, commentDraft)} disabled={savingCommentId === call.id}
+                                className="flex-1 h-[34px] rounded-xl bg-[#B8112D] text-white text-[12px] font-semibold flex items-center justify-center gap-1">
+                                <Check size={13}/>{savingCommentId === call.id ? "Saving..." : "Save"}
+                              </button>
+                              <button onClick={() => setEditingCommentId(null)}
+                                className="flex-1 h-[34px] rounded-xl bg-[#F5F6FA] text-gray-500 text-[12px] font-semibold">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => { setEditingCommentId(call.id); setCommentDraft(call.comments || ""); }}
+                            className="group cursor-pointer flex items-start gap-2 max-w-[200px]"
+                          >
+                            {call.comments ? (
+                              <div className="bg-[#F5F6FA] rounded-xl px-3 py-2 w-full">
+                                <p className="text-[13px] text-[#0F172A] leading-snug line-clamp-2">{call.comments}</p>
+                                <p className="text-[11px] text-[#B8112D] mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Click to edit</p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-gray-400 hover:text-[#B8112D] transition-colors">
+                                <MessageSquare size={14}/><span className="text-[13px]">Add comment</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-5 px-2">
                         <div className="bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl text-sm font-semibold w-fit">Interested</div>
                       </td>
                       <td className="py-5 px-2">
-                        <button onClick={() => openEditModal(call)}
-                          className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
-                          <Pencil size={14}/>Edit
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setViewingCall(call)}
+                            className="w-10 h-10 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                            title="View details">
+                            <Eye size={15}/>
+                          </button>
+                          <button onClick={() => openEditModal(call)}
+                            className="h-10 px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-2 hover:bg-[#B8112D] hover:text-white transition-all">
+                            <Pencil size={14}/>Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={6} className="py-20 text-center text-gray-400 text-sm">No interested clients found.</td>
+                      <td colSpan={7} className="py-20 text-center text-gray-400 text-sm">No interested clients found.</td>
                     </tr>
                   )}
                 </tbody>
@@ -512,170 +624,207 @@ export default function ImportantCallsPage() {
 
         {/* ===================== EDIT MODAL ===================== */}
         {showEditModal && editingCall && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-[24px] font-bold text-[#0F172A]">Edit Client</h2>
-                  <p className="text-gray-500 text-sm mt-1">{editingCall.client} — {editingCall.company}</p>
-                </div>
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="w-full sm:max-w-[540px] bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight:"92vh" }}>
+
+              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none"/>
+                <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none"/>
                 <button onClick={closeEditModal}
-                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0">
-                  <X size={18}/>
+                  className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
+                  <X size={15}/>
                 </button>
+                <div className="flex items-center gap-3 pr-10">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white text-xl font-bold shrink-0">
+                    {editingCall.client.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight truncate">
+                      {editAction === "reschedule" ? "Reschedule Call" : editAction === "closeclient" ? "Close Client" : editAction === "deleteclient" ? "Delete Client" : "Edit Client"}
+                    </h2>
+                    <p className="text-white/65 text-xs mt-0.5 truncate">
+                      {editingCall.client}{editingCall.company && editingCall.company !== "N/A" ? ` · ${editingCall.company}` : ""}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* ACTION CARDS */}
-              {!editAction && (
-                <div className="mt-7 space-y-3">
-                  <p className="text-sm font-semibold text-gray-500 mb-4">What would you like to do?</p>
-                  <button onClick={() => setEditAction("reschedule")}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 hover:border-[#B8112D] hover:bg-[#FFF8F9] transition-all text-left">
-                    <div className="w-12 h-12 rounded-2xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center shrink-0"><CalendarClock size={22}/></div>
-                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Reschedule</h4><p className="text-gray-500 text-sm mt-0.5">Pick a new date, time &amp; timezone</p></div>
-                  </button>
-                  <button onClick={() => setEditAction("closeclient")}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 hover:border-[#065F46] hover:bg-[#ECFDF5] transition-all text-left">
-                    <div className="w-12 h-12 rounded-2xl bg-[#ECFDF5] text-[#065F46] flex items-center justify-center shrink-0"><Trophy size={22}/></div>
-                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Close Client</h4><p className="text-gray-500 text-sm mt-0.5">Fill project details &amp; move to Projects</p></div>
-                  </button>
-                  <button onClick={() => setEditAction("deleteclient")}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 hover:border-[#B42318] hover:bg-[#FFF1F3] transition-all text-left">
-                    <div className="w-12 h-12 rounded-2xl bg-[#FFF1F3] text-[#B42318] flex items-center justify-center shrink-0"><UserX size={22}/></div>
-                    <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Delete Client</h4><p className="text-gray-500 text-sm mt-0.5">Remove this client from the list</p></div>
-                  </button>
-                </div>
-              )}
+              <div className="flex-1 overflow-y-auto overscroll-contain">
+                <div className="px-5 sm:px-6 py-5 space-y-5">
 
-              {/* RESCHEDULE */}
-              {editAction === "reschedule" && (
-                <div className="mt-7">
-                  <div>
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><CalendarDays size={16}/>New Schedule Date</label>
-                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
-                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
-                  </div>
-                  <div className="mt-5">
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Clock3 size={16}/>New Call Time</label>
-                    <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
-                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"/>
-                  </div>
-                  <div className="mt-5 relative">
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2"><Globe size={16}/>Client Timezone (US)</label>
-                    <select value={selectedTimezone} onChange={e => setSelectedTimezone(e.target.value)}
-                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 pr-10 outline-none appearance-none bg-white focus:border-[#B8112D] text-[14px]">
-                      {usTimezones.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
-                    </select>
-                    <div className="absolute right-4 top-[46px] pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
-                  </div>
-                  {scheduleDate && scheduleTime && (
-                    <div className="mt-5 p-4 bg-[#F5F6FA] rounded-2xl">
-                      <p className="text-[12px] font-medium text-gray-500 mb-1">New Schedule Preview</p>
-                      <p className="text-[15px] font-semibold text-[#0F172A]">
-                        {scheduleDate} at {scheduleTime} {usTimezones.find(tz => tz.value===selectedTimezone)?.abbreviation}
-                      </p>
+                  {/* ACTION CARDS */}
+                  {!editAction && (
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">What would you like to do?</p>
+                      <button onClick={() => setEditAction("reschedule")}
+                        className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] hover:border-[#B8112D] hover:bg-[#FFF1F3] transition-all text-left">
+                        <div className="w-12 h-12 rounded-2xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center shrink-0"><CalendarClock size={22}/></div>
+                        <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Reschedule</h4><p className="text-gray-500 text-sm mt-0.5">Pick a new date, time &amp; timezone</p></div>
+                      </button>
+                      <button onClick={() => setEditAction("closeclient")}
+                        className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] hover:border-[#B8112D] hover:bg-[#FFF1F3] transition-all text-left">
+                        <div className="w-12 h-12 rounded-2xl bg-[#ECFDF5] text-[#065F46] flex items-center justify-center shrink-0"><Trophy size={22}/></div>
+                        <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Close Client</h4><p className="text-gray-500 text-sm mt-0.5">Fill project details &amp; move to Projects</p></div>
+                      </button>
+                      <button onClick={() => setEditAction("deleteclient")}
+                        className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-gray-100 bg-[#FAFAFA] hover:border-[#B42318] hover:bg-[#FFF1F3] transition-all text-left">
+                        <div className="w-12 h-12 rounded-2xl bg-[#FFF1F3] text-[#B42318] flex items-center justify-center shrink-0"><UserX size={22}/></div>
+                        <div><h4 className="font-semibold text-[#0F172A] text-[15px]">Delete Client</h4><p className="text-gray-500 text-sm mt-0.5">Remove this client from the list</p></div>
+                      </button>
                     </div>
                   )}
-                  <div className="flex gap-3 mt-7">
-                    <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
-                    <button onClick={saveReschedule} disabled={!scheduleDate || !scheduleTime}
-                      className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${scheduleDate && scheduleTime ? "bg-[#B8112D]" : "bg-gray-300 cursor-not-allowed"}`}>
-                      Save Schedule
-                    </button>
-                  </div>
-                </div>
-              )}
 
-              {/* Close Client */}
-              {editAction === "closeclient" && (
-                <div className="mt-7">
-                  <div className="bg-[#ECFDF5] rounded-2xl p-4 flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-white text-[#065F46] flex items-center justify-center shrink-0 shadow-sm"><Trophy size={20}/></div>
-                    <div>
-                      <h4 className="font-bold text-[#065F46] text-[15px]">Close Client </h4>
-                      <p className="text-[#065F46]/70 text-[12px] mt-0.5">Fill in the project details for <strong>{editingCall.client}</strong></p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                      <FileText size={15}/>Project Title <span className="text-[#B8112D] text-xs">*required</span>
-                    </label>
-                    <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle}
-                      onChange={e => setProjectTitle(e.target.value)}
-                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
-                  </div>
-                  <div className="mt-6">
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-3">
-                      <Briefcase size={15}/>Service to Provide <span className="text-[#B8112D] text-xs">*required</span>
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {serviceOptions.map(({ value, label, Icon }) => {
-                        const sel = projectService === value;
-                        return (
-                          <button key={value} onClick={() => setProjectService(value)}
-                            className={`h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[12px] font-semibold ${
-                              sel ? "border-[#065F46] bg-[#ECFDF5] text-[#065F46] shadow-sm" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
-                            }`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${sel ? "bg-[#065F46]/10" : "bg-white shadow-sm"}`}>
-                              <Icon size={15} className={sel ? "text-[#065F46]" : "text-gray-500"}/>
-                            </div>
-                            <span>{label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="mt-5">
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                      <CalendarDays size={15}/>Project Deadline <span className="text-[#B8112D] text-xs">*required</span>
-                    </label>
-                    <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
-                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46]"/>
-                  </div>
-                  <div className="mt-5">
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                      <DollarSign size={15}/>Project Budget <span className="text-gray-400 text-xs font-normal">(optional)</span>
-                    </label>
-                    <input type="text" placeholder="e.g. $5,000" value={projectBudget}
-                      onChange={e => setProjectBudget(e.target.value)}
-                      className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#065F46] text-[14px]"/>
-                  </div>
-                  <div className="mt-5">
-                    <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                      <AlignLeft size={15}/>Project Notes <span className="text-gray-400 text-xs font-normal">(optional)</span>
-                    </label>
-                    <textarea placeholder="Any additional notes about the project..." value={projectNotes}
-                      onChange={e => setProjectNotes(e.target.value)} rows={3}
-                      className="mt-3 w-full rounded-2xl border border-gray-200 px-4 py-3 outline-none focus:border-[#065F46] text-[14px] resize-none"/>
-                  </div>
-                  <div className="flex gap-3 mt-7">
-                    <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
-                    <button onClick={saveProjectWon} disabled={!projectWonValid}
-                      className={`flex-1 h-[52px] rounded-2xl font-semibold text-white transition-all ${projectWonValid ? "bg-[#065F46]" : "bg-gray-300 cursor-not-allowed"}`}>
-                      Confirm &amp; Move
-                    </button>
-                  </div>
-                </div>
-              )}
+                  {/* RESCHEDULE */}
+                  {editAction === "reschedule" && (
+                    <>
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><CalendarDays size={11} className="text-[#B8112D]"/>New Schedule Date</label>
+                        <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"/>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Clock3 size={11} className="text-[#B8112D]"/>New Call Time</label>
+                        <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"/>
+                      </div>
+                      <div className="relative">
+                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Globe size={11} className="text-[#B8112D]"/>Client Timezone (US)</label>
+                        <select value={selectedTimezone} onChange={e => setSelectedTimezone(e.target.value)}
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 pr-10 text-sm outline-none appearance-none focus:border-[#B8112D] focus:bg-white transition-colors">
+                          {usTimezones.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
+                        </select>
+                        <div className="absolute right-4 top-[38px] pointer-events-none text-gray-400"><ChevronDown size={18}/></div>
+                      </div>
+                      {scheduleDate && scheduleTime && (
+                        <div className="bg-[#F8F9FC] rounded-2xl p-3.5">
+                          <div className="flex items-center gap-1.5 mb-1.5"><Clock3 size={12} className="text-[#B8112D]"/><p className="text-gray-400 text-[11px]">New Schedule Preview</p></div>
+                          <h4 className="font-semibold text-[#0F172A] text-[13px]">
+                            {scheduleDate} at {scheduleTime} {usTimezones.find(tz => tz.value===selectedTimezone)?.abbreviation}
+                          </h4>
+                        </div>
+                      )}
+                      <div className="flex gap-3 pb-1">
+                        <button onClick={() => setEditAction(null)} className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Back</button>
+                        <button onClick={saveReschedule} disabled={!scheduleDate || !scheduleTime}
+                          className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${scheduleDate && scheduleTime ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
+                          Save Schedule
+                        </button>
+                      </div>
+                    </>
+                  )}
 
-              {/* Close Client */}
-              {editAction === "deleteclient" && (
-                <div className="mt-7">
-                  <div className="bg-[#FFF1F3] rounded-2xl p-5 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-white text-[#B42318] flex items-center justify-center shrink-0 shadow-sm"><UserX size={22}/></div>
-                    <div>
-                      <h4 className="font-bold text-[#B42318] text-[16px]">Confirm Delete Client</h4>
-                      <p className="text-[#B42318]/70 text-sm mt-1"><strong>{editingCall.client}</strong> will be removed from your list permanently.</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3 mt-7">
-                    <button onClick={() => setEditAction(null)} className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600">Back</button>
-                    <button onClick={saveCloseClient} className="flex-1 h-[52px] rounded-2xl bg-[#B42318] text-white font-semibold shadow-sm">Delete Client</button>
-                  </div>
+                  {/* CLOSE CLIENT */}
+                  {editAction === "closeclient" && (
+                    <>
+                      <div className="bg-[#F8F9FC] rounded-2xl p-3.5 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] text-[#065F46] flex items-center justify-center shrink-0"><Trophy size={18}/></div>
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-[#0F172A] text-[13px]">Close Client</h4>
+                          <p className="text-gray-400 text-[11px] mt-0.5 truncate">Fill in the project details for <strong className="text-gray-600">{editingCall.client}</strong></p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><FileText size={11} className="text-[#B8112D]"/>Project Title <span className="text-[#B8112D] normal-case">*required</span></label>
+                        <input type="text" placeholder="e.g. BIM Modeling Phase 1" value={projectTitle} onChange={e => setProjectTitle(e.target.value)}
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Briefcase size={11} className="text-[#B8112D]"/>Service to Provide <span className="text-[#B8112D] normal-case">*required</span></label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {serviceOptions.map(({ value, label, Icon }) => {
+                            const sel = projectService === value;
+                            return (
+                              <button key={value} onClick={() => setProjectService(value)}
+                                className={`relative py-3 px-1 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all text-[11px] font-semibold ${sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"}`}>
+                                {sel && <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center"><Check size={9} className="text-white"/></span>}
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}><Icon size={15} className={sel ? "text-[#B8112D]" : "text-gray-400"}/></div>
+                                <span>{label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><CalendarDays size={11} className="text-[#B8112D]"/>Deadline <span className="text-[#B8112D] normal-case">*required</span></label>
+                          <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
+                            className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"/>
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><DollarSign size={11} className="text-[#B8112D]"/>Budget <span className="text-gray-300 normal-case">(optional)</span></label>
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                            <input type="text" placeholder="0.00" value={projectBudget.replace(/^\$/, "")} onChange={e => setProjectBudget(e.target.value)}
+                              className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-7 pr-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><AlignLeft size={11} className="text-[#B8112D]"/>Notes <span className="text-gray-300 normal-case">(optional)</span></label>
+                        <textarea placeholder="Any additional notes about the project..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} rows={3}
+                          className="w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"/>
+                      </div>
+                      <div className="flex gap-3 pb-1">
+                        <button onClick={() => setEditAction(null)} className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Back</button>
+                        <button onClick={saveProjectWon} disabled={!projectWonValid}
+                          className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${projectWonValid ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"}`}>
+                          Confirm &amp; Move
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* DELETE CLIENT */}
+                  {editAction === "deleteclient" && (
+                    <>
+                      <div className="bg-[#FFF1F3] rounded-2xl p-4 flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-white text-[#B42318] flex items-center justify-center shrink-0 shadow-sm"><UserX size={20}/></div>
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-[#B42318] text-[14px]">Confirm Delete Client</h4>
+                          <p className="text-[#B42318]/70 text-[12px] mt-0.5"><strong>{editingCall.client}</strong> will be removed from your list permanently.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 pb-1">
+                        <button onClick={() => setEditAction(null)} className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Back</button>
+                        <button onClick={saveCloseClient} className="flex-1 h-12 rounded-2xl bg-[#B42318] text-white font-semibold text-sm hover:bg-[#9c1d14] transition-colors">Delete Client</button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
+        )}
+
+        {/* ══ LEAD DETAIL MODAL ══ */}
+        {viewingCall && (
+          <LeadDetailModal
+            lead={{
+              id: viewingCall.id,
+              name: viewingCall.client,
+              company: viewingCall.company !== "N/A" ? viewingCall.company : undefined,
+              phone: viewingCall.phone !== "N/A" ? viewingCall.phone : undefined,
+              email: viewingCall.email,
+              state: viewingCall.state || undefined,
+              status: viewingCall.status,
+              interestedService: viewingCall.interestedService,
+              followUpNotes: viewingCall.notes !== "No notes added" ? viewingCall.notes : undefined,
+              nextSchedule: viewingCall.nextFollowup || undefined,
+              nextTime: viewingCall.time && viewingCall.time !== "N/A" ? viewingCall.time : undefined,
+              timezone: viewingCall.timezone && viewingCall.timezone !== "N/A" ? viewingCall.timezone : undefined,
+            }}
+            onClose={() => setViewingCall(null)}
+            onSaved={(id, updates) => {
+              const merged: Partial<CallType> = {};
+              if (updates.name  !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.phone !== undefined) merged.phone  = updates.phone.trim() || "N/A";
+              if (updates.email !== undefined) merged.email  = updates.email.trim();
+              if (updates.state !== undefined) merged.state  = updates.state.trim();
+              if (updates.followUpNotes !== undefined) merged.notes = updates.followUpNotes || "No notes added";
+              setImportantCalls(prev => prev.map(c => c.id === id ? { ...c, ...merged } : c));
+              setViewingCall(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+          />
         )}
       </main>
     </div>
