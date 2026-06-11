@@ -76,12 +76,22 @@ export default function ClientsPage() {
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
 
   /* ── notepad ── */
-  const [noteModal, setNoteModal] = useState<{ id: string; name: string; note: string; mode: "view" | "edit" } | null>(null);
+  const [noteModal, setNoteModal] = useState<{
+    id: string;
+    name: string;
+    note: string;
+    mode: "view" | "edit";
+  } | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
 
   const openNote = (client: Client, mode: "view" | "edit") => {
-    setNoteModal({ id: client.id, name: client.clientName, note: client.lastComment === "No comments" ? "" : client.lastComment, mode });
+    setNoteModal({
+      id: client.id,
+      name: client.clientName,
+      note: client.lastComment === "No comments" ? "" : client.lastComment,
+      mode,
+    });
     setNoteDraft(client.lastComment === "No comments" ? "" : client.lastComment);
   };
 
@@ -90,7 +100,13 @@ export default function ClientsPage() {
     setNoteSaving(true);
     try {
       await API.patch(`/admin/lead/${noteModal.id}/note`, { comments: noteDraft });
-      setClients(prev => prev.map(c => c.id === noteModal.id ? { ...c, lastComment: noteDraft || "No comments" } : c));
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === noteModal.id
+            ? { ...c, lastComment: noteDraft || "No comments" }
+            : c
+        )
+      );
       setNoteModal(null);
       toast.success("Note saved");
     } catch {
@@ -147,7 +163,6 @@ export default function ClientsPage() {
             csr?: { name?: string };
           }) => {
             const raw = (lead.status || "active").toLowerCase();
-
             return {
               id: lead.id,
               clientName: lead.name || "Unknown",
@@ -187,7 +202,6 @@ export default function ClientsPage() {
 
     load();
     const interval = setInterval(load, 5000);
-
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -201,45 +215,46 @@ export default function ClientsPage() {
     [clients]
   );
 
-  /* ─── CSR BASED COUNTS FIX ─── */
   const filteredByCSR = useMemo(() => {
     return csrFilter === "all"
       ? clients
       : clients.filter((c) => c.csr === csrFilter);
   }, [clients, csrFilter]);
 
-  const importantClients = useMemo(() => {
-    return filteredByCSR.filter((c) => c.rawStatus === "important");
-  }, [filteredByCSR]);
+  const importantClients = useMemo(
+    () => filteredByCSR.filter((c) => c.rawStatus === "important"),
+    [filteredByCSR]
+  );
 
-  const interestedClients = useMemo(() => {
-    return filteredByCSR.filter((c) => c.rawStatus === "interested");
-  }, [filteredByCSR]);
+  const interestedClients = useMemo(
+    () => filteredByCSR.filter((c) => c.rawStatus === "interested"),
+    [filteredByCSR]
+  );
 
-  const closedClients = useMemo(() => {
-    return filteredByCSR.filter((c) => c.status === "Closed");
-  }, [filteredByCSR]);
+  const closedClients = useMemo(
+    () => filteredByCSR.filter((c) => c.status === "Closed"),
+    [filteredByCSR]
+  );
 
-  const projectWonCount = useMemo(() => {
-    return filteredByCSR.filter((c) => c.rawStatus === "Close Client").length;
-  }, [filteredByCSR]);
+  const projectWonCount = useMemo(
+    () => filteredByCSR.filter((c) => c.rawStatus === "Close Client").length,
+    [filteredByCSR]
+  );
 
-  const impTodayCount = useMemo(() => {
-    return importantClients.filter((c) => c.nextFollowup === todayStr).length;
-  }, [importantClients, todayStr]);
+  const impTodayCount = useMemo(
+    () => importantClients.filter((c) => c.nextFollowup === todayStr).length,
+    [importantClients, todayStr]
+  );
 
   const filteredImportant = useMemo(() => {
     const q = impSearch.toLowerCase();
-
     return importantClients.filter((c) => {
       const ms =
         !q ||
         c.clientName.toLowerCase().includes(q) ||
         c.company.toLowerCase().includes(q) ||
         c.contact.toLowerCase().includes(q);
-
       const md = !impFilterDate || c.nextFollowup === impFilterDate;
-
       return ms && md;
     });
   }, [importantClients, impSearch, impFilterDate]);
@@ -250,20 +265,17 @@ export default function ClientsPage() {
     () =>
       filteredByCSR.filter((client) => {
         const q = search.toLowerCase();
-
         const ms =
           client.clientName.toLowerCase().includes(q) ||
           client.company.toLowerCase().includes(q) ||
           client.scope.toLowerCase().includes(q) ||
           client.csr.toLowerCase().includes(q);
-
         const mst =
           view === "interested"
             ? client.status === "Interested"
             : view === "closed"
             ? client.status === "Closed"
             : true;
-
         return ms && mst;
       }),
     [filteredByCSR, search, view]
@@ -274,12 +286,10 @@ export default function ClientsPage() {
       toast.error("Please fill all required fields.");
       return;
     }
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClient.email)) {
       toast.error("Please enter valid email.");
       return;
     }
-
     if (isEditing) {
       setClients((prev) =>
         prev.map((c) => (c.id === newClient.id ? newClient : c))
@@ -289,7 +299,6 @@ export default function ClientsPage() {
       setClients((prev) => [{ ...newClient, id: Date.now().toString() }, ...prev]);
       toast.success("Client added successfully.");
     }
-
     setShowAddModal(false);
     setIsEditing(false);
     setNewClient(emptyClient);
@@ -297,7 +306,6 @@ export default function ClientsPage() {
 
   const handleDeleteClient = () => {
     if (!clientToDelete) return;
-
     setClients((prev) => prev.filter((c) => c.id !== clientToDelete));
     toast.success("Client deleted successfully.");
     setShowDeleteModal(false);
@@ -324,22 +332,26 @@ export default function ClientsPage() {
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster position="top-right" reverseOrder={false} />
-
       <DashboardSidebar />
 
-      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[72px] lg:mt-0">
+      {/* ─── MAIN CONTENT ─── */}
+      {/* mt-[72px] for mobile/tablet navbar, lg:mt-0 when sidebar is shown */}
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[72px] lg:mt-0">
         <DashboardNavbar />
 
-        <div className="mb-5">
-          <h1 className="text-3xl font-semibold text-gray-800">
+        {/* ─── PAGE HEADER ─── */}
+        <div className="mb-4 sm:mb-5 lg:mb-6">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-gray-800">
             Client Management
           </h1>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">
             Manage clients, conversations, and company records.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+        {/* ─── STAT CARDS ─── */}
+        {/* 2 cols on mobile, 2 on sm, 4 on lg+ */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-5 lg:mb-6">
           {[
             {
               label: "Important Calls",
@@ -349,7 +361,7 @@ export default function ClientsPage() {
               Icon: CircleAlert,
             },
             {
-              label: "Important Calls Today",
+              label: "Important Today",
               value: impTodayCount,
               sub: "scheduled for today",
               color: "bg-[#EAF5FF] text-[#0B84F3]",
@@ -372,132 +384,141 @@ export default function ClientsPage() {
           ].map((card) => (
             <div
               key={card.label}
-              className="bg-white rounded-[24px] p-4 border border-white shadow-sm"
+              className="bg-white rounded-2xl p-3 sm:p-4 lg:p-5 border border-white shadow-sm"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-[12px] font-medium">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-gray-500 text-[10px] sm:text-[11px] lg:text-[12px] font-medium truncate">
                     {card.label}
                   </p>
-                  <h2 className="text-[28px] font-bold text-[#0F172A] mt-1">
+                  <h2 className="text-2xl sm:text-[26px] lg:text-[28px] font-bold text-[#0F172A] mt-0.5">
                     {card.value}
                   </h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 truncate">
                     {card.sub}
                   </p>
                 </div>
                 <div
-                  className={`w-11 h-11 rounded-2xl ${card.color} flex items-center justify-center shrink-0`}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 rounded-2xl ${card.color} flex items-center justify-center shrink-0`}
                 >
-                  <card.Icon size={20} />
+                  <card.Icon size={16} className="sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5" />
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-3 py-2.5 mb-5 flex flex-wrap items-center gap-2">
-          {[
-            {
-              key: "all",
-              label: "All Clients",
-              count: filteredByCSR.length,
-              Icon: LayoutGrid,
-            },
-            {
-              key: "important",
-              label: "Important Calls",
-              count: importantClients.length,
-              Icon: CircleAlert,
-            },
-            {
-              key: "interested",
-              label: "Interested",
-              count: interestedClients.length,
-              Icon: HeartHandshake,
-            },
-            {
-              key: "closed",
-              label: "Closed",
-              count: closedClients.length,
-              Icon: BadgeCheck,
-            },
-          ].map((item) => (
-            <button
-              key={item.key}
-              onClick={() => {
-                setView(item.key as typeof view);
-                if (item.key === "important") setSelectedImp(null);
-              }}
-              className={`h-10 px-4 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all ${
-                view === item.key
-                  ? "bg-[#B8112D] text-white shadow-md shadow-red-200"
-                  : "text-gray-600 hover:bg-[#FFF6F7] hover:text-[#B8112D]"
-              }`}
-            >
-              <item.Icon size={15} />
-              {item.label}
-              <span
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold ${
-                  view === item.key ? "bg-white/20" : "bg-gray-100 text-gray-500"
+        {/* ─── TAB BAR ─── */}
+        {/* Horizontally scrollable on mobile, wraps on md+ */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-2 sm:px-3 py-2 sm:py-2.5 mb-4 sm:mb-5 overflow-x-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
+            {[
+              {
+                key: "all",
+                label: "All Clients",
+                count: filteredByCSR.length,
+                Icon: LayoutGrid,
+              },
+              {
+                key: "important",
+                label: "Important",
+                count: importantClients.length,
+                Icon: CircleAlert,
+              },
+              {
+                key: "interested",
+                label: "Interested",
+                count: interestedClients.length,
+                Icon: HeartHandshake,
+              },
+              {
+                key: "closed",
+                label: "Closed",
+                count: closedClients.length,
+                Icon: BadgeCheck,
+              },
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={() => {
+                  setView(item.key as typeof view);
+                  if (item.key === "important") setSelectedImp(null);
+                }}
+                className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
+                  view === item.key
+                    ? "bg-[#B8112D] text-white shadow-md shadow-red-200"
+                    : "text-gray-600 hover:bg-[#FFF6F7] hover:text-[#B8112D]"
                 }`}
               >
-                {item.count}
-              </span>
-            </button>
-          ))}
+                <item.Icon size={13} className="sm:w-[15px] sm:h-[15px]" />
+                {item.label}
+                <span
+                  className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold ${
+                    view === item.key
+                      ? "bg-white/20"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {item.count}
+                </span>
+              </button>
+            ))}
 
-          <div className="w-px h-6 bg-gray-200 mx-1" />
+            <div className="w-px h-6 bg-gray-200 mx-0.5 sm:mx-1 shrink-0" />
 
-          <div className="flex items-center gap-2 h-10">
-            <Users size={15} className="text-gray-400 shrink-0" />
-            <select
-              value={csrFilter}
-              onChange={(e) => {
-                setCsrFilter(e.target.value);
-                setSelectedImp(null);
-              }}
-              className="h-10 border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D] bg-white text-gray-700 font-medium"
-            >
-              <option value="all">All CSR</option>
-              {csrOptions.map((csr) => (
-                <option key={csr} value={csr}>
-                  {csr}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5 sm:gap-2 h-9 sm:h-10">
+              <Users size={13} className="text-gray-400 shrink-0 sm:w-[15px] sm:h-[15px]" />
+              <select
+                value={csrFilter}
+                onChange={(e) => {
+                  setCsrFilter(e.target.value);
+                  setSelectedImp(null);
+                }}
+                className="h-9 sm:h-10 border border-gray-200 rounded-xl px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white text-gray-700 font-medium"
+              >
+                <option value="all">All CSR</option>
+                {csrOptions.map((csr) => (
+                  <option key={csr} value={csr}>
+                    {csr}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
+        {/* ─── ALL / INTERESTED / CLOSED VIEW ─── */}
         {(view === "all" || view === "interested" || view === "closed") && (
           <>
+            {/* Parent Companies accordion — only in "all" view */}
             {view === "all" && (
-              <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm mb-5">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm mb-4 sm:mb-5">
                 <button
                   onClick={() => setShowCompanies(!showCompanies)}
                   className="w-full flex items-center justify-between"
                 >
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-800 text-left">
+                    <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-800 text-left">
                       Parent Companies
                     </h2>
-                    <p className="text-sm text-gray-400 mt-1 text-left">
+                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1 text-left">
                       Company groups and associated clients.
                     </p>
                   </div>
                   {showCompanies ? (
-                    <ChevronUp size={20} className="text-gray-500" />
+                    <ChevronUp size={18} className="text-gray-500 sm:w-5 sm:h-5" />
                   ) : (
-                    <ChevronDown size={20} className="text-gray-500" />
+                    <ChevronDown size={18} className="text-gray-500 sm:w-5 sm:h-5" />
                   )}
                 </button>
 
                 <div
                   className={`overflow-hidden transition-all duration-300 ${
-                    showCompanies ? "max-h-[500px] mt-6" : "max-h-0"
+                    showCompanies ? "max-h-[600px] mt-4 sm:mt-6" : "max-h-0"
                   }`}
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+                  {/* 2 cols mobile → 3 cols md → 5 cols xl */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                     {[
                       "BEM DESIGN STUDIO",
                       "GPS",
@@ -507,12 +528,12 @@ export default function ClientsPage() {
                     ].map((company) => (
                       <div
                         key={company}
-                        className="bg-[#FAFAFB] border border-gray-100 rounded-2xl p-4"
+                        className="bg-[#FAFAFB] border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-4"
                       >
-                        <h3 className="font-semibold text-gray-700">
+                        <h3 className="font-semibold text-gray-700 text-xs sm:text-sm">
                           {company}
                         </h3>
-                        <p className="text-sm text-gray-400 mt-2">
+                        <p className="text-[11px] sm:text-sm text-gray-400 mt-1 sm:mt-2">
                           Active Projects & Clients
                         </p>
                       </div>
@@ -522,18 +543,19 @@ export default function ClientsPage() {
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-              <div className="relative w-full sm:w-[320px]">
+            {/* Search + Add button row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
+              <div className="relative w-full sm:w-[280px] md:w-[320px] lg:w-[360px]">
                 <Search
-                  size={16}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={15}
+                  className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
                 <input
                   type="text"
                   placeholder="Search clients..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"
+                  className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
                 />
               </div>
 
@@ -543,36 +565,38 @@ export default function ClientsPage() {
                   setIsEditing(false);
                   setNewClient(emptyClient);
                 }}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
               >
-                <Plus size={16} />
+                <Plus size={15} />
                 Add Client
               </button>
             </div>
 
-            <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800">
+            {/* ─── TABLE ─── */}
+            <div className="bg-white border border-gray-100 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800 text-sm sm:text-base">
                   {view === "interested"
                     ? "Interested Clients"
                     : view === "closed"
                     ? "Closed Clients"
                     : "All Clients"}
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
                   {filteredClients.length} records
                 </p>
               </div>
 
-              <div className="overflow-x-auto overflow-y-auto max-h-[700px]">
-                <table className="w-full min-w-[900px]">
+              {/* Horizontally scrollable table wrapper */}
+              <div className="overflow-x-auto overflow-y-auto max-h-[480px] sm:max-h-[560px] lg:max-h-[620px] xl:max-h-[700px]">
+                <table className="w-full" style={{ minWidth: "760px" }}>
                   <thead className="bg-[#FAFAFB] border-b border-gray-100 sticky top-0 z-10">
-                    <tr className="text-left text-sm text-gray-400">
+                    <tr className="text-left text-xs sm:text-sm text-gray-400">
                       {["Client", "Company", "Scope", "Contact", "CSR", "Status", ""].map(
                         (h, i) => (
                           <th
-                            key={h}
-                            className={`px-6 py-4 font-medium ${
+                            key={i}
+                            className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 font-medium ${
                               i === 6 ? "text-right" : ""
                             }`}
                           >
@@ -586,15 +610,15 @@ export default function ClientsPage() {
                   <tbody>
                     {filteredClients.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-20 text-center">
+                        <td colSpan={7} className="px-6 py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center">
-                            <div className="w-20 h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-4">
-                              <Building2 size={32} className="text-[#B8112D]" />
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4">
+                              <Building2 size={28} className="text-[#B8112D] sm:w-8 sm:h-8" />
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-700">
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-700">
                               No Clients Found
                             </h3>
-                            <p className="text-sm text-gray-400 mt-2">
+                            <p className="text-xs sm:text-sm text-gray-400 mt-1 sm:mt-2">
                               Try adding a new client or changing your search.
                             </p>
                           </div>
@@ -604,40 +628,42 @@ export default function ClientsPage() {
                       filteredClients.map((client, i) => (
                         <tr
                           key={client.id}
-                          className="border-b border-gray-100 hover:bg-[#FAFAFB]"
+                          className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-colors"
                         >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-sm">
+                          {/* Client name + email */}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm">
                                 {client.clientName.charAt(0)}
                               </div>
-                              <div>
-                                <h3 className="text-sm font-semibold text-gray-700">
+                              <div className="min-w-0">
+                                <h3 className="text-xs sm:text-sm font-semibold text-gray-700 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
                                   {client.clientName}
                                 </h3>
-                                <p className="text-xs text-gray-400">
+                                <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
                                   {client.email}
                                 </p>
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {client.company}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-[120px]">
+                            <span className="truncate block">{client.company}</span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {client.scope}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-[140px]">
+                            <span className="truncate block">{client.scope}</span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-500 whitespace-nowrap">
                             {client.contact}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">
                             {client.csr}
                           </td>
 
-                          <td className="px-6 py-4">
+                          {/* Status badge */}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
                             <span
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${
                                 client.status === "Active"
                                   ? "bg-green-100 text-green-700"
                                   : client.status === "Pending"
@@ -651,28 +677,30 @@ export default function ClientsPage() {
                             </span>
                           </td>
 
-                          <td className="px-6 py-4">
-                            <div className="hidden md:flex items-center justify-end gap-2">
+                          {/* Actions */}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                            {/* Desktop: icon row (md+) */}
+                            <div className="hidden md:flex items-center justify-end gap-1.5 lg:gap-2">
                               <button
                                 onClick={() => setSelectedClient(client)}
-                                className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"
+                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"
                                 title="View details"
                               >
-                                <Eye size={15} />
+                                <Eye size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
                               <button
                                 onClick={() => openNote(client, "view")}
-                                className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all"
+                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all"
                                 title="View note"
                               >
-                                <MessageSquare size={15} />
+                                <MessageSquare size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
                               <button
                                 onClick={() => openNote(client, "edit")}
-                                className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all"
+                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all"
                                 title="Edit note"
                               >
-                                <Pencil size={15} />
+                                <Pencil size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
                               <button
                                 onClick={() => {
@@ -680,56 +708,63 @@ export default function ClientsPage() {
                                   setIsEditing(true);
                                   setNewClient(client);
                                 }}
-                                className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
+                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
                                 title="Edit lead"
                               >
-                                <Pencil size={15} />
+                                <Pencil size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
                               <button
                                 onClick={() => {
                                   setClientToDelete(client.id);
                                   setShowDeleteModal(true);
                                 }}
-                                className="w-9 h-9 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
+                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
+                                title="Delete"
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
                             </div>
 
+                            {/* Mobile: three-dot dropdown */}
                             <div className="relative md:hidden flex justify-end">
                               <button
-                                onClick={() => setOpenMenu(openMenu === i ? null : i)}
-                                className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center bg-white"
+                                onClick={() =>
+                                  setOpenMenu(openMenu === i ? null : i)
+                                }
+                                className="w-8 h-8 rounded-xl border border-gray-200 flex items-center justify-center bg-white"
                               >
-                                <MoreVertical size={18} />
+                                <MoreVertical size={16} />
                               </button>
 
                               {openMenu === i && (
-                                <div className="absolute right-0 top-12 w-44 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+                                <div className="absolute right-0 top-10 w-44 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
                                   <button
-                                    onClick={() => { setSelectedClient(client); setOpenMenu(null); }}
+                                    onClick={() => {
+                                      setSelectedClient(client);
+                                      setOpenMenu(null);
+                                    }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                   >
-                                    <Eye size={15} />
-                                    View
+                                    <Eye size={14} /> View
                                   </button>
-
                                   <button
-                                    onClick={() => { openNote(client, "view"); setOpenMenu(null); }}
+                                    onClick={() => {
+                                      openNote(client, "view");
+                                      setOpenMenu(null);
+                                    }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-amber-50 text-amber-700 flex items-center gap-2"
                                   >
-                                    <MessageSquare size={15} />
-                                    View Note
+                                    <MessageSquare size={14} /> View Note
                                   </button>
-
                                   <button
-                                    onClick={() => { openNote(client, "edit"); setOpenMenu(null); }}
+                                    onClick={() => {
+                                      openNote(client, "edit");
+                                      setOpenMenu(null);
+                                    }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-emerald-50 text-emerald-700 flex items-center gap-2"
                                   >
-                                    <Pencil size={15} />
-                                    Edit Note
+                                    <Pencil size={14} /> Edit Note
                                   </button>
-
                                   <button
                                     onClick={() => {
                                       setShowAddModal(true);
@@ -739,10 +774,8 @@ export default function ClientsPage() {
                                     }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                                   >
-                                    <Pencil size={15} />
-                                    Edit Lead
+                                    <Pencil size={14} /> Edit Lead
                                   </button>
-
                                   <button
                                     onClick={() => {
                                       setClientToDelete(client.id);
@@ -751,8 +784,7 @@ export default function ClientsPage() {
                                     }}
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
                                   >
-                                    <Trash2 size={15} />
-                                    Delete
+                                    <Trash2 size={14} /> Delete
                                   </button>
                                 </div>
                               )}
@@ -768,13 +800,15 @@ export default function ClientsPage() {
           </>
         )}
 
+        {/* ─── IMPORTANT VIEW ─── */}
         {view === "important" && (
           <>
-            <div className="bg-white rounded-[26px] shadow-sm px-5 py-4 mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Filter bar */}
+            <div className="bg-white rounded-2xl sm:rounded-[26px] shadow-sm px-4 sm:px-5 py-3 sm:py-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div className="relative w-full sm:max-w-[380px]">
                 <Search
-                  size={16}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={15}
+                  className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 />
                 <input
                   type="text"
@@ -784,13 +818,13 @@ export default function ClientsPage() {
                     setImpSearch(e.target.value);
                     setSelectedImp(null);
                   }}
-                  className="w-full h-[46px] rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"
+                  className="w-full h-10 sm:h-[46px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-9 sm:pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"
                 />
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="flex items-center gap-1.5 text-[#B8112D] font-semibold text-sm whitespace-nowrap">
-                  <Filter size={15} />
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 text-[#B8112D] font-semibold text-xs sm:text-sm whitespace-nowrap">
+                  <Filter size={14} />
                   Filter by Schedule
                 </div>
                 <input
@@ -800,7 +834,7 @@ export default function ClientsPage() {
                     setImpFilterDate(e.target.value);
                     setSelectedImp(null);
                   }}
-                  className="h-[46px] rounded-2xl border border-gray-200 px-4 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
+                  className="h-10 sm:h-[46px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
                 />
                 {impFilterDate && (
                   <button
@@ -808,7 +842,7 @@ export default function ClientsPage() {
                       setImpFilterDate("");
                       setSelectedImp(null);
                     }}
-                    className="h-[46px] px-4 rounded-2xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-500 hover:text-[#B8112D] transition-all whitespace-nowrap"
+                    className="h-10 sm:h-[46px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-500 hover:text-[#B8112D] transition-all whitespace-nowrap"
                   >
                     Clear
                   </button>
@@ -816,63 +850,66 @@ export default function ClientsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
-              <div
-                className="xl:col-span-5 bg-white rounded-[30px] border border-gray-100 shadow-sm flex flex-col"
-                style={{ maxHeight: "calc(100vh - 360px)", minHeight: "380px" }}
-              >
-                <div className="p-5 pb-4 border-b border-[#F3F3F3] shrink-0">
+            {/* Split panel: list + detail
+                Mobile/tablet: stacked (col)
+                Desktop (xl+): side by side (row) */}
+            <div className="flex flex-col xl:grid xl:grid-cols-12 gap-4 sm:gap-5">
+
+              {/* LEFT: client list */}
+              <div className="xl:col-span-5 bg-white rounded-2xl sm:rounded-[30px] border border-gray-100 shadow-sm flex flex-col"
+                style={{ maxHeight: "calc(100vh - 380px)", minHeight: "320px" }}>
+                <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-[#F3F3F3] shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-[19px] font-bold text-[#0F172A]">
+                      <h3 className="text-base sm:text-[19px] font-bold text-[#0F172A]">
                         Important Clients
                       </h3>
-                      <p className="text-gray-500 text-sm mt-0.5">
+                      <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
                         Scheduled follow-up meetings.
                       </p>
                     </div>
-                    <div className="bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold px-3 py-1.5 rounded-xl">
+                    <div className="bg-[#FFF1F3] text-[#B8112D] text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl">
                       {importantClients.length} Total
                     </div>
                   </div>
                 </div>
 
-                <div className="overflow-y-auto flex-1 p-4 space-y-3">
+                <div className="overflow-y-auto flex-1 p-3 sm:p-4 space-y-2 sm:space-y-3">
                   {filteredImportant.length > 0 ? (
                     filteredImportant.map((client) => (
                       <button
                         key={client.id}
                         onClick={() => setSelectedImp(client)}
-                        className={`w-full text-left rounded-[22px] border p-4 transition-all ${
+                        className={`w-full text-left rounded-2xl sm:rounded-[22px] border p-3 sm:p-4 transition-all ${
                           activeImp?.id === client.id
                             ? "border-[#B8112D] bg-[#FFF8F9]"
                             : "border-gray-100 bg-white hover:border-[#B8112D]/30"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        <div className="flex items-start justify-between gap-2 sm:gap-3">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
                               {client.clientName.charAt(0)}
                             </div>
                             <div>
-                              <h4 className="font-semibold text-[#0F172A] text-[13px]">
+                              <h4 className="font-semibold text-[#0F172A] text-xs sm:text-[13px]">
                                 {client.clientName}
                               </h4>
-                              <p className="text-gray-500 text-[12px] mt-0.5">
+                              <p className="text-gray-500 text-[11px] sm:text-[12px] mt-0.5">
                                 {client.company}
                               </p>
                             </div>
                           </div>
-                          <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold shrink-0 bg-[#FFF7E6] text-[#B54708]">
+                          <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold shrink-0 bg-[#FFF7E6] text-[#B54708]">
                             High
                           </span>
                         </div>
                       </button>
                     ))
                   ) : (
-                    <div className="text-center py-10">
-                      <CircleAlert size={28} className="text-gray-200 mx-auto mb-3" />
-                      <p className="text-gray-400 text-sm">
+                    <div className="text-center py-8 sm:py-10">
+                      <CircleAlert size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
+                      <p className="text-gray-400 text-xs sm:text-sm">
                         No important clients found.
                       </p>
                     </div>
@@ -880,28 +917,28 @@ export default function ClientsPage() {
                 </div>
               </div>
 
+              {/* RIGHT: detail panel */}
               {activeImp ? (
                 <div
-                  className="xl:col-span-7 bg-white rounded-[30px] border border-gray-100 shadow-sm flex flex-col"
-                  style={{ maxHeight: "calc(100vh - 360px)", minHeight: "380px" }}
+                  className="xl:col-span-7 bg-white rounded-2xl sm:rounded-[30px] border border-gray-100 shadow-sm flex flex-col"
+                  style={{ maxHeight: "calc(100vh - 380px)", minHeight: "320px" }}
                 >
-                  <div className="p-5 pb-4 border-b border-[#F3F3F3] shrink-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-[#F3F3F3] shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
                       <div>
-                        <h3 className="text-[20px] font-bold text-[#0F172A]">
+                        <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">
                           {activeImp.clientName}
                         </h3>
-                        <p className="text-gray-500 text-sm mt-0.5">
+                        <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
                           Follow-up details.
                         </p>
                       </div>
-
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => setSelectedClient(activeImp)}
-                          className="h-10 px-4 rounded-2xl bg-gray-100 text-gray-600 text-sm font-semibold flex items-center gap-2 hover:bg-gray-200 transition-colors"
+                          className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-600 text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 hover:bg-gray-200 transition-colors"
                         >
-                          <Eye size={14} />
+                          <Eye size={13} className="sm:w-[14px] sm:h-[14px]" />
                           View
                         </button>
                         <button
@@ -910,41 +947,34 @@ export default function ClientsPage() {
                             setIsEditing(true);
                             setNewClient(activeImp);
                           }}
-                          className="h-10 px-4 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold flex items-center gap-2 shadow-sm hover:bg-[#a30f27] transition-colors"
+                          className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm hover:bg-[#a30f27] transition-colors"
                         >
-                          <Pencil size={14} />
+                          <Pencil size={13} className="sm:w-[14px] sm:h-[14px]" />
                           Edit
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  <div className="overflow-y-auto flex-1 p-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="overflow-y-auto flex-1 p-4 sm:p-5">
+                    {/* 1 col mobile, 2 col sm+ */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       {[
                         { label: "Contact Number", value: activeImp.contact, Icon: Phone },
-                        {
-                          label: "Next Schedule",
-                          value: activeImp.nextFollowup || "N/A",
-                          Icon: CalendarDays,
-                        },
+                        { label: "Next Schedule", value: activeImp.nextFollowup || "N/A", Icon: CalendarDays },
                         { label: "Call Time", value: activeImp.time || "N/A", Icon: Clock3 },
-                        {
-                          label: "Timezone",
-                          value: activeImp.timezone || "N/A",
-                          Icon: Globe,
-                        },
+                        { label: "Timezone", value: activeImp.timezone || "N/A", Icon: Globe },
                         { label: "CSR Assigned", value: activeImp.csr, Icon: Users },
                         { label: "Scope", value: activeImp.scope, Icon: Briefcase },
                       ].map(({ label, value, Icon }) => (
-                        <div key={label} className="bg-[#FAFAFA] rounded-2xl p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                              <Icon size={16} />
+                        <div key={label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
+                              <Icon size={14} className="sm:w-4 sm:h-4" />
                             </div>
-                            <div>
-                              <p className="text-gray-500 text-xs">{label}</p>
-                              <h4 className="font-semibold text-[#0F172A] mt-0.5 text-[13px]">
+                            <div className="min-w-0">
+                              <p className="text-gray-500 text-[10px] sm:text-xs">{label}</p>
+                              <h4 className="font-semibold text-[#0F172A] mt-0.5 text-xs sm:text-[13px] truncate">
                                 {value}
                               </h4>
                             </div>
@@ -953,16 +983,16 @@ export default function ClientsPage() {
                       ))}
                     </div>
 
-                    <div className="mt-4">
-                      <h4 className="text-[16px] font-bold text-[#0F172A]">
+                    <div className="mt-3 sm:mt-4">
+                      <h4 className="text-sm sm:text-[16px] font-bold text-[#0F172A]">
                         Follow-up Notes
                       </h4>
-                      <div className="bg-[#FAFAFA] rounded-2xl p-4 mt-3">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                            <User2 size={14} />
+                      <div className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4 mt-2 sm:mt-3">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
+                            <User2 size={12} className="sm:w-[14px] sm:h-[14px]" />
                           </div>
-                          <p className="text-gray-600 leading-6 text-[13px]">
+                          <p className="text-gray-600 leading-6 text-xs sm:text-[13px]">
                             {activeImp.lastComment}
                           </p>
                         </div>
@@ -972,12 +1002,12 @@ export default function ClientsPage() {
                 </div>
               ) : (
                 <div
-                  className="xl:col-span-7 bg-white rounded-[30px] border border-gray-100 shadow-sm flex items-center justify-center"
-                  style={{ minHeight: "380px" }}
+                  className="xl:col-span-7 bg-white rounded-2xl sm:rounded-[30px] border border-gray-100 shadow-sm flex items-center justify-center"
+                  style={{ minHeight: "320px" }}
                 >
                   <div className="text-center">
-                    <CircleAlert size={36} className="text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-400 text-sm">
+                    <CircleAlert size={32} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-9 sm:h-9" />
+                    <p className="text-gray-400 text-xs sm:text-sm">
                       Select a client to view details
                     </p>
                   </div>
@@ -987,27 +1017,30 @@ export default function ClientsPage() {
           </>
         )}
 
+        {/* ─── MODALS ─── */}
+
+        {/* View Client Modal */}
         {selectedClient && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white w-full max-w-2xl rounded-3xl p-6 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-lg lg:max-w-2xl rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">
+                  <h2 className="text-lg sm:text-2xl font-semibold text-gray-800">
                     Client Details
                   </h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
                     Complete client information.
                   </p>
                 </div>
                 <button
                   onClick={() => setSelectedClient(null)}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
                 >
-                  <X size={18} />
+                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {[
                   { label: "Client Name", value: selectedClient.clientName },
                   { label: "Email", value: selectedClient.email },
@@ -1015,30 +1048,25 @@ export default function ClientsPage() {
                   { label: "Company", value: selectedClient.company },
                   { label: "CSR", value: selectedClient.csr },
                 ].map((f) => (
-                  <div key={f.label} className="bg-[#F8F9FC] p-4 rounded-2xl">
-                    <p className="text-xs text-gray-400">{f.label}</p>
-                    <h3 className="font-medium text-gray-700 mt-1">
+                  <div key={f.label} className="bg-[#F8F9FC] p-3 sm:p-4 rounded-xl sm:rounded-2xl">
+                    <p className="text-[10px] sm:text-xs text-gray-400">{f.label}</p>
+                    <h3 className="font-medium text-gray-700 mt-0.5 sm:mt-1 text-sm">
                       {f.value}
                     </h3>
                   </div>
                 ))}
-
-                <div className="bg-[#F8F9FC] p-4 rounded-2xl md:col-span-2">
-                  <p className="text-xs text-gray-400">Scope of Work</p>
-                  <h3 className="font-medium text-gray-700 mt-1">
+                <div className="bg-[#F8F9FC] p-3 sm:p-4 rounded-xl sm:rounded-2xl sm:col-span-2">
+                  <p className="text-[10px] sm:text-xs text-gray-400">Scope of Work</p>
+                  <h3 className="font-medium text-gray-700 mt-0.5 sm:mt-1 text-sm">
                     {selectedClient.scope}
                   </h3>
                 </div>
-
-                <div className="bg-[#F8F9FC] p-4 rounded-2xl md:col-span-2">
-                  <div className="flex items-start gap-3">
-                    <MessageSquare
-                      size={18}
-                      className="text-[#B8112D] mt-1 shrink-0"
-                    />
+                <div className="bg-[#F8F9FC] p-3 sm:p-4 rounded-xl sm:rounded-2xl sm:col-span-2">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <MessageSquare size={15} className="text-[#B8112D] mt-0.5 shrink-0 sm:w-[18px] sm:h-[18px]" />
                     <div>
-                      <p className="text-xs text-gray-400">Last Call Comments</p>
-                      <h3 className="font-medium text-gray-700 mt-1">
+                      <p className="text-[10px] sm:text-xs text-gray-400">Last Call Comments</p>
+                      <h3 className="font-medium text-gray-700 mt-0.5 sm:mt-1 text-sm">
                         {selectedClient.lastComment}
                       </h3>
                     </div>
@@ -1049,64 +1077,81 @@ export default function ClientsPage() {
           </div>
         )}
 
-        {/* ── NOTE MODAL ── */}
+        {/* Note Modal */}
         {noteModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white w-full max-w-lg rounded-3xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <MessageSquare size={18}/>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <MessageSquare size={16} className="sm:w-[18px] sm:h-[18px]" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-[#0F172A]">Note</h2>
-                    <p className="text-xs text-gray-400">{noteModal.name}</p>
+                    <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Note</h2>
+                    <p className="text-[10px] sm:text-xs text-gray-400">{noteModal.name}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   {noteModal.mode === "view" ? (
-                    <button onClick={() => setNoteModal(m => m ? { ...m, mode: "edit" } : m)}
-                      className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all" title="Edit note">
-                      <Pencil size={15}/>
+                    <button
+                      onClick={() => setNoteModal((m) => m ? { ...m, mode: "edit" } : m)}
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center"
+                      title="Edit note"
+                    >
+                      <Pencil size={13} className="sm:w-[15px] sm:h-[15px]" />
                     </button>
                   ) : (
-                    <button onClick={() => setNoteModal(m => m ? { ...m, mode: "view" } : m)}
-                      className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all" title="View note">
-                      <Eye size={15}/>
+                    <button
+                      onClick={() => setNoteModal((m) => m ? { ...m, mode: "view" } : m)}
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center"
+                      title="View note"
+                    >
+                      <Eye size={13} className="sm:w-[15px] sm:h-[15px]" />
                     </button>
                   )}
-                  <button onClick={() => setNoteModal(null)}
-                    className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all">
-                    <X size={15}/>
+                  <button
+                    onClick={() => setNoteModal(null)}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                  >
+                    <X size={13} className="sm:w-[15px] sm:h-[15px]" />
                   </button>
                 </div>
               </div>
 
               {noteModal.mode === "view" ? (
-                <div className="min-h-[160px] bg-[#FAFAFA] rounded-2xl border border-gray-100 p-4">
+                <div className="min-h-[120px] sm:min-h-[160px] bg-[#FAFAFA] rounded-xl sm:rounded-2xl border border-gray-100 p-3 sm:p-4">
                   {noteDraft ? (
-                    <p className="text-sm text-[#0F172A] leading-relaxed whitespace-pre-wrap">{noteDraft}</p>
+                    <p className="text-sm text-[#0F172A] leading-relaxed whitespace-pre-wrap">
+                      {noteDraft}
+                    </p>
                   ) : (
-                    <p className="text-sm text-gray-400 italic">No note written yet. Click the pen icon to add one.</p>
+                    <p className="text-sm text-gray-400 italic">
+                      No note written yet. Click the pen icon to add one.
+                    </p>
                   )}
                 </div>
               ) : (
                 <>
                   <textarea
                     value={noteDraft}
-                    onChange={e => setNoteDraft(e.target.value)}
+                    onChange={(e) => setNoteDraft(e.target.value)}
                     placeholder="Write your note here..."
-                    rows={6}
-                    className="w-full rounded-2xl border border-gray-200 bg-[#FAFAFA] p-4 text-sm outline-none focus:border-[#B8112D] resize-none transition-colors"
+                    rows={5}
+                    className="w-full rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] p-3 sm:p-4 text-sm outline-none focus:border-[#B8112D] resize-none transition-colors"
                     autoFocus
                   />
-                  <div className="flex justify-end gap-3 mt-4">
-                    <button onClick={() => setNoteModal(null)}
-                      className="px-5 py-2.5 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all">
+                  <div className="flex justify-end gap-2 sm:gap-3 mt-3 sm:mt-4">
+                    <button
+                      onClick={() => setNoteModal(null)}
+                      className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all"
+                    >
                       Cancel
                     </button>
-                    <button onClick={saveNote} disabled={noteSaving}
-                      className="px-6 py-2.5 rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60 transition-all">
+                    <button
+                      onClick={saveNote}
+                      disabled={noteSaving}
+                      className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60 transition-all"
+                    >
                       {noteSaving ? "Saving…" : "Save Note"}
                     </button>
                   </div>
@@ -1116,35 +1161,34 @@ export default function ClientsPage() {
           </div>
         )}
 
+        {/* Delete Modal */}
         {showDeleteModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white w-full max-w-md rounded-3xl p-6">
-              <h2 className="text-2xl font-semibold text-gray-800">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 sm:p-6">
+              <h2 className="text-lg sm:text-2xl font-semibold text-gray-800">
                 Delete Client
               </h2>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
                 This action cannot be undone.
               </p>
-
-              <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mt-4">
-                <p className="text-sm text-red-600">
+              <div className="bg-red-50 border border-red-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 mt-3 sm:mt-4">
+                <p className="text-xs sm:text-sm text-red-600">
                   Are you sure you want to delete this client permanently?
                 </p>
               </div>
-
-              <div className="flex items-center justify-end gap-3 mt-6">
+              <div className="flex items-center justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
                 <button
                   onClick={() => {
                     setShowDeleteModal(false);
                     setClientToDelete(null);
                   }}
-                  className="px-5 py-3 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+                  className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteClient}
-                  className="px-6 py-3 rounded-2xl bg-red-600 text-white hover:bg-red-700 transition-all"
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-red-600 text-white text-sm hover:bg-red-700 transition-all"
                 >
                   Delete Client
                 </button>
@@ -1153,59 +1197,36 @@ export default function ClientsPage() {
           </div>
         )}
 
+        {/* Add / Edit Modal */}
         {showAddModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white w-full max-w-3xl rounded-3xl p-6 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-xl lg:max-w-3xl rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">
+                  <h2 className="text-lg sm:text-2xl font-semibold text-gray-800">
                     {isEditing ? "Edit Client" : "Add New Client"}
                   </h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
                     Create and manage client records.
                   </p>
                 </div>
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
                 >
-                  <X size={18} />
+                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {[
-                  {
-                    label: "Client Name",
-                    key: "clientName",
-                    type: "text",
-                    placeholder: "John Smith",
-                    req: true,
-                  },
-                  {
-                    label: "Email Address",
-                    key: "email",
-                    type: "email",
-                    placeholder: "john@email.com",
-                    req: true,
-                  },
-                  {
-                    label: "Contact Number",
-                    key: "contact",
-                    type: "text",
-                    placeholder: "+1 234 567 890",
-                    req: false,
-                  },
-                  {
-                    label: "CSR",
-                    key: "csr",
-                    type: "text",
-                    placeholder: "Customer Service Representative",
-                    req: false,
-                  },
+                  { label: "Client Name", key: "clientName", type: "text", placeholder: "John Smith", req: true },
+                  { label: "Email Address", key: "email", type: "email", placeholder: "john@email.com", req: true },
+                  { label: "Contact Number", key: "contact", type: "text", placeholder: "+1 234 567 890", req: false },
+                  { label: "CSR", key: "csr", type: "text", placeholder: "Customer Service Representative", req: false },
                 ].map((f) => (
                   <div key={f.key}>
-                    <label className="text-sm text-gray-500 mb-2 block">
+                    <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
                       {f.label}{" "}
                       {f.req && <span className="text-[#B8112D]">*</span>}
                     </label>
@@ -1216,13 +1237,13 @@ export default function ClientsPage() {
                       onChange={(e) =>
                         setNewClient({ ...newClient, [f.key]: e.target.value })
                       }
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D]"
+                      className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
                     />
                   </div>
                 ))}
 
                 <div>
-                  <label className="text-sm text-gray-500 mb-2 block">
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
                     Company Name <span className="text-[#B8112D]">*</span>
                   </label>
                   <select
@@ -1234,89 +1255,63 @@ export default function ClientsPage() {
                         parentCompany: e.target.value,
                       })
                     }
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D]"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
                   >
                     <option value="">Select Company</option>
-                    {[
-                      "BEM DESIGN STUDIO",
-                      "GPS",
-                      "BEM SOLUTIONS",
-                      "PS-ESTIMATING",
-                      "DEVCON-ESTIMATING",
-                    ].map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
+                    {["BEM DESIGN STUDIO", "GPS", "BEM SOLUTIONS", "PS-ESTIMATING", "DEVCON-ESTIMATING"].map((c) => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-sm text-gray-500 mb-2 block">
-                    Status
-                  </label>
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">Status</label>
                   <select
                     value={newClient.status}
                     onChange={(e) =>
-                      setNewClient({
-                        ...newClient,
-                        status: e.target.value as Client["status"],
-                      })
+                      setNewClient({ ...newClient, status: e.target.value as Client["status"] })
                     }
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D]"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
                   >
                     {["Active", "Pending", "Closed", "Interested"].map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="text-sm text-gray-500 mb-2 block">
-                    Scope of Work
-                  </label>
+                <div className="sm:col-span-2">
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">Scope of Work</label>
                   <textarea
                     rows={3}
                     value={newClient.scope}
                     placeholder="Write project scope..."
-                    onChange={(e) =>
-                      setNewClient({ ...newClient, scope: e.target.value })
-                    }
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none resize-none focus:border-[#B8112D]"
+                    onChange={(e) => setNewClient({ ...newClient, scope: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none resize-none focus:border-[#B8112D]"
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="text-sm text-gray-500 mb-2 block">
-                    Last Call Comments
-                  </label>
+                <div className="sm:col-span-2">
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">Last Call Comments</label>
                   <textarea
-                    rows={4}
+                    rows={3}
                     value={newClient.lastComment}
                     placeholder="Write discussion notes..."
-                    onChange={(e) =>
-                      setNewClient({
-                        ...newClient,
-                        lastComment: e.target.value,
-                      })
-                    }
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none resize-none focus:border-[#B8112D]"
+                    onChange={(e) => setNewClient({ ...newClient, lastComment: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none resize-none focus:border-[#B8112D]"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 mt-6">
+              <div className="flex items-center justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="px-5 py-3 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+                  className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveClient}
-                  className="px-6 py-3 rounded-2xl bg-[#B8112D] text-white hover:bg-[#a30f27] transition-all"
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-sm hover:bg-[#a30f27] transition-all"
                 >
                   {isEditing ? "Update Client" : "Save Client"}
                 </button>

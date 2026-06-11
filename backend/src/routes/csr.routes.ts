@@ -3,6 +3,7 @@ import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
+import { getCache, setCache, invalidateCache } from "../utils/cache";
 
 const router = express.Router();
 
@@ -38,7 +39,10 @@ async function redistributeLead(leadId: string, currentCsrId: string) {
 
 router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const csrId = req.user.id;
+    const csrId   = req.user.id;
+    const cacheKey = `csr:dashboard:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
 
     const leads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
@@ -46,7 +50,9 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json({ success: true, totalLeads: leads.length, leads });
+    const payload = { success: true, totalLeads: leads.length, leads };
+    setCache(cacheKey, payload, 3_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch dashboard" });
@@ -116,10 +122,10 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         assignedTo:        csrId,
         important:         false,
         interested:        false,
-        /* uploadedFileId intentionally null — manually added project */
       },
     });
 
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, "admin:clients");
     return res.status(201).json({ success: true, lead });
   } catch (error) {
     console.log(error);
@@ -138,6 +144,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     await prisma.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to save note" });
@@ -291,6 +298,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       data:  updateData,
     });
 
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, "admin:clients");
     return res.json({ success: true, lead: updatedLead });
   } catch (error) {
     console.log(error);
@@ -323,6 +331,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
       },
     });
 
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
     return res.status(201).json({ success: true, lead });
   } catch (error) {
     console.log(error);
@@ -334,7 +343,10 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
 router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const csrId = req.user.id;
+    const csrId   = req.user.id;
+    const cacheKey = `csr:leads:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
 
     const csrLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
@@ -342,12 +354,8 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    /* Collect unique non-null phones from this CSR's leads */
-    const phones = [...new Set(
-      csrLeads.map(l => l.phone).filter((p): p is string => !!p)
-    )];
+    const phones = [...new Set(csrLeads.map(l => l.phone).filter((p): p is string => !!p))];
 
-    /* Count total appearances of each phone across ALL leads in the system */
     const phoneCountMap = new Map<string, number>();
     if (phones.length > 0) {
       const allWithPhone = await prisma.lead.findMany({
@@ -361,11 +369,12 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
     const leads = csrLeads.map(lead => ({
       ...lead,
-      /* stored flag wins; fall back to phone-count detection */
       isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
     }));
 
-    return res.json({ success: true, leads });
+    const payload = { success: true, leads };
+    setCache(cacheKey, payload, 3_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch leads" });
@@ -376,7 +385,11 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
 router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const csrId = req.user.id;
+    const csrId   = req.user.id;
+    const cacheKey = `csr:projects:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
     const leads = await prisma.lead.findMany({
       where: {
         assignedTo: csrId,
@@ -385,7 +398,10 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
       include: { uploadFile: { select: { companyName: true } } },
       orderBy: { updatedAt: "desc" },
     });
-    return res.json({ success: true, leads });
+
+    const payload = { success: true, leads };
+    setCache(cacheKey, payload, 3_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch projects" });

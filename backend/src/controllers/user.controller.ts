@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-
 import prisma from "../config/db";
+import { invalidateCache } from "../utils/cache";
 
 export const getUsers =
   async (
@@ -40,6 +40,7 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     const user = await prisma.user.update({ where: { id }, data });
+    invalidateCache("users:list", "admin:csrs");
     return res.json(user);
   } catch {
     return res.status(500).json({ message: "Update failed" });
@@ -57,14 +58,9 @@ export const deleteUser =
       const id =
         req.params.id as string;
 
-      await prisma.user.delete({
-        where: { id },
-      });
-
-      res.json({
-        message:
-          "User deleted",
-      });
+      await prisma.user.delete({ where: { id } });
+      invalidateCache("users:list", "admin:csrs");
+      res.json({ message: "User deleted" });
 
     } catch {
 

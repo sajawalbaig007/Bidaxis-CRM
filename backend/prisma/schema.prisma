@@ -32,6 +32,11 @@ model User {
   reports      Report[]
   twoFAEnabled Boolean   @default(false)
   tokenVersion Int       @default(0)
+
+  @@index([role])
+  @@index([isActive])
+  @@index([lastActive])
+  @@index([role, isActive])
 }
 
 model Lead {
@@ -75,6 +80,17 @@ model Lead {
   csr        User        @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
   uploadFile UploadFile? @relation(fields: [uploadedFileId], references: [id])
   callLogs   CallLog[]
+
+  @@index([assignedTo])
+  @@index([status])
+  @@index([phone])
+  @@index([email])
+  @@index([company])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([assignedTo, status])
+  @@index([company, status])
+  @@index([status, assignedTo])
 }
 
 model CallLog {

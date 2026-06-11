@@ -25,7 +25,7 @@ const menuItems = [
     icon: Link2,
   },
   {
-    title: "Important Calls",
+    title: "Potential Clients",
     href: "/csr/important",
     icon: AlertTriangle,
   },
@@ -35,12 +35,12 @@ const menuItems = [
     icon: ThumbsDown,
   },
   {
-    title: "My Leads",
+    title: "Clients",
     href: "/csr/leads",
     icon: Users,
   },
   {
-    title: "My Projects",
+    title: "Active Projects",
     href: "/csr/projects",
     icon: FolderKanban,
   },
