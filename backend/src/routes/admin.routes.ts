@@ -276,6 +276,34 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
   }
 });
 
+/* ================= UPDATE PROJECT (ADMIN) ================= */
+router.put("/project/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const {
+      projectCode, projectTitle, projectBudget, projectDeadline, projectNotes,
+    } = req.body;
+
+    const updateData: Record<string, unknown> = {};
+
+    if (projectCode     !== undefined) updateData.projectCode     = projectCode;
+    if (projectTitle    !== undefined) updateData.projectTitle    = projectTitle;
+    if (projectBudget   !== undefined) updateData.projectBudget   = projectBudget;
+    if (projectDeadline !== undefined) updateData.projectDeadline = projectDeadline;
+    if (projectNotes    !== undefined) updateData.projectNotes    = projectNotes;
+
+    const lead = await prisma.lead.update({
+      where: { id: leadId },
+      data:  updateData,
+    });
+
+    return res.json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to update project" });
+  }
+});
+
 /* ================= SHUFFLE STATUS ================= */
 router.get(
   "/shuffle-status",
