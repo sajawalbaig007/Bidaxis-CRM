@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
+import { getCache, setCache, invalidateCache } from "../utils/cache";
 
 const router = express.Router();
 
@@ -13,6 +14,10 @@ router.get("/dashboard", verifyToken, allowRoles("admin"), (req, res) => {
 /* ================= GET ALL CSRS ================= */
 router.get("/csrs", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
+    const CACHE_KEY = "admin:csrs";
+    const cached = getCache<object>(CACHE_KEY);
+    if (cached) return res.json(cached);
+
     const csrs = await prisma.user.findMany({
       where: { role: "csr" },
       select: {
@@ -23,72 +28,48 @@ router.get("/csrs", verifyToken, allowRoles("admin"), async (req, res) => {
         isOnline: true,
         lastActive: true,
         createdAt: true,
-        _count: {
-          select: { leads: true },
-        },
+        _count: { select: { leads: true } },
       },
       orderBy: { name: "asc" },
     });
 
-    return res.json({ success: true, csrs });
+    const payload = { success: true, csrs };
+    setCache(CACHE_KEY, payload, 3_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch CSRs",
-    });
+    return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
   }
 });
 
 /* ================= GET ALL CLIENTS / LEADS ================= */
 router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
+    const CACHE_KEY = "admin:clients";
+    const cached = getCache<object>(CACHE_KEY);
+    if (cached) return res.json(cached);
+
     const leads = await prisma.lead.findMany({
       include: {
-        csr: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        uploadFile: {
-          select: {
-            companyName: true,
-            fileName: true,
-          },
-        },
+        csr:        { select: { id: true, name: true, email: true } },
+        uploadFile: { select: { companyName: true, fileName: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
 
     const stats = {
-      totalClients: leads.length,
-      activeClients: leads.filter(
-        (l) => l.status?.toLowerCase() === "pending"
-      ).length,
-      interested: leads.filter(
-        (l) =>
-          l.status?.toLowerCase() === "interested" || l.interested === true
-      ).length,
-      closed: leads.filter((l) =>
-        ["closed", "completed", "Close Client"].includes(
-          l.status?.toLowerCase() || ""
-        )
-      ).length,
+      totalClients:  leads.length,
+      activeClients: leads.filter(l => l.status?.toLowerCase() === "pending").length,
+      interested:    leads.filter(l => l.status?.toLowerCase() === "interested" || l.interested).length,
+      closed:        leads.filter(l => ["closed","completed","close client"].includes(l.status?.toLowerCase() || "")).length,
     };
 
-    return res.json({
-      success: true,
-      leads,
-      stats,
-    });
+    const payload = { success: true, leads, stats };
+    setCache(CACHE_KEY, payload, 3_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch clients",
-    });
+    return res.status(500).json({ success: false, message: "Failed to fetch clients" });
   }
 });
 
@@ -100,6 +81,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res
       where: { id: String(req.params.id) },
       data:  { comments: comments ?? "" },
     });
+    invalidateCache("admin:clients");
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to save note" });
@@ -137,19 +119,13 @@ router.put(
       const csr = await prisma.user.update({
         where: { id },
         data: { isActive },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          isActive: true,
-        },
+        select: { id: true, name: true, email: true, isActive: true },
       });
 
+      invalidateCache("admin:csrs");
       return res.json({
         success: true,
-        message: `CSR ${
-          csr.isActive ? "activated" : "deactivated"
-        } successfully`,
+        message: `CSR ${csr.isActive ? "activated" : "deactivated"} successfully`,
         csr,
       });
     } catch (error) {
@@ -388,6 +364,7 @@ router.delete(
 
       const { count } = await prisma.lead.deleteMany({ where: { assignedTo: csrId } });
 
+      invalidateCache("admin:clients", "admin:csrs");
       return res.json({
         success: true,
         message: `Deleted ${count} leads for ${csr.name}`,
@@ -462,15 +439,15 @@ router.post(
         byCSR.get(key)!.push(lead);
       }
 
+      const deleteIds: string[] = [];
+      const updateOps: Promise<unknown>[] = [];
+
       for (const [csrId, leads] of byCSR.entries()) {
-        const toDelete = leads.filter((l) => l.shuffleAttempts >= 2);
+        const toDelete  = leads.filter((l) => l.shuffleAttempts >= 2);
         const toShuffle = leads.filter((l) => l.shuffleAttempts < 2);
 
         for (const lead of toDelete) {
-          await prisma.lead.delete({
-            where: { id: lead.id },
-          });
-
+          deleteIds.push(lead.id);
           deleted++;
           details.push(`Deleted: "${lead.name}" because 3 attempts completed`);
         }
@@ -478,40 +455,44 @@ router.post(
         if (toShuffle.length === 0) continue;
 
         const otherCSRs = csrs.filter((c) => c.id !== csrId);
-
         if (otherCSRs.length === 0) continue;
 
         const fromName = csrs.find((c) => c.id === csrId)?.name ?? csrId;
 
         for (let i = 0; i < toShuffle.length; i++) {
-          const lead = toShuffle[i];
-          const target = otherCSRs[i % otherCSRs.length];
+          const lead    = toShuffle[i];
+          const target  = otherCSRs[i % otherCSRs.length];
           const attempt = lead.shuffleAttempts + 1;
 
-          await prisma.lead.update({
-            where: { id: lead.id },
-            data: {
-              assignedTo: target.id,
-              shuffleAttempts: attempt,
-              status: "pending",
-              followUpNotes: [
-                lead.followUpNotes,
-                `[Attempt ${attempt}/3] ${fromName} → ${
-                  target.name
-                } on ${new Date().toLocaleDateString()}`,
-              ]
-                .filter(Boolean)
-                .join("\n"),
-            },
-          });
+          updateOps.push(
+            prisma.lead.update({
+              where: { id: lead.id },
+              data: {
+                assignedTo:      target.id,
+                shuffleAttempts: attempt,
+                status:          "pending",
+                followUpNotes:   [
+                  lead.followUpNotes,
+                  `[Attempt ${attempt}/3] ${fromName} → ${target.name} on ${new Date().toLocaleDateString()}`,
+                ].filter(Boolean).join("\n"),
+              },
+            })
+          );
 
           shuffled++;
-          details.push(
-            `"${lead.name}" moved from ${fromName} to ${target.name} attempt ${attempt}/3`
-          );
+          details.push(`"${lead.name}" moved from ${fromName} to ${target.name} attempt ${attempt}/3`);
         }
       }
 
+      /* ── BATCH: 1 deleteMany + parallel updates ── */
+      await Promise.all([
+        deleteIds.length
+          ? prisma.lead.deleteMany({ where: { id: { in: deleteIds } } })
+          : Promise.resolve(),
+        ...updateOps,
+      ]);
+
+      invalidateCache("admin:clients");
       return res.json({
         success: true,
         shuffled,

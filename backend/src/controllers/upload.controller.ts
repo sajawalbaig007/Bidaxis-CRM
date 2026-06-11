@@ -172,17 +172,18 @@ console.log(
       },
     });
 
-    /* ── DISTRIBUTE LEADS ── */
-    const distributionMap: Record<string, number> = {};
-    const createdLeads = [];
+    /* ── PARSE ALL ROWS FIRST (no DB calls yet) ── */
+    const parsed: Array<{
+      name: string; company: string; phone: string;
+      email: string; state: string; csrId: string; csrName: string;
+      status: string; isOldClient: boolean;
+    }> = [];
 
     for (let i = 0; i < data.length; i++) {
-      const row = data[i];
-      const csr = csrs[i % csrs.length];
-
+      const row  = data[i];
+      const csr  = csrs[i % csrs.length];
       const keys = Object.keys(row);
 
-      /* Returns a clean string; undefined/null/N/A/empty → "" */
       const findValue = (possibleKeys: string[]): string => {
         const foundKey = keys.find(k =>
           possibleKeys.some(p => k.toLowerCase().includes(p.toLowerCase()))
@@ -194,66 +195,68 @@ console.log(
         return s;
       };
 
-      const finalName    = findValue(["name","client","customer","contact person"]);
-      const finalCompany = findValue(["company","business","organization","address"]);
-      const finalPhone   = findValue(["phone","mobile","cell","contact","telephone","number"]);
-      const finalEmail   = findValue(["email","mail","e-mail"]);
-      const finalState   = findValue(["state","province","prov","st","region"]);
-      const duplicateConditions = [];
-
-if (finalPhone && finalPhone.length >= 7) {
-  duplicateConditions.push({ phone: finalPhone });
-}
-
-if (finalEmail && finalEmail.includes("@")) {
-  duplicateConditions.push({ email: finalEmail });
-}
-
-if (finalName && finalCompany) {
-  duplicateConditions.push({
-    AND: [
-      { name: finalName },
-      { company: finalCompany },
-    ],
-  });
-}
-
-if (duplicateConditions.length > 0) {
-  const duplicateLead = await prisma.lead.findFirst({
-    where: {
-      OR: duplicateConditions,
-    },
-  });
-
-  if (duplicateLead) {
-    console.log(
-      `[Duplicate Skipped] ${finalName || finalCompany || finalPhone || finalEmail}`
-    );
-    continue;
-  }
-}
-      const leadStatus    = initialStatuses[i % initialStatuses.length];
-      const isOldClient   = leadStatus === "lead" && leadType === "old";
-
-      const lead = await prisma.lead.create({
-        data: {
-          name:           finalName,
-          company:        finalCompany,
-          phone:          finalPhone,
-          email:          finalEmail,
-          state:          finalState || null,
-          status:         leadStatus,
-          isOldClient,
-          assignedTo:     csr.id,
-          uploadedFileId: uploadedFile.id,
-        },
+      parsed.push({
+        name:        findValue(["name","client","customer","contact person"]),
+        company:     findValue(["company","business","organization","address"]),
+        phone:       findValue(["phone","mobile","cell","contact","telephone","number"]),
+        email:       findValue(["email","mail","e-mail"]),
+        state:       findValue(["state","province","prov","st","region"]),
+        csrId:       csr.id,
+        csrName:     csr.name,
+        status:      initialStatuses[i % initialStatuses.length],
+        isOldClient: initialStatuses[i % initialStatuses.length] === "lead" && leadType === "old",
       });
-
-      createdLeads.push(lead);
-      if (!distributionMap[csr.name]) distributionMap[csr.name] = 0;
-      distributionMap[csr.name] += 1;
     }
 
+    /* ── BATCH DUPLICATE CHECK — 3 queries instead of N ── */
+    const phones  = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
+    const emails  = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
+
+    const [existingByPhone, existingByEmail] = await Promise.all([
+      phones.length
+        ? prisma.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true } })
+        : Promise.resolve([]),
+      emails.length
+        ? prisma.lead.findMany({ where: { email: { in: emails } }, select: { email: true } })
+        : Promise.resolve([]),
+    ]);
+
+    const dupPhones = new Set(existingByPhone.map(l => l.phone ?? ""));
+    const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
+
+    /* ── FILTER DUPLICATES IN-MEMORY ── */
+    const fresh = parsed.filter(r => {
+      if (r.phone && dupPhones.has(r.phone)) return false;
+      if (r.email && dupEmails.has(r.email)) return false;
+      return true;
+    });
+
+    /* ── SINGLE createMany — 1 query for all rows ── */
+    const distributionMap: Record<string, number> = {};
+
+    if (fresh.length > 0) {
+      await prisma.lead.createMany({
+        data: fresh.map(r => ({
+          name:           r.name,
+          company:        r.company,
+          phone:          r.phone,
+          email:          r.email,
+          state:          r.state || null,
+          status:         r.status,
+          isOldClient:    r.isOldClient,
+          assignedTo:     r.csrId,
+          uploadedFileId: uploadedFile.id,
+        })),
+        skipDuplicates: true,
+      });
+
+      for (const r of fresh) {
+        if (!distributionMap[r.csrName]) distributionMap[r.csrName] = 0;
+        distributionMap[r.csrName] += 1;
+      }
+    }
+
+    const createdLeads = fresh;
     const distribution = Object.entries(distributionMap).map(([name, leads]) => ({ name, leads }));
 
     return res.json({

@@ -22,48 +22,42 @@ type UploadFile = {
 };
 
 type CSRDistribution = { name: string; leads: number };
-
 type CSR = { id: string; name: string; email: string; isActive: boolean };
 
-/* ── Predefined companies (admin can add more) ── */
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
 
 const getFileIcon = (type: string) => {
   if (type.includes("sheet") || type.includes("excel") || type.includes("csv"))
-    return <FileSpreadsheet size={24} className="text-green-600"/>;
+    return <FileSpreadsheet size={22} className="text-green-600" />;
   if (type.includes("image"))
-    return <FileImage size={24} className="text-blue-600"/>;
+    return <FileImage size={22} className="text-blue-600" />;
   if (type.includes("zip") || type.includes("rar"))
-    return <FileArchive size={24} className="text-yellow-600"/>;
-  return <FileBadge size={24} className="text-[#B8112D]"/>;
+    return <FileArchive size={22} className="text-yellow-600" />;
+  return <FileBadge size={22} className="text-[#B8112D]" />;
 };
 
 export default function UploadPage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const [dragging,             setDragging]             = useState(false);
-  const [search,               setSearch]               = useState("");
-  const [files,                setFiles]                = useState<UploadFile[]>([]);
-  const [latestDistribution,   setLatestDistribution]   = useState<CSRDistribution[]>([]);
-  const [latestTotalLeads,     setLatestTotalLeads]     = useState(0);
+  const [dragging,           setDragging]           = useState(false);
+  const [search,             setSearch]             = useState("");
+  const [files,              setFiles]              = useState<UploadFile[]>([]);
+  const [latestDistribution, setLatestDistribution] = useState<CSRDistribution[]>([]);
+  const [latestTotalLeads,   setLatestTotalLeads]   = useState(0);
 
-  /* Modal state */
-  const [showCSRModal,   setShowCSRModal]   = useState(false);
-  const [selectedFile,   setSelectedFile]   = useState<File | null>(null);
-  const [csrs,           setCsrs]           = useState<CSR[]>([]);
-  const [selectedCSRs,   setSelectedCSRs]   = useState<string[]>([]);
+  const [showCSRModal,  setShowCSRModal]  = useState(false);
+  const [selectedFile,  setSelectedFile]  = useState<File | null>(null);
+  const [csrs,          setCsrs]          = useState<CSR[]>([]);
+  const [selectedCSRs,  setSelectedCSRs]  = useState<string[]>([]);
 
-  /* Company state */
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
-  const [modalStep,       setModalStep]       = useState<"reset" | "company" | "pane" | "csrs">("reset");
-  const [resetMode,       setResetMode]       = useState<"keep" | "reset" | null>(null);
+  const [modalStep, setModalStep] = useState<"reset" | "company" | "pane" | "csrs">("reset");
+  const [resetMode, setResetMode] = useState<"keep" | "reset" | null>(null);
 
-  /* Pane selection */
   const [selectedPane,     setSelectedPane]     = useState<"pending" | "lead">("pending");
   const [selectedLeadType, setSelectedLeadType] = useState<"new" | "old">("new");
 
-  /* FETCH */
   const fetchCSRs = async () => {
     try {
       const res = await API.get("/admin/csrs");
@@ -82,14 +76,10 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    const load = async () => {
-      await fetchLatestUpload();
-      await fetchCSRs();
-    };
+    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); };
     load();
   }, []);
 
-  /* Open modal */
   const openCSRModal = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
     setSelectedFile(selectedFiles[0]);
@@ -99,14 +89,12 @@ export default function UploadPage() {
     setSelectedPane("pending");
     setSelectedLeadType("new");
     setModalStep("reset");
-    const activeCSRIds = csrs.filter(c => c.isActive).map(c => c.id);
-    setSelectedCSRs(activeCSRIds);
+    setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
 
   const finalCompany = selectedCompany === "Other" ? customCompany : selectedCompany;
 
-  /* UPLOAD */
   const handleFiles = async () => {
     if (!selectedFile) return;
     if (!finalCompany.trim()) { toast.error("Please enter company name"); return; }
@@ -128,9 +116,9 @@ export default function UploadPage() {
       formData.append("file", selectedFile);
       formData.append("selectedCSRs", JSON.stringify(selectedCSRs));
       formData.append("companyName", finalCompany.trim());
-      formData.append("resetMode",       resetMode ?? "keep");
+      formData.append("resetMode", resetMode ?? "keep");
       formData.append("initialStatuses", JSON.stringify([selectedPane]));
-      formData.append("leadType",        selectedLeadType);
+      formData.append("leadType", selectedLeadType);
 
       let progress = 0;
       const interval = setInterval(() => {
@@ -153,9 +141,9 @@ export default function UploadPage() {
 
       const created = res.data.totalLeads as number;
       if (created === 0) {
-        toast.error(`No new leads added — all rows were duplicates already in the system.`);
+        toast.error("No new leads added — all rows were duplicates.");
       } else {
-        toast.success(`${created} leads uploaded & distributed to CSRs for ${finalCompany.trim()}`);
+        toast.success(`${created} leads uploaded & distributed for ${finalCompany.trim()}`);
       }
       fetchLatestUpload();
     } catch {
@@ -172,111 +160,136 @@ export default function UploadPage() {
 
       {/* ── MODAL ── */}
       {showCSRModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-xl lg:max-w-2xl shadow-2xl overflow-hidden max-h-[96vh] sm:max-h-[90vh] flex flex-col">
 
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-800">
+            <div className="flex items-start justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-gray-100 shrink-0">
+              <div className="pr-3 min-w-0">
+                <h2 className="text-lg sm:text-2xl font-semibold text-gray-800">
                   {modalStep === "reset"   ? "Data Mode"
-                  : modalStep === "company" ? "Select Company"
-                  : modalStep === "pane"    ? "Select CSR Pane"
-                  : "Select CSRs"}
+                   : modalStep === "company" ? "Select Company"
+                   : modalStep === "pane"    ? "Select CSR Pane"
+                   : "Select CSRs"}
                 </h2>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
                   {modalStep === "reset"   ? "What should happen to existing lead data?"
-                  : modalStep === "company" ? "Which company does this data belong to?"
-                  : modalStep === "pane"    ? "Which section of the CSR dashboard should these leads appear in?"
-                  : "Choose which CSRs should receive leads."}
+                   : modalStep === "company" ? "Which company does this data belong to?"
+                   : modalStep === "pane"    ? "Which section should these leads appear in?"
+                   : "Choose which CSRs should receive leads."}
                 </p>
               </div>
-              <button onClick={() => setShowCSRModal(false)}
-                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all">
-                <X size={18}/>
+              <button
+                onClick={() => setShowCSRModal(false)}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all shrink-0"
+              >
+                <X size={15} className="sm:w-[18px] sm:h-[18px]" />
               </button>
             </div>
 
-            {/* Step indicators */}
+            {/* Step indicators — scrollable on very small screens */}
             {(() => {
-              const steps = ["reset","company","pane","csrs"] as const;
+              const steps  = ["reset", "company", "pane", "csrs"] as const;
               const currentIdx = steps.indexOf(modalStep);
-              const labels = ["Data Mode","Company","CSR Pane","CSRs"];
+              const labels = ["Data Mode", "Company", "CSR Pane", "CSRs"];
               return (
-                <div className="flex items-center px-6 pt-4">
-                  {steps.map((step, i) => {
-                    const done   = i < currentIdx;
-                    const active = i === currentIdx;
-                    return (
-                      <div key={step} className="flex items-center flex-1 last:flex-none">
-                        <div className={`flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap ${active ? "text-[#B8112D]" : done ? "text-[#027A48]" : "text-gray-400"}`}>
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
-                            active ? "bg-[#B8112D] text-white" : done ? "bg-[#ECFDF3] text-[#027A48]" : "bg-gray-100 text-gray-400"
-                          }`}>{done ? "✓" : i + 1}</span>
-                          {labels[i]}
+                <div className="flex items-center px-4 sm:px-6 pt-3 sm:pt-4 overflow-x-auto shrink-0">
+                  <div className="flex items-center min-w-max w-full">
+                    {steps.map((step, i) => {
+                      const done   = i < currentIdx;
+                      const active = i === currentIdx;
+                      return (
+                        <div key={step} className="flex items-center flex-1 last:flex-none">
+                          <div className={`flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
+                            active ? "text-[#B8112D]" : done ? "text-[#027A48]" : "text-gray-400"
+                          }`}>
+                            <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold shrink-0 ${
+                              active ? "bg-[#B8112D] text-white" : done ? "bg-[#ECFDF3] text-[#027A48]" : "bg-gray-100 text-gray-400"
+                            }`}>
+                              {done ? "✓" : i + 1}
+                            </span>
+                            {labels[i]}
+                          </div>
+                          {i < steps.length - 1 && (
+                            <div className={`flex-1 h-0.5 mx-1.5 sm:mx-2 ${i < currentIdx ? "bg-[#027A48]" : "bg-gray-200"}`} />
+                          )}
                         </div>
-                        {i < steps.length - 1 && (
-                          <div className={`flex-1 h-0.5 mx-2 ${i < currentIdx ? "bg-[#027A48]" : "bg-gray-200"}`}/>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
 
-            <div className="px-6 py-5">
+            {/* Modal body — scrollable */}
+            <div className="px-4 sm:px-6 py-4 sm:py-5 overflow-y-auto flex-1">
 
               {/* STEP 0 — Keep or Reset */}
               {modalStep === "reset" && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500 font-medium">What should happen to existing lead data?</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setResetMode("keep")}
-                      className={`p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all text-left ${
-                        resetMode === "keep"
-                          ? "border-[#027A48] bg-[#ECFDF3]"
-                          : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
-                      }`}>
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${resetMode === "keep" ? "bg-[#027A48] text-white" : "bg-white shadow-sm text-gray-500"}`}>
-                        <Database size={22}/>
-                      </div>
-                      <div>
-                        <h4 className={`font-bold text-sm ${resetMode === "keep" ? "text-[#027A48]" : "text-gray-800"}`}>Keep Existing</h4>
-                        <p className="text-xs text-gray-400 mt-1">New links will be added alongside existing data</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setResetMode("reset")}
-                      className={`p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all text-left ${
-                        resetMode === "reset"
-                          ? "border-[#B8112D] bg-[#FFF1F3]"
-                          : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
-                      }`}>
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${resetMode === "reset" ? "bg-[#B8112D] text-white" : "bg-white shadow-sm text-gray-500"}`}>
-                        <RefreshCw size={22}/>
-                      </div>
-                      <div>
-                        <h4 className={`font-bold text-sm ${resetMode === "reset" ? "text-[#B8112D]" : "text-gray-800"}`}>Reset Data</h4>
-                        <p className="text-xs text-gray-400 mt-1">All old links will be deleted, only new ones remain</p>
-                      </div>
-                    </button>
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium">
+                    What should happen to existing lead data?
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    {[
+                      {
+                        value: "keep" as const,
+                        Icon: Database,
+                        label: "Keep Existing",
+                        sub: "New links added alongside existing data",
+                        activeBorder: "border-[#027A48]", activeBg: "bg-[#ECFDF3]",
+                        activeIcon: "bg-[#027A48]", activeText: "text-[#027A48]",
+                      },
+                      {
+                        value: "reset" as const,
+                        Icon: RefreshCw,
+                        label: "Reset Data",
+                        sub: "Old links deleted, only new ones remain",
+                        activeBorder: "border-[#B8112D]", activeBg: "bg-[#FFF1F3]",
+                        activeIcon: "bg-[#B8112D]", activeText: "text-[#B8112D]",
+                      },
+                    ].map(opt => {
+                      const sel = resetMode === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => setResetMode(opt.value)}
+                          className={`p-3 sm:p-5 rounded-2xl border-2 flex flex-col items-center gap-2 sm:gap-3 transition-all text-left ${
+                            sel ? `${opt.activeBorder} ${opt.activeBg}` : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center ${
+                            sel ? `${opt.activeIcon} text-white` : "bg-white shadow-sm text-gray-500"
+                          }`}>
+                            <opt.Icon size={18} className="sm:w-[22px] sm:h-[22px]" />
+                          </div>
+                          <div>
+                            <h4 className={`font-bold text-xs sm:text-sm ${sel ? opt.activeText : "text-gray-800"}`}>
+                              {opt.label}
+                            </h4>
+                            <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1 leading-snug">{opt.sub}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {resetMode === "reset" && (
-                    <div className="bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-2xl p-4 flex items-start gap-3">
-                      <RotateCcw size={16} className="text-[#B45309] mt-0.5 shrink-0"/>
-                      <p className="text-sm text-[#92400E]"><strong>Warning:</strong> All previous lead data will be permanently deleted and replaced with new data.</p>
+                    <div className="bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
+                      <RotateCcw size={14} className="text-[#B45309] mt-0.5 shrink-0 sm:w-4 sm:h-4" />
+                      <p className="text-xs sm:text-sm text-[#92400E]">
+                        <strong>Warning:</strong> All previous lead data will be permanently deleted.
+                      </p>
                     </div>
                   )}
 
                   <button
                     onClick={() => { if (!resetMode) { toast.error("Please select an option"); return; } setModalStep("company"); }}
                     disabled={!resetMode}
-                    className={`w-full h-12 rounded-2xl font-semibold text-sm transition-all ${
+                    className={`w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
                       resetMode ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    }`}>
+                    }`}
+                  >
                     Next — Select Company
                   </button>
                 </div>
@@ -284,65 +297,77 @@ export default function UploadPage() {
 
               {/* STEP 1 — Company */}
               {modalStep === "company" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {PRESET_COMPANIES.map(company => (
-                      <button key={company} onClick={() => setSelectedCompany(company)}
-                        className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all ${
-                          selectedCompany === company
-                            ? "border-[#B8112D] bg-[#FFF1F3]"
-                            : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
-                        }`}>
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                          selectedCompany === company ? "bg-[#B8112D] text-white" : "bg-white shadow-sm text-gray-500"
-                        }`}>
-                          <Building2 size={22}/>
-                        </div>
-                        <span className={`font-semibold text-sm ${selectedCompany === company ? "text-[#B8112D]" : "text-gray-700"}`}>
-                          {company}
-                        </span>
-                      </button>
-                    ))}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    {PRESET_COMPANIES.map(company => {
+                      const sel = selectedCompany === company;
+                      return (
+                        <button
+                          key={company}
+                          onClick={() => setSelectedCompany(company)}
+                          className={`p-3 sm:p-4 rounded-2xl border-2 flex flex-col items-center gap-2 sm:gap-3 transition-all ${
+                            sel ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center ${
+                            sel ? "bg-[#B8112D] text-white" : "bg-white shadow-sm text-gray-500"
+                          }`}>
+                            <Building2 size={18} className="sm:w-[22px] sm:h-[22px]" />
+                          </div>
+                          <span className={`font-semibold text-xs sm:text-sm text-center ${sel ? "text-[#B8112D]" : "text-gray-700"}`}>
+                            {company}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Custom company input */}
                   {selectedCompany === "Other" && (
                     <div>
-                      <label className="text-sm font-semibold text-gray-700 block mb-2">Company Name</label>
-                      <input type="text" value={customCompany}
+                      <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1.5 sm:mb-2">Company Name</label>
+                      <input
+                        type="text"
+                        value={customCompany}
                         onChange={e => setCustomCompany(e.target.value)}
                         placeholder="Enter company name..."
-                        className="w-full h-12 rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D] text-sm"/>
+                        className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 outline-none focus:border-[#B8112D] text-sm"
+                      />
                     </div>
                   )}
 
-                  {/* Selected file info */}
                   {selectedFile && (
-                    <div className="bg-[#FAFAFA] rounded-2xl p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-                        <FileSpreadsheet size={18} className="text-green-600"/>
+                    <div className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                        <FileSpreadsheet size={16} className="text-green-600 sm:w-[18px] sm:h-[18px]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-[#111827] text-sm truncate">{selectedFile.name}</p>
-                        <p className="text-gray-400 text-xs">{(selectedFile.size / (1024*1024)).toFixed(2)} MB</p>
+                        <p className="font-semibold text-[#111827] text-xs sm:text-sm truncate">{selectedFile.name}</p>
+                        <p className="text-gray-400 text-[10px] sm:text-xs">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
                       </div>
                     </div>
                   )}
 
-                  <div className="flex gap-3">
-                    <button onClick={() => setModalStep("reset")} className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">Back</button>
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
+                      onClick={() => setModalStep("reset")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
+                      Back
+                    </button>
                     <button
                       onClick={() => {
                         if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
                         setModalStep("pane");
                       }}
                       disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
-                      className={`w-full h-12 rounded-2xl font-semibold text-sm transition-all ${
+                      className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
                         selectedCompany && (selectedCompany !== "Other" || customCompany.trim())
                           ? "bg-[#B8112D] text-white hover:bg-[#a30f27]"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}>
-                      Next — Select Pane <ChevronDown size={16} className="inline ml-1 rotate-[-90deg]"/>
+                      }`}
+                    >
+                      Next
+                      <ChevronDown size={14} className="inline ml-1 rotate-[-90deg] sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 </div>
@@ -350,34 +375,37 @@ export default function UploadPage() {
 
               {/* STEP 2 — Pane */}
               {modalStep === "pane" && (
-                <div className="space-y-4">
-                  {/* Company badge */}
-                  <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl w-fit text-sm font-semibold">
-                    <Building2 size={15}/>{finalCompany}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl w-fit text-xs sm:text-sm font-semibold">
+                    <Building2 size={13} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
                   </div>
 
-                  {/* ── My Links / My Leads selector ── */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     {([
-                      { value: "pending" as const, label: "My Links", sub: "Leads go to Today Links (daily call list)", Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
-                      { value: "lead"    as const, label: "My Leads", sub: "Previous clients & project history",       Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
+                      { value: "pending" as const, label: "My Links",  sub: "Today Links (daily call list)",     Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
+                      { value: "lead"    as const, label: "My Leads",  sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
                     ]).map(opt => {
                       const sel = selectedPane === opt.value;
                       return (
-                        <button key={opt.value} onClick={() => setSelectedPane(opt.value)}
-                          className={`relative p-5 rounded-2xl border-2 flex flex-col items-center gap-3 transition-all text-center ${
+                        <button
+                          key={opt.value}
+                          onClick={() => setSelectedPane(opt.value)}
+                          className={`relative p-3 sm:p-5 rounded-2xl border-2 flex flex-col items-center gap-2 sm:gap-3 transition-all text-center ${
                             sel ? `${opt.border} ${opt.bg}` : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center ${
+                            sel ? `${opt.iconBg} text-white` : "bg-white shadow-sm"
                           }`}>
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${sel ? opt.iconBg : "bg-white shadow-sm"}`}>
-                            <opt.Icon size={22} className={sel ? "text-white" : "text-gray-400"}/>
+                            <opt.Icon size={18} className={`sm:w-[22px] sm:h-[22px] ${sel ? "text-white" : "text-gray-400"}`} />
                           </div>
                           <div>
-                            <p className={`font-bold text-sm ${sel ? opt.text : "text-gray-800"}`}>{opt.label}</p>
-                            <p className="text-[11px] text-gray-400 mt-1 leading-snug">{opt.sub}</p>
+                            <p className={`font-bold text-xs sm:text-sm ${sel ? opt.text : "text-gray-800"}`}>{opt.label}</p>
+                            <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 sm:mt-1 leading-snug">{opt.sub}</p>
                           </div>
                           {sel && (
-                            <span className={`w-5 h-5 rounded-full ${opt.iconBg} flex items-center justify-center absolute top-2.5 right-2.5`}>
-                              <CheckCircle2 size={12} className="text-white"/>
+                            <span className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full ${opt.iconBg} flex items-center justify-center absolute top-2 right-2`}>
+                              <CheckCircle2 size={10} className="text-white sm:w-3 sm:h-3" />
                             </span>
                           )}
                         </button>
@@ -385,24 +413,26 @@ export default function UploadPage() {
                     })}
                   </div>
 
-                  {/* ── New / Old client sub-option (only for My Leads) ── */}
                   {selectedPane === "lead" && (
-                    <div className="border border-[#7A3FFD]/20 bg-[#FDFBFF] rounded-2xl p-4 space-y-3">
-                      <p className="text-sm font-semibold text-[#7A3FFD]">Upload as which client type?</p>
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="border border-[#7A3FFD]/20 bg-[#FDFBFF] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 sm:space-y-3">
+                      <p className="text-xs sm:text-sm font-semibold text-[#7A3FFD]">Upload as which client type?</p>
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
                         {([
                           { value: "new" as const, label: "New Client",  sub: "First-time clients",        border: "border-[#15803D]", bg: "bg-[#F0FDF4]", text: "text-[#15803D]", dot: "bg-[#15803D]" },
                           { value: "old" as const, label: "Old Client",  sub: "Returning / repeat clients", border: "border-[#B45309]", bg: "bg-[#FFFBEB]", text: "text-[#B45309]", dot: "bg-[#B45309]" },
                         ]).map(opt => {
                           const sel = selectedLeadType === opt.value;
                           return (
-                            <button key={opt.value} onClick={() => setSelectedLeadType(opt.value)}
-                              className={`p-4 rounded-2xl border-2 flex flex-col gap-2 transition-all text-left ${
+                            <button
+                              key={opt.value}
+                              onClick={() => setSelectedLeadType(opt.value)}
+                              className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 flex flex-col gap-1.5 sm:gap-2 transition-all text-left ${
                                 sel ? `${opt.border} ${opt.bg}` : "border-gray-100 bg-white hover:border-gray-300"
-                              }`}>
-                              <div className={`w-3 h-3 rounded-full ${sel ? opt.dot : "bg-gray-200"}`}/>
-                              <p className={`font-bold text-sm ${sel ? opt.text : "text-gray-700"}`}>{opt.label}</p>
-                              <p className="text-[11px] text-gray-400 leading-snug">{opt.sub}</p>
+                              }`}
+                            >
+                              <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${sel ? opt.dot : "bg-gray-200"}`} />
+                              <p className={`font-bold text-xs sm:text-sm ${sel ? opt.text : "text-gray-700"}`}>{opt.label}</p>
+                              <p className="text-[10px] sm:text-[11px] text-gray-400 leading-snug">{opt.sub}</p>
                             </button>
                           );
                         })}
@@ -410,15 +440,19 @@ export default function UploadPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-3">
-                    <button onClick={() => setModalStep("company")}
-                      className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">Back</button>
+                  <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => {
-                        setModalStep("csrs");
-                      }}
-                      className="flex-1 h-12 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all">
-                      Next — Select CSRs <ChevronDown size={16} className="inline ml-1 rotate-[-90deg]"/>
+                      onClick={() => setModalStep("company")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => setModalStep("csrs")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
+                    >
+                      Next — CSRs
+                      <ChevronDown size={14} className="inline ml-1 rotate-[-90deg] sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 </div>
@@ -426,63 +460,77 @@ export default function UploadPage() {
 
               {/* STEP 3 — CSRs */}
               {modalStep === "csrs" && (
-                <div className="space-y-4">
-                  {/* Company + pane badges */}
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-4 py-2 rounded-xl w-fit text-sm font-semibold">
-                      <Building2 size={15}/>{finalCompany}
+                    <div className="flex items-center gap-1.5 sm:gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold">
+                      <Building2 size={12} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
                     </div>
                     {selectedPane === "pending" ? (
-                      <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#EAF5FF] text-[#0B84F3]">My Links</span>
+                      <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#EAF5FF] text-[#0B84F3]">
+                        My Links
+                      </span>
                     ) : (
-                      <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#F4ECFF] text-[#7A3FFD]">
+                      <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#F4ECFF] text-[#7A3FFD]">
                         My Leads — {selectedLeadType === "new" ? "New Client" : "Old Client"}
                       </span>
                     )}
                   </div>
 
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto">
+                  <div className="space-y-2 sm:space-y-3 max-h-[240px] sm:max-h-[320px] overflow-y-auto">
                     {csrs.map(csr => (
-                      <div key={csr.id}
-                        className="border border-gray-200 rounded-2xl p-4 flex items-center justify-between hover:border-gray-300 transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                      <div
+                        key={csr.id}
+                        className="border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center justify-between hover:border-gray-300 transition-all"
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 ${
                             csr.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
-                          }`}>{csr.name.charAt(0)}</div>
-                          <div>
-                            <h3 className="font-semibold text-gray-800 text-sm">{csr.name}</h3>
-                            <p className="text-xs text-gray-400">{csr.email}</p>
+                          }`}>
+                            {csr.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-gray-800 text-xs sm:text-sm truncate">{csr.name}</h3>
+                            <p className="text-[10px] sm:text-xs text-gray-400 truncate">{csr.email}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                          <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${
                             csr.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                          }`}>{csr.isActive ? "Active" : "Inactive"}</span>
-                          <input type="checkbox"
+                          }`}>
+                            {csr.isActive ? "Active" : "Inactive"}
+                          </span>
+                          <input
+                            type="checkbox"
                             checked={selectedCSRs.includes(csr.id)}
                             disabled={!csr.isActive}
                             onChange={e => {
                               if (e.target.checked) setSelectedCSRs(prev => [...prev, csr.id]);
                               else setSelectedCSRs(prev => prev.filter(id => id !== csr.id));
                             }}
-                            className="w-5 h-5 accent-[#B8112D]"/>
+                            className="w-4 h-4 sm:w-5 sm:h-5 accent-[#B8112D]"
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex gap-3">
-                    <button onClick={() => setModalStep("pane")}
-                      className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all">
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
+                      onClick={() => setModalStep("pane")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
                       Back
                     </button>
-                    <button onClick={handleFiles} disabled={selectedCSRs.length === 0}
-                      className={`flex-1 h-12 rounded-2xl font-semibold text-sm transition-all ${
+                    <button
+                      onClick={handleFiles}
+                      disabled={selectedCSRs.length === 0}
+                      className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm transition-all ${
                         selectedCSRs.length > 0
                           ? "bg-[#B8112D] text-white hover:bg-[#a30f27]"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}>
-                      Upload & Distribute ({selectedCSRs.length} CSRs)
+                      }`}
+                    >
+                      Upload & Distribute ({selectedCSRs.length})
                     </button>
                   </div>
                 </div>
@@ -492,148 +540,173 @@ export default function UploadPage() {
         </div>
       )}
 
-      <DashboardSidebar/>
+      <DashboardSidebar />
 
-      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[72px] lg:mt-0">
-        <DashboardNavbar/>
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[72px] lg:mt-0">
+        <DashboardNavbar />
 
-        {/* HEADER */}
-        <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        {/* ── HEADER ── */}
+        <div className="mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-gray-800">Upload & Distribute Leads</h1>
-            <p className="text-sm text-gray-400 mt-1">Upload Excel or CSV files and auto distribute leads equally among active CSRs.</p>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
+              Upload & Distribute Leads
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
+              Upload Excel or CSV files and auto distribute leads equally among active CSRs.
+            </p>
           </div>
-          <div className="relative w-full lg:w-[320px]">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-            <input type="text" placeholder="Search uploaded files..." value={search}
+          <div className="relative w-full lg:w-[280px] xl:w-[320px]">
+            <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search uploaded files..."
+              value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-12 rounded-2xl border border-gray-200 bg-white pl-11 pr-4 text-sm outline-none focus:border-[#B8112D]"/>
+              className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-gray-200 bg-white pl-10 sm:pl-11 pr-4 text-sm outline-none focus:border-[#B8112D]"
+            />
           </div>
         </div>
 
-        {/* STATS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+        {/* ── STAT CARDS ── */}
+        {/* 2-col mobile → 2-col sm → 4-col xl */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mb-4 sm:mb-6">
           {[
-            { label:"Uploaded Files",    value: files.length,                                   bg:"bg-[#F8ECEF]", color:"text-[#B8112D]", icon:<FileText size={26}/> },
-            { label:"Distributed Files", value: files.filter(f=>f.status==="Distributed").length, bg:"bg-green-100", color:"text-green-600",  icon:<CheckCircle2 size={26}/> },
-            { label:"Total Leads",       value: latestTotalLeads,                               bg:"bg-blue-100",  color:"text-blue-600",   icon:<Database size={26}/> },
-            { label:"Active CSRs",       value: latestDistribution.length,                      bg:"bg-yellow-100",color:"text-yellow-600", icon:<Users size={26}/> },
+            { label: "Uploaded Files",    value: files.length,                                    bg: "bg-[#F8ECEF]",  color: "text-[#B8112D]",  icon: <FileText size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
+            { label: "Distributed",       value: files.filter(f => f.status === "Distributed").length, bg: "bg-green-100", color: "text-green-600",  icon: <CheckCircle2 size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
+            { label: "Total Leads",       value: latestTotalLeads,                                bg: "bg-blue-100",   color: "text-blue-600",   icon: <Database size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
+            { label: "Active CSRs",       value: latestDistribution.length,                      bg: "bg-yellow-100", color: "text-yellow-600", icon: <Users size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
           ].map((c, i) => (
-            <div key={i} className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">{c.label}</p>
-                  <h2 className="text-3xl font-semibold text-gray-800 mt-2">{c.value}</h2>
+            <div key={i} className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-3 sm:p-4 lg:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] sm:text-sm text-gray-400 truncate">{c.label}</p>
+                  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-1 sm:mt-2">{c.value}</h2>
                 </div>
-                <div className={`w-14 h-14 rounded-2xl ${c.bg} ${c.color} flex items-center justify-center`}>{c.icon}</div>
+                <div className={`w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl sm:rounded-2xl ${c.bg} ${c.color} flex items-center justify-center shrink-0`}>
+                  {c.icon}
+                </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* LATEST DISTRIBUTION */}
-        <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-6">
-          <div className="mb-5">
-            <h3 className="text-xl font-semibold text-gray-800">Latest CSR Distribution</h3>
-            <p className="text-sm text-gray-400 mt-1">Latest uploaded leads distribution.</p>
+        {/* ── LATEST DISTRIBUTION ── */}
+        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-sm mb-4 sm:mb-6">
+          <div className="mb-3 sm:mb-5">
+            <h3 className="text-base sm:text-xl font-semibold text-gray-800">Latest CSR Distribution</h3>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">Latest uploaded leads distribution.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          {/* 2-col mobile → 2-col sm → 4-col md+ */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {latestDistribution.map((csr, i) => (
-              <div key={i} className="bg-[#F8F9FC] border border-gray-100 rounded-2xl p-4">
-                <p className="text-sm font-semibold text-gray-700">{csr.name}</p>
-                <p className="text-xs text-gray-400 mt-1">Assigned Leads</p>
-                <h4 className="text-2xl font-bold text-[#B8112D] mt-2">{csr.leads}</h4>
+              <div key={i} className="bg-[#F8F9FC] border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 truncate">{csr.name}</p>
+                <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1">Assigned Leads</p>
+                <h4 className="text-xl sm:text-2xl font-bold text-[#B8112D] mt-1 sm:mt-2">{csr.leads}</h4>
               </div>
             ))}
           </div>
         </div>
 
-        {/* UPLOAD BOX */}
-        <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm mb-6">
+        {/* ── UPLOAD BOX ── */}
+        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm mb-4 sm:mb-6">
           <div
             onClick={() => inputRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={e => { e.preventDefault(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
-            className={`border-2 border-dashed rounded-3xl p-8 md:p-10 transition-all cursor-pointer group ${
+            className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 lg:p-10 transition-all cursor-pointer group ${
               dragging ? "border-[#B8112D] bg-[#FFF6F8]" : "border-gray-200 hover:border-[#B8112D]"
-            }`}>
+            }`}
+          >
             <div className="flex flex-col items-center justify-center text-center">
-              <div className="w-20 h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-5 group-hover:scale-105 transition-all">
-                <UploadCloud size={38} className="text-[#B8112D]"/>
+              <div className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4 lg:mb-5 group-hover:scale-105 transition-all">
+                <UploadCloud size={28} className="text-[#B8112D] sm:w-8 sm:h-8 lg:w-[38px] lg:h-[38px]" />
               </div>
-              <h3 className="text-2xl font-semibold text-gray-800">Upload Excel or CSV Files</h3>
-              <p className="text-sm text-gray-400 mt-2 max-w-xl leading-relaxed">
+              <h3 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">
+                Upload Excel or CSV Files
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs sm:max-w-sm lg:max-w-xl leading-relaxed">
                 Upload lead sheets — select company and CSRs. Leads will be automatically distributed equally.
               </p>
-              <button className="mt-6 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-7 py-3 rounded-2xl text-sm font-medium">
+              <button className="mt-4 sm:mt-5 lg:mt-6 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-5 sm:px-6 lg:px-7 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium">
                 Browse Files
               </button>
             </div>
             <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv"
-              onChange={e => openCSRModal(e.target.files)}/>
+              onChange={e => openCSRModal(e.target.files)} />
           </div>
         </div>
 
-        {/* FILES LIST */}
-        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
-          <div className="p-5 border-b border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800">Uploaded Lead Sheets</h3>
+        {/* ── FILES LIST ── */}
+        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+          <div className="px-4 sm:px-5 py-3 sm:py-4 lg:p-5 border-b border-gray-100">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800">Uploaded Lead Sheets</h3>
           </div>
 
           {filteredFiles.length === 0 && (
-            <div className="p-14 text-center">
-              <UploadCloud size={42} className="mx-auto text-[#B8112D]"/>
-              <p className="mt-4 text-gray-500">No files uploaded yet</p>
+            <div className="p-10 sm:p-12 lg:p-14 text-center">
+              <UploadCloud size={36} className="mx-auto text-[#B8112D] lg:w-[42px] lg:h-[42px]" />
+              <p className="mt-3 sm:mt-4 text-gray-500 text-sm">No files uploaded yet</p>
             </div>
           )}
 
           <div className="divide-y divide-gray-100">
             {filteredFiles.map(file => (
-              <div key={file.id} className="p-5">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-[#F8F9FC] flex items-center justify-center">
+              <div key={file.id} className="p-4 sm:p-5">
+                {/* File info + actions */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-5">
+                  {/* Left: icon + name */}
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl sm:rounded-2xl bg-[#F8F9FC] flex items-center justify-center shrink-0">
                       {getFileIcon(file.type)}
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">{file.name}</h4>
-                      {/* Company badge */}
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-gray-800 text-sm truncate">{file.name}</h4>
                       {file.companyName && (
-                        <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2.5 py-0.5 rounded-lg text-[11px] font-semibold mt-1">
-                          <Building2 size={11}/>{file.companyName}
+                        <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2 sm:px-2.5 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-semibold mt-0.5 sm:mt-1">
+                          <Building2 size={9} className="sm:w-[11px] sm:h-[11px]" />{file.companyName}
                         </span>
                       )}
-                      <p className="text-sm text-gray-400 mt-1">{file.size} · {file.leads} Leads</p>
+                      <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
+                        {file.size} · {file.leads} Leads
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
+
+                  {/* Right: status + delete */}
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <span className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-medium flex items-center gap-1.5 sm:gap-2 ${
                       file.status === "Distributed" ? "bg-green-100 text-green-700" :
-                      file.status === "Processing"  ? "bg-blue-100 text-blue-700" :
+                      file.status === "Processing"  ? "bg-blue-100 text-blue-700"  :
                       "bg-yellow-100 text-yellow-700"
                     }`}>
                       {file.status === "Uploading"
-                        ? <Loader2 size={14} className="animate-spin"/>
-                        : <CheckCircle2 size={14}/>}
+                        ? <Loader2 size={12} className="animate-spin sm:w-[14px] sm:h-[14px]" />
+                        : <CheckCircle2 size={12} className="sm:w-[14px] sm:h-[14px]" />
+                      }
                       {file.status}
                     </span>
-                    <button onClick={() => removeFile(file.id)}
-                      className="w-10 h-10 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all">
-                      <Trash2 size={18}/>
+                    <button
+                      onClick={() => removeFile(file.id)}
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all"
+                    >
+                      <Trash2 size={15} className="sm:w-[18px] sm:h-[18px]" />
                     </button>
                   </div>
                 </div>
 
-                {/* Progress */}
-                <div className="mt-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-gray-400">Upload Progress</p>
-                    <p className="text-xs font-medium text-gray-600">{file.progress}%</p>
+                {/* Progress bar */}
+                <div className="mt-3 sm:mt-5">
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                    <p className="text-[10px] sm:text-xs text-gray-400">Upload Progress</p>
+                    <p className="text-[10px] sm:text-xs font-medium text-gray-600">{file.progress}%</p>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-[#B8112D] transition-all duration-300"
-                      style={{ width: `${file.progress}%` }}/>
+                  <div className="w-full h-1.5 sm:h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#B8112D] transition-all duration-300"
+                      style={{ width: `${file.progress}%` }}
+                    />
                   </div>
                 </div>
               </div>
