@@ -5,7 +5,7 @@ import {
   FolderKanban, CalendarDays, DollarSign, TrendingUp,
   Search, Filter, Activity, Phone, AlignLeft, Briefcase,
   X, FileText, BarChart2, PenTool, Pencil, Building2, Monitor, Eye,
-  CheckCircle2, Clock3, ChevronDown, Plus, User2,
+  CheckCircle2, Clock3, ChevronDown, Plus, User2, Hash,
 } from "lucide-react";
 
 import CSRNavbar  from "../components/CSRNavbar";
@@ -22,7 +22,7 @@ const serviceOptions = [
 ];
 
 type ProjectType = {
-  id: string; projectTitle: string; client: string; company: string;
+  id: string; projectTitle: string; code: string; client: string; company: string;
   status: string; deadline: string; budget: string; budgetNum: number;
   notes: string; service: string; timezone: string; phone: string;
   closedAt: string;
@@ -31,6 +31,7 @@ type ProjectType = {
 type LeadType = {
   id?: string | number; status: string; name?: string; company?: string;
   projectTitle?: string; project_title?: string; ProjectTitle?: string; title?: string;
+  projectCode?: string | null;
   projectName?: string; project_name?: string; projectDeadline?: string;
   project_deadline?: string; ProjectDeadline?: string; deadline?: string; nextSchedule?: string;
   projectBudget?: string | number; project_budget?: string | number;
@@ -60,6 +61,7 @@ const emptyForm = {
   clientCompany: "",
   clientPhone:   "",
   projectTitle:  "",
+  projectCode:   "",
   service:       "",
   deadline:      "",
   budget:        "",
@@ -76,6 +78,7 @@ export default function CSRProjectsPage() {
   const [viewingProject, setViewingProject] = useState<ProjectType | null>(null);
   const [isEditing,      setIsEditing]      = useState(false);
   const [editTitle,      setEditTitle]      = useState("");
+  const [editCode,       setEditCode]       = useState("");
   const [editDeadline,   setEditDeadline]   = useState("");
   const [editBudget,     setEditBudget]     = useState("");
   const [editNotes,      setEditNotes]      = useState("");
@@ -126,6 +129,7 @@ export default function CSRProjectsPage() {
           return {
             id:           String(lead.id),
             projectTitle: String(projectTitle),
+            code:         String(lead.projectCode ?? ""),
             client:       String(lead.name    || "Unknown"),
             company:      String(lead.company || "N/A"),
             status:       derivedStatus,
@@ -155,6 +159,7 @@ export default function CSRProjectsPage() {
       const matchesDate   = selectedDate ? p.deadline === selectedDate : true;
       const matchesSearch =
         (p.projectTitle ?? "").toLowerCase().includes(q) ||
+        (p.code         ?? "").toLowerCase().includes(q) ||
         (p.client       ?? "").toLowerCase().includes(q) ||
         (p.company      ?? "").toLowerCase().includes(q);
       return matchesDate && matchesSearch;
@@ -180,6 +185,7 @@ export default function CSRProjectsPage() {
     if (!target) return;
     if (!viewingProject || viewingProject.id !== target.id) setViewingProject(target);
     setEditTitle(target.projectTitle);
+    setEditCode(target.code ?? "");
     setEditDeadline(target.deadline === "N/A" ? "" : target.deadline);
     setEditBudget(target.budget);
     setEditNotes(target.notes !== "undefined" ? target.notes : "");
@@ -208,12 +214,12 @@ export default function CSRProjectsPage() {
     const displayStatus = autoComplete ? "Completed" : "In Progress";
     try {
       await API.put(`/csr/lead/${viewingProject.id}`, {
-        projectTitle: editTitle, projectDeadline: editDeadline,
+        projectTitle: editTitle, projectCode: editCode, projectDeadline: editDeadline,
         projectBudget: editBudget, projectNotes: editNotes,
         interestedService: editService, status: newStatus,
       });
       const updated: ProjectType = {
-        ...viewingProject, projectTitle: editTitle, deadline: editDeadline,
+        ...viewingProject, projectTitle: editTitle, code: editCode, deadline: editDeadline,
         budget: editBudget, budgetNum: parseBudget(editBudget),
         notes: editNotes, service: editService, status: displayStatus,
       };
@@ -240,6 +246,7 @@ export default function CSRProjectsPage() {
         company:          addForm.clientCompany.trim() || undefined,
         phone:            addForm.clientPhone.trim()   || undefined,
         projectTitle:     addForm.projectTitle.trim(),
+        projectCode:      addForm.projectCode.trim()   || undefined,
         interestedService:addForm.service,
         projectDeadline:  addForm.deadline,
         projectBudget:    addForm.budget.trim() || undefined,
@@ -254,6 +261,7 @@ export default function CSRProjectsPage() {
       const newProject: ProjectType = {
         id:           String(newLead?.id ?? Date.now()),
         projectTitle: addForm.projectTitle.trim(),
+        code:         addForm.projectCode.trim(),
         client:       addForm.clientName.trim(),
         company:      addForm.clientCompany.trim() || "N/A",
         status:       autoCompleted ? "Completed" : "In Progress",
@@ -320,7 +328,7 @@ export default function CSRProjectsPage() {
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
             <div className="relative w-full xl:max-w-[380px]">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input type="text" placeholder="Search by project title or client..." value={search}
+              <input type="text" placeholder="Search by project title, code or client..." value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full h-[52px] rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-11 pr-4 text-sm outline-none focus:border-[#B8112D]"/>
             </div>
@@ -357,7 +365,14 @@ export default function CSRProjectsPage() {
                       <span className="text-sm font-bold">{project.projectTitle.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                      <p className="text-sm font-semibold text-[#0F172A] flex items-center gap-1.5 min-w-0">
+                        {project.code && (
+                          <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+                            {project.code}
+                          </span>
+                        )}
+                        <span className="truncate">{project.projectTitle}</span>
+                      </p>
                       <p className="text-xs text-gray-400 truncate mt-0.5">{project.client}</p>
                     </div>
                   </div>
@@ -494,14 +509,24 @@ export default function CSRProjectsPage() {
                     </div>
                   </div>
 
-                  {/* ── PROJECT TITLE ── */}
-                  <div>
-                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                      <FileText size={11} className="text-[#B8112D]"/>Project Title <span className="text-[#B8112D]">*</span>
-                    </label>
-                    <input type="text" value={addForm.projectTitle} placeholder="e.g. BIM Modeling Phase 1"
-                      onChange={e => setAddForm(f => ({ ...f, projectTitle: e.target.value }))}
-                      className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                  {/* ── PROJECT TITLE + CODE ── */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                        <FileText size={11} className="text-[#B8112D]"/>Project Title <span className="text-[#B8112D]">*</span>
+                      </label>
+                      <input type="text" value={addForm.projectTitle} placeholder="e.g. BIM Modeling Phase 1"
+                        onChange={e => setAddForm(f => ({ ...f, projectTitle: e.target.value }))}
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                        <Hash size={11} className="text-[#B8112D]"/>Project Code
+                      </label>
+                      <input type="text" value={addForm.projectCode} placeholder="e.g. PRJ-001"
+                        onChange={e => setAddForm(f => ({ ...f, projectCode: e.target.value }))}
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                    </div>
                   </div>
 
                   {/* ── SERVICE ── */}
@@ -620,8 +645,13 @@ export default function CSRProjectsPage() {
                     {viewingProject.projectTitle.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight truncate">
-                      {isEditing ? "Edit Project" : viewingProject.projectTitle}
+                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight flex items-center gap-1.5 min-w-0">
+                      {!isEditing && viewingProject.code && (
+                        <span className="inline-flex items-center bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+                          {viewingProject.code}
+                        </span>
+                      )}
+                      <span className="truncate">{isEditing ? "Edit Project" : viewingProject.projectTitle}</span>
                     </h2>
                     <p className="text-white/65 text-xs mt-0.5 truncate">
                       {viewingProject.client}
@@ -697,10 +727,17 @@ export default function CSRProjectsPage() {
 
                   {isEditing && (
                     <>
-                      <div>
-                        <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><FileText size={11} className="text-[#B8112D]"/>Project Title</label>
-                        <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Enter project title"
-                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><FileText size={11} className="text-[#B8112D]"/>Project Title</label>
+                          <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Enter project title"
+                            className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Hash size={11} className="text-[#B8112D]"/>Project Code</label>
+                          <input type="text" value={editCode} onChange={e => setEditCode(e.target.value)} placeholder="e.g. PRJ-001"
+                            className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                        </div>
                       </div>
                       <div>
                         <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Briefcase size={11} className="text-[#B8112D]"/>Service Type</label>

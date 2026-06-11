@@ -54,6 +54,7 @@ model Lead {
 
   interestedService String?
   projectTitle      String?
+  projectCode       String?
   projectDeadline   String?
   projectBudget     String?
   projectNotes      String?

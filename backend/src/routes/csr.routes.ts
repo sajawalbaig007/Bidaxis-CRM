@@ -85,6 +85,7 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       company,
       phone,
       projectTitle,
+      projectCode,
       interestedService,
       projectDeadline,
       projectBudget,
@@ -107,6 +108,7 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         phone:             phone             ?? null,
         status:            status            ?? "Close Client",
         projectTitle,
+        projectCode:       projectCode       ?? null,
         interestedService,
         projectDeadline,
         projectBudget:     projectBudget     ?? null,
@@ -151,7 +153,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     const {
       status, nextSchedule, nextTime, timezone, followUpNotes,
-      interestedService, projectTitle, projectDeadline,
+      interestedService, projectTitle, projectCode, projectDeadline,
       projectBudget, projectNotes, comments,
       name, phone, email, state,
     } = req.body;
@@ -174,6 +176,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (followUpNotes     !== undefined) updateData.followUpNotes     = followUpNotes;
     if (interestedService !== undefined) updateData.interestedService = interestedService;
     if (projectTitle      !== undefined) updateData.projectTitle      = projectTitle;
+    if (projectCode       !== undefined) updateData.projectCode       = projectCode;
     if (projectDeadline   !== undefined) updateData.projectDeadline   = projectDeadline;
     if (projectBudget     !== undefined) updateData.projectBudget     = projectBudget;
     if (projectNotes      !== undefined) updateData.projectNotes      = projectNotes;
