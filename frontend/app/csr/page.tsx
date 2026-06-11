@@ -628,7 +628,16 @@ export default function CSRPage() {
 
           {/* TABLE */}
           <div className="overflow-x-auto rounded-2xl border border-gray-100">
-            <table className="w-full min-w-[920px]">
+            <table className="w-full min-w-[920px] table-fixed">
+              <colgroup>
+                <col className="w-[27%]"/>
+                <col className="w-[11%]"/>
+                <col className="w-[10%]"/>
+                <col className="w-[9%]"/>
+                <col className="w-[14%]"/>
+                <col className="w-[12%]"/>
+                <col className="w-[17%]"/>
+              </colgroup>
               <thead className="bg-[#FAFAFA]">
                 <tr>
                   {["Client","Company","Phone","State","Comments","Status","Action"].map(h => (
@@ -642,7 +651,7 @@ export default function CSRPage() {
                     <tr key={i} className="border-t border-gray-100">
                       {[1,2,3,4,5,6,7].map(j => (
                         <td key={j} className="py-4 px-3">
-                          <div className="h-4 bg-gray-100 rounded animate-pulse w-24"/>
+                          <div className="h-4 bg-gray-100 rounded animate-pulse w-full max-w-24"/>
                         </td>
                       ))}
                     </tr>
@@ -674,7 +683,7 @@ export default function CSRPage() {
                           {currentLink.rawInfo && currentLink.rawInfo !== currentLink.company && (
                             <p className="text-[11px] text-gray-400 mt-0.5 max-w-[120px] truncate">{currentLink.rawInfo}</p>
                           )}
-                          <p className="text-[11px] text-gray-500 mt-0.5">
+                          <p className="text-[11px] text-gray-500 mt-0.5 truncate">
                             {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
                           </p>
                         </div>
@@ -682,16 +691,16 @@ export default function CSRPage() {
                     </td>
 
                     {/* COMPANY */}
-                    <td className="py-4 px-3 text-[13px] font-medium text-[#0F172A]">{currentLink.company}</td>
+                    <td className="py-4 px-3 text-[13px] font-medium text-[#0F172A] truncate">{currentLink.company}</td>
 
                     {/* PHONE */}
-                    <td className="py-4 px-3 text-[13px] font-medium text-[#0F172A]">{currentLink.phone}</td>
+                    <td className="py-4 px-3 text-[13px] font-medium text-[#0F172A] truncate">{currentLink.phone}</td>
 
                     {/* STATE */}
                     <td className="py-4 px-3">
                       {currentLink.state ? (
-                        <span className="inline-flex items-center gap-1.5 bg-[#EFF6FF] text-[#1D4ED8] px-2.5 py-1 rounded-xl text-[11px] font-semibold">
-                          <MapPin size={11}/>{currentLink.state}
+                        <span className="inline-flex items-center gap-1.5 max-w-full bg-[#EFF6FF] text-[#1D4ED8] px-2.5 py-1 rounded-xl text-[11px] font-semibold">
+                          <MapPin size={11} className="shrink-0"/><span className="truncate min-w-0">{currentLink.state}</span>
                         </span>
                       ) : (
                         <span className="text-gray-300 text-[13px]">—</span>
@@ -735,7 +744,7 @@ export default function CSRPage() {
 
                     {/* STATUS */}
                     <td className="py-4 px-3">
-                      <div className={`px-3 py-1.5 rounded-xl text-[13px] font-semibold w-fit ${statusBadgeClass(currentLink.status)}`}>
+                      <div className={`inline-block max-w-full truncate px-3 py-1.5 rounded-xl text-[13px] font-semibold ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
                     </td>
