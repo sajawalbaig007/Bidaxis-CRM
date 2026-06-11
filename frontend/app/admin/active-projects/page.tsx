@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, TrendingUp, X,
   DollarSign, Calendar, Briefcase, Building2, User2,
-  Phone, Mail, Clock3, ChevronDown,
+  Phone, Mail, Clock3, ChevronDown, Pencil, Hash, FileText, AlignLeft,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -22,6 +22,7 @@ type Project = {
   status:            string;
   interestedService: string | null;
   projectTitle:      string | null;
+  projectCode:       string | null;
   projectDeadline:   string | null;
   projectBudget:     string | null;
   projectNotes:      string | null;
@@ -85,7 +86,16 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
         </button>
       </div>
 
-      {p.projectTitle && <p className="text-sm font-semibold text-gray-700">{p.projectTitle}</p>}
+      {p.projectTitle && (
+        <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+          {p.projectCode && (
+            <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+              {p.projectCode}
+            </span>
+          )}
+          <span className="truncate">{p.projectTitle}</span>
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {p.uploadFile?.companyName && (
@@ -123,6 +133,15 @@ export default function AdminProjectsPage() {
   const [filterCSR, setFilterCSR] = useState("all");
   const [selected,  setSelected]  = useState<Project | null>(null);
 
+  /* DETAIL EDIT */
+  const [isEditing,    setIsEditing]    = useState(false);
+  const [editTitle,    setEditTitle]    = useState("");
+  const [editCode,     setEditCode]     = useState("");
+  const [editBudget,   setEditBudget]   = useState("");
+  const [editDeadline, setEditDeadline] = useState("");
+  const [editNotes,    setEditNotes]    = useState("");
+  const [saving,       setSaving]       = useState(false);
+
   /* ── FETCH — ESLint-safe ── */
   const fetchProjects = useCallback(async () => {
     try {
@@ -151,12 +170,53 @@ export default function AdminProjectsPage() {
     const matchSearch =
       (p.name ?? "").toLowerCase().includes(q) ||
       (p.projectTitle ?? "").toLowerCase().includes(q) ||
+      (p.projectCode ?? "").toLowerCase().includes(q) ||
       (p.company ?? "").toLowerCase().includes(q) ||
       (p.interestedService ?? "").toLowerCase().includes(q) ||
       p.csr.name.toLowerCase().includes(q) ||
       (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
     return matchSearch && (filterCSR === "all" || p.csr.id === filterCSR);
   });
+
+  /* ── EDIT PROJECT ── */
+  const startEdit = (project: Project) => {
+    setEditTitle(project.projectTitle ?? "");
+    setEditCode(project.projectCode ?? "");
+    setEditBudget(project.projectBudget ?? "");
+    setEditDeadline(project.projectDeadline ?? "");
+    setEditNotes(project.projectNotes ?? "");
+    setIsEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const res = await API.put(`/admin/project/${selected.id}`, {
+        projectTitle:    editTitle,
+        projectCode:     editCode,
+        projectBudget:   editBudget,
+        projectDeadline: editDeadline,
+        projectNotes:    editNotes,
+      });
+      const updatedLead = res.data.lead;
+      const updated: Project = {
+        ...selected,
+        projectTitle:    updatedLead?.projectTitle    ?? editTitle,
+        projectCode:     updatedLead?.projectCode     ?? editCode,
+        projectBudget:   updatedLead?.projectBudget   ?? editBudget,
+        projectDeadline: updatedLead?.projectDeadline ?? editDeadline,
+        projectNotes:    updatedLead?.projectNotes    ?? editNotes,
+      };
+      setProjects(prev => prev.map(p => p.id === selected.id ? updated : p));
+      setSelected(updated);
+      setIsEditing(false);
+      toast.success("Project updated");
+    } catch {
+      toast.error("Failed to update project");
+    }
+    setSaving(false);
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -191,7 +251,7 @@ export default function AdminProjectsPage() {
         <div className="flex flex-col sm:flex-row gap-3 mb-5">
           <div className="relative flex-1 sm:max-w-90">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-            <input type="text" placeholder="Search projects, client, service..."
+            <input type="text" placeholder="Search projects, code, client, service..."
               value={search} onChange={e => setSearch(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
           </div>
@@ -257,7 +317,14 @@ export default function AdminProjectsPage() {
 
                   {/* PROJECT */}
                   <td className="px-5 py-4 whitespace-nowrap">
-                    <p className="font-semibold text-gray-800 text-sm">{p.projectTitle ?? "—"}</p>
+                    <p className="font-semibold text-gray-800 text-sm flex items-center gap-1.5">
+                      {p.projectCode && (
+                        <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+                          {p.projectCode}
+                        </span>
+                      )}
+                      <span>{p.projectTitle ?? "—"}</span>
+                    </p>
                     <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[160px]">{p.company ?? "—"}</p>
                   </td>
 
@@ -332,17 +399,47 @@ export default function AdminProjectsPage() {
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
 
               <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-800">{selected.projectTitle ?? "Untitled Project"}</h2>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    {!isEditing && selected.projectCode && (
+                      <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0">
+                        {selected.projectCode}
+                      </span>
+                    )}
+                    <span className="truncate">{isEditing ? "Edit Project" : (selected.projectTitle ?? "Untitled Project")}</span>
+                  </h2>
                   <p className="text-sm text-gray-400 mt-0.5">{selected.name ?? "—"}</p>
                 </div>
-                <button onClick={() => setSelected(null)}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all">
-                  <X size={18}/>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {!isEditing && (
+                    <button onClick={() => startEdit(selected)}
+                      className="px-4 py-2 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center gap-1.5 hover:bg-[#fce8ec] transition-colors">
+                      <Pencil size={14}/>Edit
+                    </button>
+                  )}
+                  <button onClick={() => { setSelected(null); setIsEditing(false); }}
+                    className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all">
+                    <X size={18}/>
+                  </button>
+                </div>
               </div>
 
               <div className="p-6 space-y-4">
+                {isEditing && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><FileText size={11} className="text-[#B8112D]"/>Project Title</label>
+                      <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Enter project title"
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Hash size={11} className="text-[#B8112D]"/>Project Code</label>
+                      <input type="text" value={editCode} onChange={e => setEditCode(e.target.value)} placeholder="e.g. PRJ-001"
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                    </div>
+                  </div>
+                )}
+
                 {/* Company + Service */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-[#FFF1F3] rounded-2xl p-4">
@@ -356,18 +453,36 @@ export default function AdminProjectsPage() {
                 </div>
 
                 {/* Budget + Deadline */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-[#F8F9FC] rounded-2xl p-4">
-                    <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2"><DollarSign size={12}/>Budget</p>
-                    <p className="font-bold text-gray-800 text-lg">{selected.projectBudget ? `$${selected.projectBudget}` : "Not set"}</p>
+                {isEditing ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><DollarSign size={11} className="text-[#B8112D]"/>Budget</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                        <input type="text" value={editBudget.replace(/^\$/, "")} onChange={e => setEditBudget(e.target.value)} placeholder="0.00"
+                          className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-7 pr-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"/>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><Calendar size={11} className="text-[#B8112D]"/>Deadline</label>
+                      <input type="date" value={editDeadline} onChange={e => setEditDeadline(e.target.value)}
+                        className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"/>
+                    </div>
                   </div>
-                  <div className={`rounded-2xl p-4 ${isOverdue(selected.projectDeadline) ? "bg-red-50" : "bg-[#F8F9FC]"}`}>
-                    <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2"><Calendar size={12}/>Deadline</p>
-                    <p className={`font-bold text-lg ${isOverdue(selected.projectDeadline) ? "text-red-600" : "text-gray-800"}`}>
-                      {formatDate(selected.projectDeadline)}
-                    </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#F8F9FC] rounded-2xl p-4">
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2"><DollarSign size={12}/>Budget</p>
+                      <p className="font-bold text-gray-800 text-lg">{selected.projectBudget ? `$${selected.projectBudget}` : "Not set"}</p>
+                    </div>
+                    <div className={`rounded-2xl p-4 ${isOverdue(selected.projectDeadline) ? "bg-red-50" : "bg-[#F8F9FC]"}`}>
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-2"><Calendar size={12}/>Deadline</p>
+                      <p className={`font-bold text-lg ${isOverdue(selected.projectDeadline) ? "text-red-600" : "text-gray-800"}`}>
+                        {formatDate(selected.projectDeadline)}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Client info */}
                 <div className="bg-[#F8F9FC] rounded-2xl p-4">
@@ -398,16 +513,39 @@ export default function AdminProjectsPage() {
                 </div>
 
                 {/* Notes */}
-                {selected.projectNotes && (
+                {isEditing ? (
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2"><AlignLeft size={11} className="text-[#B8112D]"/>Notes</label>
+                    <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} placeholder="Add project notes..."
+                      className="w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"/>
+                  </div>
+                ) : selected.projectNotes && (
                   <div className="bg-[#FFFBEB] rounded-2xl p-4">
                     <p className="text-xs text-gray-500 mb-2">Project Notes</p>
                     <p className="text-sm text-gray-700 leading-relaxed">{selected.projectNotes}</p>
                   </div>
                 )}
 
-                <p className="flex items-center gap-1.5 text-xs text-gray-400">
-                  <Clock3 size={11}/>Close Client on {formatDate(selected.updatedAt)}
-                </p>
+                {!isEditing && (
+                  <p className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <Clock3 size={11}/>Close Client on {formatDate(selected.updatedAt)}
+                  </p>
+                )}
+
+                {isEditing && (
+                  <div className="flex gap-3 pt-1">
+                    <button onClick={() => setIsEditing(false)}
+                      className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">
+                      Cancel
+                    </button>
+                    <button onClick={saveEdit} disabled={saving}
+                      className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${
+                        !saving ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200" : "bg-gray-200 cursor-not-allowed text-gray-400"
+                      }`}>
+                      {saving ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Saving...</> : "Save Changes"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

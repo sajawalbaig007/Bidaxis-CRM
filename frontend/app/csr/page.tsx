@@ -500,7 +500,7 @@ export default function CSRPage() {
         </div>
 
         {/* TABLE SECTION */}
-        <div className="bg-white rounded-[28px] p-4 sm:p-6 shadow-sm mt-7 border border-white">
+        <div className="bg-white rounded-[28px] p-4 sm:p-4 shadow-sm mt-7 border border-white">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h3 className="text-[22px] font-bold text-[#0F172A]">Client Calls</h3>
@@ -628,7 +628,7 @@ export default function CSRPage() {
 
           {/* TABLE */}
           <div className="overflow-x-auto rounded-2xl border border-gray-100">
-            <table className="w-full min-w-[1000px]">
+            <table className="w-full min-w-[920px]">
               <thead className="bg-[#FAFAFA]">
                 <tr>
                   {["Client","Company","Phone","State","Comments","Status","Action"].map(h => (
@@ -672,7 +672,7 @@ export default function CSRPage() {
                           </div>
                           {/* show raw Excel address/company if available */}
                           {currentLink.rawInfo && currentLink.rawInfo !== currentLink.company && (
-                            <p className="text-[11px] text-gray-400 mt-0.5 max-w-[140px] truncate">{currentLink.rawInfo}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5 max-w-[120px] truncate">{currentLink.rawInfo}</p>
                           )}
                           <p className="text-[11px] text-gray-500 mt-0.5">
                             {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
@@ -701,7 +701,7 @@ export default function CSRPage() {
                     {/* COMMENTS */}
                     <td className="py-4 px-3">
                       {editingCommentId === currentLink.id ? (
-                        <div className="flex flex-col gap-2 w-full max-w-[200px]">
+                        <div className="flex flex-col gap-2 w-full max-w-[170px]">
                           <textarea autoFocus value={commentDraft} onChange={e => setCommentDraft(e.target.value)} rows={2}
                             placeholder="Type your comment..."
                             className="w-full rounded-xl border border-[#B8112D] px-3 py-2 text-[13px] outline-none resize-none text-[#0F172A]"/>
@@ -717,7 +717,7 @@ export default function CSRPage() {
                       ) : (
                         <div
                           onClick={() => { setEditingCommentId(currentLink.id); setCommentDraft(currentLink.comments || ""); }}
-                          className="group cursor-pointer flex items-start gap-2 max-w-[180px]"
+                          className="group cursor-pointer flex items-start gap-2 max-w-[150px]"
                         >
                           {currentLink.comments ? (
                             <div className="bg-[#F5F6FA] rounded-xl px-3 py-2 w-full">
@@ -742,7 +742,7 @@ export default function CSRPage() {
 
                     {/* ACTION */}
                     <td className="py-4 px-3">
-                      <div className="relative w-full max-w-[190px]">
+                      <div className="relative w-full max-w-[170px]">
                         <select onChange={e => updateStatus(currentLink.id, e.target.value)} defaultValue=""
                           className="appearance-none h-[42px] w-full rounded-2xl border border-gray-200 bg-white px-3 pr-10 text-[13px] font-semibold text-[#0F172A] outline-none">
                           <option value="">Update Status</option>
