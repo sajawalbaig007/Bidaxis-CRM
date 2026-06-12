@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, TrendingUp, X,
   DollarSign, Calendar, Briefcase, Building2, User2,
-  Phone, Mail, Clock3, ChevronDown,
+  Phone, Mail, Clock3, ChevronDown, ArrowRightLeft, Check, RefreshCw,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -149,6 +149,46 @@ export default function AdminProjectsPage() {
   const [filterCSR, setFilterCSR] = useState("all");
   const [selected,  setSelected]  = useState<Project | null>(null);
   const [page,      setPage]      = useState(1);
+
+  /* ── Reassign modal ── */
+  type CSROption = { id: string; name: string; csrCode: string | null };
+  const [showReassign,  setShowReassign]  = useState(false);
+  const [reassignProj,  setReassignProj]  = useState<Project | null>(null);
+  const [csrOpts,       setCsrOpts]       = useState<CSROption[]>([]);
+  const [selCsrId,      setSelCsrId]      = useState("");
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [csrOptsLoaded, setCsrOptsLoaded] = useState(false);
+
+  const openReassign = async (p: Project) => {
+    setReassignProj(p);
+    setSelCsrId("");
+    setShowReassign(true);
+    if (!csrOptsLoaded) {
+      try {
+        const res = await API.get("/admin/csrs");
+        setCsrOpts(res.data.csrs ?? []);
+        setCsrOptsLoaded(true);
+      } catch { toast.error("Failed to load CSRs."); }
+    }
+  };
+
+  const confirmReassign = async () => {
+    if (!reassignProj || !selCsrId) return;
+    setIsReassigning(true);
+    try {
+      await API.put(`/admin/lead/${reassignProj.id}/reassign`, { csrId: selCsrId });
+      const csr = csrOpts.find(c => c.id === selCsrId);
+      toast.success(`Project reassigned to ${csr?.name ?? "CSR"}.`);
+      setProjects(prev => prev.map(p =>
+        p.id === reassignProj.id
+          ? { ...p, csr: { id: selCsrId, name: csr?.name ?? p.csr.name, email: p.csr.email, csrCode: csr?.csrCode ?? p.csr.csrCode } }
+          : p
+      ));
+      setShowReassign(false);
+      setReassignProj(null);
+    } catch { toast.error("Failed to reassign project."); }
+    finally { setIsReassigning(false); }
+  };
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -419,14 +459,23 @@ export default function AdminProjectsPage() {
                         </div>
                       </td>
 
-                      {/* VIEW BUTTON */}
+                      {/* ACTIONS */}
                       <td className="px-4 xl:px-5 py-3 xl:py-4 text-right">
-                        <button
-                          onClick={() => setSelected(p)}
-                          className="px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl bg-[#111827] text-white text-xs xl:text-sm font-medium hover:bg-black transition-all whitespace-nowrap"
-                        >
-                          View
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => void openReassign(p)}
+                            className="px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl bg-blue-100 text-blue-700 text-xs xl:text-sm font-medium hover:bg-blue-200 transition-all whitespace-nowrap flex items-center gap-1.5"
+                          >
+                            <ArrowRightLeft size={12} className="xl:w-[13px] xl:h-[13px]" />
+                            Reassign
+                          </button>
+                          <button
+                            onClick={() => setSelected(p)}
+                            className="px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl bg-[#111827] text-white text-xs xl:text-sm font-medium hover:bg-black transition-all whitespace-nowrap"
+                          >
+                            View
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -578,6 +627,73 @@ export default function AdminProjectsPage() {
             </div>
           </div>
         )}
+      {/* ══ REASSIGN CSR MODAL ══ */}
+      {showReassign && reassignProj && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-white">Reassign Project</h2>
+                  <p className="text-white/70 text-xs sm:text-sm mt-0.5">
+                    Reassigning <span className="font-semibold text-white">{reassignProj.projectTitle ?? reassignProj.name ?? "project"}</span>
+                  </p>
+                </div>
+                <button onClick={() => setShowReassign(false)}
+                  className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white shrink-0">
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
+              {!csrOptsLoaded ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw size={20} className="animate-spin text-gray-400" />
+                </div>
+              ) : csrOpts.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No CSRs available.</p>
+              ) : csrOpts.map(csr => (
+                <button key={csr.id} onClick={() => setSelCsrId(csr.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
+                    selCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
+                    selCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
+                  }`}>
+                    {csr.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`font-semibold text-sm truncate ${selCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                      {csr.name}
+                    </p>
+                    {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
+                  </div>
+                  {selCsrId === csr.id && (
+                    <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                      <Check size={11} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
+              <button onClick={() => setShowReassign(false)}
+                className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">
+                Cancel
+              </button>
+              <button onClick={confirmReassign} disabled={!selCsrId || isReassigning}
+                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                <ArrowRightLeft size={14} />
+                {isReassigning ? "Reassigning…" : "Reassign"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   );

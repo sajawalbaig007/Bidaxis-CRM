@@ -30,6 +30,8 @@ import {
   CalendarDays,
   Filter,
   Phone,
+  ArrowRightLeft,
+  Check,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/Sidebar";
@@ -88,6 +90,44 @@ export default function ClientsPage() {
   } | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+
+  /* ── Reassign to CSR ── */
+  type CSROption = { id: string; name: string; csrCode: string | null };
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignClient,    setReassignClient]    = useState<Client | null>(null);
+  const [csrOptions,        setCsrOptions]        = useState<CSROption[]>([]);
+  const [selectedCsrId,     setSelectedCsrId]     = useState("");
+  const [isReassigning,     setIsReassigning]     = useState(false);
+  const [csrOptionsLoaded,  setCsrOptionsLoaded]  = useState(false);
+
+  const openReassignModal = async (client: Client) => {
+    setReassignClient(client);
+    setSelectedCsrId("");
+    setShowReassignModal(true);
+    if (!csrOptionsLoaded) {
+      try {
+        const res = await API.get("/admin/csrs");
+        setCsrOptions(res.data.csrs ?? []);
+        setCsrOptionsLoaded(true);
+      } catch { toast.error("Failed to load CSRs."); }
+    }
+  };
+
+  const confirmReassign = async () => {
+    if (!reassignClient || !selectedCsrId) return;
+    setIsReassigning(true);
+    try {
+      await API.put(`/admin/lead/${reassignClient.id}/reassign`, { csrId: selectedCsrId });
+      const name = csrOptions.find(c => c.id === selectedCsrId)?.name ?? "another CSR";
+      toast.success(`Lead reassigned to ${name}.`);
+      setClients(prev => prev.map(c =>
+        c.id === reassignClient.id ? { ...c, csr: name } : c
+      ));
+      setShowReassignModal(false);
+      setReassignClient(null);
+    } catch { toast.error("Failed to reassign lead."); }
+    finally { setIsReassigning(false); }
+  };
 
   const openNote = (client: Client, mode: "view" | "edit") => {
     setNoteModal({
@@ -738,6 +778,13 @@ export default function ClientsPage() {
                               >
                                 <Trash2 size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
+                              <button
+                                onClick={() => void openReassignModal(client)}
+                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
+                                title="Reassign to CSR"
+                              >
+                                <ArrowRightLeft size={13} className="lg:w-[15px] lg:h-[15px]" />
+                              </button>
                             </div>
 
                             {/* Mobile: three-dot dropdown */}
@@ -800,6 +847,15 @@ export default function ClientsPage() {
                                     className="w-full px-4 py-3 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
                                   >
                                     <Trash2 size={14} /> Delete
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      void openReassignModal(client);
+                                      setOpenMenu(null);
+                                    }}
+                                    className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 text-blue-600 flex items-center gap-2"
+                                  >
+                                    <ArrowRightLeft size={14} /> Reassign CSR
                                   </button>
                                 </div>
                               )}
@@ -1348,6 +1404,71 @@ export default function ClientsPage() {
             </div>
           </div>
         )}
+      {/* ══ REASSIGN CSR MODAL ══ */}
+      {showReassignModal && reassignClient && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-white">Reassign Lead</h2>
+                  <p className="text-white/70 text-xs sm:text-sm mt-0.5">
+                    Reassigning <span className="font-semibold text-white">{reassignClient.clientName}</span>
+                  </p>
+                </div>
+                <button onClick={() => setShowReassignModal(false)}
+                  className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white shrink-0">
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+            <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
+              {!csrOptionsLoaded ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : csrOptions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No CSRs available.</p>
+              ) : csrOptions.map(csr => (
+                <button key={csr.id} onClick={() => setSelectedCsrId(csr.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
+                    selectedCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
+                    selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
+                  }`}>
+                    {csr.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                      {csr.name}
+                    </p>
+                    {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
+                  </div>
+                  {selectedCsrId === csr.id && (
+                    <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                      <Check size={11} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
+              <button onClick={() => setShowReassignModal(false)}
+                className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">
+                Cancel
+              </button>
+              <button onClick={confirmReassign} disabled={!selectedCsrId || isReassigning}
+                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                <ArrowRightLeft size={14} />
+                {isReassigning ? "Reassigning…" : "Reassign"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   );
