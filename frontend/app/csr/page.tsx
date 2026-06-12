@@ -117,6 +117,33 @@ type LeadType = {
 };
 
 const todayStr = new Date().toISOString().split("T")[0];
+const PAGE_SIZE = 30;
+
+function ServicePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+      {serviceOptions.map(({ value: v, label, Icon }) => {
+        const sel = value === v;
+        return (
+          <button key={v} onClick={() => onChange(v)}
+            className={`relative py-2.5 sm:py-3 px-1 rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-1.5 transition-all text-[10px] sm:text-[11px] font-semibold ${
+              sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"
+            }`}>
+            {sel && (
+              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center">
+                <CircleCheckBig size={8} className="text-white sm:w-[9px] sm:h-[9px]" />
+              </span>
+            )}
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}>
+              <Icon size={13} className={`sm:w-[15px] sm:h-[15px] ${sel ? "text-[#B8112D]" : "text-gray-400"}`} />
+            </div>
+            <span>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function CSRPage() {
   const router = useRouter();
@@ -125,6 +152,7 @@ export default function CSRPage() {
   const [links,   setLinks]   = useState<LeadType[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("today");
+  const [page,      setPage]      = useState(1);
 
   const [stateFilter, setStateFilter] = useState("");
   const [stateSearch, setStateSearch] = useState("");
@@ -276,6 +304,9 @@ export default function CSRPage() {
     return matchesTab && matchesState;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
+  const paginated  = filteredLinks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const saveComment = async (id: string, comment: string) => {
     setSavingCommentId(id);
     try {
@@ -379,31 +410,6 @@ export default function CSRPage() {
     return "bg-[#F4F4F5] text-[#52525B]";
   };
 
-  /* ── Shared service picker ── */
-  const ServicePicker = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-      {serviceOptions.map(({ value: v, label, Icon }) => {
-        const sel = value === v;
-        return (
-          <button key={v} onClick={() => onChange(v)}
-            className={`relative py-2.5 sm:py-3 px-1 rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-1.5 transition-all text-[10px] sm:text-[11px] font-semibold ${
-              sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"
-            }`}>
-            {sel && (
-              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center">
-                <CircleCheckBig size={8} className="text-white sm:w-[9px] sm:h-[9px]" />
-              </span>
-            )}
-            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}>
-              <Icon size={13} className={`sm:w-[15px] sm:h-[15px] ${sel ? "text-[#B8112D]" : "text-gray-400"}`} />
-            </div>
-            <span>{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen} />
@@ -506,7 +512,7 @@ export default function CSRPage() {
                   {stateFilter ? (
                     <span
                       role="button"
-                      onClick={e => { e.stopPropagation(); setStateFilter(""); setStateSearch(""); }}
+                      onClick={e => { e.stopPropagation(); setStateFilter(""); setStateSearch(""); setPage(1); }}
                       className="ml-1 text-[#B8112D] hover:text-[#8b0d22] shrink-0"
                     >
                       <X size={12} className="sm:w-[13px] sm:h-[13px]" />
@@ -539,7 +545,7 @@ export default function CSRPage() {
                           </div>
                           {filteredUSStates.map(s => (
                             <button key={s.code}
-                              onClick={() => { setStateFilter(s.name); setShowStateDD(false); setStateSearch(""); }}
+                              onClick={() => { setStateFilter(s.name); setShowStateDD(false); setStateSearch(""); setPage(1); }}
                               className={`w-full text-left px-3 sm:px-4 py-2 text-[12px] sm:text-[13px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
                                 stateFilter === s.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
                               }`}
@@ -557,7 +563,7 @@ export default function CSRPage() {
                           </div>
                           {filteredCAProvinces.map(p => (
                             <button key={p.code}
-                              onClick={() => { setStateFilter(p.name); setShowStateDD(false); setStateSearch(""); }}
+                              onClick={() => { setStateFilter(p.name); setShowStateDD(false); setStateSearch(""); setPage(1); }}
                               className={`w-full text-left px-3 sm:px-4 py-2 text-[12px] sm:text-[13px] flex items-center justify-between transition-colors hover:bg-[#FFF1F3] ${
                                 stateFilter === p.name ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-[#0F172A]"
                               }`}
@@ -594,7 +600,7 @@ export default function CSRPage() {
               { tab:"interested",     label:"Interested",     count: interestedCount,    icon:<Users          size={13} className="sm:w-[17px] sm:h-[17px]"/>, active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
               { tab:"projectwon",     label:"Close Client",   count: projectWonCount,    icon:<CircleCheckBig size={13} className="sm:w-[17px] sm:h-[17px]"/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"  },
             ].map(btn => (
-              <button key={btn.tab} onClick={() => setActiveTab(btn.tab)}
+              <button key={btn.tab} onClick={() => { setActiveTab(btn.tab); setPage(1); }}
                 className={`h-10 sm:h-[48px] px-3 sm:px-5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 text-[11px] sm:text-sm font-semibold transition-all whitespace-nowrap ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
                 {btn.icon}
                 <span className="hidden sm:inline">{btn.label}</span>
@@ -627,14 +633,14 @@ export default function CSRPage() {
                       ))}
                     </tr>
                   ))
-                ) : filteredLinks.length > 0 ? filteredLinks.map((currentLink, idx) => (
+                ) : filteredLinks.length > 0 ? paginated.map((currentLink, idx) => (
                   <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
 
                     {/* CLIENT */}
                     <td className="py-3 sm:py-5 px-3 sm:px-5">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
-                          {idx + 1}
+                          {(page - 1) * PAGE_SIZE + idx + 1}
                         </div>
                         <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
                           {currentLink.client.charAt(0)}
@@ -780,6 +786,20 @@ export default function CSRPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* PAGINATION */}
+          <div className="flex items-center justify-between px-1 pt-4 mt-2 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+              {filteredLinks.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filteredLinks.length)}`} of {filteredLinks.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+              <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+            </div>
           </div>
         </div>
 
