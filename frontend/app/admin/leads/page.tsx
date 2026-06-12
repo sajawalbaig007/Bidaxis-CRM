@@ -89,33 +89,33 @@ export default function ClientsPage() {
   const [noteSaving, setNoteSaving] = useState(false);
 
   /* ── Reassign to CSR ── */
-  type CSROption = { id: string; name: string; csrCode: string | null };
+  type ReassignCSR = { id: string; name: string; csrCode: string | null };
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassignClient,    setReassignClient]    = useState<Client | null>(null);
-  const [csrOptions,        setCsrOptions]        = useState<CSROption[]>([]);
-  const [selectedCsrId,     setSelectedCsrId]     = useState("");
+  const [reassignCsrList,   setReassignCsrList]   = useState<ReassignCSR[]>([]);
+  const [reassignTargetId,  setReassignTargetId]  = useState("");
   const [isReassigning,     setIsReassigning]     = useState(false);
-  const [csrOptionsLoaded,  setCsrOptionsLoaded]  = useState(false);
+  const [reassignCsrLoaded, setReassignCsrLoaded] = useState(false);
 
   const openReassignModal = async (client: Client) => {
     setReassignClient(client);
-    setSelectedCsrId("");
+    setReassignTargetId("");
     setShowReassignModal(true);
-    if (!csrOptionsLoaded) {
+    if (!reassignCsrLoaded) {
       try {
         const res = await API.get("/admin/csrs");
-        setCsrOptions(res.data.csrs ?? []);
-        setCsrOptionsLoaded(true);
+        setReassignCsrList(res.data.csrs ?? []);
+        setReassignCsrLoaded(true);
       } catch { toast.error("Failed to load CSRs."); }
     }
   };
 
   const confirmReassign = async () => {
-    if (!reassignClient || !selectedCsrId) return;
+    if (!reassignClient || !reassignTargetId) return;
     setIsReassigning(true);
     try {
-      await API.put(`/admin/lead/${reassignClient.id}/reassign`, { csrId: selectedCsrId });
-      const name = csrOptions.find(c => c.id === selectedCsrId)?.name ?? "another CSR";
+      await API.put(`/admin/lead/${reassignClient.id}/reassign`, { csrId: reassignTargetId });
+      const name = reassignCsrList.find(c => c.id === reassignTargetId)?.name ?? "another CSR";
       toast.success(`Lead reassigned to ${name}.`);
       setClients(prev => prev.map(c =>
         c.id === reassignClient.id ? { ...c, csr: name } : c
@@ -1401,30 +1401,30 @@ export default function ClientsPage() {
               </div>
             </div>
             <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
-              {!csrOptionsLoaded ? (
+              {!reassignCsrLoaded ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="w-5 h-5 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : csrOptions.length === 0 ? (
+              ) : reassignCsrList.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">No CSRs available.</p>
-              ) : csrOptions.map(csr => (
-                <button key={csr.id} onClick={() => setSelectedCsrId(csr.id)}
+              ) : reassignCsrList.map(csr => (
+                <button key={csr.id} onClick={() => setReassignTargetId(csr.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                    selectedCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                    reassignTargetId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
                   }`}
                 >
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                    selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
+                    reassignTargetId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
                   }`}>
                     {csr.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                    <p className={`font-semibold text-sm truncate ${reassignTargetId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
                       {csr.name}
                     </p>
                     {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                   </div>
-                  {selectedCsrId === csr.id && (
+                  {reassignTargetId === csr.id && (
                     <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
                       <Check size={11} className="text-white" />
                     </div>
@@ -1437,7 +1437,7 @@ export default function ClientsPage() {
                 className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">
                 Cancel
               </button>
-              <button onClick={confirmReassign} disabled={!selectedCsrId || isReassigning}
+              <button onClick={confirmReassign} disabled={!reassignTargetId || isReassigning}
                 className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                 <ArrowRightLeft size={14} />
                 {isReassigning ? "Reassigning…" : "Reassign"}
