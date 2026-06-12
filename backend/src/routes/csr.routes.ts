@@ -290,6 +290,25 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         } else {
           updateData.isOldClient = false;
         }
+
+        /* ── AUTO clientCode: {csrCode}-{padded_seq} ── */
+        if (!lead.clientCode) {
+          const csr = await prisma.user.findUnique({
+            where:  { id: csrId },
+            select: { csrCode: true },
+          });
+          if (csr?.csrCode) {
+            const wonCount = await prisma.lead.count({
+              where: {
+                assignedTo: csrId,
+                status:     { in: ["Close Client", "completed"] },
+                clientCode: { not: null },
+              },
+            });
+            const seq = String(wonCount + 1).padStart(2, "0");
+            updateData.clientCode = `${csr.csrCode}-${seq}`;
+          }
+        }
       }
     }
 

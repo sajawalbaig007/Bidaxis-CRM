@@ -50,6 +50,7 @@ type Client = {
   status: "Active" | "Pending" | "Closed" | "Interested";
   rawStatus: string;
   csr: string;
+  csrCode: string | null;
   nextFollowup: string;
   time: string;
   timezone: string;
@@ -184,6 +185,7 @@ export default function ClientsPage() {
                   ? "Pending"
                   : "Active",
               csr: lead.csr?.name || "Unassigned",
+              csrCode: lead.csr?.csrCode ?? null,
               nextFollowup: lead.nextSchedule || "",
               time: lead.nextTime || "N/A",
               timezone: lead.timezone || "N/A",
@@ -656,8 +658,13 @@ export default function ClientsPage() {
                           <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-500 whitespace-nowrap">
                             {client.contact}
                           </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">
-                            {client.csr}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              {client.csrCode && (
+                                <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{client.csrCode}</span>
+                              )}
+                              <span className="text-xs sm:text-sm text-gray-600">{client.csr}</span>
+                            </div>
                           </td>
 
                           {/* Status badge */}
@@ -964,7 +971,7 @@ export default function ClientsPage() {
                         { label: "Next Schedule", value: activeImp.nextFollowup || "N/A", Icon: CalendarDays },
                         { label: "Call Time", value: activeImp.time || "N/A", Icon: Clock3 },
                         { label: "Timezone", value: activeImp.timezone || "N/A", Icon: Globe },
-                        { label: "CSR Assigned", value: activeImp.csr, Icon: Users },
+                        { label: "CSR Assigned", value: activeImp.csrCode ? `${activeImp.csrCode} · ${activeImp.csr}` : activeImp.csr, Icon: Users },
                         { label: "Scope", value: activeImp.scope, Icon: Briefcase },
                       ].map(({ label, value, Icon }) => (
                         <div key={label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">

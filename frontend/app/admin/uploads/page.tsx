@@ -22,7 +22,7 @@ type UploadFile = {
 };
 
 type CSRDistribution = { name: string; leads: number };
-type CSR = { id: string; name: string; email: string; isActive: boolean };
+type CSR = { id: string; name: string; email: string; isActive: boolean; csrCode?: string | null };
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
 
@@ -489,7 +489,12 @@ export default function UploadPage() {
                             {csr.name.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <h3 className="font-semibold text-gray-800 text-xs sm:text-sm truncate">{csr.name}</h3>
+                            <div className="flex items-center gap-1.5">
+                              {csr.csrCode && (
+                                <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
+                              )}
+                              <h3 className="font-semibold text-gray-800 text-xs sm:text-sm truncate">{csr.name}</h3>
+                            </div>
                             <p className="text-[10px] sm:text-xs text-gray-400 truncate">{csr.email}</p>
                           </div>
                         </div>

@@ -17,7 +17,7 @@ import {
 
 /* ── Types ── */
 type CSRPerformance = {
-  id: string; csrId: string; name: string;
+  id: string; csrId: string; name: string; csrCode?: string | null;
   totalLeads: number; completed: number; pending: number;
   important: number; interested: number;
   notCompleted: number; projectWon: number;
@@ -241,7 +241,12 @@ export default function ReportsPage() {
                       }`}>
                         {csr.name.charAt(0).toUpperCase()}
                       </div>
-                      <span className="truncate">{csr.name}</span>
+                      <div className="flex items-center gap-1.5 truncate min-w-0">
+                        {csr.csrCode && (
+                          <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
+                        )}
+                        <span className="truncate">{csr.name}</span>
+                      </div>
                       <span className="ml-auto text-[10px] text-gray-400 shrink-0">{csr.totalLeads}</span>
                     </button>
                   ))}

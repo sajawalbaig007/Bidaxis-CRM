@@ -24,13 +24,14 @@ router.get("/csrs", verifyToken, allowRoles("admin"), async (req, res) => {
         id: true,
         name: true,
         email: true,
+        csrCode: true,
         isActive: true,
         isOnline: true,
         lastActive: true,
         createdAt: true,
         _count: { select: { leads: true } },
       },
-      orderBy: { name: "asc" },
+      orderBy: { csrCode: "asc" },
     });
 
     const payload = { success: true, csrs };
@@ -51,7 +52,7 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
 
     const leads = await prisma.lead.findMany({
       include: {
-        csr:        { select: { id: true, name: true, email: true } },
+        csr:        { select: { id: true, name: true, email: true, csrCode: true } },
         uploadFile: { select: { companyName: true, fileName: true } },
       },
       orderBy: { updatedAt: "desc" },

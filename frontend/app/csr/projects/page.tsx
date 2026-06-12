@@ -25,6 +25,7 @@ type ProjectType = {
   id: string; projectTitle: string; client: string; company: string;
   status: string; deadline: string; budget: string; budgetNum: number;
   notes: string; service: string; timezone: string; phone: string; closedAt: string;
+  clientCode?: string | null;
 };
 
 type LeadType = {
@@ -38,6 +39,7 @@ type LeadType = {
   notes?: string; followUpNotes?: string; interestedService?: string;
   interested_service?: string; service?: string; serviceInterested?: string;
   serviceName?: string; services?: string; timezone?: string; phone?: string; updatedAt?: string;
+  clientCode?: string | null;
 };
 
 const parseBudget = (raw: string | number | null | undefined): number => {
@@ -162,6 +164,7 @@ export default function CSRProjectsPage() {
           timezone:     String(lead.timezone || "N/A"),
           phone:        String(lead.phone    || "N/A"),
           closedAt:     lead.updatedAt ? String(lead.updatedAt).split("T")[0] : "N/A",
+          clientCode:   lead.clientCode ?? null,
         };
       });
       setProjects(formatted);
@@ -392,7 +395,12 @@ export default function CSRProjectsPage() {
                           <span className="text-xs sm:text-sm font-bold">{project.projectTitle.charAt(0).toUpperCase()}</span>
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                          <div className="flex items-center gap-1.5">
+                            {project.clientCode && (
+                              <span className="inline-flex shrink-0 bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{project.clientCode}</span>
+                            )}
+                            <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                          </div>
                           <p className="text-[10px] sm:text-xs text-gray-400 truncate mt-0.5">{project.client}</p>
                         </div>
                       </div>
