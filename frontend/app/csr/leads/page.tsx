@@ -71,12 +71,15 @@ function ServicePicker({ value, onChange }: { value: string; onChange: (v: strin
   );
 }
 
+const PAGE_SIZE = 30;
+
 export default function LeadsPage() {
   const [isOpen,    setIsOpen]    = useState(false);
   const [leads,     setLeads]     = useState<Lead[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [activeTab, setActiveTab] = useState<"new" | "old">("new");
   const [search,    setSearch]    = useState("");
+  const [page,      setPage]      = useState(1);
 
   const [viewing,      setViewing]      = useState<Lead | null>(null);
   const [isEditing,    setIsEditing]    = useState(false);
@@ -161,6 +164,9 @@ export default function LeadsPage() {
       l.phone.includes(q)
     );
   }, [baseList, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openDetail = (lead: Lead) => { setViewing(lead); setIsEditing(false); };
 
@@ -273,7 +279,7 @@ export default function LeadsPage() {
           ] as const).map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key as "new" | "old"); setPage(1); }}
               className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all whitespace-nowrap ${
                 activeTab === tab.key
                   ? "bg-[#B8112D] text-white"
@@ -296,7 +302,7 @@ export default function LeadsPage() {
               type="text"
               placeholder="Search by name, company or phone..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full h-10 sm:h-[46px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-9 sm:pl-10 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D] transition-colors"
             />
           </div>
@@ -338,7 +344,7 @@ export default function LeadsPage() {
 
             {/* Data rows */}
             <div className="divide-y divide-[#F3F3F3]">
-              {filtered.map(lead => (
+              {paginated.map(lead => (
                 <div
                   key={lead.id}
                   className="grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_56px] gap-3 md:gap-4 px-3 sm:px-4 md:px-5 lg:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
@@ -409,6 +415,20 @@ export default function LeadsPage() {
                 </div>
               ))}
             </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 lg:px-6 py-4 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                  <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl sm:rounded-[30px] shadow-sm p-10 sm:p-12 lg:p-16 text-center">

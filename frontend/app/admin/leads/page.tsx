@@ -56,9 +56,12 @@ type Client = {
   timezone: string;
 };
 
+const PAGE_SIZE = 30;
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page,    setPage]    = useState(1);
 
   const [view, setView] = useState<"all" | "important" | "interested" | "closed">("all");
   const [csrFilter, setCsrFilter] = useState("all");
@@ -283,6 +286,9 @@ export default function ClientsPage() {
     [filteredByCSR, search, view]
   );
 
+  const totalPagesClients = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
+  const paginatedClients  = filteredClients.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const handleSaveClient = () => {
     if (!newClient.clientName || !newClient.email || !newClient.company) {
       toast.error("Please fill all required fields.");
@@ -444,6 +450,7 @@ export default function ClientsPage() {
                 key={item.key}
                 onClick={() => {
                   setView(item.key as typeof view);
+                  setPage(1);
                   if (item.key === "important") setSelectedImp(null);
                 }}
                 className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
@@ -475,6 +482,7 @@ export default function ClientsPage() {
                 onChange={(e) => {
                   setCsrFilter(e.target.value);
                   setSelectedImp(null);
+                  setPage(1);
                 }}
                 className="h-9 sm:h-10 border border-gray-200 rounded-xl px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white text-gray-700 font-medium"
               >
@@ -556,7 +564,7 @@ export default function ClientsPage() {
                   type="text"
                   placeholder="Search clients..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
                 />
               </div>
@@ -627,7 +635,7 @@ export default function ClientsPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredClients.map((client, i) => (
+                      paginatedClients.map((client, i) => (
                         <tr
                           key={client.id}
                           className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-colors"
@@ -803,6 +811,20 @@ export default function ClientsPage() {
                   </tbody>
                 </table>
               </div>
+              {totalPagesClients > 1 && (
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400">
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredClients.length)} of {filteredClients.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                      className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                    <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPagesClients}</span>
+                    <button onClick={() => setPage(p => Math.min(totalPagesClients, p + 1))} disabled={page === totalPagesClients}
+                      className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

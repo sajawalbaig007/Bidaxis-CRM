@@ -183,9 +183,12 @@ function OnlineBadge({ isOnline, lastActive }: { isOnline: boolean; lastActive: 
   );
 }
 
+const PAGE_SIZE = 30;
+
 export default function UsersPage() {
   const [users,        setUsers]        = useState<User[]>([]);
   const [search,       setSearch]       = useState("");
+  const [page,         setPage]         = useState(1);
   const [showModal,    setShowModal]    = useState(false);
   const [editingUser,  setEditingUser]  = useState<User | null>(null);
   const [detailUser,   setDetailUser]   = useState<User | null>(null);
@@ -262,6 +265,9 @@ export default function UsersPage() {
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPagesUsers = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const paginatedUsers  = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleSubmit = async () => {
     if (!form.name || !form.email || (!editingUser && !form.password)) {
@@ -401,7 +407,7 @@ export default function UsersPage() {
           <div className="relative w-full sm:w-[300px]">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
             <input type="text" placeholder="Search users..." value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
           </div>
           <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"" }); setShowModal(true); }}
@@ -442,7 +448,7 @@ export default function UsersPage() {
                       ))}
                     </tr>
                   ))
-                ) : filteredUsers.length > 0 ? filteredUsers.map(u => (
+                ) : paginatedUsers.length > 0 ? paginatedUsers.map(u => (
                   <tr key={u.id} className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all">
 
                     {/* USER */}
@@ -561,6 +567,20 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+          {totalPagesUsers > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+              <p className="text-xs text-gray-400">
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPagesUsers}</span>
+                <button onClick={() => setPage(p => Math.min(totalPagesUsers, p + 1))} disabled={page === totalPagesUsers}
+                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* DETAIL MODAL */}
