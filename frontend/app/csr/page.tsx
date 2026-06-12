@@ -302,7 +302,14 @@ export default function CSRPage() {
       : activeTab === "projectwon"    ? item.status === "Close Client"
       : true;
     const matchesState = stateFilter ? stateMatches(item.state, stateFilter) : true;
-    const matchesPhone = phoneFilter ? item.phone.replace(/\D/g, "").includes(phoneFilter.replace(/\D/g, "")) : true;
+    const matchesPhone = phoneFilter
+      ? (() => {
+          const digits = item.phone.replace(/\D/g, "");
+          const typed  = phoneFilter.replace(/\D/g, "");
+          const afterCountry = digits.length > 10 ? digits.slice(1) : digits;
+          return afterCountry.startsWith(typed);
+        })()
+      : true;
     return matchesTab && matchesState && matchesPhone;
   });
 
