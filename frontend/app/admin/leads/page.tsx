@@ -50,7 +50,7 @@ type Client = {
   status: "Active" | "Pending" | "Closed" | "Interested";
   rawStatus: string;
   csr: string;
-  csrCode: string | null;
+  csrCode?: string | null;
   nextFollowup: string;
   time: string;
   timezone: string;
@@ -161,7 +161,7 @@ export default function ClientsPage() {
             nextTime?: string;
             timezone?: string;
             uploadFile?: { companyName?: string };
-            csr?: { name?: string };
+            csr?: { name?: string; csrCode?: string | null };
           }) => {
             const raw = (lead.status || "active").toLowerCase();
             return {
