@@ -99,10 +99,13 @@ function DeadlineStatus({ deadline }: { deadline: string }) {
   );
 }
 
+const PAGE_SIZE = 30;
+
 export default function CSRProjectsPage() {
   const [isOpen,       setIsOpen]       = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
   const [search,       setSearch]       = useState("");
+  const [page,         setPage]         = useState(1);
   const [projects,     setProjects]     = useState<ProjectType[]>([]);
 
   const [viewingProject, setViewingProject] = useState<ProjectType | null>(null);
@@ -187,6 +190,9 @@ export default function CSRProjectsPage() {
       return matchesDate && matchesSearch;
     });
   }, [selectedDate, search, projects]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
+  const paginated  = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const totalProjects   = projects.length;
   const allTimeSales    = projects.reduce((acc, p) => acc + p.budgetNum, 0);
@@ -343,7 +349,7 @@ export default function CSRProjectsPage() {
                 type="text"
                 placeholder="Search by project title or client..."
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full h-11 sm:h-[52px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 sm:pl-11 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
               />
             </div>
@@ -355,7 +361,7 @@ export default function CSRProjectsPage() {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
+                onChange={e => { setSelectedDate(e.target.value); setPage(1); }}
                 className="h-10 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-xs sm:text-sm outline-none focus:border-[#B8112D]"
               />
               {selectedDate && (
@@ -384,7 +390,7 @@ export default function CSRProjectsPage() {
 
                 {/* Data rows */}
                 <div className="divide-y divide-[#F3F3F3]" ref={menuRef}>
-                  {filteredProjects.map(project => (
+                  {paginated.map(project => (
                     <div
                       key={project.id}
                       className="grid grid-cols-[2fr_1.4fr_0.9fr_1fr_0.9fr_1fr_auto] gap-3 lg:gap-4 px-4 sm:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
@@ -488,6 +494,20 @@ export default function CSRProjectsPage() {
                 </div>
               </div>
             </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredProjects.length)} of {filteredProjects.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                  <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl sm:rounded-[30px] shadow-sm p-10 sm:p-12 lg:p-16 mt-4 sm:mt-7 text-center">

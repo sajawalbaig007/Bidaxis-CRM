@@ -139,6 +139,8 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
 }
 
 /* ── Main Page ── */
+const PAGE_SIZE = 30;
+
 export default function AdminProjectsPage() {
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [stats,     setStats]     = useState<Stats>({ total: 0, withBudget: 0, thisMonth: 0 });
@@ -146,6 +148,7 @@ export default function AdminProjectsPage() {
   const [search,    setSearch]    = useState("");
   const [filterCSR, setFilterCSR] = useState("all");
   const [selected,  setSelected]  = useState<Project | null>(null);
+  const [page,      setPage]      = useState(1);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -180,6 +183,9 @@ export default function AdminProjectsPage() {
       (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
     return matchSearch && (filterCSR === "all" || p.csr.id === filterCSR);
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -243,7 +249,7 @@ export default function AdminProjectsPage() {
               type="text"
               placeholder="Search projects, client, service..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
             />
           </div>
@@ -253,7 +259,7 @@ export default function AdminProjectsPage() {
             <User2 size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <select
               value={filterCSR}
-              onChange={(e) => setFilterCSR(e.target.value)}
+              onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
               className="appearance-none w-full sm:min-w-[200px] lg:min-w-[220px] h-10 sm:h-12 bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D]"
             >
               <option value="all">All CSRs</option>
@@ -272,13 +278,27 @@ export default function AdminProjectsPage() {
               <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-32 animate-pulse" />
             ))
           ) : filtered.length > 0 ? (
-            filtered.map((p) => (
+            paginated.map((p) => (
               <ProjectCard key={p.id} p={p} onView={() => setSelected(p)} />
             ))
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 p-10 sm:p-12 text-center">
               <FolderKanban size={32} className="text-gray-200 mx-auto mb-3 sm:w-9 sm:h-9" />
               <p className="text-gray-400 font-medium text-sm sm:text-base">No projects found</p>
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-gray-100">
+              <p className="text-xs text-gray-400">
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+              </div>
             </div>
           )}
         </div>
@@ -317,7 +337,7 @@ export default function AdminProjectsPage() {
                     </tr>
                   ))
                 ) : filtered.length > 0 ? (
-                  filtered.map((p) => (
+                  paginated.map((p) => (
                     <tr key={p.id} className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all">
 
                       {/* CLIENT */}
@@ -424,6 +444,20 @@ export default function AdminProjectsPage() {
               </tbody>
             </table>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+              <p className="text-xs text-gray-400">
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── DETAIL MODAL ── */}

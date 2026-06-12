@@ -69,12 +69,15 @@ function TriesBar({ used, limit, color }: { used: number; limit: number; color: 
   );
 }
 
+const PAGE_SIZE = 30;
+
 export default function NotInterestedPage() {
   const [isOpen,    setIsOpen]    = useState(false);
   const [leads,     setLeads]     = useState<Lead[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [activeTab, setActiveTab] = useState<"notinterested" | "notpicked">("notinterested");
   const [search,    setSearch]    = useState("");
+  const [page,      setPage]      = useState(1);
 
   const [expandedRow,  setExpandedRow]  = useState<string | null>(null);
   const [editingNote,  setEditingNote]  = useState<{ leadId: string; index: number; value: string } | null>(null);
@@ -152,6 +155,9 @@ export default function NotInterestedPage() {
       !q || l.client.toLowerCase().includes(q) || l.company.toLowerCase().includes(q) || l.phone.includes(q)
     );
   }, [currentList, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleRetry = async (lead: Lead) => {
     const newStatus = activeTab === "notinterested" ? "Not Interested" : "not picked";
@@ -309,7 +315,7 @@ export default function NotInterestedPage() {
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => { setActiveTab(tab.key as "notinterested" | "notpicked"); setSearch(""); }}
+              onClick={() => { setActiveTab(tab.key as "notinterested" | "notpicked"); setSearch(""); setPage(1); }}
               className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all whitespace-nowrap ${
                 activeTab === tab.key
                   ? "bg-[#B8112D] text-white"
@@ -351,7 +357,7 @@ export default function NotInterestedPage() {
                     type="text"
                     placeholder="Search..."
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }}
                     className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
                   />
                 </div>
@@ -395,7 +401,7 @@ export default function NotInterestedPage() {
                       ))}
                     </tr>
                   ))
-                ) : filtered.length > 0 ? filtered.map(lead => {
+                ) : filtered.length > 0 ? paginated.map(lead => {
                   const tries       = lead[countKey as keyof Lead] as number;
                   const isNearLimit = tries >= limit - 1;
                   const isAtLimit   = tries >= limit;
@@ -680,6 +686,20 @@ export default function NotInterestedPage() {
                 )}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                  <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

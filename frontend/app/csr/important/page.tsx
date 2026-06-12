@@ -58,11 +58,14 @@ type EditAction = "reschedule" | "closeclient" | "deleteclient" | null;
 
 const todayStr = new Date().toISOString().split("T")[0];
 
+const PAGE_SIZE = 30;
+
 export default function ImportantCallsPage() {
   const [isOpen,         setIsOpen]         = useState(false);
   const [importantCalls, setImportantCalls] = useState<CallType[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [activeTab,      setActiveTab]      = useState("important");
+  const [page,           setPage]           = useState(1);
 
   const [searchQuery,    setSearchQuery]    = useState("");
   const [filterDate,     setFilterDate]     = useState("");
@@ -149,6 +152,9 @@ export default function ImportantCallsPage() {
       return matchesTab && matchesSearch && matchesDate;
     });
   }, [importantCalls, activeTab, searchQuery, filterDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
+  const paginated  = filteredCalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   /* ── STATS ── */
   const totalImportantCount = importantCalls.filter(c => c.status === "important").length;
@@ -331,7 +337,7 @@ export default function ImportantCallsPage() {
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setSearchQuery(""); setFilterDate(""); }}
+              onClick={() => { setActiveTab(tab.key); setSearchQuery(""); setFilterDate(""); setPage(1); }}
               className={`h-10 sm:h-12 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2 shadow-sm whitespace-nowrap ${
                 activeTab === tab.key
                   ? "bg-[#B8112D] text-white"
@@ -371,14 +377,14 @@ export default function ImportantCallsPage() {
                       type="text"
                       placeholder="Search..."
                       value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
+                      onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
                       className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
                     />
                   </div>
                   <input
                     type="date"
                     value={filterDate}
-                    onChange={e => setFilterDate(e.target.value)}
+                    onChange={e => { setFilterDate(e.target.value); setPage(1); }}
                     className="h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-4 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
                   />
                   {filterDate && (
@@ -419,7 +425,7 @@ export default function ImportantCallsPage() {
                         ))}
                       </tr>
                     ))
-                  ) : filteredCalls.length > 0 ? filteredCalls.map(call => (
+                  ) : filteredCalls.length > 0 ? paginated.map(call => (
                     <tr key={call.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       {/* Client */}
                       <td className="py-4 sm:py-5 px-2">
@@ -515,6 +521,20 @@ export default function ImportantCallsPage() {
                   )}
                 </tbody>
               </table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 sm:px-5 lg:px-6 py-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400">
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredCalls.length)} of {filteredCalls.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                      className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                    <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                      className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -561,7 +581,7 @@ export default function ImportantCallsPage() {
                         ))}
                       </tr>
                     ))
-                  ) : filteredCalls.length > 0 ? filteredCalls.map(call => (
+                  ) : filteredCalls.length > 0 ? paginated.map(call => (
                     <tr key={call.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       <td className="py-4 sm:py-5 px-2">
                         <div className="flex items-center gap-2 sm:gap-4">
@@ -623,6 +643,20 @@ export default function ImportantCallsPage() {
                   )}
                 </tbody>
               </table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 sm:px-5 lg:px-6 py-4 border-t border-gray-100">
+                  <p className="text-xs text-gray-400">
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredCalls.length)} of {filteredCalls.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                      className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                    <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                      className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
