@@ -15,6 +15,7 @@ import {
   X,
   Settings,
   FolderKanban,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -75,6 +76,11 @@ export default function DashboardSidebar() {
       route: "/admin/uploads",
     },
 
+    {
+      name: "Bin",
+      icon: Trash2,
+      route: "/admin/bin",
+    },
     {
       name: "Settings",
       icon: Settings,
