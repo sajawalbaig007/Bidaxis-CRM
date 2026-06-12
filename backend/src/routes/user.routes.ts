@@ -25,6 +25,7 @@ router.get("/", async (req, res) => {
           name:       true,
           email:      true,
           role:       true,
+          csrCode:    true,
           isActive:   true,
           isOnline:   true,
           lastActive: true,

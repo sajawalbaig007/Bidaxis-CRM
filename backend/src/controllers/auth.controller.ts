@@ -61,15 +61,30 @@ function setCookieToken(res: Response, token: string) {
 /* ================= REGISTER ================= */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, csrCode } = req.body;
+
+    /* csrCode required for CSR role */
+    if (role === "csr" && !csrCode?.trim()) {
+      return res.status(400).json({ success: false, message: "CSR Code is required for CSR accounts." });
+    }
+
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return res.status(400).json({ success: false, message: "User already exists" });
     }
+
+    /* Ensure csrCode is unique */
+    if (csrCode?.trim()) {
+      const codeTaken = await prisma.user.findUnique({ where: { csrCode: csrCode.trim() } });
+      if (codeTaken) {
+        return res.status(400).json({ success: false, message: `CSR Code "${csrCode}" is already in use.` });
+      }
+    }
+
     const hashed = await hashPassword(password);
     const user = await prisma.user.create({
-      data:   { name, email, password: hashed, role },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      data:   { name, email, password: hashed, role, csrCode: role === "csr" ? csrCode.trim() : null },
+      select: { id: true, name: true, email: true, role: true, csrCode: true, createdAt: true },
     });
     return res.status(201).json({ success: true, user });
   } catch {

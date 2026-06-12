@@ -26,7 +26,7 @@ type Project = {
   projectBudget:     string | null;
   projectNotes:      string | null;
   updatedAt:         string;
-  csr: { id: string; name: string; email: string };
+  csr: { id: string; name: string; email: string; csrCode: string | null };
   uploadFile: { companyName: string | null } | null;
 };
 
@@ -124,7 +124,12 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
-        <span className="font-medium text-[#065F46] truncate">CSR: {p.csr.name}</span>
+        <span className="font-medium text-[#065F46] truncate flex items-center gap-1.5">
+          {p.csr.csrCode && (
+            <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
+          )}
+          {p.csr.name}
+        </span>
         {p.projectBudget && (
           <span className="font-bold text-gray-700 shrink-0 ml-2">${p.projectBudget}</span>
         )}
@@ -386,9 +391,12 @@ export default function AdminProjectsPage() {
 
                       {/* CSR */}
                       <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
-                        <span className="text-xs xl:text-sm font-semibold text-[#065F46]">
-                          {p.csr.name}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {p.csr.csrCode && (
+                            <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
+                          )}
+                          <span className="text-xs xl:text-sm font-semibold text-[#065F46]">{p.csr.name}</span>
+                        </div>
                       </td>
 
                       {/* VIEW BUTTON */}
@@ -509,7 +517,12 @@ export default function AdminProjectsPage() {
                 {/* CSR */}
                 <div className="bg-emerald-50 rounded-xl sm:rounded-2xl p-3 sm:p-4">
                   <p className="text-[10px] sm:text-xs text-gray-500 mb-1">Handled by CSR</p>
-                  <p className="font-bold text-[#065F46] text-sm sm:text-base">{selected.csr.name}</p>
+                  <div className="flex items-center gap-2">
+                    {selected.csr.csrCode && (
+                      <span className="bg-[#B8112D]/10 text-[#B8112D] text-[11px] font-bold px-2 py-0.5 rounded-lg">{selected.csr.csrCode}</span>
+                    )}
+                    <p className="font-bold text-[#065F46] text-sm sm:text-base">{selected.csr.name}</p>
+                  </div>
                   <p className="text-[10px] sm:text-xs text-gray-400">{selected.csr.email}</p>
                 </div>
 

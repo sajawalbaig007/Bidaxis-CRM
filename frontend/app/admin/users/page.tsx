@@ -16,6 +16,7 @@ type UserRole = "CSR" | "Admin";
 type User = {
   id: string; name: string; email: string; password: string;
   status: "Active" | "Inactive"; role: UserRole;
+  csrCode:    string | null;
   isOnline: boolean; lastActive: string | null;
   browser:     string | null;
   tabId:       string | null;
@@ -194,7 +195,7 @@ export default function UsersPage() {
   const [loading,      setLoading]      = useState(true);
 
   const [form, setForm] = useState({
-    name: "", email: "", password: "", role: "CSR" as UserRole,
+    name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "",
   });
 
   const fetchUsers = useCallback(async (silent = false) => {
@@ -205,7 +206,7 @@ export default function UsersPage() {
       if (!res.ok) { if (!silent) toast.error("Failed to fetch users."); return; }
 
       const formatted: User[] = (Array.isArray(data) ? data : []).map((u: {
-        id: string; name: string; email: string; role: string;
+        id: string; name: string; email: string; role: string; csrCode?: string;
         isActive?: boolean; isOnline?: boolean; lastActive?: string;
         browser?: string; tabId?: string; openedAt?: string;
         tabVisible?: boolean; hiddenAt?: string;
@@ -214,6 +215,7 @@ export default function UsersPage() {
         name:       u.name,
         email:      u.email,
         role:       u.role === "csr" ? "CSR" : "Admin",
+        csrCode:    u.csrCode    ?? null,
         status:     u.isActive === false ? "Inactive" : "Active",
         isOnline:   u.isOnline   ?? false,
         lastActive: u.lastActive ?? null,
@@ -266,12 +268,17 @@ export default function UsersPage() {
       toast.error("Please fill all required fields.");
       return;
     }
+    if (form.role === "CSR" && !form.csrCode.trim()) {
+      toast.error("CSR Code is required for CSR accounts.");
+      return;
+    }
     try {
+      const role = form.role === "CSR" ? "csr" : "admin";
       const url    = editingUser ? `${BASE}/users/${editingUser.id}` : `${BASE}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
       const body   = editingUser
-        ? { name: form.name, email: form.email, role: form.role === "CSR" ? "csr" : "admin" }
-        : { name: form.name, email: form.email, password: form.password, role: form.role === "CSR" ? "csr" : "admin" };
+        ? { name: form.name, email: form.email, role, csrCode: role === "csr" ? form.csrCode.trim() : null }
+        : { name: form.name, email: form.email, password: form.password, role, csrCode: role === "csr" ? form.csrCode.trim() : null };
 
       const res  = await fetch(url, {
         method, credentials: "include",
@@ -284,7 +291,7 @@ export default function UsersPage() {
       toast.success(editingUser ? "User updated." : "User created.");
       fetchUsers();
       setShowModal(false); setEditingUser(null);
-      setForm({ name: "", email: "", password: "", role: "CSR" });
+      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "" });
       setShowPassword(false);
     } catch {
       toast.error("Something went wrong.");
@@ -397,7 +404,7 @@ export default function UsersPage() {
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
           </div>
-          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR" }); setShowModal(true); }}
+          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"" }); setShowModal(true); }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
@@ -446,7 +453,14 @@ export default function UsersPage() {
                           <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${u.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-700">{u.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-gray-700">{u.name}</h3>
+                            {u.role === "CSR" && u.csrCode && (
+                              <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg tracking-wider">
+                                {u.csrCode}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400">{u.email}</p>
                         </div>
                       </div>
@@ -492,7 +506,7 @@ export default function UsersPage() {
                           className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all text-sm">
                           Details
                         </button>
-                        <button onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role }); setShowModal(true); }}
+                        <button onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "" }); setShowModal(true); }}
                           className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all">
                           <Pencil size={16}/>
                         </button>
@@ -525,7 +539,7 @@ export default function UsersPage() {
                           <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
                             {[
                               { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
-                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role }); setShowModal(true); setOpenMenu(null); }},
+                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "" }); setShowModal(true); setOpenMenu(null); }},
                               { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
                             ].map(({ label, action }) => (
                               <button key={label} onClick={action} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all">{label}</button>
@@ -661,12 +675,32 @@ export default function UsersPage() {
                 <div>
                   <label className="text-sm text-gray-500 block mb-2">Role</label>
                   <select value={form.role}
-                    onChange={e => setForm({ ...form, role: e.target.value as UserRole })}
+                    onChange={e => setForm({ ...form, role: e.target.value as UserRole, csrCode: "" })}
                     className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] bg-white text-sm">
                     <option value="CSR">CSR (Customer Support)</option>
                     <option value="Admin">Admin</option>
                   </select>
                 </div>
+
+                {form.role === "CSR" && (
+                  <div>
+                    <label className="text-sm text-gray-500 block mb-2">
+                      CSR Code <span className="text-[#B8112D] font-semibold">*</span>
+                      <span className="text-xs text-gray-400 ml-2">e.g. 1000, 1001, 1002…</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.csrCode}
+                      onChange={e => setForm({ ...form, csrCode: e.target.value })}
+                      placeholder="e.g. 1000"
+                      maxLength={10}
+                      className="w-full border-2 border-[#B8112D]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono font-bold tracking-wider"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Clients of this CSR will be coded as {form.csrCode || "XXXX"}-01, {form.csrCode || "XXXX"}-02…
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setShowModal(false); setEditingUser(null); }}

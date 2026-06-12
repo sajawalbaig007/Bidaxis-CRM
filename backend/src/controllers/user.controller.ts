@@ -27,19 +27,24 @@ export const getUsers =
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { name, email, role, isActive } = req.body;
+    const { name, email, role, isActive, csrCode } = req.body;
 
     const data: Record<string, unknown> = {};
     if (name     !== undefined) data.name     = name;
     if (email    !== undefined) data.email    = email;
     if (role     !== undefined) data.role     = role;
     if (isActive !== undefined) data.isActive = isActive;
+    if (csrCode  !== undefined) data.csrCode  = csrCode || null;
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ message: "No fields to update" });
     }
 
-    const user = await prisma.user.update({ where: { id }, data });
+    const user = await prisma.user.update({
+      where:  { id },
+      data,
+      select: { id: true, name: true, email: true, role: true, csrCode: true, isActive: true },
+    });
     invalidateCache("users:list", "admin:csrs");
     return res.json(user);
   } catch {

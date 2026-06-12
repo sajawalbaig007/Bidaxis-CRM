@@ -39,10 +39,37 @@ const STATUS_COLORS: Record<string, string> = {
 type Lead = {
   id: string; name: string; company: string; phone: string;
   status: string; interestedService: string; comments: string;
-  isOldClient: boolean; createdAt: string;
+  isOldClient: boolean; createdAt: string; clientCode?: string | null;
 };
 
 const emptyAdd = { name: "", phone: "", company: "", service: "", comments: "" };
+
+function ServicePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+      {serviceOptions.map(({ value: v, label, Icon }) => {
+        const sel = value === v;
+        return (
+          <button key={v} onClick={() => onChange(value === v ? "" : v)}
+            className={`relative py-2.5 sm:py-3 px-1 rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-1.5 transition-all text-[10px] sm:text-[11px] font-semibold ${
+              sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"
+            }`}
+          >
+            {sel && (
+              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center">
+                <CheckCircle2 size={8} className="text-white sm:w-[9px] sm:h-[9px]" />
+              </span>
+            )}
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}>
+              <Icon size={13} className={`sm:w-[15px] sm:h-[15px] ${sel ? "text-[#B8112D]" : "text-gray-400"}`} />
+            </div>
+            <span>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function LeadsPage() {
   const [isOpen,    setIsOpen]    = useState(false);
@@ -95,7 +122,7 @@ export default function LeadsPage() {
         id: string; name?: string; company?: string;
         uploadFile?: { companyName?: string }; phone?: string;
         status?: string; interestedService?: string;
-        comments?: string; isOldClient?: boolean; createdAt?: string;
+        comments?: string; isOldClient?: boolean; createdAt?: string; clientCode?: string | null;
       }) => ({
         id:                l.id,
         name:              l.name              ?? "Unknown",
@@ -106,6 +133,7 @@ export default function LeadsPage() {
         comments:          l.comments          ?? "",
         isOldClient:       l.isOldClient       ?? false,
         createdAt:         l.createdAt         ?? "",
+        clientCode:        l.clientCode        ?? null,
       }));
       setLeads(formatted);
     } catch (err) {
@@ -178,7 +206,7 @@ export default function LeadsPage() {
         company: addForm.company.trim() || "N/A", phone: addForm.phone.trim() || "N/A",
         status: "pending", interestedService: addForm.service,
         comments: addForm.comments.trim(), isOldClient: false,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(), clientCode: null,
       };
       setLeads(prev => [fresh, ...prev]);
       setShowAdd(false); setAddForm(emptyAdd);
@@ -188,32 +216,6 @@ export default function LeadsPage() {
     }
     setAddSaving(false);
   };
-
-  /* ── Shared service picker ── */
-  const ServicePicker = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-      {serviceOptions.map(({ value: v, label, Icon }) => {
-        const sel = value === v;
-        return (
-          <button key={v} onClick={() => onChange(value === v ? "" : v)}
-            className={`relative py-2.5 sm:py-3 px-1 rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-1.5 transition-all text-[10px] sm:text-[11px] font-semibold ${
-              sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"
-            }`}
-          >
-            {sel && (
-              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center">
-                <CheckCircle2 size={8} className="text-white sm:w-[9px] sm:h-[9px]" />
-              </span>
-            )}
-            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}>
-              <Icon size={13} className={`sm:w-[15px] sm:h-[15px] ${sel ? "text-[#B8112D]" : "text-gray-400"}`} />
-            </div>
-            <span>{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -349,7 +351,12 @@ export default function LeadsPage() {
                       {lead.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{lead.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        {lead.clientCode && (
+                          <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{lead.clientCode}</span>
+                        )}
+                        <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{lead.name}</p>
+                      </div>
                       <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${
                         lead.isOldClient ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"
                       }`}>
@@ -647,6 +654,11 @@ export default function LeadsPage() {
                   </div>
                 </div>
                 <div className="mt-2 sm:mt-3 flex flex-wrap gap-1.5 sm:gap-2">
+                  {viewing.clientCode && (
+                    <span className="inline-flex items-center gap-1 bg-white/20 text-white px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-bold">
+                      {viewing.clientCode}
+                    </span>
+                  )}
                   <span className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold ${
                     viewing.isOldClient
                       ? "bg-amber-400/25 text-amber-100 border border-amber-300/30"

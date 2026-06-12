@@ -19,6 +19,8 @@ model User {
   password String
   role     Role
 
+  csrCode  String?  @unique
+
   isActive Boolean @default(true)
 
   isOnline   Boolean   @default(false)
@@ -64,6 +66,7 @@ model Lead {
   projectBudget     String?
   projectNotes      String?
 
+  clientCode     String?
   state          String?
   isOldClient    Boolean @default(false)
 
