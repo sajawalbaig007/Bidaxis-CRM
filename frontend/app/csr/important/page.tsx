@@ -521,7 +521,7 @@ export default function ImportantCallsPage() {
                   )}
                 </tbody>
               </table>
-              {totalPages > 1 && (
+              {totalPages > 0 && (
                 <div className="flex items-center justify-between px-4 sm:px-5 lg:px-6 py-4 border-t border-gray-100">
                   <p className="text-xs text-gray-400">
                     {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredCalls.length)} of {filteredCalls.length}
@@ -643,7 +643,7 @@ export default function ImportantCallsPage() {
                   )}
                 </tbody>
               </table>
-              {totalPages > 1 && (
+              {totalPages > 0 && (
                 <div className="flex items-center justify-between px-4 sm:px-5 lg:px-6 py-4 border-t border-gray-100">
                   <p className="text-xs text-gray-400">
                     {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredCalls.length)} of {filteredCalls.length}

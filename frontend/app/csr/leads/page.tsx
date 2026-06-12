@@ -415,7 +415,7 @@ export default function LeadsPage() {
                 </div>
               ))}
             </div>
-            {totalPages > 1 && (
+            {totalPages > 0 && (
               <div className="flex items-center justify-between px-5 lg:px-6 py-4 border-t border-gray-100">
                 <p className="text-xs text-gray-400">
                   {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
