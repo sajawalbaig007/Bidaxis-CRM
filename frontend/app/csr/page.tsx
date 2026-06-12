@@ -156,6 +156,7 @@ export default function CSRPage() {
 
   const [stateFilter, setStateFilter] = useState("");
   const [stateSearch, setStateSearch] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [showStateDD, setShowStateDD] = useState(false);
   const stateDDRef = useRef<HTMLDivElement>(null);
 
@@ -301,7 +302,8 @@ export default function CSRPage() {
       : activeTab === "projectwon"    ? item.status === "Close Client"
       : true;
     const matchesState = stateFilter ? stateMatches(item.state, stateFilter) : true;
-    return matchesTab && matchesState;
+    const matchesPhone = phoneFilter ? item.phone.replace(/\D/g, "").includes(phoneFilter.replace(/\D/g, "")) : true;
+    return matchesTab && matchesState && matchesPhone;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
@@ -582,6 +584,30 @@ export default function CSRPage() {
                 )}
               </div>
 
+              {/* ── PHONE CODE FILTER ── */}
+              <div className="relative">
+                <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
+                <input
+                  type="text"
+                  value={phoneFilter}
+                  onChange={e => { setPhoneFilter(e.target.value); setPage(1); }}
+                  placeholder="Phone code..."
+                  className={`h-10 sm:h-[42px] pl-8 sm:pl-9 pr-8 sm:pr-9 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none transition-colors min-w-[130px] sm:min-w-[160px] ${
+                    phoneFilter
+                      ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                      : "border-gray-200 bg-[#FAFAFA] text-gray-600 focus:border-gray-300"
+                  }`}
+                />
+                {phoneFilter && (
+                  <button
+                    onClick={() => { setPhoneFilter(""); setPage(1); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] hover:text-[#8b0d22]"
+                  >
+                    <X size={12} className="sm:w-[13px] sm:h-[13px]" />
+                  </button>
+                )}
+              </div>
+
               <div className="bg-[#ECFDF3] text-[#027A48] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2">
                 <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#12B76A]" />Live Tracking
               </div>
@@ -600,7 +626,7 @@ export default function CSRPage() {
               { tab:"interested",     label:"Interested",     count: interestedCount,    icon:<Users          size={13} className="sm:w-[17px] sm:h-[17px]"/>, active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
               { tab:"projectwon",     label:"Close Client",   count: projectWonCount,    icon:<CircleCheckBig size={13} className="sm:w-[17px] sm:h-[17px]"/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"  },
             ].map(btn => (
-              <button key={btn.tab} onClick={() => { setActiveTab(btn.tab); setPage(1); }}
+              <button key={btn.tab} onClick={() => { setActiveTab(btn.tab); setPage(1); setPhoneFilter(""); }}
                 className={`h-10 sm:h-[48px] px-3 sm:px-5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 text-[11px] sm:text-sm font-semibold transition-all whitespace-nowrap ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
                 {btn.icon}
                 <span className="hidden sm:inline">{btn.label}</span>
