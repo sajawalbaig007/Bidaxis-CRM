@@ -16,6 +16,7 @@ import {
   X,
   ThumbsDown,
   Users,
+  Trash2,
 } from "lucide-react";
 
 const menuItems = [
@@ -43,6 +44,11 @@ const menuItems = [
     title: "Active Projects",
     href: "/csr/projects",
     icon: FolderKanban,
+  },
+  {
+    title: "Bin",
+    href: "/csr/bin",
+    icon: Trash2,
   },
   {
     title: "Profile",

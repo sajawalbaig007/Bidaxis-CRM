@@ -539,4 +539,48 @@ router.post(
   }
 );
 
+/* ================= ADMIN BIN (all not-picked + not-interested leads) ================= */
+
+router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leads = await prisma.lead.findMany({
+      where: { status: { in: ["not picked", "not completed", "Not Interested"] } },
+      include: {
+        csr:        { select: { id: true, name: true, csrCode: true } },
+        uploadFile: { select: { companyName: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    return res.json({ success: true, leads });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch bin" });
+  }
+});
+
+/* ================= REASSIGN LEAD TO SPECIFIC CSR (ADMIN) ================= */
+
+router.put("/lead/:id/reassign", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const { csrId } = req.body;
+
+    if (!csrId) return res.status(400).json({ success: false, message: "CSR ID is required" });
+
+    const targetCsr = await prisma.user.findFirst({ where: { id: csrId, role: "csr" } });
+    if (!targetCsr) return res.status(404).json({ success: false, message: "CSR not found" });
+
+    const lead = await prisma.lead.update({
+      where: { id: leadId },
+      data:  { assignedTo: csrId },
+    });
+
+    invalidateCache("admin:clients", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`);
+    return res.json({ success: true, lead, message: `Lead reassigned to ${targetCsr.name}` });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to reassign lead" });
+  }
+});
+
 export default router;

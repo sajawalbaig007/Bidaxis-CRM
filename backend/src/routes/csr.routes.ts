@@ -11,29 +11,6 @@ const router = express.Router();
 const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT     = 7;
 
-/* ─── Helper: redistribute lead to a random other CSR ─── */
-async function redistributeLead(leadId: string, currentCsrId: string) {
-  const otherCsrs = await prisma.user.findMany({
-    where: { id: { not: currentCsrId }, role: "csr", isActive: true },
-    select: { id: true },
-  });
-  if (otherCsrs.length === 0) return false;
-
-  const randomCsr = otherCsrs[Math.floor(Math.random() * otherCsrs.length)];
-
-  await prisma.lead.update({
-    where: { id: leadId },
-    data: {
-      assignedTo:         randomCsr.id,
-      status:             "pending",
-      notInterestedCount: 0,
-      notPickedCount:     0,
-      important:          false,
-      interested:         false,
-    },
-  });
-  return true;
-}
 
 /* ================= CSR DASHBOARD ================= */
 
@@ -212,11 +189,16 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
 
         if (newCount >= NOT_INTERESTED_LIMIT) {
-          await redistributeLead(leadId, csrId);
+          const otherCsrs = await prisma.user.findMany({
+            where: { id: { not: csrId }, role: "csr", isActive: true },
+            select: { id: true, name: true, csrCode: true },
+            orderBy: { csrCode: "asc" },
+          });
           return res.json({
-            success:       true,
-            redistributed: true,
-            message:       `Lead marked "Not Interested" ${NOT_INTERESTED_LIMIT} times and reassigned to another CSR.`,
+            success:           true,
+            needsManualAssign: true,
+            csrs:              otherCsrs,
+            message:           "Limit reached. Select a CSR to reassign this lead.",
           });
         }
 
@@ -242,11 +224,16 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
 
         if (newCount >= NOT_PICKED_LIMIT) {
-          await redistributeLead(leadId, csrId);
+          const otherCsrs = await prisma.user.findMany({
+            where: { id: { not: csrId }, role: "csr", isActive: true },
+            select: { id: true, name: true, csrCode: true },
+            orderBy: { csrCode: "asc" },
+          });
           return res.json({
-            success:       true,
-            redistributed: true,
-            message:       `Lead marked "Not Picked" ${NOT_PICKED_LIMIT} times and reassigned to another CSR.`,
+            success:           true,
+            needsManualAssign: true,
+            csrs:              otherCsrs,
+            message:           "Limit reached. Select a CSR to reassign this lead.",
           });
         }
 
@@ -424,6 +411,83 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch projects" });
+  }
+});
+
+/* ================= LIST OTHER ACTIVE CSRs (for manual assign popup) ================= */
+
+router.get("/csrs", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+    const csrs  = await prisma.user.findMany({
+      where:   { id: { not: csrId }, role: "csr", isActive: true },
+      select:  { id: true, name: true, csrCode: true },
+      orderBy: { csrCode: "asc" },
+    });
+    return res.json({ success: true, csrs });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
+  }
+});
+
+/* ================= MANUALLY ASSIGN LEAD TO SPECIFIC CSR ================= */
+
+router.put("/lead/:id/assign", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId       = req.user.id;
+    const leadId      = req.params.id as string;
+    const { csrId: targetCsrId } = req.body;
+
+    if (!targetCsrId) {
+      return res.status(400).json({ success: false, message: "Target CSR ID is required" });
+    }
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const targetCsr = await prisma.user.findFirst({
+      where: { id: targetCsrId, role: "csr", isActive: true },
+    });
+    if (!targetCsr) return res.status(404).json({ success: false, message: "Target CSR not found" });
+
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: {
+        assignedTo:         targetCsrId,
+        status:             "pending",
+        notInterestedCount: 0,
+        notPickedCount:     0,
+        important:          false,
+        interested:         false,
+      },
+    });
+
+    invalidateCache(
+      `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`,
+      `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`,
+      "admin:clients",
+    );
+    return res.json({ success: true, message: `Lead assigned to ${targetCsr.name}` });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to assign lead" });
+  }
+});
+
+/* ================= CSR BIN (not-picked leads) ================= */
+
+router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+    const leads = await prisma.lead.findMany({
+      where:   { assignedTo: csrId, status: { in: ["not picked", "not completed"] } },
+      include: { uploadFile: { select: { companyName: true } } },
+      orderBy: { updatedAt: "desc" },
+    });
+    return res.json({ success: true, leads });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch bin" });
   }
 });
 

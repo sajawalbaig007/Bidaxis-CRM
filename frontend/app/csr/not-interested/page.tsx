@@ -89,6 +89,13 @@ export default function NotInterestedPage() {
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
+  /* ── Manual CSR assign (when retry limit reached) ── */
+  const [showAssignModal,   setShowAssignModal]   = useState(false);
+  const [assignLead,        setAssignLead]        = useState<Lead | null>(null);
+  const [csrList,           setCsrList]           = useState<{ id: string; name: string; csrCode: string | null }[]>([]);
+  const [selectedCsrId,     setSelectedCsrId]     = useState("");
+  const [isAssigning,       setIsAssigning]       = useState(false);
+
   const [statusLead,          setStatusLead]          = useState<Lead | null>(null);
   const [showImportantModal,  setShowImportantModal]  = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
@@ -163,9 +170,16 @@ export default function NotInterestedPage() {
     const newStatus = activeTab === "notinterested" ? "Not Interested" : "not picked";
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status: newStatus });
-      if (res.data.redistributed) {
-        showToast(`${lead.client} has been reassigned after reaching the limit.`, "warn");
-        setLeads(prev => prev.filter(l => l.id !== lead.id));
+      if (res.data.needsManualAssign) {
+        setCsrList(res.data.csrs ?? []);
+        setAssignLead(lead);
+        setSelectedCsrId("");
+        setShowAssignModal(true);
+        setLeads(prev => prev.map(l =>
+          l.id === lead.id
+            ? { ...l, [countKey]: (l[countKey as keyof Lead] as number) + 1 }
+            : l
+        ));
       } else {
         const triesLeft    = res.data.triesLeft ?? 0;
         const updatedNotes = res.data.lead?.followUpNotes ?? lead.followUpNotes ?? "";
@@ -177,6 +191,20 @@ export default function NotInterestedPage() {
         ));
       }
     } catch (err) { console.log(err); }
+  };
+
+  const handleAssignToCSR = async () => {
+    if (!assignLead || !selectedCsrId) return;
+    setIsAssigning(true);
+    try {
+      await API.put(`/csr/lead/${assignLead.id}/assign`, { csrId: selectedCsrId });
+      const csrName = csrList.find(c => c.id === selectedCsrId)?.name ?? "another CSR";
+      showToast(`Lead assigned to ${csrName}.`, "warn");
+      setLeads(prev => prev.filter(l => l.id !== assignLead.id));
+      setShowAssignModal(false);
+      setAssignLead(null);
+    } catch { showToast("Failed to assign lead.", "warn"); }
+    finally { setIsAssigning(false); }
   };
 
   const handleSaveNote = async (lead: Lead) => {
@@ -957,6 +985,81 @@ export default function NotInterestedPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ ASSIGN CSR MODAL (shown when retry limit reached) ══ */}
+        {showAssignModal && assignLead && (
+          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
+              {/* header */}
+              <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-white">Assign to CSR</h2>
+                    <p className="text-white/70 text-xs sm:text-sm mt-0.5">
+                      Limit reached for <span className="font-semibold text-white">{assignLead.client}</span>. Pick a CSR:
+                    </p>
+                  </div>
+                  <button onClick={() => setShowAssignModal(false)}
+                    className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white shrink-0">
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* CSR list */}
+              <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
+                {csrList.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">No other active CSRs available.</p>
+                ) : csrList.map(csr => (
+                  <button
+                    key={csr.id}
+                    onClick={() => setSelectedCsrId(csr.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
+                      selectedCsrId === csr.id
+                        ? "border-[#B8112D] bg-[#FFF1F3]"
+                        : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
+                      selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
+                    }`}>
+                      {csr.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                        {csr.name}
+                      </p>
+                      {csr.csrCode && (
+                        <p className="text-xs text-gray-400">{csr.csrCode}</p>
+                      )}
+                    </div>
+                    {selectedCsrId === csr.id && (
+                      <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                        <Check size={11} className="text-white" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* actions */}
+              <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
+                <button onClick={() => setShowAssignModal(false)}
+                  className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAssignToCSR}
+                  disabled={!selectedCsrId || isAssigning}
+                  className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <Users size={14} />
+                  {isAssigning ? "Assigning…" : "Assign Lead"}
+                </button>
               </div>
             </div>
           </div>
