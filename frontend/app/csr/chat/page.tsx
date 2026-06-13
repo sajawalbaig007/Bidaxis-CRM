@@ -6,6 +6,7 @@ import {
   Check, CheckCheck, ChevronLeft, Loader2, Paperclip,
   Mic, StopCircle, Play, Pause, Download, FileText,
   Film, Music, Bell, BellOff, Image as ImageIcon,
+  Trash2, Reply, Copy, Pin, PinOff, CheckSquare, Square,
 } from "lucide-react";
 import TopNavbar from "../components/navigation/TopNavbar";
 import API from "@/lib/api";
@@ -17,22 +18,41 @@ interface ChatUser {
 }
 type MsgType   = "text" | "file" | "image" | "voice";
 type MsgStatus = "sending" | "sent" | "delivered" | "read";
+
+interface ReplyQuote { id: string; text: string; senderName: string; type: MsgType; }
+
 interface Message {
   id: string; senderId: string; senderName: string;
   text: string; type: MsgType;
   fileUrl?: string; fileName?: string; fileSize?: number; fileMimeType?: string;
   createdAt: string; isOwn: boolean; status: MsgStatus;
+  replyTo?: ReplyQuote | null;
 }
 interface Conversation {
   id: string; type: "direct" | "group"; name: string;
   lastMessage?: string; lastMessageAt?: string;
   unreadCount: number; memberCount?: number; isOnline?: boolean;
+  otherUserId?: string;
 }
+
+interface CtxMenu { x: number; y: number; msg: Message; }
 
 /* ─── Constants ──────────────────────────────────────────── */
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
 
 /* ─── Helpers ────────────────────────────────────────────── */
+function deduplicateConvs(convs: Conversation[]): Conversation[] {
+  const seenDm = new Map<string, number>();
+  const result: Conversation[] = [];
+  for (const c of convs) {
+    if (c.type === "group" || !c.otherUserId) { result.push(c); continue; }
+    const idx = seenDm.get(c.otherUserId);
+    if (idx === undefined) { seenDm.set(c.otherUserId, result.length); result.push(c); }
+    else if ((c.lastMessageAt ?? "") > (result[idx]?.lastMessageAt ?? "")) { result[idx] = c; }
+  }
+  return result;
+}
+
 function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
@@ -72,11 +92,14 @@ function mimeIcon(mime = "") {
   if (mime.startsWith("audio/")) return <Music size={18} />;
   return <FileText size={18} />;
 }
+function truncate(text: string, n = 60) {
+  return text.length > n ? text.slice(0, n) + "…" : text;
+}
 
 /* ─── Avatar ─────────────────────────────────────────────── */
 const COLORS = ["bg-[#B8112D]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
 function Avatar({ name, size = "md", online }: { name: string; size?: "sm"|"md"|"lg"; online?: boolean }) {
-  const c = COLORS[name.charCodeAt(0) % COLORS.length];
+  const c  = COLORS[name.charCodeAt(0) % COLORS.length];
   const sz = size === "sm" ? "w-8 h-8 text-[10px]" : size === "lg" ? "w-11 h-11 text-sm" : "w-9 h-9 text-xs";
   return (
     <div className="relative shrink-0">
@@ -91,7 +114,7 @@ function Avatar({ name, size = "md", online }: { name: string; size?: "sm"|"md"|
   );
 }
 
-/* ─── Read receipt ticks ─────────────────────────────────── */
+/* ─── Ticks ──────────────────────────────────────────────── */
 function Ticks({ status }: { status: MsgStatus }) {
   if (status === "sending")   return <Loader2 size={10} className="text-white/50 animate-spin" />;
   if (status === "sent")      return <Check size={10} className="text-white/60" />;
@@ -110,9 +133,7 @@ function FileCard({ fileName, fileSize, fileUrl, fileMimeType, isOwn }: {
       }`}>
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
         isOwn ? "bg-white/20 text-white" : "bg-[#B8112D]/10 text-[#B8112D]"
-      }`}>
-        {mimeIcon(fileMimeType)}
-      </div>
+      }`}>{mimeIcon(fileMimeType)}</div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold truncate">{fileName}</p>
         <p className={`text-[10px] ${isOwn ? "text-white/60" : "text-gray-400"}`}>{fmtSize(fileSize)}</p>
@@ -124,19 +145,17 @@ function FileCard({ fileName, fileSize, fileUrl, fileMimeType, isOwn }: {
 
 /* ─── VoicePlayer ────────────────────────────────────────── */
 function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
-  const [playing, setPlaying]   = useState(false);
+  const [playing,  setPlaying]  = useState(false);
   const [progress, setProgress] = useState(0);
-  const [curTime, setCurTime]   = useState(0);
-  const [dur, setDur]           = useState(0);
+  const [curTime,  setCurTime]  = useState(0);
+  const [dur,      setDur]      = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
-
   const toggle = () => {
     const a = audioRef.current;
     if (!a) return;
     if (playing) { a.pause(); setPlaying(false); }
     else { a.play().then(() => setPlaying(true)).catch(() => {}); }
   };
-
   return (
     <div className="flex items-center gap-2.5 min-w-[180px] max-w-[240px] py-0.5">
       <audio ref={audioRef} src={fileUrl}
@@ -147,9 +166,8 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
         className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${
           isOwn ? "bg-white/20 hover:bg-white/30" : "bg-[#B8112D]/10 hover:bg-[#B8112D]/20"
         }`}>
-        {playing
-          ? <Pause size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />
-          : <Play  size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />}
+        {playing ? <Pause size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />
+                 : <Play  size={13} className={isOwn ? "text-white" : "text-[#B8112D]"} />}
       </button>
       <div className="flex-1 flex flex-col gap-1">
         <div className={`h-1 rounded-full overflow-hidden ${isOwn ? "bg-white/30" : "bg-gray-200"}`}>
@@ -165,7 +183,14 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
 }
 
 /* ─── MessageBubble ──────────────────────────────────────── */
-function MessageBubble({ msg, isGroup, showAvatar }: { msg: Message; isGroup: boolean; showAvatar: boolean }) {
+function MessageBubble({
+  msg, isGroup, showAvatar, onCtxMenu, onReply, onJumpToReply,
+}: {
+  msg: Message; isGroup: boolean; showAvatar: boolean;
+  onCtxMenu: (e: React.MouseEvent, msg: Message) => void;
+  onReply:   (msg: Message) => void;
+  onJumpToReply: (id: string) => void;
+}) {
   const own = msg.isOwn;
 
   const body = () => {
@@ -186,13 +211,36 @@ function MessageBubble({ msg, isGroup, showAvatar }: { msg: Message; isGroup: bo
   };
 
   return (
-    <div className={`flex items-end gap-2 ${own ? "flex-row-reverse" : "flex-row"} ${!showAvatar ? (own ? "pr-11" : "pl-11") : ""}`}>
+    <div
+      id={`msg-${msg.id}`}
+      className={`flex items-end gap-2 group ${own ? "flex-row-reverse" : "flex-row"} ${!showAvatar ? (own ? "pr-11" : "pl-11") : ""}`}
+      onContextMenu={e => onCtxMenu(e, msg)}
+    >
       {!own && showAvatar  && <Avatar name={msg.senderName} size="sm" />}
       {!own && !showAvatar && <div className="w-8 shrink-0" />}
+
       <div className={`flex flex-col ${own ? "items-end" : "items-start"} max-w-[72%] sm:max-w-[60%]`}>
         {isGroup && !own && showAvatar && (
           <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>
         )}
+
+        {/* Reply quote */}
+        {msg.replyTo && (
+          <button
+            onClick={() => onJumpToReply(msg.replyTo!.id)}
+            className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full ${
+              own
+                ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20"
+                : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"
+            } transition-colors`}
+          >
+            <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
+            <p className="truncate max-w-[180px]">
+              {msg.replyTo.type !== "text" ? `📎 ${msg.replyTo.type}` : truncate(msg.replyTo.text, 50)}
+            </p>
+          </button>
+        )}
+
         <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${
           own
             ? "bg-[#B8112D] text-white rounded-br-sm"
@@ -200,28 +248,59 @@ function MessageBubble({ msg, isGroup, showAvatar }: { msg: Message; isGroup: bo
         }`}>
           {body()}
         </div>
+
         <div className={`flex items-center gap-1 mt-0.5 px-1 ${own ? "flex-row-reverse" : ""}`}>
           <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}</span>
           {own && <Ticks status={msg.status} />}
         </div>
       </div>
+
+      {/* Hover quick-reply button */}
+      <button
+        onClick={() => onReply(msg)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mb-6 hover:bg-gray-50"
+        title="Reply"
+      >
+        <Reply size={12} className="text-gray-500" />
+      </button>
     </div>
   );
 }
 
 /* ─── ConvItem ───────────────────────────────────────────── */
-function ConvItem({ conv, active, onClick }: { conv: Conversation; active: boolean; onClick: () => void }) {
+function ConvItem({
+  conv, active, onClick, selectMode, selected, onSelect, pinned, onPin,
+}: {
+  conv: Conversation; active: boolean; onClick: () => void;
+  selectMode: boolean; selected: boolean; onSelect: () => void;
+  pinned: boolean; onPin: () => void;
+}) {
   return (
-    <button onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+    <div
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer group ${
         active ? "bg-[#FFF1F3]" : "hover:bg-[#F9FAFB]"
-      }`}>
-      {conv.type === "group"
-        ? <div className="w-9 h-9 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={16} /></div>
-        : <Avatar name={conv.name} size="sm" online={conv.isOnline} />}
+      } ${selected ? "bg-[#FFF1F3] ring-1 ring-[#B8112D]/20" : ""}`}
+      onClick={selectMode ? onSelect : onClick}
+    >
+      {/* Checkbox in select mode */}
+      {selectMode ? (
+        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+          selected ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300"
+        }`}>
+          {selected && <Check size={10} className="text-white" />}
+        </div>
+      ) : (
+        conv.type === "group"
+          ? <div className="w-9 h-9 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={16} /></div>
+          : <Avatar name={conv.name} size="sm" online={conv.isOnline} />
+      )}
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
-          <span className={`text-[13px] font-semibold truncate ${active ? "text-[#B8112D]" : "text-[#0F172A]"}`}>{conv.name}</span>
+          <span className={`text-[13px] font-semibold truncate ${active ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+            {pinned && <Pin size={9} className="inline mr-1 text-[#B8112D]" />}
+            {conv.name}
+          </span>
           {conv.lastMessageAt && <span className="text-[10px] text-gray-400 shrink-0">{fmtConvTime(conv.lastMessageAt)}</span>}
         </div>
         <div className="flex items-center justify-between gap-1 mt-0.5">
@@ -235,7 +314,18 @@ function ConvItem({ conv, active, onClick }: { conv: Conversation; active: boole
           )}
         </div>
       </div>
-    </button>
+
+      {/* Pin/unpin on hover (not in select mode) */}
+      {!selectMode && (
+        <button
+          onClick={e => { e.stopPropagation(); onPin(); }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 shrink-0"
+          title={pinned ? "Unpin" : "Pin"}
+        >
+          {pinned ? <PinOff size={12} className="text-gray-400" /> : <Pin size={12} className="text-gray-400" />}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -271,29 +361,42 @@ export default function ChatPage() {
   const [uploading,      setUploading]      = useState(false);
 
   // Voice recording
-  const [isRecording,   setIsRecording]   = useState(false);
-  const [recTime,       setRecTime]       = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recTime,     setRecTime]     = useState(0);
 
   // Notifications — lazy initializer avoids synchronous setState in effect
   const [notifGranted, setNotifGranted] = useState(
     () => typeof Notification !== "undefined" && Notification.permission === "granted"
   );
 
-  // Refs
-  const messagesEndRef     = useRef<HTMLDivElement>(null);
-  const inputRef           = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef       = useRef<HTMLInputElement>(null);
-  const lastMsgCount       = useRef(0);
-  const mediaRecorderRef   = useRef<MediaRecorder | null>(null);
-  const chunksRef          = useRef<Blob[]>([]);
-  const streamRef          = useRef<MediaStream | null>(null);
-  const recTimerRef        = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isCancelRef        = useRef(false);
-  const notifRef           = useRef(typeof Notification !== "undefined" && Notification.permission === "granted");
-  const meRef              = useRef<ChatUser | null>(null);
-  const recConvRef         = useRef<string | null>(null);
+  // ── NEW: WhatsApp features ──
+  const [selectMode,    setSelectMode]    = useState(false);
+  const [selectedConvs, setSelectedConvs] = useState<string[]>([]);
+  const [pinnedIds,     setPinnedIds]     = useState<Set<string>>(new Set());
+  const [replyTo,       setReplyTo]       = useState<Message | null>(null);
+  const [ctxMenu,       setCtxMenu]       = useState<CtxMenu | null>(null);
+  const [typingName,    setTypingName]    = useState<string | null>(null);
+  const [msgSearchOpen, setMsgSearchOpen] = useState(false);
+  const [msgSearchText, setMsgSearchText] = useState("");
 
-  /* ── Profile ─── */
+  // Refs
+  const messagesEndRef   = useRef<HTMLDivElement>(null);
+  const inputRef         = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef     = useRef<HTMLInputElement>(null);
+  const lastMsgCount     = useRef(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef        = useRef<Blob[]>([]);
+  const streamRef        = useRef<MediaStream | null>(null);
+  const recTimerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isCancelRef      = useRef(false);
+  const notifRef         = useRef(typeof Notification !== "undefined" && Notification.permission === "granted");
+  const meRef            = useRef<ChatUser | null>(null);
+  const recConvRef       = useRef<string | null>(null);
+  const dmLoadingRef     = useRef<string | null>(null);
+  const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const msgsContainerRef = useRef<HTMLDivElement>(null);
+
+  /* ── Profile ── */
   useEffect(() => {
     void (async () => {
       try {
@@ -304,8 +407,7 @@ export default function ChatPage() {
     })();
   }, []);
 
-  /* ── Notification permission ─── */
-
+  /* ── Notification permission ── */
   const askNotif = async () => {
     if (typeof Notification === "undefined") return;
     const r = await Notification.requestPermission();
@@ -313,12 +415,12 @@ export default function ChatPage() {
     setNotifGranted(ok); notifRef.current = ok;
   };
 
-  /* ── Initial conversations load ─── */
+  /* ── Initial conversations load ── */
   useEffect(() => {
     void (async () => {
       try {
         const r = await API.get("/chat/conversations");
-        setConversations(r.data.conversations ?? r.data ?? []);
+        setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? []));
       } catch {
         setConversations([]);
       } finally {
@@ -327,18 +429,18 @@ export default function ChatPage() {
     })();
   }, []);
 
-  /* ── Poll conversation list every 5 s ─── */
+  /* ── Poll conversation list every 5 s ── */
   useEffect(() => {
     const t = setInterval(async () => {
       try {
         const r = await API.get("/chat/conversations");
-        setConversations(r.data.conversations ?? r.data ?? []);
+        setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? []));
       } catch { /* ignore */ }
     }, 5000);
     return () => clearInterval(t);
   }, []);
 
-  /* ── Heartbeat — tell server this user is online ─── */
+  /* ── Heartbeat ── */
   useEffect(() => {
     const ping = () => void API.post("/chat/status", { online: true }).catch(() => {});
     ping();
@@ -349,14 +451,16 @@ export default function ChatPage() {
     };
   }, []);
 
-  /* ── Load + poll messages ─── */
+  /* ── Load + poll messages + typing ── */
   useEffect(() => {
     if (!activeConvId) return;
     const cid = activeConvId;
     lastMsgCount.current = 0;
+    setTypingName(null);
+    setMsgSearchOpen(false);
+    setMsgSearchText("");
 
     void (async () => {
-      // yield first so setState calls are not synchronous within the effect body
       await Promise.resolve();
       setMessages([]);
       setLoadingMsgs(true);
@@ -374,8 +478,14 @@ export default function ChatPage() {
 
     const poll = setInterval(async () => {
       try {
-        const r = await API.get(`/chat/conversations/${cid}/messages`);
-        const msgs: Message[] = r.data.messages ?? r.data ?? [];
+        const [msgRes, typingRes] = await Promise.all([
+          API.get(`/chat/conversations/${cid}/messages`),
+          API.get(`/chat/conversations/${cid}/typing`).catch(() => ({ data: { names: [] } })),
+        ]);
+
+        setTypingName((typingRes.data.names as string[])?.[0] ?? null);
+
+        const msgs: Message[] = msgRes.data.messages ?? [];
         if (msgs.length !== lastMsgCount.current) {
           lastMsgCount.current = msgs.length;
           setMessages(msgs);
@@ -396,7 +506,7 @@ export default function ChatPage() {
     return () => clearInterval(poll);
   }, [activeConvId]);
 
-  /* ── Cleanup recording on unmount ─── */
+  /* ── Cleanup recording on unmount ── */
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     if (recTimerRef.current) clearInterval(recTimerRef.current);
@@ -406,19 +516,25 @@ export default function ChatPage() {
   const sendText = async () => {
     if (!msgText.trim() || !activeConvId || sendingMsg) return;
     const text = msgText.trim();
+    const reply = replyTo;
     setMsgText("");
+    setReplyTo(null);
     setSendingMsg(true);
     const opt: Message = {
       id: `opt-${Date.now()}`, senderId: meRef.current?.id ?? "",
       senderName: meRef.current?.name ?? "You", text, type: "text",
       createdAt: new Date().toISOString(), isOwn: true, status: "sending",
+      replyTo: reply ? { id: reply.id, text: reply.text, senderName: reply.senderName, type: reply.type } : null,
     };
     setMessages(p => [...p, opt]);
     setConversations(p => p.map(c => c.id === activeConvId
       ? { ...c, lastMessage: text, lastMessageAt: new Date().toISOString() } : c));
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
     try {
-      await API.post(`/chat/conversations/${activeConvId}/messages`, { text });
+      await API.post(`/chat/conversations/${activeConvId}/messages`, {
+        text,
+        ...(reply ? { replyToId: reply.id } : {}),
+      });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
     } catch {
       setMessages(p => p.filter(m => m.id !== opt.id));
@@ -431,6 +547,16 @@ export default function ChatPage() {
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendText(); }
+  };
+
+  const onMsgTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMsgText(e.target.value);
+    if (activeConvId && e.target.value.trim()) {
+      if (typingDebRef.current) clearTimeout(typingDebRef.current);
+      typingDebRef.current = setTimeout(() => {
+        void API.post(`/chat/conversations/${activeConvId}/typing`).catch(() => {});
+      }, 500);
+    }
   };
 
   /* ─── File select ─── */
@@ -540,9 +666,7 @@ export default function ChatPage() {
     fd.append("file", blob, "voice.webm");
     fd.append("type", "voice");
     try {
-      await API.post(`/chat/conversations/${cid}/messages`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await API.post(`/chat/conversations/${cid}/messages`, fd, { headers: { "Content-Type": "multipart/form-data" } });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
     } catch {
       setMessages(p => p.filter(m => m.id !== opt.id));
@@ -570,7 +694,7 @@ export default function ChatPage() {
     } catch { setAllUsers([]); }
   };
 
-  /* ── Refresh online status of loaded users every 10 s ─── */
+  /* ── Refresh online status every 10 s ── */
   useEffect(() => {
     if (allUsers.length === 0) return;
     const t = setInterval(async () => {
@@ -599,26 +723,109 @@ export default function ChatPage() {
       };
       setConversations(p => [conv, ...p]);
       setActiveConvId(conv.id);
-      setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch("");
-      setMobileSideOpen(false);
+      setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); setMobileSideOpen(false);
     } catch { /* ignore */ }
     setCreatingGroup(false);
   };
 
   /* ─── Start DM ─── */
   const startDm = async (user: ChatUser) => {
+    if (dmLoadingRef.current) return;
+    dmLoadingRef.current = user.id;
+
+    setShowDmModal(false); setDmSearch(""); setMobileSideOpen(false);
+
+    const existing = conversations.find(c => c.type === "direct" && c.otherUserId === user.id);
+    if (existing) {
+      setActiveConvId(existing.id);
+      dmLoadingRef.current = null;
+      return;
+    }
+
+    const tempId = `temp-${user.id}`;
+    const placeholder: Conversation = {
+      id: tempId, type: "direct", name: user.name,
+      unreadCount: 0, isOnline: user.isOnline, otherUserId: user.id,
+    };
+    setConversations(p => [placeholder, ...p]);
+    setActiveConvId(tempId);
+
     try {
-      const r = await API.post("/chat/conversations", { type: "direct", userId: user.id });
+      const r   = await API.post("/chat/conversations", { type: "direct", userId: user.id });
       const cid = r.data.id ?? r.data.conversation?.id;
-      if (!conversations.find(c => c.id === cid)) {
-        const conv: Conversation = r.data.conversation ?? {
-          id: cid ?? `dm-${user.id}`, type: "direct", name: user.name, unreadCount: 0, isOnline: user.isOnline,
-        };
-        setConversations(p => [conv, ...p]);
-      }
+      if (!cid) return;
+
+      setConversations(p => {
+        const merged = p.map(c => c.id === tempId ? { ...c, id: cid } : c);
+        const seen   = new Set<string>();
+        return merged.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      });
       setActiveConvId(cid);
-      setShowDmModal(false); setDmSearch(""); setMobileSideOpen(false);
-    } catch { /* ignore */ }
+    } catch {
+      setConversations(p => p.filter(c => c.id !== tempId));
+      setActiveConvId(null);
+    } finally {
+      dmLoadingRef.current = null;
+    }
+  };
+
+  /* ─── Delete conversations ─── */
+  const deleteConversations = async (ids: string[]) => {
+    setConversations(p => p.filter(c => !ids.includes(c.id)));
+    if (ids.includes(activeConvId ?? "")) setActiveConvId(null);
+    setSelectedConvs([]);
+    setSelectMode(false);
+    await Promise.all(ids.map(id => API.delete(`/chat/conversations/${id}`).catch(() => {})));
+  };
+
+  /* ─── Delete message ─── */
+  const deleteMsg = async (msgId: string, forEveryone: boolean) => {
+    setMessages(p => p.filter(m => m.id !== msgId));
+    setCtxMenu(null);
+    if (forEveryone) {
+      await API.delete(`/chat/messages/${msgId}`).catch(() => {});
+    }
+  };
+
+  /* ─── Context menu ─── */
+  const handleCtxMenu = (e: React.MouseEvent, msg: Message) => {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth  - 200);
+    const y = Math.min(e.clientY, window.innerHeight - 200);
+    setCtxMenu({ x, y, msg });
+  };
+
+  /* ─── Reply ─── */
+  const handleReply = (msg: Message) => {
+    setReplyTo(msg);
+    setCtxMenu(null);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  /* ─── Copy text ─── */
+  const copyText = async (text: string) => {
+    await navigator.clipboard.writeText(text).catch(() => {});
+    setCtxMenu(null);
+  };
+
+  /* ─── Jump to reply ─── */
+  const jumpToReply = (id: string) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("bg-yellow-50");
+      setTimeout(() => el.classList.remove("bg-yellow-50"), 1200);
+    }
+  };
+
+  /* ─── Toggle pin ─── */
+  const togglePin = (convId: string) => {
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(convId)) next.delete(convId);
+      else next.add(convId);
+      return next;
+    });
   };
 
   /* ─── Derived ─── */
@@ -636,39 +843,52 @@ export default function ChatPage() {
     );
   }, [allUsers, userSearch, dmSearch, showGroupModal]);
 
+  const visibleMessages = useMemo(() => {
+    if (!msgSearchText.trim()) return messages;
+    const q = msgSearchText.toLowerCase();
+    return messages.filter(m => m.text.toLowerCase().includes(q) || m.fileName?.toLowerCase().includes(q));
+  }, [messages, msgSearchText]);
+
   const msgGroups = useMemo(() => {
     const groups: { date: string; msgs: Message[] }[] = [];
-    messages.forEach(msg => {
+    visibleMessages.forEach(msg => {
       const date = fmtDateSep(msg.createdAt);
       const last = groups[groups.length - 1];
       if (!last || last.date !== date) groups.push({ date, msgs: [msg] });
       else last.msgs.push(msg);
     });
     return groups;
-  }, [messages]);
+  }, [visibleMessages]);
 
   const totalUnread = useMemo(() => conversations.reduce((s, c) => s + c.unreadCount, 0), [conversations]);
 
-  // Sort: online first, then by latest message
-  const directConvs = useMemo(() =>
-    filteredConvs
-      .filter(c => c.type === "direct")
-      .sort((a, b) => {
-        if (a.isOnline && !b.isOnline) return -1;
-        if (!a.isOnline && b.isOnline) return 1;
-        return 0;
-      }),
-    [filteredConvs]
-  );
-  const groupConvs = filteredConvs.filter(c => c.type === "group");
+  const sortedConvs = useMemo(() => {
+    return [...filteredConvs].sort((a, b) => {
+      const ap = pinnedIds.has(a.id) ? 1 : 0;
+      const bp = pinnedIds.has(b.id) ? 1 : 0;
+      if (ap !== bp) return bp - ap; // pinned first
+      return 0;
+    });
+  }, [filteredConvs, pinnedIds]);
 
-  // Users currently online (for the sidebar strip)
+  const directConvs = useMemo(() =>
+    sortedConvs.filter(c => c.type === "direct").sort((a, b) => {
+      if (pinnedIds.has(a.id) !== pinnedIds.has(b.id)) return pinnedIds.has(a.id) ? -1 : 1;
+      if (a.isOnline && !b.isOnline) return -1;
+      if (!a.isOnline && b.isOnline) return 1;
+      return 0;
+    }),
+    [sortedConvs, pinnedIds]
+  );
+
+  const groupConvs = useMemo(() => sortedConvs.filter(c => c.type === "group"), [sortedConvs]);
+
   const onlineDirects = useMemo(() =>
     conversations.filter(c => c.type === "direct" && c.isOnline),
     [conversations]
   );
 
-  /* ═══════════════════ RENDER ═══════════════════ */
+  /* ═══════════════════════════ RENDER ═══════════════════════════ */
   return (
     <div className="min-h-screen bg-[#F5F6FA] flex flex-col">
       <TopNavbar />
@@ -679,35 +899,73 @@ export default function ChatPage() {
         <aside className={`${mobileSideOpen ? "flex" : "hidden"} lg:flex w-full lg:w-[300px] xl:w-[320px] shrink-0 flex-col bg-white border-r border-gray-100 absolute lg:relative inset-0 z-20 lg:z-auto`}>
 
           <div className="px-4 py-4 border-b border-gray-100 shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-[17px] font-bold text-[#0F172A]">Messages</h2>
-                {totalUnread > 0 && (
-                  <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                    {totalUnread}
+            {selectMode ? (
+              /* ── Select mode header ── */
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setSelectMode(false); setSelectedConvs([]); }}
+                    className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                    <X size={14} />
+                  </button>
+                  <span className="text-sm font-bold text-[#0F172A]">
+                    {selectedConvs.length} selected
                   </span>
-                )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setSelectedConvs(conversations.map(c => c.id))}
+                    className="text-[11px] font-semibold text-[#B8112D] hover:underline px-2"
+                  >
+                    All
+                  </button>
+                  {selectedConvs.length > 0 && (
+                    <button
+                      onClick={() => void deleteConversations(selectedConvs)}
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#a30f27] transition-colors"
+                    >
+                      <Trash2 size={12} />Delete
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => void askNotif()}
-                  title={notifGranted ? "Notifications on" : "Enable notifications"}
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
-                    notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"
-                  }`}>
-                  {notifGranted ? <Bell size={14} /> : <BellOff size={14} />}
-                </button>
-                <button onClick={() => { setShowDmModal(true); void fetchUsers(); }}
-                  className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors"
-                  title="New DM">
-                  <User2 size={14} />
-                </button>
-                <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }}
-                  className="w-8 h-8 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors"
-                  title="New Group">
-                  <Plus size={14} />
-                </button>
+            ) : (
+              /* ── Normal header ── */
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[17px] font-bold text-[#0F172A]">Messages</h2>
+                  {totalUnread > 0 && (
+                    <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                      {totalUnread}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => void askNotif()}
+                    title={notifGranted ? "Notifications on" : "Enable notifications"}
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
+                      notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"
+                    }`}>
+                    {notifGranted ? <Bell size={14} /> : <BellOff size={14} />}
+                  </button>
+                  <button onClick={() => setSelectMode(true)}
+                    title="Select chats"
+                    className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                    <CheckSquare size={14} />
+                  </button>
+                  <button onClick={() => { setShowDmModal(true); void fetchUsers(); }}
+                    className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors"
+                    title="New DM">
+                    <User2 size={14} />
+                  </button>
+                  <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }}
+                    className="w-8 h-8 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors"
+                    title="New Group">
+                    <Plus size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
             <div className="relative">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input type="text" placeholder="Search conversations…" value={convSearch}
@@ -717,7 +975,7 @@ export default function ChatPage() {
           </div>
 
           {/* Online Now strip */}
-          {onlineDirects.length > 0 && (
+          {!selectMode && onlineDirects.length > 0 && (
             <div className="px-4 pt-3 pb-3 border-b border-gray-100 shrink-0">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />
@@ -763,6 +1021,13 @@ export default function ChatPage() {
                     <p className="px-4 pt-2 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Direct Messages</p>
                     {directConvs.map(conv => (
                       <ConvItem key={conv.id} conv={conv} active={activeConvId === conv.id}
+                        selectMode={selectMode}
+                        selected={selectedConvs.includes(conv.id)}
+                        pinned={pinnedIds.has(conv.id)}
+                        onSelect={() => setSelectedConvs(p =>
+                          p.includes(conv.id) ? p.filter(id => id !== conv.id) : [...p, conv.id]
+                        )}
+                        onPin={() => togglePin(conv.id)}
                         onClick={() => { setActiveConvId(conv.id); setMobileSideOpen(false); }} />
                     ))}
                   </>
@@ -772,6 +1037,13 @@ export default function ChatPage() {
                     <p className="px-4 pt-3 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Groups</p>
                     {groupConvs.map(conv => (
                       <ConvItem key={conv.id} conv={conv} active={activeConvId === conv.id}
+                        selectMode={selectMode}
+                        selected={selectedConvs.includes(conv.id)}
+                        pinned={pinnedIds.has(conv.id)}
+                        onSelect={() => setSelectedConvs(p =>
+                          p.includes(conv.id) ? p.filter(id => id !== conv.id) : [...p, conv.id]
+                        )}
+                        onPin={() => togglePin(conv.id)}
                         onClick={() => { setActiveConvId(conv.id); setMobileSideOpen(false); }} />
                     ))}
                   </>
@@ -810,7 +1082,18 @@ export default function ChatPage() {
                   : <Avatar name={activeConv.name} size="sm" online={activeConv.isOnline} />}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-[#0F172A] truncate">{activeConv.name}</h3>
-                  {activeConv.type === "group" ? (
+                  {/* Typing indicator takes precedence */}
+                  {typingName ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#B8112D]">
+                      <span className="flex gap-0.5">
+                        {[0,1,2].map(i => (
+                          <span key={i} className="w-1 h-1 rounded-full bg-[#B8112D] animate-bounce"
+                            style={{ animationDelay: `${i * 150}ms` }} />
+                        ))}
+                      </span>
+                      {typingName} is typing…
+                    </span>
+                  ) : activeConv.type === "group" ? (
                     <p className="text-[11px] text-gray-400">{activeConv.memberCount ?? "—"} members</p>
                   ) : activeConv.isOnline ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600">
@@ -821,21 +1104,71 @@ export default function ChatPage() {
                     <p className="text-[11px] text-gray-400">Offline</p>
                   )}
                 </div>
+
+                {/* Search toggle */}
+                <button
+                  onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }}
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
+                    msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                  title="Search in chat"
+                >
+                  <Search size={14} />
+                </button>
+
+                {/* Delete this conversation */}
+                <button
+                  onClick={() => void deleteConversations([activeConv.id])}
+                  className="w-8 h-8 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"
+                  title="Delete conversation"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
 
+              {/* Message search bar */}
+              {msgSearchOpen && (
+                <div className="px-4 py-2 border-b border-gray-100 bg-white shrink-0">
+                  <div className="relative">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Search messages…"
+                      value={msgSearchText}
+                      onChange={e => setMsgSearchText(e.target.value)}
+                      className="w-full h-9 rounded-xl bg-[#F3F4F6] pl-8 pr-8 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all"
+                    />
+                    {msgSearchText && (
+                      <button onClick={() => setMsgSearchText("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  {msgSearchText && (
+                    <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                      {visibleMessages.length} result{visibleMessages.length !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 bg-[#F5F6FA]">
+              <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-4 py-4 bg-[#F5F6FA]">
                 {loadingMsgs ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 size={22} className="text-gray-300 animate-spin" />
                   </div>
-                ) : messages.length === 0 ? (
+                ) : visibleMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <div className="w-14 h-14 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center mb-3">
                       <MessageSquare size={22} className="text-gray-300" />
                     </div>
-                    <p className="text-sm font-semibold text-gray-500">No messages yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Say hello 👋</p>
+                    <p className="text-sm font-semibold text-gray-500">
+                      {msgSearchText ? "No messages match your search" : "No messages yet"}
+                    </p>
+                    {!msgSearchText && <p className="text-xs text-gray-400 mt-1">Say hello 👋</p>}
                   </div>
                 ) : (
                   <div className="space-y-0.5">
@@ -852,7 +1185,10 @@ export default function ChatPage() {
                             const showAvatar = !prev || prev.senderId !== msg.senderId;
                             return (
                               <MessageBubble key={msg.id} msg={msg}
-                                isGroup={activeConv.type === "group"} showAvatar={showAvatar} />
+                                isGroup={activeConv.type === "group"} showAvatar={showAvatar}
+                                onCtxMenu={handleCtxMenu}
+                                onReply={handleReply}
+                                onJumpToReply={jumpToReply} />
                             );
                           })}
                         </div>
@@ -863,7 +1199,7 @@ export default function ChatPage() {
                 )}
               </div>
 
-              {/* Upload bar */}
+              {/* Upload progress */}
               {uploading && (
                 <div className="px-4 pt-2 shrink-0 bg-white">
                   <div className="flex items-center gap-2">
@@ -890,6 +1226,25 @@ export default function ChatPage() {
                     </div>
                     <button onClick={clearPending}
                       className="w-7 h-7 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center shrink-0 transition-colors">
+                      <X size={11} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reply-to strip */}
+              {replyTo && (
+                <div className="px-4 pt-2 shrink-0 bg-white">
+                  <div className="flex items-center gap-2.5 bg-[#FFF1F3] border border-[#B8112D]/20 rounded-xl px-3 py-2">
+                    <Reply size={13} className="text-[#B8112D] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-[#B8112D]">{replyTo.senderName}</p>
+                      <p className="text-[11px] text-gray-500 truncate">
+                        {replyTo.type !== "text" ? `📎 ${replyTo.type}` : truncate(replyTo.text, 60)}
+                      </p>
+                    </div>
+                    <button onClick={() => setReplyTo(null)}
+                      className="w-6 h-6 rounded-full hover:bg-[#B8112D]/10 flex items-center justify-center shrink-0 text-gray-400">
                       <X size={11} />
                     </button>
                   </div>
@@ -931,7 +1286,7 @@ export default function ChatPage() {
 
                     <div className="flex-1 flex items-end bg-[#F3F4F6] rounded-2xl px-3.5 py-2.5">
                       <textarea ref={inputRef} value={msgText}
-                        onChange={e => setMsgText(e.target.value)}
+                        onChange={onMsgTextChange}
                         onKeyDown={onKey}
                         placeholder={pendingFile ? "Press send to upload file…" : `Message ${activeConv.type === "group" ? `#${activeConv.name}` : activeConv.name}…`}
                         rows={1} disabled={!!pendingFile}
@@ -954,7 +1309,7 @@ export default function ChatPage() {
                   </div>
                 )}
                 {!isRecording && (
-                  <p className="text-[9px] text-gray-400 mt-1 ml-1">Enter to send · Shift+Enter for new line · Max file 200 MB</p>
+                  <p className="text-[9px] text-gray-400 mt-1 ml-1">Enter to send · Shift+Enter for new line · Right-click a message for options</p>
                 )}
               </div>
             </>
@@ -983,6 +1338,52 @@ export default function ChatPage() {
           )}
         </section>
       </div>
+
+      {/* ══ CONTEXT MENU ══ */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-[90]" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
+          <div
+            className="fixed z-[91] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[180px] overflow-hidden"
+            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => handleReply(ctxMenu.msg)}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"
+            >
+              <Reply size={14} className="text-gray-400" /> Reply
+            </button>
+
+            {ctxMenu.msg.type === "text" && (
+              <button
+                onClick={() => void copyText(ctxMenu.msg.text)}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"
+              >
+                <Copy size={14} className="text-gray-400" /> Copy text
+              </button>
+            )}
+
+            <div className="border-t border-gray-100 my-1" />
+
+            <button
+              onClick={() => void deleteMsg(ctxMenu.msg.id, false)}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={14} /> Delete for me
+            </button>
+
+            {ctxMenu.msg.isOwn && (
+              <button
+                onClick={() => void deleteMsg(ctxMenu.msg.id, true)}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={14} /> Delete for everyone
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ══ GROUP MODAL ══ */}
       {showGroupModal && (
@@ -1101,7 +1502,7 @@ export default function ChatPage() {
               {filteredUsers.length === 0 ? (
                 <p className="text-center text-xs text-gray-400 py-6">No users found</p>
               ) : (() => {
-                const sorted = [...filteredUsers].sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+                const sorted     = [...filteredUsers].sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
                 const onlineCount = sorted.filter(u => u.isOnline).length;
                 return (
                   <>
@@ -1128,9 +1529,7 @@ export default function ChatPage() {
                                   <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full shrink-0">Active</span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-gray-400 truncate">
-                                {[user.role, user.csrCode].filter(Boolean).join(" · ") || user.email || ""}
-                              </p>
+                              <p className="text-[11px] text-gray-400 truncate">{user.csrCode ?? user.role ?? user.email ?? ""}</p>
                             </div>
                           </button>
                         </div>

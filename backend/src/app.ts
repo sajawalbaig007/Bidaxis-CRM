@@ -19,6 +19,7 @@ import userRoutes from "./routes/user.routes";
 import reportRoutes from "./routes/report.routes";
 
 import reportUploadRoutes from "./routes/reportUpload.routes";
+import chatRoutes from "./routes/chat.routes";
 
 dotenv.config();
 
@@ -83,6 +84,11 @@ app.use(
 app.use(
   "/api/report-uploads",
   reportUploadRoutes
+);
+
+app.use(
+  "/api/chat",
+  chatRoutes
 );
 
 export default app;
