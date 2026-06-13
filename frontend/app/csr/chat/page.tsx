@@ -6,7 +6,7 @@ import {
   Check, CheckCheck, ChevronLeft, Loader2, Paperclip,
   Mic, StopCircle, Play, Pause, Download, FileText,
   Film, Music, Bell, BellOff, Image as ImageIcon,
-  Trash2, Reply, Copy, Pin, PinOff, CheckSquare, Square,
+  Trash2, Reply, Copy, Pin, PinOff, CheckSquare,
 } from "lucide-react";
 import TopNavbar from "../components/navigation/TopNavbar";
 import API from "@/lib/api";
@@ -42,12 +42,14 @@ const MAX_FILE_BYTES = 200 * 1024 * 1024;
 
 /* ─── Helpers ────────────────────────────────────────────── */
 function deduplicateConvs(convs: Conversation[]): Conversation[] {
-  const seenDm = new Map<string, number>();
+  const seenDm = new Map<string, number>(); // key -> result index
   const result: Conversation[] = [];
   for (const c of convs) {
-    if (c.type === "group" || !c.otherUserId) { result.push(c); continue; }
-    const idx = seenDm.get(c.otherUserId);
-    if (idx === undefined) { seenDm.set(c.otherUserId, result.length); result.push(c); }
+    if (c.type === "group") { result.push(c); continue; }
+    // prefer otherUserId, fall back to name so dedup works even with old backend responses
+    const key = c.otherUserId ?? c.name;
+    const idx = seenDm.get(key);
+    if (idx === undefined) { seenDm.set(key, result.length); result.push(c); }
     else if ((c.lastMessageAt ?? "") > (result[idx]?.lastMessageAt ?? "")) { result[idx] = c; }
   }
   return result;
@@ -456,12 +458,12 @@ export default function ChatPage() {
     if (!activeConvId) return;
     const cid = activeConvId;
     lastMsgCount.current = 0;
-    setTypingName(null);
-    setMsgSearchOpen(false);
-    setMsgSearchText("");
 
     void (async () => {
-      await Promise.resolve();
+      await Promise.resolve(); // yield — keeps all setState calls out of sync effect body
+      setTypingName(null);
+      setMsgSearchOpen(false);
+      setMsgSearchText("");
       setMessages([]);
       setLoadingMsgs(true);
       try {
