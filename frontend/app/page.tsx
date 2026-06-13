@@ -324,7 +324,7 @@ export default function LoginPage() {
                     ))}
                   </div>
 
-                  {/* Attempts warning */}
+                  {/* Attempts*/}
                   {attemptsLeft < 2 && (
                     <div className="mt-3 sm:mt-4 flex items-center gap-2 bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5">
                       <AlertTriangle size={13} className="text-[#B45309] shrink-0 sm:w-[14px] sm:h-[14px]" />
