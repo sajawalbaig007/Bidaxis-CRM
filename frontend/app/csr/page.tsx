@@ -73,6 +73,9 @@ export default function CSRPage() {
   const [projectBudget,   setProjectBudget]   = useState("");
   const [projectNotes,    setProjectNotes]    = useState("");
   const [projectService,  setProjectService]  = useState("");
+  const [projectCode,     setProjectCode]     = useState("");
+  const [paidAmount,      setPaidAmount]      = useState("");
+  const [email,           setEmail]           = useState("");
 
   const todayImportantCalls = useMemo(
     () => leads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR),
@@ -141,6 +144,7 @@ export default function CSRPage() {
       setSelectedProjectLead(lead);
       setProjectTitle(lead.company !== "N/A" ? lead.company : lead.client);
       setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
+      setProjectCode(""); setPaidAmount(""); setEmail(lead.email !== "N/A" ? lead.email : "");
       setShowProjectWonModal(true); return;
     }
     try {
@@ -170,18 +174,18 @@ export default function CSRPage() {
   };
 
   const saveProjectWon = async () => {
-    if (!projectTitle || !projectDeadline || !selectedProjectLead) return;
+    if (!projectTitle || !projectDeadline || !paidAmount || !selectedProjectLead) return;
     try {
       await updateLead(selectedProjectLead.id, {
-        status: "Close Client", projectTitle, projectDeadline,
-        projectBudget, projectNotes, interestedService: projectService,
+        status: "Close Client", projectTitle, projectDeadline, projectCode,
+        projectBudget, projectNotes, interestedService: projectService, paidAmount, email,
       });
       setShowProjectWonModal(false);
       router.push("/csr/projects");
     } catch (err) { console.log(err); }
   };
 
-  const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "";
+  const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
 
   return (
     <div className="min-h-screen bg-[#F5F6FA]">
@@ -465,10 +469,13 @@ export default function CSRPage() {
         {showProjectWonModal && selectedProjectLead && (
           <ProjectWonModal
             lead={selectedProjectLead}
+            email={email} onEmailChange={setEmail}
+            projectCode={projectCode} onProjectCodeChange={setProjectCode}
             title={projectTitle} onTitleChange={setProjectTitle}
             service={projectService} onServiceChange={setProjectService}
             deadline={projectDeadline} onDeadlineChange={setProjectDeadline}
             budget={projectBudget} onBudgetChange={setProjectBudget}
+            paidAmount={paidAmount} onPaidAmountChange={setPaidAmount}
             notes={projectNotes} onNotesChange={setProjectNotes}
             isValid={projectWonValid}
             onClose={() => setShowProjectWonModal(false)}

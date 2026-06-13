@@ -138,7 +138,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     const {
       status, nextSchedule, nextTime, timezone, followUpNotes,
       interestedService, projectTitle, projectCode, projectDeadline,
-      projectBudget, projectNotes, comments,
+      projectBudget, projectNotes, paidAmount, comments,
       name, phone, email, state,
     } = req.body;
 
@@ -164,6 +164,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (projectDeadline   !== undefined) updateData.projectDeadline   = projectDeadline;
     if (projectBudget     !== undefined) updateData.projectBudget     = projectBudget;
     if (projectNotes      !== undefined) updateData.projectNotes      = projectNotes;
+    if (paidAmount        !== undefined) updateData.paidAmount        = paidAmount;
     if (comments          !== undefined) updateData.comments          = comments;
     if (name              !== undefined) updateData.name              = name;
     if (phone             !== undefined) updateData.phone             = phone;

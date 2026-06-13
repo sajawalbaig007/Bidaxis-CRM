@@ -65,6 +65,7 @@ model Lead {
   projectDeadline   String?
   projectBudget     String?
   projectNotes      String?
+  paidAmount        String?
 
   clientCode     String?
   state          String?
