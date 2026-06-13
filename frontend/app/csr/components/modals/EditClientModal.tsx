@@ -1,6 +1,7 @@
 import { CalendarClock, Clock3, Trophy, UserX, X } from "lucide-react";
 import ScheduleCallForm from "../shared/ScheduleCallForm";
 import ProjectDetailsForm from "../shared/ProjectDetailsForm";
+import EmailField from "../shared/EmailField";
 import { usTimezones } from "../../constants/timezones";
 
 export type EditAction = "reschedule" | "closeclient" | "deleteclient" | null;
@@ -8,6 +9,7 @@ export type EditAction = "reschedule" | "closeclient" | "deleteclient" | null;
 interface EditClientModalProps {
   client: string;
   company: string;
+  email: string; onEmailChange: (v: string) => void;
   editAction: EditAction;
   onSelectAction: (action: EditAction) => void;
   onClose: () => void;
@@ -17,10 +19,12 @@ interface EditClientModalProps {
   timezone: string; onTimezoneChange: (v: string) => void;
   onSaveReschedule: () => void;
 
+  projectCode: string; onProjectCodeChange: (v: string) => void;
   projectTitle: string; onProjectTitleChange: (v: string) => void;
   projectService: string; onProjectServiceChange: (v: string) => void;
   projectDeadline: string; onProjectDeadlineChange: (v: string) => void;
   projectBudget: string; onProjectBudgetChange: (v: string) => void;
+  paidAmount: string; onPaidAmountChange: (v: string) => void;
   projectNotes: string; onProjectNotesChange: (v: string) => void;
   projectWonValid: boolean;
   onSaveProjectWon: () => void;
@@ -29,11 +33,13 @@ interface EditClientModalProps {
 }
 
 export default function EditClientModal({
-  client, company, editAction, onSelectAction, onClose,
+  client, company, email, onEmailChange, editAction, onSelectAction, onClose,
   scheduleDate, onScheduleDateChange, scheduleTime, onScheduleTimeChange,
   timezone, onTimezoneChange, onSaveReschedule,
+  projectCode, onProjectCodeChange,
   projectTitle, onProjectTitleChange, projectService, onProjectServiceChange,
   projectDeadline, onProjectDeadlineChange, projectBudget, onProjectBudgetChange,
+  paidAmount, onPaidAmountChange,
   projectNotes, onProjectNotesChange, projectWonValid, onSaveProjectWon,
   onDeleteClient,
 }: EditClientModalProps) {
@@ -72,6 +78,9 @@ export default function EditClientModal({
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-3 sm:space-y-5">
+
+            {/* EMAIL */}
+            <EmailField email={email} onEmailChange={onEmailChange} />
 
             {/* ACTION CHOOSER */}
             {!editAction && (
@@ -150,10 +159,12 @@ export default function EditClientModal({
                 </div>
 
                 <ProjectDetailsForm
+                  projectCode={projectCode} onProjectCodeChange={onProjectCodeChange}
                   title={projectTitle} onTitleChange={onProjectTitleChange}
                   service={projectService} onServiceChange={onProjectServiceChange}
                   deadline={projectDeadline} onDeadlineChange={onProjectDeadlineChange}
                   budget={projectBudget} onBudgetChange={onProjectBudgetChange}
+                  paidAmount={paidAmount} onPaidAmountChange={onPaidAmountChange}
                   notes={projectNotes} onNotesChange={onProjectNotesChange}
                 />
 

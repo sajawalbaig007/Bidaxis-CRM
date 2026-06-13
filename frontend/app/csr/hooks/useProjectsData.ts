@@ -3,13 +3,19 @@ import API from "@/lib/api";
 
 export type Project = {
   id: string;
+  projectCode: string;
   projectTitle: string;
   client: string;
   company: string;
+  email: string;
   status: string;
+  state: string;
   deadline: string;
   budget: string;
   budgetNum: number;
+  paidAmount: string;
+  paidAmountNum: number;
+  paidPercent: number;
   notes: string;
   service: string;
   timezone: string;
@@ -51,8 +57,12 @@ type RawLead = {
   services?: string;
   timezone?: string;
   phone?: string;
+  email?: string;
   updatedAt?: string;
   clientCode?: string | null;
+  projectCode?: string | null;
+  state?: string | null;
+  paidAmount?: string | number | null;
 };
 
 export const parseBudget = (raw: string | number | null | undefined): number => {
@@ -87,21 +97,32 @@ function mapProject(lead: RawLead): Project {
   const pastDeadline     = isDeadlinePast(deadlineStr);
   const derivedStatus    = backendCompleted || pastDeadline ? "Completed" : "In Progress";
 
+  const budgetNum    = parseBudget(budget);
+  const paidAmount   = lead.paidAmount ?? "";
+  const paidAmountNum = parseBudget(paidAmount);
+  const paidPercent  = budgetNum > 0 ? (paidAmountNum / budgetNum) * 100 : 0;
+
   return {
-    id:           String(lead.id ?? ""),
-    projectTitle: String(projectTitle),
-    client:       String(lead.name    || "Unknown"),
-    company:      String(lead.company || "N/A"),
-    status:       derivedStatus,
-    deadline:     deadlineStr,
-    budget:       String(budget),
-    budgetNum:    parseBudget(budget),
-    notes:        String(notes),
-    service:      String(service),
-    timezone:     String(lead.timezone || "N/A"),
-    phone:        String(lead.phone    || "N/A"),
-    closedAt:     lead.updatedAt ? String(lead.updatedAt).split("T")[0] : "N/A",
-    clientCode:   lead.clientCode ?? null,
+    id:            String(lead.id ?? ""),
+    projectCode:   String(lead.projectCode ?? ""),
+    projectTitle:  String(projectTitle),
+    client:        String(lead.name    || "Unknown"),
+    company:       String(lead.company || "N/A"),
+    email:         String(lead.email   || ""),
+    status:        derivedStatus,
+    state:         String(lead.state   || "N/A"),
+    deadline:      deadlineStr,
+    budget:        String(budget),
+    budgetNum,
+    paidAmount:    String(paidAmount),
+    paidAmountNum,
+    paidPercent,
+    notes:         String(notes),
+    service:       String(service),
+    timezone:      String(lead.timezone || "N/A"),
+    phone:         String(lead.phone    || "N/A"),
+    closedAt:      lead.updatedAt ? String(lead.updatedAt).split("T")[0] : "N/A",
+    clientCode:    lead.clientCode ?? null,
   };
 }
 

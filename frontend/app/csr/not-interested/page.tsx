@@ -6,8 +6,7 @@ import {
   X, ArrowRightLeft, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
   Phone, Briefcase, MessageSquare, Check,
-  History, CalendarDays, DollarSign, AlignLeft,
-  FileText,
+  History,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -17,9 +16,10 @@ import InterestedModal from "../components/modals/InterestedModal";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
+import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
+import EmailField from "../components/shared/EmailField";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
-import { serviceOptions } from "../constants/services";
 import API from "@/lib/api";
 
 const NOT_INTERESTED_LIMIT = 3;
@@ -63,6 +63,9 @@ export default function NotInterestedPage() {
   const [projectBudget,       setProjectBudget]       = useState("");
   const [projectNotes,        setProjectNotes]        = useState("");
   const [projectService,      setProjectService]      = useState("");
+  const [projectCode,         setProjectCode]         = useState("");
+  const [paidAmount,          setPaidAmount]          = useState("");
+  const [email,               setEmail]               = useState("");
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "warn" } | null>(null);
   const showToast = (msg: string, type: "success" | "warn" = "success") => {
@@ -174,7 +177,8 @@ export default function NotInterestedPage() {
     }
     if (status === "Close Client") {
       setStatusLead(lead); setProjectTitle(lead.client); setProjectDeadline("");
-      setProjectBudget(""); setProjectNotes(""); setProjectService(""); setShowCloseModal(true); return;
+      setProjectBudget(""); setProjectNotes(""); setProjectService("");
+      setProjectCode(""); setPaidAmount(""); setEmail(lead.email); setShowCloseModal(true); return;
     }
     try {
       await API.put(`/csr/lead/${lead.id}`, { status });
@@ -203,10 +207,10 @@ export default function NotInterestedPage() {
   };
 
   const saveCloseClient = async () => {
-    if (!statusLead || !projectTitle || !projectDeadline || !projectService) return;
+    if (!statusLead || !projectTitle || !projectDeadline || !projectService || !paidAmount) return;
     await API.put(`/csr/lead/${statusLead.id}`, {
-      status: "Close Client", projectTitle, projectDeadline,
-      projectBudget, projectNotes, interestedService: projectService,
+      status: "Close Client", projectTitle, projectDeadline, projectCode,
+      projectBudget, projectNotes, interestedService: projectService, paidAmount, email,
     });
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowCloseModal(false);
@@ -338,7 +342,7 @@ export default function NotInterestedPage() {
             <table className="w-full" style={{ minWidth: "960px" }}>
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-[#F1F1F1]">
-                  {["Client","Company","Contact","Service","Comments","Tries","Status","Action"].map(h => (
+                  {["Client","Company","Contact","Service","Comment","Tries","Status","Action"].map(h => (
                     <th key={h} className="text-left py-3 sm:py-4 px-2 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
                       {h}
                     </th>
@@ -705,83 +709,18 @@ export default function NotInterestedPage() {
 
               <div className="flex-1 overflow-y-auto overscroll-contain">
                 <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-3 sm:space-y-5">
-                  <div>
-                    <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <FileText size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                      Project Title <span className="text-[#B8112D] normal-case ml-1">*required</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. BIM Modeling Phase 1"
-                      value={projectTitle}
-                      onChange={e => setProjectTitle(e.target.value)}
-                      className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
-                    />
-                  </div>
+                  {/* EMAIL */}
+                  <EmailField email={email} onEmailChange={setEmail} />
 
-                  <div>
-                    <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <Briefcase size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                      Service to Provide <span className="text-[#B8112D] normal-case ml-1">*required</span>
-                    </label>
-                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                      {serviceOptions.map(({ value, label, Icon }) => {
-                        const sel = projectService === value;
-                        return (
-                          <button key={value} onClick={() => setProjectService(value)}
-                            className={`relative py-2.5 sm:py-3 px-1 rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-1.5 transition-all text-[10px] sm:text-[11px] font-semibold ${sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-gray-500 hover:border-gray-200"}`}>
-                            {sel && (
-                              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-[#B8112D] rounded-full flex items-center justify-center">
-                                <Check size={8} className="text-white sm:w-[9px] sm:h-[9px]" />
-                              </span>
-                            )}
-                            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}>
-                              <Icon size={13} className={`sm:w-[15px] sm:h-[15px] ${sel ? "text-[#B8112D]" : "text-gray-400"}`} />
-                            </div>
-                            <span>{label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                    <div>
-                      <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                        <CalendarDays size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                        Deadline <span className="text-[#B8112D] normal-case">*</span>
-                      </label>
-                      <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
-                        className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                        <DollarSign size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                        Budget <span className="text-gray-300 normal-case">(opt)</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                        <input type="text" placeholder="0.00" value={projectBudget.replace(/^\$/, "")} onChange={e => setProjectBudget(e.target.value)}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
-                      Notes <span className="text-gray-300 normal-case">(optional)</span>
-                    </label>
-                    <textarea
-                      placeholder="Any additional notes..."
-                      value={projectNotes}
-                      onChange={e => setProjectNotes(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
-                    />
-                  </div>
+                  <ProjectDetailsForm
+                    projectCode={projectCode} onProjectCodeChange={setProjectCode}
+                    title={projectTitle} onTitleChange={setProjectTitle}
+                    service={projectService} onServiceChange={setProjectService}
+                    deadline={projectDeadline} onDeadlineChange={setProjectDeadline}
+                    budget={projectBudget} onBudgetChange={setProjectBudget}
+                    paidAmount={paidAmount} onPaidAmountChange={setPaidAmount}
+                    notes={projectNotes} onNotesChange={setProjectNotes}
+                  />
 
                   <div className="flex gap-2 sm:gap-3 pb-1">
                     <button onClick={() => setShowCloseModal(false)} className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">
@@ -789,9 +728,9 @@ export default function NotInterestedPage() {
                     </button>
                     <button
                       onClick={saveCloseClient}
-                      disabled={!projectTitle || !projectDeadline || !projectService}
+                      disabled={!projectTitle || !projectDeadline || !projectService || !paidAmount}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm text-white flex items-center justify-center gap-2 transition-all ${
-                        projectTitle && projectDeadline && projectService
+                        projectTitle && projectDeadline && projectService && paidAmount
                           ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200"
                           : "bg-gray-200 cursor-not-allowed text-gray-400"
                       }`}

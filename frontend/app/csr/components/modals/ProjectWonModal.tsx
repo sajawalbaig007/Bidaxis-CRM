@@ -1,13 +1,17 @@
 import { CircleCheckBig, X } from "lucide-react";
 import ProjectDetailsForm from "../shared/ProjectDetailsForm";
+import EmailField from "../shared/EmailField";
 import { Lead } from "../../types/lead";
 
 interface ProjectWonModalProps {
   lead: Lead;
+  email: string; onEmailChange: (v: string) => void;
+  projectCode: string; onProjectCodeChange: (v: string) => void;
   title: string; onTitleChange: (v: string) => void;
   service: string; onServiceChange: (v: string) => void;
   deadline: string; onDeadlineChange: (v: string) => void;
   budget: string; onBudgetChange: (v: string) => void;
+  paidAmount: string; onPaidAmountChange: (v: string) => void;
   notes: string; onNotesChange: (v: string) => void;
   isValid: boolean;
   onClose: () => void;
@@ -15,8 +19,10 @@ interface ProjectWonModalProps {
 }
 
 export default function ProjectWonModal({
-  lead, title, onTitleChange, service, onServiceChange, deadline, onDeadlineChange,
-  budget, onBudgetChange, notes, onNotesChange, isValid, onClose, onSave,
+  lead, email, onEmailChange, projectCode, onProjectCodeChange,
+  title, onTitleChange, service, onServiceChange, deadline, onDeadlineChange,
+  budget, onBudgetChange, paidAmount, onPaidAmountChange,
+  notes, onNotesChange, isValid, onClose, onSave,
 }: ProjectWonModalProps) {
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -53,11 +59,16 @@ export default function ProjectWonModal({
 
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-3 sm:space-y-5">
+            {/* EMAIL */}
+            <EmailField email={email} onEmailChange={onEmailChange} />
+
             <ProjectDetailsForm
+              projectCode={projectCode} onProjectCodeChange={onProjectCodeChange}
               title={title} onTitleChange={onTitleChange}
               service={service} onServiceChange={onServiceChange}
               deadline={deadline} onDeadlineChange={onDeadlineChange}
               budget={budget} onBudgetChange={onBudgetChange}
+              paidAmount={paidAmount} onPaidAmountChange={onPaidAmountChange}
               notes={notes} onNotesChange={onNotesChange}
             />
             <div className="flex gap-2 sm:gap-3 pb-1">

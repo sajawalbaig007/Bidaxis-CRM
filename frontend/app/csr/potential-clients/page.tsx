@@ -41,11 +41,14 @@ export default function ImportantCallsPage() {
   const [scheduleDate,     setScheduleDate]     = useState("");
   const [scheduleTime,     setScheduleTime]     = useState("");
   const [selectedTimezone, setSelectedTimezone] = useState("America/New_York");
+  const [projectCode,      setProjectCode]      = useState("");
   const [projectTitle,     setProjectTitle]     = useState("");
   const [projectDeadline,  setProjectDeadline]  = useState("");
   const [projectBudget,    setProjectBudget]    = useState("");
+  const [paidAmount,       setPaidAmount]       = useState("");
   const [projectNotes,     setProjectNotes]     = useState("");
   const [projectService,   setProjectService]   = useState("");
+  const [email,            setEmail]            = useState("");
 
   /* ── Derived ── */
   const stats = useMemo(() => ({
@@ -101,40 +104,42 @@ export default function ImportantCallsPage() {
     setEditingLead(lead); setEditAction(null);
     setScheduleDate(""); setScheduleTime("");
     setSelectedTimezone(lead.timezone || "America/New_York");
-    setProjectTitle(lead.company !== "N/A" ? lead.company : lead.client);
-    setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
+    setProjectCode(""); setProjectTitle(lead.company !== "N/A" ? lead.company : lead.client);
+    setProjectDeadline(""); setProjectBudget(""); setPaidAmount(""); setProjectNotes(""); setProjectService("");
+    setEmail(lead.email !== "N/A" ? lead.email : "");
     setShowEditModal(true);
   };
 
   const closeEditModal = () => {
     setShowEditModal(false); setEditingLead(null); setEditAction(null);
     setScheduleDate(""); setScheduleTime("");
-    setProjectTitle(""); setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
+    setProjectCode(""); setProjectTitle(""); setProjectDeadline(""); setProjectBudget(""); setPaidAmount(""); setProjectNotes(""); setProjectService("");
+    setEmail("");
   };
 
   const saveReschedule = async () => {
     if (!scheduleDate || !scheduleTime || !editingLead) return;
     try {
-      await updateLead(editingLead.id, { status: "important", nextSchedule: scheduleDate, nextTime: scheduleTime, timezone: selectedTimezone });
+      await updateLead(editingLead.id, { status: "important", nextSchedule: scheduleDate, nextTime: scheduleTime, timezone: selectedTimezone, email });
       closeEditModal();
     } catch (err) { console.log(err); }
   };
 
   const saveProjectWon = async () => {
-    if (!projectTitle || !projectDeadline || !projectService || !editingLead) return;
+    if (!projectTitle || !projectDeadline || !projectService || !paidAmount || !editingLead) return;
     try {
-      await updateLead(editingLead.id, { status: "Close Client", projectTitle, projectDeadline, projectBudget, projectNotes, interestedService: projectService });
+      await updateLead(editingLead.id, { status: "Close Client", projectCode, projectTitle, projectDeadline, projectBudget, paidAmount, projectNotes, interestedService: projectService, email });
       closeEditModal();
     } catch (err) { console.log(err); }
   };
 
   const saveCloseClient = async () => {
     if (!editingLead) return;
-    try { await updateLead(editingLead.id, { status: "closed" }); closeEditModal(); }
+    try { await updateLead(editingLead.id, { status: "closed", email }); closeEditModal(); }
     catch (err) { console.log(err); }
   };
 
-  const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "";
+  const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
 
   return (
     <div className="min-h-screen bg-[#F5F6FA]">
@@ -229,7 +234,7 @@ export default function ImportantCallsPage() {
               <table className="w-full" style={{ minWidth: "960px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Next Schedule","Time & Timezone","Comments","Status","Action"].map(h => (
+                    {["Client","Company","Contact","Next Schedule","Time & Timezone","Comment","Status","Action"].map(h => (
                       <th key={h} className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -363,7 +368,7 @@ export default function ImportantCallsPage() {
               <table className="w-full" style={{ minWidth: "820px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Interested In","Comments","Status","Action"].map(h => (
+                    {["Client","Company","Contact","Interested In","Comment","Status","Action"].map(h => (
                       <th key={h} className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -458,6 +463,7 @@ export default function ImportantCallsPage() {
           <EditClientModal
             client={editingLead.client}
             company={editingLead.company}
+            email={email} onEmailChange={setEmail}
             editAction={editAction}
             onSelectAction={setEditAction}
             onClose={closeEditModal}
@@ -465,10 +471,12 @@ export default function ImportantCallsPage() {
             scheduleTime={scheduleTime}    onScheduleTimeChange={setScheduleTime}
             timezone={selectedTimezone}    onTimezoneChange={setSelectedTimezone}
             onSaveReschedule={saveReschedule}
+            projectCode={projectCode}      onProjectCodeChange={setProjectCode}
             projectTitle={projectTitle}    onProjectTitleChange={setProjectTitle}
             projectService={projectService} onProjectServiceChange={setProjectService}
             projectDeadline={projectDeadline} onProjectDeadlineChange={setProjectDeadline}
             projectBudget={projectBudget}  onProjectBudgetChange={setProjectBudget}
+            paidAmount={paidAmount}        onPaidAmountChange={setPaidAmount}
             projectNotes={projectNotes}    onProjectNotesChange={setProjectNotes}
             projectWonValid={projectWonValid}
             onSaveProjectWon={saveProjectWon}
