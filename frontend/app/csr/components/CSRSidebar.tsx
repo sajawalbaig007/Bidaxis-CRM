@@ -11,7 +11,7 @@ import {
   Link2,
   AlertTriangle,
   FolderKanban,
-  User,
+  MessageSquare,
   LogOut,
   X,
   ThumbsDown,
@@ -20,41 +20,13 @@ import {
 } from "lucide-react";
 
 const menuItems = [
-  {
-    title: "Call Data",
-    href: "/csr",
-    icon: Link2,
-  },
-  {
-    title: "Potential Clients",
-    href: "/csr/important",
-    icon: AlertTriangle,
-  },
-  {
-    title: "Not Interested",
-    href: "/csr/not-interested",
-    icon: ThumbsDown,
-  },
-  {
-    title: "Clients",
-    href: "/csr/leads",
-    icon: Users,
-  },
-  {
-    title: "Active Projects",
-    href: "/csr/projects",
-    icon: FolderKanban,
-  },
-  {
-    title: "Bin",
-    href: "/csr/bin",
-    icon: Trash2,
-  },
-  {
-    title: "Profile",
-    href: "/csr/profile",
-    icon: User,
-  },
+  { title: "Call Data",         href: "/csr",                icon: Link2         },
+  { title: "Potential Clients", href: "/csr/important",      icon: AlertTriangle },
+  { title: "Not Interested",    href: "/csr/not-interested", icon: ThumbsDown    },
+  { title: "Clients",           href: "/csr/leads",          icon: Users         },
+  { title: "Active Projects",   href: "/csr/projects",       icon: FolderKanban  },
+  { title: "Bin",               href: "/csr/bin",            icon: Trash2        },
+  { title: "Chat",              href: "/csr/profile",        icon: MessageSquare },
 ];
 
 interface SidebarProps {
@@ -63,12 +35,10 @@ interface SidebarProps {
 }
 
 export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
-
   const pathname = usePathname();
   const router   = useRouter();
   const [loading, setLoading] = useState(false);
 
-  /* ── LOGOUT ── */
   const handleLogout = async () => {
     try {
       setLoading(true);
@@ -89,12 +59,16 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
       {/* MOBILE OVERLAY */}
       <div
         onClick={() => setIsOpen(false)}
-        className={`fixed inset-0 z-40 bg-black/40 transition-all duration-300 lg:hidden ${isOpen ? "opacity-100 visible" : "opacity-0 invisible"}`}
+        className={`fixed inset-0 z-40 bg-black/40 transition-all duration-300 lg:hidden ${
+          isOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        }`}
       />
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR — only for mobile (lg+ uses top navbar tabs) */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-[260px] bg-white border-r border-gray-100 flex flex-col justify-between transition-all duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        className={`fixed top-0 left-0 z-50 h-screen w-[260px] bg-white border-r border-gray-100 flex flex-col justify-between transition-all duration-300 lg:hidden ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
         {/* TOP */}
         <div>
@@ -102,7 +76,13 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
           <div className="h-[92px] px-6 flex items-center justify-between border-b border-gray-100 pt-2">
             <div className="flex items-center gap-3">
               <div className="w-[42px] h-[42px] rounded-xl overflow-hidden shrink-0">
-                <Image src="/images/image.png" alt="logo" width={42} height={42} className="object-cover w-full h-full"/>
+                <Image
+                  src="/images/image.png"
+                  alt="logo"
+                  width={42}
+                  height={42}
+                  className="object-cover w-full h-full"
+                />
               </div>
               <div>
                 <div className="flex gap-1.5">
@@ -114,9 +94,9 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="lg:hidden w-9 h-9 rounded-xl bg-[#F5F6FA] flex items-center justify-center"
+              className="w-9 h-9 rounded-xl bg-[#F5F6FA] flex items-center justify-center"
             >
-              <X size={18}/>
+              <X size={18} />
             </button>
           </div>
 
@@ -125,7 +105,6 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
             {menuItems.map((item) => {
               const Icon   = item.icon;
               const active = pathname === item.href;
-
               return (
                 <Link
                   key={item.title}
@@ -137,7 +116,7 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
                       : "text-[#667085] hover:bg-[#F9FAFB]"
                   }`}
                 >
-                  <Icon size={18} strokeWidth={2}/>
+                  <Icon size={18} strokeWidth={2} />
                   {item.title}
                 </Link>
               );
@@ -152,7 +131,7 @@ export default function CSRSidebar({ isOpen, setIsOpen }: SidebarProps) {
             disabled={loading}
             className="w-full h-[52px] rounded-[18px] bg-[#FFF1F3] hover:bg-[#ffe4e9] transition flex items-center justify-center gap-3 text-[#B8112D] font-medium text-[15px] disabled:opacity-60"
           >
-            <LogOut size={18}/>
+            <LogOut size={18} />
             {loading ? "Logging out..." : "Logout"}
           </button>
         </div>
