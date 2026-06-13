@@ -550,14 +550,42 @@ export default function ChatPage() {
   };
 
   /* ─── Load users ─── */
+  const parseUsers = (data: unknown): ChatUser[] => {
+    const raw = Array.isArray(data) ? data : ((data as Record<string, unknown>)?.users ?? data ?? []) as unknown[];
+    return (raw as Record<string, unknown>[]).map(u => ({
+      id:       String(u.id),
+      name:     String(u.name ?? "Unknown"),
+      email:    u.email ? String(u.email) : undefined,
+      csrCode:  u.csrCode ? String(u.csrCode) : null,
+      role:     u.role ? String(u.role) : undefined,
+      isOnline: Boolean(u.isOnline),
+    }));
+  };
+
   const fetchUsers = async () => {
     if (allUsers.length > 0) return;
     try {
-      const r = await API.get("/admin/users").catch(() => API.get("/chat/users"));
-      const users: ChatUser[] = r.data.users ?? r.data ?? [];
-      setAllUsers(users.filter(u => u.id !== meRef.current?.id));
+      const r = await API.get("/users");
+      setAllUsers(parseUsers(r.data).filter(u => u.id !== meRef.current?.id));
     } catch { setAllUsers([]); }
   };
+
+  /* ── Refresh online status of loaded users every 10 s ─── */
+  useEffect(() => {
+    if (allUsers.length === 0) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await API.get("/users");
+        const fresh = parseUsers(r.data);
+        setAllUsers(prev => prev.map(u => {
+          const updated = fresh.find(f => f.id === u.id);
+          return updated ? { ...u, isOnline: updated.isOnline } : u;
+        }));
+      } catch { /* ignore */ }
+    }, 10000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allUsers.length === 0 ? 0 : 1]);
 
   /* ─── Create group ─── */
   const createGroup = async () => {
