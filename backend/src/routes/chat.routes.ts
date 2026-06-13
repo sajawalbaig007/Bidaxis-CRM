@@ -15,6 +15,11 @@ const chatUpload = multer({
 /* ── In-memory typing map: convId → userId → { name, expiresAt } ── */
 const typingMap = new Map<string, Map<string, { name: string; expiresAt: number }>>();
 
+/* helper — Express 5 params are string | string[], extract the string */
+function p(val: string | string[]): string {
+  return Array.isArray(val) ? val[0] : val;
+}
+
 /* ═══════════════════════════════════════════════════════
    GET /chat/conversations
 ═══════════════════════════════════════════════════════ */
@@ -86,14 +91,13 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
 
 /* ═══════════════════════════════════════════════════════
    POST /chat/conversations
-   Body: { type: "direct", userId } | { type: "group", name, memberIds[] }
 ═══════════════════════════════════════════════════════ */
 router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
   try {
     const meId = req.user!.id;
-    const { type, userId: targetId, name, memberIds = [] } = req.body;
+    const body = req.body as { type?: string; userId?: string; name?: string; memberIds?: string[] };
+    const { type, userId: targetId, name, memberIds = [] } = body;
 
-    /* ── Direct message ── */
     if (type === "direct") {
       if (!targetId) return res.status(400).json({ message: "userId required" });
 
@@ -101,7 +105,6 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
         where: { id: targetId }, select: { name: true, isOnline: true },
       });
 
-      /* transaction prevents duplicate DMs from race conditions */
       const convId = await prisma.$transaction(async (tx) => {
         const myConvIds = (await tx.conversationMember.findMany({
           where: { userId: meId, conversation: { type: "direct" } },
@@ -135,7 +138,6 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
       });
     }
 
-    /* ── Group ── */
     if (type === "group") {
       if (!name?.trim()) return res.status(400).json({ message: "name required" });
 
@@ -166,12 +168,11 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
 
 /* ═══════════════════════════════════════════════════════
    DELETE /chat/conversations/:id
-   Removes the user's membership. Deletes conversation if last member.
 ═══════════════════════════════════════════════════════ */
 router.delete("/conversations/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const convId = req.params.id;
+    const convId = p(req.params.id);
 
     await prisma.conversationMember.deleteMany({
       where: { conversationId: convId, userId },
@@ -197,7 +198,7 @@ router.delete("/conversations/:id", verifyToken, async (req: AuthRequest, res) =
 router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId         = req.user!.id;
-    const conversationId = req.params.id;
+    const conversationId = p(req.params.id);
 
     const member = await prisma.conversationMember.findUnique({
       where: { conversationId_userId: { conversationId, userId } },
@@ -249,7 +250,6 @@ router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, 
 
 /* ═══════════════════════════════════════════════════════
    POST /chat/conversations/:id/messages
-   Handles text + file/image/voice (multipart). Accepts optional replyToId.
 ═══════════════════════════════════════════════════════ */
 router.post(
   "/conversations/:id/messages",
@@ -258,10 +258,11 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       const userId         = req.user!.id;
-      const conversationId = req.params.id;
-      const text           = (req.body.text ?? "").trim();
-      const msgType        = (req.body.type ?? "text") as string;
-      const replyToId      = req.body.replyToId as string | undefined;
+      const conversationId = p(req.params.id);
+      const body           = req.body as { text?: string; type?: string; replyToId?: string };
+      const text           = (body.text ?? "").trim();
+      const msgType        = (body.type ?? "text") as string;
+      const replyToId      = body.replyToId;
 
       const member = await prisma.conversationMember.findUnique({
         where: { conversationId_userId: { conversationId, userId } },
@@ -312,7 +313,7 @@ router.post(
       const message = await prisma.message.create({
         data: {
           conversationId,
-          senderId: userId,
+          senderId:    userId,
           text,
           type:        req.file ? msgType : "text",
           fileUrl,
@@ -373,7 +374,7 @@ router.post(
 router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const msgId  = req.params.id;
+    const msgId  = p(req.params.id);
 
     const msg = await prisma.message.findUnique({ where: { id: msgId } });
     if (!msg || msg.senderId !== userId) {
@@ -393,7 +394,7 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
 router.post("/conversations/:id/read", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId         = req.user!.id;
-    const conversationId = req.params.id;
+    const conversationId = p(req.params.id);
 
     await prisma.conversationMember.updateMany({
       where: { conversationId, userId },
@@ -407,11 +408,11 @@ router.post("/conversations/:id/read", verifyToken, async (req: AuthRequest, res
 });
 
 /* ═══════════════════════════════════════════════════════
-   POST /chat/conversations/:id/typing  — mark user as typing
+   POST /chat/conversations/:id/typing
 ═══════════════════════════════════════════════════════ */
 router.post("/conversations/:id/typing", verifyToken, async (req: AuthRequest, res) => {
   try {
-    const convId = req.params.id;
+    const convId = p(req.params.id);
     const userId = req.user!.id;
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
@@ -427,10 +428,10 @@ router.post("/conversations/:id/typing", verifyToken, async (req: AuthRequest, r
 });
 
 /* ═══════════════════════════════════════════════════════
-   GET /chat/conversations/:id/typing  — who's typing?
+   GET /chat/conversations/:id/typing
 ═══════════════════════════════════════════════════════ */
 router.get("/conversations/:id/typing", verifyToken, async (req: AuthRequest, res) => {
-  const convId = req.params.id;
+  const convId = p(req.params.id);
   const userId = req.user!.id;
   const now    = Date.now();
 
@@ -448,12 +449,13 @@ router.get("/conversations/:id/typing", verifyToken, async (req: AuthRequest, re
 });
 
 /* ═══════════════════════════════════════════════════════
-   POST /chat/status  — heartbeat (online / offline)
+   POST /chat/status  — heartbeat
 ═══════════════════════════════════════════════════════ */
 router.post("/status", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const online = Boolean(req.body.online);
+    const body   = req.body as { online?: boolean };
+    const online = Boolean(body.online);
 
     await prisma.user.update({
       where: { id: userId },
