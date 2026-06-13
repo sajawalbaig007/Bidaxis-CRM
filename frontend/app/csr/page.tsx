@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import TopNavbar from "./components/navigation/TopNavbar";
+import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
 import CommentCell from "./components/shared/CommentCell";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
@@ -185,6 +186,7 @@ export default function CSRPage() {
   return (
     <div className="min-h-screen bg-[#F5F6FA]">
       <TopNavbar />
+      <UsaTimezoneClocks />
 
       <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
 

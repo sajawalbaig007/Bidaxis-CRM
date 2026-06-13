@@ -1,80 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  ThumbsDown, PhoneOff, Search, Users, X,
-  Phone, Briefcase, ArrowRightLeft, CircleAlert,
-  RefreshCw, History, ChevronDown, ChevronUp, Eye,
-  Calendar, Clock, Globe, BarChart2, CalendarDays,
-  PenTool, Pencil, Building2, Monitor, FileText,
-  DollarSign, AlignLeft, MessageSquare, Check,
+  ThumbsDown, PhoneOff, Search,
+  X, ArrowRightLeft, RefreshCw,
+  ChevronDown, ChevronUp, Eye, Users,
+  Phone, Briefcase, MessageSquare, Check,
+  History, CalendarDays, DollarSign, AlignLeft,
+  FileText,
 } from "lucide-react";
 
-import CSRNavbar  from "../components/CSRNavbar";
-import CSRSidebar from "../components/CSRSidebar";
+import TopNavbar from "../components/navigation/TopNavbar";
 import LeadDetailModal from "../components/LeadDetailModal";
+import ImportantCallModal from "../components/modals/ImportantCallModal";
+import InterestedModal from "../components/modals/InterestedModal";
+import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
+import TriesBar from "../components/shared/TriesBar";
+import Pagination from "../components/shared/Pagination";
+
+import { useNotInterested, NiLead } from "../hooks/useNotInterested";
+import { serviceOptions } from "../constants/services";
 import API from "@/lib/api";
 
 const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT     = 7;
-
-const usTimezones = [
-  { value: "America/Los_Angeles",           label: "Pacific Time (UTC-08:00)",    abbreviation: "PT"   },
-  { value: "America/Denver",               label: "Mountain Time (UTC-07:00)",   abbreviation: "MT"   },
-  { value: "America/Chicago",              label: "Central Time (UTC-06:00)",    abbreviation: "CT"   },
-  { value: "America/New_York",             label: "Eastern Time (UTC-05:00)",    abbreviation: "ET"   },
-  { value: "America/Phoenix",              label: "Arizona (UTC-07:00) No DST",  abbreviation: "MST"  },
-  { value: "America/Anchorage",            label: "Alaska (UTC-09:00)",          abbreviation: "AKST" },
-  { value: "Pacific/Honolulu",             label: "Hawaii (UTC-10:00) No DST",   abbreviation: "HST"  },
-];
-
-const serviceOptions = [
-  { value: "Estimating",   label: "Estimating",   Icon: BarChart2    },
-  { value: "Scheduling",   label: "Scheduling",   Icon: CalendarDays  },
-  { value: "Shop Drawing", label: "Shop Drawing", Icon: PenTool      },
-  { value: "Drafting",     label: "Drafting",     Icon: Pencil       },
-  { value: "BIM",          label: "BIM",          Icon: Building2    },
-  { value: "IT",           label: "IT",           Icon: Monitor      },
-];
-
-const getCurrentTimeInTimezone = (tz: string): string => {
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true,
-    }).format(new Date());
-  } catch { return "--:-- --"; }
-};
-
-type Lead = {
-  id: string; client: string; company: string; phone: string;
-  email?: string; state?: string; status: string;
-  notInterestedCount: number; notPickedCount: number;
-  interestedService?: string; followUpNotes?: string; comments?: string;
-};
-
-function TriesBar({ used, limit, color }: { used: number; limit: number; color: string }) {
-  const pct = Math.min((used / limit) * 100, 100);
-  return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-[10px] sm:text-[11px] font-semibold text-gray-500">{used} / {limit}</span>
-        <span className={`text-[10px] sm:text-[11px] font-bold ${used >= limit ? "text-red-600" : "text-gray-400"}`}>
-          {used >= limit ? "Redistributed" : `${limit - used} left`}
-        </span>
-      </div>
-      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-1.5 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-const PAGE_SIZE = 30;
+const PAGE_SIZE            = 30;
 
 export default function NotInterestedPage() {
-  const [isOpen,    setIsOpen]    = useState(false);
-  const [leads,     setLeads]     = useState<Lead[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const { leads, setLeads, loading, refetch } = useNotInterested();
+
   const [activeTab, setActiveTab] = useState<"notinterested" | "notpicked">("notinterested");
   const [search,    setSearch]    = useState("");
   const [page,      setPage]      = useState(1);
@@ -87,16 +41,16 @@ export default function NotInterestedPage() {
   const [commentDraft,     setCommentDraft]     = useState("");
   const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
 
-  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+  const [viewingLead, setViewingLead] = useState<NiLead | null>(null);
 
   /* ── Manual CSR assign (when retry limit reached) ── */
-  const [showAssignModal,   setShowAssignModal]   = useState(false);
-  const [assignLead,        setAssignLead]        = useState<Lead | null>(null);
-  const [csrList,           setCsrList]           = useState<{ id: string; name: string; csrCode: string | null }[]>([]);
-  const [selectedCsrId,     setSelectedCsrId]     = useState("");
-  const [isAssigning,       setIsAssigning]       = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignLead,      setAssignLead]      = useState<NiLead | null>(null);
+  const [csrList,         setCsrList]         = useState<{ id: string; name: string; csrCode: string | null }[]>([]);
+  const [selectedCsrId,   setSelectedCsrId]   = useState("");
+  const [isAssigning,     setIsAssigning]     = useState(false);
 
-  const [statusLead,          setStatusLead]          = useState<Lead | null>(null);
+  const [statusLead,          setStatusLead]          = useState<NiLead | null>(null);
   const [showImportantModal,  setShowImportantModal]  = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
   const [showCloseModal,      setShowCloseModal]      = useState(false);
@@ -116,40 +70,7 @@ export default function NotInterestedPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchLeads = async () => {
-    try {
-      setLoading(true);
-      const res = await API.get("/csr/not-interested");
-      const formatted: Lead[] = (res.data.leads ?? []).map((l: {
-        id: string; name?: string; company?: string;
-        uploadFile?: { companyName?: string }; phone?: string;
-        email?: string; state?: string; status?: string;
-        notInterestedCount?: number; notPickedCount?: number;
-        interestedService?: string; followUpNotes?: string; comments?: string;
-      }) => ({
-        id: l.id,
-        client:  l.name    ?? "Unknown",
-        company: l.uploadFile?.companyName ?? l.company ?? "N/A",
-        phone:   l.phone   ?? "N/A",
-        email:   l.email   ?? "",
-        state:   l.state   ?? "",
-        status:  l.status  ?? "",
-        notInterestedCount: l.notInterestedCount ?? 0,
-        notPickedCount:     l.notPickedCount     ?? 0,
-        interestedService:  l.interestedService  ?? "",
-        followUpNotes:      l.followUpNotes      ?? "",
-        comments:           l.comments           ?? "",
-      }));
-      setLeads(formatted);
-    } catch (err) { console.log(err); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => { void fetchLeads(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
+  /* ── Derived lists ── */
   const notInterested = useMemo(() => leads.filter(l => l.status === "Not Interested"), [leads]);
   const notPicked     = useMemo(() => leads.filter(l => l.status === "not picked" || l.status === "not completed"), [leads]);
   const currentList   = activeTab === "notinterested" ? notInterested : notPicked;
@@ -166,7 +87,30 @@ export default function NotInterestedPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleRetry = async (lead: Lead) => {
+  /* ── Chart rows ── */
+  const chartRows = useMemo<StackedBarRow[]>(() => {
+    const nearNI = notInterested.filter(l => l.notInterestedCount >= NOT_INTERESTED_LIMIT - 1).length;
+    const nearNP = notPicked.filter(l => l.notPickedCount     >= NOT_PICKED_LIMIT     - 1).length;
+    return [
+      {
+        label: "Not Interested",
+        segments: [
+          { label: "Near Limit",  value: nearNI,                         color: "#EF4444" },
+          { label: "Active NI",   value: notInterested.length - nearNI,  color: "#B8112D" },
+        ],
+      },
+      {
+        label: "Not Picked",
+        segments: [
+          { label: "Near Limit",  value: nearNP,                   color: "#F97316" },
+          { label: "Safe NP",     value: notPicked.length - nearNP, color: "#15803D" },
+        ],
+      },
+    ];
+  }, [notInterested, notPicked]);
+
+  /* ── Handlers ── */
+  const handleRetry = async (lead: NiLead) => {
     const newStatus = activeTab === "notinterested" ? "Not Interested" : "not picked";
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status: newStatus });
@@ -176,9 +120,7 @@ export default function NotInterestedPage() {
         setSelectedCsrId("");
         setShowAssignModal(true);
         setLeads(prev => prev.map(l =>
-          l.id === lead.id
-            ? { ...l, [countKey]: (l[countKey as keyof Lead] as number) + 1 }
-            : l
+          l.id === lead.id ? { ...l, [countKey]: (l[countKey as keyof NiLead] as number) + 1 } : l
         ));
       } else {
         const triesLeft    = res.data.triesLeft ?? 0;
@@ -186,7 +128,7 @@ export default function NotInterestedPage() {
         showToast(`Retried. ${triesLeft} attempt${triesLeft !== 1 ? "s" : ""} left.`);
         setLeads(prev => prev.map(l =>
           l.id === lead.id
-            ? { ...l, [countKey]: (l[countKey as keyof Lead] as number) + 1, followUpNotes: updatedNotes }
+            ? { ...l, [countKey]: (l[countKey as keyof NiLead] as number) + 1, followUpNotes: updatedNotes }
             : l
         ));
       }
@@ -207,11 +149,11 @@ export default function NotInterestedPage() {
     finally { setIsAssigning(false); }
   };
 
-  const handleSaveNote = async (lead: Lead) => {
+  const handleSaveNote = async (lead: NiLead) => {
     if (!editingNote) return;
     setSavingNote(true);
     try {
-      const lines = (lead.followUpNotes ?? "").split("\n").filter(Boolean);
+      const lines   = (lead.followUpNotes ?? "").split("\n").filter(Boolean);
       lines[editingNote.index] = editingNote.value;
       const updated = lines.join("\n");
       await API.put(`/csr/lead/${lead.id}`, { followUpNotes: updated });
@@ -221,7 +163,7 @@ export default function NotInterestedPage() {
     finally { setSavingNote(false); }
   };
 
-  const handleUpdateStatus = async (lead: Lead, status: string) => {
+  const handleUpdateStatus = async (lead: NiLead, status: string) => {
     if (status === "") return;
     if (status === "important") {
       setStatusLead(lead); setScheduleDate(""); setScheduleTime("");
@@ -282,11 +224,9 @@ export default function NotInterestedPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
-      <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen} />
-
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 pt-[88px] sm:pt-[95px] overflow-x-hidden">
-        <CSRNavbar setIsOpen={setIsOpen} />
+    <div className="min-h-screen bg-[#F5F6FA]">
+      <TopNavbar />
+      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
 
         {/* ── TOAST ── */}
         {toast && (
@@ -295,7 +235,9 @@ export default function NotInterestedPage() {
               ? "bg-amber-50 border border-amber-300 text-amber-800"
               : "bg-green-50 border border-green-300 text-green-800"
           }`}>
-            {toast.type === "warn" ? <ArrowRightLeft size={14} className="shrink-0 sm:w-4 sm:h-4" /> : <RefreshCw size={14} className="shrink-0 sm:w-4 sm:h-4" />}
+            {toast.type === "warn"
+              ? <ArrowRightLeft size={14} className="shrink-0 sm:w-4 sm:h-4" />
+              : <RefreshCw size={14} className="shrink-0 sm:w-4 sm:h-4" />}
             <span className="truncate">{toast.msg}</span>
             <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100 shrink-0">
               <X size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -304,39 +246,27 @@ export default function NotInterestedPage() {
         )}
 
         {/* ── HEADER ── */}
-        <div className="mt-4 sm:mt-7 mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-[28px] lg:text-[32px] font-bold text-[#0F172A]">Leads Follow-up</h1>
-          <p className="text-gray-500 mt-1 sm:mt-1.5 text-xs sm:text-sm">
+        <div className="mt-1">
+          <h1 className="text-2xl sm:text-[28px] lg:text-[34px] font-bold text-[#0F172A] leading-tight">
+            Leads Follow-up
+          </h1>
+          <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
             Track Not Interested &amp; Not Picked leads with automatic redistribution.
           </p>
         </div>
 
-        {/* ── STAT CARDS ── */}
-        {/* 2-col mobile → 2-col sm → 4-col xl */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          {[
-            { label: "Not Interested",  value: notInterested.length, sub: `limit ${NOT_INTERESTED_LIMIT} tries`, color: "bg-[#FFF1F3] text-[#B8112D]", Icon: ThumbsDown  },
-            { label: "Not Picked",      value: notPicked.length,     sub: `limit ${NOT_PICKED_LIMIT} tries`,     color: "bg-[#FFF7E6] text-[#B54708]", Icon: PhoneOff    },
-            { label: "Near Limit (NI)", value: notInterested.filter(l => l.notInterestedCount >= NOT_INTERESTED_LIMIT - 1).length, sub: "1 try left", color: "bg-[#FEF3C7] text-[#92400E]", Icon: CircleAlert },
-            { label: "Near Limit (NP)", value: notPicked.filter(l => l.notPickedCount >= NOT_PICKED_LIMIT - 1).length,             sub: "1 try left", color: "bg-[#FEF3C7] text-[#92400E]", Icon: CircleAlert },
-          ].map(card => (
-            <div key={card.label} className="bg-white rounded-2xl sm:rounded-[22px] p-3 sm:p-4 border border-white shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-gray-500 text-[10px] sm:text-[12px] font-medium truncate">{card.label}</p>
-                  <h2 className="text-2xl sm:text-[28px] font-bold text-[#0F172A] mt-0.5 sm:mt-1">{card.value}</h2>
-                  <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 truncate">{card.sub}</p>
-                </div>
-                <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl ${card.color} flex items-center justify-center shrink-0`}>
-                  <card.Icon size={16} className="sm:w-5 sm:h-5" />
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* ── STATS CHART ── */}
+        <div className="mt-4 sm:mt-7">
+          <StackedHorizontalBarChart
+            title="Pipeline by stage and try count"
+            subtitle="Breakdown of not-interested and not-picked leads — near-limit segments highlighted."
+            rows={chartRows}
+            loading={loading}
+          />
         </div>
 
         {/* ── TAB BUTTONS ── */}
-        <div className="flex gap-2 sm:gap-3 mb-4 sm:mb-5 overflow-x-auto pb-0.5">
+        <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7 overflow-x-auto pb-0.5">
           {[
             { key: "notinterested", label: "Not Interested", count: notInterested.length, Icon: ThumbsDown },
             { key: "notpicked",     label: "Not Picked",     count: notPicked.length,     Icon: PhoneOff   },
@@ -361,7 +291,7 @@ export default function NotInterestedPage() {
 
         {/* ── TABLE CARD ── */}
         <div
-          className="bg-white rounded-2xl sm:rounded-[30px] border border-white shadow-sm flex flex-col"
+          className="bg-white rounded-2xl sm:rounded-[30px] border border-white shadow-sm flex flex-col mt-4 sm:mt-7"
           style={{ maxHeight: "calc(100vh - 300px)", minHeight: "340px" }}
         >
           {/* Card header */}
@@ -376,8 +306,6 @@ export default function NotInterestedPage() {
                   <span className="font-semibold text-[#B8112D]">{limit} tries</span>.
                 </p>
               </div>
-
-              {/* Search + refresh + count badge */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[150px] sm:flex-none sm:w-[220px] lg:w-[260px]">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
@@ -390,7 +318,7 @@ export default function NotInterestedPage() {
                   />
                 </div>
                 <button
-                  onClick={() => void fetchLeads()}
+                  onClick={() => void refetch()}
                   className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors text-gray-500"
                   title="Refresh"
                 >
@@ -405,7 +333,7 @@ export default function NotInterestedPage() {
             </div>
           </div>
 
-          {/* Horizontally scrollable table */}
+          {/* Table */}
           <div className="overflow-auto flex-1 px-3 sm:px-5 lg:px-6 pb-4 sm:pb-5">
             <table className="w-full" style={{ minWidth: "960px" }}>
               <thead className="sticky top-0 bg-white z-10">
@@ -417,10 +345,9 @@ export default function NotInterestedPage() {
                   ))}
                 </tr>
               </thead>
-
               <tbody>
                 {loading ? (
-                  [1, 2, 3, 4].map(i => (
+                  [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
                       {[1,2,3,4,5,6,7,8].map(j => (
                         <td key={j} className="py-4 sm:py-5 px-2">
@@ -430,7 +357,7 @@ export default function NotInterestedPage() {
                     </tr>
                   ))
                 ) : filtered.length > 0 ? paginated.map(lead => {
-                  const tries       = lead[countKey as keyof Lead] as number;
+                  const tries       = lead[countKey as keyof NiLead] as number;
                   const isNearLimit = tries >= limit - 1;
                   const isAtLimit   = tries >= limit;
                   const barColor    = isAtLimit
@@ -556,7 +483,7 @@ export default function NotInterestedPage() {
                             }`}>
                               {activeTab === "notinterested"
                                 ? <><ThumbsDown size={11} className="sm:w-3 sm:h-3" />Not Interested</>
-                                : <><PhoneOff size={11} className="sm:w-3 sm:h-3" />Not Picked</>
+                                : <><PhoneOff   size={11} className="sm:w-3 sm:h-3" />Not Picked</>
                               }
                             </span>
                           )}
@@ -565,7 +492,6 @@ export default function NotInterestedPage() {
                         {/* Action */}
                         <td className="py-3 sm:py-4 px-2">
                           <div className="flex flex-col gap-1.5 sm:gap-2 min-w-[170px] sm:min-w-[200px]">
-                            {/* Eye + Retry + History */}
                             <div className="flex items-center gap-1.5 sm:gap-2">
                               <button
                                 onClick={() => setViewingLead(lead)}
@@ -593,7 +519,7 @@ export default function NotInterestedPage() {
                                   className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-[#F5F6FA] text-gray-500 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-all shrink-0"
                                 >
                                   {expandedRow === lead.id
-                                    ? <ChevronUp size={12} className="sm:w-[13px] sm:h-[13px]" />
+                                    ? <ChevronUp   size={12} className="sm:w-[13px] sm:h-[13px]" />
                                     : <ChevronDown size={12} className="sm:w-[13px] sm:h-[13px]" />
                                   }
                                 </button>
@@ -623,7 +549,7 @@ export default function NotInterestedPage() {
 
                       {/* ── History row ── */}
                       {expandedRow === lead.id && lead.followUpNotes && (
-                        <tr className="bg-[#F8FAFF]">
+                        <tr key={`${lead.id}-hist`} className="bg-[#F8FAFF]">
                           <td colSpan={8} className="px-4 sm:px-6 py-3 sm:py-4">
                             <div className="flex items-start gap-2 sm:gap-3">
                               <div className="mt-0.5 w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
@@ -633,11 +559,11 @@ export default function NotInterestedPage() {
                                 <p className="text-[10px] sm:text-[12px] font-semibold text-gray-500 mb-1.5 sm:mb-2 uppercase tracking-wide">Try History</p>
                                 <div className="space-y-1.5 sm:space-y-2">
                                   {lead.followUpNotes.trim().split("\n").filter(Boolean).map((line, i) => {
-                                    const isLimit   = line.includes("LIMIT REACHED");
-                                    const isEditingThis = editingNote?.leadId === lead.id && editingNote.index === i;
-                                    const bracketEnd = line.indexOf("]");
-                                    const prefix  = bracketEnd !== -1 ? line.slice(0, bracketEnd + 1) : "";
-                                    const rest    = bracketEnd !== -1 ? line.slice(bracketEnd + 1).trim() : line;
+                                    const isLimit        = line.includes("LIMIT REACHED");
+                                    const isEditingThis  = editingNote?.leadId === lead.id && editingNote.index === i;
+                                    const bracketEnd     = line.indexOf("]");
+                                    const prefix         = bracketEnd !== -1 ? line.slice(0, bracketEnd + 1) : "";
+                                    const rest           = bracketEnd !== -1 ? line.slice(bracketEnd + 1).trim() : line;
 
                                     return (
                                       <div key={i} className={`rounded-xl border text-[11px] sm:text-[12px] ${isLimit ? "bg-red-50 border-red-100" : "bg-white border-gray-100"}`}>
@@ -714,133 +640,35 @@ export default function NotInterestedPage() {
                 )}
               </tbody>
             </table>
-            {totalPages > 0 && (
-              <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-gray-100">
-                <p className="text-xs text-gray-400">
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
-                  <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                    className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
-                </div>
-              </div>
-            )}
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={PAGE_SIZE}
+              onPage={setPage}
+            />
           </div>
         </div>
 
-        {/* ══ IMPORTANT MODAL ══ */}
-        {showImportantModal && statusLead && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] p-5 sm:p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-                <div>
-                  <h2 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Important Call</h2>
-                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
-                    Schedule follow-up for <span className="font-semibold text-[#0F172A]">{statusLead.client}</span>
-                  </p>
-                </div>
-                <button onClick={() => setShowImportantModal(false)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0">
-                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-                </button>
-              </div>
-              <div className="space-y-3 sm:space-y-4">
-                {[
-                  { label: "Date", inputType: "date", value: scheduleDate, onChange: setScheduleDate, Icon: Calendar },
-                  { label: "Time", inputType: "time", value: scheduleTime, onChange: setScheduleTime, Icon: Clock    },
-                ].map(({ label, inputType, value, onChange, Icon }) => (
-                  <div key={label}>
-                    <label className="text-xs sm:text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-1.5 sm:mb-2">
-                      <Icon size={13} className="sm:w-[15px] sm:h-[15px]" />{label}
-                    </label>
-                    <input
-                      type={inputType}
-                      value={value}
-                      onChange={e => onChange(e.target.value)}
-                      className="w-full h-11 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 outline-none focus:border-[#B8112D] text-sm"
-                    />
-                  </div>
-                ))}
-                <div className="relative">
-                  <label className="text-xs sm:text-sm font-semibold text-[#0F172A] flex items-center gap-2 mb-1.5 sm:mb-2">
-                    <Globe size={13} className="sm:w-[15px] sm:h-[15px]" />Timezone
-                  </label>
-                  <select
-                    value={selectedTimezone}
-                    onChange={e => setSelectedTimezone(e.target.value)}
-                    className="w-full h-11 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 pr-9 sm:pr-10 outline-none appearance-none bg-white focus:border-[#B8112D] text-xs sm:text-[13px]"
-                  >
-                    {usTimezones.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 sm:right-4 top-[38px] sm:top-[42px] pointer-events-none text-gray-400 sm:w-4 sm:h-4" />
-                </div>
-                {scheduleDate && scheduleTime && (
-                  <div className="p-3 bg-[#F5F6FA] rounded-xl sm:rounded-2xl text-sm">
-                    <p className="text-gray-500 text-[10px] sm:text-[11px] mb-1">Scheduled at</p>
-                    <p className="font-semibold text-[#0F172A] text-xs sm:text-sm">
-                      {scheduleDate} · {scheduleTime} {usTimezones.find(t => t.value === selectedTimezone)?.abbreviation}
-                    </p>
-                    <p className="text-[10px] sm:text-[11px] text-gray-400 mt-1">
-                      Current time: {getCurrentTimeInTimezone(selectedTimezone)}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
-                <button onClick={() => setShowImportantModal(false)} className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
-                <button onClick={saveImportant} disabled={!scheduleDate || !scheduleTime}
-                  className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40">
-                  Schedule
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* ══ IMPORTANT MODAL (shared) ══ */}
+        {showImportantModal && (
+          <ImportantCallModal
+            date={scheduleDate}       onDateChange={setScheduleDate}
+            time={scheduleTime}       onTimeChange={setScheduleTime}
+            timezone={selectedTimezone} onTimezoneChange={setSelectedTimezone}
+            onClose={() => setShowImportantModal(false)}
+            onSave={saveImportant}
+          />
         )}
 
-        {/* ══ INTERESTED MODAL ══ */}
-        {showInterestedModal && statusLead && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] p-5 sm:p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-                <div>
-                  <h2 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Client Interested In</h2>
-                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
-                    <span className="font-semibold text-[#0F172A]">{statusLead.client}</span> is interested in:
-                  </p>
-                </div>
-                <button onClick={() => setShowInterestedModal(false)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500 shrink-0">
-                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 sm:gap-3">
-                {serviceOptions.map(({ value, label, Icon }) => {
-                  const sel = selectedService === value;
-                  return (
-                    <button key={value} onClick={() => setSelectedService(value)}
-                      className={`h-[70px] sm:h-[80px] rounded-xl sm:rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 sm:gap-2 transition-all text-[12px] sm:text-[13px] font-semibold ${
-                        sel ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
-                      }`}>
-                      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center ${sel ? "bg-[#B8112D]/10" : "bg-white shadow-sm"}`}>
-                        <Icon size={15} className={`sm:w-[17px] sm:h-[17px] ${sel ? "text-[#B8112D]" : "text-gray-500"}`} />
-                      </div>
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
-                <button onClick={() => setShowInterestedModal(false)} className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
-                <button onClick={saveInterested} disabled={!selectedService}
-                  className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40">
-                  Save Interest
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* ══ INTERESTED MODAL (shared) ══ */}
+        {showInterestedModal && (
+          <InterestedModal
+            service={selectedService} onServiceChange={setSelectedService}
+            onClose={() => { setShowInterestedModal(false); setSelectedService(""); }}
+            onSave={saveInterested}
+          />
         )}
 
         {/* ══ CLOSE CLIENT MODAL ══ */}
@@ -850,7 +678,6 @@ export default function NotInterestedPage() {
               className="w-full sm:max-w-[520px] lg:max-w-[540px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
               style={{ maxHeight: "92vh" }}
             >
-              {/* Gradient header */}
               <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
                 <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
@@ -876,10 +703,8 @@ export default function NotInterestedPage() {
                 </div>
               </div>
 
-              {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto overscroll-contain">
                 <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-3 sm:space-y-5">
-                  {/* Project Title */}
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
                       <FileText size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
@@ -894,7 +719,6 @@ export default function NotInterestedPage() {
                     />
                   </div>
 
-                  {/* Service picker */}
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
                       <Briefcase size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
@@ -921,17 +745,13 @@ export default function NotInterestedPage() {
                     </div>
                   </div>
 
-                  {/* Deadline + Budget */}
                   <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <div>
                       <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
                         <CalendarDays size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
                         Deadline <span className="text-[#B8112D] normal-case">*</span>
                       </label>
-                      <input
-                        type="date"
-                        value={projectDeadline}
-                        onChange={e => setProjectDeadline(e.target.value)}
+                      <input type="date" value={projectDeadline} onChange={e => setProjectDeadline(e.target.value)}
                         className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors"
                       />
                     </div>
@@ -942,18 +762,13 @@ export default function NotInterestedPage() {
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                        <input
-                          type="text"
-                          placeholder="0.00"
-                          value={projectBudget.replace(/^\$/, "")}
-                          onChange={e => setProjectBudget(e.target.value)}
+                        <input type="text" placeholder="0.00" value={projectBudget.replace(/^\$/, "")} onChange={e => setProjectBudget(e.target.value)}
                           className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-6 sm:pl-7 pr-2 sm:pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Notes */}
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
                       <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
@@ -990,11 +805,10 @@ export default function NotInterestedPage() {
           </div>
         )}
 
-        {/* ══ ASSIGN CSR MODAL (shown when retry limit reached) ══ */}
+        {/* ══ ASSIGN CSR MODAL ══ */}
         {showAssignModal && assignLead && (
           <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
-              {/* header */}
               <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1009,8 +823,6 @@ export default function NotInterestedPage() {
                   </button>
                 </div>
               </div>
-
-              {/* CSR list */}
               <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
                 {csrList.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No other active CSRs available.</p>
@@ -1019,23 +831,15 @@ export default function NotInterestedPage() {
                     key={csr.id}
                     onClick={() => setSelectedCsrId(csr.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                      selectedCsrId === csr.id
-                        ? "border-[#B8112D] bg-[#FFF1F3]"
-                        : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                      selectedCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
                     }`}
                   >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                      selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
-                    }`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"}`}>
                       {csr.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
-                        {csr.name}
-                      </p>
-                      {csr.csrCode && (
-                        <p className="text-xs text-gray-400">{csr.csrCode}</p>
-                      )}
+                      <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>{csr.name}</p>
+                      {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                     </div>
                     {selectedCsrId === csr.id && (
                       <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
@@ -1045,13 +849,8 @@ export default function NotInterestedPage() {
                   </button>
                 ))}
               </div>
-
-              {/* actions */}
               <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
-                <button onClick={() => setShowAssignModal(false)}
-                  className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">
-                  Cancel
-                </button>
+                <button onClick={() => setShowAssignModal(false)} className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">Cancel</button>
                 <button
                   onClick={handleAssignToCSR}
                   disabled={!selectedCsrId || isAssigning}
@@ -1069,23 +868,23 @@ export default function NotInterestedPage() {
         {viewingLead && (
           <LeadDetailModal
             lead={{
-              id: viewingLead.id,
-              name: viewingLead.client,
-              company:   viewingLead.company !== "N/A" ? viewingLead.company : undefined,
-              phone:     viewingLead.phone   !== "N/A" ? viewingLead.phone   : undefined,
-              email:     viewingLead.email,
-              state:     viewingLead.state   || undefined,
-              status:    viewingLead.status,
+              id:                viewingLead.id,
+              name:              viewingLead.client,
+              company:           viewingLead.company !== "N/A" ? viewingLead.company : undefined,
+              phone:             viewingLead.phone   !== "N/A" ? viewingLead.phone   : undefined,
+              email:             viewingLead.email,
+              state:             viewingLead.state   || undefined,
+              status:            viewingLead.status,
               interestedService: viewingLead.interestedService,
               followUpNotes:     viewingLead.followUpNotes,
             }}
             onClose={() => setViewingLead(null)}
             onSaved={(id, updates) => {
-              const merged: Partial<Lead> = {};
-              if (updates.name         !== undefined) merged.client = updates.name.trim()  || "Unknown";
-              if (updates.phone        !== undefined) merged.phone  = updates.phone.trim() || "N/A";
-              if (updates.email        !== undefined) merged.email  = updates.email.trim();
-              if (updates.state        !== undefined) merged.state  = updates.state.trim();
+              const merged: Partial<NiLead> = {};
+              if (updates.name          !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.phone         !== undefined) merged.phone  = updates.phone.trim() || "N/A";
+              if (updates.email         !== undefined) merged.email  = updates.email.trim();
+              if (updates.state         !== undefined) merged.state  = updates.state.trim();
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(l => l.id === id ? { ...l, ...merged } : l));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
@@ -1093,6 +892,7 @@ export default function NotInterestedPage() {
           />
         )}
       </main>
+
     </div>
   );
 }

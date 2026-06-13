@@ -1,33 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Search, RefreshCw, Phone, Briefcase,
   Trash2, X, ArrowUpCircle,
 } from "lucide-react";
 
-import CSRNavbar  from "../components/CSRNavbar";
-import CSRSidebar from "../components/CSRSidebar";
+import TopNavbar from "../components/navigation/TopNavbar";
+import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
+import Pagination from "../components/shared/Pagination";
+
+import { useBinData } from "../hooks/useBinData";
 import API from "@/lib/api";
 
 const NOT_PICKED_LIMIT = 7;
-
-type Lead = {
-  id:              string;
-  client:          string;
-  company:         string;
-  phone:           string;
-  status:          string;
-  notPickedCount:  number;
-  interestedService?: string;
-  updatedAt?:      string;
-};
+const PAGE_SIZE        = 30;
 
 export default function CSRBinPage() {
-  const [isOpen,  setIsOpen]  = useState(false);
-  const [leads,   setLeads]   = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { leads, setLeads, loading, refetch } = useBinData();
+
   const [search,  setSearch]  = useState("");
+  const [page,    setPage]    = useState(1);
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "warn" } | null>(null);
   const showToast = (msg: string, type: "success" | "warn" = "success") => {
@@ -35,63 +28,46 @@ export default function CSRBinPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  /* ── Restore to pending ── */
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  const fetchLeads = async () => {
-    try {
-      setLoading(true);
-      const res = await API.get("/csr/bin");
-      const formatted: Lead[] = (res.data.leads ?? []).map((l: {
-        id: string; name?: string; company?: string;
-        uploadFile?: { companyName?: string }; phone?: string;
-        status?: string; notPickedCount?: number;
-        interestedService?: string; updatedAt?: string;
-      }) => ({
-        id:               l.id,
-        client:           l.name                      ?? "Unknown",
-        company:          l.uploadFile?.companyName   ?? l.company ?? "N/A",
-        phone:            l.phone                     ?? "N/A",
-        status:           l.status                    ?? "",
-        notPickedCount:   l.notPickedCount             ?? 0,
-        interestedService: l.interestedService         ?? "",
-        updatedAt:        l.updatedAt                 ?? "",
-      }));
-      setLeads(formatted);
-    } catch (err) { console.log(err); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => {
-    const t = window.setTimeout(() => { void fetchLeads(); }, 0);
-    return () => window.clearTimeout(t);
-  }, []);
+  /* ── Derived ── */
+  const nearLimit = useMemo(() => leads.filter(l => l.notPickedCount >= NOT_PICKED_LIMIT - 1), [leads]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return leads.filter(l =>
       !q || l.client.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q)       ||
-      l.phone.includes(q)
+      l.company.toLowerCase().includes(q) || l.phone.includes(q)
     );
   }, [leads, search]);
 
-  const handleRestore = async (lead: Lead) => {
-    setRestoringId(lead.id);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const chartRows = useMemo<StackedBarRow[]>(() => [
+    {
+      label: "Bin Status",
+      segments: [
+        { label: "Near Limit (≥6)", value: nearLimit.length,              color: "#F59E0B" },
+        { label: "Safe",            value: leads.length - nearLimit.length, color: "#15803D" },
+      ],
+    },
+  ], [leads, nearLimit]);
+
+  const handleRestore = async (id: string, name: string) => {
+    setRestoringId(id);
     try {
-      await API.put(`/csr/lead/${lead.id}`, { status: "pending" });
-      setLeads(prev => prev.filter(l => l.id !== lead.id));
-      showToast(`${lead.client} restored to active.`);
+      await API.put(`/csr/lead/${id}`, { status: "pending" });
+      setLeads(prev => prev.filter(l => l.id !== id));
+      showToast(`${name} restored to active.`);
     } catch { showToast("Failed to restore lead.", "warn"); }
     finally { setRestoringId(null); }
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
-      <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen} />
-
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 pt-[88px] sm:pt-[95px] overflow-x-hidden">
-        <CSRNavbar setIsOpen={setIsOpen} />
+    <div className="min-h-screen bg-[#F5F6FA]">
+      <TopNavbar />
+      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
 
         {/* ── TOAST ── */}
         {toast && (
@@ -108,35 +84,32 @@ export default function CSRBinPage() {
         )}
 
         {/* ── HEADER ── */}
-        <div className="mt-4 sm:mt-7 mb-4 sm:mb-6 flex items-center gap-3">
+        <div className="mt-1 flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[#FFF7E6] flex items-center justify-center shrink-0">
             <Trash2 size={18} className="text-[#B54708] sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-[28px] font-bold text-[#0F172A]">My Bin</h1>
+            <h1 className="text-2xl sm:text-[28px] lg:text-[34px] font-bold text-[#0F172A] leading-tight">My Bin</h1>
             <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Leads you haven&apos;t picked up yet.</p>
           </div>
         </div>
 
-        {/* ── STAT CARDS ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          {[
-            { label: "Total Not Picked", value: leads.length, color: "text-[#0F172A]" },
-            { label: "Near Limit (≥6)",  value: leads.filter(l => l.notPickedCount >= NOT_PICKED_LIMIT - 1).length, color: "text-amber-600" },
-          ].map(card => (
-            <div key={card.label} className="bg-white rounded-2xl p-4 border border-white shadow-sm">
-              <p className="text-xs text-gray-400 font-medium">{card.label}</p>
-              <h2 className={`text-3xl font-bold mt-1 ${card.color}`}>{card.value}</h2>
-            </div>
-          ))}
+        {/* ── STATS CHART ── */}
+        <div className="mt-4 sm:mt-7">
+          <StackedHorizontalBarChart
+            title="Pipeline by stage and type"
+            subtitle="Not-picked leads — safe vs near-redistribution-limit."
+            rows={chartRows}
+            loading={loading}
+          />
         </div>
 
         {/* ── TABLE CARD ── */}
         <div
-          className="bg-white rounded-[22px] sm:rounded-[30px] border border-white shadow-sm flex flex-col"
-          style={{ maxHeight: "calc(100vh - 300px)", minHeight: "340px" }}
+          className="bg-white rounded-[22px] sm:rounded-[30px] border border-white shadow-sm flex flex-col mt-4 sm:mt-7"
+          style={{ maxHeight: "calc(100vh - 280px)", minHeight: "340px" }}
         >
-          {/* card header */}
+          {/* Card header */}
           <div className="p-4 sm:p-5 border-b border-[#F3F3F3] shrink-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">Not Picked Leads</h3>
@@ -145,12 +118,13 @@ export default function CSRBinPage() {
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="text" placeholder="Search..."
-                    value={search} onChange={e => setSearch(e.target.value)}
+                    value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                     className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D]"
                   />
                 </div>
-                <button onClick={() => void fetchLeads()}
-                  className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors">
+                <button onClick={() => void refetch()}
+                  className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors"
+                  title="Refresh">
                   <RefreshCw size={13} />
                 </button>
                 <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF7E6] text-[#B54708] whitespace-nowrap">
@@ -160,7 +134,7 @@ export default function CSRBinPage() {
             </div>
           </div>
 
-          {/* table */}
+          {/* Table */}
           <div className="overflow-auto flex-1 px-3 sm:px-5 pb-4">
             <table className="w-full" style={{ minWidth: "680px" }}>
               <thead className="sticky top-0 bg-white z-10">
@@ -179,11 +153,11 @@ export default function CSRBinPage() {
                       ))}
                     </tr>
                   ))
-                ) : filtered.length > 0 ? filtered.map((lead, idx) => {
+                ) : filtered.length > 0 ? paginated.map((lead, idx) => {
                   const isNear = lead.notPickedCount >= NOT_PICKED_LIMIT - 1;
                   return (
                     <tr key={lead.id} className={`border-b border-[#F7F7F7] ${isNear ? "bg-amber-50/60" : "hover:bg-[#FFFBF2]"}`}>
-                      <td className="py-4 px-2 text-xs text-gray-400">{idx + 1}</td>
+                      <td className="py-4 px-2 text-xs text-gray-400">{(page - 1) * PAGE_SIZE + idx + 1}</td>
 
                       <td className="py-4 px-2">
                         <div className="flex items-center gap-2">
@@ -221,13 +195,15 @@ export default function CSRBinPage() {
 
                       <td className="py-4 px-2">
                         <span className="text-xs text-gray-400">
-                          {lead.updatedAt ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" }) : "—"}
+                          {lead.updatedAt
+                            ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" })
+                            : "—"}
                         </span>
                       </td>
 
                       <td className="py-4 px-2">
                         <button
-                          onClick={() => handleRestore(lead)}
+                          onClick={() => handleRestore(lead.id, lead.client)}
                           disabled={restoringId === lead.id}
                           title="Restore to active"
                           className="h-8 px-3 rounded-xl bg-[#F0FFF4] text-green-700 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-green-100 transition-colors disabled:opacity-50 whitespace-nowrap"
@@ -255,6 +231,14 @@ export default function CSRBinPage() {
                 )}
               </tbody>
             </table>
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={PAGE_SIZE}
+              onPage={setPage}
+            />
           </div>
         </div>
       </main>
