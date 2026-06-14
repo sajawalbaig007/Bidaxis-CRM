@@ -3,6 +3,7 @@ import multer from "multer";
 import prisma from "../config/db";
 import cloudinary from "../config/cloudinary";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
+import { getCache, setCache, invalidatePattern } from "../utils/cache";
 
 const router = express.Router();
 
@@ -25,7 +26,10 @@ function p(val: string | string[]): string {
 ═══════════════════════════════════════════════════════ */
 router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId   = req.user!.id;
+    const cacheKey = `chat:convs:${userId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
 
     const memberships = await prisma.conversationMember.findMany({
       where: { userId },
@@ -82,7 +86,9 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
       };
     });
 
-    return res.json({ conversations });
+    const payload = { conversations };
+    setCache(cacheKey, payload, 3_000);
+    return res.json(payload);
   } catch (err) {
     console.error("[chat] GET /conversations", err);
     return res.status(500).json({ message: "Failed to fetch conversations" });
@@ -337,6 +343,8 @@ router.post(
         where: { id: conversationId },
         data:  { updatedAt: new Date() },
       });
+
+      invalidatePattern("chat:convs:");
 
       return res.json({
         message: {

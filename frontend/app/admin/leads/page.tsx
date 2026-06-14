@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import API from "@/lib/api";
+import { visibleInterval } from "@/lib/visibleInterval";
 import toast, { Toaster } from "react-hot-toast";
 
 import {
@@ -246,10 +247,10 @@ export default function ClientsPage() {
     };
 
     load();
-    const interval = setInterval(load, 5000);
+    const stop = visibleInterval(load, 30_000);
     return () => {
       mounted = false;
-      clearInterval(interval);
+      stop();
     };
   }, []);
 

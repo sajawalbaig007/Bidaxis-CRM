@@ -40,6 +40,7 @@ app.use(
       }
     },
     credentials: true,
+    maxAge: 86_400,
   })
 );
 
