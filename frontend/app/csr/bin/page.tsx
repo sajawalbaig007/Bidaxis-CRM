@@ -9,6 +9,7 @@ import {
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
 import { useBinData } from "../hooks/useBinData";
 import API from "@/lib/api";
@@ -164,7 +165,19 @@ export default function CSRBinPage() {
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${isNear ? "bg-amber-500" : "bg-[#B54708]"}`}>
                             {lead.client.charAt(0)}
                           </div>
-                          <span className="font-semibold text-[#0F172A] text-[13px]">{lead.client}</span>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-[#0F172A] text-[13px]">{lead.client}</span>
+                              {(() => {
+                                const tz = getTimezoneAbbr(lead.state);
+                                return tz ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                    {tz}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
+                          </div>
                         </div>
                       </td>
 
@@ -175,6 +188,7 @@ export default function CSRBinPage() {
                       <td className="py-4 px-2">
                         <div className="flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
                           <Phone size={10}/>{lead.phone}
+                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
                         </div>
                       </td>
 

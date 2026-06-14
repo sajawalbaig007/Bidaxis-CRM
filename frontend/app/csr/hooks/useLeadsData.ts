@@ -97,7 +97,7 @@ export function useLeadsData() {
     }
   }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
 
   return { leads, setLeads, loading, refetch };
 }

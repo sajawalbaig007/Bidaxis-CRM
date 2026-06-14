@@ -22,7 +22,6 @@ import {
   X,
   CircleAlert,
   PhoneCall,
-  Trophy,
   Briefcase,
   Clock3,
   Globe,
@@ -34,8 +33,9 @@ import {
   Check,
 } from "lucide-react";
 
-import DashboardSidebar from "../components/Sidebar";
-import DashboardNavbar from "../components/Navbar";
+import DashboardSidebar from "../components/layout/Sidebar";
+import DashboardNavbar  from "../components/layout/Navbar";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from "recharts";
 
 /* ─── TYPES ─── */
 type Client = {
@@ -364,7 +364,7 @@ export default function ClientsPage() {
     return (
       <div className="flex min-h-screen bg-[#F5F6FA]">
         <DashboardSidebar />
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[72px] lg:mt-0">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
           <DashboardNavbar />
           <div className="flex items-center justify-center h-[60vh]">
             <div className="text-center">
@@ -384,7 +384,7 @@ export default function ClientsPage() {
 
       {/* ─── MAIN CONTENT ─── */}
       {/* mt-[72px] for mobile/tablet navbar, lg:mt-0 when sidebar is shown */}
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[72px] lg:mt-0">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
 
         {/* ─── PAGE HEADER ─── */}
@@ -397,63 +397,62 @@ export default function ClientsPage() {
           </p>
         </div>
 
-        {/* ─── STAT CARDS ─── */}
-        {/* 2 cols on mobile, 2 on sm, 4 on lg+ */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-5 lg:mb-6">
-          {[
-            {
-              label: "Important Calls",
-              value: importantClients.length,
-              sub: "total flagged",
-              color: "bg-[#FFF1F3] text-[#B8112D]",
-              Icon: CircleAlert,
-            },
-            {
-              label: "Important Today",
-              value: impTodayCount,
-              sub: "scheduled for today",
-              color: "bg-[#EAF5FF] text-[#0B84F3]",
-              Icon: PhoneCall,
-            },
-            {
-              label: "Interested",
-              value: interestedClients.length,
-              sub: "service interest",
-              color: "bg-[#ECFDF3] text-[#027A48]",
-              Icon: Briefcase,
-            },
-            {
-              label: "Close Client",
-              value: projectWonCount,
-              sub: "closed deals",
-              color: "bg-[#ECFDF5] text-[#065F46]",
-              Icon: Trophy,
-            },
-          ].map((card) => (
-            <div
-              key={card.label}
-              className="bg-white rounded-2xl p-3 sm:p-4 lg:p-5 border border-white shadow-sm"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-gray-500 text-[10px] sm:text-[11px] lg:text-[12px] font-medium truncate">
-                    {card.label}
-                  </p>
-                  <h2 className="text-2xl sm:text-[26px] lg:text-[28px] font-bold text-[#0F172A] mt-0.5">
-                    {card.value}
-                  </h2>
-                  <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 truncate">
-                    {card.sub}
-                  </p>
-                </div>
-                <div
-                  className={`w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 rounded-2xl ${card.color} flex items-center justify-center shrink-0`}
-                >
-                  <card.Icon size={16} className="sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5" />
-                </div>
+        {/* ─── LEAD STATUS CHART ─── */}
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-5 lg:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="sm:w-[200px] shrink-0">
+              <div className="h-[160px] sm:h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Important",  value: importantClients.length  || 0.001 },
+                        { name: "Today",      value: impTodayCount             || 0.001 },
+                        { name: "Interested", value: interestedClients.length  || 0.001 },
+                        { name: "Closed",     value: projectWonCount           || 0.001 },
+                      ]}
+                      cx="50%" cy="50%" innerRadius={52} outerRadius={80}
+                      paddingAngle={3} dataKey="value"
+                    >
+                      <Cell fill="#B8112D"/>
+                      <Cell fill="#0B84F3"/>
+                      <Cell fill="#027A48"/>
+                      <Cell fill="#065F46"/>
+                    </Pie>
+                    <RTooltip
+                      contentStyle={{ borderRadius:"12px", border:"1px solid #eee", fontSize:"12px" }}
+                      formatter={(_, n) => {
+                        const total = importantClients.length + interestedClients.length + projectWonCount + impTodayCount;
+                        const val = total === 0 ? 0
+                          : n === "Important"  ? importantClients.length
+                          : n === "Today"      ? impTodayCount
+                          : n === "Interested" ? interestedClients.length
+                          : projectWonCount;
+                        return [val, String(n)];
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
-          ))}
+            <div className="flex-1 grid grid-cols-2 gap-3">
+              {[
+                { label:"Important Calls",  value: importantClients.length, dot:"bg-[#B8112D]", sub:"total flagged"      },
+                { label:"Important Today",  value: impTodayCount,           dot:"bg-[#0B84F3]", sub:"scheduled today"   },
+                { label:"Interested",       value: interestedClients.length,dot:"bg-[#027A48]", sub:"service interest"  },
+                { label:"Close Client",     value: projectWonCount,         dot:"bg-[#065F46]", sub:"closed deals"      },
+              ].map(s => (
+                <div key={s.label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`w-2 h-2 rounded-full ${s.dot} shrink-0`}/>
+                    <p className="text-[11px] text-gray-500 font-medium">{s.label}</p>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-bold text-[#0F172A]">{s.value}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{s.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ─── TAB BAR ─── */}

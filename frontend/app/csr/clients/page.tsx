@@ -15,6 +15,7 @@ import Pagination from "../components/shared/Pagination";
 
 import { useLeadsData, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
 import API from "@/lib/api";
+import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -442,7 +443,10 @@ export default function LeadsPage() {
                       <p className="hidden lg:block text-xs lg:text-sm text-[#0F172A] truncate">{lead.company}</p>
 
                       {/* Phone */}
-                      <p className="hidden lg:block text-xs lg:text-sm text-[#0F172A] whitespace-nowrap">{lead.phone}</p>
+                      <div className="hidden lg:flex items-center gap-1.5">
+                        <p className="text-xs lg:text-sm text-[#0F172A] whitespace-nowrap">{lead.phone}</p>
+                        {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
+                      </div>
 
                       {/* Email */}
                       <p className={`hidden lg:block text-xs lg:text-sm truncate ${lead.email ? "text-[#0F172A]" : "text-gray-300"}`}>

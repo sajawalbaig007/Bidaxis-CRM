@@ -5,14 +5,16 @@ import {
   ThumbsDown, PhoneOff, Search,
   X, ArrowRightLeft, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
-  Phone, Briefcase, MessageSquare, Check,
+  Phone, Briefcase, Check,
   History,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
 import LeadDetailModal from "../components/LeadDetailModal";
+import CommentCell from "../components/shared/CommentCell";
 import ImportantCallModal from "../components/modals/ImportantCallModal";
 import InterestedModal from "../components/modals/InterestedModal";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
@@ -37,9 +39,6 @@ export default function NotInterestedPage() {
   const [editingNote,  setEditingNote]  = useState<{ leadId: string; index: number; value: string } | null>(null);
   const [savingNote,   setSavingNote]   = useState(false);
 
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [commentDraft,     setCommentDraft]     = useState("");
-  const [savingCommentId,  setSavingCommentId]  = useState<string | null>(null);
 
   const [viewingLead, setViewingLead] = useState<NiLead | null>(null);
 
@@ -218,13 +217,8 @@ export default function NotInterestedPage() {
   };
 
   const saveComment = async (id: string, comment: string) => {
-    setSavingCommentId(id);
-    try {
-      await API.put(`/csr/lead/${id}`, { comments: comment });
-      setLeads(prev => prev.map(l => l.id === id ? { ...l, comments: comment } : l));
-    } catch (err) { console.log(err); }
-    setEditingCommentId(null);
-    setSavingCommentId(null);
+    await API.put(`/csr/lead/${id}`, { comments: comment });
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, comments: comment } : l));
   };
 
   return (
@@ -342,7 +336,7 @@ export default function NotInterestedPage() {
             <table className="w-full" style={{ minWidth: "960px" }}>
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-[#F1F1F1]">
-                  {["Client","Company","Contact","Service","Comment","Tries","Status","Action"].map(h => (
+                  {["Client","Company","Contact","Service","Note","Tries","Status","Action"].map(h => (
                     <th key={h} className="text-left py-3 sm:py-4 px-2 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
                       {h}
                     </th>
@@ -385,7 +379,17 @@ export default function NotInterestedPage() {
                               {lead.client.charAt(0)}
                             </div>
                             <div>
-                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                                {(() => {
+                                  const tz = getTimezoneAbbr(lead.state);
+                                  return tz ? (
+                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                      {tz}
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
                               <p className="text-gray-500 text-[10px] sm:text-[12px] mt-0.5">
                                 {activeTab === "notinterested" ? "Not Interested" : "Not Picked"}
                               </p>
@@ -402,6 +406,7 @@ export default function NotInterestedPage() {
                         <td className="py-4 sm:py-5 px-2">
                           <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[13px] font-medium w-fit whitespace-nowrap">
                             <Phone size={11} className="sm:w-3 sm:h-3" />{lead.phone}
+                            {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
                           </div>
                         </td>
 
@@ -416,53 +421,9 @@ export default function NotInterestedPage() {
                           )}
                         </td>
 
-                        {/* Comments */}
+                        {/* Sticky Note */}
                         <td className="py-4 sm:py-5 px-2">
-                          {editingCommentId === lead.id ? (
-                            <div className="flex flex-col gap-1.5 w-full max-w-[180px] sm:max-w-[220px]">
-                              <textarea
-                                autoFocus
-                                value={commentDraft}
-                                onChange={e => setCommentDraft(e.target.value)}
-                                rows={2}
-                                placeholder="Type your comment..."
-                                className="w-full rounded-xl border border-[#B8112D] px-2.5 py-2 text-[12px] outline-none resize-none text-[#0F172A]"
-                              />
-                              <div className="flex gap-1.5">
-                                <button
-                                  onClick={() => saveComment(lead.id, commentDraft)}
-                                  disabled={savingCommentId === lead.id}
-                                  className="flex-1 h-8 rounded-xl bg-[#B8112D] text-white text-[11px] font-semibold flex items-center justify-center gap-1"
-                                >
-                                  <Check size={11} />{savingCommentId === lead.id ? "Saving..." : "Save"}
-                                </button>
-                                <button
-                                  onClick={() => setEditingCommentId(null)}
-                                  className="flex-1 h-8 rounded-xl bg-[#F5F6FA] text-gray-500 text-[11px] font-semibold"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div
-                              onClick={() => { setEditingCommentId(lead.id); setCommentDraft(lead.comments || ""); }}
-                              className="group cursor-pointer flex items-start gap-2 max-w-[160px] sm:max-w-[200px]"
-                            >
-                              {lead.comments ? (
-                                <div className="bg-[#F5F6FA] rounded-xl px-2.5 py-2 w-full">
-                                  <p className="text-[12px] text-[#0F172A] leading-snug line-clamp-2">{lead.comments}</p>
-                                  <p className="text-[10px] sm:text-[11px] text-[#B8112D] mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Click to edit
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1 text-gray-400 hover:text-[#B8112D] transition-colors">
-                                  <MessageSquare size={13} /><span className="text-[12px]">Add comment</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <CommentCell id={lead.id} comment={lead.comments || ""} onSave={saveComment} />
                         </td>
 
                         {/* Tries bar */}

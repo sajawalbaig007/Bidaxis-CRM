@@ -8,17 +8,35 @@ import cloudinary   from "./config/cloudinary";
 const PORT = process.env.PORT || 5000;
 
 /* ═══════════════════════════════════════════════
-   AUTO OFFLINE CRON — every 5s
+   AUTO OFFLINE CRON — every 5s with circuit breaker
+   If DB is unreachable, backs off for 60s to avoid
+   flooding the connection pool.
 ═══════════════════════════════════════════════ */
+let _offlineFailStreak = 0;
+let _offlinePaused     = false;
+
 setInterval(async () => {
+  if (_offlinePaused) return;
   try {
     const threshold = new Date(Date.now() - 6_000);
     await prisma.user.updateMany({
       where: { lastActive: { lt: threshold }, isOnline: true },
       data:  { isOnline: false },
     });
-  } catch (err) {
-    console.log("Auto-offline cron error:", err);
+    if (_offlineFailStreak > 0) {
+      console.log("[Auto-offline] DB reconnected ✓");
+      _offlineFailStreak = 0;
+    }
+  } catch (err: unknown) {
+    _offlineFailStreak++;
+    const code = (err as { code?: string }).code ?? "unknown";
+    if (_offlineFailStreak === 1) {
+      console.log(`[Auto-offline] DB unreachable (${code}) — pausing 60s`);
+    }
+    if (_offlineFailStreak >= 10) {
+      _offlinePaused = true;
+      setTimeout(() => { _offlinePaused = false; _offlineFailStreak = 0; }, 60_000);
+    }
   }
 }, 5_000);
 

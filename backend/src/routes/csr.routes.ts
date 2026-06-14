@@ -23,7 +23,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     const leads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -47,7 +47,7 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
         assignedTo: csrId,
         status: { in: ["Not Interested", "not picked", "not completed"] },
       },
-      include: { uploadFile: { select: { companyName: true } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -110,7 +110,7 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
   }
 });
 
-/* ================= UPDATE LEAD NOTE ================= */
+/* ================= UPDATE LEAD NOTE (legacy inline) ================= */
 router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId  = req.user.id;
@@ -125,6 +125,26 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to save note" });
+  }
+});
+
+/* ================= ADD TIMESTAMPED NOTE ================= */
+router.post("/lead/:id/notes", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const leadId = req.params.id as string;
+    const { text } = req.body as { text: string };
+
+    if (!text?.trim()) return res.status(400).json({ success: false, message: "Note text required" });
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const note = await prisma.leadNote.create({ data: { text: text.trim(), leadId } });
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+    return res.json({ success: true, note });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to add note" });
   }
 });
 
@@ -357,7 +377,7 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
     const csrLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -402,7 +422,7 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
         assignedTo: csrId,
         status:     { in: ["Close Client", "completed"] },
       },
-      include: { uploadFile: { select: { companyName: true } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -482,7 +502,7 @@ router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const csrId = req.user.id;
     const leads = await prisma.lead.findMany({
       where:   { assignedTo: csrId, status: { in: ["not picked", "not completed"] } },
-      include: { uploadFile: { select: { companyName: true } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
     return res.json({ success: true, leads });

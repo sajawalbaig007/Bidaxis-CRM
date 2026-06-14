@@ -6,6 +6,7 @@ export type BinLead = {
   client: string;
   company: string;
   phone: string;
+  state: string;
   status: string;
   notPickedCount: number;
   interestedService: string;
@@ -18,6 +19,7 @@ type RawLead = {
   company?: string;
   uploadFile?: { companyName?: string };
   phone?: string;
+  state?: string;
   status?: string;
   notPickedCount?: number;
   interestedService?: string;
@@ -30,6 +32,7 @@ function mapBinLead(l: RawLead): BinLead {
     client:            l.name                    ?? "Unknown",
     company:           l.uploadFile?.companyName ?? l.company ?? "N/A",
     phone:             l.phone                   ?? "N/A",
+    state:             l.state                   ?? "",
     status:            l.status                  ?? "",
     notPickedCount:    l.notPickedCount           ?? 0,
     interestedService: l.interestedService        ?? "",
@@ -53,7 +56,7 @@ export function useBinData() {
     }
   }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
 
   return { leads, setLeads, loading, refetch };
 }

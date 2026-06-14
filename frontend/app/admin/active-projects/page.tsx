@@ -3,14 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  Search, FolderKanban, TrendingUp, X,
+  Search, FolderKanban, X,
   DollarSign, Calendar, Briefcase, Building2, User2,
   Phone, Mail, Clock3, ChevronDown, ArrowRightLeft, Check, RefreshCw,
 } from "lucide-react";
 
-import DashboardSidebar from "../components/Sidebar";
-import DashboardNavbar  from "../components/Navbar";
+import DashboardSidebar from "../components/layout/Sidebar";
+import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 /* ── Types ── */
 type Project = {
@@ -53,32 +54,6 @@ const formatDate = (iso: string | null | undefined) => {
 
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date();
 
-/* ── Stat Card ── */
-function StatCard({
-  title, value, icon, bg, loading,
-}: {
-  title: string; value: number; icon: React.ReactNode; bg: string; loading: boolean;
-}) {
-  return (
-    <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs sm:text-sm text-gray-400 truncate">{title}</p>
-          {loading ? (
-            <div className="h-8 w-12 bg-gray-100 rounded-lg mt-1.5 sm:mt-2 animate-pulse" />
-          ) : (
-            <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-1.5 sm:mt-2">
-              {value}
-            </h2>
-          )}
-        </div>
-        <div className={`w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl sm:rounded-2xl ${bg} flex items-center justify-center shrink-0`}>
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ── Project Card (mobile / tablet) ── */
 function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
@@ -236,7 +211,7 @@ export default function AdminProjectsPage() {
       <DashboardSidebar />
 
       {/* ─── MAIN ─── */}
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[72px] lg:mt-0">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
 
         {/* HEADER */}
@@ -255,29 +230,63 @@ export default function AdminProjectsPage() {
           </div>
         </div>
 
-        {/* STATS — 1 col mobile → 3 col sm+ */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <StatCard
-            title="Total Projects"
-            value={stats.total}
-            bg="bg-[#F8ECEF]"
-            loading={loading}
-            icon={<FolderKanban size={22} className="text-[#B8112D] sm:w-[26px] sm:h-[26px]" />}
-          />
-          <StatCard
-            title="This Month"
-            value={stats.thisMonth}
-            bg="bg-blue-100"
-            loading={loading}
-            icon={<TrendingUp size={22} className="text-blue-600 sm:w-[26px] sm:h-[26px]" />}
-          />
-          <StatCard
-            title="With Budget Set"
-            value={stats.withBudget}
-            bg="bg-green-100"
-            loading={loading}
-            icon={<DollarSign size={22} className="text-green-600 sm:w-[26px] sm:h-[26px]" />}
-          />
+        {/* PROJECTS OVERVIEW — DONUT CHART */}
+        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            {/* Donut */}
+            <div className="shrink-0 h-[180px] w-full sm:w-[200px]">
+              {loading ? (
+                <div className="h-full bg-gray-50 rounded-2xl animate-pulse" />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Total Projects", value: Math.max(stats.total,     0.001) },
+                        { name: "This Month",     value: Math.max(stats.thisMonth, 0.001) },
+                        { name: "With Budget",    value: Math.max(stats.withBudget,0.001) },
+                      ]}
+                      cx="50%" cy="50%"
+                      innerRadius={52} outerRadius={80}
+                      paddingAngle={4} dataKey="value"
+                      strokeWidth={0}
+                    >
+                      <Cell fill="#B8112D" />
+                      <Cell fill="#3B82F6" />
+                      <Cell fill="#10B981" />
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }}
+                      formatter={(_, name) => [
+                        name === "Total Projects" ? stats.total :
+                        name === "This Month"     ? stats.thisMonth :
+                        stats.withBudget,
+                        String(name),
+                      ]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Legend + numbers */}
+            <div className="flex-1 grid grid-cols-1 gap-3">
+              {[
+                { label: "Total Projects", value: stats.total,      color: "bg-[#B8112D]", text: "text-[#B8112D]" },
+                { label: "This Month",     value: stats.thisMonth,  color: "bg-blue-500",  text: "text-blue-600"  },
+                { label: "With Budget",    value: stats.withBudget, color: "bg-emerald-500",text:"text-emerald-600"},
+              ].map(s => (
+                <div key={s.label} className="flex items-center gap-3 bg-[#FAFAFA] rounded-xl px-4 py-3">
+                  <div className={`w-3 h-3 rounded-full ${s.color} shrink-0`} />
+                  <p className="flex-1 text-sm font-medium text-gray-600">{s.label}</p>
+                  {loading
+                    ? <div className="h-6 w-8 bg-gray-100 rounded animate-pulse" />
+                    : <span className={`text-xl font-bold ${s.text}`}>{s.value}</span>
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* SEARCH + FILTER */}

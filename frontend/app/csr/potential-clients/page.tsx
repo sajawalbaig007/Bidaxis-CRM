@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Trophy, Briefcase, Search,
+  PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Briefcase, Search,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -16,6 +16,7 @@ import { useCsrDashboard } from "../hooks/useCsrDashboard";
 import { useLeadActions } from "../hooks/useLeadActions";
 import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 import { Lead, getPriority } from "../types/lead";
 
 const getTzAbbr = (tzValue: string) => {
@@ -234,7 +235,7 @@ export default function ImportantCallsPage() {
               <table className="w-full" style={{ minWidth: "960px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Next Schedule","Time & Timezone","Comment","Status","Action"].map(h => (
+                    {["Client","Company","Contact","Next Schedule","Time & Timezone","Note","Status","Action"].map(h => (
                       <th key={h} className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -258,7 +259,17 @@ export default function ImportantCallsPage() {
                             {lead.client.charAt(0)}
                           </div>
                           <div>
-                            <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                              {(() => {
+                                const tz = getTimezoneAbbr(lead.state);
+                                return tz ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                    {tz}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <p className="text-gray-500 text-[11px] sm:text-[12px] mt-0.5">Important Lead</p>
                           </div>
                         </div>
@@ -267,8 +278,9 @@ export default function ImportantCallsPage() {
                         <h4 className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] max-w-[120px] truncate">{lead.company}</h4>
                       </td>
                       <td className="py-4 sm:py-5 px-2">
-                        <div className="bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
                           {lead.phone}
+                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
                         </div>
                       </td>
                       <td className="py-4 sm:py-5 px-2">
@@ -368,7 +380,7 @@ export default function ImportantCallsPage() {
               <table className="w-full" style={{ minWidth: "820px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Interested In","Comment","Status","Action"].map(h => (
+                    {["Client","Company","Contact","Interested In","Note","Status","Action"].map(h => (
                       <th key={h} className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -392,7 +404,17 @@ export default function ImportantCallsPage() {
                             {lead.client.charAt(0)}
                           </div>
                           <div>
-                            <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                              {(() => {
+                                const tz = getTimezoneAbbr(lead.state);
+                                return tz ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                    {tz}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <p className="text-gray-500 text-[11px] sm:text-[12px] mt-0.5 sm:mt-1">Interested Lead</p>
                           </div>
                         </div>
@@ -401,8 +423,9 @@ export default function ImportantCallsPage() {
                         <h4 className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] max-w-[120px] truncate">{lead.company}</h4>
                       </td>
                       <td className="py-4 sm:py-5 px-2">
-                        <div className="bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
                           {lead.phone}
+                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
                         </div>
                       </td>
                       <td className="py-4 sm:py-5 px-2">

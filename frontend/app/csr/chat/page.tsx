@@ -1521,6 +1521,7 @@ export default function ChatPage() {
                           {showOfflineLabel && (
                             <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Offline</p>
                           )}
+                          {/* eslint-disable-next-line react-hooks/refs */}
                           <button onClick={() => void startDm(user)}
                             className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${user.isOnline ? "hover:bg-[#F0FFF4]" : "hover:bg-[#F5F6FA]"}`}>
                             <Avatar name={user.name} size="md" online={user.isOnline} />

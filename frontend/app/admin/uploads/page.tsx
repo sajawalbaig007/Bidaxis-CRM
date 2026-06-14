@@ -9,8 +9,8 @@ import {
   PhoneCall,
 } from "lucide-react";
 
-import DashboardSidebar from "../components/Sidebar";
-import DashboardNavbar  from "../components/Navbar";
+import DashboardSidebar from "../components/layout/Sidebar";
+import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
 
 /* ── Types ── */
@@ -547,7 +547,7 @@ export default function UploadPage() {
 
       <DashboardSidebar />
 
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[72px] lg:mt-0">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
 
         {/* ── HEADER ── */}
