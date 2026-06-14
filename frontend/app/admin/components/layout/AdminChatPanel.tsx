@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { visibleInterval } from "@/lib/visibleInterval";
 import {
   Send, Plus, Search, X, MessageSquare, Hash, User2,
   Check, CheckCheck, ChevronLeft, Loader2, Paperclip,
@@ -310,10 +311,9 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(async () => {
+    return visibleInterval(async () => {
       try { const r = await API.get("/chat/conversations"); setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? [])); } catch {}
-    }, 5000);
-    return () => clearInterval(t);
+    }, 10_000);
   }, []);
 
   useEffect(() => {
@@ -338,7 +338,7 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "auto" }), 60);
       } catch { setMessages([]); } finally { setLoadingMsgs(false); }
     })();
-    const poll = setInterval(async () => {
+    const stopMsgPoll = visibleInterval(async () => {
       try {
         const [msgRes, typingRes] = await Promise.all([
           API.get(`/chat/conversations/${cid}/messages`),
@@ -357,8 +357,8 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
       } catch {}
-    }, 3000);
-    return () => clearInterval(poll);
+    }, 5_000);
+    return stopMsgPoll;
   }, [activeConvId]);
 
   useEffect(() => () => {

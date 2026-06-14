@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import {
   Activity, UserPlus, CheckCircle, Edit,
   AlertCircle, ChevronRight, Phone,
 } from "lucide-react";
-import API from "@/lib/api";
+import type { ClientLead } from "../charts/PerformanceChart";
 
-type Props = { refreshTrigger?: number };
+type Props = { leads: ClientLead[] };
 
 type ActivityItem = {
   id:     string;
@@ -40,59 +40,37 @@ const getBg = (type: string) => {
 };
 
 const statusToType = (s: string): ActivityItem["type"] => {
-  if (s === "important")   return "alert";
-  if (s === "interested")  return "call";
+  if (s === "important")    return "alert";
+  if (s === "interested")   return "call";
   if (s === "Close Client") return "resolve";
-  if (s === "pending")     return "create";
+  if (s === "pending")      return "create";
   return "update";
 };
 
 const timeAgo = (iso: string): string => {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60)   return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400)return `${Math.floor(diff / 3600)} hr ago`;
+  if (diff < 60)    return "Just now";
+  if (diff < 3600)  return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
   return `${Math.floor(diff / 86400)} days ago`;
 };
 
-export default function RecentActivity({ refreshTrigger }: Props) {
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [loading,    setLoading]    = useState(true);
-
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      try {
-        const res   = await API.get("/admin/clients");
-        const leads: {
-          id?: string; name?: string; status?: string; updatedAt?: string;
-          csr?: { name?: string };
-        }[] = res.data.leads ?? [];
-
-        /* Take the 6 most recently updated leads */
-        const recent = [...leads]
-          .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
-          .slice(0, 6);
-
-        setActivities(recent.map(l => {
-          const csr    = l.csr?.name ?? "A CSR";
-          const status = l.status ?? "updated";
-          return {
-            id:     l.id ?? Math.random().toString(),
-            user:   csr,
-            action: `updated lead "${l.name ?? "Unknown"}" to ${status}`,
-            time:   timeAgo(l.updatedAt ?? new Date().toISOString()),
-            type:   statusToType(status),
-          };
-        }));
-      } catch (err) {
-        console.log(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void fetch();
-  }, [refreshTrigger]);
+export default function RecentActivity({ leads }: Props) {
+  const activities = useMemo<ActivityItem[]>(() => {
+    return [...leads]
+      .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
+      .slice(0, 6)
+      .map(l => {
+        const status = l.status ?? "updated";
+        return {
+          id:     l.id ?? Math.random().toString(),
+          user:   l.csr?.name ?? "A CSR",
+          action: `updated lead "${l.name ?? "Unknown"}" to ${status}`,
+          time:   timeAgo(l.updatedAt ?? new Date().toISOString()),
+          type:   statusToType(status),
+        };
+      });
+  }, [leads]);
 
   return (
     <div>
@@ -104,32 +82,21 @@ export default function RecentActivity({ refreshTrigger }: Props) {
       </div>
 
       <div className="space-y-3">
-        {loading
-          ? [1,2,3,4,5].map(i => (
-            <div key={i} className="flex items-center gap-3 p-3">
-              <div className="w-10 h-10 rounded-full bg-gray-100 shrink-0 animate-pulse"/>
-              <div className="flex-1 space-y-1.5">
-                <div className="h-3.5 bg-gray-100 rounded w-3/4 animate-pulse"/>
-                <div className="h-3 bg-gray-100 rounded w-1/3 animate-pulse"/>
-              </div>
+        {activities.map(activity => (
+          <div key={activity.id}
+            className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-all cursor-pointer">
+            <div className={`${getBg(activity.type)} w-10 h-10 rounded-full flex items-center justify-center shrink-0`}>
+              {getIcon(activity.type)}
             </div>
-          ))
-          : activities.map(activity => (
-            <div key={activity.id}
-              className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-all cursor-pointer">
-              <div className={`${getBg(activity.type)} w-10 h-10 rounded-full flex items-center justify-center shrink-0`}>
-                {getIcon(activity.type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm">
-                  <span className="font-semibold text-gray-800">{activity.user}</span>
-                  <span className="text-gray-600"> {activity.action}</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">{activity.time}</p>
-              </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm">
+                <span className="font-semibold text-gray-800">{activity.user}</span>
+                <span className="text-gray-600"> {activity.action}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">{activity.time}</p>
             </div>
-          ))
-        }
+          </div>
+        ))}
       </div>
     </div>
   );

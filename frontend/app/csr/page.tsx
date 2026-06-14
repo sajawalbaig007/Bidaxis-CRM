@@ -20,7 +20,6 @@ import ProjectWonModal from "./components/modals/ProjectWonModal";
 
 import { useCsrDashboard } from "./hooks/useCsrDashboard";
 import { useLeadActions } from "./hooks/useLeadActions";
-import { useCsrPresence } from "./hooks/useCsrPresence";
 import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "./constants/timezoneAbbr";
@@ -45,7 +44,6 @@ export default function CSRPage() {
   const router = useRouter();
   const { leads, setLeads, loading } = useCsrDashboard();
   const { saveComment, updateLead, addNote } = useLeadActions(setLeads);
-  useCsrPresence();
 
   const [activeTab, setActiveTab] = useState("today");
   const [page, setPage] = useState(1);

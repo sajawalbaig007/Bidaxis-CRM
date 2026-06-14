@@ -11,6 +11,7 @@ import {
   LogOut, ChevronDown, MessageSquare,
 } from "lucide-react";
 import API from "@/lib/api";
+import { visibleInterval } from "@/lib/visibleInterval";
 import AdminChatPanel from "./AdminChatPanel";
 
 const navItems = [
@@ -58,8 +59,7 @@ export default function DashboardSidebar() {
       } catch {}
     };
     void poll();
-    const t = setInterval(poll, 5000);
-    return () => clearInterval(t);
+    return visibleInterval(poll, 10_000);
   }, []);
 
   const handleLogout = async () => {

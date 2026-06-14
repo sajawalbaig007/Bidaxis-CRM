@@ -4,6 +4,7 @@ import { comparePassword, hashPassword } from "../utils/hash";
 import { generateToken } from "../utils/jwt";
 import { AuthRequest } from "../middleware/auth.middleware";
 import nodemailer from "nodemailer";
+import { getCache, setCache, invalidateCache } from "../utils/cache";
 
 /* ── Import shared stores (no circular dependency) ── */
 import {
@@ -288,6 +289,10 @@ export const getMe = async (req: AuthRequest, res: Response) => {
     if (!req.user?.id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
+    const cacheKey = `auth:me:${req.user.id}`;
+    const cached = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
     const user = await prisma.user.findUnique({
       where:  { id: req.user.id },
       select: {
@@ -298,7 +303,9 @@ export const getMe = async (req: AuthRequest, res: Response) => {
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    return res.json({ success: true, user });
+    const payload = { success: true, user };
+    setCache(cacheKey, payload, 30_000);
+    return res.json(payload);
   } catch {
     return res.status(500).json({ success: false, message: "Server error" });
   }
@@ -323,6 +330,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       data:   { name, email },
       select: { id: true, name: true, email: true, role: true, twoFAEnabled: true, createdAt: true },
     });
+    invalidateCache(`auth:me:${req.user.id}`);
     return res.json({ success: true, user: updated });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to update profile." });

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import API from "@/lib/api";
+import { visibleInterval } from "@/lib/visibleInterval";
 
 export function useCsrPresence() {
   useEffect(() => {
@@ -23,24 +24,13 @@ export function useCsrPresence() {
       }).catch(() => {});
     };
 
-    const handleVisibility = () => sendHeartbeat(document.visibilityState === "visible");
-    const handleBlur  = () => sendHeartbeat(false);
-    const handleFocus = () => sendHeartbeat(true);
-
     sendHeartbeat(true);
-    const interval = setInterval(sendHeartbeat, 3_000);
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("blur",         handleBlur);
-    window.addEventListener("focus",        handleFocus);
+    const stopInterval = visibleInterval(sendHeartbeat, 10_000);
     window.addEventListener("beforeunload", markOffline);
 
     return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("blur",         handleBlur);
-      window.removeEventListener("focus",        handleFocus);
+      stopInterval();
       window.removeEventListener("beforeunload", markOffline);
-      markOffline();
     };
   }, []);
 }

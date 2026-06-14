@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { visibleInterval } from "@/lib/visibleInterval";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
@@ -238,8 +239,7 @@ export default function UsersPage() {
 
   /* 2s poll — fast "On Dashboard" / "Away" updates */
   useEffect(() => {
-    const interval = setInterval(() => fetchUsers(true), 2_000);
-    return () => clearInterval(interval);
+    return visibleInterval(() => fetchUsers(true), 15_000);
   }, [fetchUsers]);
 
   /* Refresh on tab focus */

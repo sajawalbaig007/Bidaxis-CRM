@@ -48,6 +48,12 @@ type ScheduledCall = {
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+// Module-level cache — persists across page navigations within the same session
+let _cachedUser: UserInfo | null = null;
+let _cachedCalls: ScheduledCall[] = [];
+let _lastFetch = 0;
+const NAV_CACHE_TTL = 60_000;
+
 function labelDate(d: string) {
   const tmr = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
   if (d === TODAY) return "Today";
@@ -62,8 +68,12 @@ export default function TopNavbar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [calls, setCalls] = useState<ScheduledCall[]>([]);
+  const [user, setUser] = useState<UserInfo | null>(
+    () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedUser : null)
+  );
+  const [calls, setCalls] = useState<ScheduledCall[]>(
+    () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedCalls : [])
+  );
   const [profileOpen, setProfileOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -72,45 +82,36 @@ export default function TopNavbar() {
   const bellRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    API.get("/auth/me")
-      .then((r) => {
-        if (r.data?.user) setUser(r.data.user);
-      })
-      .catch(() => {});
+    if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
 
-    API.get("/csr/dashboard")
-      .then((r) => {
-        type L = {
-          id: string;
-          name?: string;
-          status?: string;
-          nextSchedule?: string;
-          nextTime?: string;
-          timezone?: string;
-        };
+    type L = {
+      id: string;
+      name?: string;
+      status?: string;
+      nextSchedule?: string;
+      nextTime?: string;
+      timezone?: string;
+    };
 
-        const leads: L[] = r.data.leads ?? [];
+    Promise.all([
+      API.get("/auth/me").catch(() => null),
+      API.get("/csr/dashboard").catch(() => null),
+    ]).then(([meRes, dashRes]) => {
+      const userData: UserInfo | null = meRes?.data?.user ?? null;
+      const leads: L[] = dashRes?.data?.leads ?? [];
+      const upcoming = leads
+        .filter((l) => l.status === "important" && l.nextSchedule && l.nextTime)
+        .filter((l) => (l.nextSchedule ?? "") >= TODAY)
+        .sort((a, b) => (`${a.nextSchedule}T${a.nextTime}` < `${b.nextSchedule}T${b.nextTime}` ? -1 : 1))
+        .slice(0, 20)
+        .map((l) => ({ id: l.id, client: l.name ?? "Client", date: l.nextSchedule!, time: l.nextTime!, timezone: l.timezone ?? "" }));
 
-        const upcoming = leads
-          .filter((l) => l.status === "important" && l.nextSchedule && l.nextTime)
-          .filter((l) => (l.nextSchedule ?? "") >= TODAY)
-          .sort((a, b) => {
-            const da = `${a.nextSchedule}T${a.nextTime}`;
-            const db = `${b.nextSchedule}T${b.nextTime}`;
-            return da < db ? -1 : 1;
-          })
-          .slice(0, 20)
-          .map((l) => ({
-            id: l.id,
-            client: l.name ?? "Client",
-            date: l.nextSchedule!,
-            time: l.nextTime!,
-            timezone: l.timezone ?? "",
-          }));
-
-        setCalls(upcoming);
-      })
-      .catch(() => {});
+      _cachedUser  = userData;
+      _cachedCalls = upcoming;
+      _lastFetch   = Date.now();
+      setUser(userData);
+      setCalls(upcoming);
+    });
   }, []);
 
   useEffect(() => {

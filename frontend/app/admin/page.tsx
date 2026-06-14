@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { visibleInterval } from "@/lib/visibleInterval";
 import DashboardNavbar  from "./components/layout/Navbar";
 import DashboardSidebar from "./components/layout/Sidebar";
-import PerformanceChart from "./components/charts/PerformanceChart";
+import PerformanceChart, { type ClientLead } from "./components/charts/PerformanceChart";
 import OverviewChart    from "./components/charts/OverviewChart";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
@@ -28,16 +29,17 @@ type QuickStats = {
 
 export default function DashboardPage() {
   const [selectedRange,  setSelectedRange]  = useState("week");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [stats,          setStats]          = useState<QuickStats | null>(null);
   const [loadingStats,   setLoadingStats]   = useState(true);
+  const [clientLeads,    setClientLeads]    = useState<ClientLead[]>([]);
 
   useEffect(() => {
     const fetchQuick = async () => {
       try {
-        const [rep, usrs] = await Promise.all([
+        const [rep, usrs, cls] = await Promise.all([
           API.get("/reports?period=today"),
           API.get("/users"),
+          API.get("/admin/clients"),
         ]);
         const d        = rep.data;
         const usersArr = Array.isArray(usrs.data) ? usrs.data : [];
@@ -51,15 +53,14 @@ export default function DashboardPage() {
           onlineCSRs:  usersArr.filter((u: { role?: string; isOnline?: boolean }) => u.role === "csr" && u.isOnline).length,
           totalOnline: usersArr.filter((u: { isOnline?: boolean }) => u.isOnline).length,
         });
-        setRefreshTrigger(n => n + 1);
+        setClientLeads(cls.data.leads ?? []);
       } catch (err) {
         if (process.env.NODE_ENV === "development") console.error("[AdminDash]", err);
       }
       finally { setLoadingStats(false); }
     };
     void fetchQuick();
-    const t = setInterval(() => void fetchQuick(), REFRESH_INTERVAL);
-    return () => clearInterval(t);
+    return visibleInterval(() => void fetchQuick(), REFRESH_INTERVAL);
   }, []);
 
   const tiles = [
@@ -125,24 +126,23 @@ export default function DashboardPage() {
                   <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
                 </div>
                 <PerformanceChart
-                  key={selectedRange}
+                  leads={clientLeads}
                   range={selectedRange}
-                  refreshTrigger={refreshTrigger}
                 />
               </div>
 
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <RecentActivity refreshTrigger={refreshTrigger} />
+                <RecentActivity leads={clientLeads} />
               </div>
             </div>
 
             {/* RIGHT — 4 cols */}
             <div className="lg:col-span-4 space-y-3 sm:space-y-4">
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <OverviewChart refreshTrigger={refreshTrigger} />
+                <OverviewChart leads={clientLeads} />
               </div>
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <TopPerformers refreshTrigger={refreshTrigger} />
+                <TopPerformers leads={clientLeads} />
               </div>
             </div>
           </div>

@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import {
   ResponsiveContainer, AreaChart, Area,
   CartesianGrid, Tooltip, XAxis, YAxis,
 } from "recharts";
-import API from "@/lib/api";
 
-type Props = { refreshTrigger?: number; range?: string };
+export type ClientLead = {
+  id?: string;
+  name?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  csr?: { name?: string };
+};
+
+type Props = { leads: ClientLead[]; range?: string };
 
 type DataPoint = { label: string; calls: number };
 
-/* ── Derive chart data from leads array grouped by date ── */
-function groupLeads(leads: { createdAt?: string; status?: string }[], range: string): DataPoint[] {
+function groupLeads(leads: ClientLead[], range: string): DataPoint[] {
   const now   = new Date();
   const buckets: Record<string, number> = {};
 
@@ -22,7 +29,6 @@ function groupLeads(leads: { createdAt?: string; status?: string }[], range: str
     return d.toLocaleDateString("en-US", { weekday: "short" });
   };
 
-  /* Seed empty buckets */
   if (range === "today") {
     for (let h = 0; h < 24; h += 3) buckets[h + ":00"] = 0;
   } else if (range === "week") {
@@ -42,40 +48,17 @@ function groupLeads(leads: { createdAt?: string; status?: string }[], range: str
     }
   }
 
-  /* Count leads into buckets */
   leads.forEach(lead => {
     if (!lead.createdAt) return;
-    const d = new Date(lead.createdAt);
-    const key = fmt(d);
+    const key = fmt(new Date(lead.createdAt));
     if (key in buckets) buckets[key]++;
   });
 
   return Object.entries(buckets).map(([label, calls]) => ({ label, calls }));
 }
 
-export default function PerformanceChart({ refreshTrigger, range = "week" }: Props) {
-  const [data,    setData]    = useState<DataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      try {
-        const res   = await API.get("/admin/clients");
-        const leads = res.data.leads ?? [];
-        setData(groupLeads(leads, range));
-      } catch (err) {
-        console.log(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void fetch();
-  }, [refreshTrigger, range]);   // ← re-fetch on refresh OR range change
-
-  if (loading) return (
-    <div className="h-[320px] bg-gray-50 rounded-2xl animate-pulse"/>
-  );
+export default function PerformanceChart({ leads, range = "week" }: Props) {
+  const data = useMemo(() => groupLeads(leads, range), [leads, range]);
 
   return (
     <div className="h-[320px]">
