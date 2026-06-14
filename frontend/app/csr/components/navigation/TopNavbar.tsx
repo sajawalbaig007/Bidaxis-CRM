@@ -193,6 +193,7 @@ export default function TopNavbar() {
                 <Link
                   key={href}
                   href={href}
+                  prefetch={false}
                   className={`h-10 px-3.5 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
                     active
                       ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
