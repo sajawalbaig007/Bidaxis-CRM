@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import {
-  FolderKanban, CalendarDays, DollarSign, TrendingUp,
-  Search, Filter, Activity, Phone, AlignLeft, Briefcase,
+  FolderKanban, CalendarDays, DollarSign,
+  Search, Filter, Phone, AlignLeft, Briefcase,
   X, FileText, Eye, Clock3, CheckCircle2,
   Plus, User2, Pencil, Hash, Mail,
 } from "lucide-react";
@@ -18,6 +18,7 @@ import EmailField from "../components/shared/EmailField";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 
 import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/useProjectsData";
+import { getTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import API from "@/lib/api";
 
 const emptyForm = {
@@ -39,7 +40,7 @@ function DeadlineStatus({ deadline }: { deadline: string }) {
 }
 
 export default function CSRProjectsPage() {
-  const { projects, setProjects, loading, refetch } = useProjectsData();
+  const { projects, setProjects, loading } = useProjectsData();
 
   const [selectedDate, setSelectedDate] = useState("");
   const [search,       setSearch]       = useState("");
@@ -279,11 +280,87 @@ export default function CSRProjectsPage() {
           </div>
         ) : filteredProjects.length > 0 ? (
           <div className="bg-white rounded-2xl sm:rounded-[30px] shadow-sm mt-4 sm:mt-7 overflow-hidden border border-white">
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: "1280px" }}>
-                <div className="grid grid-cols-[0.8fr_1.4fr_1.3fr_1.5fr_0.8fr_0.8fr_0.7fr_0.8fr_auto] gap-3 lg:gap-4 px-4 sm:px-6 py-3 sm:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
-                  {["Project Code","Client Detail","Email","Project Detail","Payment Status","Scope","State","Quotation","Actions"].map(h => (
-                    <span key={h} className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
+
+            {/* ── MOBILE CARDS (< lg) ── */}
+            <div className="lg:hidden divide-y divide-[#F3F3F3]">
+              {paginated.map(project => (
+                <div key={project.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0 font-bold text-sm">
+                        {project.client.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#0F172A] truncate">{project.client}</p>
+                        <p className="text-xs text-gray-400 truncate">{project.company !== "N/A" ? project.company : project.phone}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={() => openDetail(project)}
+                        className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center">
+                        <Eye size={13} />
+                      </button>
+                      <button onClick={() => { openDetail(project); setTimeout(() => startEdit(project), 30); }}
+                        className="w-8 h-8 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center">
+                        <Pencil size={13} />
+                      </button>
+                      {project.status !== "Completed" && (
+                        <button onClick={() => markComplete(project)}
+                          className="w-8 h-8 rounded-xl bg-green-50 text-green-700 flex items-center justify-center">
+                          <CheckCircle2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-gray-400 text-[10px]">Project</p>
+                      <p className="font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        {project.deadline && project.deadline !== "N/A" && (
+                          <span className={`text-[10px] font-medium ${isDeadlinePast(project.deadline) ? "text-red-500" : "text-gray-400"}`}>{project.deadline}</span>
+                        )}
+                        {project.status === "Completed" ? (
+                          <span className="inline-flex items-center gap-0.5 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md text-[9px] font-semibold"><CheckCircle2 size={8} /> Completed</span>
+                        ) : (
+                          <span className="inline-block bg-[#FFF7E6] text-[#B54708] px-1.5 py-0.5 rounded-md text-[9px] font-semibold">In Progress</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div>
+                        <p className="text-gray-400 text-[10px]">Payment</p>
+                        <PaymentStatusCircle percent={project.paidPercent} size={32} strokeWidth={3} />
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-[10px]">Quotation</p>
+                        <p className="font-semibold text-[#0F172A]">{project.budgetNum > 0 ? `$${project.budgetNum.toLocaleString()}` : "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {project.projectCode && (
+                      <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">{project.projectCode}</span>
+                    )}
+                    {project.service && project.service !== "N/A" && (
+                      <span className="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-lg">{project.service}</span>
+                    )}
+                    {project.email && (
+                      <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-lg truncate max-w-[180px]">{project.email}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── DESKTOP TABLE (lg+) ── */}
+            <div className="hidden lg:block overflow-x-auto">
+              <div style={{ minWidth: "920px" }}>
+                <div className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+                  {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Actions"].map(h => (
+                    <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
                 </div>
 
@@ -291,28 +368,36 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[0.8fr_1.4fr_1.3fr_1.5fr_0.8fr_0.8fr_0.7fr_0.8fr_auto] gap-3 lg:gap-4 px-4 sm:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
                         {project.projectCode ? (
-                          <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] sm:text-[11px] font-bold px-2 py-1 rounded-lg truncate">{project.projectCode}</span>
-                        ) : <span className="text-xs sm:text-sm text-gray-400">N/A</span>}
+                          <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg truncate">{project.projectCode}</span>
+                        ) : <span className="text-xs text-gray-400">N/A</span>}
                       </div>
 
                       {/* Client Detail */}
-                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                          <span className="text-xs sm:text-sm font-bold">{project.client.charAt(0).toUpperCase()}</span>
+                      <div className="flex items-center gap-2 xl:gap-3 min-w-0">
+                        <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
+                          <span className="text-xs xl:text-sm font-bold">{project.client.charAt(0).toUpperCase()}</span>
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {project.clientCode && (
                               <span className="inline-flex shrink-0 bg-[#0B84F3]/10 text-[#0B84F3] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{project.clientCode}</span>
                             )}
-                            <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{project.client}</p>
+                            <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.client}</p>
+                            {(() => {
+                              const tz = getTimezoneAbbr(project.state !== "N/A" ? project.state : null);
+                              return tz ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                  {tz}
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
-                          <p className="text-[10px] sm:text-xs text-gray-400 truncate mt-0.5">
+                          <p className="text-[10px] xl:text-xs text-gray-400 truncate mt-0.5">
                             {project.company !== "N/A" ? project.company : project.phone}
                           </p>
                         </div>
@@ -321,25 +406,25 @@ export default function CSRProjectsPage() {
                       {/* Email */}
                       <div className="min-w-0">
                         {project.email ? (
-                          <span className="text-xs sm:text-sm text-[#0F172A] truncate block">{project.email}</span>
-                        ) : <span className="text-xs sm:text-sm text-gray-400">N/A</span>}
+                          <span className="text-xs xl:text-sm text-[#0F172A] truncate block">{project.email}</span>
+                        ) : <span className="text-xs text-gray-400">N/A</span>}
                       </div>
 
                       {/* Project Detail */}
                       <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                        <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {project.deadline && project.deadline !== "N/A" && (
-                            <span className={`text-[10px] sm:text-[11px] font-medium whitespace-nowrap ${isDeadlinePast(project.deadline) ? "text-red-500" : "text-gray-400"}`}>
+                            <span className={`text-[10px] xl:text-[11px] font-medium whitespace-nowrap ${isDeadlinePast(project.deadline) ? "text-red-500" : "text-gray-400"}`}>
                               {project.deadline}
                             </span>
                           )}
                           {project.status === "Completed" ? (
-                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-1.5 xl:px-2 py-0.5 rounded-md text-[9px] xl:text-[10px] font-semibold whitespace-nowrap">
                               <CheckCircle2 size={9} /> Completed
                             </span>
                           ) : (
-                            <span className="inline-block bg-[#FFF7E6] text-[#B54708] px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-semibold whitespace-nowrap">
+                            <span className="inline-block bg-[#FFF7E6] text-[#B54708] px-1.5 xl:px-2 py-0.5 rounded-md text-[9px] xl:text-[10px] font-semibold whitespace-nowrap">
                               In Progress
                             </span>
                           )}
@@ -354,38 +439,31 @@ export default function CSRProjectsPage() {
                       {/* Scope */}
                       <div className="min-w-0">
                         {project.service && project.service !== "N/A" ? (
-                          <span className="text-xs sm:text-sm text-[#0F172A] truncate block">{project.service}</span>
-                        ) : <span className="text-xs sm:text-sm text-gray-400">N/A</span>}
-                      </div>
-
-                      {/* State */}
-                      <div className="min-w-0">
-                        {project.state && project.state !== "N/A" ? (
-                          <span className="text-xs sm:text-sm text-[#0F172A] truncate block">{project.state}</span>
-                        ) : <span className="text-xs sm:text-sm text-gray-400">N/A</span>}
+                          <span className="text-xs xl:text-sm text-[#0F172A] truncate block">{project.service}</span>
+                        ) : <span className="text-xs text-gray-400">N/A</span>}
                       </div>
 
                       {/* Quotation */}
                       <div className="min-w-0">
                         {project.budgetNum > 0 ? (
-                          <span className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate block">${project.budgetNum.toLocaleString()}</span>
-                        ) : <span className="text-xs sm:text-sm text-gray-400">N/A</span>}
+                          <span className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate block">${project.budgetNum.toLocaleString()}</span>
+                        ) : <span className="text-xs text-gray-400">N/A</span>}
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="flex items-center gap-1.5 xl:gap-2">
                         <button onClick={() => openDetail(project)}
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity">
-                          <Eye size={13} className="sm:w-[15px] sm:h-[15px]" />
+                          className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity">
+                          <Eye size={13} className="xl:w-[15px] xl:h-[15px]" />
                         </button>
                         <button onClick={() => { openDetail(project); setTimeout(() => startEdit(project), 30); }}
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center hover:opacity-80 transition-opacity">
-                          <Pencil size={13} className="sm:w-[15px] sm:h-[15px]" />
+                          className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center hover:opacity-80 transition-opacity">
+                          <Pencil size={13} className="xl:w-[15px] xl:h-[15px]" />
                         </button>
                         {project.status !== "Completed" && (
                           <button onClick={() => markComplete(project)}
-                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-green-50 text-green-700 flex items-center justify-center hover:opacity-80 transition-opacity">
-                            <CheckCircle2 size={13} className="sm:w-[15px] sm:h-[15px]" />
+                            className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-green-50 text-green-700 flex items-center justify-center hover:opacity-80 transition-opacity">
+                            <CheckCircle2 size={13} className="xl:w-[15px] xl:h-[15px]" />
                           </button>
                         )}
                       </div>

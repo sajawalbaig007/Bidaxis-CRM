@@ -23,6 +23,7 @@ import { useLeadActions } from "./hooks/useLeadActions";
 import { useCsrPresence } from "./hooks/useCsrPresence";
 import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
 
 const statusLabel = (s: string) => {
@@ -43,7 +44,7 @@ const statusBadgeClass = (s: string) => {
 export default function CSRPage() {
   const router = useRouter();
   const { leads, setLeads, loading } = useCsrDashboard();
-  const { saveComment, updateLead } = useLeadActions(setLeads);
+  const { saveComment, updateLead, addNote } = useLeadActions(setLeads);
   useCsrPresence();
 
   const [activeTab, setActiveTab] = useState("today");
@@ -61,10 +62,17 @@ export default function CSRPage() {
   const [scheduleDate,        setScheduleDate]        = useState("");
   const [scheduleTime,        setScheduleTime]        = useState("");
   const [selectedTimezone,    setSelectedTimezone]    = useState("America/New_York");
+  const [importantNote,       setImportantNote]       = useState("");
 
   const [showInterestedModal,  setShowInterestedModal]  = useState(false);
   const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
   const [selectedService,      setSelectedService]      = useState("");
+  const [interestedNote,       setInterestedNote]       = useState("");
+
+  const [showNiModal,     setShowNiModal]     = useState(false);
+  const [showNpModal,     setShowNpModal]     = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [pendingNote,     setPendingNote]     = useState("");
 
   const [showProjectWonModal, setShowProjectWonModal] = useState(false);
   const [selectedProjectLead, setSelectedProjectLead] = useState<Lead | null>(null);
@@ -147,6 +155,12 @@ export default function CSRPage() {
       setProjectCode(""); setPaidAmount(""); setEmail(lead.email !== "N/A" ? lead.email : "");
       setShowProjectWonModal(true); return;
     }
+    if (status === "Not Interested") {
+      setPendingStatusId(id); setPendingNote(""); setShowNiModal(true); return;
+    }
+    if (status === "not picked") {
+      setPendingStatusId(id); setPendingNote(""); setShowNpModal(true); return;
+    }
     try {
       const res = await updateLead(id, { status });
       if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
@@ -160,17 +174,39 @@ export default function CSRPage() {
         status: "important", nextSchedule: scheduleDate,
         nextTime: scheduleTime, timezone: selectedTimezone,
       });
+      if (importantNote.trim()) await addNote(selectedImportantId, importantNote.trim());
     } catch (err) { console.log(err); }
     setShowImportantModal(false);
-    setScheduleDate(""); setScheduleTime(""); setSelectedTimezone("America/New_York");
+    setScheduleDate(""); setScheduleTime(""); setSelectedTimezone("America/New_York"); setImportantNote("");
   };
 
   const saveInterestedCall = async () => {
     if (!selectedService || !selectedInterestedId) return;
     try {
       await updateLead(selectedInterestedId, { status: "interested", interestedService: selectedService });
+      if (interestedNote.trim()) await addNote(selectedInterestedId, interestedNote.trim());
     } catch (err) { console.log(err); }
-    setShowInterestedModal(false); setSelectedService(""); setSelectedInterestedId(null);
+    setShowInterestedModal(false); setSelectedService(""); setSelectedInterestedId(null); setInterestedNote("");
+  };
+
+  const saveNiStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      const res = await updateLead(pendingStatusId, { status: "Not Interested" });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+    } catch (err) { console.log(err); }
+    setShowNiModal(false); setPendingStatusId(null); setPendingNote("");
+  };
+
+  const saveNpStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      const res = await updateLead(pendingStatusId, { status: "not picked" });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+    } catch (err) { console.log(err); }
+    setShowNpModal(false); setPendingStatusId(null); setPendingNote("");
   };
 
   const saveProjectWon = async () => {
@@ -181,7 +217,7 @@ export default function CSRPage() {
         projectBudget, projectNotes, interestedService: projectService, paidAmount, email,
       });
       setShowProjectWonModal(false);
-      router.push("/csr/projects");
+      router.push("/csr/active-projects");
     } catch (err) { console.log(err); }
   };
 
@@ -298,7 +334,7 @@ export default function CSRPage() {
             <table className="w-full" style={{ minWidth: "1000px" }}>
               <thead className="bg-[#FAFAFA]">
                 <tr>
-                  {["Client","Company","Phone","State","Comments","Status","Action"].map(h => (
+                  {["Client","Company","Phone","State","Note","Status","Action"].map(h => (
                     <th key={h} className="text-left py-3 sm:py-4 px-3 sm:px-5 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
                       {h}
                     </th>
@@ -329,10 +365,18 @@ export default function CSRPage() {
                           {currentLink.client.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 sm:gap-2">
-                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate max-w-[100px] sm:max-w-[160px]">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate max-w-[100px] sm:max-w-[140px]">
                               {currentLink.client}
                             </h4>
+                            {(() => {
+                              const tz = getTimezoneAbbr(currentLink.state);
+                              return tz ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                  {tz}
+                                </span>
+                              ) : null;
+                            })()}
                             <button
                               onClick={() => setViewingLead(currentLink)}
                               className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
@@ -360,7 +404,10 @@ export default function CSRPage() {
 
                     {/* PHONE */}
                     <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
-                      {currentLink.phone}
+                      <div className="flex items-center gap-1.5">
+                        {currentLink.phone}
+                        {(() => { const t = getTimezoneAbbrFromPhone(currentLink.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
+                      </div>
                     </td>
 
                     {/* STATE */}
@@ -376,7 +423,7 @@ export default function CSRPage() {
 
                     {/* COMMENTS */}
                     <td className="py-3 sm:py-5 px-3 sm:px-5">
-                      <CommentCell id={currentLink.id} comment={currentLink.comments} onSave={saveComment} />
+                      <CommentCell id={currentLink.id} noteHistory={currentLink.noteHistory} comment={currentLink.comments} onAddNote={async (id, text) => { await addNote(id, text); }} onSave={saveComment} />
                     </td>
 
                     {/* STATUS */}
@@ -451,7 +498,8 @@ export default function CSRPage() {
             date={scheduleDate} onDateChange={setScheduleDate}
             time={scheduleTime} onTimeChange={setScheduleTime}
             timezone={selectedTimezone} onTimezoneChange={setSelectedTimezone}
-            onClose={() => setShowImportantModal(false)}
+            note={importantNote} onNoteChange={setImportantNote}
+            onClose={() => { setShowImportantModal(false); setImportantNote(""); }}
             onSave={saveImportantCall}
           />
         )}
@@ -460,9 +508,68 @@ export default function CSRPage() {
         {showInterestedModal && (
           <InterestedModal
             service={selectedService} onServiceChange={setSelectedService}
-            onClose={() => { setShowInterestedModal(false); setSelectedService(""); }}
+            note={interestedNote} onNoteChange={setInterestedNote}
+            onClose={() => { setShowInterestedModal(false); setSelectedService(""); setInterestedNote(""); }}
             onSave={saveInterestedCall}
           />
+        )}
+
+        {/* ══ NOT INTERESTED QUICK-NOTE MODAL ══ */}
+        {showNiModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Not Interested</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowNiModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#475569] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowNiModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveNiStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#475569] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ NOT PICKED QUICK-NOTE MODAL ══ */}
+        {showNpModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Not Picked</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowNpModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#F97316] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowNpModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveNpStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#F97316] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ══ CLOSE CLIENT MODAL ══ */}

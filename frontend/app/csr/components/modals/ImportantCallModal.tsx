@@ -1,4 +1,4 @@
-import { Globe, X } from "lucide-react";
+import { Globe, X, AlignLeft } from "lucide-react";
 import ScheduleCallForm from "../shared/ScheduleCallForm";
 import { getCurrentTimeInTimezone, usTimezones } from "../../constants/timezones";
 
@@ -6,12 +6,14 @@ interface ImportantCallModalProps {
   date: string; onDateChange: (v: string) => void;
   time: string; onTimeChange: (v: string) => void;
   timezone: string; onTimezoneChange: (v: string) => void;
+  note?: string; onNoteChange?: (v: string) => void;
   onClose: () => void;
   onSave: () => void;
 }
 
 export default function ImportantCallModal({
-  date, onDateChange, time, onTimeChange, timezone, onTimezoneChange, onClose, onSave,
+  date, onDateChange, time, onTimeChange, timezone, onTimezoneChange,
+  note = "", onNoteChange, onClose, onSave,
 }: ImportantCallModalProps) {
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -32,6 +34,18 @@ export default function ImportantCallModal({
             time={time} onTimeChange={onTimeChange}
             timezone={timezone} onTimezoneChange={onTimezoneChange}
           />
+
+          {/* Notes */}
+          <div>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[#B8112D] uppercase tracking-wider mb-2">
+              <AlignLeft size={11} /> Notes <span className="text-gray-400 normal-case font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={note} onChange={e => onNoteChange?.(e.target.value)} rows={3}
+              placeholder="Any additional notes..."
+              className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#B8112D] transition-colors"
+            />
+          </div>
         </div>
         {date && time && (
           <div className="mt-4 sm:mt-5 p-3 sm:p-4 bg-[#F5F6FA] rounded-xl sm:rounded-2xl">

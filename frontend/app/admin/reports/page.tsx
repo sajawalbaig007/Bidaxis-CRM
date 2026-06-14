@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useEffect } from "react";
 import API from "./../../../lib/api";
-import DashboardSidebar from "../components/Sidebar";
-import DashboardNavbar  from "../components/Navbar";
+import DashboardSidebar from "../components/layout/Sidebar";
+import DashboardNavbar  from "../components/layout/Navbar";
 
 import {
   PhoneCall, ShoppingCart, Clock3, FileBarChart2,
@@ -41,7 +41,6 @@ export default function ReportsPage() {
   const [selectedCSRId, setSelectedCSRId] = useState<string>("all");
   const [dropdownOpen,  setDropdownOpen]  = useState(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchReports = async (
     period: string = "today",
     customFrom?: string,
@@ -65,10 +64,9 @@ export default function ReportsPage() {
   useEffect(() => {
     const load = async () => { await fetchReports("today"); };
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const csrList     = reportData?.csrPerformance ?? [];
+  const csrList     = useMemo(() => reportData?.csrPerformance ?? [], [reportData]);
   const selectedCSR = csrList.find(c => c.id === selectedCSRId) ?? null;
 
   const stats = selectedCSR
@@ -107,7 +105,7 @@ export default function ReportsPage() {
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
       <DashboardSidebar />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 mt-[72px] lg:mt-0">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 mt-[64px]">
         <DashboardNavbar />
 
         {/* ── HEADER ── */}
@@ -266,31 +264,60 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* ── STAT CARDS ── */}
-        {/* 2 col mobile → 2 col sm → 4 col xl */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          {[
-            { label: "Total Leads", value: stats.totalLeads, bg: "bg-red-50",    color: "text-[#B8112D]",  icon: <PhoneCall size={20} className="sm:w-6 sm:h-6" /> },
-            { label: "Completed",   value: stats.completed,  bg: "bg-green-50",  color: "text-green-600",  icon: <ShoppingCart size={20} className="sm:w-6 sm:h-6" /> },
-            { label: "Pending",     value: stats.pending,    bg: "bg-yellow-50", color: "text-yellow-600", icon: <Clock3 size={20} className="sm:w-6 sm:h-6" /> },
-            { label: "Important",   value: stats.important,  bg: "bg-red-50",    color: "text-red-600",    icon: <AlertTriangle size={20} className="sm:w-6 sm:h-6" /> },
-          ].map((c, i) => (
-            <div key={i} className="rounded-2xl sm:rounded-[24px] bg-white p-3 sm:p-5 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[11px] sm:text-sm text-gray-400 truncate">{c.label}</p>
-                  {loadingReport ? (
-                    <div className="h-7 sm:h-8 w-10 sm:w-14 bg-gray-100 rounded-lg mt-1.5 sm:mt-2 animate-pulse" />
-                  ) : (
-                    <h2 className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-bold text-[#111827]">{c.value}</h2>
-                  )}
-                </div>
-                <div className={`flex h-10 w-10 sm:h-12 sm:w-12 lg:h-13 lg:w-13 items-center justify-center rounded-xl sm:rounded-2xl shrink-0 ${c.bg} ${c.color}`}>
-                  {c.icon}
-                </div>
-              </div>
+        {/* ── SUMMARY DONUT CHART ── */}
+        <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-[#111827]">Lead Status Breakdown</h2>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                {selectedCSR ? selectedCSR.name : "All CSRs"} ·{" "}
+                {activePeriod === "today" ? "Today" : activePeriod === "week" ? "7 Days" : activePeriod === "month" ? "30 Days" : "Custom"}
+              </p>
             </div>
-          ))}
+            <div className="grid grid-cols-4 gap-3 sm:gap-4 text-center flex-1">
+              {[
+                { label:"Total",     value: stats.totalLeads,  color:"text-[#B8112D]"   },
+                { label:"Completed", value: stats.completed,   color:"text-green-600"   },
+                { label:"Pending",   value: stats.pending,     color:"text-yellow-600"  },
+                { label:"Important", value: stats.important,   color:"text-orange-600"  },
+              ].map(s => (
+                <div key={s.label}>
+                  {loadingReport
+                    ? <div className="h-7 w-10 bg-gray-100 rounded-lg animate-pulse mx-auto mb-1"/>
+                    : <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
+                  }
+                  <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {!loadingReport && stats.totalLeads > 0 && (
+            <div className="mt-4 h-[10px] bg-gray-100 rounded-full overflow-hidden flex">
+              {[
+                { val: stats.completed, bg: "bg-green-500"  },
+                { val: stats.pending,   bg: "bg-yellow-400" },
+                { val: stats.important, bg: "bg-orange-500" },
+                { val: stats.interested,bg: "bg-blue-500"   },
+              ].map((b, i) => (
+                <div key={i} className={`${b.bg} h-full transition-all`} style={{ width: `${(b.val / stats.totalLeads) * 100}%` }}/>
+              ))}
+            </div>
+          )}
+          {!loadingReport && stats.totalLeads > 0 && (
+            <div className="flex flex-wrap gap-3 mt-2.5">
+              {[
+                { label:"Completed",  val: stats.completed,  dot:"bg-green-500"  },
+                { label:"Pending",    val: stats.pending,    dot:"bg-yellow-400" },
+                { label:"Important",  val: stats.important,  dot:"bg-orange-500" },
+                { label:"Interested", val: stats.interested, dot:"bg-blue-500"   },
+              ].map(b => (
+                <span key={b.label} className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                  <span className={`w-2 h-2 rounded-full ${b.dot}`}/>
+                  {b.label} <strong className="text-gray-700">{b.val}</strong>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── CHART + INSIGHTS ── */}

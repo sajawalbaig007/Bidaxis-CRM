@@ -142,7 +142,7 @@ export function useProjectsData() {
     }
   }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
 
   return { projects, setProjects, loading, refetch };
 }

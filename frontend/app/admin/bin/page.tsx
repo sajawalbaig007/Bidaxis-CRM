@@ -7,9 +7,10 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
-import DashboardSidebar from "../components/Sidebar";
-import DashboardNavbar  from "../components/Navbar";
+import DashboardSidebar from "../components/layout/Sidebar";
+import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
 
 type BinLead = {
   id:               string;
@@ -127,7 +128,7 @@ export default function AdminBinPage() {
       <div className="flex-1 min-w-0 flex flex-col">
         <DashboardNavbar />
 
-        <div className="p-4 sm:p-6 lg:p-8 pt-[88px] lg:pt-6">
+        <div className="p-4 sm:p-6 lg:p-8 pt-[64px]">
 
           {/* ── HEADER ── */}
           <div className="flex items-center gap-3 mb-6">
@@ -140,31 +141,61 @@ export default function AdminBinPage() {
             </div>
           </div>
 
-          {/* ── STAT CARDS ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-            {[
-              { label: "Not Picked",     value: notPicked.length,     color: "bg-amber-100 text-amber-700",  Icon: PhoneOff   },
-              { label: "Not Interested", value: notInterested.length, color: "bg-red-100 text-red-700",      Icon: ThumbsDown },
-              { label: "Total",          value: leads.length,          color: "bg-gray-100 text-gray-700",   Icon: Trash2     },
-              {
-                label: "CSRs Affected",
-                value: new Set(leads.map(l => l.csr.id)).size,
-                color: "bg-blue-100 text-blue-700",
-                Icon: Users,
-              },
-            ].map(card => (
-              <div key={card.label} className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-400">{card.label}</p>
-                    <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-1">{card.value}</h2>
-                  </div>
-                  <div className={`w-11 h-11 rounded-2xl ${card.color} flex items-center justify-center shrink-0`}>
-                    <card.Icon size={18} />
-                  </div>
-                </div>
+          {/* ── BIN OVERVIEW CHART ── */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-bold text-[#111827] text-base">Bin Overview</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Not-picked & not-interested leads across all CSRs</p>
               </div>
-            ))}
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"/>Not Picked</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#B8112D] inline-block"/>Not Interested</span>
+              </div>
+            </div>
+            <div className="h-[130px]">
+              {loading ? (
+                <div className="h-full bg-gray-50 rounded-2xl animate-pulse"/>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: "Not Picked",     value: notPicked.length,     fill: "#F59E0B" },
+                      { name: "Not Interested", value: notInterested.length, fill: "#B8112D" },
+                      { name: "Total",          value: leads.length,         fill: "#6B7280" },
+                      { name: "CSRs Affected",  value: new Set(leads.map(l => l.csr.id)).size, fill: "#3B82F6" },
+                    ]}
+                    barSize={52}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#6B7280", fontWeight:600 }}/>
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
+                    <Tooltip contentStyle={{ borderRadius:"12px", border:"1px solid #e5e7eb", fontSize:"12px" }}/>
+                    <Bar dataKey="value" radius={[7,7,0,0]} name="Count">
+                      {[
+                        { fill: "#F59E0B" },
+                        { fill: "#B8112D" },
+                        { fill: "#6B7280" },
+                        { fill: "#3B82F6" },
+                      ].map((e, i) => <Cell key={i} fill={e.fill}/>)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
+              {[
+                { label:"Not Picked",    value: notPicked.length,     color:"text-amber-600"  },
+                { label:"Not Interested",value: notInterested.length, color:"text-[#B8112D]"  },
+                { label:"Total",         value: leads.length,          color:"text-gray-700"  },
+                { label:"CSRs Affected", value: new Set(leads.map(l => l.csr.id)).size, color:"text-blue-600" },
+              ].map(s => (
+                <div key={s.label} className="text-center">
+                  <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ── TABS ── */}

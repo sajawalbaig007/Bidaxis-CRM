@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
-  MoreVertical, Eye, EyeOff, Headphones, Shield, Wifi, WifiOff,
+  MoreVertical, Eye, EyeOff, Wifi, WifiOff,
   Globe, RotateCcw,
 } from "lucide-react";
 
-import DashboardSidebar from "../components/Sidebar";
-import DashboardNavbar  from "../components/Navbar";
+import DashboardSidebar from "../components/layout/Sidebar";
+import DashboardNavbar  from "../components/layout/Navbar";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 type UserRole = "CSR" | "Admin";
 
@@ -55,14 +56,6 @@ const formatOpenedAt = (iso: string | null): string => {
   return `${hrs}h ago`;
 };
 
-const formatHiddenTime = (iso: string | null): string => {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const secs = Math.floor(diff / 1000);
-  const mins = Math.floor(diff / 60000);
-  if (secs < 60) return `${secs}s`;
-  return `${mins}m`;
-};
 
 /* Browser badge */
 function BrowserBadge({ browser }: { browser: string | null }) {
@@ -375,31 +368,62 @@ export default function UsersPage() {
 
       <DashboardSidebar/>
 
-      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[72px] lg:mt-0">
+      <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
         <DashboardNavbar/>
 
-        {/* STATS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-6">
-          {[
-            { label:"Total Users",   value:totalUsers,   bg:"bg-[#F8ECEF]",   icon:<Users size={24} className="text-[#B8112D]"/>,      extra:null },
-            { label:"Online Now",    value:onlineNow,    bg:"bg-green-100",   icon:<Wifi size={24} className="text-green-600"/>,         extra:<div className="flex items-center gap-1 mt-1"><span className="w-1.5 h-1.5 rounded-full bg-[#12B76A] animate-pulse"/><p className="text-[10px] text-gray-400">Live · 2s</p></div> },
-            { label:"CSR Online",    value:activeCSR,    bg:"bg-emerald-100", icon:<Headphones size={24} className="text-emerald-600"/>, extra:null },
-            { label:"Admins Online", value:activeAdmins, bg:"bg-blue-100",    icon:<Shield size={24} className="text-blue-600"/>,        extra:null },
-          ].map((c, i) => (
-            <div key={i} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-gray-400">{c.label}</p>
-                  {loading
-                    ? <div className="h-8 w-10 bg-gray-100 rounded-lg mt-2 animate-pulse"/>
-                    : <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-2">{c.value}</h2>
-                  }
-                  {c.extra}
-                </div>
-                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${c.bg} flex items-center justify-center`}>{c.icon}</div>
-              </div>
+        {/* USER ACTIVITY CHART */}
+        <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm mb-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <div>
+              <h3 className="font-bold text-[#111827] text-base">User Activity Overview</h3>
+              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"/>
+                Live · refreshes every 2s
+              </p>
             </div>
-          ))}
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#12B76A] inline-block"/>Online</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#E5E7EB] inline-block"/>Offline</span>
+            </div>
+          </div>
+          <div className="h-[150px]">
+            {loading ? (
+              <div className="h-full bg-gray-50 rounded-2xl animate-pulse"/>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    { name: "CSR",   online: activeCSR,    offline: users.filter(u => u.role === "CSR").length   - activeCSR   },
+                    { name: "Admin", online: activeAdmins, offline: users.filter(u => u.role === "Admin").length - activeAdmins },
+                  ]}
+                  barGap={8} barSize={52}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:13, fontWeight:700, fill:"#374151" }}/>
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
+                  <Tooltip contentStyle={{ borderRadius:"14px", border:"1px solid #e5e7eb", fontSize:"12px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}/>
+                  <Bar dataKey="online"  fill="#12B76A" radius={[7,7,0,0]} name="Online"/>
+                  <Bar dataKey="offline" fill="#E5E7EB" radius={[7,7,0,0]} name="Offline"/>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
+            {[
+              { label:"Total Users",    value: totalUsers,   color:"text-[#111827]" },
+              { label:"Online Now",     value: onlineNow,    color:"text-green-600" },
+              { label:"CSR Online",     value: activeCSR,    color:"text-[#B8112D]" },
+              { label:"Admins Online",  value: activeAdmins, color:"text-blue-600"  },
+            ].map(s => (
+              <div key={s.label} className="text-center">
+                {loading
+                  ? <div className="h-7 w-8 bg-gray-100 rounded-lg animate-pulse mx-auto mb-1"/>
+                  : <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
+                }
+                <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* SEARCH + CREATE */}

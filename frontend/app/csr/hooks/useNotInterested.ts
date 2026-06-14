@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "@/lib/api";
+import { NoteEntry } from "./useLeadsData";
 
 export type NiLead = {
   id: string;
@@ -14,8 +15,10 @@ export type NiLead = {
   interestedService: string;
   followUpNotes: string;
   comments: string;
+  noteHistory: NoteEntry[];
 };
 
+type RawNote = { id?: string; text?: string; createdAt?: string; };
 type RawLead = {
   id: string;
   name?: string;
@@ -30,9 +33,22 @@ type RawLead = {
   interestedService?: string;
   followUpNotes?: string;
   comments?: string;
+  notes?: RawNote[];
+  createdAt?: string;
 };
 
 function mapNiLead(l: RawLead): NiLead {
+  const legacyNote: NoteEntry[] = l.comments
+    ? [{ id: "legacy", text: l.comments, createdAt: l.createdAt ?? new Date().toISOString() }]
+    : [];
+  const noteHistory: NoteEntry[] = (l.notes ?? []).length > 0
+    ? (l.notes ?? []).map((n: RawNote) => ({
+        id:        n.id        ?? String(Math.random()),
+        text:      n.text      ?? "",
+        createdAt: n.createdAt ?? new Date().toISOString(),
+      }))
+    : legacyNote;
+
   return {
     id:                 l.id,
     client:             l.name                    ?? "Unknown",
@@ -46,6 +62,7 @@ function mapNiLead(l: RawLead): NiLead {
     interestedService:  l.interestedService        ?? "",
     followUpNotes:      l.followUpNotes            ?? "",
     comments:           l.comments                 ?? "",
+    noteHistory,
   };
 }
 
@@ -65,7 +82,7 @@ export function useNotInterested() {
     }
   }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
+  useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
 
   return { leads, setLeads, loading, refetch };
 }
