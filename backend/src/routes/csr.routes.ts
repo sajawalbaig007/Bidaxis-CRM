@@ -148,6 +148,38 @@ router.post("/lead/:id/notes", verifyToken, allowRoles("csr"), async (req: any, 
   }
 });
 
+/* ================= UPDATE NOTE ================= */
+router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const { noteId } = req.params as { noteId: string };
+    const { text } = req.body as { text: string };
+    if (!text?.trim()) return res.status(400).json({ success: false, message: "Note text required" });
+    const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
+    if (!note) return res.status(404).json({ success: false, message: "Note not found" });
+    const updated = await prisma.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+    invalidateCache(`csr:leads:${csrId}`, "admin:clients");
+    return res.json({ success: true, note: updated });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to update note" });
+  }
+});
+
+/* ================= DELETE NOTE ================= */
+router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const { noteId } = req.params as { noteId: string };
+    const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
+    if (!note) return res.status(404).json({ success: false, message: "Note not found" });
+    await prisma.leadNote.delete({ where: { id: noteId } });
+    invalidateCache(`csr:leads:${csrId}`, "admin:clients");
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to delete note" });
+  }
+});
+
 /* ================= UPDATE LEAD ================= */
 
 router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) => {

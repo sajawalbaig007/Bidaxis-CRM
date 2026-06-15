@@ -421,6 +421,18 @@ export default function CSRPage() {
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}
                         onAddNote={addNote}
+                        onNoteUpdated={(leadId, noteId, text) => {
+                          setLeads(prev => prev.map(l => l.id === leadId
+                            ? { ...l, noteHistory: l.noteHistory.map(n => n.id === noteId ? { ...n, text } : n) }
+                            : l
+                          ));
+                        }}
+                        onNoteDeleted={(leadId, noteId) => {
+                          setLeads(prev => prev.map(l => l.id === leadId
+                            ? { ...l, noteHistory: l.noteHistory.filter(n => n.id !== noteId) }
+                            : l
+                          ));
+                        }}
                       />
                     </td>
 

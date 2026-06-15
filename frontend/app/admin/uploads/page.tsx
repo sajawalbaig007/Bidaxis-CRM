@@ -6,7 +6,7 @@ import {
   UploadCloud, FileText, Trash2, CheckCircle2, Search, Users,
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, RefreshCw, RotateCcw,
-  PhoneCall,
+  PhoneCall, Star, Briefcase,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -37,9 +37,16 @@ const getFileIcon = (type: string) => {
 };
 
 export default function UploadPage() {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef             = useRef<HTMLInputElement | null>(null);
+  const inputRefImportant    = useRef<HTMLInputElement | null>(null);
+  const inputRefInterested   = useRef<HTMLInputElement | null>(null);
+  const inputRefActive       = useRef<HTMLInputElement | null>(null);
 
-  const [dragging,           setDragging]           = useState(false);
+  const [dragging,            setDragging]            = useState(false);
+  const [draggingImportant,   setDraggingImportant]   = useState(false);
+  const [draggingInterested,  setDraggingInterested]  = useState(false);
+  const [draggingActive,      setDraggingActive]      = useState(false);
+  const [uploadMode,          setUploadMode]          = useState<"regular" | "important" | "interested" | "active">("regular");
   const [search,             setSearch]             = useState("");
   const [files,              setFiles]              = useState<UploadFile[]>([]);
   const [latestDistribution, setLatestDistribution] = useState<CSRDistribution[]>([]);
@@ -82,6 +89,7 @@ export default function UploadPage() {
 
   const openCSRModal = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
+    setUploadMode("regular");
     setSelectedFile(selectedFiles[0]);
     setSelectedCompany("");
     setCustomCompany("");
@@ -89,6 +97,48 @@ export default function UploadPage() {
     setSelectedPane("pending");
     setSelectedLeadType("new");
     setModalStep("reset");
+    setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
+    setShowCSRModal(true);
+  };
+
+  const openImportantModal = (selectedFiles: FileList | null) => {
+    if (!selectedFiles) return;
+    setUploadMode("important");
+    setSelectedFile(selectedFiles[0]);
+    setSelectedCompany("");
+    setCustomCompany("");
+    setResetMode("keep");
+    setSelectedPane("pending");
+    setSelectedLeadType("old");
+    setModalStep("company");
+    setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
+    setShowCSRModal(true);
+  };
+
+  const openInterestedModal = (selectedFiles: FileList | null) => {
+    if (!selectedFiles) return;
+    setUploadMode("interested");
+    setSelectedFile(selectedFiles[0]);
+    setSelectedCompany("");
+    setCustomCompany("");
+    setResetMode("keep");
+    setSelectedPane("lead");
+    setSelectedLeadType("new");
+    setModalStep("company");
+    setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
+    setShowCSRModal(true);
+  };
+
+  const openActiveModal = (selectedFiles: FileList | null) => {
+    if (!selectedFiles) return;
+    setUploadMode("active");
+    setSelectedFile(selectedFiles[0]);
+    setSelectedCompany("");
+    setCustomCompany("");
+    setResetMode("keep");
+    setSelectedPane("lead");
+    setSelectedLeadType("old");
+    setModalStep("company");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -117,8 +167,18 @@ export default function UploadPage() {
       formData.append("selectedCSRs", JSON.stringify(selectedCSRs));
       formData.append("companyName", finalCompany.trim());
       formData.append("resetMode", resetMode ?? "keep");
-      formData.append("initialStatuses", JSON.stringify([selectedPane]));
-      formData.append("leadType", selectedLeadType);
+      formData.append("initialStatuses", JSON.stringify(
+        uploadMode === "important"  ? ["important"]  :
+        uploadMode === "interested" ? ["interested"] :
+        uploadMode === "active"     ? ["active"]     :
+        [selectedPane]
+      ));
+      formData.append("leadType",
+        uploadMode === "important"  ? "old" :
+        uploadMode === "interested" ? "new" :
+        uploadMode === "active"     ? "old" :
+        selectedLeadType
+      );
 
       let progress = 0;
       const interval = setInterval(() => {
@@ -189,9 +249,14 @@ export default function UploadPage() {
 
             {/* Step indicators — scrollable on very small screens */}
             {(() => {
-              const steps  = ["reset", "company", "pane", "csrs"] as const;
+              const isRegular = uploadMode === "regular";
+              const steps  = (isRegular
+                ? ["reset", "company", "pane", "csrs"]
+                : ["company", "csrs"]) as readonly string[];
+              const labels = isRegular
+                ? ["Data Mode", "Company", "CSR Pane", "CSRs"]
+                : ["Company", "CSRs"];
               const currentIdx = steps.indexOf(modalStep);
-              const labels = ["Data Mode", "Company", "CSR Pane", "CSRs"];
               return (
                 <div className="flex items-center px-4 sm:px-6 pt-3 sm:pt-4 overflow-x-auto shrink-0">
                   <div className="flex items-center min-w-max w-full">
@@ -349,15 +414,15 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => setModalStep("reset")}
+                      onClick={() => uploadMode === "regular" ? setModalStep("reset") : setShowCSRModal(false)}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
-                      Back
+                      {uploadMode === "regular" ? "Back" : "Cancel"}
                     </button>
                     <button
                       onClick={() => {
                         if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
-                        setModalStep("pane");
+                        if (uploadMode === "regular") setModalStep("pane"); else setModalStep("csrs");
                       }}
                       disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
@@ -382,7 +447,7 @@ export default function UploadPage() {
 
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     {([
-                      { value: "pending" as const, label: "My Links",  sub: "Today Links (daily call list)",     Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
+                      { value: "pending" as const, label: "Call data",  sub: "Today Links (daily call list)",     Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
                       { value: "lead"    as const, label: "My Leads",  sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
                     ]).map(opt => {
                       const sel = selectedPane === opt.value;
@@ -521,7 +586,7 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => setModalStep("pane")}
+                      onClick={() => uploadMode === "regular" ? setModalStep("pane") : setModalStep("company")}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
                       Back
@@ -613,33 +678,119 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* ── UPLOAD BOX ── */}
-        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm mb-4 sm:mb-6">
-          <div
-            onClick={() => inputRef.current?.click()}
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
-            className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 lg:p-10 transition-all cursor-pointer group ${
-              dragging ? "border-[#B8112D] bg-[#FFF6F8]" : "border-gray-200 hover:border-[#B8112D]"
-            }`}
-          >
-            <div className="flex flex-col items-center justify-center text-center">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4 lg:mb-5 group-hover:scale-105 transition-all">
-                <UploadCloud size={28} className="text-[#B8112D] sm:w-8 sm:h-8 lg:w-[38px] lg:h-[38px]" />
+        {/* ── UPLOAD BOXES — two columns on md+ ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+
+          {/* Regular leads upload */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+            <div
+              onClick={() => inputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={e => { e.preventDefault(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
+              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
+                dragging ? "border-[#B8112D] bg-[#FFF6F8]" : "border-gray-200 hover:border-[#B8112D]"
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
+                  <UploadCloud size={28} className="text-[#B8112D] sm:w-8 sm:h-8" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800">Upload New Leads</h3>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
+                  Upload lead sheets — select company and CSRs. Leads are distributed equally.
+                </p>
+                <button className="mt-4 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
+                  Browse Files
+                </button>
               </div>
-              <h3 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">
-                Upload Excel or CSV Files
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs sm:max-w-sm lg:max-w-xl leading-relaxed">
-                Upload lead sheets — select company and CSRs. Leads will be automatically distributed equally.
-              </p>
-              <button className="mt-4 sm:mt-5 lg:mt-6 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-5 sm:px-6 lg:px-7 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium">
-                Browse Files
-              </button>
+              <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv"
+                onChange={e => openCSRModal(e.target.files)} />
             </div>
-            <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv"
-              onChange={e => openCSRModal(e.target.files)} />
+          </div>
+
+          {/* Important / previous clients upload */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+            <div
+              onClick={() => inputRefImportant.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDraggingImportant(true); }}
+              onDragLeave={() => setDraggingImportant(false)}
+              onDrop={e => { e.preventDefault(); setDraggingImportant(false); openImportantModal(e.dataTransfer.files); }}
+              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
+                draggingImportant ? "border-amber-500 bg-amber-50" : "border-amber-200 hover:border-amber-400"
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
+                  <PhoneCall size={26} className="text-amber-600 sm:w-7 sm:h-7" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800">Previous Important Clients</h3>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
+                  Previously known important clients — added as old clients with <span className="font-semibold text-amber-600">Important</span> status.
+                </p>
+                <button className="mt-4 bg-amber-500 hover:bg-amber-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
+                  Browse Files
+                </button>
+              </div>
+              <input ref={inputRefImportant} type="file" hidden accept=".xlsx,.xls,.csv"
+                onChange={e => openImportantModal(e.target.files)} />
+            </div>
+          </div>
+
+          {/* Interested clients upload */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+            <div
+              onClick={() => inputRefInterested.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDraggingInterested(true); }}
+              onDragLeave={() => setDraggingInterested(false)}
+              onDrop={e => { e.preventDefault(); setDraggingInterested(false); openInterestedModal(e.dataTransfer.files); }}
+              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
+                draggingInterested ? "border-emerald-500 bg-emerald-50" : "border-emerald-200 hover:border-emerald-400"
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
+                  <Star size={26} className="text-emerald-600 sm:w-7 sm:h-7" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800">Interested Clients</h3>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
+                  Upload clients who showed interest — added as new clients with <span className="font-semibold text-emerald-600">Interested</span> status.
+                </p>
+                <button className="mt-4 bg-emerald-500 hover:bg-emerald-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
+                  Browse Files
+                </button>
+              </div>
+              <input ref={inputRefInterested} type="file" hidden accept=".xlsx,.xls,.csv"
+                onChange={e => openInterestedModal(e.target.files)} />
+            </div>
+          </div>
+
+          {/* Active projects upload */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+            <div
+              onClick={() => inputRefActive.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDraggingActive(true); }}
+              onDragLeave={() => setDraggingActive(false)}
+              onDrop={e => { e.preventDefault(); setDraggingActive(false); openActiveModal(e.dataTransfer.files); }}
+              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
+                draggingActive ? "border-indigo-500 bg-indigo-50" : "border-indigo-200 hover:border-indigo-400"
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-indigo-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
+                  <Briefcase size={26} className="text-indigo-600 sm:w-7 sm:h-7" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800">Active Projects</h3>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
+                  Upload clients with ongoing projects — added as old clients with <span className="font-semibold text-indigo-600">Active</span> status.
+                </p>
+                <button className="mt-4 bg-indigo-500 hover:bg-indigo-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
+                  Browse Files
+                </button>
+              </div>
+              <input ref={inputRefActive} type="file" hidden accept=".xlsx,.xls,.csv"
+                onChange={e => openActiveModal(e.target.files)} />
+            </div>
           </div>
         </div>
 
