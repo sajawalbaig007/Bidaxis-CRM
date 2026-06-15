@@ -335,7 +335,7 @@ router.delete("/csr-leads/:csrId", auth_middleware_1.verifyToken, (0, role_middl
             return res.status(400).json({ success: false, message: "User is not a CSR" });
         }
         const { count } = await db_1.default.lead.deleteMany({ where: { assignedTo: csrId } });
-        (0, cache_1.invalidateCache)("admin:clients", "admin:csrs");
+        (0, cache_1.invalidateCache)("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
         return res.json({
             success: true,
             message: `Deleted ${count} leads for ${csr.name}`,
