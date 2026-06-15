@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -13,28 +13,23 @@ enum Role {
 }
 
 model User {
-  id       String @id @default(cuid())
-  name     String
-  email    String @unique
-  password String
-  role     Role
-
-  csrCode  String?  @unique
-
-  isActive Boolean @default(true)
-
-  isOnline   Boolean   @default(false)
-  lastActive DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  leads        Lead[]    @relation("AssignedLeads")
-  callLogs     CallLog[] @relation("CSRCallLogs")
-  reports      Report[]
+  id           String    @id @default(cuid()) @map("_id")
+  name         String
+  email        String    @unique
+  password     String
+  role         Role
+  csrCode      String?   @unique
+  isActive     Boolean   @default(true)
+  isOnline     Boolean   @default(false)
+  lastActive   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   twoFAEnabled Boolean   @default(false)
   tokenVersion Int       @default(0)
 
+  leads        Lead[]               @relation("AssignedLeads")
+  callLogs     CallLog[]            @relation("CSRCallLogs")
+  reports      Report[]
   memberships  ConversationMember[]
   sentMessages Message[]            @relation("SentMessages")
 
@@ -45,46 +40,39 @@ model User {
 }
 
 model Lead {
-  id       String  @id @default(cuid())
-  name     String?
-  company  String?
-  phone    String?
-  email    String?
-  status   String  @default("pending")
-  comments String?
+  id                 String    @id @default(cuid()) @map("_id")
+  name               String?
+  company            String?
+  phone              String?
+  email              String?
+  status             String    @default("pending")
+  comments           String?
+  important          Boolean   @default(false)
+  interested         Boolean   @default(false)
+  nextSchedule       String?
+  nextTime           String?
+  timezone           String?
+  followUpNotes      String?
+  followUpExpiry     DateTime?
+  interestedService  String?
+  projectTitle       String?
+  projectCode        String?
+  projectDeadline    String?
+  projectBudget      String?
+  projectNotes       String?
+  paidAmount         String?
+  clientCode         String?
+  state              String?
+  isOldClient        Boolean   @default(false)
+  assignedTo         String
+  uploadedFileId     String?
+  shuffleAttempts    Int       @default(0)
+  notInterestedCount Int       @default(0)
+  notPickedCount     Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  important  Boolean @default(false)
-  interested Boolean @default(false)
-
-  nextSchedule   String?
-  nextTime       String?
-  timezone       String?
-  followUpNotes  String?
-  followUpExpiry DateTime?
-
-  interestedService String?
-  projectTitle      String?
-  projectCode       String?
-  projectDeadline   String?
-  projectBudget     String?
-  projectNotes      String?
-  paidAmount        String?
-
-  clientCode     String?
-  state          String?
-  isOldClient    Boolean @default(false)
-
-  assignedTo     String
-  uploadedFileId String?
-
-  shuffleAttempts    Int @default(0)
-  notInterestedCount Int @default(0)
-  notPickedCount     Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  csr        User        @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
+  csr        User        @relation("AssignedLeads", fields: [assignedTo], references: [id])
   uploadFile UploadFile? @relation(fields: [uploadedFileId], references: [id])
   callLogs   CallLog[]
   notes      LeadNote[]
@@ -102,33 +90,32 @@ model Lead {
 }
 
 model LeadNote {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   text      String
   createdAt DateTime @default(now())
+  leadId    String
 
-  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  leadId String
+  lead Lead @relation(fields: [leadId], references: [id])
 
   @@index([leadId])
   @@index([leadId, createdAt])
 }
 
 model CallLog {
-  id       String  @id @default(cuid())
-  leadId   String
-  csrId    String
-  status   String
-  notes    String?
-  duration Int?
-
+  id        String   @id @default(cuid()) @map("_id")
+  leadId    String
+  csrId     String
+  status    String
+  notes     String?
+  duration  Int?
   createdAt DateTime @default(now())
 
-  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  csr  User @relation("CSRCallLogs", fields: [csrId], references: [id], onDelete: Cascade)
+  lead Lead @relation(fields: [leadId], references: [id])
+  csr  User @relation("CSRCallLogs", fields: [csrId], references: [id])
 }
 
 model UploadFile {
-  id            String   @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
   fileName      String
   cloudinaryUrl String
   totalLeads    Int
@@ -140,8 +127,8 @@ model UploadFile {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  type      String   // "direct" | "group"
+  id        String   @id @default(cuid()) @map("_id")
+  type      String
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -154,37 +141,35 @@ model Conversation {
 }
 
 model ConversationMember {
-  id             String    @id @default(cuid())
+  id             String    @id @default(cuid()) @map("_id")
   conversationId String
   userId         String
   joinedAt       DateTime  @default(now())
   lastReadAt     DateTime?
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
 
   @@unique([conversationId, userId])
   @@index([userId])
 }
 
 model Message {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid()) @map("_id")
   conversationId String
   senderId       String
-  text           String  @default("")
-  type           String  @default("text") // "text" | "image" | "file" | "voice"
+  text           String   @default("")
+  type           String   @default("text")
   fileUrl        String?
   fileName       String?
   fileSize       Int?
   fileMimeType   String?
+  replyToId      String?
+  createdAt      DateTime @default(now())
 
-  replyToId    String?
-
-  createdAt DateTime @default(now())
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  replyTo      Message?     @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id])
+  replyTo      Message?     @relation("MessageReply", fields: [replyToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   replies      Message[]    @relation("MessageReply")
 
   @@index([conversationId])
@@ -192,13 +177,12 @@ model Message {
 }
 
 model Report {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
   reportName  String
   reportUrl   String
   reportType  String
   generatedBy String?
+  createdAt   DateTime @default(now())
 
-  createdAt DateTime @default(now())
-
-  user User? @relation(fields: [generatedBy], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [generatedBy], references: [id])
 }

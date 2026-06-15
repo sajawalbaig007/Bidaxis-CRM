@@ -10,6 +10,11 @@ const US_ZONES = [
   { tz: "America/Los_Angeles", label: "Pacific",  abbr: "PT", city: "Los Angeles" },
 ];
 
+const CA_ZONES = [
+  { tz: "America/Halifax",  label: "Atlantic",     abbr: "AT", city: "Halifax"    },
+  { tz: "America/St_Johns", label: "Newfoundland", abbr: "NT", city: "St. John's" },
+];
+
 const MAP_ZONES = [
   {
     abbr: "PT", label: "Pacific Time", hours: "UTC −8/−7",
@@ -257,6 +262,9 @@ export default function UsaTimezoneClocks() {
       <div className="bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-5 lg:px-6 py-2 sm:py-3">
           <div className="flex items-center gap-3 sm:gap-5 lg:gap-8 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
+            {/* 🇺🇸 US */}
+            <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest shrink-0 hidden sm:block">🇺🇸</span>
             {US_ZONES.map((zone, idx) => (
               <div key={zone.tz} className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <AnalogClock tz={zone.tz} />
@@ -270,6 +278,29 @@ export default function UsaTimezoneClocks() {
                   </p>
                 </div>
                 {idx < US_ZONES.length - 1 && (
+                  <div className="w-px h-10 bg-gray-100 ml-1 sm:ml-2 shrink-0" />
+                )}
+              </div>
+            ))}
+
+            {/* divider */}
+            <div className="w-px h-10 bg-gray-200 shrink-0" />
+
+            {/* 🇨🇦 Canada */}
+            <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest shrink-0 hidden sm:block">🇨🇦</span>
+            {CA_ZONES.map((zone, idx) => (
+              <div key={zone.tz} className="flex items-center gap-2 sm:gap-3 shrink-0">
+                <AnalogClock tz={zone.tz} />
+                <div>
+                  <p className="text-[11px] sm:text-xs font-bold text-[#0F172A] leading-none">{zone.city}</p>
+                  <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">
+                    {zone.label} · <span className="font-semibold text-gray-500">{zone.abbr}</span>
+                  </p>
+                  <p className="text-[10px] sm:text-[11px] font-mono font-bold text-[#B8112D] mt-0.5">
+                    <DigitalTime tz={zone.tz} />
+                  </p>
+                </div>
+                {idx < CA_ZONES.length - 1 && (
                   <div className="w-px h-10 bg-gray-100 ml-1 sm:ml-2 shrink-0" />
                 )}
               </div>
