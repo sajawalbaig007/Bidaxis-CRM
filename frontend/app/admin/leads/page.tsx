@@ -693,6 +693,16 @@ export default function ClientsPage() {
                                 <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
                                   {client.email}
                                 </p>
+                                {client.lastComment && client.lastComment !== "No comments" && (
+                                  <div className="flex items-start gap-1 mt-1 max-w-[160px] sm:max-w-[200px] lg:max-w-[260px]">
+                                    <span className="shrink-0 mt-[1px] w-3 h-3 rounded-full bg-amber-100 flex items-center justify-center">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 block" />
+                                    </span>
+                                    <p className="text-[10px] text-amber-700 leading-tight line-clamp-2 font-medium">
+                                      {client.lastComment}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>

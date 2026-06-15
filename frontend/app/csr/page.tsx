@@ -390,6 +390,19 @@ export default function CSRPage() {
                           <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate max-w-[120px] sm:max-w-none">
                             {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
                           </p>
+                          {currentLink.noteHistory && currentLink.noteHistory.length > 0 && (() => {
+                            const latest = currentLink.noteHistory[currentLink.noteHistory.length - 1];
+                            return (
+                              <div className="flex items-start gap-1 mt-1 max-w-[180px] sm:max-w-[240px]">
+                                <span className="shrink-0 mt-[1px] w-3 h-3 rounded-full bg-amber-100 flex items-center justify-center">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 block" />
+                                </span>
+                                <p className="text-[10px] text-amber-700 leading-tight line-clamp-2 font-medium">
+                                  {latest.text}
+                                </p>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </td>
