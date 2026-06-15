@@ -393,7 +393,7 @@ router.delete(
 
       const { count } = await prisma.lead.deleteMany({ where: { assignedTo: csrId } });
 
-      invalidateCache("admin:clients", "admin:csrs");
+      invalidateCache("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
       return res.json({
         success: true,
         message: `Deleted ${count} leads for ${csr.name}`,
