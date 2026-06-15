@@ -79,19 +79,6 @@ function BrowserBadge({ browser }: { browser: string | null }) {
 }
 
 /* Tab status — On Dashboard vs Away */
-/* ── Live timer that updates every second ── */
-function useLiveSeconds(isoTimestamp: string | null): number {
-  const [secs, setSecs] = useState(0);
-  useEffect(() => {
-    if (!isoTimestamp) return;
-    const update = () => setSecs(Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 1000));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [isoTimestamp]);
-  return secs;
-}
-
 /* ── Render elapsed seconds as human string ── */
 function formatElapsed(totalSecs: number): string {
   if (totalSecs < 60)  return `${totalSecs}s`;
@@ -104,8 +91,8 @@ function formatElapsed(totalSecs: number): string {
 }
 
 /* ── Away timer badge — live counting ── */
-function AwayTimer({ hiddenAt, browser }: { hiddenAt: string | null; browser: string | null }) {
-  const secs = useLiveSeconds(hiddenAt);
+function AwayTimer({ hiddenAt, browser, now }: { hiddenAt: string | null; browser: string | null; now: number }) {
+  const secs = hiddenAt ? Math.floor((now - new Date(hiddenAt).getTime()) / 1000) : 0;
   return (
     <div className="flex flex-col gap-1">
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#FFF7E6] text-[#B45309]">
@@ -121,9 +108,9 @@ function AwayTimer({ hiddenAt, browser }: { hiddenAt: string | null; browser: st
 }
 
 /* ── Tab status — On Dashboard or Away ── */
-function TabStatusBadge({ tabVisible, hiddenAt, openedAt, browser }: {
+function TabStatusBadge({ tabVisible, hiddenAt, openedAt, browser, now }: {
   tabVisible: boolean | null; hiddenAt: string | null;
-  openedAt: string | null; browser: string | null;
+  openedAt: string | null; browser: string | null; now: number;
 }) {
   if (tabVisible === null) return <span className="text-gray-300 text-xs">—</span>;
 
@@ -142,12 +129,12 @@ function TabStatusBadge({ tabVisible, hiddenAt, openedAt, browser }: {
     );
   }
 
-  return <AwayTimer hiddenAt={hiddenAt} browser={browser}/>;
+  return <AwayTimer hiddenAt={hiddenAt} browser={browser} now={now}/>;
 }
 
 /* ── Online/Offline badge — 5min offline → Inactive label ── */
-function OnlineBadge({ isOnline, lastActive }: { isOnline: boolean; lastActive: string | null }) {
-  const offlineSecs = useLiveSeconds(isOnline ? null : lastActive);
+function OnlineBadge({ isOnline, lastActive, now }: { isOnline: boolean; lastActive: string | null; now: number }) {
+  const offlineSecs = !isOnline && lastActive ? Math.floor((now - new Date(lastActive).getTime()) / 1000) : 0;
   const isLongOffline = !isOnline && offlineSecs > 5 * 60; // > 5 minutes
 
   if (isOnline) {
@@ -182,6 +169,8 @@ function OnlineBadge({ isOnline, lastActive }: { isOnline: boolean; lastActive: 
 const PAGE_SIZE = 30;
 
 export default function UsersPage() {
+  const [now, setNow] = useState(() => Date.now());
+
   const [users,        setUsers]        = useState<User[]>([]);
   const [search,       setSearch]       = useState("");
   const [page,         setPage]         = useState(1);
@@ -197,6 +186,12 @@ export default function UsersPage() {
     name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", profilePic: "",
   });
   const [uploadingPic, setUploadingPic] = useState(false);
+
+  /* Single 1s tick — replaces per-row useLiveSeconds intervals */
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchUsers = useCallback(async (silent = false) => {
     try {
@@ -529,7 +524,7 @@ export default function UsersPage() {
 
                     {/* ONLINE STATUS */}
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive}/>
+                      <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive} now={now}/>
                     </td>
 
                     {/* BROWSER / TAB STATUS */}
@@ -540,6 +535,7 @@ export default function UsersPage() {
                           hiddenAt={u.hiddenAt}
                           openedAt={u.openedAt}
                           browser={u.browser}
+                          now={now}
                         />
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
@@ -693,6 +689,7 @@ export default function UsersPage() {
                         hiddenAt={detailUser.hiddenAt}
                         openedAt={detailUser.openedAt}
                         browser={detailUser.browser}
+                        now={now}
                       />
                     </div>
                   )}

@@ -38,7 +38,7 @@ router.get("/", async (req, res) => {
         },
         orderBy: { createdAt: "asc" },
       }) as Array<Record<string, unknown>>;
-      setCache(CACHE_KEY, users, 2_000);
+      setCache(CACHE_KEY, users, 15_000);
     }
 
     const withBrowser = users.map(u => ({

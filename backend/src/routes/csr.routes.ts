@@ -28,7 +28,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     });
 
     const payload = { success: true, totalLeads: leads.length, leads };
-    setCache(cacheKey, payload, 3_000);
+    setCache(cacheKey, payload, 30_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -432,7 +432,7 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
     }));
 
     const payload = { success: true, leads };
-    setCache(cacheKey, payload, 3_000);
+    setCache(cacheKey, payload, 30_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -459,7 +459,7 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
     });
 
     const payload = { success: true, leads };
-    setCache(cacheKey, payload, 3_000);
+    setCache(cacheKey, payload, 30_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);

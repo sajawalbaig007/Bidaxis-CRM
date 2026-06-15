@@ -27,7 +27,7 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
             orderBy: { createdAt: "desc" },
         });
         const payload = { success: true, totalLeads: leads.length, leads };
-        (0, cache_1.setCache)(cacheKey, payload, 3000);
+        (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
     }
     catch (error) {
@@ -340,7 +340,7 @@ router.get("/leads", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
             isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
         }));
         const payload = { success: true, leads };
-        (0, cache_1.setCache)(cacheKey, payload, 3000);
+        (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
     }
     catch (error) {
@@ -365,7 +365,7 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             orderBy: { updatedAt: "desc" },
         });
         const payload = { success: true, leads };
-        (0, cache_1.setCache)(cacheKey, payload, 3000);
+        (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
     }
     catch (error) {
