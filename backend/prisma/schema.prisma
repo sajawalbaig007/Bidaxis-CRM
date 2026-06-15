@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -12,160 +12,194 @@ enum Role {
   csr
 }
 
-/* ================= USER ================= */
-
 model User {
-  id          String      @id @default(cuid())
+  id           String    @id @default(cuid()) @map("_id")
+  name         String
+  email        String    @unique
+  password     String
+  role         Role
+  csrCode      String?
+  cnic         String?
+  profilePic   String?
+  isActive     Boolean   @default(true)
+  isOnline     Boolean   @default(false)
+  lastActive   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  twoFAEnabled Boolean   @default(false)
+  tokenVersion Int       @default(0)
 
-  name        String
-  email       String      @unique
-  password    String
+  leads        Lead[]               @relation("AssignedLeads")
+  callLogs     CallLog[]            @relation("CSRCallLogs")
+  reports      Report[]
+  memberships  ConversationMember[]
+  sentMessages Message[]            @relation("SentMessages")
 
-  role        Role
-
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
-
-  /* RELATIONS */
-
-  leads       Lead[]      @relation("AssignedLeads")
-
-  callLogs    CallLog[]   @relation("CSRCallLogs")
-
-  reports     Report[]
+  @@index([role])
+  @@index([isActive])
+  @@index([lastActive])
+  @@index([role, isActive])
 }
-
-/* ================= LEAD ================= */
 
 model Lead {
-
-  id              String       @id @default(cuid())
-
-  name            String?
-
-  company         String?
-
-  phone           String?
-
-  email           String?
-
-  status          String       @default("pending")
-
-  comments        String?
-
-  /* ================= FLAGS ================= */
-
-  important       Boolean      @default(false)
-
-  interested      Boolean      @default(false)
-
-  /* ================= FOLLOW UP ================= */
-
-  nextSchedule    String?
-
-  nextTime        String?
-
-  timezone        String?
-
-  followUpNotes   String?
-
-  followUpExpiry  DateTime?
-
-  /* ================= INTERESTED SERVICE ================= */
-
+  id                 String    @id @default(cuid()) @map("_id")
+  name               String?
+  company            String?
+  phone              String?
+  email              String?
+  status             String    @default("pending")
+  comments           String?
+  important          Boolean   @default(false)
+  interested         Boolean   @default(false)
+  nextSchedule       String?
+  nextTime           String?
+  timezone           String?
+  followUpNotes      String?
+  followUpExpiry     DateTime?
   interestedService  String?
+  projectTitle       String?
+  projectCode        String?
+  projectDeadline    String?
+  projectBudget      String?
+  projectNotes       String?
+  paidAmount         String?
+  clientCode         String?
+  state              String?
+  isOldClient        Boolean   @default(false)
+  assignedTo         String
+  uploadedFileId     String?
+  shuffleAttempts    Int       @default(0)
+  notInterestedCount Int       @default(0)
+  notPickedCount     Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  /* ================= PROJECT WON DETAILS ================= */
+  csr         User        @relation("AssignedLeads", fields: [assignedTo], references: [id])
+  uploadFile  UploadFile? @relation(fields: [uploadedFileId], references: [id])
+  callLogs    CallLog[]
+  notes       LeadNote[]
+  subContacts SubContact[]
 
-  projectTitle    String?
-
-  projectDeadline String?
-
-  projectBudget   String?
-
-  projectNotes    String?
-
-  /* ================= ASSIGNMENT ================= */
-
-  assignedTo      String
-
-  uploadedFileId  String?
-
-  /* ================= DATES ================= */
-
-  createdAt       DateTime     @default(now())
-
-  updatedAt       DateTime     @default(now()) @updatedAt
-
-  /* ================= RELATIONS ================= */
-
-  csr             User         @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: Cascade)
-
-  uploadFile      UploadFile?  @relation(fields: [uploadedFileId], references: [id])
-
-  callLogs        CallLog[]
+  @@index([assignedTo])
+  @@index([status])
+  @@index([phone])
+  @@index([email])
+  @@index([company])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([assignedTo, status])
+  @@index([company, status])
+  @@index([status, assignedTo])
 }
 
-/* ================= CALL LOG ================= */
+model LeadNote {
+  id        String   @id @default(cuid()) @map("_id")
+  text      String
+  createdAt DateTime @default(now())
+  leadId    String
+
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@index([leadId])
+  @@index([leadId, createdAt])
+}
+
+model SubContact {
+  id          String   @id @default(cuid()) @map("_id")
+  leadId      String
+  name        String
+  designation String?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@index([leadId])
+}
 
 model CallLog {
-  id          String      @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
+  leadId    String
+  csrId     String
+  status    String
+  notes     String?
+  duration  Int?
+  createdAt DateTime @default(now())
 
-  leadId      String
-
-  csrId       String
-
-  status      String
-
-  notes       String?
-
-  duration    Int?
-
-  createdAt   DateTime    @default(now())
-
-  /* RELATIONS */
-
-  lead        Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
-
-  csr         User        @relation("CSRCallLogs", fields: [csrId], references: [id], onDelete: Cascade)
+  lead Lead @relation(fields: [leadId], references: [id])
+  csr  User @relation("CSRCallLogs", fields: [csrId], references: [id])
 }
-
-/* ================= UPLOAD FILE ================= */
 
 model UploadFile {
-  id              String      @id @default(cuid())
+  id            String   @id @default(cuid()) @map("_id")
+  fileName      String
+  cloudinaryUrl String
+  totalLeads    Int
+  uploadedBy    String
+  companyName   String?
+  createdAt     DateTime @default(now())
 
-  fileName        String
-
-  cloudinaryUrl   String
-
-  totalLeads      Int
-
-  uploadedBy      String
-
-  createdAt       DateTime    @default(now())
-
-  /* RELATIONS */
-
-  leads           Lead[]
+  leads Lead[]
 }
 
-/* ================= REPORT ================= */
+model Conversation {
+  id        String   @id @default(cuid()) @map("_id")
+  type      String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@index([type])
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  id             String    @id @default(cuid()) @map("_id")
+  conversationId String
+  userId         String
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(cuid()) @map("_id")
+  conversationId String
+  senderId       String
+  text           String   @default("")
+  type           String   @default("text")
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  fileMimeType   String?
+  replyToId      String?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id])
+  replyTo      Message?     @relation("MessageReply", fields: [replyToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies      Message[]    @relation("MessageReply")
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+}
 
 model Report {
-  id            String      @id @default(cuid())
+  id          String   @id @default(cuid()) @map("_id")
+  reportName  String
+  reportUrl   String
+  reportType  String
+  generatedBy String?
+  createdAt   DateTime @default(now())
 
-  reportName    String
-
-  reportUrl     String
-
-  reportType    String
-
-  generatedBy   String
-
-  createdAt     DateTime    @default(now())
-
-  /* RELATIONS */
-
-  user          User        @relation(fields: [generatedBy], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [generatedBy], references: [id])
 }

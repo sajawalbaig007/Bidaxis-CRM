@@ -1,0 +1,87 @@
+"use client";
+
+import { useMemo } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { getStatusChartData } from "../../constants/statusChart";
+import { Lead } from "../../types/lead";
+
+interface LeadStatusDonutProps {
+  leads: Lead[];
+  loading?: boolean;
+}
+
+export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps) {
+  const data  = useMemo(() => getStatusChartData(leads), [leads]);
+  const total = useMemo(() => data.reduce((sum, slice) => sum + slice.value, 0), [data]);
+
+  return (
+    <div className="bg-white rounded-2xl sm:rounded-[28px] p-4 sm:p-5 lg:p-6 shadow-sm border border-white">
+      <div>
+        <h3 className="text-base sm:text-[18px] font-bold text-[#0F172A]">Lead Status Distribution</h3>
+        <p className="text-gray-500 mt-0.5 text-xs sm:text-[13px]">Breakdown of all your assigned leads.</p>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12 mt-4 sm:mt-6">
+          <div className="w-50 h-50 lg:w-64 lg:h-64 rounded-full bg-gray-100 animate-pulse mx-auto lg:mx-0 shrink-0" />
+          <div className="flex-1 w-full space-y-3 sm:space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        </div>
+      ) : data.length === 0 ? (
+        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+          No leads to display yet.
+        </div>
+      ) : (
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12 mt-4 sm:mt-6">
+          {/* Chart */}
+          <div className="relative w-50 h-50 lg:w-64 lg:h-64 mx-auto lg:mx-0 shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Tooltip
+                  formatter={(value, name) => [`${value} Leads`, name]}
+                  contentStyle={{ borderRadius: "14px", border: "1px solid #eee", boxShadow: "0 10px 30px rgba(0,0,0,0.08)" }}
+                />
+                <Pie data={data} cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" paddingAngle={4} dataKey="value">
+                  {data.map(slice => (
+                    <Cell key={slice.name} fill={slice.color} stroke="transparent" />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="text-3xl sm:text-4xl font-bold text-[#0F172A]">{total}</span>
+              <span className="text-[11px] sm:text-xs text-gray-500 mt-1">Total Leads</span>
+            </div>
+          </div>
+
+          {/* Breakdown */}
+          <div className="flex-1 w-full flex flex-col gap-3 sm:gap-4 lg:border-l lg:border-gray-100 lg:pl-10">
+            {data.map(slice => {
+              const pct = Math.round((slice.value / total) * 100);
+              return (
+                <div key={slice.name}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                      <p className="text-xs sm:text-[13px] font-medium text-gray-600 truncate">{slice.name}</p>
+                    </div>
+                    <p className="text-xs sm:text-[13px] shrink-0">
+                      <span className="font-bold text-[#0F172A]">{slice.value}</span>
+                      <span className="text-gray-400 ml-1.5">{pct}%</span>
+                    </p>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#F1F2F6] overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: slice.color }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

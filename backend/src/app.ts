@@ -19,17 +19,28 @@ import userRoutes from "./routes/user.routes";
 import reportRoutes from "./routes/report.routes";
 
 import reportUploadRoutes from "./routes/reportUpload.routes";
+import chatRoutes from "./routes/chat.routes";
 
 dotenv.config();
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(
   cors({
-    origin:
-      "http://localhost:3000",
-
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    maxAge: 86_400,
   })
 );
 
@@ -74,6 +85,11 @@ app.use(
 app.use(
   "/api/report-uploads",
   reportUploadRoutes
+);
+
+app.use(
+  "/api/chat",
+  chatRoutes
 );
 
 export default app;

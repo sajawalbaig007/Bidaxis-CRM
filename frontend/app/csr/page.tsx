@@ -1,988 +1,639 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import {
-  ShieldCheck,
-  Activity,
-  PhoneCall,
-  CircleCheckBig,
-  AlertTriangle,
-  Clock3,
-  Phone,
-  Users,
-  UserCheck,
-  Bell,
-  ChevronDown,
-  X,
-  Globe,
-  Calendar,
-  Briefcase,
+  PhoneCall, CircleCheckBig, AlertTriangle,
+  Clock3, Phone, Users, Bell, X, Eye, ChevronDown,
 } from "lucide-react";
 
-import CSRNavbar from "./components/CSRNavbar";
-import CSRSidebar from "./components/CSRSidebar";
-import WelcomeHeader from "./components/WelcomeHeader";
-import API from "@/lib/api";
+import TopNavbar from "./components/navigation/TopNavbar";
+import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
+import LeadDetailModal from "./components/LeadDetailModal";
+import StateFilterDropdown from "./components/shared/StateFilterDropdown";
+import CommentCell from "./components/shared/CommentCell";
+import LeadStatusDonut from "./components/shared/LeadStatusDonut";
+import ImportantCallModal from "./components/modals/ImportantCallModal";
+import InterestedModal from "./components/modals/InterestedModal";
+import ProjectWonModal from "./components/modals/ProjectWonModal";
 
-// US Timezones array
-const usTimezones = [
-  {
-    value: "America/Adak",
-    label: "Hawaii-Aleutian (UTC-10:00)",
-    abbreviation: "HAST",
-  },
-  {
-    value: "America/Anchorage",
-    label: "Alaska (UTC-09:00)",
-    abbreviation: "AKST",
-  },
-  {
-    value: "America/Los_Angeles",
-    label: "Pacific Time (UTC-08:00)",
-    abbreviation: "PT",
-  },
-  {
-    value: "America/Denver",
-    label: "Mountain Time (UTC-07:00)",
-    abbreviation: "MT",
-  },
-  {
-    value: "America/Chicago",
-    label: "Central Time (UTC-06:00)",
-    abbreviation: "CT",
-  },
-  {
-    value: "America/New_York",
-    label: "Eastern Time (UTC-05:00)",
-    abbreviation: "ET",
-  },
-  {
-    value: "America/Phoenix",
-    label: "Arizona (UTC-07:00) - No DST",
-    abbreviation: "MST",
-  },
-  {
-    value: "America/Indiana/Indianapolis",
-    label: "Indiana (UTC-05:00)",
-    abbreviation: "EST",
-  },
-  {
-    value: "Pacific/Honolulu",
-    label: "Hawaii (UTC-10:00) - No DST",
-    abbreviation: "HST",
-  },
-];
+import { useCsrDashboard } from "./hooks/useCsrDashboard";
+import { useLeadActions } from "./hooks/useLeadActions";
+import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
+import { PAGE_SIZE, TODAY_STR } from "./constants";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "./constants/timezoneAbbr";
+import { Lead } from "./types/lead";
 
-// Services list for Interested modal
-const serviceOptions = [
-  { value: "Estimating", label: "Estimating", icon: "📊" },
-  { value: "Scheduling", label: "Scheduling", icon: "📅" },
-  { value: "Shop Drawing", label: "Shop Drawing", icon: "📐" },
-  { value: "Drafting", label: "Drafting", icon: "✏️" },
-  { value: "BIM", label: "BIM", icon: "🏗️" },
-  { value: "IT", label: "IT", icon: "💻" },
-];
+const statusLabel = (s: string) => {
+  if (s === "Not Interested" || s === "completed")     return "Not Interested";
+  if (s === "not picked"     || s === "not completed") return "Not Picked";
+  return s;
+};
 
-// Helper function
-const getCurrentTimeInTimezone = (timezone: string): string => {
-  try {
-    const now = new Date();
-    const options: Intl.DateTimeFormatOptions = {
-      timeZone: timezone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    };
-    return new Intl.DateTimeFormat("en-US", options).format(now);
-  } catch {
-    return "--:-- --";
-  }
+const statusBadgeClass = (s: string) => {
+  if (s === "not picked" || s === "not completed") return "bg-[#FFF7E6] text-[#B54708]";
+  if (s === "Not Interested" || s === "completed") return "bg-[#F1F5F9] text-[#475569]";
+  if (s === "important")    return "bg-[#FFF1F3] text-[#B8112D]";
+  if (s === "interested")   return "bg-[#FFF4E5] text-[#D97706]";
+  if (s === "Close Client") return "bg-[#ECFDF5] text-[#065F46]";
+  return "bg-[#F4F4F5] text-[#52525B]";
 };
 
 export default function CSRPage() {
-  /* MOBILE SIDEBAR */
-  const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
+  const { leads, setLeads, loading } = useCsrDashboard();
+  const { updateLead, addNote } = useLeadActions(setLeads);
 
-  type LeadType = {
-    id: string;
-    client: string;
-    company: string;
-    phone: string;
-    email: string;
-    status: string;
-    nextSchedule: string;
-    nextTime: string;
-    timezone: string;
-    followUpNotes?: string;
-    interestedService?: string;
-  };
-
-  // Stats state — fetched from backend per CSR
-  const [stats, setStats] = useState({
-    totalCalls: 0,
-    activeLeads: 0,
-    availableStaff: 0,
-    notifications: 0,
-  });
-
-  const [links, setLinks] = useState<LeadType[]>([]);
-
-  /* ================= FETCH REAL LEADS & STATS ================= */
-  const fetchDashboard = async () => {
-    try {
-      const res = await API.get("/csr/dashboard");
-
-      // Stats from backend (per-CSR real data)
-      if (res.data.stats) {
-        setStats({
-          totalCalls: res.data.stats.totalCalls ?? 0,
-          activeLeads: res.data.stats.activeLeads ?? 0,
-          availableStaff: res.data.stats.availableStaff ?? 0,
-          notifications: res.data.stats.notifications ?? 0,
-        });
-      }
-
-      interface Lead {
-  id: string;
-  name: string;
-  company: string;
-  phone: string;
-  email: string;
-  status: string;
-  nextSchedule: string;
-  nextTime: string;
-  timezone: string;
-  followUpNotes: string;
-  interestedService: string;
-}
-
-const formatted = res.data.leads.map((lead: Lead) => ({
-  id: lead.id,
-  client: lead.name || "Unknown",
-  company: lead.company || "N/A",
-  phone: lead.phone || "N/A",
-  email: lead.email || "N/A",
-  status: lead.status || "pending",
-  nextSchedule: lead.nextSchedule || "",
-  nextTime: lead.nextTime || "",
-  timezone: lead.timezone || "",
-  followUpNotes: lead.followUpNotes || "",
-  interestedService: lead.interestedService || "",
-}));
-
-      setLinks(formatted);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    const loadData = async () => {
-      await fetchDashboard();
-    };
-    loadData();
-  }, []);
-
-  /* ACTIVE TAB */
   const [activeTab, setActiveTab] = useState("today");
+  const [page, setPage] = useState(1);
 
-  /* IMPORTANT MODAL */
-  const [showImportantModal, setShowImportantModal] = useState(false);
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
+
+  const [dismissedNotification, setDismissedNotification] = useState(false);
+
+  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+
+  const [showImportantModal,  setShowImportantModal]  = useState(false);
   const [selectedImportantId, setSelectedImportantId] = useState<string | null>(null);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("");
-  const [selectedTimezone, setSelectedTimezone] = useState("America/New_York");
+  const [scheduleDate,        setScheduleDate]        = useState("");
+  const [scheduleTime,        setScheduleTime]        = useState("");
+  const [selectedTimezone,    setSelectedTimezone]    = useState("America/New_York");
+  const [importantNote,       setImportantNote]       = useState("");
 
-  /* INTERESTED MODAL */
-  const [showInterestedModal, setShowInterestedModal] = useState(false);
+  const [showInterestedModal,  setShowInterestedModal]  = useState(false);
   const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
-  const [selectedService, setSelectedService] = useState<string>("");
+  const [selectedService,      setSelectedService]      = useState("");
+  const [interestedNote,       setInterestedNote]       = useState("");
 
-  /* FILTERED LINKS */
-  const filteredLinks = links.filter((item) => {
-    if (activeTab === "today") return item.status === "pending";
-    if (activeTab === "completed")
-      return (
-        item.status === "completed" ||
-        item.status === "important" ||
-        item.status === "interested" ||
-        item.status === "project won"
-      );
-    if (activeTab === "pending") return item.status === "pending";
-    if (activeTab === "notcompleted") return item.status === "not completed";
-    if (activeTab === "important") return item.status === "important";
-    if (activeTab === "interested") return item.status === "interested";
-    if (activeTab === "projectwon") return item.status === "project won";
-    return true;
-  });
+  const [showNiModal,     setShowNiModal]     = useState(false);
+  const [showNpModal,     setShowNpModal]     = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [pendingNote,     setPendingNote]     = useState("");
 
-  /* COUNTS */
-  const completedCount = links.filter(
-    (item) =>
-      item.status === "completed" ||
-      item.status === "important" ||
-      item.status === "interested" ||
-      item.status === "project won"
-  ).length;
+  const [showProjectWonModal, setShowProjectWonModal] = useState(false);
+  const [selectedProjectLead, setSelectedProjectLead] = useState<Lead | null>(null);
+  const [projectTitle,    setProjectTitle]    = useState("");
+  const [projectDeadline, setProjectDeadline] = useState("");
+  const [projectBudget,   setProjectBudget]   = useState("");
+  const [projectNotes,    setProjectNotes]    = useState("");
+  const [projectService,  setProjectService]  = useState("");
+  const [projectCode,     setProjectCode]     = useState("");
+  const [paidAmount,      setPaidAmount]      = useState("");
+  const [email,           setEmail]           = useState("");
 
-  const importantCount = links.filter((item) => item.status === "important").length;
-  const interestedCount = links.filter((item) => item.status === "interested").length;
-  const projectWonCount = links.filter((item) => item.status === "project won").length;
-  const pendingCount = links.filter((item) => item.status === "pending").length;
-  const notCompletedCount = links.filter((item) => item.status === "not completed").length;
+  const todayImportantCalls = useMemo(
+    () => leads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR),
+    [leads]
+  );
 
-  /* UPDATE STATUS */
+  const stats = useMemo(() => ({
+    totalLeads:         leads.length,
+    pendingCount:       leads.filter(i => i.status === "pending").length,
+    importantCount:     leads.filter(i => i.status === "important").length,
+    interestedCount:    leads.filter(i => i.status === "interested").length,
+    projectWonCount:    leads.filter(i => i.status === "Close Client").length,
+    notInterestedCount: leads.filter(i => i.status === "Not Interested" || i.status === "completed").length,
+    notPickedCount:     leads.filter(i => i.status === "not picked" || i.status === "not completed").length,
+  }), [leads]);
+
+  const filteredLinks = useMemo(() => {
+    return leads.filter(item => {
+      const matchesTab =
+        activeTab === "today"           ? item.status === "pending"
+        : activeTab === "notinterested" ? item.status === "Not Interested"
+        : activeTab === "pending"       ? item.status === "pending"
+        : activeTab === "notpicked"     ? (item.status === "not picked" || item.status === "not completed")
+        : activeTab === "important"     ? item.status === "important"
+        : activeTab === "interested"    ? item.status === "interested"
+        : activeTab === "projectwon"    ? item.status === "Close Client"
+        : true;
+      const matchesState = stateFilter
+        ? stateMatches(item.state, stateFilter) ||
+          (() => {
+            const codes = STATE_AREA_CODES[stateFilter] ?? [];
+            if (codes.length === 0) return false;
+            const digits      = (item.phone ?? "").replace(/\D/g, "");
+            const afterCountry = digits.length > 10 ? digits.slice(1) : digits;
+            return codes.some(c => afterCountry.startsWith(c));
+          })()
+        : true;
+      const matchesPhone = phoneFilter
+        ? (() => {
+            const digits = item.phone.replace(/\D/g, "");
+            const typed  = phoneFilter.replace(/\D/g, "");
+            const afterCountry = digits.length > 10 ? digits.slice(1) : digits;
+            return afterCountry.startsWith(typed);
+          })()
+        : true;
+      return matchesTab && matchesState && matchesPhone;
+    });
+  }, [leads, activeTab, stateFilter, phoneFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
+  const paginated  = filteredLinks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const updateStatus = async (id: string, status: string) => {
-    const selectedLink = links.find((item) => item.id === id);
-    if (!selectedLink) return;
+    if (!status) return;
+    const lead = leads.find(i => i.id === id);
+    if (!lead) return;
 
-    /* IMPORTANT — open scheduling modal */
     if (status === "important") {
-      setSelectedImportantId(selectedLink.id);
-      const existingLink = links.find((l) => l.id === selectedLink.id);
-      if (existingLink?.timezone) {
-        setSelectedTimezone(existingLink.timezone);
-      } else {
-        setSelectedTimezone("America/New_York");
-      }
-      setShowImportantModal(true);
-      return;
+      setSelectedImportantId(id); setSelectedTimezone(lead.timezone || "America/New_York");
+      setShowImportantModal(true); return;
     }
-
-    /* INTERESTED — open service selection modal */
     if (status === "interested") {
-      setSelectedInterestedId(selectedLink.id);
-      setSelectedService("");
-      setShowInterestedModal(true);
-      return;
+      setSelectedInterestedId(id); setSelectedService(""); setShowInterestedModal(true); return;
     }
-
-    /* ALL OTHER STATUSES — update directly */
+    if (status === "Close Client") {
+      setSelectedProjectLead(lead);
+      setProjectTitle(lead.company !== "N/A" ? lead.company : lead.client);
+      setProjectDeadline(""); setProjectBudget(""); setProjectNotes(""); setProjectService("");
+      setProjectCode(""); setPaidAmount(""); setEmail(lead.email !== "N/A" ? lead.email : "");
+      setShowProjectWonModal(true); return;
+    }
+    if (status === "Not Interested") {
+      setPendingStatusId(id); setPendingNote(""); setShowNiModal(true); return;
+    }
+    if (status === "not picked") {
+      setPendingStatusId(id); setPendingNote(""); setShowNpModal(true); return;
+    }
     try {
-      await API.put(`/csr/lead/${id}`, { status });
-      setLinks((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, status } : item))
-      );
-    } catch (error) {
-      console.log(error);
-    }
+      const res = await updateLead(id, { status });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+    } catch (err) { console.log(err); }
   };
 
-  /* SAVE IMPORTANT */
   const saveImportantCall = async () => {
-    if (!scheduleDate || !scheduleTime) return;
-
+    if (!scheduleDate || !scheduleTime || !selectedImportantId) return;
     try {
-      await API.put(`/csr/lead/${selectedImportantId}`, {
-        status: "important",
-        nextSchedule: scheduleDate,
-        nextTime: scheduleTime,
-        timezone: selectedTimezone,
+      await updateLead(selectedImportantId, {
+        status: "important", nextSchedule: scheduleDate,
+        nextTime: scheduleTime, timezone: selectedTimezone,
       });
-
-      setLinks((prev) =>
-        prev.map((item) =>
-          item.id === selectedImportantId
-            ? {
-                ...item,
-                status: "important",
-                nextSchedule: scheduleDate,
-                nextTime: scheduleTime,
-                timezone: selectedTimezone,
-              }
-            : item
-        )
-      );
-    } catch (error) {
-      console.log(error);
-    }
-
+      if (importantNote.trim()) await addNote(selectedImportantId, importantNote.trim());
+    } catch (err) { console.log(err); }
     setShowImportantModal(false);
-    setScheduleDate("");
-    setScheduleTime("");
-    setSelectedTimezone("America/New_York");
+    setScheduleDate(""); setScheduleTime(""); setSelectedTimezone("America/New_York"); setImportantNote("");
   };
 
-  /* SAVE INTERESTED */
   const saveInterestedCall = async () => {
-    if (!selectedService) return;
-
+    if (!selectedService || !selectedInterestedId) return;
     try {
-      await API.put(`/csr/lead/${selectedInterestedId}`, {
-        status: "interested",
-        interestedService: selectedService,
+      await updateLead(selectedInterestedId, { status: "interested", interestedService: selectedService });
+      if (interestedNote.trim()) await addNote(selectedInterestedId, interestedNote.trim());
+    } catch (err) { console.log(err); }
+    setShowInterestedModal(false); setSelectedService(""); setSelectedInterestedId(null); setInterestedNote("");
+  };
+
+  const saveNiStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      const res = await updateLead(pendingStatusId, { status: "Not Interested" });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+    } catch (err) { console.log(err); }
+    setShowNiModal(false); setPendingStatusId(null); setPendingNote("");
+  };
+
+  const saveNpStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      const res = await updateLead(pendingStatusId, { status: "not picked" });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+    } catch (err) { console.log(err); }
+    setShowNpModal(false); setPendingStatusId(null); setPendingNote("");
+  };
+
+  const saveProjectWon = async () => {
+    if (!projectTitle || !projectDeadline || !paidAmount || !selectedProjectLead) return;
+    try {
+      await updateLead(selectedProjectLead.id, {
+        status: "Close Client", projectTitle, projectDeadline, projectCode,
+        projectBudget, projectNotes, interestedService: projectService, paidAmount, email,
       });
-
-      setLinks((prev) =>
-        prev.map((item) =>
-          item.id === selectedInterestedId
-            ? { ...item, status: "interested", interestedService: selectedService }
-            : item
-        )
-      );
-    } catch (error) {
-      console.log(error);
-    }
-
-    setShowInterestedModal(false);
-    setSelectedService("");
-    setSelectedInterestedId(null);
+      setShowProjectWonModal(false);
+      router.push("/csr/active-projects");
+    } catch (err) { console.log(err); }
   };
 
-  // Helper to display scheduled time with timezone
-  const getFormattedSchedule = (link: (typeof links)[0]) => {
-    if (!link.nextSchedule || !link.nextTime) return null;
-
-    const timezoneInfo = usTimezones.find((tz) => tz.value === link.timezone);
-    const timezoneDisplay = timezoneInfo
-      ? timezoneInfo.abbreviation
-      : link.timezone?.split("/").pop();
-
-    return (
-      <div className="flex flex-col">
-        <span className="text-[13px] font-medium text-[#0F172A]">
-          {link.nextSchedule} at {link.nextTime}
-        </span>
-        <span className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
-          <Globe size={10} />
-          {timezoneDisplay || link.timezone || "No TZ"}
-        </span>
-      </div>
-    );
-  };
+  const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
-      {/* SIDEBAR */}
-      <CSRSidebar isOpen={isOpen} setIsOpen={setIsOpen} />
+    <div className="min-h-screen bg-[#F5F6FA]">
+      <TopNavbar />
+      <UsaTimezoneClocks />
 
-      {/* MAIN */}
-      <main className="flex-1 p-4 sm:p-5 pt-[95px] overflow-x-hidden">
-        {/* NAVBAR */}
-        <CSRNavbar setIsOpen={setIsOpen} />
+      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
 
-        {/* HEADER */}
-        <div className="mt-7">
-          <div className="flex items-start gap-4">
-            {/* AVATAR */}
-            <div className="w-12 h-12 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-lg font-bold shadow-sm shrink-0">
-              C
+        {/* ── TODAY IMPORTANT NOTIFICATION ── */}
+        {!dismissedNotification && todayImportantCalls.length > 0 && (
+          <div className="mt-3 sm:mt-5 bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-start gap-3 sm:gap-4 shadow-sm">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#F59E0B]/15 text-[#B45309] flex items-center justify-center shrink-0 mt-0.5">
+              <Bell size={16} className="sm:w-5 sm:h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-[#92400E] text-[13px] sm:text-[15px]">
+                You have {todayImportantCalls.length} important call{todayImportantCalls.length > 1 ? "s" : ""} scheduled for today!
+              </h4>
+              <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
+                {todayImportantCalls.map(call => (
+                  <span key={call.id} className="inline-flex items-center gap-1 sm:gap-1.5 bg-white border border-[#F59E0B]/30 text-[#92400E] px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl text-[11px] sm:text-[12px] font-semibold">
+                    <Phone size={10} className="sm:w-[11px] sm:h-[11px]" />{call.client}
+                    {call.nextTime && <span className="opacity-70">· {call.nextTime}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button onClick={() => setDismissedNotification(true)}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#F59E0B]/10 text-[#B45309] flex items-center justify-center hover:bg-[#F59E0B]/20 transition-all shrink-0">
+              <X size={13} className="sm:w-[15px] sm:h-[15px]" />
+            </button>
+          </div>
+        )}
+
+        {/* ── ANALYTICS ── */}
+        <div className="mt-4 sm:mt-7">
+          <LeadStatusDonut leads={leads} loading={loading} />
+        </div>
+
+        {/* ── TABLE SECTION ── */}
+        <div className="bg-white rounded-2xl sm:rounded-[28px] p-4 sm:p-5 lg:p-6 shadow-sm mt-4 sm:mt-7 border border-white">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+            <div>
+              <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Client Calls</h3>
+              <p className="text-gray-500 mt-0.5 sm:mt-1 text-xs sm:text-[13px]">Manage assigned client calls.</p>
             </div>
 
-            {/* TEXT */}
-            <div>
-              <WelcomeHeader />
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <StateFilterDropdown
+                value={stateFilter}
+                onChange={v => { setStateFilter(v); setPage(1); }}
+              />
 
-              {/* BADGES */}
-              <div className="flex flex-wrap items-center gap-3 mt-3">
-                {/* ROLE */}
-                <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 py-1 rounded-xl border border-white shadow-sm">
-                  <ShieldCheck size={13} />
-                  <span className="text-[12px] font-semibold">CSR Executive</span>
-                </div>
-
-                {/* ACTIVE */}
-                <div className="flex items-center gap-2 bg-[#ECFDF3] text-[#027A48] px-3 py-1 rounded-xl border border-white shadow-sm">
-                  <Activity size={13} />
-                  <span className="text-[12px] font-semibold">Active</span>
-                </div>
+              {/* ── PHONE CODE FILTER ── */}
+              <div className="relative">
+                <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
+                <input
+                  type="text"
+                  value={phoneFilter}
+                  onChange={e => { setPhoneFilter(e.target.value); setPage(1); }}
+                  placeholder="Phone code..."
+                  className={`h-10 sm:h-[42px] pl-8 sm:pl-9 pr-8 sm:pr-9 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none transition-colors min-w-[130px] sm:min-w-[160px] ${
+                    phoneFilter
+                      ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                      : "border-gray-200 bg-[#FAFAFA] text-gray-600 focus:border-gray-300"
+                  }`}
+                />
+                {phoneFilter && (
+                  <button
+                    onClick={() => { setPhoneFilter(""); setPage(1); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] hover:text-[#8b0d22]"
+                  >
+                    <X size={12} className="sm:w-[13px] sm:h-[13px]" />
+                  </button>
+                )}
               </div>
 
-              <p className="text-gray-500 mt-3 text-[13px] sm:text-[14px]">
-                Manage assigned client calls and update statuses.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* STATS — real data from backend per CSR */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7">
-          {/* CARD */}
-          <div className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-[12px] sm:text-[13px] font-medium">
-                Total Calls
-              </p>
-              <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">
-                {stats.totalCalls.toLocaleString()}
-              </h2>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-[#F4ECFF] text-[#7A3FFD] flex items-center justify-center shrink-0">
-              <Phone size={22} />
+              <div className="bg-[#ECFDF3] text-[#027A48] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#12B76A]" />Live Tracking
+              </div>
             </div>
           </div>
 
-          {/* CARD */}
-          <div className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-[12px] sm:text-[13px] font-medium">
-                Active Leads
-              </p>
-              <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">
-                {stats.activeLeads.toLocaleString()}
-              </h2>
+          {/* ── TABS ── */}
+          <div className="relative mt-4 sm:mt-7 mb-4 sm:mb-7">
+            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 pr-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {[
+                { tab:"today",          label:"Today Links",    count: stats.pendingCount,       icon:<PhoneCall      size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700"   },
+                { tab:"notinterested",  label:"Not Interested", count: stats.notInterestedCount, icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"  },
+                { tab:"pending",        label:"Pending",        count: stats.pendingCount,       icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"  },
+                { tab:"notpicked",      label:"Not Picked",     count: stats.notPickedCount,     icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"  },
+                { tab:"important",      label:"Important",      count: stats.importantCount,     icon:<AlertTriangle  size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
+                { tab:"interested",     label:"Interested",     count: stats.interestedCount,    icon:<Users          size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
+                { tab:"projectwon",     label:"Close Client",   count: stats.projectWonCount,    icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"  },
+              ].map(btn => (
+                <button key={btn.tab} onClick={() => { setActiveTab(btn.tab); setPage(1); setPhoneFilter(""); }}
+                  className={`h-8 sm:h-10 px-2.5 sm:px-4 rounded-lg sm:rounded-xl flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-[12.5px] font-semibold transition-all whitespace-nowrap shrink-0 ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
+                  {btn.icon}
+                  <span className="hidden sm:inline">{btn.label}</span>
+                  <span className="sm:hidden">{btn.label.split(" ")[0]}</span>
+                  <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px]">{btn.count}</span>
+                </button>
+              ))}
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center shrink-0">
-              <Users size={22} />
-            </div>
+            <div className="pointer-events-none absolute top-0 right-0 h-full w-8 bg-linear-to-l from-white to-transparent" />
           </div>
 
-          {/* CARD */}
-          <div className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-[12px] sm:text-[13px] font-medium">
-                Available Staff
-              </p>
-              <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">
-                {stats.availableStaff.toLocaleString()}
-              </h2>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-[#FFF3E8] text-[#FF7A00] flex items-center justify-center shrink-0">
-              <UserCheck size={22} />
-            </div>
-          </div>
-
-          {/* CARD */}
-          <div className="bg-white rounded-[24px] p-4 sm:p-5 border border-white shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-[12px] sm:text-[13px] font-medium">
-                Notifications
-              </p>
-              <h2 className="text-[24px] font-bold text-[#0F172A] mt-2">
-                {stats.notifications.toLocaleString()}
-              </h2>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-[#FFEAF5] text-[#FF4DA6] flex items-center justify-center shrink-0">
-              <Bell size={22} />
-            </div>
-          </div>
-        </div>
-
-        {/* MAIN CARD */}
-        <div className="bg-white rounded-[28px] p-4 sm:p-6 shadow-sm mt-7 border border-white">
-          {/* TOP */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div>
-              <h3 className="text-[22px] font-bold text-[#0F172A]">Client Calls</h3>
-              <p className="text-gray-500 mt-1 text-[13px]">
-                Manage assigned client calls.
-              </p>
-            </div>
-
-            <div className="bg-[#ECFDF3] text-[#027A48] px-4 py-2 rounded-2xl text-sm font-semibold flex items-center gap-2 w-fit">
-              <div className="w-2 h-2 rounded-full bg-[#12B76A]" />
-              Live Tracking
-            </div>
-          </div>
-
-          {/* FILTERS */}
-          <div className="flex flex-wrap gap-3 mt-7 mb-7">
-            {/* TODAY */}
-            <button
-              onClick={() => setActiveTab("today")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "today"
-                  ? "bg-[#B8112D] text-white shadow-sm"
-                  : "bg-[#F8F8F8] text-gray-700"
-              }`}
-            >
-              <PhoneCall size={17} />
-              Today Links
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {pendingCount}
-              </span>
-            </button>
-
-            {/* COMPLETED */}
-            <button
-              onClick={() => setActiveTab("completed")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "completed"
-                  ? "bg-[#027A48] text-white"
-                  : "bg-[#ECFDF3] text-[#027A48]"
-              }`}
-            >
-              <CircleCheckBig size={17} />
-              Completed
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {completedCount}
-              </span>
-            </button>
-
-            {/* PENDING */}
-            <button
-              onClick={() => setActiveTab("pending")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "pending"
-                  ? "bg-[#B54708] text-white"
-                  : "bg-[#FFF7E6] text-[#B54708]"
-              }`}
-            >
-              <Clock3 size={17} />
-              Pending
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {pendingCount}
-              </span>
-            </button>
-
-            {/* NOT COMPLETED */}
-            <button
-              onClick={() => setActiveTab("notcompleted")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "notcompleted"
-                  ? "bg-[#F97316] text-white"
-                  : "bg-[#FFF1E8] text-[#F97316]"
-              }`}
-            >
-              <Clock3 size={17} />
-              Not Completed
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {notCompletedCount}
-              </span>
-            </button>
-
-            {/* IMPORTANT */}
-            <button
-              onClick={() => setActiveTab("important")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "important"
-                  ? "bg-[#B42318] text-white"
-                  : "bg-[#FFF1F3] text-[#B42318]"
-              }`}
-            >
-              <AlertTriangle size={17} />
-              Important
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {importantCount}
-              </span>
-            </button>
-
-            {/* INTERESTED */}
-            <button
-              onClick={() => setActiveTab("interested")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "interested"
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-[#FFF1F3] text-[#B42318]"
-              }`}
-            >
-              <Users size={17} />
-              Interested
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {interestedCount}
-              </span>
-            </button>
-
-            {/* PROJECT WON */}
-            <button
-              onClick={() => setActiveTab("projectwon")}
-              className={`h-[48px] px-5 rounded-2xl flex items-center gap-3 text-sm font-semibold transition-all ${
-                activeTab === "projectwon"
-                  ? "bg-[#065F46] text-white"
-                  : "bg-[#ECFDF5] text-[#065F46]"
-              }`}
-            >
-              <CircleCheckBig size={17} />
-              Project Won
-              <span className="bg-white/20 px-2 py-1 rounded-lg text-[11px]">
-                {projectWonCount}
-              </span>
-            </button>
-          </div>
-
-          {/* TABLE */}
-          <div className="overflow-x-auto rounded-2xl border border-gray-100">
-            <table className="w-full min-w-[850px]">
-              {/* HEAD */}
+          {/* ── TABLE ── */}
+          <div className="overflow-x-auto rounded-xl sm:rounded-2xl border border-gray-100">
+            <table className="w-full" style={{ minWidth: "1000px" }}>
               <thead className="bg-[#FAFAFA]">
                 <tr>
-                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
-                    Client
-                  </th>
-                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
-                    Company
-                  </th>
-                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
-                    Phone
-                  </th>
-                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
-                    Next Schedule
-                  </th>
-                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
-                    Status
-                  </th>
-                  <th className="text-left py-4 px-5 text-[13px] font-semibold text-gray-500">
-                    Action
-                  </th>
+                  {["Client","Company","Phone","Status","Notes","Action"].map(h => (
+                    <th key={h} className="text-left py-3 sm:py-4 px-3 sm:px-5 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-
               <tbody>
-                {filteredLinks.length > 0 ? (
-                  filteredLinks.map((currentLink) => (
-                    <tr
-                      key={currentLink.id}
-                      className="border-t border-gray-100 bg-white"
-                    >
-                      {/* CLIENT */}
-                      <td className="py-5 px-5">
-                        <div className="flex items-center gap-3">
-                          {/* INDEX NUMBER */}
-                          <div className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-xs font-bold shrink-0">
-                            {links
-                              .filter((item) => {
-                                if (activeTab === "today")
-                                  return item.status === "pending";
-                                if (activeTab === "completed")
-                                  return item.status === "completed";
-                                if (activeTab === "notcompleted")
-                                  return item.status === "not completed";
-                                if (activeTab === "important")
-                                  return item.status === "important";
-                                if (activeTab === "interested")
-                                  return item.status === "interested";
-                                if (activeTab === "projectwon")
-                                  return item.status === "project won";
-                                return item.status === "pending";
-                              })
-                              .findIndex((item) => item.id === currentLink.id) + 1}
-                          </div>
-
-                          <div className="w-11 h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
-                            {currentLink.client.charAt(0)}
-                          </div>
-
-                          <div>
-                            <h4 className="text-[14px] font-semibold text-[#0F172A]">
-                              {currentLink.client}
-                            </h4>
-                            <p className="text-[11px] text-gray-500 mt-1">
-                              {currentLink.email}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* COMPANY */}
-                      <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">
-                        {currentLink.company}
-                      </td>
-
-                      {/* PHONE */}
-                      <td className="py-5 px-5 text-[14px] font-medium text-[#0F172A]">
-                        {currentLink.phone}
-                      </td>
-
-                      {/* SCHEDULE — shows service if interested, date if important */}
-                      <td className="py-5 px-5">
-                        {currentLink.status === "interested" &&
-                        currentLink.interestedService ? (
-                          <div className="flex flex-col">
-                            <span className="text-[11px] text-gray-400 mb-1">
-                              Interested In
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FFF4E5] text-[#D97706] rounded-xl text-[13px] font-semibold w-fit">
-                              <Briefcase size={12} />
-                              {currentLink.interestedService}
-                            </span>
-                          </div>
-                        ) : currentLink.nextSchedule && currentLink.nextTime ? (
-                          getFormattedSchedule(currentLink)
-                        ) : (
-                          <span className="text-gray-400 text-[13px]">
-                            Not scheduled
-                          </span>
-                        )}
-                      </td>
-
-                      {/* STATUS */}
-                      <td className="py-5 px-5">
-                        <div
-                          className={`
-                            px-4 py-2 rounded-xl text-sm font-semibold w-fit
-                            ${
-                              currentLink.status === "completed"
-                                ? "bg-[#ECFDF3] text-[#027A48]"
-                                : currentLink.status === "important"
-                                ? "bg-[#FFF1F3] text-[#B8112D]"
-                                : currentLink.status === "interested"
-                                ? "bg-[#FFF4E5] text-[#D97706]"
-                                : currentLink.status === "project won"
-                                ? "bg-[#ECFDF5] text-[#065F46]"
-                                : currentLink.status === "not completed"
-                                ? "bg-[#FFF7E6] text-[#B54708]"
-                                : "bg-[#F4F4F5] text-[#52525B]"
-                            }
-                          `}
-                        >
-                          {currentLink.status}
-                        </div>
-                      </td>
-
-                      {/* ACTION */}
-                      <td className="py-5 px-5">
-                        <div className="relative w-full max-w-[230px]">
-                          <select
-                            onChange={(e) =>
-                              updateStatus(currentLink.id, e.target.value)
-                            }
-                            className="
-                              appearance-none
-                              h-[46px]
-                              w-full
-                              rounded-2xl
-                              border
-                              border-gray-200
-                              bg-white
-                              px-4
-                              pr-11
-                              text-[14px]
-                              font-semibold
-                              text-[#0F172A]
-                              outline-none
-                            "
-                          >
-                            <option value="">Update Status</option>
-                            <option value="completed">Completed</option>
-                            <option value="not completed">Not Completed</option>
-                            <option value="pending">Pending</option>
-                            <option value="important">Important</option>
-                            <option value="interested">Interested</option>
-                            <option value="project won">Project Won</option>
-                          </select>
-
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <ChevronDown size={18} />
-                          </div>
-                        </div>
-                      </td>
+                {loading ? (
+                  [1,2,3,4,5].map(i => (
+                    <tr key={i} className="border-t border-gray-100">
+                      {[1,2,3,4,5,6].map(j => (
+                        <td key={j} className="py-4 sm:py-5 px-3 sm:px-5">
+                          <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-24" />
+                        </td>
+                      ))}
                     </tr>
                   ))
-                ) : (
+                ) : filteredLinks.length > 0 ? paginated.map((currentLink, idx) => (
+                  <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
+
+                    {/* CLIENT */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
+                          {(page - 1) * PAGE_SIZE + idx + 1}
+                        </div>
+                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
+                          {currentLink.client.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate max-w-[100px] sm:max-w-[140px]">
+                              {currentLink.client}
+                            </h4>
+                            {(() => {
+                              const tz = getTimezoneAbbr(currentLink.state);
+                              return tz ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
+                                  {tz}
+                                </span>
+                              ) : null;
+                            })()}
+                            <button
+                              onClick={() => setViewingLead(currentLink)}
+                              className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                              title="View details"
+                            >
+                              <Eye size={10} className="sm:w-3 sm:h-3" />
+                            </button>
+                          </div>
+                          {currentLink.rawCompany && currentLink.rawCompany !== currentLink.company && (
+                            <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 max-w-[120px] sm:max-w-[180px] truncate">
+                              {currentLink.rawCompany}
+                            </p>
+                          )}
+                          <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate max-w-[120px] sm:max-w-none">
+                            {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* COMPANY */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] max-w-[120px]">
+                      <span className="truncate block">{currentLink.company}</span>
+                    </td>
+
+                    {/* PHONE */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        {currentLink.phone}
+                        {(() => { const t = getTimezoneAbbrFromPhone(currentLink.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
+                      </div>
+                    </td>
+
+                    {/* STATUS */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                      <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
+                        {statusLabel(currentLink.status)}
+                      </div>
+                    </td>
+
+                    {/* NOTES */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                      <CommentCell
+                        id={currentLink.id}
+                        noteHistory={currentLink.noteHistory}
+                        onAddNote={addNote}
+                        onNoteUpdated={(leadId, noteId, text) => {
+                          setLeads(prev => prev.map(l => l.id === leadId
+                            ? { ...l, noteHistory: l.noteHistory.map(n => n.id === noteId ? { ...n, text } : n) }
+                            : l
+                          ));
+                        }}
+                        onNoteDeleted={(leadId, noteId) => {
+                          setLeads(prev => prev.map(l => l.id === leadId
+                            ? { ...l, noteHistory: l.noteHistory.filter(n => n.id !== noteId) }
+                            : l
+                          ));
+                        }}
+                      />
+                    </td>
+
+                    {/* ACTION */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                      <div className="relative w-full max-w-[180px] sm:max-w-[230px]">
+                        <select
+                          onChange={e => updateStatus(currentLink.id, e.target.value)}
+                          defaultValue=""
+                          className="appearance-none h-10 sm:h-[46px] w-full rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-11 text-[12px] sm:text-[14px] font-semibold text-[#0F172A] outline-none"
+                        >
+                          <option value="">Update Status</option>
+                          <option value="Not Interested">Not Interested</option>
+                          <option value="not picked">Not Picked</option>
+                          <option value="pending">Pending</option>
+                          <option value="important">Important</option>
+                          <option value="interested">Interested</option>
+                          <option value="Close Client">Close Client</option>
+                        </select>
+                        <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                          <ChevronDown size={14} className="sm:w-[18px] sm:h-[18px]" />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )) : (
                   <tr>
-                    <td colSpan={6} className="py-20 text-center">
-                      <h2 className="text-2xl font-bold text-[#0F172A]">
-                        No Data Found 🎉
-                      </h2>
-                      <p className="text-gray-500 mt-3 text-sm">
-                        No calls available in this category.
+                    <td colSpan={6} className="py-14 sm:py-20 text-center">
+                      <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
+                      <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
+                        {stateFilter ? `No leads in "${stateFilter}".` : "No calls available in this category."}
                       </p>
+                      {stateFilter && (
+                        <button
+                          onClick={() => setStateFilter("")}
+                          className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
+                        >
+                          Clear state filter
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* PAGINATION */}
+          <div className="flex items-center justify-between px-1 pt-4 mt-2 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+              {filteredLinks.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filteredLinks.length)}`} of {filteredLinks.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+              <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+            </div>
+          </div>
         </div>
 
-        {/* ===================== IMPORTANT MODAL ===================== */}
+        {/* ══ IMPORTANT MODAL ══ */}
         {showImportantModal && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
-              {/* TOP */}
-              <div className="flex items-start justify-between gap-4">
+          <ImportantCallModal
+            date={scheduleDate} onDateChange={setScheduleDate}
+            time={scheduleTime} onTimeChange={setScheduleTime}
+            timezone={selectedTimezone} onTimezoneChange={setSelectedTimezone}
+            note={importantNote} onNoteChange={setImportantNote}
+            onClose={() => { setShowImportantModal(false); setImportantNote(""); }}
+            onSave={saveImportantCall}
+          />
+        )}
+
+        {/* ══ INTERESTED MODAL ══ */}
+        {showInterestedModal && (
+          <InterestedModal
+            service={selectedService} onServiceChange={setSelectedService}
+            note={interestedNote} onNoteChange={setInterestedNote}
+            onClose={() => { setShowInterestedModal(false); setSelectedService(""); setInterestedNote(""); }}
+            onSave={saveInterestedCall}
+          />
+        )}
+
+        {/* ══ NOT INTERESTED QUICK-NOTE MODAL ══ */}
+        {showNiModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-[26px] font-bold text-[#0F172A]">
-                    Important Call
-                  </h2>
-                  <p className="text-gray-500 text-sm mt-2">
-                    Schedule next follow-up call with timezone.
-                  </p>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Not Interested</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
                 </div>
-
-                <button
-                  onClick={() => setShowImportantModal(false)}
-                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500"
-                >
-                  <X size={18} />
+                <button onClick={() => { setShowNiModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
                 </button>
               </div>
-
-              {/* DATE */}
-              <div className="mt-7">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <Calendar size={16} />
-                  Next Schedule Date
-                </label>
-                <input
-                  type="date"
-                  value={scheduleDate}
-                  onChange={(e) => setScheduleDate(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"
-                />
-              </div>
-
-              {/* TIME */}
-              <div className="mt-5">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <Clock3 size={16} />
-                  Next Call Time
-                </label>
-                <input
-                  type="time"
-                  value={scheduleTime}
-                  onChange={(e) => setScheduleTime(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 outline-none focus:border-[#B8112D]"
-                />
-              </div>
-
-              {/* TIMEZONE SELECTOR */}
-              <div className="mt-5 relative">
-                <label className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
-                  <Globe size={16} />
-                  Client Timezone (US)
-                </label>
-
-                <select
-                  value={selectedTimezone}
-                  onChange={(e) => setSelectedTimezone(e.target.value)}
-                  className="mt-3 w-full h-[52px] rounded-2xl border border-gray-200 px-4 pr-10 outline-none appearance-none bg-white cursor-pointer focus:border-[#B8112D] text-[14px]"
-                >
-                  {usTimezones.map((tz) => (
-                    <option key={tz.value} value={tz.value}>
-                      {tz.label}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="absolute right-4 top-[42px] pointer-events-none text-gray-400">
-                  <ChevronDown size={18} />
-                </div>
-              </div>
-
-              {/* REAL TIME PREVIEW */}
-              {scheduleDate && scheduleTime && selectedTimezone && (
-                <div className="mt-5 p-4 bg-[#F5F6FA] rounded-2xl">
-                  <p className="text-[12px] font-medium text-gray-500 mb-2">
-                    Scheduled Meeting (Client Local Time)
-                  </p>
-                  <p className="text-[15px] font-semibold text-[#0F172A]">
-                    {scheduleDate} at {scheduleTime}{" "}
-                    {usTimezones.find((tz) => tz.value === selectedTimezone)?.abbreviation}
-                  </p>
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-[11px] text-gray-400 flex items-center gap-1">
-                      <Globe size={11} />
-                      Current time in{" "}
-                      {usTimezones.find((tz) => tz.value === selectedTimezone)?.label.split(" ")[0]}:
-                      <span className="font-mono font-medium text-gray-600 ml-1">
-                        {getCurrentTimeInTimezone(selectedTimezone)}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* BUTTONS */}
-              <div className="flex gap-3 mt-7">
-                <button
-                  onClick={() => setShowImportantModal(false)}
-                  className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveImportantCall}
-                  className="flex-1 h-[52px] rounded-2xl bg-[#B8112D] text-white font-semibold shadow-sm"
-                >
-                  Schedule Call
-                </button>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#475569] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowNiModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveNiStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#475569] text-white font-semibold text-sm">Confirm</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ===================== INTERESTED MODAL ===================== */}
-        {showInterestedModal && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl">
-              {/* TOP */}
-              <div className="flex items-start justify-between gap-4">
+        {/* ══ NOT PICKED QUICK-NOTE MODAL ══ */}
+        {showNpModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-[26px] font-bold text-[#0F172A]">
-                    Client Interested In
-                  </h2>
-                  <p className="text-gray-500 text-sm mt-2">
-                    Select the service the client is interested in.
-                  </p>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Not Picked</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
                 </div>
-
-                <button
-                  onClick={() => {
-                    setShowInterestedModal(false);
-                    setSelectedService("");
-                  }}
-                  className="w-10 h-10 rounded-2xl bg-[#F5F6FA] flex items-center justify-center text-gray-500"
-                >
-                  <X size={18} />
+                <button onClick={() => { setShowNpModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
                 </button>
               </div>
-
-              {/* SERVICE OPTIONS — card grid */}
-              <div className="mt-7 grid grid-cols-2 gap-3">
-                {serviceOptions.map((service) => (
-                  <button
-                    key={service.value}
-                    onClick={() => setSelectedService(service.value)}
-                    className={`
-                      h-[72px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all font-semibold text-[14px]
-                      ${
-                        selectedService === service.value
-                          ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] shadow-sm"
-                          : "border-gray-100 bg-[#FAFAFA] text-[#0F172A] hover:border-gray-300"
-                      }
-                    `}
-                  >
-                    <span className="text-[22px]">{service.icon}</span>
-                    <span>{service.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* SELECTED PREVIEW */}
-              {selectedService && (
-                <div className="mt-5 p-4 bg-[#FFF4E5] rounded-2xl flex items-center gap-3">
-                  <Briefcase size={18} className="text-[#D97706] shrink-0" />
-                  <div>
-                    <p className="text-[12px] font-medium text-gray-500">
-                      Selected Service
-                    </p>
-                    <p className="text-[15px] font-bold text-[#D97706]">
-                      {selectedService}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* BUTTONS */}
-              <div className="flex gap-3 mt-7">
-                <button
-                  onClick={() => {
-                    setShowInterestedModal(false);
-                    setSelectedService("");
-                  }}
-                  className="flex-1 h-[52px] rounded-2xl bg-[#F5F6FA] font-semibold text-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveInterestedCall}
-                  disabled={!selectedService}
-                  className={`
-                    flex-1 h-[52px] rounded-2xl font-semibold shadow-sm text-white transition-all
-                    ${
-                      selectedService
-                        ? "bg-[#B8112D] cursor-pointer"
-                        : "bg-gray-300 cursor-not-allowed"
-                    }
-                  `}
-                >
-                  Save Interest
-                </button>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#F97316] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowNpModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveNpStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#F97316] text-white font-semibold text-sm">Confirm</button>
               </div>
             </div>
           </div>
+        )}
+
+        {/* ══ CLOSE CLIENT MODAL ══ */}
+        {showProjectWonModal && selectedProjectLead && (
+          <ProjectWonModal
+            lead={selectedProjectLead}
+            email={email} onEmailChange={setEmail}
+            projectCode={projectCode} onProjectCodeChange={setProjectCode}
+            title={projectTitle} onTitleChange={setProjectTitle}
+            service={projectService} onServiceChange={setProjectService}
+            deadline={projectDeadline} onDeadlineChange={setProjectDeadline}
+            budget={projectBudget} onBudgetChange={setProjectBudget}
+            paidAmount={paidAmount} onPaidAmountChange={setPaidAmount}
+            notes={projectNotes} onNotesChange={setProjectNotes}
+            isValid={projectWonValid}
+            onClose={() => setShowProjectWonModal(false)}
+            onSave={saveProjectWon}
+          />
+        )}
+
+        {/* ══ LEAD DETAIL MODAL ══ */}
+        {viewingLead && (
+          <LeadDetailModal
+            lead={{
+              id: viewingLead.id,
+              name:    viewingLead.client,
+              company: viewingLead.company !== "N/A" ? viewingLead.company : undefined,
+              phone:   viewingLead.phone   !== "N/A" ? viewingLead.phone   : undefined,
+              email:   viewingLead.email   !== "N/A" ? viewingLead.email   : undefined,
+              state:   viewingLead.state   || undefined,
+              status:  viewingLead.status,
+              interestedService: viewingLead.interestedService,
+              followUpNotes:     viewingLead.followUpNotes,
+              nextSchedule:      viewingLead.nextSchedule || undefined,
+              nextTime:          viewingLead.nextTime     || undefined,
+              timezone:          viewingLead.timezone     || undefined,
+              noteHistory:       viewingLead.noteHistory,
+              subContacts:       viewingLead.subContacts,
+              rawCompany:        viewingLead.rawCompany   || undefined,
+            }}
+            onClose={() => setViewingLead(null)}
+            onSaved={(id, updates) => {
+              const merged: Partial<Lead> = {};
+              if (updates.name          !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.phone         !== undefined) merged.phone  = updates.phone.trim() || "N/A";
+              if (updates.email         !== undefined) merged.email  = updates.email.trim() || "N/A";
+              if (updates.state         !== undefined) merged.state  = updates.state.trim();
+              if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, ...merged } : i));
+              setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+            onNoteAdded={(id, note) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, noteHistory: [...i.noteHistory, note] } : i));
+            }}
+            onSubContactAdded={(id, sub) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, subContacts: [...i.subContacts, sub] } : i));
+            }}
+            onSubContactDeleted={(id, subId) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, subContacts: i.subContacts.filter(s => s.id !== subId) } : i));
+            }}
+          />
         )}
       </main>
     </div>
