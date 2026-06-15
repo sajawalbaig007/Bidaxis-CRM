@@ -140,12 +140,17 @@ export const login = async (req: Request, res: Response) => {
       return;
     }
 
-    const token = generateToken(user.id, user.role);
+    const { tokenVersion } = await prisma.user.update({
+      where:  { id: user.id },
+      data:   { tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
+    });
+    const token = generateToken(user.id, user.role, tokenVersion);
     setCookieToken(res, token);
     return res.json({
       success:     true,
       requires2FA: false,
-      token,                 // ← frontend stores this in localStorage
+      token,
       role:        user.role,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
@@ -218,15 +223,16 @@ export const verifyOTP = async (req: Request, res: Response) => {
     otpAttempts.delete(userId);
     otpResendCount.delete(userId);   // clear resend count too
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.update({
       where:  { id: userId },
-      select: { id: true, name: true, email: true, role: true },
+      data:   { tokenVersion: { increment: 1 } },
+      select: { id: true, name: true, email: true, role: true, tokenVersion: true },
     });
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
 
-    const token = generateToken(user.id, user.role);
+    const token = generateToken(user.id, user.role, user.tokenVersion);
     setCookieToken(res, token);
     return res.json({ success: true, token, role: user.role, user });
   } catch {

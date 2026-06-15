@@ -247,7 +247,6 @@ console.log(
           assignedTo:     r.csrId,
           uploadedFileId: uploadedFile.id,
         })),
-        skipDuplicates: true,
       });
 
       for (const r of fresh) {
