@@ -4,9 +4,10 @@ import API from "@/lib/api";
 export interface SubContact {
   id: string;
   name: string;
-  designation: string;
-  phone: string;
-  email: string;
+  designation?: string;
+  phone?: string;
+  email?: string;
+  createdAt?: string;
 }
 
 export interface NoteEntry {

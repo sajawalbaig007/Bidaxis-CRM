@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import {
-  X, Phone, Mail, Building2, History, Pencil, Check,
-  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Clock3,
+  X, Phone, Mail, Building2, Pencil, Check,
+  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users,
 } from "lucide-react";
 import API from "@/lib/api";
-import { NoteEntry } from "../hooks/useLeadsData";
+import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 
 export type DetailLead = {
   id: string;
   name: string;
   company?: string;
+  rawCompany?: string;
   phone?: string;
   email?: string;
   state?: string;
@@ -22,6 +23,7 @@ export type DetailLead = {
   nextTime?: string;
   timezone?: string;
   noteHistory?: NoteEntry[];
+  subContacts?: SubContact[];
 };
 
 export type DetailLeadUpdates = Partial<{
@@ -37,6 +39,8 @@ interface LeadDetailModalProps {
   onClose: () => void;
   onSaved?: (id: string, updates: DetailLeadUpdates) => void;
   onNoteAdded?: (id: string, note: NoteEntry) => void;
+  onSubContactAdded?: (id: string, sub: SubContact) => void;
+  onSubContactDeleted?: (id: string, subId: string) => void;
 }
 
 const statusLabel = (s?: string) => {
@@ -160,7 +164,7 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
   return null;
 };
 
-export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded }: LeadDetailModalProps) {
+export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactDeleted }: LeadDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [name,  setName]  = useState(lead.name ?? "");
   const [phone, setPhone] = useState(lead.phone ?? "");
@@ -168,11 +172,15 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded }:
   const [state, setState] = useState(lead.state ?? "");
   const [saving, setSaving] = useState(false);
 
-  /* Notes history */
-  const [notes,       setNotes]       = useState<NoteEntry[]>(lead.noteHistory ?? []);
-  const [showAddNote, setShowAddNote] = useState(false);
-  const [newNote,     setNewNote]     = useState("");
-  const [addingNote,  setAddingNote]  = useState(false);
+  /* Sub-contacts */
+  const [subs,       setSubs]       = useState<SubContact[]>(lead.subContacts ?? []);
+  const [showSubForm,setShowSubForm] = useState(false);
+  const [subName,    setSubName]    = useState("");
+  const [subDesig,   setSubDesig]   = useState("");
+  const [subPhone,   setSubPhone]   = useState("");
+  const [subEmail,   setSubEmail]   = useState("");
+  const [addingSub,  setAddingSub]  = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const startEdit = () => {
     setName(lead.name ?? "");
@@ -195,35 +203,40 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded }:
     }
   };
 
-  const addNote = async () => {
-    const text = newNote.trim();
-    if (!text) return;
-    setAddingNote(true);
+  const addSubContact = async () => {
+    if (!subName.trim()) return;
+    setAddingSub(true);
     try {
-      const res = await API.post(`/csr/lead/${lead.id}/notes`, { text });
-      const entry: NoteEntry = res.data.note
-        ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
-        : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
-      setNotes(prev => [...prev, entry]);
-      onNoteAdded?.(lead.id, entry);
-      setNewNote("");
-      setShowAddNote(false);
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setAddingNote(false);
-    }
+      const res = await API.post(`/csr/lead/${lead.id}/subcontacts`, {
+        name: subName.trim(), designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim(),
+      });
+      const sub: SubContact = res.data.subContact ?? { id: Date.now().toString(), name: subName.trim(), designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim() };
+      setSubs(prev => [...prev, sub]);
+      onSubContactAdded?.(lead.id, sub);
+      setSubName(""); setSubDesig(""); setSubPhone(""); setSubEmail(""); setShowSubForm(false);
+    } catch (err) { console.log(err); }
+    finally { setAddingSub(false); }
+  };
+
+  const deleteSubContact = async (subId: string) => {
+    setDeletingId(subId);
+    try {
+      await API.delete(`/csr/lead/${lead.id}/subcontacts/${subId}`);
+      setSubs(prev => prev.filter(s => s.id !== subId));
+      onSubContactDeleted?.(lead.id, subId);
+    } catch (err) { console.log(err); }
+    finally { setDeletingId(null); }
   };
 
   const title = lead.company || lead.name;
-  const noteEntries = [...notes].reverse();
+  const locationDisplay = lead.state || lead.rawCompany || "N/A";
   const locationTimezone = getTimezoneForState(lead.state);
 
   const infoItems: { label: string; value: string; Icon: typeof Phone }[] = [
     { label: "Contact Person", value: lead.name, Icon: User2 },
     { label: "Phone", value: lead.phone || "N/A", Icon: Phone },
     { label: "Email", value: lead.email || "N/A", Icon: Mail },
-    { label: "Location", value: lead.state || "N/A", Icon: MapPin },
+    { label: "Location", value: locationDisplay, Icon: MapPin },
   ];
 
   if (lead.company) {
@@ -352,51 +365,84 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded }:
               </>
             )}
 
-            {/* ══ STICKY NOTES ══ */}
+            {/* ══ SUB-CONTACTS ══ */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className={labelClass}><History size={11} className="text-[#B8112D]"/>Notes</label>
+              <div className="flex items-center justify-between mb-3">
+                <label className={labelClass}><Users size={11} className="text-[#B8112D]"/>Sub Contacts</label>
                 <button
-                  onClick={() => { setShowAddNote(v => !v); setNewNote(""); }}
-                  title="Add note"
+                  onClick={() => { setShowSubForm(v => !v); setSubName(""); setSubDesig(""); setSubPhone(""); setSubEmail(""); }}
                   className="w-7 h-7 rounded-full bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-colors">
                   <Plus size={14}/>
                 </button>
               </div>
 
-              {showAddNote && (
+              {showSubForm && (
                 <div className="mb-3 bg-[#F8F9FC] rounded-2xl p-3 space-y-2">
-                  <textarea value={newNote} onChange={e => setNewNote(e.target.value)} rows={3}
-                    placeholder="What was discussed in this call..." className={textareaClass}/>
+                  <input
+                    type="text" value={subName} onChange={e => setSubName(e.target.value)}
+                    placeholder="Name *" className={inputClass}
+                  />
+                  <input
+                    type="text" value={subDesig} onChange={e => setSubDesig(e.target.value)}
+                    placeholder="Designation (e.g. Manager)" className={inputClass}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text" value={subPhone} onChange={e => setSubPhone(e.target.value)}
+                      placeholder="Phone" className={inputClass}
+                    />
+                    <input
+                      type="email" value={subEmail} onChange={e => setSubEmail(e.target.value)}
+                      placeholder="Email" className={inputClass}
+                    />
+                  </div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setShowAddNote(false); setNewNote(""); }}
-                      className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
+                    <button onClick={() => setShowSubForm(false)}
+                      className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-xs font-semibold">
                       Cancel
                     </button>
-                    <button onClick={addNote} disabled={!newNote.trim() || addingNote}
-                      className="flex-1 h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50 hover:bg-[#a30f27] transition-colors">
-                      {addingNote ? "Adding..." : "Add Note"}
+                    <button onClick={addSubContact} disabled={!subName.trim() || addingSub}
+                      className="flex-1 h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50">
+                      {addingSub ? "Adding…" : "Add Contact"}
                     </button>
                   </div>
                 </div>
               )}
 
-              {noteEntries.length > 0 ? (
-                <div className="space-y-2 max-h-[220px] overflow-y-auto">
-                  {noteEntries.map(entry => (
-                    <div key={entry.id} className="bg-[#FFFBEB] border border-[#FDE9B0] rounded-2xl p-3">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Clock3 size={10} className="text-[#B8112D]"/>
-                        <p className="text-[10px] font-semibold text-[#B8112D]">
-                          {new Date(entry.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
-                        </p>
+              {subs.length > 0 ? (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                  {subs.map(sub => (
+                    <div key={sub.id} className="bg-[#F8F9FC] rounded-2xl p-3 flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#B8112D] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        {sub.name.charAt(0).toUpperCase()}
                       </div>
-                      <p className="text-[#0F172A] text-[12px] leading-relaxed whitespace-pre-line">{entry.text}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-[#0F172A] truncate">{sub.name}</p>
+                        {sub.designation && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sub.designation}</p>}
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          {sub.phone && (
+                            <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                              <Phone size={9}/>{sub.phone}
+                            </span>
+                          )}
+                          {sub.email && (
+                            <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                              <Mail size={9}/>{sub.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteSubContact(sub.id)}
+                        disabled={deletingId === sub.id}
+                        className="w-7 h-7 rounded-lg bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-colors disabled:opacity-40 shrink-0">
+                        <Trash2 size={12}/>
+                      </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-400 text-[13px]">No notes yet.</p>
+                !showSubForm && <p className="text-gray-400 text-[13px]">No sub-contacts yet.</p>
               )}
             </div>
           </div>

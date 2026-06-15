@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "@/lib/api";
-import { NoteEntry } from "./useLeadsData";
+import { NoteEntry, SubContact } from "./useLeadsData";
 
 export type NiLead = {
   id: string;
@@ -16,6 +16,7 @@ export type NiLead = {
   followUpNotes: string;
   comments: string;
   noteHistory: NoteEntry[];
+  subContacts: SubContact[];
 };
 
 type RawNote = { id?: string; text?: string; createdAt?: string; };
@@ -34,6 +35,7 @@ type RawLead = {
   followUpNotes?: string;
   comments?: string;
   notes?: RawNote[];
+  subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
 };
 
@@ -63,6 +65,7 @@ function mapNiLead(l: RawLead): NiLead {
     followUpNotes:      l.followUpNotes            ?? "",
     comments:           l.comments                 ?? "",
     noteHistory,
+    subContacts:        (l.subContacts ?? []).map(s => ({ id: s.id, name: s.name, designation: s.designation, phone: s.phone, email: s.email, createdAt: s.createdAt })),
   };
 }
 

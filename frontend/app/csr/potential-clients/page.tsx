@@ -523,6 +523,8 @@ export default function ImportantCallsPage() {
               nextSchedule:      viewingLead.nextSchedule || undefined,
               nextTime:          viewingLead.nextTime     || undefined,
               timezone:          viewingLead.timezone     || undefined,
+              subContacts:       viewingLead.subContacts,
+              rawCompany:        viewingLead.rawCompany   || undefined,
             }}
             onClose={() => setViewingLead(null)}
             onSaved={(id, updates) => {
@@ -534,6 +536,12 @@ export default function ImportantCallsPage() {
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(i => i.id === id ? { ...i, ...merged } : i));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+            onSubContactAdded={(id, sub) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, subContacts: [...i.subContacts, sub] } : i));
+            }}
+            onSubContactDeleted={(id, subId) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, subContacts: i.subContacts.filter(s => s.id !== subId) } : i));
             }}
           />
         )}

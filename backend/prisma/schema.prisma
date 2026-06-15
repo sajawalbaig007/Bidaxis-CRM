@@ -72,10 +72,11 @@ model Lead {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  csr        User        @relation("AssignedLeads", fields: [assignedTo], references: [id])
-  uploadFile UploadFile? @relation(fields: [uploadedFileId], references: [id])
-  callLogs   CallLog[]
-  notes      LeadNote[]
+  csr         User        @relation("AssignedLeads", fields: [assignedTo], references: [id])
+  uploadFile  UploadFile? @relation(fields: [uploadedFileId], references: [id])
+  callLogs    CallLog[]
+  notes       LeadNote[]
+  subContacts SubContact[]
 
   @@index([assignedTo])
   @@index([status])
@@ -99,6 +100,20 @@ model LeadNote {
 
   @@index([leadId])
   @@index([leadId, createdAt])
+}
+
+model SubContact {
+  id          String   @id @default(cuid()) @map("_id")
+  leadId      String
+  name        String
+  designation String?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@index([leadId])
 }
 
 model CallLog {

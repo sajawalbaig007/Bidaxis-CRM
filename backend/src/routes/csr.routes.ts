@@ -23,7 +23,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     const leads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -47,7 +47,7 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
         assignedTo: csrId,
         status: { in: ["Not Interested", "not picked", "not completed"] },
       },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -377,7 +377,7 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
     const csrLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -422,7 +422,7 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
         assignedTo: csrId,
         status:     { in: ["Close Client", "completed"] },
       },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -502,13 +502,55 @@ router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const csrId = req.user.id;
     const leads = await prisma.lead.findMany({
       where:   { assignedTo: csrId, status: { in: ["not picked", "not completed"] } },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
     return res.json({ success: true, leads });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch bin" });
+  }
+});
+
+/* ================= SUB-CONTACTS ================= */
+
+router.post("/lead/:id/subcontacts", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const leadId = req.params.id as string;
+    const { name, designation, phone, email } = req.body as { name: string; designation?: string; phone?: string; email?: string };
+
+    if (!name?.trim()) return res.status(400).json({ success: false, message: "Name is required" });
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const subContact = await prisma.subContact.create({
+      data: { leadId, name: name.trim(), designation: designation?.trim() || null, phone: phone?.trim() || null, email: email?.trim() || null },
+    });
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
+    return res.status(201).json({ success: true, subContact });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
+  }
+});
+
+router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const leadId = req.params.id as string;
+    const subId  = req.params.subId as string;
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    await prisma.subContact.delete({ where: { id: subId } });
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete sub-contact" });
   }
 });
 

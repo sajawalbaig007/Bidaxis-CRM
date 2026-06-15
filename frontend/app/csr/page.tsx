@@ -588,6 +588,8 @@ export default function CSRPage() {
               nextTime:          viewingLead.nextTime     || undefined,
               timezone:          viewingLead.timezone     || undefined,
               noteHistory:       viewingLead.noteHistory,
+              subContacts:       viewingLead.subContacts,
+              rawCompany:        viewingLead.rawCompany   || undefined,
             }}
             onClose={() => setViewingLead(null)}
             onSaved={(id, updates) => {
@@ -602,6 +604,12 @@ export default function CSRPage() {
             }}
             onNoteAdded={(id, note) => {
               setLeads(prev => prev.map(i => i.id === id ? { ...i, noteHistory: [...i.noteHistory, note] } : i));
+            }}
+            onSubContactAdded={(id, sub) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, subContacts: [...i.subContacts, sub] } : i));
+            }}
+            onSubContactDeleted={(id, subId) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, subContacts: i.subContacts.filter(s => s.id !== subId) } : i));
             }}
           />
         )}

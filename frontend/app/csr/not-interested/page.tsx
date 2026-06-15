@@ -782,6 +782,7 @@ export default function NotInterestedPage() {
               status:            viewingLead.status,
               interestedService: viewingLead.interestedService,
               followUpNotes:     viewingLead.followUpNotes,
+              subContacts:       viewingLead.subContacts,
             }}
             onClose={() => setViewingLead(null)}
             onSaved={(id, updates) => {
@@ -793,6 +794,12 @@ export default function NotInterestedPage() {
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(l => l.id === id ? { ...l, ...merged } : l));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+            onSubContactAdded={(id, sub) => {
+              setLeads(prev => prev.map(l => l.id === id ? { ...l, subContacts: [...l.subContacts, sub] } : l));
+            }}
+            onSubContactDeleted={(id, subId) => {
+              setLeads(prev => prev.map(l => l.id === id ? { ...l, subContacts: l.subContacts.filter(s => s.id !== subId) } : l));
             }}
           />
         )}

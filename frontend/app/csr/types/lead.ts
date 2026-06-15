@@ -1,4 +1,4 @@
-import { NoteEntry } from "../hooks/useLeadsData";
+import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 
 export interface BackendLead {
   id: string;
@@ -20,6 +20,7 @@ export interface BackendLead {
   state?: string;
   uploadFile?: { companyName?: string };
   notes?: { id: string; text: string; createdAt: string; }[];
+  subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
 }
 
@@ -39,6 +40,7 @@ export type Lead = {
   comments: string;
   state: string;
   noteHistory: NoteEntry[];
+  subContacts: SubContact[];
 };
 
 export const mapBackendLead = (lead: BackendLead): Lead => {
@@ -68,9 +70,17 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
       lead.serviceInterested ??
       lead.serviceName ??
       "",
-    comments:         lead.comments   ?? "",
-    state:            lead.state      ?? "",
+    comments:    lead.comments    ?? "",
+    state:       lead.state       ?? "",
     noteHistory,
+    subContacts: (lead.subContacts ?? []).map(s => ({
+      id:          s.id,
+      name:        s.name,
+      designation: s.designation,
+      phone:       s.phone,
+      email:       s.email,
+      createdAt:   s.createdAt,
+    })),
   };
 };
 
