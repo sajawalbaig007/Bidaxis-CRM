@@ -20,6 +20,7 @@ import {
   Clock,
 } from "lucide-react";
 import API from "@/lib/api";
+import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 
 const navItems = [
   { title: "Call Data",         href: "/csr",                      icon: Link2        },
@@ -74,9 +75,12 @@ export default function TopNavbar() {
   const [calls, setCalls] = useState<ScheduledCall[]>(
     () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedCalls : [])
   );
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [bellOpen, setBellOpen] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [profileOpen,  setProfileOpen]  = useState(false);
+  const [bellOpen,     setBellOpen]     = useState(false);
+  const [loggingOut,   setLoggingOut]   = useState(false);
+  const [notifPerm,    setNotifPerm]    = useState<NotificationPermission | "unsupported">(
+    () => typeof Notification === "undefined" ? "unsupported" : Notification.permission
+  );
 
   const profileRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
@@ -155,6 +159,13 @@ export default function TopNavbar() {
     : "CR";
 
   const todayCalls = calls.filter((c) => c.date === TODAY);
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifPerm(granted ? "granted" : Notification.permission);
+    if (granted) toast.success("Notifications enabled!");
+    else toast.error("Notifications blocked — enable in browser settings.");
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
@@ -242,14 +253,27 @@ export default function TopNavbar() {
                         {todayCalls.length} today
                       </span>
                     )}
-
                     {calls.length === 0 && (
-                      <span className="text-[11px] text-gray-400">
-                        No upcoming
-                      </span>
+                      <span className="text-[11px] text-gray-400">No upcoming</span>
                     )}
                   </div>
                 </div>
+
+                {notifPerm !== "granted" && notifPerm !== "unsupported" && (
+                  <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-amber-700 font-medium">
+                      {notifPerm === "denied" ? "Notifications blocked in browser" : "Enable message notifications"}
+                    </p>
+                    {notifPerm !== "denied" && (
+                      <button
+                        onClick={handleEnableNotifications}
+                        className="text-[10px] font-bold text-white bg-amber-500 hover:bg-amber-600 px-2.5 py-1 rounded-lg shrink-0 transition-colors"
+                      >
+                        Enable
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="max-h-[340px] overflow-y-auto divide-y divide-gray-50">
                   {calls.length === 0 ? (

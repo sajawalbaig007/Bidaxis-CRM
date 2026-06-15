@@ -10,7 +10,7 @@ export function useChatNotifications() {
     if (typeof Notification === "undefined") return;
     if (Notification.permission === "granted") {
       notifOk.current = true;
-    } else if (Notification.permission !== "denied") {
+    } else if (Notification.permission === "default") {
       Notification.requestPermission().then(p => { notifOk.current = p === "granted"; });
     }
   }, []);
@@ -41,4 +41,12 @@ export function useChatNotifications() {
     void poll();
     return visibleInterval(poll, 10_000);
   }, []);
+}
+
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "denied") return false;
+  const p = await Notification.requestPermission();
+  return p === "granted";
 }
