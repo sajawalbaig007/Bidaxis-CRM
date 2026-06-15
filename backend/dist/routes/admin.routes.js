@@ -51,21 +51,27 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
+        /* Lean select — charts only need id, name, status, createdAt, updatedAt, csr.name */
         const leads = await db_1.default.lead.findMany({
-            include: {
-                csr: { select: { id: true, name: true, email: true, csrCode: true } },
-                uploadFile: { select: { companyName: true, fileName: true } },
+            select: {
+                id:        true,
+                name:      true,
+                status:    true,
+                interested: true,
+                createdAt: true,
+                updatedAt: true,
+                csr: { select: { id: true, name: true, csrCode: true } },
             },
             orderBy: { updatedAt: "desc" },
         });
         const stats = {
-            totalClients: leads.length,
+            totalClients:  leads.length,
             activeClients: leads.filter(l => l.status?.toLowerCase() === "pending").length,
-            interested: leads.filter(l => l.status?.toLowerCase() === "interested" || l.interested).length,
-            closed: leads.filter(l => ["closed", "completed", "close client"].includes(l.status?.toLowerCase() || "")).length,
+            interested:    leads.filter(l => l.status?.toLowerCase() === "interested" || l.interested).length,
+            closed:        leads.filter(l => ["closed", "completed", "close client"].includes(l.status?.toLowerCase() || "")).length,
         };
         const payload = { success: true, leads, stats };
-        (0, cache_1.setCache)(CACHE_KEY, payload, 3000);
+        (0, cache_1.setCache)(CACHE_KEY, payload, 60000);
         return res.json(payload);
     }
     catch (error) {
@@ -333,6 +339,16 @@ router.delete("/csr-leads/:csrId", auth_middleware_1.verifyToken, (0, role_middl
         }
         if (csr.role !== "csr") {
             return res.status(400).json({ success: false, message: "User is not a CSR" });
+        }
+        /* Cascade-delete children before removing leads */
+        const toDelete = await db_1.default.lead.findMany({ where: { assignedTo: csrId }, select: { id: true } });
+        const leadIds = toDelete.map(l => l.id);
+        if (leadIds.length > 0) {
+            await Promise.all([
+                db_1.default.leadNote.deleteMany({ where: { leadId: { in: leadIds } } }),
+                db_1.default.subContact.deleteMany({ where: { leadId: { in: leadIds } } }),
+                db_1.default.callLog.deleteMany({ where: { leadId: { in: leadIds } } }),
+            ]);
         }
         const { count } = await db_1.default.lead.deleteMany({ where: { assignedTo: csrId } });
         (0, cache_1.invalidateCache)("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);

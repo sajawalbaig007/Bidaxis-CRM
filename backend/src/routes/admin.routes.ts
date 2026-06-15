@@ -50,10 +50,16 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
+    /* Lean select — charts only need id, name, status, createdAt, updatedAt, csr.name */
     const leads = await prisma.lead.findMany({
-      include: {
-        csr:        { select: { id: true, name: true, email: true, csrCode: true } },
-        uploadFile: { select: { companyName: true, fileName: true } },
+      select: {
+        id:         true,
+        name:       true,
+        status:     true,
+        interested: true,
+        createdAt:  true,
+        updatedAt:  true,
+        csr: { select: { id: true, name: true, csrCode: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
@@ -66,7 +72,7 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
     };
 
     const payload = { success: true, leads, stats };
-    setCache(CACHE_KEY, payload, 3_000);
+    setCache(CACHE_KEY, payload, 60_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -391,6 +397,16 @@ router.delete(
         return res.status(400).json({ success: false, message: "User is not a CSR" });
       }
 
+      /* Cascade-delete children before removing leads */
+      const toDelete = await prisma.lead.findMany({ where: { assignedTo: csrId }, select: { id: true } });
+      const leadIds  = toDelete.map(l => l.id);
+      if (leadIds.length > 0) {
+        await Promise.all([
+          prisma.leadNote.deleteMany({ where: { leadId: { in: leadIds } } }),
+          prisma.subContact.deleteMany({ where: { leadId: { in: leadIds } } }),
+          prisma.callLog.deleteMany({ where: { leadId: { in: leadIds } } }),
+        ]);
+      }
       const { count } = await prisma.lead.deleteMany({ where: { assignedTo: csrId } });
 
       invalidateCache("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
