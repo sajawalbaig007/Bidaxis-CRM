@@ -5,7 +5,7 @@ import {
   FolderKanban, CalendarDays, DollarSign,
   Search, Filter, Phone, AlignLeft, Briefcase,
   X, FileText, Eye, Clock3, CheckCircle2,
-  Plus, User2, Pencil, Hash, Mail,
+  Plus, User2, Pencil, Hash, Mail, StickyNote,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -16,8 +16,10 @@ import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import SendEmailButton from "../components/shared/SendEmailButton";
 import EmailField from "../components/shared/EmailField";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
+import CommentCell from "../components/shared/CommentCell";
 
 import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/useProjectsData";
+import { NoteEntry } from "../hooks/useLeadsData";
 import { getTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import API from "@/lib/api";
 
@@ -126,6 +128,18 @@ export default function CSRProjectsPage() {
     } catch (error) { console.log(error); }
   };
 
+  const addNote = async (id: string, text: string) => {
+    const res = await API.post(`/csr/lead/${id}/notes`, { text });
+    const note: NoteEntry = res.data.note
+      ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
+      : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
+    setProjects(prev => prev.map(p =>
+      p.id === id ? { ...p, noteHistory: [...(p.noteHistory ?? []), note] } : p
+    ));
+    if (viewingProject?.id === id)
+      setViewingProject(prev => prev ? { ...prev, noteHistory: [...(prev.noteHistory ?? []), note] } : prev);
+  };
+
   const saveEdit = async () => {
     if (!viewingProject || !editTitle || !editDeadline) return;
     setSaving(true);
@@ -195,6 +209,7 @@ export default function CSRProjectsPage() {
         phone:         addForm.clientPhone.trim() || "N/A",
         closedAt:      new Date().toISOString().split("T")[0],
         clientCode:    null,
+        noteHistory:   [],
       };
       setProjects(prev => [newProject, ...prev]);
       setShowAddModal(false); setAddForm(emptyForm);
@@ -351,6 +366,13 @@ export default function CSRProjectsPage() {
                       <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-lg truncate max-w-[180px]">{project.email}</span>
                     )}
                   </div>
+
+                  <div className="pt-1">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <StickyNote size={9} />Notes
+                    </p>
+                    <CommentCell id={project.id} noteHistory={project.noteHistory} onAddNote={addNote} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -358,8 +380,8 @@ export default function CSRProjectsPage() {
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block overflow-x-auto">
               <div style={{ minWidth: "920px" }}>
-                <div className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
-                  {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Actions"].map(h => (
+                <div className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_1.4fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+                  {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
                 </div>
@@ -368,7 +390,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_1.4fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
@@ -448,6 +470,15 @@ export default function CSRProjectsPage() {
                         {project.budgetNum > 0 ? (
                           <span className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate block">${project.budgetNum.toLocaleString()}</span>
                         ) : <span className="text-xs text-gray-400">N/A</span>}
+                      </div>
+
+                      {/* Notes */}
+                      <div className="min-w-0 py-1">
+                        <CommentCell
+                          id={project.id}
+                          noteHistory={project.noteHistory}
+                          onAddNote={addNote}
+                        />
                       </div>
 
                       {/* Actions */}
@@ -785,11 +816,23 @@ export default function CSRProjectsPage() {
                         <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-3.5">
                           <div className="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
                             <AlignLeft size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />
-                            <p className="text-gray-400 text-[10px] sm:text-[11px]">Notes</p>
+                            <p className="text-gray-400 text-[10px] sm:text-[11px]">Project Notes</p>
                           </div>
                           <p className="text-[#0F172A] text-[12px] sm:text-[13px] leading-relaxed">{viewingProject.notes}</p>
                         </div>
                       )}
+
+                      <div className="bg-[#FFFBF0] border border-amber-100 rounded-xl sm:rounded-2xl p-3 sm:p-3.5">
+                        <div className="flex items-center gap-1 sm:gap-1.5 mb-2">
+                          <StickyNote size={11} className="text-amber-500 sm:w-3 sm:h-3" />
+                          <p className="text-amber-700 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider">Notes History</p>
+                        </div>
+                        <CommentCell
+                          id={viewingProject.id}
+                          noteHistory={viewingProject.noteHistory}
+                          onAddNote={addNote}
+                        />
+                      </div>
                     </>
                   )}
 

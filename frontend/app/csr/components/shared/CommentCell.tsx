@@ -8,7 +8,7 @@ interface CommentCellProps {
   id: string;
   noteHistory?: NoteEntry[];
   comment?: string;
-  onAddNote?: (id: string, text: string) => Promise<void>;
+  onAddNote?: (id: string, text: string) => Promise<unknown>;
   onSave?: (id: string, comment: string) => Promise<void>;
 }
 

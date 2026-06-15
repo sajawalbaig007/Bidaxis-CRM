@@ -216,9 +216,14 @@ export default function NotInterestedPage() {
     showToast("Client closed & moved to Projects.");
   };
 
-  const saveComment = async (id: string, comment: string) => {
-    await API.put(`/csr/lead/${id}`, { comments: comment });
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, comments: comment } : l));
+  const addNote = async (id: string, text: string) => {
+    const res = await API.post(`/csr/lead/${id}/notes`, { text });
+    const note = res.data.note
+      ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
+      : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
+    setLeads(prev => prev.map(l =>
+      l.id === id ? { ...l, noteHistory: [...(l.noteHistory ?? []), note] } : l
+    ));
   };
 
   return (
@@ -423,7 +428,7 @@ export default function NotInterestedPage() {
 
                         {/* Sticky Note */}
                         <td className="py-4 sm:py-5 px-2">
-                          <CommentCell id={lead.id} comment={lead.comments || ""} onSave={saveComment} />
+                          <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                         </td>
 
                         {/* Tries bar */}

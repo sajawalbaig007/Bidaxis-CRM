@@ -26,7 +26,7 @@ const getTzAbbr = (tzValue: string) => {
 
 export default function ImportantCallsPage() {
   const { leads, setLeads, loading } = useCsrDashboard();
-  const { saveComment, updateLead } = useLeadActions(setLeads);
+  const { saveComment, updateLead, addNote } = useLeadActions(setLeads);
 
   const [activeTab, setActiveTab] = useState("important");
   const [page, setPage] = useState(1);
@@ -304,7 +304,7 @@ export default function ImportantCallsPage() {
                         )}
                       </td>
                       <td className="py-4 sm:py-5 px-2">
-                        <CommentCell id={lead.id} comment={lead.comments} onSave={saveComment} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
                       <td className="py-4 sm:py-5 px-2">
                         <div className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold w-fit whitespace-nowrap ${
@@ -436,7 +436,7 @@ export default function ImportantCallsPage() {
                         ) : <span className="text-gray-400 text-xs sm:text-sm">Not specified</span>}
                       </td>
                       <td className="py-4 sm:py-5 px-2">
-                        <CommentCell id={lead.id} comment={lead.comments} onSave={saveComment} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
                       <td className="py-4 sm:py-5 px-2">
                         <div className="bg-[#FFF1F3] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold w-fit whitespace-nowrap">

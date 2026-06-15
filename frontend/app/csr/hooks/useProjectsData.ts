@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import API from "@/lib/api";
+import { NoteEntry } from "./useLeadsData";
 
 export type Project = {
   id: string;
@@ -22,7 +23,10 @@ export type Project = {
   phone: string;
   closedAt: string;
   clientCode: string | null;
+  noteHistory: NoteEntry[];
 };
+
+type RawNote = { id?: string; text?: string; createdAt?: string; };
 
 type RawLead = {
   id?: string | number;
@@ -47,8 +51,10 @@ type RawLead = {
   projectNotes?: string;
   project_notes?: string;
   ProjectNotes?: string;
-  notes?: string;
+  notes?: RawNote[];
   followUpNotes?: string;
+  comments?: string;
+  createdAt?: string;
   interestedService?: string;
   interested_service?: string;
   service?: string;
@@ -85,9 +91,7 @@ function mapProject(lead: RawLead): Project {
     lead.projectDeadline ?? lead.project_deadline ?? lead.ProjectDeadline ??
     lead.deadline ?? lead.nextSchedule ?? "N/A";
   const budget  = lead.projectBudget ?? lead.project_budget ?? lead.ProjectBudget ?? lead.budget ?? "";
-  const notes   =
-    lead.projectNotes ?? lead.project_notes ?? lead.ProjectNotes ??
-    lead.notes ?? lead.followUpNotes ?? "";
+  const notes   = lead.projectNotes ?? lead.project_notes ?? lead.ProjectNotes ?? lead.followUpNotes ?? "";
   const service =
     lead.interestedService ?? lead.interested_service ?? lead.service ??
     lead.serviceInterested ?? lead.serviceName ?? lead.services ?? "N/A";
@@ -101,6 +105,14 @@ function mapProject(lead: RawLead): Project {
   const paidAmount   = lead.paidAmount ?? "";
   const paidAmountNum = parseBudget(paidAmount);
   const paidPercent  = budgetNum > 0 ? (paidAmountNum / budgetNum) * 100 : 0;
+
+  const rawNotes = Array.isArray(lead.notes) ? lead.notes : [];
+  const legacyNote: NoteEntry[] = (lead.comments || lead.followUpNotes)
+    ? [{ id: "legacy", text: lead.comments ?? lead.followUpNotes ?? "", createdAt: lead.createdAt ?? new Date().toISOString() }]
+    : [];
+  const noteHistory: NoteEntry[] = rawNotes.length > 0
+    ? rawNotes.map((n: RawNote) => ({ id: n.id ?? String(Math.random()), text: n.text ?? "", createdAt: n.createdAt ?? new Date().toISOString() }))
+    : legacyNote;
 
   return {
     id:            String(lead.id ?? ""),
@@ -123,6 +135,7 @@ function mapProject(lead: RawLead): Project {
     phone:         String(lead.phone    || "N/A"),
     closedAt:      lead.updatedAt ? String(lead.updatedAt).split("T")[0] : "N/A",
     clientCode:    lead.clientCode ?? null,
+    noteHistory,
   };
 }
 
