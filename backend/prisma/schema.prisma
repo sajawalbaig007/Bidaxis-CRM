@@ -19,6 +19,8 @@ model User {
   password     String
   role         Role
   csrCode      String?
+  cnic         String?
+  profilePic   String?
   isActive     Boolean   @default(true)
   isOnline     Boolean   @default(false)
   lastActive   DateTime?

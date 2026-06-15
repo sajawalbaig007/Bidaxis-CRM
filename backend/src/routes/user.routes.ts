@@ -2,6 +2,9 @@ import express from "express";
 import prisma from "../config/db";
 import { userBrowserMap } from "../utils/sessions";
 import { getCache, setCache } from "../utils/cache";
+import upload from "../middleware/upload.middleware";
+import cloudinary from "../config/cloudinary";
+import { Readable } from "stream";
 
 import {
   updateUser,
@@ -26,6 +29,8 @@ router.get("/", async (req, res) => {
           email:      true,
           role:       true,
           csrCode:    true,
+          cnic:       true,
+          profilePic: true,
           isActive:   true,
           isOnline:   true,
           lastActive: true,
@@ -43,12 +48,32 @@ router.get("/", async (req, res) => {
       openedAt:   userBrowserMap.get(u.id as string)?.openedAt   ?? null,
       tabVisible: userBrowserMap.get(u.id as string)?.tabVisible ?? null,
       hiddenAt:   userBrowserMap.get(u.id as string)?.hiddenAt   ?? null,
+      cnic:       (u as Record<string, unknown>).cnic       ?? null,
+      profilePic: (u as Record<string, unknown>).profilePic ?? null,
     }));
 
     return res.json(withBrowser);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch users" });
+  }
+});
+
+/* ================= UPLOAD PROFILE PIC ================= */
+router.post("/upload-pic", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file provided" });
+    const url = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "crm_profile_pics", transformation: [{ width: 300, height: 300, crop: "fill", gravity: "face" }] },
+        (err, result) => { if (err || !result) return reject(err); resolve(result.secure_url); }
+      );
+      Readable.from(req.file!.buffer).pipe(stream);
+    });
+    return res.json({ url });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: "Upload failed" });
   }
 });
 

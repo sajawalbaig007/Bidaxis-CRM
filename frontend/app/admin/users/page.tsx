@@ -6,7 +6,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw,
+  Globe, RotateCcw, User2,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -19,6 +19,8 @@ type User = {
   id: string; name: string; email: string; password: string;
   status: "Active" | "Inactive"; role: UserRole;
   csrCode:    string | null;
+  cnic:       string | null;
+  profilePic: string | null;
   isOnline: boolean; lastActive: string | null;
   browser:     string | null;
   tabId:       string | null;
@@ -192,8 +194,9 @@ export default function UsersPage() {
   const [loading,      setLoading]      = useState(true);
 
   const [form, setForm] = useState({
-    name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "",
+    name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", profilePic: "",
   });
+  const [uploadingPic, setUploadingPic] = useState(false);
 
   const fetchUsers = useCallback(async (silent = false) => {
     try {
@@ -204,6 +207,7 @@ export default function UsersPage() {
 
       const formatted: User[] = (Array.isArray(data) ? data : []).map((u: {
         id: string; name: string; email: string; role: string; csrCode?: string;
+        cnic?: string; profilePic?: string;
         isActive?: boolean; isOnline?: boolean; lastActive?: string;
         browser?: string; tabId?: string; openedAt?: string;
         tabVisible?: boolean; hiddenAt?: string;
@@ -213,6 +217,8 @@ export default function UsersPage() {
         email:      u.email,
         role:       u.role === "csr" ? "CSR" : "Admin",
         csrCode:    u.csrCode    ?? null,
+        cnic:       u.cnic       ?? null,
+        profilePic: u.profilePic ?? null,
         status:     u.isActive === false ? "Inactive" : "Active",
         isOnline:   u.isOnline   ?? false,
         lastActive: u.lastActive ?? null,
@@ -262,6 +268,18 @@ export default function UsersPage() {
   const totalPagesUsers = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
   const paginatedUsers  = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const handlePicUpload = async (file: File) => {
+    setUploadingPic(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res  = await fetch(`${BASE}/users/upload-pic`, { method: "POST", credentials: "include", body: fd });
+      const data = await res.json();
+      if (!res.ok) { toast.error("Image upload failed."); return; }
+      setForm(f => ({ ...f, profilePic: data.url }));
+    } catch { toast.error("Upload failed."); } finally { setUploadingPic(false); }
+  };
+
   const handleSubmit = async () => {
     if (!form.name || !form.email || (!editingUser && !form.password)) {
       toast.error("Please fill all required fields.");
@@ -275,9 +293,13 @@ export default function UsersPage() {
       const role = form.role === "CSR" ? "csr" : "admin";
       const url    = editingUser ? `${BASE}/users/${editingUser.id}` : `${BASE}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
-      const body   = editingUser
-        ? { name: form.name, email: form.email, role, csrCode: role === "csr" ? form.csrCode.trim() : null }
-        : { name: form.name, email: form.email, password: form.password, role, csrCode: role === "csr" ? form.csrCode.trim() : null };
+      const shared = {
+        name: form.name, email: form.email, role,
+        csrCode:    role === "csr" ? form.csrCode.trim() : null,
+        cnic:       form.cnic.trim() || null,
+        profilePic: form.profilePic  || null,
+      };
+      const body = editingUser ? shared : { ...shared, password: form.password };
 
       const res  = await fetch(url, {
         method, credentials: "include",
@@ -290,7 +312,7 @@ export default function UsersPage() {
       toast.success(editingUser ? "User updated." : "User created.");
       fetchUsers();
       setShowModal(false); setEditingUser(null);
-      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "" });
+      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", profilePic: "" });
       setShowPassword(false);
     } catch {
       toast.error("Something went wrong.");
@@ -478,8 +500,11 @@ export default function UsersPage() {
                     {/* USER */}
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm relative ${roleColor(u.role)}`}>
-                          {u.name.charAt(0).toUpperCase()}
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm relative overflow-hidden ${u.profilePic ? "" : roleColor(u.role)}`}>
+                          {u.profilePic
+                            ? <img src={u.profilePic} alt={u.name} className="w-full h-full object-cover" />
+                            : u.name.charAt(0).toUpperCase()
+                          }
                           <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${u.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
                         </div>
                         <div>
@@ -492,6 +517,7 @@ export default function UsersPage() {
                             )}
                           </div>
                           <p className="text-xs text-gray-400">{u.email}</p>
+                          {u.cnic && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{u.cnic}</p>}
                         </div>
                       </div>
                     </td>
@@ -536,7 +562,7 @@ export default function UsersPage() {
                           className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all text-sm">
                           Details
                         </button>
-                        <button onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "" }); setShowModal(true); }}
+                        <button onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); }}
                           className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all">
                           <Pencil size={16}/>
                         </button>
@@ -569,7 +595,7 @@ export default function UsersPage() {
                           <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
                             {[
                               { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
-                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "" }); setShowModal(true); setOpenMenu(null); }},
+                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); setOpenMenu(null); }},
                               { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
                             ].map(({ label, action }) => (
                               <button key={label} onClick={action} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all">{label}</button>
@@ -745,6 +771,45 @@ export default function UsersPage() {
                     </p>
                   </div>
                 )}
+
+                {/* CNIC */}
+                <div>
+                  <label className="text-sm text-gray-500 block mb-2">CNIC <span className="text-xs text-gray-400">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={form.cnic}
+                    onChange={e => setForm({ ...form, cnic: e.target.value })}
+                    placeholder="e.g. 12345-6789012-3"
+                    maxLength={15}
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
+                  />
+                </div>
+
+                {/* Profile Picture */}
+                <div>
+                  <label className="text-sm text-gray-500 block mb-2">Profile Picture <span className="text-xs text-gray-400">(optional)</span></label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-200 shrink-0 bg-gray-50 flex items-center justify-center">
+                      {form.profilePic
+                        ? <img src={form.profilePic} alt="Preview" className="w-full h-full object-cover" />
+                        : <User2 size={22} className="text-gray-300" />
+                      }
+                    </div>
+                    <div className="flex-1">
+                      <label className={`flex items-center justify-center w-full py-2.5 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-sm font-medium ${uploadingPic ? "border-gray-200 text-gray-300 cursor-not-allowed" : "border-gray-200 text-gray-500 hover:border-[#B8112D] hover:text-[#B8112D]"}`}>
+                        {uploadingPic ? "Uploading…" : form.profilePic ? "Change Photo" : "Upload Photo"}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploadingPic}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) void handlePicUpload(f); e.target.value = ""; }} />
+                      </label>
+                      {form.profilePic && (
+                        <button type="button" onClick={() => setForm(f => ({ ...f, profilePic: "" }))}
+                          className="text-[11px] text-red-400 hover:text-red-600 mt-1 w-full text-center transition-colors">
+                          Remove photo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setShowModal(false); setEditingUser(null); }}

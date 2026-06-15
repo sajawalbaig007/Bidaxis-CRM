@@ -36,7 +36,9 @@ type UserInfo = {
   name: string;
   email: string;
   role: string;
-  csrCode?: string | null;
+  csrCode?:    string | null;
+  cnic?:       string | null;
+  profilePic?: string | null;
 };
 
 type ScheduledCall = {
@@ -355,8 +357,11 @@ export default function TopNavbar() {
               }}
               className="flex items-center gap-2 hover:bg-[#F3F4F6] rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
             >
-              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                {initials}
+              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                {user?.profilePic
+                  ? <Image src={user.profilePic} alt={user.name} width={32} height={32} className="w-full h-full object-cover" />
+                  : initials
+                }
               </div>
 
               <div className="hidden lg:block text-left">
@@ -379,8 +384,11 @@ export default function TopNavbar() {
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
                 <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0">
-                    {initials}
+                  <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0 overflow-hidden">
+                    {user?.profilePic
+                      ? <Image src={user.profilePic} alt={user?.name ?? "Avatar"} width={48} height={48} className="w-full h-full object-cover" />
+                      : initials
+                    }
                   </div>
 
                   <div className="min-w-0">
@@ -400,6 +408,9 @@ export default function TopNavbar() {
 
                   {user?.csrCode && (
                     <InfoRow label="CSR Code" value={user.csrCode} mono />
+                  )}
+                  {user?.cnic && (
+                    <InfoRow label="CNIC" value={user.cnic} mono />
                   )}
                 </div>
 

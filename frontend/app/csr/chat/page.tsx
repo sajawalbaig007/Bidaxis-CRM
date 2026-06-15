@@ -1126,6 +1126,15 @@ export default function ChatPage() {
                 >
                   <Trash2 size={14} />
                 </button>
+
+                {/* Close chat panel */}
+                <button
+                  onClick={() => setActiveConvId(null)}
+                  className="w-8 h-8 rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 flex items-center justify-center transition-colors"
+                  title="Close chat"
+                >
+                  <X size={14} />
+                </button>
               </div>
 
               {/* Message search bar */}

@@ -62,7 +62,7 @@ function setCookieToken(res: Response, token: string) {
 /* ================= REGISTER ================= */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, role, csrCode } = req.body;
+    const { name, email, password, role, csrCode, cnic, profilePic } = req.body;
 
     /* csrCode required for CSR role */
     if (role === "csr" && !csrCode?.trim()) {
@@ -84,8 +84,8 @@ export const register = async (req: Request, res: Response) => {
 
     const hashed = await hashPassword(password);
     const user = await prisma.user.create({
-      data:   { name, email, password: hashed, role, csrCode: role === "csr" ? csrCode.trim() : null },
-      select: { id: true, name: true, email: true, role: true, csrCode: true, createdAt: true },
+      data:   { name, email, password: hashed, role, csrCode: role === "csr" ? csrCode.trim() : null, cnic: cnic?.trim() || null, profilePic: profilePic || null },
+      select: { id: true, name: true, email: true, role: true, csrCode: true, cnic: true, profilePic: true, createdAt: true },
     });
     return res.status(201).json({ success: true, user });
   } catch {
@@ -303,6 +303,7 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       where:  { id: req.user.id },
       select: {
         id: true, name: true, email: true, role: true,
+        csrCode: true, cnic: true, profilePic: true,
         twoFAEnabled: true, createdAt: true,
       },
     });
