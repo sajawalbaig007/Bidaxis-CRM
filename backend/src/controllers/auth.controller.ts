@@ -76,7 +76,7 @@ export const register = async (req: Request, res: Response) => {
 
     /* Ensure csrCode is unique */
     if (csrCode?.trim()) {
-      const codeTaken = await prisma.user.findUnique({ where: { csrCode: csrCode.trim() } });
+      const codeTaken = await prisma.user.findFirst({ where: { csrCode: csrCode.trim() } });
       if (codeTaken) {
         return res.status(400).json({ success: false, message: `CSR Code "${csrCode}" is already in use.` });
       }
