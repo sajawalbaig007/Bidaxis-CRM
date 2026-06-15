@@ -541,47 +541,84 @@ export default function UploadPage() {
                     )}
                   </div>
 
-                  <div className="space-y-2 sm:space-y-3 max-h-[240px] sm:max-h-[320px] overflow-y-auto">
-                    {csrs.map(csr => (
-                      <div
-                        key={csr.id}
-                        className="border border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center justify-between hover:border-gray-300 transition-all"
-                      >
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 ${
-                            csr.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
-                          }`}>
-                            {csr.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              {csr.csrCode && (
-                                <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
-                              )}
-                              <h3 className="font-semibold text-gray-800 text-xs sm:text-sm truncate">{csr.name}</h3>
-                            </div>
-                            <p className="text-[10px] sm:text-xs text-gray-400 truncate">{csr.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                          <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${
-                            csr.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                          }`}>
-                            {csr.isActive ? "Active" : "Inactive"}
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={selectedCSRs.includes(csr.id)}
-                            disabled={!csr.isActive}
-                            onChange={e => {
-                              if (e.target.checked) setSelectedCSRs(prev => [...prev, csr.id]);
-                              else setSelectedCSRs(prev => prev.filter(id => id !== csr.id));
-                            }}
-                            className="w-4 h-4 sm:w-5 sm:h-5 accent-[#B8112D]"
-                          />
-                        </div>
+                  {/* Select All / Deselect All */}
+                  {(() => {
+                    const activeCSRs = csrs.filter(c => c.isActive);
+                    const allSelected = activeCSRs.length > 0 && activeCSRs.every(c => selectedCSRs.includes(c.id));
+                    return (
+                      <div className="flex items-center justify-between pb-1">
+                        <p className="text-[11px] sm:text-xs text-gray-400">
+                          <span className="font-semibold text-gray-600">{selectedCSRs.length}</span> of {activeCSRs.length} selected
+                        </p>
+                        <button
+                          onClick={() => allSelected
+                            ? setSelectedCSRs([])
+                            : setSelectedCSRs(activeCSRs.map(c => c.id))
+                          }
+                          className="text-[11px] sm:text-xs font-semibold text-[#B8112D] hover:underline"
+                        >
+                          {allSelected ? "Deselect All" : "Select All"}
+                        </button>
                       </div>
-                    ))}
+                    );
+                  })()}
+
+                  <div className="space-y-2 sm:space-y-3 max-h-[240px] sm:max-h-[300px] overflow-y-auto">
+                    {csrs.map(csr => {
+                      const checked = selectedCSRs.includes(csr.id);
+                      const toggle = () => {
+                        if (!csr.isActive) return;
+                        setSelectedCSRs(prev =>
+                          checked ? prev.filter(id => id !== csr.id) : [...prev, csr.id]
+                        );
+                      };
+                      return (
+                        <div
+                          key={csr.id}
+                          onClick={toggle}
+                          className={`border rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center justify-between transition-all select-none ${
+                            csr.isActive ? "cursor-pointer hover:border-gray-300" : "cursor-not-allowed opacity-60"
+                          } ${
+                            checked ? "border-[#B8112D] bg-[#FFF6F8]" : "border-gray-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 ${
+                              csr.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+                            }`}>
+                              {csr.name.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                {csr.csrCode && (
+                                  <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
+                                )}
+                                <h3 className="font-semibold text-gray-800 text-xs sm:text-sm truncate">{csr.name}</h3>
+                              </div>
+                              <p className="text-[10px] sm:text-xs text-gray-400 truncate">{csr.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                            <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${
+                              csr.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                            }`}>
+                              {csr.isActive ? "Active" : "Inactive"}
+                            </span>
+                            <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                              checked
+                                ? "bg-[#B8112D] border-[#B8112D]"
+                                : "border-gray-300 bg-white"
+                            }`}>
+                              {checked && (
+                                <svg viewBox="0 0 10 8" className="w-2.5 h-2 text-white fill-none stroke-current stroke-[2]">
+                                  <polyline points="1,4 4,7 9,1" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="flex gap-2 sm:gap-3">
