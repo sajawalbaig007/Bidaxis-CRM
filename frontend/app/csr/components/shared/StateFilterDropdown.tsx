@@ -9,9 +9,12 @@ interface StateFilterDropdownProps {
   onChange: (v: string) => void;
 }
 
+type Country = "all" | "usa" | "canada";
+
 export default function StateFilterDropdown({ value, onChange }: StateFilterDropdownProps) {
-  const [search, setSearch] = useState("");
-  const [open,   setOpen]   = useState(false);
+  const [search,  setSearch]  = useState("");
+  const [open,    setOpen]    = useState(false);
+  const [country, setCountry] = useState<Country>("all");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,23 +26,31 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
   }, []);
 
   const filteredUSStates = useMemo(() => {
+    if (country === "canada") return [];
     const q = search.toLowerCase();
     return !q ? US_STATES : US_STATES.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
-  }, [search]);
+  }, [search, country]);
 
   const filteredCAProvinces = useMemo(() => {
+    if (country === "usa") return [];
     const q = search.toLowerCase();
     return !q ? CA_PROVINCES : CA_PROVINCES.filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q));
-  }, [search]);
+  }, [search, country]);
 
   const select = (name: string) => { onChange(name); setOpen(false); setSearch(""); };
   const clear  = () => { onChange(""); setSearch(""); };
+
+  const countryTabs: { key: Country; label: string; flag: string }[] = [
+    { key: "all",    label: "All",    flag: "🌎" },
+    { key: "usa",    label: "USA",    flag: "🇺🇸" },
+    { key: "canada", label: "Canada", flag: "🇨🇦" },
+  ];
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(v => !v)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors min-w-[160px] sm:min-w-[190px] ${
+        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors min-w-[160px] sm:min-w-[200px] ${
           value ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-200 bg-[#FAFAFA] text-gray-600 hover:border-gray-300"
         }`}
       >
@@ -55,7 +66,26 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
       </button>
 
       {open && (
-        <div className="absolute top-11 sm:top-12 right-0 z-50 w-[240px] sm:w-[270px] bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+        <div className="absolute top-11 sm:top-12 right-0 z-50 w-[260px] sm:w-[290px] bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+
+          {/* Country tabs */}
+          <div className="flex gap-1 p-2 border-b border-gray-100 bg-[#FAFAFB]">
+            {countryTabs.map(tab => (
+              <button key={tab.key}
+                onClick={() => { setCountry(tab.key); setSearch(""); }}
+                className={`flex-1 h-8 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+                  country === tab.key
+                    ? "bg-[#B8112D] text-white shadow-sm"
+                    : "text-gray-500 hover:bg-gray-100"
+                }`}
+              >
+                <span>{tab.flag}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
           <div className="p-2.5 sm:p-3 border-b border-gray-100">
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[13px] sm:h-[13px]" />
@@ -63,18 +93,26 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search states / provinces..."
+                placeholder={
+                  country === "usa"    ? "Search US states…" :
+                  country === "canada" ? "Search provinces…" :
+                  "Search states / provinces…"
+                }
                 autoFocus
                 className="w-full h-8 sm:h-9 rounded-lg sm:rounded-xl border border-gray-200 bg-[#FAFAFA] pl-7 sm:pl-8 pr-3 text-[12px] sm:text-[13px] outline-none focus:border-[#B8112D]"
               />
             </div>
           </div>
+
+          {/* List */}
           <div className="overflow-y-auto" style={{ maxHeight: "240px" }}>
             {filteredUSStates.length > 0 && (
               <>
-                <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-gray-100">
-                  <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">United States</p>
-                </div>
+                {country === "all" && (
+                  <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-gray-100">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">🇺🇸 United States</p>
+                  </div>
+                )}
                 {filteredUSStates.map(s => (
                   <button key={s.code}
                     onClick={() => select(s.name)}
@@ -95,11 +133,14 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
                 ))}
               </>
             )}
+
             {filteredCAProvinces.length > 0 && (
               <>
-                <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-t border-gray-100">
-                  <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">Canada</p>
-                </div>
+                {country === "all" && (
+                  <div className="sticky top-0 px-3 py-1.5 bg-[#F8F9FC] border-b border-t border-gray-100">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">🇨🇦 Canada</p>
+                  </div>
+                )}
                 {filteredCAProvinces.map(p => (
                   <button key={p.code}
                     onClick={() => select(p.name)}
@@ -120,6 +161,7 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
                 ))}
               </>
             )}
+
             {filteredUSStates.length === 0 && filteredCAProvinces.length === 0 && (
               <div className="py-6 sm:py-8 text-center text-gray-400 text-xs sm:text-sm">No results found</div>
             )}

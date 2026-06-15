@@ -12,6 +12,7 @@ import TopNavbar from "./components/navigation/TopNavbar";
 import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
+import CommentCell from "./components/shared/CommentCell";
 import LeadStatusDonut from "./components/shared/LeadStatusDonut";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
@@ -331,7 +332,7 @@ export default function CSRPage() {
             <table className="w-full" style={{ minWidth: "1000px" }}>
               <thead className="bg-[#FAFAFA]">
                 <tr>
-                  {["Client","Company","Phone","Status","Action"].map(h => (
+                  {["Client","Company","Phone","Status","Notes","Action"].map(h => (
                     <th key={h} className="text-left py-3 sm:py-4 px-3 sm:px-5 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
                       {h}
                     </th>
@@ -342,7 +343,7 @@ export default function CSRPage() {
                 {loading ? (
                   [1,2,3,4,5].map(i => (
                     <tr key={i} className="border-t border-gray-100">
-                      {[1,2,3,4,5].map(j => (
+                      {[1,2,3,4,5,6].map(j => (
                         <td key={j} className="py-4 sm:py-5 px-3 sm:px-5">
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-24" />
                         </td>
@@ -390,19 +391,6 @@ export default function CSRPage() {
                           <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate max-w-[120px] sm:max-w-none">
                             {currentLink.email !== "N/A" ? currentLink.email : (currentLink.state || "—")}
                           </p>
-                          {currentLink.noteHistory && currentLink.noteHistory.length > 0 && (() => {
-                            const latest = currentLink.noteHistory[currentLink.noteHistory.length - 1];
-                            return (
-                              <div className="flex items-start gap-1 mt-1 max-w-[180px] sm:max-w-[240px]">
-                                <span className="shrink-0 mt-[1px] w-3 h-3 rounded-full bg-amber-100 flex items-center justify-center">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 block" />
-                                </span>
-                                <p className="text-[10px] text-amber-700 leading-tight line-clamp-2 font-medium">
-                                  {latest.text}
-                                </p>
-                              </div>
-                            );
-                          })()}
                         </div>
                       </div>
                     </td>
@@ -425,6 +413,15 @@ export default function CSRPage() {
                       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
+                    </td>
+
+                    {/* NOTES */}
+                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                      <CommentCell
+                        id={currentLink.id}
+                        noteHistory={currentLink.noteHistory}
+                        onAddNote={addNote}
+                      />
                     </td>
 
                     {/* ACTION */}
@@ -451,7 +448,7 @@ export default function CSRPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={5} className="py-14 sm:py-20 text-center">
+                    <td colSpan={6} className="py-14 sm:py-20 text-center">
                       <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
                       <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
                         {stateFilter ? `No leads in "${stateFilter}".` : "No calls available in this category."}

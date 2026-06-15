@@ -36,6 +36,7 @@ import {
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
+import CommentCell from "../../csr/components/shared/CommentCell";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from "recharts";
 
 /* ─── TYPES ─── */
@@ -642,12 +643,12 @@ export default function ClientsPage() {
                 <table className="w-full" style={{ minWidth: "760px" }}>
                   <thead className="bg-[#FAFAFB] border-b border-gray-100 sticky top-0 z-10">
                     <tr className="text-left text-xs sm:text-sm text-gray-400">
-                      {["Client", "Company", "Scope", "Contact", "CSR", "Status", ""].map(
+                      {["Client", "Company", "Scope", "Contact", "CSR", "Status", "Notes", ""].map(
                         (h, i) => (
                           <th
                             key={i}
                             className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 font-medium ${
-                              i === 6 ? "text-right" : ""
+                              i === 7 ? "text-right" : ""
                             }`}
                           >
                             {h}
@@ -660,7 +661,7 @@ export default function ClientsPage() {
                   <tbody>
                     {filteredClients.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-16 sm:py-20 text-center">
+                        <td colSpan={8} className="px-6 py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center">
                             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4">
                               <Building2 size={28} className="text-[#B8112D] sm:w-8 sm:h-8" />
@@ -693,16 +694,6 @@ export default function ClientsPage() {
                                 <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
                                   {client.email}
                                 </p>
-                                {client.lastComment && client.lastComment !== "No comments" && (
-                                  <div className="flex items-start gap-1 mt-1 max-w-[160px] sm:max-w-[200px] lg:max-w-[260px]">
-                                    <span className="shrink-0 mt-[1px] w-3 h-3 rounded-full bg-amber-100 flex items-center justify-center">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 block" />
-                                    </span>
-                                    <p className="text-[10px] text-amber-700 leading-tight line-clamp-2 font-medium">
-                                      {client.lastComment}
-                                    </p>
-                                  </div>
-                                )}
                               </div>
                             </div>
                           </td>
@@ -740,6 +731,18 @@ export default function ClientsPage() {
                             >
                               {client.status}
                             </span>
+                          </td>
+
+                          {/* Notes */}
+                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                            <CommentCell
+                              id={client.id}
+                              comment={client.lastComment === "No comments" ? "" : client.lastComment}
+                              onSave={async (id, text) => {
+                                await API.patch(`/admin/lead/${id}/note`, { comments: text });
+                                setClients(prev => prev.map(c => c.id === id ? { ...c, lastComment: text || "No comments" } : c));
+                              }}
+                            />
                           </td>
 
                           {/* Actions */}
