@@ -5,13 +5,12 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   PhoneCall, CircleCheckBig, AlertTriangle,
-  Clock3, Phone, Users, Bell, X, MapPin, Eye, ChevronDown,
+  Clock3, Phone, Users, Bell, X, Eye, ChevronDown,
 } from "lucide-react";
 
 import TopNavbar from "./components/navigation/TopNavbar";
 import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
-import CommentCell from "./components/shared/CommentCell";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
 import LeadStatusDonut from "./components/shared/LeadStatusDonut";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
@@ -43,7 +42,7 @@ const statusBadgeClass = (s: string) => {
 export default function CSRPage() {
   const router = useRouter();
   const { leads, setLeads, loading } = useCsrDashboard();
-  const { saveComment, updateLead, addNote } = useLeadActions(setLeads);
+  const { updateLead, addNote } = useLeadActions(setLeads);
 
   const [activeTab, setActiveTab] = useState("today");
   const [page, setPage] = useState(1);
@@ -332,7 +331,7 @@ export default function CSRPage() {
             <table className="w-full" style={{ minWidth: "1000px" }}>
               <thead className="bg-[#FAFAFA]">
                 <tr>
-                  {["Client","Company","Phone","State","Note","Status","Action"].map(h => (
+                  {["Client","Company","Phone","Status","Action"].map(h => (
                     <th key={h} className="text-left py-3 sm:py-4 px-3 sm:px-5 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
                       {h}
                     </th>
@@ -343,7 +342,7 @@ export default function CSRPage() {
                 {loading ? (
                   [1,2,3,4,5].map(i => (
                     <tr key={i} className="border-t border-gray-100">
-                      {[1,2,3,4,5,6,7].map(j => (
+                      {[1,2,3,4,5].map(j => (
                         <td key={j} className="py-4 sm:py-5 px-3 sm:px-5">
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-24" />
                         </td>
@@ -408,22 +407,6 @@ export default function CSRPage() {
                       </div>
                     </td>
 
-                    {/* STATE */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
-                      {currentLink.state ? (
-                        <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-[#EFF6FF] text-[#1D4ED8] px-2 sm:px-3 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-[12px] font-semibold whitespace-nowrap">
-                          <MapPin size={10} className="sm:w-[11px] sm:h-[11px]" />{currentLink.state}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 text-[12px] sm:text-[13px]">—</span>
-                      )}
-                    </td>
-
-                    {/* COMMENTS */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
-                      <CommentCell id={currentLink.id} noteHistory={currentLink.noteHistory} comment={currentLink.comments} onAddNote={async (id, text) => { await addNote(id, text); }} onSave={saveComment} />
-                    </td>
-
                     {/* STATUS */}
                     <td className="py-3 sm:py-5 px-3 sm:px-5">
                       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
@@ -455,7 +438,7 @@ export default function CSRPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={7} className="py-14 sm:py-20 text-center">
+                    <td colSpan={5} className="py-14 sm:py-20 text-center">
                       <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
                       <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
                         {stateFilter ? `No leads in "${stateFilter}".` : "No calls available in this category."}
@@ -604,6 +587,7 @@ export default function CSRPage() {
               nextSchedule:      viewingLead.nextSchedule || undefined,
               nextTime:          viewingLead.nextTime     || undefined,
               timezone:          viewingLead.timezone     || undefined,
+              noteHistory:       viewingLead.noteHistory,
             }}
             onClose={() => setViewingLead(null)}
             onSaved={(id, updates) => {
@@ -615,6 +599,9 @@ export default function CSRPage() {
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(i => i.id === id ? { ...i, ...merged } : i));
               setViewingLead(prev => prev ? { ...prev, ...merged } : prev);
+            }}
+            onNoteAdded={(id, note) => {
+              setLeads(prev => prev.map(i => i.id === id ? { ...i, noteHistory: [...i.noteHistory, note] } : i));
             }}
           />
         )}

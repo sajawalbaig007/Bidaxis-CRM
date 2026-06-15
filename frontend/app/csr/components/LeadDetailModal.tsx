@@ -6,6 +6,7 @@ import {
   Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Clock3,
 } from "lucide-react";
 import API from "@/lib/api";
+import { NoteEntry } from "../hooks/useLeadsData";
 
 export type DetailLead = {
   id: string;
@@ -20,6 +21,7 @@ export type DetailLead = {
   nextSchedule?: string;
   nextTime?: string;
   timezone?: string;
+  noteHistory?: NoteEntry[];
 };
 
 export type DetailLeadUpdates = Partial<{
@@ -34,6 +36,7 @@ interface LeadDetailModalProps {
   lead: DetailLead;
   onClose: () => void;
   onSaved?: (id: string, updates: DetailLeadUpdates) => void;
+  onNoteAdded?: (id: string, note: NoteEntry) => void;
 }
 
 const statusLabel = (s?: string) => {
@@ -157,7 +160,7 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
   return null;
 };
 
-export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailModalProps) {
+export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded }: LeadDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [name,  setName]  = useState(lead.name ?? "");
   const [phone, setPhone] = useState(lead.phone ?? "");
@@ -165,8 +168,8 @@ export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailMo
   const [state, setState] = useState(lead.state ?? "");
   const [saving, setSaving] = useState(false);
 
-  /* Sticky notes */
-  const [notesRaw,    setNotesRaw]    = useState(lead.followUpNotes ?? "");
+  /* Notes history */
+  const [notes,       setNotes]       = useState<NoteEntry[]>(lead.noteHistory ?? []);
   const [showAddNote, setShowAddNote] = useState(false);
   const [newNote,     setNewNote]     = useState("");
   const [addingNote,  setAddingNote]  = useState(false);
@@ -196,14 +199,15 @@ export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailMo
     const text = newNote.trim();
     if (!text) return;
     setAddingNote(true);
-    const ts = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    const updated = [notesRaw, `[${ts}] ${text}`].filter(Boolean).join("\n");
     try {
-      await API.put(`/csr/lead/${lead.id}`, { followUpNotes: updated });
-      setNotesRaw(updated);
+      const res = await API.post(`/csr/lead/${lead.id}/notes`, { text });
+      const entry: NoteEntry = res.data.note
+        ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
+        : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
+      setNotes(prev => [...prev, entry]);
+      onNoteAdded?.(lead.id, entry);
       setNewNote("");
       setShowAddNote(false);
-      onSaved?.(lead.id, { followUpNotes: updated });
     } catch (err) {
       console.log(err);
     } finally {
@@ -212,7 +216,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailMo
   };
 
   const title = lead.company || lead.name;
-  const noteEntries = parseNotes(notesRaw).reverse();
+  const noteEntries = [...notes].reverse();
   const locationTimezone = getTimezoneForState(lead.state);
 
   const infoItems: { label: string; value: string; Icon: typeof Phone }[] = [
@@ -379,14 +383,14 @@ export default function LeadDetailModal({ lead, onClose, onSaved }: LeadDetailMo
 
               {noteEntries.length > 0 ? (
                 <div className="space-y-2 max-h-[220px] overflow-y-auto">
-                  {noteEntries.map((entry, i) => (
-                    <div key={i} className="bg-[#FFFBEB] border border-[#FDE9B0] rounded-2xl p-3">
-                      {entry.tag && (
-                        <div className="flex items-center gap-1 mb-1">
-                          <Clock3 size={10} className="text-[#B8112D]"/>
-                          <p className="text-[10px] font-semibold text-[#B8112D]">{entry.tag}</p>
-                        </div>
-                      )}
+                  {noteEntries.map(entry => (
+                    <div key={entry.id} className="bg-[#FFFBEB] border border-[#FDE9B0] rounded-2xl p-3">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Clock3 size={10} className="text-[#B8112D]"/>
+                        <p className="text-[10px] font-semibold text-[#B8112D]">
+                          {new Date(entry.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                        </p>
+                      </div>
                       <p className="text-[#0F172A] text-[12px] leading-relaxed whitespace-pre-line">{entry.text}</p>
                     </div>
                   ))}
