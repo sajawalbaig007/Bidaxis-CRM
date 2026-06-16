@@ -380,7 +380,7 @@ export default function CSRProjectsPage() {
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block overflow-x-auto">
               <div>
-                <div className="grid grid-cols-[0.7fr_1.3fr_1fr_1.2fr_0.85fr_0.8fr_0.7fr_1fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+                <div className="grid grid-cols-[80px_1.3fr_1fr_1.2fr_80px_100px_90px_120px_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
                   {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
@@ -390,7 +390,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[0.7fr_1.3fr_1fr_1.2fr_0.85fr_0.8fr_0.7fr_1fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[80px_1.3fr_1fr_1.2fr_80px_100px_90px_120px_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
