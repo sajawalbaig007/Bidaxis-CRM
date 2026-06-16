@@ -215,7 +215,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       const name = detailLines[0] || "";
 
       /* Phone: explicit column first; for active uploads also try 3rd line of client cell */
-      let phone = findValue(["phone","mobile","cell","telephone","number"]);
+      let phone = findValue(["phone","mobile","cell","telephone","number","contact"], ["person","name","detail"]);
       if (!phone && isActiveUpload) {
         const phoneLine = detailLines.find(l => /^[\+\d][\d\s\-\(\)\.]{5,}$/.test(l));
         if (phoneLine) phone = phoneLine.replace(/[^\d\+\-]/g, "");
