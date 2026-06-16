@@ -71,6 +71,7 @@ model Lead {
   shuffleAttempts    Int       @default(0)
   notInterestedCount Int       @default(0)
   notPickedCount     Int       @default(0)
+  hiddenOnMain       Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

@@ -83,23 +83,26 @@ export default function CSRPage() {
   const [paidAmount,      setPaidAmount]      = useState("");
   const [email,           setEmail]           = useState("");
 
+  /* Exclude leads hidden after a Reset — they live on their dedicated pages */
+  const mainLeads = useMemo(() => leads.filter(l => !l.hiddenOnMain), [leads]);
+
   const todayImportantCalls = useMemo(
-    () => leads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR),
-    [leads]
+    () => mainLeads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR),
+    [mainLeads]
   );
 
   const stats = useMemo(() => ({
-    totalLeads:         leads.length,
-    pendingCount:       leads.filter(i => i.status === "pending").length,
-    importantCount:     leads.filter(i => i.status === "important").length,
-    interestedCount:    leads.filter(i => i.status === "interested").length,
-    projectWonCount:    leads.filter(i => i.status === "Close Client").length,
-    notInterestedCount: leads.filter(i => i.status === "Not Interested" || i.status === "completed").length,
-    notPickedCount:     leads.filter(i => i.status === "not picked" || i.status === "not completed").length,
-  }), [leads]);
+    totalLeads:         mainLeads.length,
+    pendingCount:       mainLeads.filter(i => i.status === "pending").length,
+    importantCount:     mainLeads.filter(i => i.status === "important").length,
+    interestedCount:    mainLeads.filter(i => i.status === "interested").length,
+    projectWonCount:    mainLeads.filter(i => i.status === "Close Client").length,
+    notInterestedCount: mainLeads.filter(i => i.status === "Not Interested" || i.status === "completed").length,
+    notPickedCount:     mainLeads.filter(i => i.status === "not picked" || i.status === "not completed").length,
+  }), [mainLeads]);
 
   const filteredLinks = useMemo(() => {
-    return leads.filter(item => {
+    return mainLeads.filter(item => {
       const matchesTab =
         activeTab === "today"           ? item.status === "pending"
         : activeTab === "notinterested" ? item.status === "Not Interested"
@@ -129,7 +132,7 @@ export default function CSRPage() {
         : true;
       return matchesTab && matchesState && matchesPhone;
     });
-  }, [leads, activeTab, stateFilter, phoneFilter]);
+  }, [mainLeads, activeTab, stateFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
   const paginated  = filteredLinks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
