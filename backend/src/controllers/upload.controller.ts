@@ -198,15 +198,16 @@ export const uploadLeads = async (req: Request, res: Response) => {
       };
 
       parsed.push({
-        name:        findValue(["name","client","customer","contact person"]),
-        company:     findValue(["company","business","organization","address"]),
-        phone:       findValue(["phone","mobile","cell","contact","telephone","number"]),
-        email:       findValue(["email","mail","e-mail"]),
-        state:       findValue(["state","province","prov","st","region"]),
-        csrId:       csr.id,
-        csrName:     csr.name,
-        status:      initialStatuses[i % initialStatuses.length],
-        isOldClient: leadType === "old",
+        name:              findValue(["name","client","customer","contact person"]),
+        company:           findValue(["company","business","organization","address"]),
+        phone:             findValue(["phone","mobile","cell","contact","telephone","number"]),
+        email:             findValue(["email","mail","e-mail"]),
+        state:             findValue(["state","province","prov","st","region"]),
+        interestedService: findValue(["interested in","interested","service","interest","services"]),
+        csrId:             csr.id,
+        csrName:           csr.name,
+        status:            initialStatuses[i % initialStatuses.length],
+        isOldClient:       leadType === "old",
       });
     }
 
@@ -242,16 +243,17 @@ export const uploadLeads = async (req: Request, res: Response) => {
     if (fresh.length > 0) {
       await prisma.lead.createMany({
         data: fresh.map(r => ({
-          name:           r.name,
-          company:        r.company,
-          phone:          r.phone,
-          email:          r.email,
-          state:          r.state || null,
-          status:         r.status,
-          isOldClient:    r.isOldClient,
-          assignedTo:     r.csrId,
-          uploadedFileId: uploadedFile.id,
-          hiddenOnMain:   isSpecialUpload,
+          name:              r.name,
+          company:           r.company,
+          phone:             r.phone,
+          email:             r.email,
+          state:             r.state             || null,
+          interestedService: r.interestedService || null,
+          status:            r.status,
+          isOldClient:       r.isOldClient,
+          assignedTo:        r.csrId,
+          uploadedFileId:    uploadedFile.id,
+          hiddenOnMain:      isSpecialUpload,
         })),
       });
 
