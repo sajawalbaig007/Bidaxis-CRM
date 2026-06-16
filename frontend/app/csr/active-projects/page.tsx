@@ -331,7 +331,7 @@ export default function CSRProjectsPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <p className="text-gray-400 text-[10px]">Project</p>
-                      <p className="font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                      <p className="font-semibold text-[#0F172A] truncate">{project.projectTitle || <span className="text-gray-400 font-normal">N/A</span>}</p>
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         {project.deadline && project.deadline !== "N/A" && (
                           <span className={`text-[10px] font-medium ${isDeadlinePast(project.deadline) ? "text-red-500" : "text-gray-400"}`}>{project.deadline}</span>
@@ -356,8 +356,8 @@ export default function CSRProjectsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {project.projectCode && (
-                      <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">{project.projectCode}</span>
+                    {(project.clientCode || project.projectCode) && (
+                      <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">{project.clientCode || project.projectCode}</span>
                     )}
                     {project.service && project.service !== "N/A" && (
                       <span className="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-lg">{project.service}</span>
@@ -379,7 +379,7 @@ export default function CSRProjectsPage() {
 
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block overflow-x-auto">
-              <div style={{ minWidth: "920px" }}>
+              <div>
                 <div className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_1.4fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
                   {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
@@ -394,8 +394,8 @@ export default function CSRProjectsPage() {
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
-                        {project.projectCode ? (
-                          <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg truncate">{project.projectCode}</span>
+                        {(project.clientCode || project.projectCode) ? (
+                          <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg truncate">{project.clientCode || project.projectCode}</span>
                         ) : <span className="text-xs text-gray-400">N/A</span>}
                       </div>
 
@@ -434,7 +434,10 @@ export default function CSRProjectsPage() {
 
                       {/* Project Detail */}
                       <div className="min-w-0">
-                        <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                        {project.projectTitle
+                          ? <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                          : <span className="text-xs text-gray-400">N/A</span>
+                        }
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {project.deadline && project.deadline !== "N/A" && (
                             <span className={`text-[10px] xl:text-[11px] font-medium whitespace-nowrap ${isDeadlinePast(project.deadline) ? "text-red-500" : "text-gray-400"}`}>

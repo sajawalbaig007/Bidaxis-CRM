@@ -181,9 +181,10 @@ export const uploadLeads = async (req: Request, res: Response) => {
       name: string; company: string; phone: string;
       email: string; state: string; interestedService: string;
       clientCode: string | null;
+      projectTitle: string | null;
+      projectBudget: string | null;
       csrId: string; csrName: string;
       status: string; isOldClient: boolean;
-      projectTitle: string | null;
     }> = [];
 
     for (let i = 0; i < data.length; i++) {
@@ -205,30 +206,57 @@ export const uploadLeads = async (req: Request, res: Response) => {
         return s;
       };
 
-      /* Multi-line cells (Alt+Enter) arrive as "Company\nContact\nState" — take first line */
+      /* Multi-line cells arrive as "Line1\nLine2\nLine3" */
       const firstLine = (s: string) => s.split(/[\n\r]/)[0].trim();
 
-      /* Name: exclude "code" columns so "Client Code" doesn't shadow "Client" */
-      const name = firstLine(findValue(["name","client","customer","contact person"], ["code"]));
+      /* Name / Client Detail: exclude "code" columns */
+      const rawClientDetail = findValue(["name","client","customer","contact person"], ["code"]);
+      const detailLines = rawClientDetail.split(/[\n\r]/).map(l => l.trim()).filter(Boolean);
+      const name = detailLines[0] || "";
 
-      /* Location: only from explicit column — never guess from multi-line name cell */
+      /* Phone: explicit column first; for active uploads also try 3rd line of client cell */
+      let phone = findValue(["phone","mobile","cell","telephone","number"]);
+      if (!phone && isActiveUpload) {
+        const phoneLine = detailLines.find(l => /^[\+\d][\d\s\-\(\)\.]{5,}$/.test(l));
+        if (phoneLine) phone = phoneLine.replace(/[^\d\+\-]/g, "");
+      }
+
+      /* Company: explicit column first; for active uploads fall back to first line of client detail */
+      let company = findValue(["company","business","organization"]);
+      if (!company && isActiveUpload) company = name;
+
+      /* Location: only from explicit column */
       const state = findValue(["location","address","state","province","city","prov","region"]);
+
+      /* Service: includes "scope" for active project sheets */
+      const interestedService = findValue(
+        ["interested in","interested","service","interest","services","scope"], ["status"]
+      );
+
+      /* Project title: for active uploads parse "Project Detail" column */
+      const projectTitle = isActiveUpload
+        ? (findValue(["project detail","project title","project name","project"], ["code","client"]) || "")
+        : null;
+
+      /* Project budget: for active uploads parse "Quotation" / "Budget" column */
+      const projectBudget = isActiveUpload
+        ? (findValue(["quotation","quote","budget"]) || null)
+        : null;
 
       parsed.push({
         name,
-        company:           findValue(["company","business","organization","address"]),
-        phone:             findValue(["phone","mobile","cell","contact","telephone","number"]),
+        company,
+        phone,
         email:             findValue(["email","mail","e-mail"]),
         state,
-        interestedService: findValue(["interested in","interested","service","interest","services"], ["status"]),
+        interestedService,
         clientCode:        findValue(["client code","clientcode","project code","client_code"]) || null,
+        projectTitle,
+        projectBudget,
         csrId:             csr.id,
         csrName:           csr.name,
         status:            initialStatuses[i % initialStatuses.length],
         isOldClient:       leadType === "old" || isActiveUpload,
-        /* active-project uploads get an empty-string projectTitle so the
-           projectTitle:{ not:null } filter in the projects endpoints passes */
-        projectTitle:      isActiveUpload ? "" : null,
       });
     }
 
@@ -293,6 +321,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
           interestedService: r.interestedService || null,
           clientCode:        r.clientCode        || null,
           projectTitle:      r.projectTitle,
+          projectBudget:     r.projectBudget,
           status:            r.status,
           isOldClient:       r.isOldClient,
           assignedTo:        r.csrId,
