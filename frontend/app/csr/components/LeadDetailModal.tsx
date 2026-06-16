@@ -237,7 +237,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   };
 
   const title = lead.company || lead.name;
-  const locationDisplay = lead.state || lead.rawCompany || "N/A";
+  const locationDisplay = lead.state || "N/A";
   const locationTimezone = getTimezoneForState(lead.state);
 
   const infoItems: { label: string; value: string; Icon: typeof Phone }[] = [
