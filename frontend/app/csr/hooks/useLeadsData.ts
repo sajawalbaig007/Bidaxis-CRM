@@ -20,6 +20,7 @@ export type ClientLead = {
   id: string;
   name: string;
   company: string;
+  rawCompany: string;
   phone: string;
   email: string;
   state: string;
@@ -62,6 +63,7 @@ function mapClientLead(l: RawLead): ClientLead {
     id:                l.id,
     name:              l.name              ?? "Unknown",
     company:           l.uploadFile?.companyName ?? l.company ?? "N/A",
+    rawCompany:        l.company           ?? "",
     phone:             l.phone             ?? "N/A",
     email:             l.email             ?? "",
     state:             l.state             ?? "",
