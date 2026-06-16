@@ -310,7 +310,7 @@ export default function CSRPage() {
           <div className="relative mt-4 sm:mt-7 mb-4 sm:mb-7">
             <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 pr-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {[
-                { tab:"today",          label:"Today Links",    count: stats.pendingCount,       icon:<PhoneCall      size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700"   },
+                { tab:"today",          label:"Today Leads",    count: stats.pendingCount,       icon:<PhoneCall      size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700"   },
                 { tab:"notinterested",  label:"Not Interested", count: stats.notInterestedCount, icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"  },
                 { tab:"pending",        label:"Pending",        count: stats.pendingCount,       icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"  },
                 { tab:"notpicked",      label:"Not Picked",     count: stats.notPickedCount,     icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"  },
