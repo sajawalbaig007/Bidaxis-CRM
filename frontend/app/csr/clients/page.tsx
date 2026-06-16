@@ -417,15 +417,8 @@ export default function LeadsPage() {
           ) : filtered.length > 0 ? (
             <>
               {/* Desktop header */}
-              <div className={`hidden lg:grid gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA] ${
-                activeTab === "old"
-                  ? "grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
-                  : "grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
-              }`}>
-                {(activeTab === "old"
-                  ? ["Code", "Client", "Company", "Phone", "Email", "Service", "Latest Note", ""]
-                  : ["Client", "Company", "Phone", "Email", "Service", "Latest Note", ""]
-                ).map(h => (
+              <div className="hidden lg:grid gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA] grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]">
+                {["Code", "Client", "Company", "Phone", "Email", "Service", "Latest Note", ""].map(h => (
                   <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
                 ))}
               </div>
@@ -438,21 +431,15 @@ export default function LeadsPage() {
                   return (
                     <div
                       key={lead.id}
-                      className={`grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors ${
-                        activeTab === "old"
-                          ? "grid-cols-[1fr_auto] lg:grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
-                          : "grid-cols-[1fr_auto] lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
-                      }`}
+                      className="grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors grid-cols-[1fr_auto] lg:grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
                     >
-                      {/* Code column — old clients only */}
-                      {activeTab === "old" && (
-                        <div className="hidden lg:block">
-                          {lead.clientCode
-                            ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate block">{lead.clientCode}</span>
-                            : <span className="text-gray-300 text-xs">—</span>
-                          }
-                        </div>
-                      )}
+                      {/* Code column */}
+                      <div className="hidden lg:block">
+                        {lead.clientCode
+                          ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate block">{lead.clientCode}</span>
+                          : <span className="text-gray-300 text-xs">—</span>
+                        }
+                      </div>
 
                       {/* Client */}
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -461,8 +448,8 @@ export default function LeadsPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {/* show code badge inline on mobile for old clients */}
-                            {lead.isOldClient && lead.clientCode && (
+                            {/* show code badge inline on mobile */}
+                            {lead.clientCode && (
                               <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{lead.clientCode}</span>
                             )}
                             <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{displayName}</p>
