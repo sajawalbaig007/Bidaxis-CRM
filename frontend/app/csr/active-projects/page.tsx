@@ -315,16 +315,6 @@ export default function CSRProjectsPage() {
                         className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center">
                         <Eye size={13} />
                       </button>
-                      <button onClick={() => { openDetail(project); setTimeout(() => startEdit(project), 30); }}
-                        className="w-8 h-8 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center">
-                        <Pencil size={13} />
-                      </button>
-                      {project.status !== "Completed" && (
-                        <button onClick={() => markComplete(project)}
-                          className="w-8 h-8 rounded-xl bg-green-50 text-green-700 flex items-center justify-center">
-                          <CheckCircle2 size={13} />
-                        </button>
-                      )}
                     </div>
                   </div>
 
@@ -343,7 +333,7 @@ export default function CSRProjectsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-start gap-1.5">
+                    <div className="flex items-start gap-3">
                       <div>
                         <p className="text-gray-400 text-[10px]">Payment</p>
                         <PaymentStatusCircle percent={project.paidPercent} size={32} strokeWidth={3} />
@@ -378,9 +368,9 @@ export default function CSRProjectsPage() {
             </div>
 
             {/* ── DESKTOP TABLE (lg+) ── */}
-            <div className="hidden lg:block overflow-x-auto">
+            <div className="hidden lg:block">
               <div>
-                <div className="grid grid-cols-[80px_1.3fr_1fr_1.2fr_80px_100px_90px_120px_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+                <div className="grid grid-cols-[90px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
                   {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
@@ -390,7 +380,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[80px_1.3fr_1fr_1.2fr_80px_100px_90px_120px_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[90px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
@@ -401,12 +391,12 @@ export default function CSRProjectsPage() {
 
                       {/* Client Detail */}
                       <div className="flex items-center gap-2 xl:gap-3 min-w-0">
-                        <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                          <span className="text-xs xl:text-sm font-bold">{project.client.charAt(0).toUpperCase()}</span>
+                        <div className="w-7 h-7 xl:w-9 xl:h-9 rounded-lg xl:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
+                          <span className="text-[11px] xl:text-xs font-bold">{project.client.charAt(0).toUpperCase()}</span>
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.client}</p>
+                            <p className="text-[11px] xl:text-xs font-semibold text-[#0F172A] truncate">{project.client}</p>
                             {(() => {
                               const tz = getTimezoneAbbr(project.state !== "N/A" ? project.state : null);
                               return tz ? (
@@ -425,15 +415,15 @@ export default function CSRProjectsPage() {
                       {/* Email */}
                       <div className="min-w-0">
                         {project.email ? (
-                          <span className="text-xs xl:text-sm text-[#0F172A] truncate block">{project.email}</span>
-                        ) : <span className="text-xs text-gray-400">N/A</span>}
+                          <span className="text-[11px] xl:text-xs text-[#0F172A] truncate block">{project.email}</span>
+                        ) : <span className="text-[11px] text-gray-400">N/A</span>}
                       </div>
 
                       {/* Project Detail */}
                       <div className="min-w-0">
                         {project.projectTitle
-                          ? <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
-                          : <span className="text-xs text-gray-400">N/A</span>
+                          ? <p className="text-[11px] xl:text-xs font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
+                          : <span className="text-[11px] text-gray-400">N/A</span>
                         }
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {project.deadline && project.deadline !== "N/A" && (
@@ -455,21 +445,21 @@ export default function CSRProjectsPage() {
 
                       {/* Payment Status */}
                       <div className="flex items-start pt-0.5">
-                        <PaymentStatusCircle percent={project.paidPercent} size={34} strokeWidth={3.5} />
+                        <PaymentStatusCircle percent={project.paidPercent} size={30} strokeWidth={3} />
                       </div>
 
                       {/* Scope */}
                       <div className="min-w-0 pt-0.5">
                         {project.service && project.service !== "N/A" ? (
-                          <span className="text-xs xl:text-sm text-[#0F172A] truncate block">{project.service}</span>
-                        ) : <span className="text-xs text-gray-400">—</span>}
+                          <span className="text-[11px] xl:text-xs text-[#0F172A] truncate block">{project.service}</span>
+                        ) : <span className="text-[11px] text-gray-400">—</span>}
                       </div>
 
                       {/* Quotation */}
                       <div className="min-w-0 pt-0.5">
                         {project.budgetNum > 0 ? (
-                          <span className="inline-flex bg-emerald-50 text-emerald-700 text-xs xl:text-sm font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap">${project.budgetNum.toLocaleString()}</span>
-                        ) : <span className="text-xs text-gray-400">—</span>}
+                          <span className="inline-flex bg-emerald-50 text-emerald-700 text-[11px] xl:text-xs font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap">${project.budgetNum.toLocaleString()}</span>
+                        ) : <span className="text-[11px] text-gray-400">—</span>}
                       </div>
 
                       {/* Notes */}
@@ -487,16 +477,6 @@ export default function CSRProjectsPage() {
                           className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity">
                           <Eye size={13} className="xl:w-[15px] xl:h-[15px]" />
                         </button>
-                        <button onClick={() => { openDetail(project); setTimeout(() => startEdit(project), 30); }}
-                          className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center hover:opacity-80 transition-opacity">
-                          <Pencil size={13} className="xl:w-[15px] xl:h-[15px]" />
-                        </button>
-                        {project.status !== "Completed" && (
-                          <button onClick={() => markComplete(project)}
-                            className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-green-50 text-green-700 flex items-center justify-center hover:opacity-80 transition-opacity">
-                            <CheckCircle2 size={13} className="xl:w-[15px] xl:h-[15px]" />
-                          </button>
-                        )}
                       </div>
                     </div>
                   ))}
