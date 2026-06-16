@@ -23,7 +23,11 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     const leads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      include: {
+        uploadFile: { select: { companyName: true } },
+        notes:      { select: { id: true } },   // IDs only — count badge; content fetched lazily
+        // subContacts omitted — fetched on demand via GET /csr/lead/:id
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -40,7 +44,10 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
 
 router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const csrId = req.user.id;
+    const csrId    = req.user.id;
+    const cacheKey = `csr:not-interested:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
 
     const leads = await prisma.lead.findMany({
       where: {
@@ -51,7 +58,9 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
       orderBy: { updatedAt: "desc" },
     });
 
-    return res.json({ success: true, leads });
+    const payload = { success: true, leads };
+    setCache(cacheKey, payload, 30_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch leads" });
@@ -110,6 +119,29 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
   }
 });
 
+/* ================= GET SINGLE LEAD (full data — lazy load for notes/subContacts) ================= */
+router.get("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const leadId = req.params.id as string;
+
+    const lead = await prisma.lead.findFirst({
+      where:   { id: leadId, assignedTo: csrId },
+      include: {
+        uploadFile:  { select: { companyName: true } },
+        notes:       { orderBy: { createdAt: "asc" } },
+        subContacts: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+    return res.json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch lead" });
+  }
+});
+
 /* ================= UPDATE LEAD NOTE (legacy inline) ================= */
 router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
@@ -121,7 +153,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     await prisma.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to save note" });
@@ -158,7 +190,7 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
     const updated = await prisma.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
-    invalidateCache(`csr:leads:${csrId}`, "admin:clients");
+    invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
     return res.json({ success: true, note: updated });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to update note" });
@@ -173,7 +205,7 @@ router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
     await prisma.leadNote.delete({ where: { id: noteId } });
-    invalidateCache(`csr:leads:${csrId}`, "admin:clients");
+    invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to delete note" });
@@ -357,7 +389,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       data:  updateData,
     });
 
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, "admin:clients");
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
     return res.json({ success: true, lead: updatedLead });
   } catch (error) {
     console.log(error);

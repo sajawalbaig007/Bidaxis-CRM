@@ -16,7 +16,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
       : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
     setLeads(prev => prev.map(l =>
       l.id === id
-        ? { ...l, noteHistory: [...(l.noteHistory ?? []), note] }
+        ? { ...l, noteCount: (l.noteCount ?? 0) + 1, noteHistory: [...(l.noteHistory ?? []), note] }
         : l
     ));
     return note;

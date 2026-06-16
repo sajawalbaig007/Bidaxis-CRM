@@ -129,7 +129,7 @@ export default function DashboardSidebar() {
           {/* Nav */}
           <div className="flex-1 min-w-0">
             <nav
-              className="mx-auto w-fit max-w-full flex items-center gap-1 bg-[#F3F4F6] rounded-[18px] p-1 overflow-x-auto"
+              className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-[#F3F4F6] rounded-[18px] p-1 overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
               {navItems.map(({ title, href, icon: Icon }) => {

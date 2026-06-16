@@ -145,20 +145,22 @@ export const uploadLeads = async (req: Request, res: Response) => {
         }
       }
 
-      /* Delete ALL leads — fresh start */
-/* Delete only completed leads */
-await prisma.lead.deleteMany({
-  where: {
-    status: {
-      equals: "completed",
-      mode: "insensitive",
-    },
-  },
-});
+      /* Delete pending (main page) leads */
+      await prisma.lead.deleteMany({
+        where: {
+          status: { equals: "pending", mode: "insensitive" },
+        },
+      });
 
-console.log(
-  "[Renew] Only completed leads cleared. Pending, Not Completed, Important, Interested & Close Client preserved ✅"
-);
+      /* Hide all remaining non-pending leads from main page — they stay on their dedicated pages */
+      await prisma.lead.updateMany({
+        where: { status: { not: "pending" } },
+        data:  { hiddenOnMain: true },
+      });
+
+      console.log(
+        "[Renew] Pending leads deleted, non-pending leads hidden from main page. Dedicated pages unaffected ✅"
+      );
     }
 
     /* ── SAVE UPLOAD FILE RECORD ── */
@@ -204,7 +206,7 @@ console.log(
         csrId:       csr.id,
         csrName:     csr.name,
         status:      initialStatuses[i % initialStatuses.length],
-        isOldClient: initialStatuses[i % initialStatuses.length] === "lead" && leadType === "old",
+        isOldClient: leadType === "old",
       });
     }
 
@@ -231,6 +233,9 @@ console.log(
       return true;
     });
 
+    /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
+    const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
+
     /* ── SINGLE createMany — 1 query for all rows ── */
     const distributionMap: Record<string, number> = {};
 
@@ -246,6 +251,7 @@ console.log(
           isOldClient:    r.isOldClient,
           assignedTo:     r.csrId,
           uploadedFileId: uploadedFile.id,
+          hiddenOnMain:   isSpecialUpload,
         })),
       });
 

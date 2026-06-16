@@ -172,8 +172,16 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const [state, setState] = useState(lead.state ?? "");
   const [saving, setSaving] = useState(false);
 
-  /* Sub-contacts */
+  /* Sub-contacts — lazy-loaded on mount if not pre-populated */
   const [subs,       setSubs]       = useState<SubContact[]>(lead.subContacts ?? []);
+
+  useEffect(() => {
+    if ((lead.subContacts ?? []).length > 0) return; // already populated
+    API.get(`/csr/lead/${lead.id}`)
+      .then(res => setSubs(res.data.lead?.subContacts ?? []))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id]);
   const [showSubForm,setShowSubForm] = useState(false);
   const [subName,    setSubName]    = useState("");
   const [subDesig,   setSubDesig]   = useState("");

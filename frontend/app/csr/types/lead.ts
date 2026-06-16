@@ -18,8 +18,9 @@ export interface BackendLead {
   serviceName?: string;
   comments?: string;
   state?: string;
+  hiddenOnMain?: boolean;
   uploadFile?: { companyName?: string };
-  notes?: { id: string; text: string; createdAt: string; }[];
+  notes?: { id: string; text?: string; createdAt?: string; }[];
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
 }
@@ -39,16 +40,23 @@ export type Lead = {
   interestedService: string;
   comments: string;
   state: string;
+  hiddenOnMain: boolean;
+  noteCount: number;
   noteHistory: NoteEntry[];
   subContacts: SubContact[];
 };
 
 export const mapBackendLead = (lead: BackendLead): Lead => {
-  const legacyNote: NoteEntry[] = lead.comments
+  const rawNotes = lead.notes ?? [];
+  /* notes from list endpoint only have `id` — use length for count badge */
+  const noteCount = rawNotes.length;
+  /* only build noteHistory when full text is present (detail endpoint) */
+  const fullNotes = rawNotes.filter(n => !!n.text);
+  const legacyNote: NoteEntry[] = (fullNotes.length === 0 && lead.comments)
     ? [{ id: "legacy", text: lead.comments, createdAt: lead.createdAt ?? new Date().toISOString() }]
     : [];
-  const noteHistory: NoteEntry[] = (lead.notes ?? []).length > 0
-    ? (lead.notes ?? []).map(n => ({ id: n.id, text: n.text, createdAt: n.createdAt }))
+  const noteHistory: NoteEntry[] = fullNotes.length > 0
+    ? fullNotes.map(n => ({ id: n.id, text: n.text!, createdAt: n.createdAt ?? new Date().toISOString() }))
     : legacyNote;
 
   return {
@@ -70,8 +78,10 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
       lead.serviceInterested ??
       lead.serviceName ??
       "",
-    comments:    lead.comments    ?? "",
-    state:       lead.state       ?? "",
+    comments:     lead.comments     ?? "",
+    state:        lead.state        ?? "",
+    hiddenOnMain: lead.hiddenOnMain ?? false,
+    noteCount,
     noteHistory,
     subContacts: (lead.subContacts ?? []).map(s => ({
       id:          s.id,
