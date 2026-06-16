@@ -376,20 +376,24 @@ export default function ImportantCallsPage() {
               </div>
             </div>
 
-            <div className="overflow-auto flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5">
-              <table className="w-full" style={{ minWidth: "820px" }}>
+            <div className="overflow-x-auto flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5">
+              <table className="w-full">
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Interested In","Note","Status","Action"].map(h => (
-                      <th key={h} className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                    ))}
+                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Client</th>
+                    <th className="hidden md:table-cell text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Company</th>
+                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Contact</th>
+                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Interested In</th>
+                    <th className="hidden sm:table-cell text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Note</th>
+                    <th className="hidden lg:table-cell text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Status</th>
+                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6,7].map(j => (
+                        {[1,2,3,4,5].map(j => (
                           <td key={j} className="py-4 sm:py-5 px-2">
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
@@ -398,64 +402,76 @@ export default function ImportantCallsPage() {
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
-                      <td className="py-4 sm:py-5 px-2">
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
+                      {/* Client */}
+                      <td className="py-3 sm:py-4 px-2">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
                             {lead.client.charAt(0)}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.client}</h4>
                               {(() => {
                                 const tz = getTimezoneAbbr(lead.state);
                                 return tz ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
-                                    {tz}
-                                  </span>
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>
                                 ) : null;
                               })()}
                             </div>
-                            <p className="text-gray-500 text-[11px] sm:text-[12px] mt-0.5 sm:mt-1">Interested Lead</p>
+                            <p className="text-gray-400 text-[10px] sm:text-[11px] mt-0.5">Interested Lead</p>
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
-                        <h4 className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] max-w-[120px] truncate">{lead.company}</h4>
+                      {/* Company — hidden on mobile */}
+                      <td className="hidden md:table-cell py-3 sm:py-4 px-2">
+                        <p className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] truncate max-w-[130px]">{lead.company}</p>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
-                        <div className="flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
-                          {lead.phone}
-                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
+                      {/* Contact */}
+                      <td className="py-3 sm:py-4 px-2">
+                        <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium">
+                          <span className="truncate max-w-[110px] sm:max-w-none">{lead.phone}</span>
+                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
                         </div>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      {/* Interested In */}
+                      <td className="py-3 sm:py-4 px-2">
                         {lead.interestedService ? (
-                          <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FFF4E5] text-[#D97706] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap">
-                            <Briefcase size={11} className="sm:w-[13px] sm:h-[13px]" />{lead.interestedService}
+                          <div className="inline-flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold max-w-[150px] sm:max-w-[200px]">
+                            <Briefcase size={11} className="shrink-0" />
+                            <span className="truncate">{lead.interestedService}</span>
                           </div>
-                        ) : <span className="text-gray-400 text-xs sm:text-sm">Not specified</span>}
+                        ) : <span className="text-gray-300 text-xs">—</span>}
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      {/* Note — hidden on mobile */}
+                      <td className="hidden sm:table-cell py-3 sm:py-4 px-2">
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
-                        <div className="bg-[#FFF1F3] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold w-fit whitespace-nowrap">
+                      {/* Status — hidden on tablet and below */}
+                      <td className="hidden lg:table-cell py-3 sm:py-4 px-2">
+                        <div className="bg-[#FFF1F3] text-[#B8112D] px-3 py-1.5 rounded-xl text-xs font-semibold w-fit">
                           Interested
                         </div>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
+                      {/* Action */}
+                      <td className="py-3 sm:py-4 px-2">
+                        <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => setViewingLead(lead)}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
                           >
-                            <Eye size={13} className="sm:w-[15px] sm:h-[15px]" />
+                            <Eye size={13} />
                           </button>
                           <button
                             onClick={() => openEditModal(lead)}
-                            className="h-8 sm:h-10 px-2.5 sm:px-4 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold flex items-center gap-1.5 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap"
+                            className="hidden sm:flex h-8 sm:h-9 px-2.5 sm:px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-xs font-semibold items-center gap-1 hover:bg-[#B8112D] hover:text-white transition-all"
                           >
-                            <Pencil size={12} className="sm:w-[14px] sm:h-[14px]" />Edit
+                            <Pencil size={12} />Edit
+                          </button>
+                          <button
+                            onClick={() => openEditModal(lead)}
+                            className="sm:hidden w-8 h-8 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-all"
+                          >
+                            <Pencil size={12} />
                           </button>
                         </div>
                       </td>
