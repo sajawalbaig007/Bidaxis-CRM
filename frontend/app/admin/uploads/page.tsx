@@ -110,7 +110,7 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("pending");
     setSelectedLeadType("old");
-    setModalStep("company");
+    setModalStep("csrs");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -124,7 +124,7 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("lead");
     setSelectedLeadType("new");
-    setModalStep("company");
+    setModalStep("csrs");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -138,7 +138,7 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("lead");
     setSelectedLeadType("old");
-    setModalStep("company");
+    setModalStep("csrs");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -147,7 +147,8 @@ export default function UploadPage() {
 
   const handleFiles = async () => {
     if (!selectedFile) return;
-    if (!finalCompany.trim()) { toast.error("Please enter company name"); return; }
+    /* company is optional for client uploads — comes from Excel rows */
+    if (selectedPane !== "lead" && !finalCompany.trim()) { toast.error("Please enter company name"); return; }
     if (selectedCSRs.length === 0) { toast.error("Select at least one CSR"); return; }
 
     setShowCSRModal(false);
@@ -253,10 +254,10 @@ export default function UploadPage() {
             {/* Step indicators — scrollable on very small screens */}
             {(() => {
               const steps  = (selectedPane === "lead"
-                ? ["category", "company", "csrs"]
+                ? ["category", "csrs"]
                 : ["category", "reset", "company", "csrs"]) as readonly string[];
               const labels = selectedPane === "lead"
-                ? ["Category", "Company", "CSRs"]
+                ? ["Category", "CSRs"]
                 : ["Category", "Data Mode", "Company", "CSRs"];
               const currentIdx = steps.indexOf(modalStep);
               return (
@@ -359,7 +360,7 @@ export default function UploadPage() {
                     onClick={() => {
                       if (selectedPane === "lead") {
                         setResetMode("keep");
-                        setModalStep("company");
+                        setModalStep("csrs");
                       } else {
                         setResetMode(null);
                         setModalStep("reset");
@@ -367,7 +368,7 @@ export default function UploadPage() {
                     }}
                     className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                   >
-                    Next — {selectedPane === "lead" ? "Select Company" : "Select Data Mode"}
+                    Next — {selectedPane === "lead" ? "Select CSRs" : "Select Data Mode"}
                   </button>
                 </div>
               )}
@@ -618,9 +619,11 @@ export default function UploadPage() {
               {modalStep === "csrs" && (
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1.5 sm:gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold">
-                      <Building2 size={12} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
-                    </div>
+                    {finalCompany && (
+                      <div className="flex items-center gap-1.5 sm:gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold">
+                        <Building2 size={12} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
+                      </div>
+                    )}
                     {selectedPane === "pending" ? (
                       <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#EAF5FF] text-[#0B84F3]">
                         Call Data
@@ -714,7 +717,7 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => setModalStep("company")}
+                      onClick={() => selectedPane === "lead" ? setModalStep("category") : setModalStep("company")}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
                       Back
