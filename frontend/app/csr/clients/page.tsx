@@ -424,8 +424,8 @@ export default function LeadsPage() {
               <div className="divide-y divide-[#F3F3F3]">
                 {paginated.map(lead => {
                   const latestNote = getLatestNote(lead);
-                  const displayName = lead.isOldClient ? (lead.rawCompany || lead.name) : lead.name;
-                  const displaySub  = lead.isOldClient && lead.rawCompany ? lead.name : null;
+                  const displayName = lead.name;
+                  const displaySub  = lead.isOldClient && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
                   return (
                     <div
                       key={lead.id}
