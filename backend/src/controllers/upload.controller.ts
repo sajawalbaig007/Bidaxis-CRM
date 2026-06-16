@@ -206,13 +206,10 @@ export const uploadLeads = async (req: Request, res: Response) => {
       const firstLine = (s: string) => s.split(/[\n\r]/)[0].trim();
 
       /* Name: exclude "code" columns so "Client Code" doesn't shadow "Client" */
-      const rawName  = findValue(["name","client","customer","contact person"], ["code"]);
-      const nameLines = rawName.split(/[\n\r]/);
-      const name     = firstLine(rawName);
+      const name = firstLine(findValue(["name","client","customer","contact person"], ["code"]));
 
-      /* State: explicit column first, else try last line of name cell (e.g. "Texas") */
-      const rawState = findValue(["state","province","prov","st","region"]);
-      const state    = rawState || (nameLines.length >= 3 ? nameLines[nameLines.length - 1].trim() : "");
+      /* Location: only from explicit column — never guess from multi-line name cell */
+      const state = findValue(["location","address","state","province","city","prov","region"]);
 
       parsed.push({
         name,
