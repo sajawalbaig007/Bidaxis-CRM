@@ -960,7 +960,7 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                  {/* Right: status + delete */}
+                  {/* Rights: status + deletes */}
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <span className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-medium flex items-center gap-1.5 sm:gap-2 ${
                       file.status === "Distributed" ? "bg-green-100 text-green-700" :
