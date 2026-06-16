@@ -841,7 +841,7 @@ export default function UploadPage() {
           </div>
 
           {/* Importants / previous clients upload */}
-          {/* <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefImportant.current?.click()}
               onDragOver={e => { e.preventDefault(); setDraggingImportant(true); }}
@@ -866,7 +866,7 @@ export default function UploadPage() {
               <input ref={inputRefImportant} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openImportantModal(e.target.files)} />
             </div>
-          </div> */}
+          </div>
          
 
           {/* Interested clients uploads */}
@@ -898,7 +898,7 @@ export default function UploadPage() {
           </div>
 
           {/* Active projects uploads */}
-          {/* <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefActive.current?.click()}
               onDragOver={e => { e.preventDefault(); setDraggingActive(true); }}
@@ -923,7 +923,7 @@ export default function UploadPage() {
               <input ref={inputRefActive} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openActiveModal(e.target.files)} />
             </div>
-          </div> */}
+          </div>
          
         </div>
 
