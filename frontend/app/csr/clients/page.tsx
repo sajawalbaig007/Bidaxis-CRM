@@ -225,6 +225,7 @@ export default function LeadsPage() {
         id: String(nl?.id ?? Date.now()),
         name: addForm.name.trim(),
         company: addForm.company.trim() || "N/A",
+        rawCompany: addForm.company.trim(),
         phone: addForm.phone.trim() || "N/A",
         email: addForm.email.trim(),
         state: addForm.state.trim(),
@@ -407,8 +408,15 @@ export default function LeadsPage() {
           ) : filtered.length > 0 ? (
             <>
               {/* Desktop header */}
-              <div className="hidden lg:grid grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px] gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA]">
-                {["Client", "Company", "Phone", "Email", "Service", "Latest Note", ""].map(h => (
+              <div className={`hidden lg:grid gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA] ${
+                activeTab === "old"
+                  ? "grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
+                  : "grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
+              }`}>
+                {(activeTab === "old"
+                  ? ["Code", "Client", "Company", "Phone", "Email", "Service", "Latest Note", ""]
+                  : ["Client", "Company", "Phone", "Email", "Service", "Latest Note", ""]
+                ).map(h => (
                   <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
                 ))}
               </div>
@@ -416,23 +424,43 @@ export default function LeadsPage() {
               <div className="divide-y divide-[#F3F3F3]">
                 {paginated.map(lead => {
                   const latestNote = getLatestNote(lead);
+                  const displayName = lead.isOldClient ? (lead.rawCompany || lead.name) : lead.name;
+                  const displaySub  = lead.isOldClient && lead.rawCompany ? lead.name : null;
                   return (
                     <div
                       key={lead.id}
-                      className="grid grid-cols-[1fr_auto] lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px] gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
+                      className={`grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors ${
+                        activeTab === "old"
+                          ? "grid-cols-[1fr_auto] lg:grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
+                          : "grid-cols-[1fr_auto] lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
+                      }`}
                     >
+                      {/* Code column — old clients only */}
+                      {activeTab === "old" && (
+                        <div className="hidden lg:block">
+                          {lead.clientCode
+                            ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate block">{lead.clientCode}</span>
+                            : <span className="text-gray-300 text-xs">—</span>
+                          }
+                        </div>
+                      )}
+
                       {/* Client */}
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${lead.isOldClient ? "bg-amber-500" : "bg-[#15803D]"}`}>
-                          {lead.name.charAt(0).toUpperCase()}
+                          {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {lead.clientCode && (
-                              <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{lead.clientCode}</span>
+                            {/* show code badge inline on mobile for old clients */}
+                            {lead.isOldClient && lead.clientCode && (
+                              <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{lead.clientCode}</span>
                             )}
-                            <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{lead.name}</p>
+                            <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{displayName}</p>
                           </div>
+                          {displaySub && (
+                            <p className="text-[10px] text-gray-400 truncate mt-0.5">{displaySub}</p>
+                          )}
                           <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${lead.isOldClient ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
                             {lead.isOldClient ? "Old Client" : "New Client"}
                           </span>

@@ -177,7 +177,9 @@ export const uploadLeads = async (req: Request, res: Response) => {
     /* ── PARSE ALL ROWS FIRST (no DB calls yet) ── */
     const parsed: Array<{
       name: string; company: string; phone: string;
-      email: string; state: string; csrId: string; csrName: string;
+      email: string; state: string; interestedService: string;
+      clientCode: string | null;
+      csrId: string; csrName: string;
       status: string; isOldClient: boolean;
     }> = [];
 
@@ -186,10 +188,13 @@ export const uploadLeads = async (req: Request, res: Response) => {
       const csr  = csrs[i % csrs.length];
       const keys = Object.keys(row);
 
-      const findValue = (possibleKeys: string[]): string => {
-        const foundKey = keys.find(k =>
-          possibleKeys.some(p => k.toLowerCase().includes(p.toLowerCase()))
-        );
+      /* excludeKeys: skip columns whose header contains any of these strings */
+      const findValue = (possibleKeys: string[], excludeKeys: string[] = []): string => {
+        const foundKey = keys.find(k => {
+          const kl = k.toLowerCase();
+          if (excludeKeys.some(ex => kl.includes(ex.toLowerCase()))) return false;
+          return possibleKeys.some(p => kl.includes(p.toLowerCase()));
+        });
         const raw = foundKey ? row[foundKey] : undefined;
         if (raw === undefined || raw === null) return "";
         const s = String(raw).trim();
@@ -197,13 +202,26 @@ export const uploadLeads = async (req: Request, res: Response) => {
         return s;
       };
 
+      /* Multi-line cells (Alt+Enter) arrive as "Company\nContact\nState" — take first line */
+      const firstLine = (s: string) => s.split(/[\n\r]/)[0].trim();
+
+      /* Name: exclude "code" columns so "Client Code" doesn't shadow "Client" */
+      const rawName  = findValue(["name","client","customer","contact person"], ["code"]);
+      const nameLines = rawName.split(/[\n\r]/);
+      const name     = firstLine(rawName);
+
+      /* State: explicit column first, else try last line of name cell (e.g. "Texas") */
+      const rawState = findValue(["state","province","prov","st","region"]);
+      const state    = rawState || (nameLines.length >= 3 ? nameLines[nameLines.length - 1].trim() : "");
+
       parsed.push({
-        name:              findValue(["name","client","customer","contact person"]),
+        name,
         company:           findValue(["company","business","organization","address"]),
         phone:             findValue(["phone","mobile","cell","contact","telephone","number"]),
         email:             findValue(["email","mail","e-mail"]),
-        state:             findValue(["state","province","prov","st","region"]),
-        interestedService: findValue(["interested in","interested","service","interest","services"]),
+        state,
+        interestedService: findValue(["interested in","interested","service","interest","services"], ["status"]),
+        clientCode:        findValue(["client code","clientcode","project code","client_code"]) || null,
         csrId:             csr.id,
         csrName:           csr.name,
         status:            initialStatuses[i % initialStatuses.length],
@@ -227,8 +245,12 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const dupPhones = new Set(existingByPhone.map(l => l.phone ?? ""));
     const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
 
-    /* ── FILTER DUPLICATES IN-MEMORY ── */
+    /* ── FILTER DUPLICATES + EMPTY ROWS ── */
     const fresh = parsed.filter(r => {
+      /* Skip rows with no meaningful data (stray Excel cells, blank rows) */
+      const hasValidPhone = r.phone.length >= 7;
+      const hasValidEmail = r.email.includes("@");
+      if (!r.name && !hasValidPhone && !hasValidEmail) return false;
       if (r.phone && dupPhones.has(r.phone)) return false;
       if (r.email && dupEmails.has(r.email)) return false;
       return true;
@@ -249,6 +271,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
           email:             r.email,
           state:             r.state             || null,
           interestedService: r.interestedService || null,
+          clientCode:        r.clientCode        || null,
           status:            r.status,
           isOldClient:       r.isOldClient,
           assignedTo:        r.csrId,
