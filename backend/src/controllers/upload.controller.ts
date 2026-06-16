@@ -174,6 +174,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
       },
     });
 
+    const isActiveUpload = leadType === "active";
+
     /* ── PARSE ALL ROWS FIRST (no DB calls yet) ── */
     const parsed: Array<{
       name: string; company: string; phone: string;
@@ -181,6 +183,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       clientCode: string | null;
       csrId: string; csrName: string;
       status: string; isOldClient: boolean;
+      projectTitle: string | null;
     }> = [];
 
     for (let i = 0; i < data.length; i++) {
@@ -222,36 +225,56 @@ export const uploadLeads = async (req: Request, res: Response) => {
         csrId:             csr.id,
         csrName:           csr.name,
         status:            initialStatuses[i % initialStatuses.length],
-        isOldClient:       leadType === "old",
+        isOldClient:       leadType === "old" || isActiveUpload,
+        /* active-project uploads get an empty-string projectTitle so the
+           projectTitle:{ not:null } filter in the projects endpoints passes */
+        projectTitle:      isActiveUpload ? "" : null,
       });
     }
 
-    /* ── BATCH DUPLICATE CHECK — 3 queries instead of N ── */
-    const phones  = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
-    const emails  = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
+    /* ── BATCH DUPLICATE CHECK ── */
+    let fresh: typeof parsed;
 
-    const [existingByPhone, existingByEmail] = await Promise.all([
-      phones.length
-        ? prisma.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true } })
-        : Promise.resolve([]),
-      emails.length
-        ? prisma.lead.findMany({ where: { email: { in: emails } }, select: { email: true } })
-        : Promise.resolve([]),
-    ]);
+    if (isActiveUpload) {
+      /* Active-project uploads: deduplicate by clientCode (project code) only.
+         A client can have multiple projects so phone/email must not block them. */
+      const codes = [...new Set(parsed.map(r => r.clientCode).filter((c): c is string => !!c))];
+      const existingByCodes = codes.length
+        ? await prisma.lead.findMany({ where: { clientCode: { in: codes } }, select: { clientCode: true } })
+        : [];
+      const dupCodes = new Set(existingByCodes.map(l => l.clientCode ?? ""));
 
-    const dupPhones = new Set(existingByPhone.map(l => l.phone ?? ""));
-    const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
+      fresh = parsed.filter(r => {
+        if (!r.name) return false;
+        if (r.clientCode && dupCodes.has(r.clientCode)) return false;
+        return true;
+      });
+    } else {
+      /* Regular uploads: deduplicate by phone / email */
+      const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
+      const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
 
-    /* ── FILTER DUPLICATES + EMPTY ROWS ── */
-    const fresh = parsed.filter(r => {
-      /* Skip rows with no meaningful data (stray Excel cells, blank rows) */
-      const hasValidPhone = r.phone.length >= 7;
-      const hasValidEmail = r.email.includes("@");
-      if (!r.name && !hasValidPhone && !hasValidEmail) return false;
-      if (r.phone && dupPhones.has(r.phone)) return false;
-      if (r.email && dupEmails.has(r.email)) return false;
-      return true;
-    });
+      const [existingByPhone, existingByEmail] = await Promise.all([
+        phones.length
+          ? prisma.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true } })
+          : Promise.resolve([]),
+        emails.length
+          ? prisma.lead.findMany({ where: { email: { in: emails } }, select: { email: true } })
+          : Promise.resolve([]),
+      ]);
+
+      const dupPhones = new Set(existingByPhone.map(l => l.phone ?? ""));
+      const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
+
+      fresh = parsed.filter(r => {
+        const hasValidPhone = r.phone.length >= 7;
+        const hasValidEmail = r.email.includes("@");
+        if (!r.name && !hasValidPhone && !hasValidEmail) return false;
+        if (r.phone && dupPhones.has(r.phone)) return false;
+        if (r.email && dupEmails.has(r.email)) return false;
+        return true;
+      });
+    }
 
     /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
     const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
@@ -269,6 +292,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
           state:             r.state             || null,
           interestedService: r.interestedService || null,
           clientCode:        r.clientCode        || null,
+          projectTitle:      r.projectTitle,
           status:            r.status,
           isOldClient:       r.isOldClient,
           assignedTo:        r.csrId,
