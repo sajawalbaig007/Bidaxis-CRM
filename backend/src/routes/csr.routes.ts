@@ -483,8 +483,9 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     const leads = await prisma.lead.findMany({
       where: {
-        assignedTo: csrId,
-        status:     { in: ["Close Client", "completed"] },
+        assignedTo:   csrId,
+        status:       { in: ["Close Client", "completed"] },
+        projectTitle: { not: null },
       },
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
