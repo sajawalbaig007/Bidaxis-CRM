@@ -237,7 +237,7 @@ router.get(
 router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const leads = await prisma.lead.findMany({
-      where: { status: "Close Client" },
+      where: { status: "Close Client", projectTitle: { not: null } },
       include: {
         csr: {
           select: {
