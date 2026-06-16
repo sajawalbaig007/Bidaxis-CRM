@@ -837,7 +837,7 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Important / previous clients upload */}
+          {/* Importants / previous clients upload */}
           {/* <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefImportant.current?.click()}
