@@ -145,20 +145,19 @@ export const uploadLeads = async (req: Request, res: Response) => {
         }
       }
 
-      /* Delete ALL leads — fresh start */
-/* Delete only completed leads */
-await prisma.lead.deleteMany({
-  where: {
-    status: {
-      equals: "completed",
-      mode: "insensitive",
-    },
-  },
-});
+      /* Delete only pending (main page) leads — preserve important, interested, active, Close Client, etc. */
+      await prisma.lead.deleteMany({
+        where: {
+          status: {
+            equals: "pending",
+            mode: "insensitive",
+          },
+        },
+      });
 
-console.log(
-  "[Renew] Only completed leads cleared. Pending, Not Completed, Important, Interested & Close Client preserved ✅"
-);
+      console.log(
+        "[Renew] Only pending (main page) leads cleared. Important, Interested, Active, Close Client & other statuses preserved ✅"
+      );
     }
 
     /* ── SAVE UPLOAD FILE RECORD ── */

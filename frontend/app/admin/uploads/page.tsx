@@ -448,7 +448,7 @@ export default function UploadPage() {
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     {([
                       { value: "pending" as const, label: "Call data",  sub: "Today Links (daily call list)",     Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
-                      { value: "lead"    as const, label: "My Leads",  sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
+                      { value: "lead"    as const, label: "Leads",  sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
                     ]).map(opt => {
                       const sel = selectedPane === opt.value;
                       return (
@@ -532,11 +532,11 @@ export default function UploadPage() {
                     </div>
                     {selectedPane === "pending" ? (
                       <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#EAF5FF] text-[#0B84F3]">
-                        My Links
+                        Call Data
                       </span>
                     ) : (
                       <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#F4ECFF] text-[#7A3FFD]">
-                        My Leads — {selectedLeadType === "new" ? "New Client" : "Old Client"}
+                        Leads — {selectedLeadType === "new" ? "New Client" : "Old Client"}
                       </span>
                     )}
                   </div>
@@ -746,7 +746,7 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Important / previous clients upload
+          {/* Important / previous clients upload */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefImportant.current?.click()}
@@ -773,7 +773,7 @@ export default function UploadPage() {
                 onChange={e => openImportantModal(e.target.files)} />
             </div>
           </div>
-          */}
+         
 
           {/* Interested clients upload */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
@@ -803,7 +803,7 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Active projects upload
+          {/* Active projects upload */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefActive.current?.click()}
@@ -830,7 +830,7 @@ export default function UploadPage() {
                 onChange={e => openActiveModal(e.target.files)} />
             </div>
           </div>
-          */}
+         
         </div>
 
         {/* ── FILES LIST ── */}
