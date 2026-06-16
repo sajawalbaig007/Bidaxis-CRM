@@ -9,6 +9,7 @@ import API from "@/lib/api";
 interface CommentCellProps {
   id: string;
   noteHistory?: NoteEntry[];
+  noteCount?: number;
   comment?: string;
   onAddNote?:    (id: string, text: string) => Promise<unknown>;
   onSave?:       (id: string, text: string) => Promise<void>;
@@ -27,22 +28,33 @@ function fmtTime(iso: string): string {
 }
 
 export default function CommentCell({
-  id, noteHistory, comment, onAddNote, onSave, onNoteUpdated, onNoteDeleted,
+  id, noteHistory, noteCount, comment, onAddNote, onSave, onNoteUpdated, onNoteDeleted,
 }: CommentCellProps) {
-  const [open,       setOpen]       = useState(false);
-  const [draft,      setDraft]      = useState("");
-  const [saving,     setSaving]     = useState(false);
-  const [editId,     setEditId]     = useState<string | null>(null);
-  const [editText,   setEditText]   = useState("");
-  const [editSaving, setEditSaving] = useState(false);
-  const [deleting,   setDeleting]   = useState<string | null>(null);
-  const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({});
+  const [open,        setOpen]        = useState(false);
+  const [draft,       setDraft]       = useState("");
+  const [saving,      setSaving]      = useState(false);
+  const [editId,      setEditId]      = useState<string | null>(null);
+  const [editText,    setEditText]    = useState("");
+  const [editSaving,  setEditSaving]  = useState(false);
+  const [deleting,    setDeleting]    = useState<string | null>(null);
+  const [popupStyle,  setPopupStyle]  = useState<React.CSSProperties>({});
+
+  /* lazy-loaded notes: null = not fetched yet */
+  const [localNotes,    setLocalNotes]    = useState<NoteEntry[] | null>(null);
+  const [notesLoading,  setNotesLoading]  = useState(false);
 
   const popupRef = useRef<HTMLDivElement>(null);
   const btnRef   = useRef<HTMLButtonElement>(null);
 
-  const notes  = noteHistory ?? [];
-  const sorted = [...notes].reverse();
+  /* ── Count badge ──
+     Priority: localNotes (fetched) > noteHistory (pre-loaded) > noteCount prop */
+  const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
+  const displayCount   = localNotes !== null ? localNotes.length : preloadedCount;
+  const count          = displayCount + (comment ? 1 : 0);
+
+  /* ── Notes to display in popup ── */
+  const displayNotes = localNotes !== null ? localNotes : (noteHistory ?? []);
+  const sorted       = [...displayNotes].reverse();
 
   /* Close on outside click */
   useEffect(() => {
@@ -60,11 +72,11 @@ export default function CommentCell({
   /* Reposition popup when it's open and window scrolls/resizes */
   const calcStyle = () => {
     if (!btnRef.current) return;
-    const rect        = btnRef.current.getBoundingClientRect();
-    const popupH      = 400;
-    const popupW      = 300;
-    const spaceBelow  = window.innerHeight - rect.bottom;
-    const left        = Math.min(rect.left, window.innerWidth - popupW - 8);
+    const rect       = btnRef.current.getBoundingClientRect();
+    const popupH     = 400;
+    const popupW     = 300;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const left       = Math.min(rect.left, window.innerWidth - popupW - 8);
 
     if (spaceBelow < popupH && rect.top > popupH) {
       setPopupStyle({ position: "fixed", bottom: window.innerHeight - rect.top + 4, left });
@@ -85,6 +97,34 @@ export default function CommentCell({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  /* Lazy-fetch note content when popup opens for the first time */
+  useEffect(() => {
+    if (!open) return;
+    if (localNotes !== null) return;          // already fetched
+    if ((noteHistory?.length ?? 0) > 0) {     // pre-loaded (detail endpoint)
+      setLocalNotes(noteHistory!);
+      return;
+    }
+    if (preloadedCount === 0) {               // no notes exist
+      setLocalNotes([]);
+      return;
+    }
+
+    setNotesLoading(true);
+    API.get(`/csr/lead/${id}`)
+      .then(res => {
+        const fetched: NoteEntry[] = (res.data.lead?.notes ?? []).map(
+          (n: { id: string; text: string; createdAt: string }) => ({
+            id: n.id, text: n.text, createdAt: n.createdAt,
+          })
+        );
+        setLocalNotes(fetched);
+      })
+      .catch(() => setLocalNotes([]))
+      .finally(() => setNotesLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const handleOpen = () => {
     calcStyle();
     setOpen(v => !v);
@@ -96,8 +136,19 @@ export default function CommentCell({
     if (!text) return;
     setSaving(true);
     try {
-      if (onAddNote) await onAddNote(id, text);
-      else if (onSave) await onSave(id, text);
+      let result: unknown;
+      if (onAddNote)    result = await onAddNote(id, text);
+      else if (onSave)  await onSave(id, text);
+
+      /* Try to extract the created note from the result for local state */
+      let newNote: NoteEntry | null = null;
+      if (result && typeof result === "object" && "id" in (result as object)) {
+        newNote = result as NoteEntry;
+      }
+      if (!newNote) {
+        newNote = { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
+      }
+      setLocalNotes(prev => prev !== null ? [...prev, newNote!] : [newNote!]);
       setDraft("");
     } finally { setSaving(false); }
   };
@@ -109,6 +160,7 @@ export default function CommentCell({
     setEditSaving(true);
     try {
       await API.put(`/csr/lead/${id}/notes/${noteId}`, { text });
+      setLocalNotes(prev => prev !== null ? prev.map(n => n.id === noteId ? { ...n, text } : n) : null);
       onNoteUpdated?.(id, noteId, text);
       setEditId(null);
     } catch { /* toast from interceptor */ }
@@ -120,12 +172,11 @@ export default function CommentCell({
     setDeleting(noteId);
     try {
       await API.delete(`/csr/lead/${id}/notes/${noteId}`);
+      setLocalNotes(prev => prev !== null ? prev.filter(n => n.id !== noteId) : null);
       onNoteDeleted?.(id, noteId);
     } catch { /* toast from interceptor */ }
     finally { setDeleting(null); }
   };
-
-  const count = notes.length + (comment ? 1 : 0);
 
   const popup = open && (
     <div
@@ -150,7 +201,7 @@ export default function CommentCell({
       </div>
 
       {/* Notes list */}
-      <div className="max-h-[260px] overflow-y-auto divide-y divide-gray-50">
+      <div className="max-h-65 overflow-y-auto divide-y divide-gray-50">
         {/* Legacy comment (admin mode) */}
         {comment && (
           <div className="px-4 py-3">
@@ -158,14 +209,21 @@ export default function CommentCell({
           </div>
         )}
 
-        {sorted.length === 0 && !comment && (
+        {notesLoading && (
+          <div className="py-8 text-center">
+            <Loader2 size={20} className="text-amber-500 mx-auto mb-2 animate-spin" />
+            <p className="text-[12px] text-gray-400">Loading notes…</p>
+          </div>
+        )}
+
+        {!notesLoading && sorted.length === 0 && !comment && (
           <div className="py-8 text-center">
             <StickyNote size={24} className="text-gray-200 mx-auto mb-2" />
             <p className="text-[12px] text-gray-400">No notes yet</p>
           </div>
         )}
 
-        {sorted.map(note => (
+        {!notesLoading && sorted.map(note => (
           <div key={note.id} className="px-4 py-3 group">
             {editId === note.id ? (
               <div className="space-y-2">

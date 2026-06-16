@@ -298,7 +298,7 @@ export default function UploadPage() {
                   <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     {([
                       { pane: "pending" as const, label: "Call Data", sub: "Today's daily call leads for CSRs", Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
-                      { pane: "lead"    as const, label: "Leads",     sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
+                      { pane: "lead"    as const, label: "Clients",     sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
                     ]).map(opt => {
                       const sel = selectedPane === opt.pane;
                       return (
@@ -838,7 +838,7 @@ export default function UploadPage() {
           </div>
 
           {/* Important / previous clients upload */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+          {/* <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefImportant.current?.click()}
               onDragOver={e => { e.preventDefault(); setDraggingImportant(true); }}
@@ -863,7 +863,7 @@ export default function UploadPage() {
               <input ref={inputRefImportant} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openImportantModal(e.target.files)} />
             </div>
-          </div>
+          </div> */}
          
 
           {/* Interested clients upload */}
@@ -895,7 +895,7 @@ export default function UploadPage() {
           </div>
 
           {/* Active projects upload */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+          {/* <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefActive.current?.click()}
               onDragOver={e => { e.preventDefault(); setDraggingActive(true); }}
@@ -920,7 +920,7 @@ export default function UploadPage() {
               <input ref={inputRefActive} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openActiveModal(e.target.files)} />
             </div>
-          </div>
+          </div> */}
          
         </div>
 

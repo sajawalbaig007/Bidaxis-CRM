@@ -430,9 +430,9 @@ export default function CSRPage() {
                             : l
                           ));
                         }}
-                        onNoteDeleted={(leadId, noteId) => {
+                        onNoteDeleted={(leadId, _noteId) => {
                           setLeads(prev => prev.map(l => l.id === leadId
-                            ? { ...l, noteHistory: l.noteHistory.filter(n => n.id !== noteId) }
+                            ? { ...l, noteCount: Math.max(0, (l.noteCount ?? 0) - 1) }
                             : l
                           ));
                         }}
