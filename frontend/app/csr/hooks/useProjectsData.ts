@@ -85,8 +85,8 @@ export const isDeadlinePast = (deadline: string): boolean => {
 
 function mapProject(lead: RawLead): Project {
   const projectTitle =
-    lead.projectTitle ?? lead.project_title ?? lead.ProjectTitle ??
-    lead.title ?? lead.projectName ?? lead.project_name ?? lead.name ?? "Untitled Project";
+    lead.projectTitle || lead.project_title || lead.ProjectTitle ||
+    lead.title || lead.projectName || lead.project_name || "";
   const deadline =
     lead.projectDeadline ?? lead.project_deadline ?? lead.ProjectDeadline ??
     lead.deadline ?? lead.nextSchedule ?? "N/A";

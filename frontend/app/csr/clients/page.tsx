@@ -102,7 +102,16 @@ export default function LeadsPage() {
   /* ─── Derived ──────────────────────────────────────────── */
   const wonLeads = useMemo(() => leads.filter(l => l.status === "Close Client" || l.status === "completed"), [leads]);
   const newLeads = useMemo(() => wonLeads.filter(l => !l.isOldClient), [wonLeads]);
-  const oldLeads = useMemo(() => wonLeads.filter(l =>  l.isOldClient), [wonLeads]);
+  const oldLeads = useMemo(() => {
+    const all = wonLeads.filter(l => l.isOldClient);
+    const seen = new Set<string>();
+    return all.filter(l => {
+      const key = l.phone?.trim() || l.name?.trim() || l.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [wonLeads]);
   const baseList = activeTab === "new" ? newLeads : oldLeads;
 
   const importantCount  = useMemo(() => leads.filter(l => l.status === "important").length,    [leads]);
