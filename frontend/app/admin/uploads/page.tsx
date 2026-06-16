@@ -176,9 +176,9 @@ export default function UploadPage() {
         ["pending"]
       ));
       formData.append("leadType",
-        uploadMode === "important"  ? "old" :
-        uploadMode === "interested" ? "new" :
-        uploadMode === "active"     ? "old" :
+        uploadMode === "important"  ? "old"    :
+        uploadMode === "interested" ? "new"    :
+        uploadMode === "active"     ? "active" :
         selectedLeadType
       );
 
