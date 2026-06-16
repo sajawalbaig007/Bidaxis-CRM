@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Building2, Pencil, Check,
   Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users,
