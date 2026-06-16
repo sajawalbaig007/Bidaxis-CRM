@@ -924,7 +924,7 @@ export default function UploadPage() {
          
         </div>
 
-        {/* ── FILES LIST ── */}
+        {/* ── FILES LISTs ── */}
         <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="px-4 sm:px-5 py-3 sm:py-4 lg:p-5 border-b border-gray-100">
             <h3 className="text-base sm:text-lg font-semibold text-gray-800">Uploaded Lead Sheets</h3>
@@ -960,7 +960,7 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                  {/* Right: status + delete */}
+                  {/* Rights: status + deletes */}
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <span className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-medium flex items-center gap-1.5 sm:gap-2 ${
                       file.status === "Distributed" ? "bg-green-100 text-green-700" :
