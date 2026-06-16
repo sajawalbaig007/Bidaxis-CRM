@@ -260,23 +260,53 @@ export const uploadLeads = async (req: Request, res: Response) => {
       });
     }
 
-    /* ── BATCH DUPLICATE CHECK ── */
+    /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
+    const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
+
+    /* ── DEDUP / UPSERT ── */
     let fresh: typeof parsed;
+    const distributionMap: Record<string, number> = {};
 
     if (isActiveUpload) {
-      /* Active-project uploads: deduplicate by clientCode (project code) only.
-         A client can have multiple projects so phone/email must not block them. */
-      const codes = [...new Set(parsed.map(r => r.clientCode).filter((c): c is string => !!c))];
-      const existingByCodes = codes.length
-        ? await prisma.lead.findMany({ where: { clientCode: { in: codes } }, select: { clientCode: true } })
-        : [];
-      const dupCodes = new Set(existingByCodes.map(l => l.clientCode ?? ""));
+      /* Active-project uploads: UPSERT by clientCode.
+         Existing records are refreshed with new Excel data; truly new codes are inserted. */
+      const validParsed = parsed.filter(r => r.name);
+      const uniqueCodes = [...new Set(validParsed.map(r => r.clientCode).filter((c): c is string => !!c))];
 
-      fresh = parsed.filter(r => {
-        if (!r.name) return false;
-        if (r.clientCode && dupCodes.has(r.clientCode)) return false;
-        return true;
-      });
+      const existingLeads = uniqueCodes.length
+        ? await prisma.lead.findMany({
+            where: { clientCode: { in: uniqueCodes } },
+            select: { id: true, clientCode: true },
+          })
+        : [];
+      const existingCodeMap = new Map<string, string>(existingLeads.map(l => [l.clientCode!, l.id]));
+
+      const toUpdate = validParsed.filter(r => r.clientCode && existingCodeMap.has(r.clientCode));
+      fresh          = validParsed.filter(r => !r.clientCode || !existingCodeMap.has(r.clientCode ?? ""));
+
+      /* Update existing records with fresh data from the new Excel file */
+      if (toUpdate.length > 0) {
+        await Promise.all(toUpdate.map(r =>
+          prisma.lead.update({
+            where: { id: existingCodeMap.get(r.clientCode!)! },
+            data: {
+              name:              r.name,
+              company:           r.company           || null,
+              phone:             r.phone             || null,
+              email:             r.email             || null,
+              state:             r.state             || null,
+              interestedService: r.interestedService || null,
+              projectTitle:      r.projectTitle,
+              projectBudget:     r.projectBudget,
+              assignedTo:        r.csrId,
+              hiddenOnMain:      isSpecialUpload,
+            },
+          })
+        ));
+        for (const r of toUpdate) {
+          distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
+        }
+      }
     } else {
       /* Regular uploads: deduplicate by phone / email */
       const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
@@ -304,12 +334,6 @@ export const uploadLeads = async (req: Request, res: Response) => {
       });
     }
 
-    /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
-    const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
-
-    /* ── SINGLE createMany — 1 query for all rows ── */
-    const distributionMap: Record<string, number> = {};
-
     if (fresh.length > 0) {
       await prisma.lead.createMany({
         data: fresh.map(r => ({
@@ -331,8 +355,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       });
 
       for (const r of fresh) {
-        if (!distributionMap[r.csrName]) distributionMap[r.csrName] = 0;
-        distributionMap[r.csrName] += 1;
+        distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
       }
     }
 

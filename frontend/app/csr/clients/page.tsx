@@ -106,7 +106,7 @@ export default function LeadsPage() {
     const all = wonLeads.filter(l => l.isOldClient);
     const seen = new Set<string>();
     return all.filter(l => {
-      const key = l.phone?.trim() || l.id;
+      const key = l.phone?.trim() || l.name?.trim() || l.id;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
