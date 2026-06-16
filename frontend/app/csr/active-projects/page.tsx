@@ -343,7 +343,7 @@ export default function CSRProjectsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-1.5">
                       <div>
                         <p className="text-gray-400 text-[10px]">Payment</p>
                         <PaymentStatusCircle percent={project.paidPercent} size={32} strokeWidth={3} />
@@ -390,7 +390,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[0.7fr_1.3fr_1fr_1.2fr_0.85fr_0.8fr_0.7fr_1fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-center hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[0.7fr_1.3fr_1fr_1.2fr_0.85fr_0.8fr_0.7fr_1fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
@@ -454,26 +454,26 @@ export default function CSRProjectsPage() {
                       </div>
 
                       {/* Payment Status */}
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-start pt-0.5">
                         <PaymentStatusCircle percent={project.paidPercent} size={34} strokeWidth={3.5} />
                       </div>
 
                       {/* Scope */}
-                      <div className="min-w-0">
+                      <div className="min-w-0 pt-0.5">
                         {project.service && project.service !== "N/A" ? (
                           <span className="text-xs xl:text-sm text-[#0F172A] truncate block">{project.service}</span>
                         ) : <span className="text-xs text-gray-400">—</span>}
                       </div>
 
                       {/* Quotation */}
-                      <div className="min-w-0">
+                      <div className="min-w-0 pt-0.5">
                         {project.budgetNum > 0 ? (
                           <span className="inline-flex bg-emerald-50 text-emerald-700 text-xs xl:text-sm font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap">${project.budgetNum.toLocaleString()}</span>
                         ) : <span className="text-xs text-gray-400">—</span>}
                       </div>
 
                       {/* Notes */}
-                      <div className="min-w-0 py-1">
+                      <div className="min-w-0 pt-0.5">
                         <CommentCell
                           id={project.id}
                           noteHistory={project.noteHistory}
@@ -482,7 +482,7 @@ export default function CSRProjectsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1.5 xl:gap-2">
+                      <div className="flex items-center gap-1.5 xl:gap-2 pt-0.5">
                         <button onClick={() => openDetail(project)}
                           className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity">
                           <Eye size={13} className="xl:w-[15px] xl:h-[15px]" />
