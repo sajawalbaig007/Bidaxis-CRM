@@ -59,7 +59,7 @@ export default function UploadPage() {
 
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
-  const [modalStep, setModalStep] = useState<"reset" | "company" | "pane" | "csrs">("reset");
+  const [modalStep, setModalStep] = useState<"category" | "reset" | "company" | "pane" | "csrs">("category");
   const [resetMode, setResetMode] = useState<"keep" | "reset" | null>(null);
 
   const [selectedPane,     setSelectedPane]     = useState<"pending" | "lead">("pending");
@@ -96,7 +96,7 @@ export default function UploadPage() {
     setResetMode(null);
     setSelectedPane("pending");
     setSelectedLeadType("new");
-    setModalStep("reset");
+    setModalStep("category");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -168,10 +168,11 @@ export default function UploadPage() {
       formData.append("companyName", finalCompany.trim());
       formData.append("resetMode", resetMode ?? "keep");
       formData.append("initialStatuses", JSON.stringify(
-        uploadMode === "important"  ? ["important"]  :
-        uploadMode === "interested" ? ["interested"] :
-        uploadMode === "active"     ? ["active"]     :
-        [selectedPane]
+        uploadMode === "important"  ? ["important"]    :
+        uploadMode === "interested" ? ["interested"]   :
+        uploadMode === "active"     ? ["Close Client"] :
+        selectedPane === "lead"     ? ["Close Client"] :
+        ["pending"]
       ));
       formData.append("leadType",
         uploadMode === "important"  ? "old" :
@@ -227,13 +228,15 @@ export default function UploadPage() {
             <div className="flex items-start justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-gray-100 shrink-0">
               <div className="pr-3 min-w-0">
                 <h2 className="text-lg sm:text-2xl font-semibold text-gray-800">
-                  {modalStep === "reset"   ? "Data Mode"
+                  {modalStep === "category" ? "Upload Category"
+                   : modalStep === "reset"   ? "Data Mode"
                    : modalStep === "company" ? "Select Company"
                    : modalStep === "pane"    ? "Select CSR Pane"
                    : "Select CSRs"}
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-                  {modalStep === "reset"   ? "What should happen to existing lead data?"
+                  {modalStep === "category" ? "Where should this file's data go?"
+                   : modalStep === "reset"   ? "What should happen to existing lead data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
@@ -249,13 +252,12 @@ export default function UploadPage() {
 
             {/* Step indicators — scrollable on very small screens */}
             {(() => {
-              const isRegular = uploadMode === "regular";
-              const steps  = (isRegular
-                ? ["reset", "company", "pane", "csrs"]
-                : ["company", "csrs"]) as readonly string[];
-              const labels = isRegular
-                ? ["Data Mode", "Company", "CSR Pane", "CSRs"]
-                : ["Company", "CSRs"];
+              const steps  = (selectedPane === "lead"
+                ? ["category", "company", "csrs"]
+                : ["category", "reset", "company", "csrs"]) as readonly string[];
+              const labels = selectedPane === "lead"
+                ? ["Category", "Company", "CSRs"]
+                : ["Category", "Data Mode", "Company", "CSRs"];
               const currentIdx = steps.indexOf(modalStep);
               return (
                 <div className="flex items-center px-4 sm:px-6 pt-3 sm:pt-4 overflow-x-auto shrink-0">
@@ -288,6 +290,87 @@ export default function UploadPage() {
 
             {/* Modal body — scroll */}
             <div className="px-4 sm:px-6 py-4 sm:py-5 overflow-y-auto flex-1">
+
+              {/* STEP — Category (Call Data or Leads) */}
+              {modalStep === "category" && (
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium">What type of data are you uploading?</p>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    {([
+                      { pane: "pending" as const, label: "Call Data", sub: "Today's daily call leads for CSRs", Icon: PhoneCall, border: "border-[#0B84F3]", bg: "bg-[#EAF5FF]", iconBg: "bg-[#0B84F3]", text: "text-[#0B84F3]" },
+                      { pane: "lead"    as const, label: "Leads",     sub: "Previous clients & project history", Icon: Users,    border: "border-[#7A3FFD]", bg: "bg-[#F4ECFF]", iconBg: "bg-[#7A3FFD]", text: "text-[#7A3FFD]" },
+                    ]).map(opt => {
+                      const sel = selectedPane === opt.pane;
+                      return (
+                        <button
+                          key={opt.pane}
+                          onClick={() => setSelectedPane(opt.pane)}
+                          className={`relative p-3 sm:p-5 rounded-2xl border-2 flex flex-col items-center gap-2 sm:gap-3 transition-all text-center ${
+                            sel ? `${opt.border} ${opt.bg}` : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                          }`}
+                        >
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center ${
+                            sel ? `${opt.iconBg} text-white` : "bg-white shadow-sm"
+                          }`}>
+                            <opt.Icon size={18} className={`sm:w-[22px] sm:h-[22px] ${sel ? "text-white" : "text-gray-400"}`} />
+                          </div>
+                          <div>
+                            <p className={`font-bold text-xs sm:text-sm ${sel ? opt.text : "text-gray-800"}`}>{opt.label}</p>
+                            <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 leading-snug">{opt.sub}</p>
+                          </div>
+                          {sel && (
+                            <span className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full ${opt.iconBg} flex items-center justify-center absolute top-2 right-2`}>
+                              <CheckCircle2 size={10} className="text-white sm:w-3 sm:h-3" />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedPane === "lead" && (
+                    <div className="border border-[#7A3FFD]/20 bg-[#FDFBFF] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 sm:space-y-3">
+                      <p className="text-xs sm:text-sm font-semibold text-[#7A3FFD]">Upload as which client type?</p>
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        {([
+                          { value: "new" as const, label: "New Client",  sub: "First-time clients",         border: "border-[#15803D]", bg: "bg-[#F0FDF4]", text: "text-[#15803D]", dot: "bg-[#15803D]" },
+                          { value: "old" as const, label: "Old Client",  sub: "Returning / repeat clients", border: "border-[#B45309]", bg: "bg-[#FFFBEB]", text: "text-[#B45309]", dot: "bg-[#B45309]" },
+                        ]).map(opt => {
+                          const sel = selectedLeadType === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => setSelectedLeadType(opt.value)}
+                              className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 flex flex-col gap-1.5 sm:gap-2 transition-all text-left ${
+                                sel ? `${opt.border} ${opt.bg}` : "border-gray-100 bg-white hover:border-gray-300"
+                              }`}
+                            >
+                              <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${sel ? opt.dot : "bg-gray-200"}`} />
+                              <p className={`font-bold text-xs sm:text-sm ${sel ? opt.text : "text-gray-700"}`}>{opt.label}</p>
+                              <p className="text-[10px] sm:text-[11px] text-gray-400 leading-snug">{opt.sub}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      if (selectedPane === "lead") {
+                        setResetMode("keep");
+                        setModalStep("company");
+                      } else {
+                        setResetMode(null);
+                        setModalStep("reset");
+                      }
+                    }}
+                    className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
+                  >
+                    Next — {selectedPane === "lead" ? "Select Company" : "Select Data Mode"}
+                  </button>
+                </div>
+              )}
 
               {/* STEP 0 — Keep or Reset */}
               {modalStep === "reset" && (
@@ -348,15 +431,23 @@ export default function UploadPage() {
                     </div>
                   )}
 
-                  <button
-                    onClick={() => { if (!resetMode) { toast.error("Please select an option"); return; } setModalStep("company"); }}
-                    disabled={!resetMode}
-                    className={`w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
-                      resetMode ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    }`}
-                  >
-                    Next — Select Company
-                  </button>
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
+                      onClick={() => setModalStep("category")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => { if (!resetMode) { toast.error("Please select an option"); return; } setModalStep("company"); }}
+                      disabled={!resetMode}
+                      className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
+                        resetMode ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      Next — Select Company
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -414,15 +505,15 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => uploadMode === "regular" ? setModalStep("reset") : setShowCSRModal(false)}
+                      onClick={() => selectedPane === "lead" ? setModalStep("category") : setModalStep("reset")}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
-                      {uploadMode === "regular" ? "Back" : "Cancel"}
+                      Back
                     </button>
                     <button
                       onClick={() => {
                         if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
-                        if (uploadMode === "regular") setModalStep("pane"); else setModalStep("csrs");
+                        setModalStep("csrs");
                       }}
                       disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
@@ -623,7 +714,7 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => uploadMode === "regular" ? setModalStep("pane") : setModalStep("company")}
+                      onClick={() => setModalStep("company")}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
                       Back

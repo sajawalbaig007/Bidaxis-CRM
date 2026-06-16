@@ -206,7 +206,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         csrId:       csr.id,
         csrName:     csr.name,
         status:      initialStatuses[i % initialStatuses.length],
-        isOldClient: initialStatuses[i % initialStatuses.length] === "lead" && leadType === "old",
+        isOldClient: leadType === "old",
       });
     }
 
@@ -233,10 +233,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
       return true;
     });
 
-    /* Specialized uploads (important/interested/active) never appear on CSR main page */
-    const isSpecialUpload = initialStatuses.some(s =>
-      ["important", "interested", "active"].includes(s.toLowerCase())
-    );
+    /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
+    const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
 
     /* ── SINGLE createMany — 1 query for all rows ── */
     const distributionMap: Record<string, number> = {};
