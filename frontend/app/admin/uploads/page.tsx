@@ -866,7 +866,7 @@ export default function UploadPage() {
           </div> */}
          
 
-          {/* Interested clients upload */}
+          {/* Interested clients uploads */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefInterested.current?.click()}
@@ -894,7 +894,7 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Active projects upload */}
+          {/* Active projects uploads */}
           {/* <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
             <div
               onClick={() => inputRefActive.current?.click()}
