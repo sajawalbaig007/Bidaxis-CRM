@@ -380,7 +380,7 @@ export default function CSRProjectsPage() {
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block overflow-x-auto">
               <div>
-                <div className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_1.4fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+                <div className="grid grid-cols-[0.7fr_1.5fr_1.1fr_1.4fr_52px_0.8fr_0.7fr_1.1fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
                   {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
@@ -390,7 +390,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[0.8fr_1.5fr_1.2fr_1.5fr_0.75fr_0.9fr_0.8fr_1.4fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[0.7fr_1.5fr_1.1fr_1.4fr_52px_0.8fr_0.7fr_1.1fr_auto] gap-3 xl:gap-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
@@ -406,9 +406,6 @@ export default function CSRProjectsPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {project.clientCode && (
-                              <span className="inline-flex shrink-0 bg-[#0B84F3]/10 text-[#0B84F3] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{project.clientCode}</span>
-                            )}
                             <p className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate">{project.client}</p>
                             {(() => {
                               const tz = getTimezoneAbbr(project.state !== "N/A" ? project.state : null);
@@ -457,22 +454,22 @@ export default function CSRProjectsPage() {
                       </div>
 
                       {/* Payment Status */}
-                      <div className="flex items-center">
-                        <PaymentStatusCircle percent={project.paidPercent} size={36} strokeWidth={3.5} />
+                      <div className="flex items-center justify-center">
+                        <PaymentStatusCircle percent={project.paidPercent} size={34} strokeWidth={3.5} />
                       </div>
 
                       {/* Scope */}
                       <div className="min-w-0">
                         {project.service && project.service !== "N/A" ? (
                           <span className="text-xs xl:text-sm text-[#0F172A] truncate block">{project.service}</span>
-                        ) : <span className="text-xs text-gray-400">N/A</span>}
+                        ) : <span className="text-xs text-gray-400">—</span>}
                       </div>
 
                       {/* Quotation */}
                       <div className="min-w-0">
                         {project.budgetNum > 0 ? (
-                          <span className="text-xs xl:text-sm font-semibold text-[#0F172A] truncate block">${project.budgetNum.toLocaleString()}</span>
-                        ) : <span className="text-xs text-gray-400">N/A</span>}
+                          <span className="inline-flex bg-emerald-50 text-emerald-700 text-xs xl:text-sm font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap">${project.budgetNum.toLocaleString()}</span>
+                        ) : <span className="text-xs text-gray-400">—</span>}
                       </div>
 
                       {/* Notes */}
