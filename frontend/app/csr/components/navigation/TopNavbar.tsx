@@ -23,6 +23,9 @@ import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { getCsrDashboard } from "@/lib/csrDashboardCache";
+import { visibleInterval } from "@/lib/visibleInterval";
+import { playChatSound } from "@/lib/chatSound";
+import ChatPanel from "@/app/components/chat/ChatPanel";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 
 const navItems = [
@@ -32,7 +35,6 @@ const navItems = [
   { title: "Clients",           href: "/csr/clients",              icon: Users        },
   { title: "Active Projects",   href: "/csr/active-projects",      icon: FolderKanban },
   { title: "Bin",               href: "/csr/bin",                  icon: Trash2       },
-  { title: "Chat",              href: "/csr/chat",                 icon: MessageSquare },
 ];
 
 type UserInfo = {
@@ -82,6 +84,9 @@ export default function TopNavbar() {
   );
   const [profileOpen,  setProfileOpen]  = useState(false);
   const [bellOpen,     setBellOpen]     = useState(false);
+  const [chatOpen,     setChatOpen]     = useState(false);
+  const [totalUnread,  setTotalUnread]  = useState(0);
+  const prevTotalUnread = useRef(0);
   const [loggingOut,   setLoggingOut]   = useState(false);
   const [notifPerm,    setNotifPerm]    = useState<NotificationPermission | "unsupported">(
     () => typeof Notification === "undefined" ? "unsupported" : Notification.permission
@@ -89,6 +94,56 @@ export default function TopNavbar() {
 
   const profileRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+  const prevUnreadRef = useRef<Record<string, number>>({});
+  const notifOk = useRef(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("csrChatOpen") === "1") {
+      sessionStorage.removeItem("csrChatOpen");
+      setChatOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission !== "denied") {
+      Notification.requestPermission().then(p => { notifOk.current = p === "granted"; });
+    } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      notifOk.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (chatOpen) return;
+
+    let isFirst = true;
+    const poll = async () => {
+      try {
+        const r = await API.get("/chat/conversations");
+        const convs: { id: string; name: string; unreadCount: number; lastMessage?: string }[] =
+          r.data.conversations ?? r.data ?? [];
+        const total = convs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
+        if (!isFirst && total > prevTotalUnread.current) playChatSound();
+        prevTotalUnread.current = total;
+        setTotalUnread(total);
+
+        if (!isFirst && notifOk.current) {
+          convs.forEach(c => {
+            const prev = prevUnreadRef.current[c.id] ?? 0;
+            if ((c.unreadCount ?? 0) > prev) {
+              new Notification("New message", {
+                body: `${c.name}: ${c.lastMessage ?? "You have a new message"}`,
+                icon: "/images/image.png",
+              });
+            }
+          });
+        }
+        isFirst = false;
+        prevUnreadRef.current = Object.fromEntries(convs.map(c => [c.id, c.unreadCount ?? 0]));
+      } catch { /* ignore */ }
+    };
+    void poll();
+    return visibleInterval(poll, 30_000);
+  }, [chatOpen]);
 
   useEffect(() => {
     if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
@@ -162,6 +217,7 @@ export default function TopNavbar() {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
         <Link href="/csr" className="flex items-center gap-3 shrink-0">
@@ -212,6 +268,28 @@ export default function TopNavbar() {
             })}
           </nav>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setChatOpen(v => !v);
+            setBellOpen(false);
+            setProfileOpen(false);
+          }}
+          className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
+            chatOpen
+              ? "bg-[#B8112D] text-white shadow-md"
+              : "bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"
+          }`}
+          title="Messages"
+        >
+          <MessageSquare size={16} />
+          {totalUnread > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+              {totalUnread > 9 ? "9+" : totalUnread}
+            </span>
+          )}
+        </button>
 
         <div className="flex items-center gap-1.5 shrink-0">
           <div ref={bellRef} className="relative">
@@ -422,6 +500,9 @@ export default function TopNavbar() {
         </div>
       </div>
     </header>
+
+    {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+    </>
   );
 }
 

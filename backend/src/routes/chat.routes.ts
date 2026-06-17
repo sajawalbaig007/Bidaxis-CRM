@@ -21,18 +21,94 @@ function p(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
+type ReactionsMap = Record<string, string[]>;
+
+function parseReactions(raw: unknown): ReactionsMap {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return raw as ReactionsMap;
+}
+
+const EDIT_WINDOW_MS = 10 * 60 * 1000;
+
+function msgStatus(
+  senderId: string,
+  userId: string,
+  createdAt: Date,
+  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
+): { status: string; readBy: string[] } {
+  const others = members.filter(m => m.userId !== userId);
+  if (senderId === userId) {
+    const readBy = others
+      .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
+      .map(m => m.user.name);
+    const allRead = others.length > 0 && readBy.length === others.length;
+    return { status: allRead ? "read" : "delivered", readBy };
+  }
+  const me = members.find(m => m.userId === userId);
+  const read = me?.lastReadAt && me.lastReadAt >= createdAt;
+  return { status: read ? "read" : "delivered", readBy: [] };
+}
+
+function formatMessage(
+  m: {
+    id: string; senderId: string; text: string; type: string;
+    fileUrl: string | null; fileName: string | null; fileSize: number | null;
+    fileMimeType: string | null; createdAt: Date; editedAt: Date | null;
+    mentions: string[]; reactions: unknown;
+    sender: { id: string; name: string };
+    replyTo: {
+      id: string; text: string; type: string;
+      sender: { name: string };
+    } | null;
+  },
+  userId: string,
+  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
+) {
+  const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
+  return {
+    id:           m.id,
+    senderId:     m.senderId,
+    senderName:   m.sender.name,
+    text:         m.text,
+    type:         m.type,
+    fileUrl:      m.fileUrl,
+    fileName:     m.fileName,
+    fileSize:     m.fileSize,
+    fileMimeType: m.fileMimeType,
+    createdAt:    m.createdAt,
+    editedAt:     m.editedAt,
+    mentions:     m.mentions ?? [],
+    reactions:    parseReactions(m.reactions),
+    readBy,
+    isOwn:        m.senderId === userId,
+    status,
+    replyTo:      m.replyTo ? {
+      id:         m.replyTo.id,
+      text:       m.replyTo.text,
+      senderName: m.replyTo.sender.name,
+      type:       m.replyTo.type,
+    } : null,
+  };
+}
+
 /* ═══════════════════════════════════════════════════════
    GET /chat/conversations
 ═══════════════════════════════════════════════════════ */
 router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
   try {
-    const userId   = req.user!.id;
-    const cacheKey = `chat:convs:${userId}`;
-    const cached   = getCache<object>(cacheKey);
+    const userId       = req.user!.id;
+    const showArchived = req.query.archived === "1";
+    const cacheKey     = `chat:convs:${userId}:${showArchived ? "arch" : "active"}`;
+    const cached       = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const memberships = await prisma.conversationMember.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(showArchived
+          ? { archivedAt: { not: null } }
+          : { OR: [{ archivedAt: null }] }),
+      },
       include: {
         conversation: {
           include: {
@@ -83,6 +159,8 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
         unreadCount:   unreadCounts[idx],
         memberCount:   conv.members.length,
         isOnline:      otherMember?.user?.isOnline ?? false,
+        pinnedMessageId: conv.pinnedMessageId ?? null,
+        archived:      Boolean(m.archivedAt),
       };
     });
 
@@ -211,6 +289,11 @@ router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, 
     });
     if (!member) return res.status(403).json({ message: "Not a member" });
 
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId },
+      include: { user: { select: { id: true, name: true } } },
+    });
+
     const raw = await prisma.message.findMany({
       where: { conversationId },
       include: {
@@ -226,28 +309,19 @@ router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, 
       take: 200,
     });
 
-    const messages = raw.map(m => ({
-      id:           m.id,
-      senderId:     m.senderId,
-      senderName:   m.sender.name,
-      text:         m.text,
-      type:         m.type,
-      fileUrl:      m.fileUrl,
-      fileName:     m.fileName,
-      fileSize:     m.fileSize,
-      fileMimeType: m.fileMimeType,
-      createdAt:    m.createdAt,
-      isOwn:        m.senderId === userId,
-      status:       member.lastReadAt && m.createdAt <= member.lastReadAt ? "read" : "delivered",
-      replyTo:      m.replyTo ? {
-        id:         m.replyTo.id,
-        text:       m.replyTo.text,
-        senderName: m.replyTo.sender.name,
-        type:       m.replyTo.type,
-      } : null,
-    }));
+    const messages = raw.map(m => formatMessage(m, userId, members));
 
-    return res.json({ messages });
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { pinnedMessageId: true },
+    });
+    let pinnedMessage = null;
+    if (conv?.pinnedMessageId) {
+      const pin = raw.find(m => m.id === conv.pinnedMessageId);
+      if (pin) pinnedMessage = formatMessage(pin, userId, members);
+    }
+
+    return res.json({ messages, pinnedMessage });
   } catch (err) {
     console.error("[chat] GET messages", err);
     return res.status(500).json({ message: "Failed to fetch messages" });
@@ -265,10 +339,13 @@ router.post(
     try {
       const userId         = req.user!.id;
       const conversationId = p(req.params.id);
-      const body           = req.body as { text?: string; type?: string; replyToId?: string };
+      const body           = req.body as { text?: string; type?: string; replyToId?: string; mentionIds?: string[] };
       const text           = (body.text ?? "").trim();
       const msgType        = (body.type ?? "text") as string;
       const replyToId      = body.replyToId;
+      const mentionIds     = Array.isArray(body.mentionIds)
+        ? body.mentionIds.filter(id => typeof id === "string")
+        : [];
 
       const member = await prisma.conversationMember.findUnique({
         where: { conversationId_userId: { conversationId, userId } },
@@ -327,6 +404,7 @@ router.post(
           fileSize,
           fileMimeType,
           replyToId:   validReplyToId,
+          mentions:    mentionIds,
         },
         include: {
           sender: { select: { id: true, name: true } },
@@ -346,27 +424,13 @@ router.post(
 
       invalidatePattern("chat:convs:");
 
+      const members = await prisma.conversationMember.findMany({
+        where: { conversationId },
+        include: { user: { select: { id: true, name: true } } },
+      });
+
       return res.json({
-        message: {
-          id:           message.id,
-          senderId:     message.senderId,
-          senderName:   message.sender.name,
-          text:         message.text,
-          type:         message.type,
-          fileUrl:      message.fileUrl,
-          fileName:     message.fileName,
-          fileSize:     message.fileSize,
-          fileMimeType: message.fileMimeType,
-          createdAt:    message.createdAt,
-          isOwn:        true,
-          status:       "sent",
-          replyTo:      message.replyTo ? {
-            id:         message.replyTo.id,
-            text:       message.replyTo.text,
-            senderName: message.replyTo.sender.name,
-            type:       message.replyTo.type,
-          } : null,
-        },
+        message: formatMessage(message, userId, members),
       });
     } catch (err) {
       console.error("[chat] POST message", err);
@@ -382,7 +446,12 @@ router.post(
 router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
+    const role   = req.user!.role;
     const msgId  = p(req.params.id);
+
+    if (role !== "admin") {
+      return res.status(403).json({ message: "Only admins can delete messages for everyone" });
+    }
 
     const msg = await prisma.message.findUnique({ where: { id: msgId } });
     if (!msg || msg.senderId !== userId) {
@@ -470,6 +539,194 @@ router.post("/status", verifyToken, async (req: AuthRequest, res) => {
       data:  { isOnline: online, lastActive: new Date() },
     });
 
+    return res.json({ success: true });
+  } catch {
+    return res.json({ success: true });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   GET /chat/users — admin + csr (for DMs)
+═══════════════════════════════════════════════════════ */
+router.get("/users", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const meId = req.user!.id;
+    const users = await prisma.user.findMany({
+      where: { isActive: true, id: { not: meId } },
+      select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    });
+    return res.json({ users });
+  } catch {
+    return res.status(500).json({ message: "Failed to fetch users" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   GET /chat/conversations/:id/members
+═══════════════════════════════════════════════════════ */
+router.get("/conversations/:id/members", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId         = req.user!.id;
+    const conversationId = p(req.params.id);
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+    if (!member) return res.status(403).json({ message: "Not a member" });
+
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId },
+      include: { user: { select: { id: true, name: true, role: true, csrCode: true, isOnline: true } } },
+    });
+    return res.json({
+      members: members.map(m => ({
+        id:       m.user.id,
+        name:     m.user.name,
+        role:     m.user.role,
+        csrCode:  m.user.csrCode,
+        isOnline: m.user.isOnline,
+      })),
+    });
+  } catch {
+    return res.status(500).json({ message: "Failed to fetch members" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   PATCH /chat/messages/:id — edit within 10 minutes
+═══════════════════════════════════════════════════════ */
+router.patch("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const msgId  = p(req.params.id);
+    const text   = ((req.body as { text?: string }).text ?? "").trim();
+    if (!text) return res.status(400).json({ message: "Text required" });
+
+    const msg = await prisma.message.findUnique({ where: { id: msgId } });
+    if (!msg || msg.senderId !== userId || msg.type !== "text") {
+      return res.status(403).json({ message: "Cannot edit this message" });
+    }
+    if (Date.now() - msg.createdAt.getTime() > EDIT_WINDOW_MS) {
+      return res.status(400).json({ message: "Edit window expired (10 minutes)" });
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: msgId },
+      data:  { text, editedAt: new Date() },
+      include: {
+        sender: { select: { id: true, name: true } },
+        replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
+      },
+    });
+
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId: msg.conversationId },
+      include: { user: { select: { id: true, name: true } } },
+    });
+
+    invalidatePattern("chat:convs:");
+    return res.json({ message: formatMessage(updated, userId, members) });
+  } catch {
+    return res.status(500).json({ message: "Failed to edit message" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   POST /chat/messages/:id/reactions — toggle emoji
+═══════════════════════════════════════════════════════ */
+router.post("/messages/:id/reactions", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const msgId  = p(req.params.id);
+    const emoji  = ((req.body as { emoji?: string }).emoji ?? "").trim();
+    if (!emoji) return res.status(400).json({ message: "emoji required" });
+
+    const msg = await prisma.message.findUnique({ where: { id: msgId } });
+    if (!msg) return res.status(404).json({ message: "Message not found" });
+
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: msg.conversationId, userId } },
+    });
+    if (!member) return res.status(403).json({ message: "Not a member" });
+
+    const reactions = parseReactions(msg.reactions);
+    const list = reactions[emoji] ?? [];
+    if (list.includes(userId)) {
+      reactions[emoji] = list.filter(id => id !== userId);
+      if (reactions[emoji].length === 0) delete reactions[emoji];
+    } else {
+      reactions[emoji] = [...list, userId];
+    }
+
+    await prisma.message.update({
+      where: { id: msgId },
+      data:  { reactions },
+    });
+
+    return res.json({ reactions });
+  } catch {
+    return res.status(500).json({ message: "Failed to update reaction" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   POST /chat/conversations/:id/pin
+═══════════════════════════════════════════════════════ */
+router.post("/conversations/:id/pin", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId         = req.user!.id;
+    const conversationId = p(req.params.id);
+    const messageId      = (req.body as { messageId?: string | null }).messageId ?? null;
+
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+    if (!member) return res.status(403).json({ message: "Not a member" });
+
+    if (messageId) {
+      const msg = await prisma.message.findFirst({ where: { id: messageId, conversationId } });
+      if (!msg) return res.status(404).json({ message: "Message not found" });
+    }
+
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data:  { pinnedMessageId: messageId },
+    });
+
+    invalidatePattern("chat:convs:");
+    return res.json({ success: true, pinnedMessageId: messageId });
+  } catch {
+    return res.status(500).json({ message: "Failed to pin message" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   POST /chat/conversations/:id/archive | unarchive
+═══════════════════════════════════════════════════════ */
+router.post("/conversations/:id/archive", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId         = req.user!.id;
+    const conversationId = p(req.params.id);
+    await prisma.conversationMember.updateMany({
+      where: { conversationId, userId },
+      data:  { archivedAt: new Date() },
+    });
+    invalidatePattern("chat:convs:");
+    return res.json({ success: true });
+  } catch {
+    return res.json({ success: true });
+  }
+});
+
+router.post("/conversations/:id/unarchive", verifyToken, async (req: AuthRequest, res) => {
+  try {
+    const userId         = req.user!.id;
+    const conversationId = p(req.params.id);
+    await prisma.conversationMember.updateMany({
+      where: { conversationId, userId },
+      data:  { archivedAt: null },
+    });
+    invalidatePattern("chat:convs:");
     return res.json({ success: true });
   } catch {
     return res.json({ success: true });
