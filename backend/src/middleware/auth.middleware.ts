@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "../config/security";
 import { getActiveSession, touchActiveSession } from "../utils/sessions";
 
 export interface AuthRequest extends Request {
   user?: { id: string; role: string; iat?: number; tv?: number; sid?: string };
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "secret";
+const JWT_SECRET = getJwtSecret();
 
 export const verifyToken = async (
   req: AuthRequest,

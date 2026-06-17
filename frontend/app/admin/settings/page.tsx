@@ -11,6 +11,7 @@ import {
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
+import { logoutSession } from "@/lib/session";
 
 function Skeleton({ w = "w-32", h = "h-5" }: { w?: string; h?: string }) {
   return <div className={`${h} ${w} bg-gray-100 rounded-lg animate-pulse`} />;
@@ -78,13 +79,17 @@ export default function AdminSettingsPage() {
   /* ── CHANGE PASSWORD ── */
   const handleChangePassword = async () => {
     if (!pwForm.current)               { toast.error("Enter current password."); return; }
-    if (pwForm.next.length < 6)        { toast.error("Min. 6 characters."); return; }
+    if (pwForm.next.length < 8)        { toast.error("Min. 8 characters with upper, lower, and number."); return; }
     if (pwForm.next !== pwForm.confirm) { toast.error("Passwords do not match."); return; }
     setSavingPw(true);
     try {
-      await API.put("/auth/change-password", { currentPassword: pwForm.current, newPassword: pwForm.next });
-      toast.success("Password changed.");
+      const res = await API.put("/auth/change-password", { currentPassword: pwForm.current, newPassword: pwForm.next });
+      toast.success(res.data?.message ?? "Password changed.");
       setPwForm({ current: "", next: "", confirm: "" });
+      if (res.data?.requiresReLogin) {
+        await logoutSession(async () => {});
+        setTimeout(() => { window.location.href = "/"; }, 800);
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(msg ?? "Failed to change password.");
@@ -106,8 +111,7 @@ export default function AdminSettingsPage() {
   /* ── LOGOUT ── */
   const handleLogout = async () => {
     setShowLogoutModal(false);
-    try { await API.post("/auth/logout", {}, { withCredentials: true }); } catch { /* ignore */ }
-    document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+    await logoutSession(() => API.post("/auth/logout", {}, { withCredentials: true }));
     toast.success("Logged out.");
     setTimeout(() => { window.location.href = "/"; }, 600);
   };

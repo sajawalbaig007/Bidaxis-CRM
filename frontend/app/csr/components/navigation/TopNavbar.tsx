@@ -20,6 +20,7 @@ import {
   Clock,
 } from "lucide-react";
 import API from "@/lib/api";
+import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { getCsrDashboard } from "@/lib/csrDashboardCache";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
@@ -131,8 +132,7 @@ export default function TopNavbar() {
     setLoggingOut(true);
 
     try {
-      await API.post("/auth/logout", {});
-      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+      await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
       router.push("/");
       router.refresh();

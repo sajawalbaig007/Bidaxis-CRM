@@ -1,92 +1,37 @@
 import { NextResponse } from "next/server";
-
 import type { NextRequest } from "next/server";
-
 import jwt from "jsonwebtoken";
 
-export function proxy(
-  request: NextRequest
-) {
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (secret && secret.length >= 32) return secret;
+  if (process.env.NODE_ENV === "production") {
+    console.error("[Security] JWT_SECRET missing or too short for middleware.");
+  }
+  return secret || "dev-only-insecure-secret-change-me-32chars";
+}
 
-  const token =
-    request.cookies.get(
-      "token"
-    )?.value;
+export function proxy(request: NextRequest) {
+  const token = request.cookies.get("token")?.value;
+  const pathname = request.nextUrl.pathname;
 
-  const pathname =
-    request.nextUrl.pathname;
-
-  /* NO TOKEN */
-
-  if (
-    !token &&
-    (
-      pathname.startsWith(
-        "/admin"
-      ) ||
-      pathname.startsWith(
-        "/csr"
-      )
-    )
-  ) {
-
-    return NextResponse.redirect(
-      new URL("/", request.url)
-    );
+  if (!token && (pathname.startsWith("/admin") || pathname.startsWith("/csr"))) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  /* VERIFY ROLE */
-
   if (token) {
-
     try {
+      const decoded = jwt.verify(token, getJwtSecret()) as { role?: string };
 
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || "SUPER_SECRET_KEY"
-      ) as { role?: string };
-
-      /* ADMIN ACCESS */
-
-      if (
-        pathname.startsWith(
-          "/admin"
-        ) &&
-        decoded?.role !==
-          "admin"
-      ) {
-
-        return NextResponse.redirect(
-          new URL(
-            "/csr",
-            request.url
-          )
-        );
+      if (pathname.startsWith("/admin") && decoded?.role !== "admin") {
+        return NextResponse.redirect(new URL("/csr", request.url));
       }
 
-      /* CSR ACCESS */
-
-      if (
-        pathname.startsWith(
-          "/csr"
-        ) &&
-        decoded?.role !==
-          "csr"
-      ) {
-
-        return NextResponse.redirect(
-          new URL(
-            "/admin",
-            request.url
-          )
-        );
+      if (pathname.startsWith("/csr") && decoded?.role !== "csr") {
+        return NextResponse.redirect(new URL("/admin", request.url));
       }
-
     } catch {
-
-      return NextResponse.redirect(
-        new URL("/", request.url)
-      );
+      return NextResponse.redirect(new URL("/", request.url));
     }
   }
 
@@ -94,8 +39,5 @@ export function proxy(
 }
 
 export const config = {
-  matcher: [
-    "/admin/:path*",
-    "/csr/:path*",
-  ],
+  matcher: ["/admin/:path*", "/csr/:path*"],
 };

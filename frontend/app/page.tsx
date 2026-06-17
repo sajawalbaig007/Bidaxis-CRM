@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import API from "@/lib/api";
+import { setFrontendSession } from "@/lib/session";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number } };
@@ -34,7 +35,7 @@ export default function LoginPage() {
         setOtp(["", "", "", "", "", ""]); setStep("otp");
         toast.success(data.message ?? "OTP sent to your email");
       } else {
-        if (data.token) saveToken(data.token);
+        if (data.token) await setFrontendSession(data.token);
         toast.success("Login successful"); redirect(data.role);
       }
     } catch (err: unknown) {
@@ -55,7 +56,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await API.post("/auth/verify-otp", { userId, otp: code }, { withCredentials: true });
-      if (res.data.token) saveToken(res.data.token);
+      if (res.data.token) await setFrontendSession(res.data.token);
       toast.success("Login successful"); redirect(res.data.role);
     } catch (err: unknown) {
       const e = err as APIError; const data = e?.response?.data;
@@ -100,11 +101,6 @@ export default function LoginPage() {
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     if (pasted.length === 6) { setOtp(pasted.split("")); otpRefs.current[5]?.focus(); }
   };
-
-  function saveToken(token: string) {
-    const isHttps = window.location.protocol === "https:";
-    document.cookie = `token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=${isHttps ? "None" : "Lax"}${isHttps ? "; Secure" : ""}`;
-  }
 
   function redirect(role: string) {
     window.location.href = role === "admin" ? "/admin" : role === "csr" ? "/csr" : "/";

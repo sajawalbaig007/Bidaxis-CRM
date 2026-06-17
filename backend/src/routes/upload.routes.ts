@@ -1,28 +1,17 @@
 import express from "express";
-
-import upload from "../middleware/upload.middleware";
-
+import { uploadExcel } from "../middleware/upload.middleware";
+import { verifyToken } from "../middleware/auth.middleware";
+import { allowRoles } from "../middleware/role.middleware";
 import {
   uploadLeads,
   getLatestUpload,
 } from "../controllers/upload.controller";
 
-const router =
-  express.Router();
+const router = express.Router();
 
-/* ================= UPLOAD ================= */
+router.use(verifyToken, allowRoles("admin"));
 
-router.post(
-  "/",
-  upload.single("file"),
-  uploadLeads
-);
-
-/* ================= LATEST ================= */
-
-router.get(
-  "/latest",
-  getLatestUpload
-);
+router.post("/", uploadExcel.single("file"), uploadLeads);
+router.get("/latest", getLatestUpload);
 
 export default router;

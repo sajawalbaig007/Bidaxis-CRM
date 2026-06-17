@@ -34,7 +34,7 @@ export const updateUser = async (req: Request, res: Response) => {
       data,
       select: { id: true, name: true, email: true, role: true, csrCode: true, isActive: true },
     });
-    invalidateCache("users:list", "admin:csrs");
+    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
     return res.json(user);
   } catch {
     return res.status(500).json({ message: "Update failed" });
@@ -78,7 +78,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     /* 6. Delete the user */
     await prisma.user.delete({ where: { id } });
 
-    invalidateCache("users:list", "admin:csrs", "admin:clients", `csr:dashboard:${id}`, `csr:leads:${id}`);
+    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs", "admin:clients", `csr:dashboard:${id}`, `csr:leads:${id}`);
     res.json({ success: true, message: "User deleted" });
   } catch (err) {
     console.log("[deleteUser]", err);

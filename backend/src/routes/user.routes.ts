@@ -1,7 +1,10 @@
 import express from "express";
 import prisma from "../config/db";
+import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
+import { allowRoles } from "../middleware/role.middleware";
+import { maskCnic } from "../config/security";
 import { userBrowserMap } from "../utils/sessions";
-import { getCache, setCache } from "../utils/cache";
+import { getCache, setCache, invalidateCache } from "../utils/cache";
 import upload from "../middleware/upload.middleware";
 import cloudinary from "../config/cloudinary";
 import { Readable } from "stream";
@@ -13,13 +16,14 @@ import {
 
 const router = express.Router();
 
-/* ================= GET ALL USERS — with browser info ================= */
+router.use(verifyToken);
 
-router.get("/", async (req, res) => {
+/* ================= GET ALL USERS — admin + csr (chat) ================= */
+router.get("/", allowRoles("admin", "csr"), async (req: AuthRequest, res) => {
   try {
-    const CACHE_KEY = "users:list";
+    const viewerRole = req.user!.role;
+    const CACHE_KEY = `users:list:${viewerRole}`;
 
-    /* Cache only the DB rows; browser/tab data merged fresh each request */
     let users = getCache<Array<Record<string, unknown>>>(CACHE_KEY);
     if (!users) {
       users = await prisma.user.findMany({
@@ -43,13 +47,12 @@ router.get("/", async (req, res) => {
 
     const withBrowser = users.map(u => ({
       ...u,
+      cnic:       maskCnic(u.cnic as string | null, viewerRole),
       browser:    userBrowserMap.get(u.id as string)?.browser    ?? null,
       tabId:      userBrowserMap.get(u.id as string)?.tabId      ?? null,
       openedAt:   userBrowserMap.get(u.id as string)?.openedAt   ?? null,
       tabVisible: userBrowserMap.get(u.id as string)?.tabVisible ?? null,
       hiddenAt:   userBrowserMap.get(u.id as string)?.hiddenAt   ?? null,
-      cnic:       (u as Record<string, unknown>).cnic       ?? null,
-      profilePic: (u as Record<string, unknown>).profilePic ?? null,
     }));
 
     return res.json(withBrowser);
@@ -59,8 +62,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* ================= UPLOAD PROFILE PIC ================= */
-router.post("/upload-pic", upload.single("file"), async (req, res) => {
+/* ================= UPLOAD PROFILE PIC — authenticated users ================= */
+router.post("/upload-pic", upload.single("file"), async (req: AuthRequest, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file provided" });
     const url = await new Promise<string>((resolve, reject) => {
@@ -77,10 +80,7 @@ router.post("/upload-pic", upload.single("file"), async (req, res) => {
   }
 });
 
-/* ================= UPDATE USER ================= */
-router.put("/:id", updateUser);
-
-/* ================= DELETE USER ================= */
-router.delete("/:id", deleteUser);
+router.put("/:id", allowRoles("admin"), updateUser);
+router.delete("/:id", allowRoles("admin"), deleteUser);
 
 export default router;

@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import { getJwtSecret } from "./config/security";
 import app          from "./app";
 import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
@@ -247,6 +248,8 @@ function scheduleWeeklyShuffle() {
 
 scheduleAutoReport();
 scheduleWeeklyShuffle();
+
+getJwtSecret();
 
 /* ── START ── */
 app.listen(PORT, () => {
