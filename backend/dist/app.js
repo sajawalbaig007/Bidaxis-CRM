@@ -19,6 +19,7 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const allowedOrigins = [
     "http://localhost:3000",
+    "https://bemcons.com",
     process.env.FRONTEND_URL,
 ].filter(Boolean);
 app.use((0, cors_1.default)({

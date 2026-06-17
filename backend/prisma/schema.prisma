@@ -145,11 +145,12 @@ model UploadFile {
 }
 
 model Conversation {
-  id        String   @id @default(cuid()) @map("_id")
-  type      String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid()) @map("_id")
+  type            String
+  name            String?
+  pinnedMessageId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   members  ConversationMember[]
   messages Message[]
@@ -164,6 +165,7 @@ model ConversationMember {
   userId         String
   joinedAt       DateTime  @default(now())
   lastReadAt     DateTime?
+  archivedAt     DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
@@ -183,6 +185,9 @@ model Message {
   fileSize       Int?
   fileMimeType   String?
   replyToId      String?
+  mentions       String[] @default([])
+  reactions      Json?
+  editedAt       DateTime?
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id])

@@ -1,4 +1,4 @@
-﻿const KEY = "crm_chat_offline_queue";
+const KEY = "crm_chat_offline_queue";
 
 export interface QueuedChatMessage {
   id: string;

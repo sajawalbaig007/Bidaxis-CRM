@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { X } from "lucide-react";
 
-export const REACTION_EMOJIS = ["≡ƒæì", "Γ¥ñ∩╕Å", "≡ƒÿé", "≡ƒÿ«", "≡ƒÿó", "≡ƒÖÅ"] as const;
+export const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
 
 export function MentionText({ text, className }: { text: string; className?: string }) {
   const parts = text.split(/(@[\w\s.-]+)/g);

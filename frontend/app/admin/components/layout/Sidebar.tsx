@@ -13,7 +13,8 @@ import {
 import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
-import { visibleInterval } from "@/lib/visibleInterval";
+import { ensureChatUnreadPolling } from "@/lib/chatUnreadStore";
+import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import SessionNotifierInit from "@/app/components/SessionNotifierInit";
 import AdminChatPanel from "./AdminChatPanel";
 
@@ -38,18 +39,12 @@ export default function DashboardSidebar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut,  setLoggingOut]  = useState(false);
   const [chatOpen,    setChatOpen]    = useState(false);
-  const [totalUnread, setTotalUnread] = useState(0);
+  const totalUnread   = useChatUnreadBadge();
   const profileRef    = useRef<HTMLDivElement>(null);
-  const prevUnreadRef = useRef<Record<string, number>>({});
-  const notifOk       = useRef(false);
 
   useEffect(() => {
+    ensureChatUnreadPolling(10_000);
     getAuthMe().then(u => { if (u) setUser(u); }).catch(() => {});
-    if (typeof Notification !== "undefined" && Notification.permission !== "denied") {
-      Notification.requestPermission().then(p => { notifOk.current = p === "granted"; });
-    } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      notifOk.current = true;
-    }
   }, []);
 
   useEffect(() => {
@@ -59,37 +54,6 @@ export default function DashboardSidebar() {
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
-
-  useEffect(() => {
-    if (chatOpen) return;
-
-    let isFirst = true;
-    const poll = async () => {
-      try {
-        const r = await API.get("/chat/conversations");
-        const convs: { id: string; name: string; unreadCount: number; lastMessage?: string }[] =
-          r.data.conversations ?? r.data ?? [];
-        const total = convs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
-        setTotalUnread(total);
-
-        if (!isFirst && notifOk.current) {
-          convs.forEach(c => {
-            const prev = prevUnreadRef.current[c.id] ?? 0;
-            if ((c.unreadCount ?? 0) > prev) {
-              new Notification("New message", {
-                body: `${c.name}: ${c.lastMessage ?? "You have a new message"}`,
-                icon: "/images/image.png",
-              });
-            }
-          });
-        }
-        isFirst = false;
-        prevUnreadRef.current = Object.fromEntries(convs.map(c => [c.id, c.unreadCount ?? 0]));
-      } catch {}
-    };
-    void poll();
-    return visibleInterval(poll, 30_000);
-  }, [chatOpen]);
 
   const handleLogout = async () => {
     setLoggingOut(true);

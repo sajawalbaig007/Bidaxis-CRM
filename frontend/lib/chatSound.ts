@@ -1,4 +1,4 @@
-﻿let audioCtx: AudioContext | null = null;
+let audioCtx: AudioContext | null = null;
 
 /** Short notification beep for new chat messages. */
 export function playChatSound(): void {

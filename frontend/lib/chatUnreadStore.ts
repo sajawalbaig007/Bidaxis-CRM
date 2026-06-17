@@ -1,4 +1,4 @@
-﻿import API from "@/lib/api";
+import API from "@/lib/api";
 import { playChatSound } from "@/lib/chatSound";
 
 export type ChatConvPreview = {
@@ -67,7 +67,7 @@ export async function pollChatUnread(): Promise<number> {
   }
 }
 
-/** Start global polling once ΓÇö works even when chat panel is closed. */
+/** Start global polling once — works even when chat panel is closed. */
 export function ensureChatUnreadPolling(intervalMs = 10_000): void {
   if (typeof window === "undefined") return;
 
