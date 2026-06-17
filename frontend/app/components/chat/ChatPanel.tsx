@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { visibleInterval } from "@/lib/visibleInterval";
 import {
   Send, Plus, Search, X, MessageSquare, Hash, User2,
@@ -321,6 +322,9 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const dmLoadingRef     = useRef<string | null>(null);
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => { setPortalReady(true); }, []);
 
   useEffect(() => {
     void (async () => {
@@ -632,8 +636,19 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     const placeholder: Conversation = { id: tempId, type: "direct", name: user.name, unreadCount: 0, isOnline: user.isOnline, otherUserId: user.id };
     setConversations(p => [placeholder, ...p]); setActiveConvId(tempId);
     try {
-      const r = await API.post("/chat/conversations", { type: "direct", userId: user.id }); const cid = r.data.id ?? r.data.conversation?.id; if (!cid) return;
-      setConversations(p => { const merged = p.map(c => c.id === tempId ? { ...c, id: cid } : c); const seen = new Set<string>(); return merged.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; }); });
+      const r = await API.post("/chat/conversations", { type: "direct", userId: user.id });
+      const cid = r.data.id ?? r.data.conversation?.id;
+      const conv = r.data.conversation as Conversation | undefined;
+      if (!cid) return;
+      setConversations(p => {
+        const merged = p.map(c =>
+          c.id === tempId
+            ? { ...c, ...conv, id: cid, otherUserId: user.id, name: conv?.name ?? user.name, isOnline: conv?.isOnline ?? user.isOnline }
+            : c
+        );
+        const seen = new Set<string>();
+        return merged.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      });
       setActiveConvId(cid);
     } catch { setConversations(p => p.filter(c => c.id !== tempId)); setActiveConvId(null); }
     finally { dmLoadingRef.current = null; }
@@ -932,10 +947,10 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         </>
       )}
 
-      {/* ΓöÇΓöÇ GROUP MODAL ΓöÇΓöÇ */}
-      {showGroupModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full sm:max-w-[440px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }}>
+      {/* ── GROUP MODAL ── */}
+      {portalReady && showGroupModal && createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }}>
+          <div className="w-full sm:max-w-[440px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center"><Hash size={14} /></div><div><h2 className="text-sm font-bold text-[#0F172A]">Create Group</h2><p className="text-[10px] text-gray-400">Name and invite members</p></div></div>
               <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
@@ -964,13 +979,14 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* ΓöÇΓöÇ DM MODAL ΓöÇΓöÇ */}
-      {showDmModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full sm:max-w-[400px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "80vh" }}>
+      {/* ── DM MODAL ── */}
+      {portalReady && showDmModal && createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowDmModal(false); setDmSearch(""); }}>
+          <div className="w-full sm:max-w-[400px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center"><User2 size={14} /></div><div><h2 className="text-sm font-bold text-[#0F172A]">New Direct Message</h2><p className="text-[10px] text-gray-400">Choose a team member</p></div></div>
               <button onClick={() => { setShowDmModal(false); setDmSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
@@ -982,8 +998,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               {filteredUsers.length === 0 ? (
                 <div className="py-10 text-center"><User2 size={26} className="text-gray-200 mx-auto mb-2" /><p className="text-sm text-gray-400">{dmSearch ? "No users found" : "No team members"}</p></div>
               ) : filteredUsers.map(u => (
-                /* eslint-disable-next-line react-hooks/refs */
-                <button key={u.id} onClick={() => void startDm(u)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group">
+                <button key={u.id} type="button" onClick={() => void startDm(u)} disabled={dmLoadingRef.current === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group disabled:opacity-50">
                   <Avatar name={u.name} size="sm" online={u.isOnline} />
                   <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-[#0F172A] truncate group-hover:text-[#B8112D] transition-colors">{u.name}</p><p className="text-[10px] text-gray-400">{u.csrCode ?? u.role ?? u.email}</p></div>
                   {u.isOnline && <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}
@@ -991,7 +1006,8 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
