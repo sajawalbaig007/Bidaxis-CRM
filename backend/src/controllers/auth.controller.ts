@@ -145,6 +145,7 @@ export const login = async (req: Request, res: Response) => {
       data:   { tokenVersion: { increment: 1 } },
       select: { tokenVersion: true },
     });
+    invalidateCache(`auth:session:${user.id}`);
     const token = generateToken(user.id, user.role, tokenVersion);
     setCookieToken(res, token);
     return res.json({
@@ -228,6 +229,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
       data:   { tokenVersion: { increment: 1 } },
       select: { id: true, name: true, email: true, role: true, tokenVersion: true },
     });
+    invalidateCache(`auth:session:${userId}`);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
@@ -370,6 +372,38 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     return res.json({ success: true, message: "Password changed successfully." });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to change password." });
+  }
+};
+
+/* ================= SESSION STATUS (multi-device notify, no logout) ================= */
+export const getSessionStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const cacheKey = `auth:session:${req.user.id}`;
+    let currentTv = getCache<number>(cacheKey);
+    if (currentTv === null) {
+      const dbUser = await prisma.user.findUnique({
+        where:  { id: req.user.id },
+        select: { tokenVersion: true },
+      });
+      currentTv = dbUser?.tokenVersion ?? 0;
+      setCache(cacheKey, currentTv, 60_000);
+    }
+
+    const tokenTv = req.user.tv ?? 0;
+    const loginFromOtherDevice = currentTv > tokenTv;
+
+    return res.json({
+      success: true,
+      loginFromOtherDevice,
+      currentTokenVersion: currentTv,
+      tokenVersion:        tokenTv,
+    });
+  } catch {
+    return res.status(500).json({ success: false, message: "Session check failed." });
   }
 };
 

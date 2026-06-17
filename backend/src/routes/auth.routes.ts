@@ -3,6 +3,7 @@ import {
   login, logout, register, getMe,
   updateProfile, changePassword,
   verifyOTP, resendOTP, toggle2FA,
+  getSessionStatus,
 } from "../controllers/auth.controller";
 import { verifyToken } from "../middleware/auth.middleware";
 
@@ -17,6 +18,7 @@ router.post("/resend-otp",  resendOTP);
 
 /* ── Protected ── */
 router.get ("/me",               verifyToken, getMe);
+router.get ("/session-status",   verifyToken, getSessionStatus);
 router.put ("/profile",          verifyToken, updateProfile);
 router.put ("/change-password",  verifyToken, changePassword);
 router.put ("/toggle-2fa",       verifyToken, toggle2FA);

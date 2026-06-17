@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import API from "@/lib/api";
+import { getCsrDashboard, invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
 
 export function useCsrDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const res = await API.get("/csr/dashboard");
-      setLeads((res.data.leads ?? []).map((lead: BackendLead) => mapBackendLead(lead)));
+      if (force) invalidateCsrDashboardCache();
+      const data = await getCsrDashboard(force);
+      setLeads((data.leads ?? []).map((lead: BackendLead) => mapBackendLead(lead)));
     } catch (err) {
       console.log(err);
     } finally {

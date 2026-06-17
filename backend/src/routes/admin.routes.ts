@@ -35,7 +35,7 @@ router.get("/csrs", verifyToken, allowRoles("admin"), async (req, res) => {
     });
 
     const payload = { success: true, csrs };
-    setCache(CACHE_KEY, payload, 3_000);
+    setCache(CACHE_KEY, payload, 15_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);

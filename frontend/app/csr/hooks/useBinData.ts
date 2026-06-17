@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import API from "@/lib/api";
+import { csrBinApi } from "@/lib/csrApiCache";
 
 export type BinLead = {
   id: string;
@@ -44,11 +44,11 @@ export function useBinData() {
   const [leads, setLeads] = useState<BinLead[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const res = await API.get("/csr/bin");
-      setLeads((res.data.leads ?? []).map((l: RawLead) => mapBinLead(l)));
+      const res = await csrBinApi.get(force);
+      setLeads((res.leads as RawLead[] ?? []).map((l) => mapBinLead(l)));
     } catch (err) {
       console.log(err);
     } finally {

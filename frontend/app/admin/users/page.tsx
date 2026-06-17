@@ -240,7 +240,7 @@ export default function UsersPage() {
 
   /* 2s poll — fast "On Dashboard" / "Away" updates */
   useEffect(() => {
-    return visibleInterval(() => fetchUsers(true), 15_000);
+    return visibleInterval(() => fetchUsers(true), 30_000);
   }, [fetchUsers]);
 
   /* Refresh on tab focus */
