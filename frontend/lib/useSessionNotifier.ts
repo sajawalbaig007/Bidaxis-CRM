@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import API from "./api";
 import { visibleInterval } from "./visibleInterval";
 
-const STORAGE_KEY = "crm_session_notify_tv";
+const STORAGE_KEY = "crm_login_attempt_ack";
 
 export function useSessionNotifier() {
   const notifiedRef = useRef(0);
@@ -17,15 +17,15 @@ export function useSessionNotifier() {
     const check = async () => {
       try {
         const res = await API.get("/auth/session-status");
-        const { loginFromOtherDevice, currentTokenVersion } = res.data ?? {};
+        const { loginAttemptPending, attemptId, message } = res.data ?? {};
         if (
-          loginFromOtherDevice &&
-          typeof currentTokenVersion === "number" &&
-          currentTokenVersion > notifiedRef.current
+          loginAttemptPending &&
+          typeof attemptId === "number" &&
+          attemptId > notifiedRef.current
         ) {
-          notifiedRef.current = currentTokenVersion;
-          sessionStorage.setItem(STORAGE_KEY, String(currentTokenVersion));
-          toast("Your account was logged in on another device.", { duration: 5000 });
+          notifiedRef.current = attemptId;
+          sessionStorage.setItem(STORAGE_KEY, String(attemptId));
+          toast.error(message ?? "Someone is trying to login to your account.", { duration: 6000 });
         }
       } catch {
         /* ignore */
@@ -33,6 +33,6 @@ export function useSessionNotifier() {
     };
 
     void check();
-    return visibleInterval(check, 60_000);
+    return visibleInterval(check, 30_000);
   }, []);
 }

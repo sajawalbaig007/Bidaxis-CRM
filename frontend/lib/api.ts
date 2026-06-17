@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const API = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api",
@@ -18,7 +19,18 @@ API.interceptors.request.use((config) => {
 
 API.interceptors.response.use(
   r => r,
-  err => Promise.reject(err)
+  err => {
+    if (
+      err?.response?.status === 401 &&
+      err?.response?.data?.code === "SESSION_INVALID" &&
+      typeof window !== "undefined"
+    ) {
+      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+      toast.error("Session expired. Please log in again.", { duration: 4000 });
+      setTimeout(() => { window.location.href = "/"; }, 1200);
+    }
+    return Promise.reject(err);
+  }
 );
 
 export default API;

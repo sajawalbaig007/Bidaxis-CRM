@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import API from "@/lib/api";
 
 interface APIError {
-  response?: { data?: { message?: string; blocked?: boolean; attempts?: number } };
+  response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number } };
 }
 type Step = "credentials" | "otp";
 
@@ -39,7 +39,12 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const e = err as APIError;
-      toast.error(e?.response?.data?.message ?? "Invalid email or password");
+      const data = e?.response?.data;
+      if (data?.code === "ALREADY_LOGGED_IN") {
+        toast.error(data.message ?? "Logged in on another device.");
+      } else {
+        toast.error(data?.message ?? "Invalid email or password");
+      }
     } finally { setLoading(false); }
   };
 
@@ -54,7 +59,10 @@ export default function LoginPage() {
       toast.success("Login successful"); redirect(res.data.role);
     } catch (err: unknown) {
       const e = err as APIError; const data = e?.response?.data;
-      if (data?.blocked) { setIsBlocked(true); setBlockedMsg(data?.message ?? "Too many attempts."); }
+      if (data?.code === "ALREADY_LOGGED_IN") {
+        toast.error(data.message ?? "Logged in on another device.");
+        setStep("credentials");
+      } else if (data?.blocked) { setIsBlocked(true); setBlockedMsg(data?.message ?? "Too many attempts."); }
       else {
         const left = data?.attempts !== undefined ? 2 - data.attempts : attemptsLeft - 1;
         setAttemptsLeft(Math.max(0, left));

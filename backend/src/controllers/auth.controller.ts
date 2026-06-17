@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import prisma from "../config/db";
 import { comparePassword, hashPassword } from "../utils/hash";
 import { generateToken } from "../utils/jwt";
@@ -11,6 +13,11 @@ import {
   otpStore,
   otpAttempts,
   otpResendCount,
+  getActiveSession,
+  registerActiveSession,
+  clearActiveSession,
+  recordLoginAttempt,
+  getLoginAttemptAlert,
 } from "../utils/sessions";
 
 const ADMIN_2FA_EMAIL = "mohsin.bemsolutions@gmail.com";
@@ -57,6 +64,30 @@ function setCookieToken(res: Response, token: string) {
     sameSite: isProd ? "none" : "lax",
     maxAge:   7 * 24 * 60 * 60 * 1000,
   });
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || "secret";
+
+function blockIfAlreadyLoggedIn(userId: string, res: Response): boolean {
+  if (!getActiveSession(userId)) return false;
+  recordLoginAttempt(userId);
+  res.status(409).json({
+    success: false,
+    code:    "ALREADY_LOGGED_IN",
+    message: "Logged in on another device. Please log out there first.",
+  });
+  return true;
+}
+
+function issueSessionToken(
+  res: Response,
+  user: { id: string; role: string; tokenVersion: number; name: string; email: string }
+) {
+  const sid = crypto.randomBytes(16).toString("hex");
+  registerActiveSession(user.id, sid, user.tokenVersion);
+  const token = generateToken(user.id, user.role, user.tokenVersion, sid);
+  setCookieToken(res, token);
+  return token;
 }
 
 /* ================= REGISTER ================= */
@@ -112,6 +143,8 @@ export const login = async (req: Request, res: Response) => {
 
     /* 2FA — admin only, flag persisted in DB */
     if (user.role === "admin" && user.twoFAEnabled) {
+      if (blockIfAlreadyLoggedIn(user.id, res)) return;
+
       /* ── Check if currently blocked ── */
       const existing = otpAttempts.get(user.id);
       if (existing?.blockedUntil && Date.now() < existing.blockedUntil) {
@@ -140,20 +173,23 @@ export const login = async (req: Request, res: Response) => {
       return;
     }
 
-    const { tokenVersion } = await prisma.user.update({
+    if (blockIfAlreadyLoggedIn(user.id, res)) return;
+
+    const dbUser = await prisma.user.findUnique({
       where:  { id: user.id },
-      data:   { tokenVersion: { increment: 1 } },
-      select: { tokenVersion: true },
+      select: { id: true, name: true, email: true, role: true, tokenVersion: true },
     });
-    invalidateCache(`auth:session:${user.id}`);
-    const token = generateToken(user.id, user.role, tokenVersion);
-    setCookieToken(res, token);
+    if (!dbUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const token = issueSessionToken(res, dbUser);
     return res.json({
       success:     true,
       requires2FA: false,
       token,
-      role:        user.role,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      role:        dbUser.role,
+      user: { id: dbUser.id, name: dbUser.name, email: dbUser.email, role: dbUser.role },
     });
   } catch {
     return res.status(500).json({ success: false, message: "Server error" });
@@ -222,20 +258,19 @@ export const verifyOTP = async (req: Request, res: Response) => {
     /* ── Correct OTP ── */
     otpStore.delete(userId);
     otpAttempts.delete(userId);
-    otpResendCount.delete(userId);   // clear resend count too
+    otpResendCount.delete(userId);
 
-    const user = await prisma.user.update({
+    if (blockIfAlreadyLoggedIn(userId, res)) return;
+
+    const user = await prisma.user.findUnique({
       where:  { id: userId },
-      data:   { tokenVersion: { increment: 1 } },
       select: { id: true, name: true, email: true, role: true, tokenVersion: true },
     });
-    invalidateCache(`auth:session:${userId}`);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
 
-    const token = generateToken(user.id, user.role, user.tokenVersion);
-    setCookieToken(res, token);
+    const token = issueSessionToken(res, user);
     return res.json({ success: true, token, role: user.role, user });
   } catch {
     return res.status(500).json({ success: false, message: "OTP verification failed." });
@@ -287,6 +322,17 @@ export const resendOTP = async (req: Request, res: Response) => {
 
 /* ================= LOGOUT (current device) ================= */
 export const logout = async (req: Request, res: Response) => {
+  try {
+    const token =
+      req.cookies?.token ??
+      req.headers.authorization?.replace("Bearer ", "");
+    if (token) {
+      const decoded = jwt.verify(token, JWT_SECRET) as { id?: string };
+      if (decoded.id) clearActiveSession(decoded.id);
+    }
+  } catch {
+    /* ignore invalid token on logout */
+  }
   res.clearCookie("token");
   return res.json({ success: true, message: "Logged out" });
 };
@@ -375,32 +421,23 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/* ================= SESSION STATUS (multi-device notify, no logout) ================= */
+/* ================= SESSION STATUS — login-attempt alerts ================= */
 export const getSessionStatus = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const cacheKey = `auth:session:${req.user.id}`;
-    let currentTv = getCache<number>(cacheKey);
-    if (currentTv === null) {
-      const dbUser = await prisma.user.findUnique({
-        where:  { id: req.user.id },
-        select: { tokenVersion: true },
-      });
-      currentTv = dbUser?.tokenVersion ?? 0;
-      setCache(cacheKey, currentTv, 60_000);
-    }
-
-    const tokenTv = req.user.tv ?? 0;
-    const loginFromOtherDevice = currentTv > tokenTv;
+    const alert = getLoginAttemptAlert(req.user.id);
+    const loginAttemptPending = !!alert;
 
     return res.json({
       success: true,
-      loginFromOtherDevice,
-      currentTokenVersion: currentTv,
-      tokenVersion:        tokenTv,
+      loginAttemptPending,
+      attemptId: alert?.attemptId ?? 0,
+      message:   loginAttemptPending
+        ? "Someone is trying to login to your account."
+        : undefined,
     });
   } catch {
     return res.status(500).json({ success: false, message: "Session check failed." });
