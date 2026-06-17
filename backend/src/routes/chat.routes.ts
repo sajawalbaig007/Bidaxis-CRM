@@ -103,12 +103,7 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
     if (cached) return res.json(cached);
 
     const memberships = await prisma.conversationMember.findMany({
-      where: {
-        userId,
-        ...(showArchived
-          ? { archivedAt: { not: null } }
-          : { OR: [{ archivedAt: null }] }),
-      },
+      where: { userId },
       include: {
         conversation: {
           include: {
@@ -126,8 +121,12 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
       orderBy: { conversation: { updatedAt: "desc" } },
     });
 
+    const filteredMemberships = memberships.filter(m =>
+      showArchived ? Boolean(m.archivedAt) : !m.archivedAt
+    );
+
     const unreadCounts = await Promise.all(
-      memberships.map(m =>
+      filteredMemberships.map(m =>
         prisma.message.count({
           where: {
             conversationId: m.conversationId,
@@ -138,7 +137,7 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
       )
     );
 
-    const conversations = memberships.map((m, idx) => {
+    const conversations = filteredMemberships.map((m, idx) => {
       const conv        = m.conversation;
       const lastMsg     = conv.messages[0];
       const otherMember = conv.type === "direct"
