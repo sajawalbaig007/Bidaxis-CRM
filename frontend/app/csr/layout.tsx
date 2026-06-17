@@ -1,5 +1,4 @@
 import CsrPresenceInit from "./components/CsrPresenceInit";
-import CsrChatNotifier from "./components/CsrChatNotifier";
 import SessionNotifierInit from "../components/SessionNotifierInit";
 
 export default function CsrLayout({ children }: { children: React.ReactNode }) {
@@ -7,7 +6,6 @@ export default function CsrLayout({ children }: { children: React.ReactNode }) {
     <>
       <SessionNotifierInit />
       <CsrPresenceInit />
-      <CsrChatNotifier />
       {children}
     </>
   );

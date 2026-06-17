@@ -14,6 +14,7 @@ import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { visibleInterval } from "@/lib/visibleInterval";
+import { playChatSound } from "@/lib/chatSound";
 import SessionNotifierInit from "@/app/components/SessionNotifierInit";
 import AdminChatPanel from "./AdminChatPanel";
 
@@ -40,6 +41,7 @@ export default function DashboardSidebar() {
   const [chatOpen,    setChatOpen]    = useState(false);
   const [totalUnread, setTotalUnread] = useState(0);
   const profileRef    = useRef<HTMLDivElement>(null);
+  const prevTotalUnread = useRef(0);
   const prevUnreadRef = useRef<Record<string, number>>({});
   const notifOk       = useRef(false);
 
@@ -70,6 +72,8 @@ export default function DashboardSidebar() {
         const convs: { id: string; name: string; unreadCount: number; lastMessage?: string }[] =
           r.data.conversations ?? r.data ?? [];
         const total = convs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
+        if (!isFirst && total > prevTotalUnread.current) playChatSound();
+        prevTotalUnread.current = total;
         setTotalUnread(total);
 
         if (!isFirst && notifOk.current) {
