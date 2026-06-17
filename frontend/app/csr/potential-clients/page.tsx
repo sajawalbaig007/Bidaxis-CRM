@@ -376,8 +376,8 @@ export default function ImportantCallsPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5">
-              <table className="w-full">
+            <div className="overflow-auto flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5">
+              <table className="w-full" style={{ minWidth: "780px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
                     <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Client</th>
