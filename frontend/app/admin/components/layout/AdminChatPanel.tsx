@@ -528,11 +528,11 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-[39] bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="fixed top-[64px] right-0 bottom-0 z-40 flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[700px] max-w-full" style={{ height: "calc(100vh - 64px)" }}>
+      <div className="fixed top-[64px] right-0 bottom-0 z-40 flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[720px] max-w-full overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
 
         {/* ── CONVERSATIONS SIDEBAR ── */}
-        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[260px] shrink-0 flex-col bg-white border-r border-gray-100 absolute sm:relative inset-0 z-20 sm:z-auto`}>
-          <div className="px-3 py-3 border-b border-gray-100 shrink-0">
+        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[280px] shrink-0 flex-col bg-white border-r border-gray-100 absolute sm:relative inset-0 z-20 sm:z-auto overflow-hidden min-h-0`}>
+          <div className="px-3 py-3 border-b border-gray-100 shrink-0 overflow-hidden">
             {selectMode ? (
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
@@ -547,21 +547,23 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[15px] font-bold text-[#0F172A]">Messages</h2>
-                  {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{totalUnread}</span>}
+              <>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h2 className="text-[15px] font-bold text-[#0F172A] truncate">Messages</h2>
+                    {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>}
+                  </div>
+                  <button onClick={onClose} className="sm:hidden w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0" title="Close"><X size={13} /></button>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => void askNotif()} title={notifGranted ? "Notifications on" : "Enable notifications"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"}`}>
+                <div className="flex items-center gap-1 flex-wrap mb-2.5">
+                  <button onClick={() => void askNotif()} title={notifGranted ? "Notifications on" : "Enable notifications"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0 ${notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"}`}>
                     {notifGranted ? <Bell size={13} /> : <BellOff size={13} />}
                   </button>
-                  <button onClick={() => setSelectMode(true)} title="Select" className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors"><CheckSquare size={13} /></button>
-                  <button onClick={() => { setShowDmModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors" title="New DM"><User2 size={13} /></button>
-                  <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors" title="New Group"><Plus size={13} /></button>
-                  <button onClick={onClose} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors" title="Close"><X size={13} /></button>
+                  <button onClick={() => setSelectMode(true)} title="Select" className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"><CheckSquare size={13} /></button>
+                  <button onClick={() => { setShowDmModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors shrink-0" title="New DM"><User2 size={13} /></button>
+                  <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors shrink-0" title="New Group"><Plus size={13} /></button>
                 </div>
-              </div>
+              </>
             )}
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
