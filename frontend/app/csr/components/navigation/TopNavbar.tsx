@@ -23,9 +23,8 @@ import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { getCsrDashboard } from "@/lib/csrDashboardCache";
-import { visibleInterval } from "@/lib/visibleInterval";
-import { playChatSound } from "@/lib/chatSound";
 import ChatPanel from "@/app/components/chat/ChatPanel";
+import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 
 const navItems = [
@@ -85,8 +84,7 @@ export default function TopNavbar() {
   const [profileOpen,  setProfileOpen]  = useState(false);
   const [bellOpen,     setBellOpen]     = useState(false);
   const [chatOpen,     setChatOpen]     = useState(false);
-  const [totalUnread,  setTotalUnread]  = useState(0);
-  const prevTotalUnread = useRef(0);
+  const totalUnread    = useChatUnreadBadge();
   const [loggingOut,   setLoggingOut]   = useState(false);
   const [notifPerm,    setNotifPerm]    = useState<NotificationPermission | "unsupported">(
     () => typeof Notification === "undefined" ? "unsupported" : Notification.permission
@@ -94,8 +92,6 @@ export default function TopNavbar() {
 
   const profileRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
-  const prevUnreadRef = useRef<Record<string, number>>({});
-  const notifOk = useRef(false);
 
   useEffect(() => {
     if (sessionStorage.getItem("csrChatOpen") === "1") {
@@ -103,47 +99,6 @@ export default function TopNavbar() {
       setChatOpen(true);
     }
   }, []);
-
-  useEffect(() => {
-    if (typeof Notification !== "undefined" && Notification.permission !== "denied") {
-      Notification.requestPermission().then(p => { notifOk.current = p === "granted"; });
-    } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      notifOk.current = true;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (chatOpen) return;
-
-    let isFirst = true;
-    const poll = async () => {
-      try {
-        const r = await API.get("/chat/conversations");
-        const convs: { id: string; name: string; unreadCount: number; lastMessage?: string }[] =
-          r.data.conversations ?? r.data ?? [];
-        const total = convs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
-        if (!isFirst && total > prevTotalUnread.current) playChatSound();
-        prevTotalUnread.current = total;
-        setTotalUnread(total);
-
-        if (!isFirst && notifOk.current) {
-          convs.forEach(c => {
-            const prev = prevUnreadRef.current[c.id] ?? 0;
-            if ((c.unreadCount ?? 0) > prev) {
-              new Notification("New message", {
-                body: `${c.name}: ${c.lastMessage ?? "You have a new message"}`,
-                icon: "/images/image.png",
-              });
-            }
-          });
-        }
-        isFirst = false;
-        prevUnreadRef.current = Object.fromEntries(convs.map(c => [c.id, c.unreadCount ?? 0]));
-      } catch { /* ignore */ }
-    };
-    void poll();
-    return visibleInterval(poll, 30_000);
-  }, [chatOpen]);
 
   useEffect(() => {
     if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;

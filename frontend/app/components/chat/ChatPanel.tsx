@@ -11,6 +11,7 @@ import {
   Archive, ArchiveRestore, Volume2, VolumeX,
 } from "lucide-react";
 import API from "@/lib/api";
+import { pollChatUnread } from "@/lib/chatUnreadStore";
 import { playChatSound } from "@/lib/chatSound";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
@@ -365,8 +366,9 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         ]);
         setConversations(deduplicateConvs(active.data.conversations ?? active.data ?? []));
         setArchivedConvs(deduplicateConvs(archived.data.conversations ?? archived.data ?? []));
+        void pollChatUnread();
       } catch {}
-    }, 20_000);
+    }, 10_000);
   }, []);
 
   useEffect(() => {
@@ -390,6 +392,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         lastMsgCount.current = msgs.length;
         setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
         void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
+        void pollChatUnread();
         void API.get(`/chat/conversations/${cid}/members`).then(res => {
           setGroupMembers((res.data.members ?? []) as ChatUser[]);
         }).catch(() => setGroupMembers([]));
@@ -411,6 +414,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           lastMsgCount.current = msgs.length;
           setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
           void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
+        void pollChatUnread();
           const newest = msgs[msgs.length - 1];
           if (hadNew && newest && !newest.isOwn) {
             if (soundOn) playChatSound();
@@ -450,6 +454,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     try {
       await API.post(`/chat/conversations/${activeConvId}/messages`, { text, ...(reply ? { replyToId: reply.id } : {}), ...(mentionIds.length ? { mentionIds } : {}) });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
+      void pollChatUnread();
     } catch {
       addToOfflineQueue({ id: opt.id, conversationId: activeConvId, text, replyToId: reply?.id, createdAt: new Date().toISOString() });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
@@ -670,15 +675,19 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
 
   /* ═══════════════════ RENDER ═══════════════════════ */
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-[39] bg-black/30 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 top-[64px] z-[45] pointer-events-none">
+      {/* Light backdrop — only blocks clicks behind panel area */}
+      <div
+        className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[700px] sm:max-w-full sm:right-0"
+        onClick={onClose}
+        aria-hidden
+      />
 
       {/* Panel */}
-      <div className="fixed top-[64px] right-0 bottom-0 z-40 flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[700px] max-w-full" style={{ height: "calc(100vh - 64px)" }}>
+      <div className="absolute top-0 right-0 bottom-0 z-[46] flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[700px] max-w-full pointer-events-auto overflow-hidden">
 
         {/* ── CONVERSATIONS SIDEBAR ── */}
-        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[260px] shrink-0 flex-col bg-white border-r border-gray-100 absolute sm:relative inset-0 z-20 sm:z-auto`}>
+        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[260px] shrink-0 flex-col bg-white border-r border-gray-100 sm:relative min-h-0`}>
           <div className="px-3 py-3 border-b border-gray-100 shrink-0">
             {selectMode ? (
               <div className="flex items-center justify-between mb-2.5">
@@ -760,7 +769,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         </aside>
 
         {/* ── CHAT AREA ── */}
-        <section className={`${!mobileSideOpen ? "flex" : "hidden"} sm:flex flex-1 flex-col min-w-0`}>
+        <section className={`${!mobileSideOpen ? "flex" : "hidden"} sm:flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden`}>
           {activeConv ? (
             <>
               <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 bg-white shrink-0 shadow-sm">
@@ -905,8 +914,8 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
       {/* ── CONTEXT MENU ── */}
       {ctxMenu && (
         <>
-          <div className="fixed inset-0 z-[90]" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
-          <div className="fixed z-[91] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[170px] overflow-hidden" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 top-[64px] z-[60] pointer-events-auto" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
+          <div className="fixed z-[61] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[170px] overflow-hidden pointer-events-auto" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
             <button onClick={() => handleReply(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"><Reply size={13} className="text-gray-400" />Reply</button>
             {ctxMenu.msg.type === "text" && <button onClick={() => void copyText(ctxMenu.msg.text)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"><Copy size={13} className="text-gray-400" />Copy text</button>}
             {canEdit(ctxMenu.msg) && (
@@ -984,6 +993,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
