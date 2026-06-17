@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { visibleInterval } from "@/lib/visibleInterval";
 import {
   Send, Plus, Search, X, MessageSquare, Hash, User2,
@@ -399,6 +400,9 @@ export default function ChatPage() {
   const dmLoadingRef     = useRef<string | null>(null);
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => { setPortalReady(true); }, []);
 
   /* ── Profile ── */
   useEffect(() => {
@@ -1374,9 +1378,9 @@ export default function ChatPage() {
       )}
 
       {/* ══ GROUP MODAL ══ */}
-      {showGroupModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full sm:max-w-[480px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }}>
+      {portalReady && showGroupModal && createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }}>
+          <div className="w-full sm:max-w-[480px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#B8112D] text-white flex items-center justify-center"><Hash size={16} /></div>
@@ -1458,13 +1462,14 @@ export default function ChatPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ══ DM MODAL ══ */}
-      {showDmModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full sm:max-w-[420px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "75vh" }}>
+      {portalReady && showDmModal && createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowDmModal(false); setDmSearch(""); }}>
+          <div className="w-full sm:max-w-[420px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "75vh" }} onClick={e => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#1D4ED8]/10 text-[#1D4ED8] flex items-center justify-center"><User2 size={16} /></div>
@@ -1507,8 +1512,7 @@ export default function ChatPage() {
                           {showOfflineLabel && (
                             <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Offline</p>
                           )}
-                          {/* eslint-disable-next-line react-hooks/refs */}
-                          <button onClick={() => void startDm(user)}
+                          <button type="button" onClick={() => void startDm(user)}
                             className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${user.isOnline ? "hover:bg-[#F0FFF4]" : "hover:bg-[#F5F6FA]"}`}>
                             <Avatar name={user.name} size="md" online={user.isOnline} />
                             <div className="flex-1 min-w-0">
@@ -1529,7 +1533,8 @@ export default function ChatPage() {
               })()}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
