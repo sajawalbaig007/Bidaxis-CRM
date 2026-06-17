@@ -10,6 +10,7 @@ import {
   Trash2, Reply, Copy, Pin, PinOff, CheckSquare,
 } from "lucide-react";
 import TopNavbar from "../components/navigation/TopNavbar";
+import ChatActionRail from "@/app/components/chat/ChatActionRail";
 import API from "@/lib/api";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -897,6 +898,16 @@ export default function ChatPage() {
 
       <div className="flex-1 flex overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
 
+        {!selectMode && (
+          <ChatActionRail
+            notifGranted={notifGranted}
+            onNotif={() => void askNotif()}
+            onSelect={() => setSelectMode(true)}
+            onNewDm={() => { setShowDmModal(true); void fetchUsers(); }}
+            onNewGroup={() => { setShowGroupModal(true); void fetchUsers(); }}
+          />
+        )}
+
         {/* ══ SIDEBAR ══ */}
         <aside className={`${mobileSideOpen ? "flex" : "hidden"} lg:flex w-full lg:w-[300px] xl:w-[320px] shrink-0 flex-col bg-white border-r border-gray-100 absolute lg:relative inset-0 z-20 lg:z-auto`}>
 
@@ -932,39 +943,13 @@ export default function ChatPage() {
               </div>
             ) : (
               /* ── Normal header ── */
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[17px] font-bold text-[#0F172A]">Messages</h2>
-                  {totalUnread > 0 && (
-                    <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                      {totalUnread}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => void askNotif()}
-                    title={notifGranted ? "Notifications on" : "Enable notifications"}
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
-                      notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"
-                    }`}>
-                    {notifGranted ? <Bell size={14} /> : <BellOff size={14} />}
-                  </button>
-                  <button onClick={() => setSelectMode(true)}
-                    title="Select chats"
-                    className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                    <CheckSquare size={14} />
-                  </button>
-                  <button onClick={() => { setShowDmModal(true); void fetchUsers(); }}
-                    className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors"
-                    title="New DM">
-                    <User2 size={14} />
-                  </button>
-                  <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }}
-                    className="w-8 h-8 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors"
-                    title="New Group">
-                    <Plus size={14} />
-                  </button>
-                </div>
+              <div className="flex items-center gap-2 mb-3 min-w-0">
+                <h2 className="text-[17px] font-bold text-[#0F172A] truncate">Messages</h2>
+                {totalUnread > 0 && (
+                  <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
+                    {totalUnread}
+                  </span>
+                )}
               </div>
             )}
 

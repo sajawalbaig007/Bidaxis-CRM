@@ -15,6 +15,7 @@ import { pollChatUnread } from "@/lib/chatUnreadStore";
 import { playChatSound } from "@/lib/chatSound";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
+import ChatActionRail from "./ChatActionRail";
 
 /* ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; }
@@ -678,13 +679,30 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 top-[64px] z-[45] pointer-events-none">
       {/* Light backdrop ΓÇö only blocks clicks behind panel area */}
       <div
-        className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[720px] sm:max-w-full sm:right-0"
+        className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[768px] sm:max-w-full sm:right-0"
         onClick={onClose}
         aria-hidden
       />
 
       {/* Panel */}
-      <div className="absolute top-0 right-0 bottom-0 z-[46] flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[720px] max-w-full pointer-events-auto overflow-hidden">
+      <div className="absolute top-0 right-0 bottom-0 z-[46] flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[768px] max-w-full pointer-events-auto overflow-hidden">
+
+        {!selectMode && (
+          <ChatActionRail
+            notifGranted={notifGranted}
+            onNotif={() => void askNotif()}
+            soundOn={soundOn}
+            onSoundToggle={() => setSoundOn(v => !v)}
+            showArchived={showArchived}
+            onArchiveToggle={() => setShowArchived(v => !v)}
+            onSelect={() => setSelectMode(true)}
+            onNewDm={() => { setShowDmModal(true); void fetchUsers(); }}
+            onNewGroup={() => { setShowGroupModal(true); void fetchUsers(); }}
+            onClose={onClose}
+          />
+        )}
+
+        <div className="flex flex-1 min-w-0 min-h-0">
 
         {/* ── CONVERSATIONS SIDEBAR ── */}
         <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[280px] shrink-0 flex-col bg-white border-r border-gray-100 sm:relative min-h-0 overflow-hidden`}>
@@ -703,29 +721,10 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ) : (
-              <>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h2 className="text-[15px] font-bold text-[#0F172A] truncate">Messages</h2>
-                    {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>}
-                  </div>
-                  <button onClick={onClose} className="sm:hidden w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0" title="Close"><X size={13} /></button>
-                </div>
-                <div className="flex items-center gap-1 flex-wrap mb-2.5">
-                  <button onClick={() => void askNotif()} title={notifGranted ? "Notifications on" : "Enable notifications"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0 ${notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"}`}>
-                    {notifGranted ? <Bell size={13} /> : <BellOff size={13} />}
-                  </button>
-                  <button type="button" onClick={() => setSoundOn(v => !v)} title={soundOn ? "Sound on" : "Sound off"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0 ${soundOn ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}>
-                    {soundOn ? <Volume2 size={13} /> : <VolumeX size={13} />}
-                  </button>
-                  <button type="button" onClick={() => setShowArchived(v => !v)} title={showArchived ? "Show active" : "Show archived"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors shrink-0 ${showArchived ? "bg-[#B8112D] text-white" : "bg-[#F3F4F6] text-gray-500 hover:bg-gray-200"}`}>
-                    {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-                  </button>
-                  <button onClick={() => setSelectMode(true)} title="Select" className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"><CheckSquare size={13} /></button>
-                  <button onClick={() => { setShowDmModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors shrink-0" title="New DM"><User2 size={13} /></button>
-                  <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors shrink-0" title="New Group"><Plus size={13} /></button>
-                </div>
-              </>
+              <div className="flex items-center gap-2 mb-2.5 min-w-0">
+                <h2 className="text-[15px] font-bold text-[#0F172A] truncate">Messages</h2>
+                {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>}
+              </div>
             )}
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -788,7 +787,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 <button onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}><Search size={13} /></button>
                 <button type="button" onClick={() => void archiveConversation(!showArchived)} title={showArchived ? "Unarchive" : "Archive chat"} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-amber-50 hover:text-amber-600 flex items-center justify-center transition-colors">{showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}</button>
                 <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
-                <button onClick={onClose} className="hidden sm:flex w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 items-center justify-center transition-colors"><X size={13} /></button>
               </div>
 
               {pinnedMessage && (
@@ -899,7 +897,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#F5F6FA]">
-              <button onClick={onClose} className="absolute top-3 right-3 sm:flex hidden w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 items-center justify-center"><X size={13} /></button>
               <div className="w-16 h-16 rounded-3xl bg-white border border-gray-100 shadow-sm flex items-center justify-center mb-3"><MessageSquare size={28} className="text-gray-200" /></div>
               <h3 className="text-base font-bold text-[#0F172A]">Your Messages</h3>
               <p className="text-xs text-gray-400 mt-1 max-w-[220px]">Select a conversation or start a new one.</p>
@@ -911,6 +908,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </section>
+        </div>
       </div>
 
       {/* ΓöÇΓöÇ CONTEXT MENU ΓöÇΓöÇ */}
