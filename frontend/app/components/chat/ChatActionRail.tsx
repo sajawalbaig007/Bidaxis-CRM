@@ -1,0 +1,118 @@
+"use client";
+
+import {
+  Bell,
+  BellOff,
+  CheckSquare,
+  Plus,
+  User2,
+  X,
+  Volume2,
+  VolumeX,
+  Archive,
+  ArchiveRestore,
+} from "lucide-react";
+
+interface ChatActionRailProps {
+  notifGranted: boolean;
+  onNotif: () => void;
+  onSelect: () => void;
+  onNewDm: () => void;
+  onNewGroup: () => void;
+  soundOn?: boolean;
+  onSoundToggle?: () => void;
+  showArchived?: boolean;
+  onArchiveToggle?: () => void;
+  onClose?: () => void;
+}
+
+const btn =
+  "w-9 h-9 rounded-xl flex items-center justify-center transition-colors shrink-0";
+
+export default function ChatActionRail({
+  notifGranted,
+  onNotif,
+  onSelect,
+  onNewDm,
+  onNewGroup,
+  soundOn,
+  onSoundToggle,
+  showArchived,
+  onArchiveToggle,
+  onClose,
+}: ChatActionRailProps) {
+  return (
+    <nav className="w-12 shrink-0 flex flex-col items-center gap-1.5 py-3 px-1.5 border-r border-gray-100 bg-[#F5F6FA]">
+      <button
+        type="button"
+        onClick={onNotif}
+        title={notifGranted ? "Notifications on" : "Enable notifications"}
+        className={`${btn} ${notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"}`}
+      >
+        {notifGranted ? <Bell size={15} /> : <BellOff size={15} />}
+      </button>
+
+      {onSoundToggle != null && (
+        <button
+          type="button"
+          onClick={onSoundToggle}
+          title={soundOn ? "Sound on" : "Sound off"}
+          className={`${btn} ${soundOn ? "bg-green-50 text-green-600" : "bg-white text-gray-400 hover:bg-gray-100"}`}
+        >
+          {soundOn ? <Volume2 size={15} /> : <VolumeX size={15} />}
+        </button>
+      )}
+
+      {onArchiveToggle != null && (
+        <button
+          type="button"
+          onClick={onArchiveToggle}
+          title={showArchived ? "Show active chats" : "Show archived"}
+          className={`${btn} ${showArchived ? "bg-[#B8112D] text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}
+        >
+          {showArchived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={onSelect}
+        title="Select chats"
+        className={`${btn} bg-white text-gray-500 hover:bg-gray-100`}
+      >
+        <CheckSquare size={15} />
+      </button>
+
+      <button
+        type="button"
+        onClick={onNewDm}
+        title="New DM"
+        className={`${btn} bg-white text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]`}
+      >
+        <User2 size={15} />
+      </button>
+
+      <button
+        type="button"
+        onClick={onNewGroup}
+        title="New group"
+        className={`${btn} bg-[#B8112D] text-white hover:bg-[#a30f27]`}
+      >
+        <Plus size={15} />
+      </button>
+
+      <div className="flex-1 min-h-2" />
+
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          title="Close"
+          className={`${btn} bg-white text-gray-500 hover:bg-gray-200`}
+        >
+          <X size={15} />
+        </button>
+      )}
+    </nav>
+  );
+}

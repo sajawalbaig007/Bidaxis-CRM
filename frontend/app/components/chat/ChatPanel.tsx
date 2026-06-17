@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { visibleInterval } from "@/lib/visibleInterval";
@@ -15,8 +15,9 @@ import { pollChatUnread } from "@/lib/chatUnreadStore";
 import { playChatSound } from "@/lib/chatSound";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
+import ChatActionRail from "./ChatActionRail";
 
-/* ─── Types ─────────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; }
 type MsgType   = "text" | "file" | "image" | "voice";
 type MsgStatus = "sending" | "sent" | "delivered" | "read";
@@ -37,7 +38,7 @@ interface Conversation {
 }
 interface CtxMenu { x: number; y: number; msg: Message; }
 
-/* ─── Helpers ─────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
 function deduplicateConvs(convs: Conversation[]): Conversation[] {
   const seenDm = new Map<string, number>(); const result: Conversation[] = [];
@@ -81,9 +82,9 @@ function mimeIcon(mime = "") {
   if (mime.startsWith("audio/")) return <Music size={18} />;
   return <FileText size={18} />;
 }
-function truncate(text: string, n = 60) { return text.length > n ? text.slice(0, n) + "…" : text; }
+function truncate(text: string, n = 60) { return text.length > n ? text.slice(0, n) + "ΓÇª" : text; }
 
-/* ─── Avatar ──────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Avatar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 const COLORS = ["bg-[#B8112D]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
 function Avatar({ name, size = "md", online }: { name: string; size?: "sm"|"md"|"lg"; online?: boolean }) {
   const c  = COLORS[name.charCodeAt(0) % COLORS.length];
@@ -101,7 +102,7 @@ function Avatar({ name, size = "md", online }: { name: string; size?: "sm"|"md"|
   );
 }
 
-/* ─── Ticks ───────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ Ticks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 function Ticks({ status }: { status: MsgStatus }) {
   if (status === "sending")   return <Loader2 size={10} className="text-white/50 animate-spin" />;
   if (status === "sent")      return <Check size={10} className="text-white/60" />;
@@ -109,7 +110,7 @@ function Ticks({ status }: { status: MsgStatus }) {
   return <CheckCheck size={10} className="text-blue-300" />;
 }
 
-/* ─── FileCard ────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ FileCard ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 function FileCard({ fileName, fileSize, fileUrl, fileMimeType, isOwn }: { fileName: string; fileSize: number; fileUrl: string; fileMimeType?: string; isOwn: boolean; }) {
   if (fileMimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
     return <PdfPreview url={fileUrl} fileName={fileName} />;
@@ -127,7 +128,7 @@ function FileCard({ fileName, fileSize, fileUrl, fileMimeType, isOwn }: { fileNa
   );
 }
 
-/* ─── VoicePlayer ─────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ VoicePlayer ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
   const [playing,  setPlaying]  = useState(false);
   const [progress, setProgress] = useState(0);
@@ -158,7 +159,7 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
   );
 }
 
-/* ─── MessageBubble ───────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ MessageBubble ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJumpToReply, onReact }: {
   msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string;
   onCtxMenu: (e: React.MouseEvent, msg: Message) => void;
@@ -190,7 +191,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
           <button onClick={() => onJumpToReply(msg.replyTo!.id)}
             className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full transition-colors ${own ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20" : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"}`}>
             <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
-            <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `📎 ${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
+            <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `≡ƒôÄ ${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
           </button>
         )}
         <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${own ? "bg-[#B8112D] text-white rounded-br-sm" : "bg-white text-[#0F172A] shadow-sm border border-gray-100 rounded-bl-sm"}`}>
@@ -200,7 +201,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
           <ReactionBar reactions={msg.reactions} myId={myId} onToggle={emoji => onReact(msg, emoji)} />
         )}
         <div className={`flex items-center gap-1 mt-0.5 px-1 ${own ? "flex-row-reverse" : ""}`}>
-          <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}{msg.editedAt ? " · edited" : ""}</span>
+          <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}{msg.editedAt ? " ┬╖ edited" : ""}</span>
           {own && <Ticks status={msg.status} />}
         </div>
         {own && msg.readBy && msg.readBy.length > 0 && (
@@ -217,7 +218,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
   );
 }
 
-/* ─── ConvItem ────────────────────────────────────────── */
+/* ΓöÇΓöÇΓöÇ ConvItem ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinned, onPin }: {
   conv: Conversation; active: boolean; onClick: () => void;
   selectMode: boolean; selected: boolean; onSelect: () => void; pinned: boolean; onPin: () => void;
@@ -260,7 +261,7 @@ function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinne
   );
 }
 
-/* ═══════════════════════════════════════════════════════ */
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const [me,             setMe]             = useState<ChatUser | null>(null);
   const [conversations,  setConversations]  = useState<Conversation[]>([]);
@@ -661,7 +662,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   };
   const togglePin = (convId: string) => setPinnedIds(prev => { const next = new Set(prev); if (next.has(convId)) next.delete(convId); else next.add(convId); return next; });
 
-  /* ─── Derived ─────────────────────────────────────── */
+  /* ΓöÇΓöÇΓöÇ Derived ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
   const activeConv = useMemo(() => conversations.find(c => c.id === activeConvId) ?? null, [conversations, activeConvId]);
   const filteredConvs = useMemo(() => { const q = convSearch.toLowerCase(); return !q ? conversations : conversations.filter(c => c.name.toLowerCase().includes(q)); }, [conversations, convSearch]);
   const filteredUsers = useMemo(() => { const q = (showGroupModal ? userSearch : dmSearch).toLowerCase(); return !q ? allUsers : allUsers.filter(u => u.name.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || (u.csrCode ?? "").toLowerCase().includes(q)); }, [allUsers, userSearch, dmSearch, showGroupModal]);
@@ -673,22 +674,39 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const groupConvs   = useMemo(() => sortedConvs.filter(c => c.type === "group"), [sortedConvs]);
   const onlineDirects = useMemo(() => conversations.filter(c => c.type === "direct" && c.isOnline), [conversations]);
 
-  /* ═══════════════════ RENDER ═══════════════════════ */
+  /* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ RENDER ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
   return (
     <div className="fixed inset-0 top-[64px] z-[45] pointer-events-none">
-      {/* Light backdrop — only blocks clicks behind panel area */}
+      {/* Light backdrop ΓÇö only blocks clicks behind panel area */}
       <div
-        className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[700px] sm:max-w-full sm:right-0"
+        className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[768px] sm:max-w-full sm:right-0"
         onClick={onClose}
         aria-hidden
       />
 
       {/* Panel */}
-      <div className="absolute top-0 right-0 bottom-0 z-[46] flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[700px] max-w-full pointer-events-auto overflow-hidden">
+      <div className="absolute top-0 right-0 bottom-0 z-[46] flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[768px] max-w-full pointer-events-auto overflow-hidden">
+
+        {!selectMode && (
+          <ChatActionRail
+            notifGranted={notifGranted}
+            onNotif={() => void askNotif()}
+            soundOn={soundOn}
+            onSoundToggle={() => setSoundOn(v => !v)}
+            showArchived={showArchived}
+            onArchiveToggle={() => setShowArchived(v => !v)}
+            onSelect={() => setSelectMode(true)}
+            onNewDm={() => { setShowDmModal(true); void fetchUsers(); }}
+            onNewGroup={() => { setShowGroupModal(true); void fetchUsers(); }}
+            onClose={onClose}
+          />
+        )}
+
+        <div className="flex flex-1 min-w-0 min-h-0">
 
         {/* ── CONVERSATIONS SIDEBAR ── */}
-        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[260px] shrink-0 flex-col bg-white border-r border-gray-100 sm:relative min-h-0`}>
-          <div className="px-3 py-3 border-b border-gray-100 shrink-0">
+        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[280px] shrink-0 flex-col bg-white border-r border-gray-100 sm:relative min-h-0 overflow-hidden`}>
+          <div className="px-3 py-3 border-b border-gray-100 shrink-0 overflow-hidden">
             {selectMode ? (
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
@@ -703,37 +721,20 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[15px] font-bold text-[#0F172A]">Messages</h2>
-                  {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{totalUnread}</span>}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => void askNotif()} title={notifGranted ? "Notifications on" : "Enable notifications"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${notifGranted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-500 hover:bg-amber-100"}`}>
-                    {notifGranted ? <Bell size={13} /> : <BellOff size={13} />}
-                  </button>
-                  <button type="button" onClick={() => setSoundOn(v => !v)} title={soundOn ? "Sound on" : "Sound off"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${soundOn ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}>
-                    {soundOn ? <Volume2 size={13} /> : <VolumeX size={13} />}
-                  </button>
-                  <button type="button" onClick={() => setShowArchived(v => !v)} title={showArchived ? "Show active" : "Show archived"} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${showArchived ? "bg-[#B8112D] text-white" : "bg-[#F3F4F6] text-gray-500 hover:bg-gray-200"}`}>
-                    {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-                  </button>
-                  <button onClick={() => setSelectMode(true)} title="Select" className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors"><CheckSquare size={13} /></button>
-                  <button onClick={() => { setShowDmModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center transition-colors" title="New DM"><User2 size={13} /></button>
-                  <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }} className="w-7 h-7 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center transition-colors" title="New Group"><Plus size={13} /></button>
-                  <button onClick={onClose} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center transition-colors" title="Close"><X size={13} /></button>
-                </div>
+              <div className="flex items-center gap-2 mb-2.5 min-w-0">
+                <h2 className="text-[15px] font-bold text-[#0F172A] truncate">Messages</h2>
+                {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>}
               </div>
             )}
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Search…" value={convSearch} onChange={e => setConvSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
+              <input type="text" placeholder="SearchΓÇª" value={convSearch} onChange={e => setConvSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
             </div>
           </div>
 
           {!selectMode && onlineDirects.length > 0 && (
             <div className="px-3 pt-2.5 pb-2.5 border-b border-gray-100 shrink-0">
-              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />Online · {onlineDirects.length}</p>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />Online ┬╖ {onlineDirects.length}</p>
               <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {onlineDirects.map(c => (
                   <button key={c.id} onClick={() => { setActiveConvId(c.id); setMobileSideOpen(false); }} className="flex flex-col items-center gap-1 shrink-0 group" title={c.name}>
@@ -768,7 +769,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           )}
         </aside>
 
-        {/* ── CHAT AREA ── */}
+        {/* ΓöÇΓöÇ CHAT AREA ΓöÇΓöÇ */}
         <section className={`${!mobileSideOpen ? "flex" : "hidden"} sm:flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden`}>
           {activeConv ? (
             <>
@@ -778,15 +779,14 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-[#0F172A] truncate">{activeConv.name}</h3>
                   {typingName ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#B8112D]"><span className="flex gap-0.5">{[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full bg-[#B8112D] animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}</span>{typingName} is typing…</span>
-                  ) : activeConv.type === "group" ? <p className="text-[10px] text-gray-400">{activeConv.memberCount ?? "—"} members</p>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#B8112D]"><span className="flex gap-0.5">{[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full bg-[#B8112D] animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}</span>{typingName} is typingΓÇª</span>
+                  ) : activeConv.type === "group" ? <p className="text-[10px] text-gray-400">{activeConv.memberCount ?? "ΓÇö"} members</p>
                     : activeConv.isOnline ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-green-600"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse" />Active now</span>
                     : <p className="text-[10px] text-gray-400">Offline</p>}
                 </div>
                 <button onClick={() => { setMsgSearchOpen(v => !v); if (msgSearchOpen) setMsgSearchText(""); }} className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors ${msgSearchOpen ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}><Search size={13} /></button>
                 <button type="button" onClick={() => void archiveConversation(!showArchived)} title={showArchived ? "Unarchive" : "Archive chat"} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-amber-50 hover:text-amber-600 flex items-center justify-center transition-colors">{showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}</button>
                 <button onClick={() => void deleteConversations([activeConv.id])} className="w-7 h-7 rounded-xl bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-[#B8112D] flex items-center justify-center transition-colors"><Trash2 size={13} /></button>
-                <button onClick={onClose} className="hidden sm:flex w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 items-center justify-center transition-colors"><X size={13} /></button>
               </div>
 
               {pinnedMessage && (
@@ -794,7 +794,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                   <Pin size={12} className="text-amber-600 shrink-0" />
                   <button type="button" onClick={() => jumpToReply(pinnedMessage.id)} className="flex-1 min-w-0 text-left">
                     <p className="text-[10px] font-bold text-amber-700">Pinned</p>
-                    <p className="text-[11px] text-gray-600 truncate">{pinnedMessage.type !== "text" ? `📎 ${pinnedMessage.type}` : pinnedMessage.text}</p>
+                    <p className="text-[11px] text-gray-600 truncate">{pinnedMessage.type !== "text" ? `≡ƒôÄ ${pinnedMessage.type}` : pinnedMessage.text}</p>
                   </button>
                   <button type="button" onClick={() => void pinMessage(null)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
                 </div>
@@ -804,7 +804,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 <div className="px-3 py-2 border-b border-gray-100 bg-white shrink-0">
                   <div className="relative">
                     <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input autoFocus type="text" placeholder="Search messages…" value={msgSearchText} onChange={e => setMsgSearchText(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-7 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
+                    <input autoFocus type="text" placeholder="Search messagesΓÇª" value={msgSearchText} onChange={e => setMsgSearchText(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-7 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" />
                     {msgSearchText && <button onClick={() => setMsgSearchText("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={11} /></button>}
                   </div>
                   {msgSearchText && <p className="text-[10px] text-gray-400 mt-1 ml-1">{visibleMessages.length} result{visibleMessages.length !== 1 ? "s" : ""}</p>}
@@ -818,7 +818,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center mb-2.5"><MessageSquare size={20} className="text-gray-300" /></div>
                     <p className="text-sm font-semibold text-gray-500">{msgSearchText ? "No matches" : "No messages yet"}</p>
-                    {!msgSearchText && <p className="text-xs text-gray-400 mt-0.5">Say hello 👋</p>}
+                    {!msgSearchText && <p className="text-xs text-gray-400 mt-0.5">Say hello ≡ƒæï</p>}
                   </div>
                 ) : (
                   <div className="space-y-0.5">
@@ -847,7 +847,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 <div className="px-3 pt-2 shrink-0 bg-white">
                   <div className="flex items-center gap-2 bg-[#FFF1F3] border border-[#B8112D]/20 rounded-xl px-3 py-1.5">
                     <Reply size={12} className="text-[#B8112D] shrink-0" />
-                    <div className="flex-1 min-w-0"><p className="text-[10px] font-bold text-[#B8112D]">{replyTo.senderName}</p><p className="text-[11px] text-gray-500 truncate">{replyTo.type !== "text" ? `📎 ${replyTo.type}` : truncate(replyTo.text, 50)}</p></div>
+                    <div className="flex-1 min-w-0"><p className="text-[10px] font-bold text-[#B8112D]">{replyTo.senderName}</p><p className="text-[11px] text-gray-500 truncate">{replyTo.type !== "text" ? `≡ƒôÄ ${replyTo.type}` : truncate(replyTo.text, 50)}</p></div>
                     <button onClick={() => setReplyTo(null)} className="w-5 h-5 rounded-full hover:bg-[#B8112D]/10 flex items-center justify-center shrink-0 text-gray-400"><X size={10} /></button>
                   </div>
                 </div>
@@ -877,7 +877,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                   <div className="flex items-end gap-1.5">
                     <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5" title="Attach file"><Paperclip size={14} /></button>
                     <div className="flex-1 flex items-end bg-[#F3F4F6] rounded-2xl px-3 py-2">
-                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Press send to upload…" : activeConv.type === "group" ? `Message #${activeConv.name}… (@ to mention)` : `Message ${activeConv.name}…`} rows={1} disabled={!!pendingFile} className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 max-h-24 disabled:opacity-40" />
+                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Press send to uploadΓÇª" : activeConv.type === "group" ? `Message #${activeConv.name}ΓÇª (@ to mention)` : `Message ${activeConv.name}ΓÇª`} rows={1} disabled={!!pendingFile} className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 max-h-24 disabled:opacity-40" />
                     </div>
                     <button onClick={() => void startRec()} disabled={!!pendingFile || sendingMsg} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40" title="Voice message"><Mic size={14} /></button>
                     <button onClick={pendingFile ? () => void sendFile() : () => void sendText()} disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading} className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">
@@ -897,7 +897,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#F5F6FA]">
-              <button onClick={onClose} className="absolute top-3 right-3 sm:flex hidden w-7 h-7 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 items-center justify-center"><X size={13} /></button>
               <div className="w-16 h-16 rounded-3xl bg-white border border-gray-100 shadow-sm flex items-center justify-center mb-3"><MessageSquare size={28} className="text-gray-200" /></div>
               <h3 className="text-base font-bold text-[#0F172A]">Your Messages</h3>
               <p className="text-xs text-gray-400 mt-1 max-w-[220px]">Select a conversation or start a new one.</p>
@@ -905,13 +904,14 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 <button onClick={() => { setShowDmModal(true); void fetchUsers(); }} className="h-8 px-3 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:border-[#B8112D] hover:text-[#B8112D] flex items-center gap-1.5 shadow-sm transition-all"><User2 size={12} />New DM</button>
                 <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }} className="h-8 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-[#a30f27] shadow-sm shadow-red-200 transition-colors"><Hash size={12} />Create Group</button>
               </div>
-              <button onClick={() => setMobileSideOpen(true)} className="sm:hidden mt-3 text-xs text-[#B8112D] font-semibold underline">← Back</button>
+              <button onClick={() => setMobileSideOpen(true)} className="sm:hidden mt-3 text-xs text-[#B8112D] font-semibold underline">ΓåÉ Back</button>
             </div>
           )}
         </section>
+        </div>
       </div>
 
-      {/* ── CONTEXT MENU ── */}
+      {/* ΓöÇΓöÇ CONTEXT MENU ΓöÇΓöÇ */}
       {ctxMenu && (
         <>
           <div className="fixed inset-0 top-[64px] z-[60] pointer-events-auto" onClick={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }} />
@@ -932,7 +932,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         </>
       )}
 
-      {/* ── GROUP MODAL ── */}
+      {/* ΓöÇΓöÇ GROUP MODAL ΓöÇΓöÇ */}
       {showGroupModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full sm:max-w-[440px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "85vh" }}>
@@ -941,8 +941,8 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
             </div>
             <div className="px-4 pt-3 pb-2 shrink-0 space-y-2.5 border-b border-gray-100">
-              <input type="text" placeholder="Group name…" value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full h-9 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors" />
-              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users…" value={userSearch} onChange={e => setUserSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
+              <input type="text" placeholder="Group nameΓÇª" value={groupName} onChange={e => setGroupName(e.target.value)} className="w-full h-9 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] px-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors" />
+              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search usersΓÇª" value={userSearch} onChange={e => setUserSearch(e.target.value)} className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
               {selectedUsers.length > 0 && <p className="text-[10px] text-gray-400">{selectedUsers.length} member{selectedUsers.length !== 1 ? "s" : ""} selected</p>}
             </div>
             <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
@@ -960,14 +960,14 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             <div className="px-4 py-3 border-t border-gray-100 shrink-0 flex gap-2">
               <button onClick={() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }} className="flex-1 h-9 rounded-xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
               <button onClick={() => void createGroup()} disabled={!groupName.trim() || creatingGroup} className={`flex-1 h-9 rounded-xl font-semibold text-sm flex items-center justify-center gap-1.5 transition-all ${groupName.trim() && !creatingGroup ? "bg-[#B8112D] text-white hover:bg-[#a30f27] shadow-sm" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}>
-                {creatingGroup ? <><Loader2 size={13} className="animate-spin" />Creating…</> : <><Plus size={13} />Create</>}
+                {creatingGroup ? <><Loader2 size={13} className="animate-spin" />CreatingΓÇª</> : <><Plus size={13} />Create</>}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── DM MODAL ── */}
+      {/* ΓöÇΓöÇ DM MODAL ΓöÇΓöÇ */}
       {showDmModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full sm:max-w-[400px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "80vh" }}>
@@ -976,7 +976,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               <button onClick={() => { setShowDmModal(false); setDmSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
             </div>
             <div className="px-3 py-2.5 border-b border-gray-100 shrink-0">
-              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users…" value={dmSearch} onChange={e => setDmSearch(e.target.value)} autoFocus className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
+              <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search usersΓÇª" value={dmSearch} onChange={e => setDmSearch(e.target.value)} autoFocus className="w-full h-8 rounded-xl bg-[#F3F4F6] pl-7 pr-3 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
             </div>
             <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
               {filteredUsers.length === 0 ? (
