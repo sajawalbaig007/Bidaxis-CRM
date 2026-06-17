@@ -24,6 +24,12 @@ const getTzAbbr = (tzValue: string) => {
   return found ? found.abbreviation : (tzValue.split("/").pop() ?? tzValue);
 };
 
+function parsePhones(raw: string): string[] {
+  const matches = raw.match(/[\+\d][\d\s.()\-]{5,}/g);
+  if (!matches || matches.length <= 1) return [raw.trim()];
+  return matches.map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
+}
+
 export default function ImportantCallsPage() {
   const { leads, setLeads, loading } = useCsrDashboard();
   const { saveComment, updateLead, addNote } = useLeadActions(setLeads);
@@ -38,6 +44,7 @@ export default function ImportantCallsPage() {
   const [editAction,    setEditAction]    = useState<EditAction>(null);
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+  const [openPhoneDropdown, setOpenPhoneDropdown] = useState<string | null>(null);
 
   const [scheduleDate,     setScheduleDate]     = useState("");
   const [scheduleTime,     setScheduleTime]     = useState("");
@@ -278,10 +285,41 @@ export default function ImportantCallsPage() {
                         <h4 className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] max-w-[120px] truncate">{lead.company}</h4>
                       </td>
                       <td className="py-4 sm:py-5 px-2">
-                        <div className="flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
-                          {lead.phone}
-                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
-                        </div>
+                        {(() => {
+                          const phones = parsePhones(lead.phone);
+                          const tz = getTimezoneAbbrFromPhone(phones[0]);
+                          if (phones.length <= 1) return (
+                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
+                              {lead.phone}
+                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                            </div>
+                          );
+                          return (
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenPhoneDropdown(openPhoneDropdown === lead.id ? null : lead.id)}
+                                className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap"
+                              >
+                                <span className="max-w-[100px] truncate">{phones[0]}</span>
+                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                                <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
+                              </button>
+                              {openPhoneDropdown === lead.id && (
+                                <>
+                                  <div className="fixed inset-0 z-20" onClick={() => setOpenPhoneDropdown(null)} />
+                                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px]">
+                                    {phones.map((ph, idx) => (
+                                      <div key={idx} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]">
+                                        <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
+                                        {ph}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-4 sm:py-5 px-2">
                         {lead.nextSchedule ? (
@@ -428,10 +466,41 @@ export default function ImportantCallsPage() {
                       </td>
                       {/* Contact */}
                       <td className="py-3 sm:py-4 px-2">
-                        <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium">
-                          <span className="truncate max-w-[110px] sm:max-w-none">{lead.phone}</span>
-                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
-                        </div>
+                        {(() => {
+                          const phones = parsePhones(lead.phone);
+                          const tz = getTimezoneAbbrFromPhone(phones[0]);
+                          if (phones.length <= 1) return (
+                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium">
+                              <span className="truncate max-w-[110px] sm:max-w-none">{lead.phone}</span>
+                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                            </div>
+                          );
+                          return (
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenPhoneDropdown(openPhoneDropdown === lead.id ? null : lead.id)}
+                                className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap"
+                              >
+                                <span className="max-w-[100px] truncate">{phones[0]}</span>
+                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                                <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
+                              </button>
+                              {openPhoneDropdown === lead.id && (
+                                <>
+                                  <div className="fixed inset-0 z-20" onClick={() => setOpenPhoneDropdown(null)} />
+                                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px]">
+                                    {phones.map((ph, idx) => (
+                                      <div key={idx} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]">
+                                        <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
+                                        {ph}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       {/* Interested In */}
                       <td className="py-3 sm:py-4 px-2">
