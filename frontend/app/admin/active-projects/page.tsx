@@ -13,7 +13,6 @@ import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
-/* ── Types ── */
 type Project = {
   id:                string;
   name:              string | null;
@@ -32,8 +31,7 @@ type Project = {
 };
 
 type Stats = { total: number; withBudget: number; thisMonth: number };
-
-/* ── Helpers ── */
+//ok
 const serviceColors: Record<string, string> = {
   "Estimating":   "bg-blue-100 text-blue-700",
   "Scheduling":   "bg-purple-100 text-purple-700",
@@ -55,7 +53,7 @@ const formatDate = (iso: string | null | undefined) => {
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date();
 
 
-/* ── Project Card (mobile / tablet) ── */
+/* ── Projects Card (mobile / tablet) ── */
 function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
@@ -113,7 +111,7 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
   );
 }
 
-/* ── Main Page ── */
+/* ── Main Pages ── */
 const PAGE_SIZE = 30;
 
 export default function AdminProjectsPage() {
