@@ -11,7 +11,7 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
-
+//bin
 type BinLead = {
   id:               string;
   client:           string;
@@ -36,7 +36,7 @@ export default function AdminBinPage() {
   const [search,  setSearch]  = useState("");
   const [tab,     setTab]     = useState<"notpicked" | "notinterested">("notpicked");
 
-  /* ── Reassign modal ── */
+  /* ── Reassign modals ── */
   const [showReassign,   setShowReassign]   = useState(false);
   const [reassignLead,   setReassignLead]   = useState<BinLead | null>(null);
   const [csrOptions,     setCsrOptions]     = useState<CSR[]>([]);
