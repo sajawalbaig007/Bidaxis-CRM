@@ -45,6 +45,7 @@ export default function CommentCell({
 
   const popupRef = useRef<HTMLDivElement>(null);
   const btnRef   = useRef<HTMLButtonElement>(null);
+  const fetchStartedRef = useRef(false);
 
   /* ── Count badge ──
      Priority: localNotes (fetched) > noteHistory (pre-loaded) > noteCount prop */
@@ -94,40 +95,35 @@ export default function CommentCell({
       window.removeEventListener("scroll", calcStyle, true);
       window.removeEventListener("resize", calcStyle);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  /* Lazy-fetch note content when popup opens for the first time */
-  useEffect(() => {
-    if (!open) return;
-    if (localNotes !== null) return;          // already fetched
-    if ((noteHistory?.length ?? 0) > 0) {     // pre-loaded (detail endpoint)
-      setLocalNotes(noteHistory!);
-      return;
-    }
-    if (preloadedCount === 0) {               // no notes exist
-      setLocalNotes([]);
-      return;
-    }
+  const loadNotesIfNeeded = async () => {
+    if (localNotes !== null || fetchStartedRef.current) return;
+    if ((noteHistory?.length ?? 0) > 0) return;
+    if (preloadedCount === 0) return;
 
+    fetchStartedRef.current = true;
     setNotesLoading(true);
-    API.get(`/csr/lead/${id}`)
-      .then(res => {
-        const fetched: NoteEntry[] = (res.data.lead?.notes ?? []).map(
-          (n: { id: string; text: string; createdAt: string }) => ({
-            id: n.id, text: n.text, createdAt: n.createdAt,
-          })
-        );
-        setLocalNotes(fetched);
-      })
-      .catch(() => setLocalNotes([]))
-      .finally(() => setNotesLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    try {
+      const res = await API.get(`/csr/lead/${id}`);
+      const fetched: NoteEntry[] = (res.data.lead?.notes ?? []).map(
+        (n: { id: string; text: string; createdAt: string }) => ({
+          id: n.id, text: n.text, createdAt: n.createdAt,
+        })
+      );
+      setLocalNotes(fetched);
+    } catch {
+      setLocalNotes([]);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
 
   const handleOpen = () => {
     calcStyle();
-    setOpen(v => !v);
+    const willOpen = !open;
+    setOpen(willOpen);
+    if (willOpen) void loadNotesIfNeeded();
   };
 
   /* ── Add note ── */

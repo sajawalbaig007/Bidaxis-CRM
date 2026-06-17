@@ -41,8 +41,10 @@ export function proxy(
 
     try {
 
-      const decoded: any =
-        jwt.verify(token, process.env.JWT_SECRET || "SUPER_SECRET_KEY");
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "SUPER_SECRET_KEY"
+      ) as { role?: string };
 
       /* ADMIN ACCESS */
 
@@ -80,7 +82,7 @@ export function proxy(
         );
       }
 
-    } catch (error) {
+    } catch {
 
       return NextResponse.redirect(
         new URL("/", request.url)

@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import API from "@/lib/api";
 import { getAuthMe } from "@/lib/authMeCache";
-import { getCsrDashboard } from "@/lib/csrDashboardCache";
 import { visibleInterval } from "@/lib/visibleInterval";
 import SessionNotifierInit from "@/app/components/SessionNotifierInit";
 import AdminChatPanel from "./AdminChatPanel";

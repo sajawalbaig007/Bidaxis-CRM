@@ -92,15 +92,6 @@ export default function TopNavbar() {
   useEffect(() => {
     if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
 
-    type L = {
-      id: string;
-      name?: string;
-      status?: string;
-      nextSchedule?: string;
-      nextTime?: string;
-      timezone?: string;
-    };
-
     Promise.all([
       getAuthMe(),
       getCsrDashboard(),
