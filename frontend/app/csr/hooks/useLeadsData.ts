@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import API from "@/lib/api";
+import { csrLeadsApi } from "@/lib/csrApiCache";
 
 export interface SubContact {
   id: string;
@@ -88,11 +88,11 @@ export function useLeadsData() {
   const [leads, setLeads] = useState<ClientLead[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const res = await API.get("/csr/leads");
-      setLeads((res.data.leads ?? []).map((l: RawLead) => mapClientLead(l)));
+      const res = await csrLeadsApi.get(force);
+      setLeads((res.leads as RawLead[] ?? []).map((l) => mapClientLead(l)));
     } catch (err) {
       console.log(err);
     } finally {

@@ -314,24 +314,41 @@ export const uploadLeads = async (req: Request, res: Response) => {
 
       const [existingByPhone, existingByEmail] = await Promise.all([
         phones.length
-          ? prisma.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true } })
+          ? prisma.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true, id: true, email: true } })
           : Promise.resolve([]),
         emails.length
           ? prisma.lead.findMany({ where: { email: { in: emails } }, select: { email: true } })
           : Promise.resolve([]),
       ]);
 
-      const dupPhones = new Set(existingByPhone.map(l => l.phone ?? ""));
-      const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
+      const dupPhoneMap = new Map(existingByPhone.map(l => [l.phone ?? "", l]));
+      const dupPhones   = new Set(dupPhoneMap.keys());
+      const dupEmails   = new Set(existingByEmail.map(l => l.email ?? ""));
+
+      /* Collect existing leads that have no email but new upload provides one */
+      const emailUpdates: { id: string; email: string }[] = [];
 
       fresh = parsed.filter(r => {
         const hasValidPhone = r.phone.length >= 7;
         const hasValidEmail = r.email.includes("@");
         if (!r.name && !hasValidPhone && !hasValidEmail) return false;
-        if (r.phone && dupPhones.has(r.phone)) return false;
+        if (r.phone && dupPhones.has(r.phone)) {
+          const existing = dupPhoneMap.get(r.phone);
+          if (existing && !existing.email && hasValidEmail) {
+            emailUpdates.push({ id: existing.id, email: r.email });
+          }
+          return false;
+        }
         if (r.email && dupEmails.has(r.email)) return false;
         return true;
       });
+
+      /* Patch email onto existing leads that lacked it */
+      if (emailUpdates.length > 0) {
+        await Promise.all(emailUpdates.map(({ id, email }) =>
+          prisma.lead.update({ where: { id }, data: { email } })
+        ));
+      }
     }
 
     if (fresh.length > 0) {

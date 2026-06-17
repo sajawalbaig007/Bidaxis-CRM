@@ -11,7 +11,9 @@ import {
   LogOut, ChevronDown, MessageSquare,
 } from "lucide-react";
 import API from "@/lib/api";
+import { getAuthMe } from "@/lib/authMeCache";
 import { visibleInterval } from "@/lib/visibleInterval";
+import SessionNotifierInit from "@/app/components/SessionNotifierInit";
 import AdminChatPanel from "./AdminChatPanel";
 
 const navItems = [
@@ -41,7 +43,7 @@ export default function DashboardSidebar() {
   const notifOk       = useRef(false);
 
   useEffect(() => {
-    API.get("/auth/me").then(r => { if (r.data?.user) setUser(r.data.user); }).catch(() => {});
+    getAuthMe().then(u => { if (u) setUser(u); }).catch(() => {});
     if (typeof Notification !== "undefined" && Notification.permission !== "denied") {
       Notification.requestPermission().then(p => { notifOk.current = p === "granted"; });
     } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
@@ -58,6 +60,8 @@ export default function DashboardSidebar() {
   }, []);
 
   useEffect(() => {
+    if (chatOpen) return;
+
     let isFirst = true;
     const poll = async () => {
       try {
@@ -83,8 +87,8 @@ export default function DashboardSidebar() {
       } catch {}
     };
     void poll();
-    return visibleInterval(poll, 10_000);
-  }, []);
+    return visibleInterval(poll, 30_000);
+  }, [chatOpen]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -104,6 +108,7 @@ export default function DashboardSidebar() {
 
   return (
     <>
+      <SessionNotifierInit />
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
 

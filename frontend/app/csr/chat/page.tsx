@@ -439,7 +439,7 @@ export default function ChatPage() {
         const r = await API.get("/chat/conversations");
         setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? []));
       } catch { /* ignore */ }
-    }, 10_000);
+    }, 20_000);
   }, []);
 
   /* ── Heartbeat ── */
@@ -503,7 +503,7 @@ export default function ChatPage() {
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
       } catch { /* ignore */ }
-    }, 5_000);
+    }, 8_000);
 
     return stopPoll;
   }, [activeConvId]);

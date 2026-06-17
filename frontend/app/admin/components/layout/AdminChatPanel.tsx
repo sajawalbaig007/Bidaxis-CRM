@@ -313,7 +313,7 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     return visibleInterval(async () => {
       try { const r = await API.get("/chat/conversations"); setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? [])); } catch {}
-    }, 10_000);
+    }, 20_000);
   }, []);
 
   useEffect(() => {
@@ -357,7 +357,7 @@ export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
       } catch {}
-    }, 5_000);
+    }, 8_000);
     return stopMsgPoll;
   }, [activeConvId]);
 

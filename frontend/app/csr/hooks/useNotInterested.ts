@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import API from "@/lib/api";
+import { csrNotInterestedApi } from "@/lib/csrApiCache";
 import { NoteEntry, SubContact } from "./useLeadsData";
 
 export type NiLead = {
@@ -73,11 +73,11 @@ export function useNotInterested() {
   const [leads, setLeads] = useState<NiLead[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const res = await API.get("/csr/not-interested");
-      setLeads((res.data.leads ?? []).map((l: RawLead) => mapNiLead(l)));
+      const res = await csrNotInterestedApi.get(force);
+      setLeads((res.leads as RawLead[] ?? []).map((l) => mapNiLead(l)));
     } catch (err) {
       console.log(err);
     } finally {

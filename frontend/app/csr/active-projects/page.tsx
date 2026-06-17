@@ -370,7 +370,7 @@ export default function CSRProjectsPage() {
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block">
               <div>
-                <div className="grid grid-cols-[90px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+                <div className="grid grid-cols-[115px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
                   {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
@@ -380,7 +380,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[90px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
+                      className="grid grid-cols-[115px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
                     >
                       {/* Project Code */}
                       <div className="min-w-0">
@@ -390,7 +390,7 @@ export default function CSRProjectsPage() {
                       </div>
 
                       {/* Client Detail */}
-                      <div className="flex items-center gap-2 xl:gap-3 min-w-0">
+                      <div className="flex items-center gap-2 xl:gap-3 min-w-0 pl-6">
                         <div className="w-7 h-7 xl:w-9 xl:h-9 rounded-lg xl:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
                           <span className="text-[11px] xl:text-xs font-bold">{project.client.charAt(0).toUpperCase()}</span>
                         </div>
@@ -407,7 +407,9 @@ export default function CSRProjectsPage() {
                             })()}
                           </div>
                           <p className="text-[10px] xl:text-xs text-gray-400 truncate mt-0.5">
-                            {project.company !== "N/A" ? project.company : project.phone}
+                            {project.company && project.company !== "N/A" && project.company !== project.client
+                              ? project.company
+                              : project.phone && project.phone !== "N/A" ? project.phone : ""}
                           </p>
                         </div>
                       </div>
@@ -449,7 +451,7 @@ export default function CSRProjectsPage() {
                       </div>
 
                       {/* Scope */}
-                      <div className="min-w-0 pt-0.5">
+                      <div className="min-w-0 pt-0.5 pl-4">
                         {project.service && project.service !== "N/A" ? (
                           <span className="text-[11px] xl:text-xs text-[#0F172A] truncate block">{project.service}</span>
                         ) : <span className="text-[11px] text-gray-400">—</span>}

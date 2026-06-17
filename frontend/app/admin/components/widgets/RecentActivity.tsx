@@ -60,10 +60,10 @@ export default function RecentActivity({ leads }: Props) {
     return [...leads]
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
       .slice(0, 6)
-      .map(l => {
+      .map((l, index) => {
         const status = l.status ?? "updated";
         return {
-          id:     l.id ?? Math.random().toString(),
+          id:     l.id ?? `activity-${index}`,
           user:   l.csr?.name ?? "A CSR",
           action: `updated lead "${l.name ?? "Unknown"}" to ${status}`,
           time:   timeAgo(l.updatedAt ?? new Date().toISOString()),

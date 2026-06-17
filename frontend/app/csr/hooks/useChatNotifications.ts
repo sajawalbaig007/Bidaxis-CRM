@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import API from "@/lib/api";
 import { visibleInterval } from "@/lib/visibleInterval";
 
 export function useChatNotifications() {
+  const pathname = usePathname();
   const prevUnreadRef = useRef<Record<string, number>>({});
   const notifOk       = useRef(false);
 
@@ -16,6 +18,8 @@ export function useChatNotifications() {
   }, []);
 
   useEffect(() => {
+    if (pathname?.includes("/chat")) return;
+
     let isFirst = true;
     const poll = async () => {
       try {
@@ -39,8 +43,8 @@ export function useChatNotifications() {
       } catch {}
     };
     void poll();
-    return visibleInterval(poll, 10_000);
-  }, []);
+    return visibleInterval(poll, 30_000);
+  }, [pathname]);
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {

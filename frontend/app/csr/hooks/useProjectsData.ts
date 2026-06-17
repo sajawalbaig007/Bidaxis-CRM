@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import API from "@/lib/api";
+import { csrProjectsApi } from "@/lib/csrApiCache";
 import { NoteEntry } from "./useLeadsData";
 
 export type Project = {
@@ -143,11 +143,11 @@ export function useProjectsData() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading,  setLoading]  = useState(true);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const res = await API.get("/csr/projects");
-      setProjects((res.data.leads ?? []).map((l: RawLead) => mapProject(l)));
+      const res = await csrProjectsApi.get(force);
+      setProjects((res.leads as RawLead[] ?? []).map((l) => mapProject(l)));
     } catch (err) {
       console.log(err);
     } finally {

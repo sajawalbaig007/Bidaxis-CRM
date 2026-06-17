@@ -20,6 +20,8 @@ import {
   Clock,
 } from "lucide-react";
 import API from "@/lib/api";
+import { getAuthMe } from "@/lib/authMeCache";
+import { getCsrDashboard } from "@/lib/csrDashboardCache";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 
 const navItems = [
@@ -90,21 +92,11 @@ export default function TopNavbar() {
   useEffect(() => {
     if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
 
-    type L = {
-      id: string;
-      name?: string;
-      status?: string;
-      nextSchedule?: string;
-      nextTime?: string;
-      timezone?: string;
-    };
-
     Promise.all([
-      API.get("/auth/me").catch(() => null),
-      API.get("/csr/dashboard").catch(() => null),
-    ]).then(([meRes, dashRes]) => {
-      const userData: UserInfo | null = meRes?.data?.user ?? null;
-      const leads: L[] = dashRes?.data?.leads ?? [];
+      getAuthMe(),
+      getCsrDashboard(),
+    ]).then(([userData, dashData]) => {
+      const leads = dashData.leads ?? [];
       const upcoming = leads
         .filter((l) => l.status === "important" && l.nextSchedule && l.nextTime)
         .filter((l) => (l.nextSchedule ?? "") >= TODAY)
