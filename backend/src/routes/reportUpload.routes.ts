@@ -1,32 +1,26 @@
 import { Router } from "express";
-
 import {
   uploadReport,
   deleteReport,
 } from "../controllers/reportUpload.controller";
-
-import upload from "../middleware/upload.middleware";
-
-import {
-  verifyToken,
-} from "../middleware/auth.middleware";
+import { uploadReportFile } from "../middleware/upload.middleware";
+import { verifyToken } from "../middleware/auth.middleware";
+import { allowRoles } from "../middleware/role.middleware";
 
 const router = Router();
-
-/* UPLOAD REPORT */
 
 router.post(
   "/",
   verifyToken,
-  upload.single("file"),
+  allowRoles("admin"),
+  uploadReportFile.single("file"),
   uploadReport
 );
-
-/* DELETE REPORT */
 
 router.delete(
   "/:id",
   verifyToken,
+  allowRoles("admin"),
   deleteReport
 );
 

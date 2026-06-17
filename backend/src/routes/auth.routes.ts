@@ -6,21 +6,21 @@ import {
   getSessionStatus,
 } from "../controllers/auth.controller";
 import { verifyToken } from "../middleware/auth.middleware";
+import { allowRoles } from "../middleware/role.middleware";
+import { loginLimiter } from "../middleware/rateLimit.middleware";
 
 const router = express.Router();
 
-/* ── Public ── */
-router.post("/register",    register);
-router.post("/login",       login);
+router.post("/register", verifyToken, allowRoles("admin"), register);
+router.post("/login",       loginLimiter, login);
 router.post("/logout",      logout);
-router.post("/verify-otp",  verifyOTP);
-router.post("/resend-otp",  resendOTP);
+router.post("/verify-otp",  loginLimiter, verifyOTP);
+router.post("/resend-otp",  loginLimiter, resendOTP);
 
-/* ── Protected ── */
-router.get ("/me",               verifyToken, getMe);
-router.get ("/session-status",   verifyToken, getSessionStatus);
-router.put ("/profile",          verifyToken, updateProfile);
-router.put ("/change-password",  verifyToken, changePassword);
-router.put ("/toggle-2fa",       verifyToken, toggle2FA);
+router.get ("/me",             verifyToken, getMe);
+router.get ("/session-status", verifyToken, getSessionStatus);
+router.put ("/profile",        verifyToken, updateProfile);
+router.put ("/change-password", verifyToken, changePassword);
+router.put ("/toggle-2fa",     verifyToken, toggle2FA);
 
 export default router;

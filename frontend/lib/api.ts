@@ -6,17 +6,6 @@ const API = axios.create({
   withCredentials: true,
 });
 
-API.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const token = document.cookie
-      .split("; ")
-      .find(r => r.startsWith("token="))
-      ?.split("=")[1];
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 API.interceptors.response.use(
   r => r,
   err => {
@@ -25,7 +14,7 @@ API.interceptors.response.use(
       err?.response?.data?.code === "SESSION_INVALID" &&
       typeof window !== "undefined"
     ) {
-      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+      void fetch("/api/auth/clear-session", { method: "POST", credentials: "include" });
       toast.error("Session expired. Please log in again.", { duration: 4000 });
       setTimeout(() => { window.location.href = "/"; }, 1200);
     }

@@ -7,6 +7,7 @@ import { generateToken } from "../utils/jwt";
 import { AuthRequest } from "../middleware/auth.middleware";
 import nodemailer from "nodemailer";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
+import { getJwtSecret, validatePassword } from "../config/security";
 
 /* ── Import shared stores (no circular dependency) ── */
 import {
@@ -32,7 +33,7 @@ const transporter = nodemailer.createTransport({
 });
 
 function makeOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 function sendOTPEmailAsync(otp: string): void {
@@ -66,7 +67,7 @@ function setCookieToken(res: Response, token: string) {
   });
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "secret";
+const JWT_SECRET = getJwtSecret();
 
 function blockIfAlreadyLoggedIn(userId: string, res: Response): boolean {
   if (!getActiveSession(userId)) return false;
@@ -91,13 +92,23 @@ function issueSessionToken(
 }
 
 /* ================= REGISTER ================= */
-export const register = async (req: Request, res: Response) => {
+export const register = async (req: AuthRequest, res: Response) => {
   try {
     const { name, email, password, role, csrCode, cnic, profilePic } = req.body;
 
     /* csrCode required for CSR role */
     if (role === "csr" && !csrCode?.trim()) {
       return res.status(400).json({ success: false, message: "CSR Code is required for CSR accounts." });
+    }
+
+    const pwdError = validatePassword(password);
+    if (pwdError) {
+      return res.status(400).json({ success: false, message: pwdError });
+    }
+
+    /* Only admin can create admin accounts */
+    if (role === "admin" && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only admins can create admin accounts." });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -118,6 +129,7 @@ export const register = async (req: Request, res: Response) => {
       data:   { name, email, password: hashed, role, csrCode: role === "csr" ? csrCode.trim() : null, cnic: cnic?.trim() || null, profilePic: profilePic || null },
       select: { id: true, name: true, email: true, role: true, csrCode: true, cnic: true, profilePic: true, createdAt: true },
     });
+    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
     return res.status(201).json({ success: true, user });
   } catch {
     return res.status(500).json({ success: false, message: "Server error" });
@@ -402,8 +414,9 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: "Both passwords required." });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: "New password must be 6+ characters." });
+    const pwdError = validatePassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ success: false, message: pwdError });
     }
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) {
@@ -414,8 +427,17 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ success: false, message: "Current password is incorrect." });
     }
     const hashed = await hashPassword(newPassword);
-    await prisma.user.update({ where: { id: req.user.id }, data: { password: hashed } });
-    return res.json({ success: true, message: "Password changed successfully." });
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data:  { password: hashed, tokenVersion: { increment: 1 } },
+    });
+    clearActiveSession(req.user.id);
+    res.clearCookie("token");
+    return res.json({
+      success: true,
+      message: "Password changed successfully. Please log in again.",
+      requiresReLogin: true,
+    });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to change password." });
   }

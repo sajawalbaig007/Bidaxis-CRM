@@ -11,6 +11,7 @@ import {
   LogOut, ChevronDown, MessageSquare,
 } from "lucide-react";
 import API from "@/lib/api";
+import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { visibleInterval } from "@/lib/visibleInterval";
 import SessionNotifierInit from "@/app/components/SessionNotifierInit";
@@ -93,8 +94,7 @@ export default function DashboardSidebar() {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
-      await API.post("/auth/logout", {});
-      document.cookie = "token=; path=/; max-age=0; SameSite=None; Secure";
+      await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
       router.push("/");
       router.refresh();
