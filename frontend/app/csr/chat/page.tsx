@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import TopNavbar from "../components/navigation/TopNavbar";
 import ChatActionRail from "@/app/components/chat/ChatActionRail";
+import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 import API from "@/lib/api";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -31,12 +32,7 @@ interface Message {
   createdAt: string; isOwn: boolean; status: MsgStatus;
   replyTo?: ReplyQuote | null;
 }
-interface Conversation {
-  id: string; type: "direct" | "group"; name: string;
-  lastMessage?: string; lastMessageAt?: string;
-  unreadCount: number; memberCount?: number; isOnline?: boolean;
-  otherUserId?: string;
-}
+interface Conversation extends ChatConversation {}
 
 interface CtxMenu { x: number; y: number; msg: Message; }
 
@@ -44,20 +40,6 @@ interface CtxMenu { x: number; y: number; msg: Message; }
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
 
 /* ─── Helpers ────────────────────────────────────────────── */
-function deduplicateConvs(convs: Conversation[]): Conversation[] {
-  const seenDm = new Map<string, number>(); // key -> result index
-  const result: Conversation[] = [];
-  for (const c of convs) {
-    if (c.type === "group") { result.push(c); continue; }
-    // prefer otherUserId, fall back to name so dedup works even with old backend responses
-    const key = c.otherUserId ?? c.name;
-    const idx = seenDm.get(key);
-    if (idx === undefined) { seenDm.set(key, result.length); result.push(c); }
-    else if ((c.lastMessageAt ?? "") > (result[idx]?.lastMessageAt ?? "")) { result[idx] = c; }
-  }
-  return result;
-}
-
 function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
@@ -398,6 +380,7 @@ export default function ChatPage() {
   const meRef            = useRef<ChatUser | null>(null);
   const recConvRef       = useRef<string | null>(null);
   const dmLoadingRef     = useRef<string | null>(null);
+  const blockNavCloseRef = useRef(false);
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
@@ -428,7 +411,10 @@ export default function ChatPage() {
     void (async () => {
       try {
         const r = await API.get("/chat/conversations");
-        setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? []));
+        setConversations(prev => mergeConversationLists(
+          deduplicateConvs(r.data.conversations ?? r.data ?? []),
+          prev,
+        ));
       } catch {
         setConversations([]);
       } finally {
@@ -442,7 +428,10 @@ export default function ChatPage() {
     return visibleInterval(async () => {
       try {
         const r = await API.get("/chat/conversations");
-        setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? []));
+        setConversations(prev => mergeConversationLists(
+          deduplicateConvs(r.data.conversations ?? r.data ?? []),
+          prev,
+        ));
       } catch { /* ignore */ }
     }, 20_000);
   }, []);
@@ -460,7 +449,7 @@ export default function ChatPage() {
 
   /* ── Load + poll messages + typing ── */
   useEffect(() => {
-    if (!activeConvId) return;
+    if (!activeConvId || activeConvId.startsWith("temp-")) return;
     const cid = activeConvId;
     lastMsgCount.current = 0;
 
@@ -739,8 +728,11 @@ export default function ChatPage() {
   const startDm = async (user: ChatUser) => {
     if (dmLoadingRef.current) return;
     dmLoadingRef.current = user.id;
+    blockNavCloseRef.current = true;
+    window.setTimeout(() => { blockNavCloseRef.current = false; }, 400);
 
-    setShowDmModal(false); setDmSearch(""); setMobileSideOpen(false);
+    window.setTimeout(() => { setShowDmModal(false); setDmSearch(""); }, 0);
+    setMobileSideOpen(false);
 
     const existing = conversations.find(c => c.type === "direct" && c.otherUserId === user.id);
     if (existing) {
@@ -753,6 +745,7 @@ export default function ChatPage() {
     const placeholder: Conversation = {
       id: tempId, type: "direct", name: user.name,
       unreadCount: 0, isOnline: user.isOnline, otherUserId: user.id,
+      lastMessageAt: new Date().toISOString(),
     };
     setConversations(p => [placeholder, ...p]);
     setActiveConvId(tempId);
@@ -769,8 +762,7 @@ export default function ChatPage() {
       });
       setActiveConvId(cid);
     } catch {
-      setConversations(p => p.filter(c => c.id !== tempId));
-      setActiveConvId(null);
+      /* Keep in sidebar if sync fails */
     } finally {
       dmLoadingRef.current = null;
     }
@@ -869,14 +861,7 @@ export default function ChatPage() {
 
   const totalUnread = useMemo(() => conversations.reduce((s, c) => s + c.unreadCount, 0), [conversations]);
 
-  const sortedConvs = useMemo(() => {
-    return [...filteredConvs].sort((a, b) => {
-      const ap = pinnedIds.has(a.id) ? 1 : 0;
-      const bp = pinnedIds.has(b.id) ? 1 : 0;
-      if (ap !== bp) return bp - ap; // pinned first
-      return 0;
-    });
-  }, [filteredConvs, pinnedIds]);
+  const sortedConvs = useMemo(() => sortConversations(filteredConvs, pinnedIds), [filteredConvs, pinnedIds]);
 
   const directConvs = useMemo(() =>
     sortedConvs.filter(c => c.type === "direct").sort((a, b) => {
@@ -913,7 +898,7 @@ export default function ChatPage() {
         )}
 
         {/* ══ SIDEBAR ══ */}
-        <aside className={`${mobileSideOpen ? "flex" : "hidden"} lg:flex w-full lg:w-[300px] xl:w-[320px] shrink-0 flex-col bg-white border-r border-gray-100 absolute lg:relative inset-0 z-20 lg:z-auto`}>
+        <aside className={`${mobileSideOpen ? "flex" : "hidden"} lg:flex w-full lg:w-[300px] xl:w-[320px] shrink-0 flex-col bg-white border-r border-gray-100 absolute lg:relative inset-0 z-20 lg:z-auto min-h-0 overflow-hidden`}>
 
           <div className="px-4 py-4 border-b border-gray-100 shrink-0">
             {selectMode ? (
@@ -986,7 +971,7 @@ export default function ChatPage() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto py-2 px-1.5">
+          <div className="flex-1 min-h-0 overflow-y-auto py-2 px-1.5">
             {loadingConvs ? (
               <div className="space-y-1">
                 {[1,2,3,4].map(i => (
@@ -1512,7 +1497,7 @@ export default function ChatPage() {
                           {showOfflineLabel && (
                             <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Offline</p>
                           )}
-                          <button type="button" onClick={() => void startDm(user)}
+                          <button type="button" onClick={(e) => { e.stopPropagation(); void startDm(user); }}
                             className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${user.isOnline ? "hover:bg-[#F0FFF4]" : "hover:bg-[#F5F6FA]"}`}>
                             <Avatar name={user.name} size="md" online={user.isOnline} />
                             <div className="flex-1 min-w-0">

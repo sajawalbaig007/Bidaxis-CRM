@@ -217,6 +217,7 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
           name: targetUser?.name ?? "Unknown",
           otherUserId: targetId,
           unreadCount: 0, isOnline: targetUser?.isOnline ?? false,
+          lastMessageAt: new Date().toISOString(),
         },
       });
     }
@@ -238,6 +239,7 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
         conversation: {
           id: conv.id, type: "group", name: conv.name,
           unreadCount: 0, memberCount: allIds.length,
+          lastMessageAt: new Date().toISOString(),
         },
       });
     }
@@ -246,6 +248,8 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error("[chat] POST /conversations", err);
     return res.status(500).json({ message: "Failed to create conversation" });
+  } finally {
+    invalidatePattern("chat:convs:");
   }
 });
 

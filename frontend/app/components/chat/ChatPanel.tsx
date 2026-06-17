@@ -17,6 +17,7 @@ import { playChatSound } from "@/lib/chatSound";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
 import ChatActionRail from "./ChatActionRail";
+import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 
 /* ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; }
@@ -31,26 +32,11 @@ interface Message {
   reactions?: Record<string, string[]>;
   readBy?: string[];
 }
-interface Conversation {
-  id: string; type: "direct" | "group"; name: string;
-  lastMessage?: string; lastMessageAt?: string;
-  unreadCount: number; memberCount?: number; isOnline?: boolean; otherUserId?: string;
-  pinnedMessageId?: string | null; archived?: boolean;
-}
+interface Conversation extends ChatConversation {}
 interface CtxMenu { x: number; y: number; msg: Message; }
 
 /* ΓöÇΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
-function deduplicateConvs(convs: Conversation[]): Conversation[] {
-  const seenDm = new Map<string, number>(); const result: Conversation[] = [];
-  for (const c of convs) {
-    if (c.type === "group") { result.push(c); continue; }
-    const key = c.otherUserId ?? c.name; const idx = seenDm.get(key);
-    if (idx === undefined) { seenDm.set(key, result.length); result.push(c); }
-    else if ((c.lastMessageAt ?? "") > (result[idx]?.lastMessageAt ?? "")) { result[idx] = c; }
-  }
-  return result;
-}
 function initials(name: string) { return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
 function fmtConvTime(iso: string) {
   try {
@@ -320,6 +306,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const meRef            = useRef<ChatUser | null>(null);
   const recConvRef       = useRef<string | null>(null);
   const dmLoadingRef     = useRef<string | null>(null);
+  const blockPanelCloseRef = useRef(false);
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
@@ -369,8 +356,14 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           API.get("/chat/conversations"),
           API.get("/chat/conversations?archived=1").catch(() => ({ data: { conversations: [] } })),
         ]);
-        setConversations(deduplicateConvs(active.data.conversations ?? active.data ?? []));
-        setArchivedConvs(deduplicateConvs(archived.data.conversations ?? archived.data ?? []));
+        setConversations(prev => mergeConversationLists(
+          deduplicateConvs(active.data.conversations ?? active.data ?? []),
+          prev,
+        ));
+        setArchivedConvs(prev => mergeConversationLists(
+          deduplicateConvs(archived.data.conversations ?? archived.data ?? []),
+          prev.filter(c => c.archived),
+        ));
         void pollChatUnread();
       } catch {}
     }, 10_000);
@@ -383,7 +376,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (!activeConvId) return;
+    if (!activeConvId || activeConvId.startsWith("temp-")) return;
     const cid = activeConvId;
     lastMsgCount.current = 0;
     void (async () => {
@@ -621,19 +614,28 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     try {
       const r = await API.post("/chat/conversations", { type: "group", name: groupName.trim(), memberIds: selectedUsers });
       const conv: Conversation = r.data.conversation ?? { id: r.data.id ?? `grp-${Date.now()}`, type: "group", name: groupName.trim(), unreadCount: 0, memberCount: selectedUsers.length + 1 };
+      guardPanelClose();
       setConversations(p => [conv, ...p]); setActiveConvId(conv.id);
-      setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); setMobileSideOpen(false);
+      window.setTimeout(() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }, 0);
+      setMobileSideOpen(false);
     } catch {}
     setCreatingGroup(false);
   };
 
   const startDm = async (user: ChatUser) => {
-    if (dmLoadingRef.current) return; dmLoadingRef.current = user.id;
-    setShowDmModal(false); setDmSearch(""); setMobileSideOpen(false);
+    if (dmLoadingRef.current) return;
+    dmLoadingRef.current = user.id;
+    guardPanelClose();
+    closeDmModal();
+    setMobileSideOpen(false);
     const existing = conversations.find(c => c.type === "direct" && c.otherUserId === user.id);
     if (existing) { setActiveConvId(existing.id); dmLoadingRef.current = null; return; }
     const tempId = `temp-${user.id}`;
-    const placeholder: Conversation = { id: tempId, type: "direct", name: user.name, unreadCount: 0, isOnline: user.isOnline, otherUserId: user.id };
+    const placeholder: Conversation = {
+      id: tempId, type: "direct", name: user.name, unreadCount: 0,
+      isOnline: user.isOnline, otherUserId: user.id,
+      lastMessageAt: new Date().toISOString(),
+    };
     setConversations(p => [placeholder, ...p]); setActiveConvId(tempId);
     try {
       const r = await API.post("/chat/conversations", { type: "direct", userId: user.id });
@@ -650,7 +652,9 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         return merged.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
       });
       setActiveConvId(cid);
-    } catch { setConversations(p => p.filter(c => c.id !== tempId)); setActiveConvId(null); }
+    } catch {
+      /* Keep thread in sidebar even if sync failed — user can retry by opening it again */
+    }
     finally { dmLoadingRef.current = null; }
   };
 
@@ -677,6 +681,20 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   };
   const togglePin = (convId: string) => setPinnedIds(prev => { const next = new Set(prev); if (next.has(convId)) next.delete(convId); else next.add(convId); return next; });
 
+  const guardPanelClose = () => {
+    blockPanelCloseRef.current = true;
+    window.setTimeout(() => { blockPanelCloseRef.current = false; }, 400);
+  };
+
+  const handlePanelBackdrop = () => {
+    if (blockPanelCloseRef.current || showDmModal || showGroupModal) return;
+    onClose();
+  };
+
+  const closeDmModal = () => {
+    window.setTimeout(() => { setShowDmModal(false); setDmSearch(""); }, 0);
+  };
+
   /* ΓöÇΓöÇΓöÇ Derived ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
   const activeConv = useMemo(() => conversations.find(c => c.id === activeConvId) ?? null, [conversations, activeConvId]);
   const filteredConvs = useMemo(() => { const q = convSearch.toLowerCase(); return !q ? conversations : conversations.filter(c => c.name.toLowerCase().includes(q)); }, [conversations, convSearch]);
@@ -684,7 +702,10 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const visibleMessages = useMemo(() => { if (!msgSearchText.trim()) return messages; const q = msgSearchText.toLowerCase(); return messages.filter(m => m.text.toLowerCase().includes(q) || m.fileName?.toLowerCase().includes(q)); }, [messages, msgSearchText]);
   const msgGroups = useMemo(() => { const groups: { date: string; msgs: Message[] }[] = []; visibleMessages.forEach(msg => { const date = fmtDateSep(msg.createdAt); const last = groups[groups.length - 1]; if (!last || last.date !== date) groups.push({ date, msgs: [msg] }); else last.msgs.push(msg); }); return groups; }, [visibleMessages]);
   const totalUnread = useMemo(() => conversations.reduce((s, c) => s + c.unreadCount, 0), [conversations]);
-  const sortedConvs = useMemo(() => [...(showArchived ? archivedConvs : filteredConvs)].sort((a, b) => { const ap = pinnedIds.has(a.id) ? 1 : 0; const bp = pinnedIds.has(b.id) ? 1 : 0; return ap !== bp ? bp - ap : 0; }), [filteredConvs, archivedConvs, showArchived, pinnedIds]);
+  const sortedConvs = useMemo(() => sortConversations(
+    showArchived ? archivedConvs : filteredConvs,
+    pinnedIds,
+  ), [filteredConvs, archivedConvs, showArchived, pinnedIds]);
   const directConvs = useMemo(() => sortedConvs.filter(c => c.type === "direct").sort((a, b) => { if (pinnedIds.has(a.id) !== pinnedIds.has(b.id)) return pinnedIds.has(a.id) ? -1 : 1; if (a.isOnline && !b.isOnline) return -1; if (!a.isOnline && b.isOnline) return 1; return 0; }), [sortedConvs, pinnedIds]);
   const groupConvs   = useMemo(() => sortedConvs.filter(c => c.type === "group"), [sortedConvs]);
   const onlineDirects = useMemo(() => conversations.filter(c => c.type === "direct" && c.isOnline), [conversations]);
@@ -695,7 +716,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
       {/* Light backdrop ΓÇö only blocks clicks behind panel area */}
       <div
         className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[768px] sm:max-w-full sm:right-0"
-        onClick={onClose}
+        onClick={handlePanelBackdrop}
         aria-hidden
       />
 
@@ -761,7 +782,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto py-1.5 px-1">
+          <div className="flex-1 min-h-0 overflow-y-auto py-1.5 px-1">
             {loadingConvs ? (
               <div className="space-y-0.5">{[1,2,3,4].map(i => (<div key={i} className="flex items-center gap-3 px-3 py-2.5 animate-pulse"><div className="w-8 h-8 rounded-full bg-gray-100 shrink-0" /><div className="flex-1 space-y-1.5"><div className="h-2.5 bg-gray-100 rounded w-20" /><div className="h-2 bg-gray-100 rounded w-28" /></div></div>))}</div>
             ) : conversations.length === 0 && !showArchived ? (
@@ -998,7 +1019,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               {filteredUsers.length === 0 ? (
                 <div className="py-10 text-center"><User2 size={26} className="text-gray-200 mx-auto mb-2" /><p className="text-sm text-gray-400">{dmSearch ? "No users found" : "No team members"}</p></div>
               ) : filteredUsers.map(u => (
-                <button key={u.id} type="button" onClick={() => void startDm(u)} disabled={dmLoadingRef.current === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group disabled:opacity-50">
+                <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingRef.current === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group disabled:opacity-50">
                   <Avatar name={u.name} size="sm" online={u.isOnline} />
                   <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-[#0F172A] truncate group-hover:text-[#B8112D] transition-colors">{u.name}</p><p className="text-[10px] text-gray-400">{u.csrCode ?? u.role ?? u.email}</p></div>
                   {u.isOnline && <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}
