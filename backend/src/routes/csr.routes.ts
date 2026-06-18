@@ -4,8 +4,30 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
+import { normalizePhone, phonesMatch } from "../utils/phone";
 
 const router = express.Router();
+
+async function findLeadsByPhone(phone: string) {
+  const trimmed = phone.trim();
+  if (!trimmed) return [];
+
+  const exact = await prisma.lead.findMany({
+    where:   { phone: trimmed },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (exact.length > 0) return exact;
+
+  const digits = normalizePhone(trimmed);
+  if (digits.length < 7) return [];
+
+  const suffix = digits.slice(-10);
+  const candidates = await prisma.lead.findMany({
+    where:   { phone: { not: null, contains: suffix } },
+    orderBy: { updatedAt: "desc" },
+  });
+  return candidates.filter(l => l.phone && phonesMatch(l.phone, trimmed));
+}
 
 /* ─── LIMITS ─── */
 const NOT_INTERESTED_LIMIT = 3;
@@ -67,6 +89,44 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
   }
 });
 
+/* ================= LOOKUP CLIENT BY PHONE ================= */
+
+router.get("/lookup-by-phone", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const phone = (req.query.phone as string)?.trim();
+    if (!phone || normalizePhone(phone).length < 7) {
+      return res.json({ success: true, found: false });
+    }
+
+    const matches = await findLeadsByPhone(phone);
+    if (matches.length === 0) {
+      return res.json({ success: true, found: false });
+    }
+
+    const latest = matches[0];
+    const wonProject = matches.find(l =>
+      ["Close Client", "completed"].includes(l.status ?? "")
+    );
+
+    return res.json({
+      success:           true,
+      found:             true,
+      isReturningClient: matches.length >= 1,
+      projectCount:      matches.length,
+      client: {
+        name:              latest.name              ?? "",
+        company:           latest.company           ?? "",
+        email:             latest.email             ?? "",
+        state:             latest.state             ?? "",
+        interestedService: wonProject?.interestedService ?? latest.interestedService ?? "",
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to lookup client" });
+  }
+});
+
 /* ================= ADD PROJECT MANUALLY ================= */
 
 router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) => {
@@ -93,11 +153,14 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       });
     }
 
+    const trimmedPhone = phone?.trim() || null;
+    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+
     const lead = await prisma.lead.create({
       data: {
         name,
         company:           company           ?? null,
-        phone:             phone             ?? null,
+        phone:             trimmedPhone,
         status:            status            ?? "Close Client",
         projectTitle,
         projectCode:       projectCode       ?? null,
@@ -108,10 +171,11 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         assignedTo:        csrId,
         important:         false,
         interested:        false,
+        isOldClient:       existingLeads.length > 0,
       },
     });
 
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, "admin:clients");
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
     return res.status(201).json({ success: true, lead });
   } catch (error) {
     console.log(error);

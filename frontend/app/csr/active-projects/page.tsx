@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import {
   FolderKanban, CalendarDays, DollarSign,
   Search, Filter, Phone, AlignLeft, Briefcase,
   X, FileText, Eye, Clock3, CheckCircle2,
-  Plus, User2, Pencil, Hash, Mail, StickyNote,
+  Plus, User2, Pencil, Hash, Mail, StickyNote, Loader2,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
@@ -64,6 +65,59 @@ export default function CSRProjectsPage() {
   const [addForm,      setAddForm]      = useState(emptyForm);
   const [addSaving,    setAddSaving]    = useState(false);
   const [addError,     setAddError]     = useState("");
+  const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
+  const [returningClient,  setReturningClient]  = useState(false);
+  const lastLookedUpPhone = useRef("");
+
+  const resetAddModal = useCallback(() => {
+    setShowAddModal(false);
+    setAddForm(emptyForm);
+    setAddError("");
+    setReturningClient(false);
+    lastLookedUpPhone.current = "";
+  }, []);
+
+  const openAddModal = useCallback(() => {
+    setAddForm(emptyForm);
+    setAddError("");
+    setReturningClient(false);
+    lastLookedUpPhone.current = "";
+    setShowAddModal(true);
+  }, []);
+
+  const lookupClientByPhone = useCallback(async (phone: string) => {
+    const trimmed = phone.trim();
+    if (trimmed.length < 7 || trimmed === lastLookedUpPhone.current) return;
+
+    setPhoneLookupLoading(true);
+    try {
+      const res = await API.get("/csr/lookup-by-phone", { params: { phone: trimmed } });
+      lastLookedUpPhone.current = trimmed;
+
+      if (res.data?.found && res.data?.client) {
+        const c = res.data.client;
+        setAddForm(f => ({
+          ...f,
+          clientName:    c.name    || f.clientName,
+          clientCompany: c.company || f.clientCompany,
+          service:       f.service || c.interestedService || "",
+        }));
+        setReturningClient(true);
+        const count = res.data.projectCount ?? 1;
+        toast.success(
+          count > 1
+            ? `Returning client found (${count} previous projects) — details auto-filled`
+            : "Existing client found — details auto-filled",
+          { duration: 3500 }
+        );
+      } else {
+        setReturningClient(false);
+      }
+    } catch {
+      /* silent — user can still fill manually */
+    }
+    setPhoneLookupLoading(false);
+  }, []);
 
   /* ── Derived ── */
   const filteredProjects = useMemo(() => {
@@ -212,7 +266,7 @@ export default function CSRProjectsPage() {
         noteHistory:   [],
       };
       setProjects(prev => [newProject, ...prev]);
-      setShowAddModal(false); setAddForm(emptyForm);
+      resetAddModal();
     } catch (error) {
       console.log(error);
       setAddError("Failed to save project. Please try again.");
@@ -232,7 +286,7 @@ export default function CSRProjectsPage() {
             <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">Manage and track your won projects.</p>
           </div>
           <button
-            onClick={() => { setAddForm(emptyForm); setAddError(""); setShowAddModal(true); }}
+            onClick={openAddModal}
             className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors shrink-0 w-full sm:w-auto"
           >
             <Plus size={14} className="sm:w-4 sm:h-4" />Add New Project
@@ -506,7 +560,7 @@ export default function CSRProjectsPage() {
               Projects appear when a client is marked &ldquo;Close Client&rdquo; — or add one manually.
             </p>
             <button
-              onClick={() => { setAddForm(emptyForm); setAddError(""); setShowAddModal(true); }}
+              onClick={openAddModal}
               className="mt-4 sm:mt-5 inline-flex items-center gap-2 h-10 sm:h-11 px-5 sm:px-6 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold hover:bg-[#a30f27] transition-colors"
             >
               <Plus size={13} className="sm:w-[15px] sm:h-[15px]" />Add New Project
@@ -523,7 +577,7 @@ export default function CSRProjectsPage() {
             >
               <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
-                <button onClick={() => setShowAddModal(false)}
+                <button onClick={resetAddModal}
                   className="absolute top-3 sm:top-4 right-3 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
                   <X size={13} className="sm:w-[15px] sm:h-[15px]" />
                 </button>
@@ -551,6 +605,40 @@ export default function CSRProjectsPage() {
                       <User2 size={12} className="text-[#B8112D] sm:w-[14px] sm:h-[14px]" />
                       <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Client Information</p>
                     </div>
+
+                    <div>
+                      <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">
+                        Phone <span className="text-gray-300 normal-case font-normal">(enter first to auto-fill)</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={addForm.clientPhone}
+                          placeholder="+1 234 567 890"
+                          onChange={e => {
+                            const value = e.target.value;
+                            setAddForm(f => ({ ...f, clientPhone: value }));
+                            if (lastLookedUpPhone.current && value.trim() !== lastLookedUpPhone.current) {
+                              lastLookedUpPhone.current = "";
+                              setReturningClient(false);
+                            }
+                          }}
+                          onBlur={e => void lookupClientByPhone(e.target.value)}
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        />
+                        {phoneLookupLoading && (
+                          <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {returningClient && (
+                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] sm:text-xs px-3 py-2 rounded-xl">
+                        <User2 size={12} className="shrink-0" />
+                        Returning client — name &amp; company auto-filled from previous record
+                      </div>
+                    )}
+
                     <div>
                       <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">
                         Client Name <span className="text-[#B8112D]">*</span>
@@ -560,21 +648,12 @@ export default function CSRProjectsPage() {
                         className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                      <div>
-                        <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">Company</label>
-                        <input type="text" value={addForm.clientCompany} placeholder="Company name"
-                          onChange={e => setAddForm(f => ({ ...f, clientCompany: e.target.value }))}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">Phone</label>
-                        <input type="text" value={addForm.clientPhone} placeholder="+1 234 567 890"
-                          onChange={e => setAddForm(f => ({ ...f, clientPhone: e.target.value }))}
-                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                        />
-                      </div>
+                    <div>
+                      <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">Company</label>
+                      <input type="text" value={addForm.clientCompany} placeholder="Company name"
+                        onChange={e => setAddForm(f => ({ ...f, clientCompany: e.target.value }))}
+                        className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                      />
                     </div>
                   </div>
 
@@ -649,7 +728,7 @@ export default function CSRProjectsPage() {
                   </div>
 
                   <div className="flex gap-2 sm:gap-3 pb-1 sm:pb-2">
-                    <button onClick={() => setShowAddModal(false)}
+                    <button onClick={resetAddModal}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">
                       Cancel
                     </button>
