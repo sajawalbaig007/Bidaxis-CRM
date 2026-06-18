@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   FolderKanban, CalendarDays, DollarSign,
   Search, Filter, Phone, AlignLeft, Briefcase,
   X, FileText, Eye, Clock3, CheckCircle2,
   Plus, User2, Pencil, Hash, Mail, StickyNote, Loader2,
 } from "lucide-react";
-import toast from "react-hot-toast";
 
 import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
@@ -21,6 +20,7 @@ import CommentCell from "../components/shared/CommentCell";
 
 import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/useProjectsData";
 import { NoteEntry } from "../hooks/useLeadsData";
+import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import { getTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import API from "@/lib/api";
 
@@ -65,59 +65,32 @@ export default function CSRProjectsPage() {
   const [addForm,      setAddForm]      = useState(emptyForm);
   const [addSaving,    setAddSaving]    = useState(false);
   const [addError,     setAddError]     = useState("");
-  const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
-  const [returningClient,  setReturningClient]  = useState(false);
-  const lastLookedUpPhone = useRef("");
+
+  const applyClientLookup = useCallback((client: { name: string; company: string; interestedService: string }) => {
+    setAddForm(f => ({
+      ...f,
+      clientName:    client.name    || f.clientName,
+      clientCompany: client.company || f.clientCompany,
+      service:       f.service || client.interestedService || "",
+    }));
+  }, []);
+
+  const { phoneLookupLoading, returningClient, resetLookup, onPhoneValueChange, onPhoneBlur, onPhonePaste } =
+    useClientPhoneLookup(applyClientLookup);
 
   const resetAddModal = useCallback(() => {
     setShowAddModal(false);
     setAddForm(emptyForm);
     setAddError("");
-    setReturningClient(false);
-    lastLookedUpPhone.current = "";
-  }, []);
+    resetLookup();
+  }, [resetLookup]);
 
   const openAddModal = useCallback(() => {
     setAddForm(emptyForm);
     setAddError("");
-    setReturningClient(false);
-    lastLookedUpPhone.current = "";
+    resetLookup();
     setShowAddModal(true);
-  }, []);
-
-  const lookupClientByPhone = useCallback(async (phone: string) => {
-    const trimmed = phone.trim();
-    if (trimmed.length < 7 || trimmed === lastLookedUpPhone.current) return;
-
-    setPhoneLookupLoading(true);
-    try {
-      const res = await API.get("/csr/lookup-by-phone", { params: { phone: trimmed } });
-      lastLookedUpPhone.current = trimmed;
-
-      if (res.data?.found && res.data?.client) {
-        const c = res.data.client;
-        setAddForm(f => ({
-          ...f,
-          clientName:    c.name    || f.clientName,
-          clientCompany: c.company || f.clientCompany,
-          service:       f.service || c.interestedService || "",
-        }));
-        setReturningClient(true);
-        const count = res.data.projectCount ?? 1;
-        toast.success(
-          count > 1
-            ? `Returning client found (${count} previous projects) — details auto-filled`
-            : "Existing client found — details auto-filled",
-          { duration: 3500 }
-        );
-      } else {
-        setReturningClient(false);
-      }
-    } catch {
-      /* silent — user can still fill manually */
-    }
-    setPhoneLookupLoading(false);
-  }, []);
+  }, [resetLookup]);
 
   /* ── Derived ── */
   const filteredProjects = useMemo(() => {
@@ -618,12 +591,10 @@ export default function CSRProjectsPage() {
                           onChange={e => {
                             const value = e.target.value;
                             setAddForm(f => ({ ...f, clientPhone: value }));
-                            if (lastLookedUpPhone.current && value.trim() !== lastLookedUpPhone.current) {
-                              lastLookedUpPhone.current = "";
-                              setReturningClient(false);
-                            }
+                            onPhoneValueChange(value);
                           }}
-                          onBlur={e => void lookupClientByPhone(e.target.value)}
+                          onBlur={e => onPhoneBlur(e.target.value)}
+                          onPaste={onPhonePaste}
                           className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
                         />
                         {phoneLookupLoading && (

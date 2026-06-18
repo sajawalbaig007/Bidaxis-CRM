@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   Users, UserPlus, Search, Filter, Phone, Briefcase,
   Clock3, Building2, AlignLeft, RefreshCw, Eye, Plus, X,
   Pencil, User2, Mail, MapPin, StickyNote, History,
-  CheckCircle2, Trash2,
+  CheckCircle2, Trash2, Loader2,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -14,6 +14,7 @@ import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/S
 import Pagination from "../components/shared/Pagination";
 
 import { useLeadsData, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
+import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
@@ -60,6 +61,15 @@ function fmtFull(iso: string) {
   } catch { return iso; }
 }
 
+function parsePhones(raw: string): string[] {
+  if (!raw || raw === "N/A") return [];
+  const slashParts = raw.split(/\s*\/\s*/).map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
+  if (slashParts.length > 1) return slashParts;
+  const matches = raw.match(/[\+\d][\d\s.()\-]{5,}/g);
+  if (!matches || matches.length <= 1) return [raw.trim()];
+  return matches.map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
+}
+
 /* ─── Page ──────────────────────────────────────────────── */
 export default function LeadsPage() {
   const { leads, setLeads, loading, refetch } = useLeadsData();
@@ -68,6 +78,7 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<"new" | "old">("new");
   const [search,    setSearch]    = useState("");
   const [page,      setPage]      = useState(1);
+  const [openPhoneDropdown, setOpenPhoneDropdown] = useState<string | null>(null);
 
   /* ── detail / edit modal ── */
   const [viewing,      setViewing]      = useState<ClientLead | null>(null);
@@ -87,6 +98,34 @@ export default function LeadsPage() {
   const [addForm,   setAddForm]   = useState(emptyAdd);
   const [addSaving, setAddSaving] = useState(false);
   const [addError,  setAddError]  = useState("");
+
+  const applyClientLookup = useCallback((client: { name: string; company: string; email: string; state: string; interestedService: string }) => {
+    setAddForm(f => ({
+      ...f,
+      name:    client.name    || f.name,
+      company: client.company || f.company,
+      email:   client.email   || f.email,
+      state:   client.state   || f.state,
+      service: f.service || client.interestedService || "",
+    }));
+  }, []);
+
+  const { phoneLookupLoading, returningClient, resetLookup, onPhoneValueChange, onPhoneBlur, onPhonePaste } =
+    useClientPhoneLookup(applyClientLookup);
+
+  const openAddModal = useCallback(() => {
+    setAddForm(emptyAdd);
+    setAddError("");
+    resetLookup();
+    setShowAdd(true);
+  }, [resetLookup]);
+
+  const closeAddModal = useCallback(() => {
+    setShowAdd(false);
+    setAddForm(emptyAdd);
+    setAddError("");
+    resetLookup();
+  }, [resetLookup]);
 
   /* ── note history modal ── */
   const [noteLeadId,  setNoteLeadId]  = useState<string | null>(null);
@@ -123,7 +162,7 @@ export default function LeadsPage() {
     return !q ? baseList : baseList.filter(l =>
       l.name.toLowerCase().includes(q) ||
       l.company.toLowerCase().includes(q) ||
-      l.phone.includes(q) ||
+      parsePhones(l.phone).some(p => p.includes(q)) ||
       l.email.toLowerCase().includes(q)
     );
   }, [baseList, search]);
@@ -250,7 +289,7 @@ export default function LeadsPage() {
           : [],
       };
       setLeads(prev => [fresh, ...prev]);
-      setShowAdd(false); setAddForm(emptyAdd);
+      closeAddModal();
       toast.success("Lead added");
     } catch {
       setAddError("Failed to add lead. Please try again.");
@@ -325,7 +364,7 @@ export default function LeadsPage() {
             <p className="text-gray-500 mt-1 text-xs sm:text-sm">New = first-time · Old = repeat business.</p>
           </div>
           <button
-            onClick={() => { setAddForm(emptyAdd); setAddError(""); setShowAdd(true); }}
+            onClick={openAddModal}
             className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors w-full sm:w-auto shrink-0"
           >
             <Plus size={14} />Add New Lead
@@ -467,9 +506,52 @@ export default function LeadsPage() {
                       <p className="hidden lg:block text-xs lg:text-sm text-[#0F172A] truncate">{lead.company}</p>
 
                       {/* Phone */}
-                      <div className="hidden lg:flex items-center gap-1.5">
-                        <p className="text-xs lg:text-sm text-[#0F172A] whitespace-nowrap">{lead.phone}</p>
-                        {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
+                      <div className="hidden lg:flex items-center gap-1.5 min-w-0">
+                        {(() => {
+                          const phones = parsePhones(lead.phone);
+                          if (phones.length === 0) {
+                            return <span className="text-gray-300 text-xs">—</span>;
+                          }
+                          const tz = getTimezoneAbbrFromPhone(phones[0]);
+                          if (phones.length <= 1) {
+                            return (
+                              <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 py-1 rounded-xl text-xs lg:text-sm font-medium whitespace-nowrap max-w-full">
+                                <span className="truncate">{phones[0]}</span>
+                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setOpenPhoneDropdown(openPhoneDropdown === lead.id ? null : lead.id)}
+                                className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 py-1 rounded-xl text-xs lg:text-sm font-medium whitespace-nowrap max-w-full"
+                              >
+                                <span className="max-w-[90px] truncate">{phones[0]}</span>
+                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                                <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">+{phones.length - 1}</span>
+                              </button>
+                              {openPhoneDropdown === lead.id && (
+                                <>
+                                  <div className="fixed inset-0 z-20" onClick={() => setOpenPhoneDropdown(null)} />
+                                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px]">
+                                    {phones.map((ph, idx) => {
+                                      const pt = getTimezoneAbbrFromPhone(ph);
+                                      return (
+                                        <div key={idx} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]">
+                                          <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
+                                          <span className="truncate">{ph}</span>
+                                          {pt && <span className={`ml-auto inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(pt)}`}>{pt}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Email */}
@@ -617,7 +699,7 @@ export default function LeadsPage() {
             <div className="w-full sm:max-w-[520px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "92vh" }}>
               <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
                 <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
-                <button onClick={() => setShowAdd(false)}
+                <button onClick={closeAddModal}
                   className="absolute top-3 sm:top-4 right-3 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10">
                   <X size={13} />
                 </button>
@@ -643,6 +725,38 @@ export default function LeadsPage() {
                     <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                       <User2 size={11} className="text-[#B8112D]" />Client Information
                     </p>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                        Phone <span className="text-gray-300 normal-case font-normal">(paste or type to auto-fill)</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={addForm.phone}
+                          placeholder="+1 234 567 890"
+                          onChange={e => {
+                            const value = e.target.value;
+                            setAddForm(f => ({ ...f, phone: value }));
+                            onPhoneValueChange(value);
+                          }}
+                          onBlur={e => onPhoneBlur(e.target.value)}
+                          onPaste={onPhonePaste}
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 pr-9 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        />
+                        {phoneLookupLoading && (
+                          <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {returningClient && (
+                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] sm:text-xs px-3 py-2 rounded-xl">
+                        <User2 size={12} className="shrink-0" />
+                        Returning client — details auto-filled from previous record
+                      </div>
+                    )}
+
                     <div>
                       <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Name <span className="text-[#B8112D]">*</span></label>
                       <input type="text" value={addForm.name} placeholder="Full name"
@@ -652,21 +766,12 @@ export default function LeadsPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Phone</label>
-                        <input type="text" value={addForm.phone} placeholder="+1 234 567 890"
-                          onChange={e => setAddForm(f => ({ ...f, phone: e.target.value }))}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                        />
-                      </div>
-                      <div>
                         <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Email</label>
                         <input type="email" value={addForm.email} placeholder="email@co.com"
                           onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
                           className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
                         />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
                         <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company</label>
                         <input type="text" value={addForm.company} placeholder="Company name"
@@ -674,13 +779,13 @@ export default function LeadsPage() {
                           className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
                         />
                       </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
-                        <input type="text" value={addForm.state} placeholder="e.g. California"
-                          onChange={e => setAddForm(f => ({ ...f, state: e.target.value }))}
-                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                        />
-                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
+                      <input type="text" value={addForm.state} placeholder="e.g. California"
+                        onChange={e => setAddForm(f => ({ ...f, state: e.target.value }))}
+                        className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                      />
                     </div>
                   </div>
 
@@ -702,7 +807,7 @@ export default function LeadsPage() {
                   </div>
 
                   <div className="flex gap-2 sm:gap-3 pb-1">
-                    <button onClick={() => setShowAdd(false)}
+                    <button onClick={closeAddModal}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">
                       Cancel
                     </button>
