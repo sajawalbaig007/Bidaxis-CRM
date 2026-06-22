@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
 import { invalidateCache } from "../utils/cache";
+import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -45,20 +46,10 @@ export const deleteUser = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    /* 1. Cascade-delete lead children before removing leads */
-    const leads = await prisma.lead.findMany({ where: { assignedTo: id }, select: { id: true } });
-    const leadIds = leads.map(l => l.id);
+    /* 1. Permanently remove all lead data assigned to this user */
+    await purgeCsrLeads(id);
 
-    if (leadIds.length > 0) {
-      await Promise.all([
-        prisma.leadNote.deleteMany({ where: { leadId: { in: leadIds } } }),
-        prisma.subContact.deleteMany({ where: { leadId: { in: leadIds } } }),
-        prisma.callLog.deleteMany({ where: { leadId: { in: leadIds } } }),
-      ]);
-      await prisma.lead.deleteMany({ where: { assignedTo: id } });
-    }
-
-    /* 2. CSR-level call logs */
+    /* 2. CSR-level call logs (safety net — purgeCsrLeads already clears these) */
     await prisma.callLog.deleteMany({ where: { csrId: id } });
 
     /* 3. Chat messages — nullify replyToId before deleting to avoid dangling refs */

@@ -162,6 +162,8 @@ export default function UploadPage() {
       companyName: finalCompany.trim(),
     }, ...prev]);
 
+    let processingInterval: ReturnType<typeof setInterval> | null = null;
+
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -182,19 +184,30 @@ export default function UploadPage() {
         selectedLeadType
       );
 
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setFiles(prev => prev.map(f =>
-          f.id === tempId ? { ...f, progress: progress >= 90 ? 90 : progress } : f
-        ));
-      }, 200);
-
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          const pct = Math.min(50, Math.round((event.loaded / event.total) * 50));
+          setFiles(prev => prev.map(f =>
+            f.id === tempId ? { ...f, progress: pct, status: "Uploading" } : f
+          ));
+          if (event.loaded >= event.total && !processingInterval) {
+            let processing = 50;
+            setFiles(prev => prev.map(f =>
+              f.id === tempId ? { ...f, progress: processing, status: "Processing" } : f
+            ));
+            processingInterval = setInterval(() => {
+              processing = Math.min(92, processing + 1);
+              setFiles(prev => prev.map(f =>
+                f.id === tempId ? { ...f, progress: processing, status: "Processing" } : f
+              ));
+            }, 350);
+          }
+        },
       });
 
-      clearInterval(interval);
+      if (processingInterval) clearInterval(processingInterval);
       setFiles(prev => prev.map(f =>
         f.id === tempId
           ? { ...f, progress: 100, leads: res.data.totalLeads, distributed: true, status: "Distributed" }
@@ -207,8 +220,9 @@ export default function UploadPage() {
       } else {
         toast.success(`${created} leads uploaded & distributed for ${finalCompany.trim()}`);
       }
-      fetchLatestUpload();
+      void fetchLatestUpload();
     } catch {
+      if (processingInterval) clearInterval(processingInterval);
       setFiles(prev => prev.filter(f => f.id !== tempId));
       toast.error("Upload failed");
     }
@@ -237,7 +251,7 @@ export default function UploadPage() {
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
                   {modalStep === "category" ? "Where should this file's data go?"
-                   : modalStep === "reset"   ? "What should happen to existing lead data?"
+                   : modalStep === "reset"   ? "What should happen to existing call data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
@@ -393,7 +407,7 @@ export default function UploadPage() {
                         value: "reset" as const,
                         Icon: RefreshCw,
                         label: "Reset Data",
-                        sub: "Old links deleted, only new ones remain",
+                        sub: "Old call data deleted, new links added",
                         activeBorder: "border-[#B8112D]", activeBg: "bg-[#FFF1F3]",
                         activeIcon: "bg-[#B8112D]", activeText: "text-[#B8112D]",
                       },
@@ -427,7 +441,8 @@ export default function UploadPage() {
                     <div className="bg-[#FFF7E6] border border-[#F59E0B]/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-start gap-2 sm:gap-3">
                       <RotateCcw size={14} className="text-[#B45309] mt-0.5 shrink-0 sm:w-4 sm:h-4" />
                       <p className="text-xs sm:text-sm text-[#92400E]">
-                        <strong>Warning:</strong> All previous lead data will be permanently deleted.
+                        <strong>Note:</strong> Only call data (pending leads) will be deleted.
+                        Important, interested, clients, and projects will stay untouched.
                       </p>
                     </div>
                   )}
@@ -970,7 +985,7 @@ export default function UploadPage() {
                       file.status === "Processing"  ? "bg-blue-100 text-blue-700"  :
                       "bg-yellow-100 text-yellow-700"
                     }`}>
-                      {file.status === "Uploading"
+                      {file.status === "Uploading" || file.status === "Processing"
                         ? <Loader2 size={12} className="animate-spin sm:w-[14px] sm:h-[14px]" />
                         : <CheckCircle2 size={12} className="sm:w-[14px] sm:h-[14px]" />
                       }

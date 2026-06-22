@@ -341,7 +341,10 @@ export default function UsersPage() {
       <div className="flex flex-col gap-3 min-w-[220px]">
         <div>
           <p className="font-semibold text-[#111827]">Reset {user.name}&apos;s data?</p>
-          <p className="text-xs text-gray-400 mt-1">All leads assigned to this CSR will be permanently deleted.</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Permanently removes from database: all leads, notes, sub-contacts, and call logs for this CSR.
+            The user account will stay — only their data is cleared.
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={async () => {
@@ -351,7 +354,7 @@ export default function UsersPage() {
               const res  = await fetch(`${BASE}/admin/csr-leads/${user.id}`, { method: "DELETE", credentials: "include" });
               const data = await res.json();
               if (!res.ok) { toast.error(data.message || "Reset failed.", { id: tid }); return; }
-              toast.success(`${data.deleted} leads deleted for ${user.name}.`, { id: tid });
+              toast.success(`All data removed for ${user.name} (${data.deleted ?? 0} leads deleted).`, { id: tid });
             } catch { toast.error("Something went wrong.", { id: tid }); }
           }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Reset</button>
           <button onClick={() => toast.dismiss(t.id)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-600">Cancel</button>

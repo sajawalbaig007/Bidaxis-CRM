@@ -8,6 +8,7 @@ const db_1 = __importDefault(require("../config/db"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const cache_1 = require("../utils/cache");
+const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
 const router = express_1.default.Router();
 /* ================= ADMIN DASHBOARD ================= */
 router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), (req, res) => {
@@ -340,22 +341,14 @@ router.delete("/csr-leads/:csrId", auth_middleware_1.verifyToken, (0, role_middl
         if (csr.role !== "csr") {
             return res.status(400).json({ success: false, message: "User is not a CSR" });
         }
-        /* Cascade-delete children before removing leads */
-        const toDelete = await db_1.default.lead.findMany({ where: { assignedTo: csrId }, select: { id: true } });
-        const leadIds = toDelete.map(l => l.id);
-        if (leadIds.length > 0) {
-            await Promise.all([
-                db_1.default.leadNote.deleteMany({ where: { leadId: { in: leadIds } } }),
-                db_1.default.subContact.deleteMany({ where: { leadId: { in: leadIds } } }),
-                db_1.default.callLog.deleteMany({ where: { leadId: { in: leadIds } } }),
-            ]);
-        }
-        const { count } = await db_1.default.lead.deleteMany({ where: { assignedTo: csrId } });
+        /* Permanently purge all lead data for this CSR from DB */
+        const purged = await (0, purgeCsrLeads_1.purgeCsrLeads)(csrId);
         (0, cache_1.invalidateCache)("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
         return res.json({
             success: true,
-            message: `Deleted ${count} leads for ${csr.name}`,
-            deleted: count,
+            message: `Removed all data for ${csr.name} from database`,
+            deleted: purged.leadsDeleted,
+            purged,
             csrName: csr.name,
         });
     }
