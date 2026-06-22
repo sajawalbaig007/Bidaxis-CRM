@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteUser = exports.updateUser = exports.getUsers = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const cache_1 = require("../utils/cache");
+const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
 const getUsers = async (req, res) => {
     try {
         const users = await db_1.default.user.findMany();
@@ -54,18 +55,9 @@ exports.updateUser = updateUser;
 const deleteUser = async (req, res) => {
     try {
         const id = req.params.id;
-        /* 1. Cascade-delete lead children before removing leads */
-        const leads = await db_1.default.lead.findMany({ where: { assignedTo: id }, select: { id: true } });
-        const leadIds = leads.map(l => l.id);
-        if (leadIds.length > 0) {
-            await Promise.all([
-                db_1.default.leadNote.deleteMany({ where: { leadId: { in: leadIds } } }),
-                db_1.default.subContact.deleteMany({ where: { leadId: { in: leadIds } } }),
-                db_1.default.callLog.deleteMany({ where: { leadId: { in: leadIds } } }),
-            ]);
-            await db_1.default.lead.deleteMany({ where: { assignedTo: id } });
-        }
-        /* 2. CSR-level call logs */
+        /* 1. Permanently remove all lead data assigned to this user */
+        await (0, purgeCsrLeads_1.purgeCsrLeads)(id);
+        /* 2. CSR-level call logs (safety net — purgeCsrLeads already clears these) */
         await db_1.default.callLog.deleteMany({ where: { csrId: id } });
         /* 3. Chat messages — nullify replyToId before deleting to avoid dangling refs */
         const userMsgs = await db_1.default.message.findMany({ where: { senderId: id }, select: { id: true } });

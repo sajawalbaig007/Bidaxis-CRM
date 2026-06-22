@@ -3,6 +3,7 @@ import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
+import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 
 const router = express.Router();
 
@@ -397,23 +398,15 @@ router.delete(
         return res.status(400).json({ success: false, message: "User is not a CSR" });
       }
 
-      /* Cascade-delete children before removing leads */
-      const toDelete = await prisma.lead.findMany({ where: { assignedTo: csrId }, select: { id: true } });
-      const leadIds  = toDelete.map(l => l.id);
-      if (leadIds.length > 0) {
-        await Promise.all([
-          prisma.leadNote.deleteMany({ where: { leadId: { in: leadIds } } }),
-          prisma.subContact.deleteMany({ where: { leadId: { in: leadIds } } }),
-          prisma.callLog.deleteMany({ where: { leadId: { in: leadIds } } }),
-        ]);
-      }
-      const { count } = await prisma.lead.deleteMany({ where: { assignedTo: csrId } });
+      /* Permanently purge all lead data for this CSR from DB */
+      const purged = await purgeCsrLeads(csrId);
 
       invalidateCache("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
       return res.json({
         success: true,
-        message: `Deleted ${count} leads for ${csr.name}`,
-        deleted: count,
+        message: `Removed all data for ${csr.name} from database`,
+        deleted: purged.leadsDeleted,
+        purged,
         csrName: csr.name,
       });
     } catch (error) {
