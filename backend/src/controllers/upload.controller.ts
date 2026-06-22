@@ -13,6 +13,20 @@ type ExcelRow = {
   [key: string]: unknown;
 };
 
+/** Cloudinary sub-folder under crm_uploads based on upload type */
+function getCloudinaryFolder(leadType: string, initialStatuses: string[]): string {
+  const status = (initialStatuses[0] ?? "").toLowerCase();
+
+  if (leadType === "active") return "crm_uploads/active-projects";
+  if (leadType === "old" || status === "important") return "crm_uploads/old-clients";
+  if (leadType === "new" || status === "interested") return "crm_uploads/new-clients";
+  if (status === "pending") return "crm_uploads/call-data";
+  if (status === "close client") {
+    return leadType === "old" ? "crm_uploads/old-clients" : "crm_uploads/new-clients";
+  }
+  return "crm_uploads/call-data";
+}
+
 /* ================= UPLOAD LEADS ================= */
 
 export const uploadLeads = async (req: Request, res: Response) => {
@@ -37,10 +51,12 @@ export const uploadLeads = async (req: Request, res: Response) => {
       ? JSON.parse(rawStatuses)
       : [req.body.initialStatus?.trim() || "pending"];
 
+    const cloudFolder = getCloudinaryFolder(leadType, initialStatuses);
+
     /* ── UPLOAD FILE TO CLOUDINARY ── */
     const uploaded = await new Promise<{ secure_url: string }>((resolve, reject) => {
       cloudinary.uploader
-        .upload_stream({ resource_type: "raw", folder: "crm_uploads" }, (error, result) => {
+        .upload_stream({ resource_type: "raw", folder: cloudFolder }, (error, result) => {
           if (error || !result) reject(error);
           else resolve({ secure_url: result.secure_url });
         })
@@ -145,12 +161,21 @@ export const uploadLeads = async (req: Request, res: Response) => {
         }
       }
 
-      /* Delete pending (main page) leads */
-      await prisma.lead.deleteMany({
-        where: {
-          status: { equals: "pending", mode: "insensitive" },
-        },
+      /* Delete pending (main page) leads — cascade children first */
+      const pendingLeads = await prisma.lead.findMany({
+        where: { status: { equals: "pending", mode: "insensitive" } },
+        select: { id: true },
       });
+      const pendingIds = pendingLeads.map(l => l.id);
+
+      if (pendingIds.length > 0) {
+        await Promise.all([
+          prisma.leadNote.deleteMany({ where: { leadId: { in: pendingIds } } }),
+          prisma.subContact.deleteMany({ where: { leadId: { in: pendingIds } } }),
+          prisma.callLog.deleteMany({ where: { leadId: { in: pendingIds } } }),
+        ]);
+        await prisma.lead.deleteMany({ where: { id: { in: pendingIds } } });
+      }
 
       /* Hide all remaining non-pending leads from main page — they stay on their dedicated pages */
       await prisma.lead.updateMany({

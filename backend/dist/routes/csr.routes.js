@@ -9,7 +9,28 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const sessions_1 = require("../utils/sessions");
 const cache_1 = require("../utils/cache");
+const phone_1 = require("../utils/phone");
 const router = express_1.default.Router();
+async function findLeadsByPhone(phone) {
+    const trimmed = phone.trim();
+    if (!trimmed)
+        return [];
+    const exact = await db_1.default.lead.findMany({
+        where: { phone: trimmed },
+        orderBy: { updatedAt: "desc" },
+    });
+    if (exact.length > 0)
+        return exact;
+    const digits = (0, phone_1.normalizePhone)(trimmed);
+    if (digits.length < 7)
+        return [];
+    const suffix = digits.slice(-10);
+    const candidates = await db_1.default.lead.findMany({
+        where: { phone: { not: null, contains: suffix } },
+        orderBy: { updatedAt: "desc" },
+    });
+    return candidates.filter(l => l.phone && (0, phone_1.phonesMatch)(l.phone, trimmed));
+}
 /* ─── LIMITS ─── */
 const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT = 7;
@@ -23,7 +44,11 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
             return res.json(cached);
         const leads = await db_1.default.lead.findMany({
             where: { assignedTo: csrId },
-            include: { uploadFile: { select: { companyName: true } } },
+            include: {
+                uploadFile: { select: { companyName: true } },
+                notes: { select: { id: true } }, // IDs only — count badge; content fetched lazily
+                // subContacts omitted — fetched on demand via GET /csr/lead/:id
+            },
             orderBy: { createdAt: "desc" },
         });
         const payload = { success: true, totalLeads: leads.length, leads };
@@ -39,19 +64,57 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
 router.get("/not-interested", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
+        const cacheKey = `csr:not-interested:${csrId}`;
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached)
+            return res.json(cached);
         const leads = await db_1.default.lead.findMany({
             where: {
                 assignedTo: csrId,
                 status: { in: ["Not Interested", "not picked", "not completed"] },
             },
-            include: { uploadFile: { select: { companyName: true } } },
+            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { updatedAt: "desc" },
         });
-        return res.json({ success: true, leads });
+        const payload = { success: true, leads };
+        (0, cache_1.setCache)(cacheKey, payload, 30000);
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to fetch leads" });
+    }
+});
+/* ================= LOOKUP CLIENT BY PHONE ================= */
+router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const phone = req.query.phone?.trim();
+        if (!phone || (0, phone_1.normalizePhone)(phone).length < 7) {
+            return res.json({ success: true, found: false });
+        }
+        const matches = await findLeadsByPhone(phone);
+        if (matches.length === 0) {
+            return res.json({ success: true, found: false });
+        }
+        const latest = matches[0];
+        const wonProject = matches.find(l => ["Close Client", "completed"].includes(l.status ?? ""));
+        return res.json({
+            success: true,
+            found: true,
+            isReturningClient: matches.length >= 1,
+            projectCount: matches.length,
+            client: {
+                name: latest.name ?? "",
+                company: latest.company ?? "",
+                email: latest.email ?? "",
+                state: latest.state ?? "",
+                interestedService: wonProject?.interestedService ?? latest.interestedService ?? "",
+            },
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to lookup client" });
     }
 });
 /* ================= ADD PROJECT MANUALLY ================= */
@@ -66,11 +129,13 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 message: "name, projectTitle, interestedService and projectDeadline are required.",
             });
         }
+        const trimmedPhone = phone?.trim() || null;
+        const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
         const lead = await db_1.default.lead.create({
             data: {
                 name,
                 company: company ?? null,
-                phone: phone ?? null,
+                phone: trimmedPhone,
                 status: status ?? "Close Client",
                 projectTitle,
                 projectCode: projectCode ?? null,
@@ -81,9 +146,10 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 assignedTo: csrId,
                 important: false,
                 interested: false,
+                isOldClient: existingLeads.length > 0,
             },
         });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
         return res.status(201).json({ success: true, lead });
     }
     catch (error) {
@@ -91,7 +157,29 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         return res.status(500).json({ success: false, message: "Failed to create project" });
     }
 });
-/* ================= UPDATE LEAD NOTE ================= */
+/* ================= GET SINGLE LEAD (full data — lazy load for notes/subContacts) ================= */
+router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const leadId = req.params.id;
+        const lead = await db_1.default.lead.findFirst({
+            where: { id: leadId, assignedTo: csrId },
+            include: {
+                uploadFile: { select: { companyName: true } },
+                notes: { orderBy: { createdAt: "asc" } },
+                subContacts: { orderBy: { createdAt: "asc" } },
+            },
+        });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch lead" });
+    }
+});
+/* ================= UPDATE LEAD NOTE (legacy inline) ================= */
 router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
@@ -101,11 +189,65 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
         await db_1.default.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
         return res.json({ success: true });
     }
     catch {
         return res.status(500).json({ success: false, message: "Failed to save note" });
+    }
+});
+/* ================= ADD TIMESTAMPED NOTE ================= */
+router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const leadId = req.params.id;
+        const { text } = req.body;
+        if (!text?.trim())
+            return res.status(400).json({ success: false, message: "Note text required" });
+        const lead = await db_1.default.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        const note = await db_1.default.leadNote.create({ data: { text: text.trim(), leadId } });
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        return res.json({ success: true, note });
+    }
+    catch {
+        return res.status(500).json({ success: false, message: "Failed to add note" });
+    }
+});
+/* ================= UPDATE NOTE ================= */
+router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const { noteId } = req.params;
+        const { text } = req.body;
+        if (!text?.trim())
+            return res.status(400).json({ success: false, message: "Note text required" });
+        const note = await db_1.default.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
+        if (!note)
+            return res.status(404).json({ success: false, message: "Note not found" });
+        const updated = await db_1.default.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+        (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        return res.json({ success: true, note: updated });
+    }
+    catch {
+        return res.status(500).json({ success: false, message: "Failed to update note" });
+    }
+});
+/* ================= DELETE NOTE ================= */
+router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const { noteId } = req.params;
+        const note = await db_1.default.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
+        if (!note)
+            return res.status(404).json({ success: false, message: "Note not found" });
+        await db_1.default.leadNote.delete({ where: { id: noteId } });
+        (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        return res.json({ success: true });
+    }
+    catch {
+        return res.status(500).json({ success: false, message: "Failed to delete note" });
     }
 });
 /* ================= UPDATE LEAD ================= */
@@ -273,7 +415,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             where: { id: leadId },
             data: updateData,
         });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
         return res.json({ success: true, lead: updatedLead });
     }
     catch (error) {
@@ -320,7 +462,7 @@ router.get("/leads", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
             return res.json(cached);
         const csrLeads = await db_1.default.lead.findMany({
             where: { assignedTo: csrId },
-            include: { uploadFile: { select: { companyName: true } } },
+            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { createdAt: "desc" },
         });
         const phones = [...new Set(csrLeads.map(l => l.phone).filter((p) => !!p))];
@@ -360,8 +502,9 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             where: {
                 assignedTo: csrId,
                 status: { in: ["Close Client", "completed"] },
+                projectTitle: { not: null },
             },
-            include: { uploadFile: { select: { companyName: true } } },
+            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { updatedAt: "desc" },
         });
         const payload = { success: true, leads };
@@ -430,7 +573,7 @@ router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRol
         const csrId = req.user.id;
         const leads = await db_1.default.lead.findMany({
             where: { assignedTo: csrId, status: { in: ["not picked", "not completed"] } },
-            include: { uploadFile: { select: { companyName: true } } },
+            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { updatedAt: "desc" },
         });
         return res.json({ success: true, leads });
@@ -438,6 +581,45 @@ router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRol
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to fetch bin" });
+    }
+});
+/* ================= SUB-CONTACTS ================= */
+router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const leadId = req.params.id;
+        const { name, designation, phone, email } = req.body;
+        if (!name?.trim())
+            return res.status(400).json({ success: false, message: "Name is required" });
+        const lead = await db_1.default.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        const subContact = await db_1.default.subContact.create({
+            data: { leadId, name: name.trim(), designation: designation?.trim() || null, phone: phone?.trim() || null, email: email?.trim() || null },
+        });
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
+        return res.status(201).json({ success: true, subContact });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
+    }
+});
+router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const leadId = req.params.id;
+        const subId = req.params.subId;
+        const lead = await db_1.default.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        await db_1.default.subContact.delete({ where: { id: subId } });
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
+        return res.json({ success: true });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to delete sub-contact" });
     }
 });
 /* ================= HEARTBEAT ================= */
