@@ -132,6 +132,14 @@ model CallLog {
   csr  User @relation("CSRCallLogs", fields: [csrId], references: [id])
 }
 
+model UploadSource {
+  id        String   @id @default(cuid()) @map("_id")
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  uploads UploadFile[]
+}
+
 model UploadFile {
   id            String   @id @default(cuid()) @map("_id")
   fileName      String
@@ -139,9 +147,14 @@ model UploadFile {
   totalLeads    Int
   uploadedBy    String
   companyName   String?
+  sourceId      String?
   createdAt     DateTime @default(now())
 
-  leads Lead[]
+  source UploadSource? @relation(fields: [sourceId], references: [id])
+  leads  Lead[]
+
+  @@index([sourceId])
+  @@index([createdAt])
 }
 
 model Conversation {

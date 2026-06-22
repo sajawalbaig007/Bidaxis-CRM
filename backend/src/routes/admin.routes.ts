@@ -4,6 +4,7 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
+import { countLeadStatuses } from "../utils/uploadSourceStats";
 
 const router = express.Router();
 
@@ -589,6 +590,110 @@ router.put("/lead/:id/reassign", verifyToken, allowRoles("admin"), async (req, r
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to reassign lead" });
+  }
+});
+
+/* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */
+
+async function statsForSource(sourceId: string) {
+  const uploads = await prisma.uploadFile.findMany({
+    where:   { sourceId },
+    select:  { id: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const fileIds = uploads.map(u => u.id);
+  const leads = fileIds.length
+    ? await prisma.lead.findMany({
+        where:   { uploadedFileId: { in: fileIds } },
+        select:  { status: true },
+      })
+    : [];
+
+  return {
+    stats:   countLeadStatuses(leads),
+    uploads,
+  };
+}
+
+router.get("/upload-sources", verifyToken, allowRoles("admin"), async (_req, res) => {
+  try {
+    const sources = await prisma.uploadSource.findMany({ orderBy: { name: "asc" } });
+
+    const enriched = await Promise.all(
+      sources.map(async (src) => {
+        const { stats, uploads } = await statsForSource(src.id);
+        return {
+          id:          src.id,
+          name:        src.name,
+          createdAt:   src.createdAt,
+          uploadCount: uploads.length,
+          lastUpload:  uploads[0]?.createdAt ?? null,
+          stats,
+        };
+      })
+    );
+
+    return res.json({ success: true, sources: enriched });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch upload sources" });
+  }
+});
+
+router.post("/upload-sources", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const name = String(req.body.name ?? "").trim();
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Source name is required" });
+    }
+
+    const existing = await prisma.uploadSource.findUnique({ where: { name } });
+    if (existing) {
+      return res.json({ success: true, source: existing, created: false });
+    }
+
+    const source = await prisma.uploadSource.create({ data: { name } });
+    return res.json({ success: true, source, created: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to create upload source" });
+  }
+});
+
+router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const sourceId = String(req.params.sourceId);
+    const source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+    if (!source) {
+      return res.status(404).json({ success: false, message: "Source not found" });
+    }
+
+    const { stats, uploads } = await statsForSource(sourceId);
+
+    const leads = uploads.length
+      ? await prisma.lead.findMany({
+          where:   { uploadedFileId: { in: uploads.map(u => u.id) } },
+          select:  {
+            id: true, name: true, phone: true, email: true, status: true,
+            company: true, interestedService: true, updatedAt: true,
+            csr: { select: { name: true } },
+          },
+          orderBy: { updatedAt: "desc" },
+          take:    200,
+        })
+      : [];
+
+    return res.json({
+      success: true,
+      source:  { id: source.id, name: source.name, createdAt: source.createdAt },
+      stats,
+      uploads,
+      leads,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch source details" });
   }
 });
 

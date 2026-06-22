@@ -126,7 +126,17 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const companyName:  string = req.body.companyName?.trim() || "";
     const resetMode:   string = req.body.resetMode || "keep";
     const leadType:    string = req.body.leadType || "new";   /* "new" | "old" — only used when pane = "lead" */
+    const sourceId:    string = String(req.body.sourceId ?? "").trim();
     const uploadedBy          = "admin";
+
+    if (!sourceId) {
+      return res.status(400).json({ success: false, message: "Upload source is required" });
+    }
+
+    const source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+    if (!source) {
+      return res.status(400).json({ success: false, message: "Invalid upload source" });
+    }
 
     /* accept array of statuses for multi-pane distribution */
     const rawStatuses = req.body.initialStatuses;
@@ -225,6 +235,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         totalLeads:    data.length,
         uploadedBy,
         companyName:   companyName || null,
+        sourceId:      source.id,
       },
     });
 
@@ -449,6 +460,7 @@ export const getLatestUpload = async (req: Request, res: Response) => {
     const latestFile = await prisma.uploadFile.findFirst({
       orderBy: { createdAt: "desc" },
       include: {
+        source: { select: { id: true, name: true } },
         leads: {
           include: {
             csr: { select: { id: true, name: true, email: true } },
@@ -478,6 +490,7 @@ export const getLatestUpload = async (req: Request, res: Response) => {
         totalLeads:    latestFile.totalLeads,
         cloudinaryUrl: latestFile.cloudinaryUrl,
         companyName:   latestFile.companyName,
+        source:        latestFile.source,
         createdAt:     latestFile.createdAt,
         distribution,
       },
