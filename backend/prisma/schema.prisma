@@ -72,6 +72,9 @@ model Lead {
   notInterestedCount Int       @default(0)
   notPickedCount     Int       @default(0)
   hiddenOnMain       Boolean   @default(false)
+  inBin              Boolean   @default(false)
+  binReason          String?
+  binPreviousStatus  String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -141,19 +144,21 @@ model UploadSource {
 }
 
 model UploadFile {
-  id            String   @id @default(cuid()) @map("_id")
-  fileName      String
-  cloudinaryUrl String
-  totalLeads    Int
-  uploadedBy    String
-  companyName   String?
-  sourceId      String?
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid()) @map("_id")
+  fileName       String
+  cloudinaryUrl  String
+  totalLeads     Int
+  uploadedBy     String
+  companyName    String?
+  sourceId       String?
+  uploadCategory String?  /* call-data | new-client | old-client | interested | important | active-projects */
+  createdAt      DateTime @default(now())
 
   source UploadSource? @relation(fields: [sourceId], references: [id])
   leads  Lead[]
 
   @@index([sourceId])
+  @@index([uploadCategory])
   @@index([createdAt])
 }
 

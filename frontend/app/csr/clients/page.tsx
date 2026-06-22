@@ -12,6 +12,7 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
+import { CLIENT_GRID_HEAD, CLIENT_GRID_ROW } from "../components/shared/csrTableStyles";
 
 import { useLeadsData, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
@@ -455,14 +456,15 @@ export default function LeadsPage() {
             </div>
           ) : filtered.length > 0 ? (
             <>
+              <div className="overflow-x-auto">
               {/* Desktop header */}
-              <div className="hidden lg:grid gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA] grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]">
+              <div className={`hidden lg:grid gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA] min-w-[1120px] ${CLIENT_GRID_HEAD}`}>
                 {["Code", "Client", "Company", "Phone", "Email", "Service", "Latest Note", ""].map(h => (
                   <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
                 ))}
               </div>
 
-              <div className="divide-y divide-[#F3F3F3]">
+              <div className="divide-y divide-[#F3F3F3] min-w-[1120px]">
                 {paginated.map(lead => {
                   const latestNote = getLatestNote(lead);
                   const displayName = lead.name;
@@ -470,7 +472,7 @@ export default function LeadsPage() {
                   return (
                     <div
                       key={lead.id}
-                      className="grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors grid-cols-[1fr_auto] lg:grid-cols-[90px_minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.5fr)_80px]"
+                      className={`grid gap-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 items-center hover:bg-[#FAFAFA] transition-colors grid-cols-[1fr_auto] ${CLIENT_GRID_ROW}`}
                     >
                       {/* Code column */}
                       <div className="hidden lg:block">
@@ -602,6 +604,7 @@ export default function LeadsPage() {
                     </div>
                   );
                 })}
+              </div>
               </div>
 
               <div className="px-4 sm:px-6">

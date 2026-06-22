@@ -5,8 +5,29 @@ import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { normalizePhone, phonesMatch } from "../utils/phone";
+import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import {
+  NOT_INTERESTED_LIMIT,
+  NOT_PICKED_LIMIT,
+  buildActiveRetryWhere,
+  buildBinWhere,
+  resolveDeleteBinReason,
+} from "../utils/binLeads";
 
 const router = express.Router();
+
+function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
+  invalidateCache(
+    `csr:dashboard:${csrId}`,
+    `csr:leads:${csrId}`,
+    `csr:projects:${csrId}`,
+    `csr:not-interested:${csrId}`,
+    `csr:bin:${csrId}`,
+    "admin:clients",
+    "admin:bin",
+    ...extra,
+  );
+}
 
 async function findLeadsByPhone(phone: string) {
   const trimmed = phone.trim();
@@ -29,11 +50,6 @@ async function findLeadsByPhone(phone: string) {
   return candidates.filter(l => l.phone && phonesMatch(l.phone, trimmed));
 }
 
-/* ─── LIMITS ─── */
-const NOT_INTERESTED_LIMIT = 3;
-const NOT_PICKED_LIMIT     = 7;
-
-
 /* ================= CSR DASHBOARD ================= */
 
 router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) => {
@@ -44,7 +60,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     if (cached) return res.json(cached);
 
     const leads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId },
+      where:   { assignedTo: csrId, inBin: false },
       include: {
         uploadFile: { select: { companyName: true } },
         notes:      { select: { id: true } },   // IDs only — count badge; content fetched lazily
@@ -72,10 +88,7 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
     if (cached) return res.json(cached);
 
     const leads = await prisma.lead.findMany({
-      where: {
-        assignedTo: csrId,
-        status: { in: ["Not Interested", "not picked", "not completed"] },
-      },
+      where: buildActiveRetryWhere(csrId),
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
@@ -288,6 +301,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       interestedService, projectTitle, projectCode, projectDeadline,
       projectBudget, projectNotes, paidAmount, comments,
       name, phone, email, state,
+      moveToBin, inBin,
     } = req.body;
 
     /* Fetch current lead to get existing counts */
@@ -297,6 +311,42 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     if (!lead) {
       return res.status(404).json({ success: false, message: "Lead not found" });
+    }
+
+    if (moveToBin === true) {
+      const reason = resolveDeleteBinReason(lead.status);
+      const updated = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          inBin:             true,
+          binReason:         reason,
+          binPreviousStatus: lead.status,
+          important:         false,
+          interested:        false,
+          status:            "pending",
+        },
+      });
+      invalidateCsrLeadCaches(csrId);
+      return res.json({ success: true, lead: updated, movedToBin: true });
+    }
+
+    if (inBin === false) {
+      const restoreStatus = lead.binPreviousStatus || "pending";
+      const updated = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          inBin:              false,
+          binReason:          null,
+          binPreviousStatus:  null,
+          status:             restoreStatus,
+          important:          restoreStatus === "important",
+          interested:         restoreStatus === "interested",
+          notPickedCount:     0,
+          notInterestedCount: 0,
+        },
+      });
+      invalidateCsrLeadCaches(csrId);
+      return res.json({ success: true, lead: updated, restored: true });
     }
 
     /* Build base update object */
@@ -335,7 +385,14 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         const entry = `[Try ${newCount}/${NOT_INTERESTED_LIMIT} · ${ts}] Not Interested${tag}`;
         updateData.followUpNotes = [lead.followUpNotes, entry].filter(Boolean).join("\n");
 
+        if (newCount >= NOT_INTERESTED_LIMIT) {
+          updateData.inBin     = true;
+          updateData.binReason = "limit-not-interested";
+        }
+
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
+
+        invalidateCsrLeadCaches(csrId);
 
         if (newCount >= NOT_INTERESTED_LIMIT) {
           const otherCsrs = await prisma.user.findMany({
@@ -370,7 +427,14 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         const entry = `[Try ${newCount}/${NOT_PICKED_LIMIT} · ${ts}] Not Picked${tag}`;
         updateData.followUpNotes = [lead.followUpNotes, entry].filter(Boolean).join("\n");
 
+        if (newCount >= NOT_PICKED_LIMIT) {
+          updateData.inBin     = true;
+          updateData.binReason = "limit-not-picked";
+        }
+
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
+
+        invalidateCsrLeadCaches(csrId);
 
         if (newCount >= NOT_PICKED_LIMIT) {
           const otherCsrs = await prisma.user.findMany({
@@ -453,7 +517,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       data:  updateData,
     });
 
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+    invalidateCsrLeadCaches(csrId);
     return res.json({ success: true, lead: updatedLead });
   } catch (error) {
     console.log(error);
@@ -504,7 +568,7 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
     if (cached) return res.json(cached);
 
     const csrLeads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId },
+      where:   { assignedTo: csrId, inBin: false },
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
@@ -545,15 +609,13 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const leads = await prisma.lead.findMany({
-      where: {
-        assignedTo:   csrId,
-        status:       { in: ["Close Client", "completed"] },
-        projectTitle: { not: null },
-      },
+    const rawLeads = await prisma.lead.findMany({
+      where: buildProjectLeadWhere(csrId),
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
+
+    const leads = rawLeads.filter(isDisplayableProjectLead);
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);
@@ -609,14 +671,13 @@ router.put("/lead/:id/assign", verifyToken, allowRoles("csr"), async (req: any, 
         notPickedCount:     0,
         important:          false,
         interested:         false,
+        inBin:              false,
+        binReason:          null,
+        binPreviousStatus:  null,
       },
     });
 
-    invalidateCache(
-      `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`,
-      `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`,
-      "admin:clients",
-    );
+    invalidateCsrLeadCaches(csrId, `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`, `csr:bin:${targetCsrId}`);
     return res.json({ success: true, message: `Lead assigned to ${targetCsr.name}` });
   } catch (error) {
     console.log(error);
@@ -628,13 +689,20 @@ router.put("/lead/:id/assign", verifyToken, allowRoles("csr"), async (req: any, 
 
 router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const csrId = req.user.id;
+    const csrId    = req.user.id;
+    const cacheKey = `csr:bin:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
     const leads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId, status: { in: ["not picked", "not completed"] } },
+      where:   buildBinWhere(csrId),
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
-    return res.json({ success: true, leads });
+
+    const payload = { success: true, leads };
+    setCache(cacheKey, payload, 30_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch bin" });

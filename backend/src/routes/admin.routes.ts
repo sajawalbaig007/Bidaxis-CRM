@@ -5,6 +5,8 @@ import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
+import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { buildBinWhere } from "../utils/binLeads";
 
 const router = express.Router();
 
@@ -209,7 +211,7 @@ router.get(
       ).length;
 
       const projectWon = leads.filter(
-        (l) => l.status?.toLowerCase() === "Close Client"
+        (l) => l.status?.toLowerCase() === "close client"
       ).length;
 
       return res.json({
@@ -235,17 +237,20 @@ router.get(
   }
 );
 
-/* ================= ALL Close Client LEADS ================= */
+/* ================= ALL ACTIVE PROJECT LEADS (all CSRs) ================= */
 router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
-    const leads = await prisma.lead.findMany({
-      where: { status: "Close Client", projectTitle: { not: null } },
+    const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+
+    const rawLeads = await prisma.lead.findMany({
+      where: buildProjectLeadWhere(csrId),
       include: {
         csr: {
           select: {
             id: true,
             name: true,
             email: true,
+            csrCode: true,
           },
         },
         uploadFile: {
@@ -253,9 +258,12 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
             companyName: true,
           },
         },
+        notes: { orderBy: { createdAt: "asc" } },
       },
       orderBy: { updatedAt: "desc" },
     });
+
+    const leads = rawLeads.filter(isDisplayableProjectLead);
 
     const now = new Date();
 
@@ -553,8 +561,10 @@ router.post(
 
 router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
+    const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+
     const leads = await prisma.lead.findMany({
-      where: { status: { in: ["not picked", "not completed", "Not Interested"] } },
+      where: buildBinWhere(csrId),
       include: {
         csr:        { select: { id: true, name: true, csrCode: true } },
         uploadFile: { select: { companyName: true } },
@@ -582,10 +592,27 @@ router.put("/lead/:id/reassign", verifyToken, allowRoles("admin"), async (req, r
 
     const lead = await prisma.lead.update({
       where: { id: leadId },
-      data:  { assignedTo: csrId },
+      data:  {
+        assignedTo:         csrId,
+        inBin:              false,
+        binReason:          null,
+        binPreviousStatus:  null,
+        status:             "pending",
+        notInterestedCount: 0,
+        notPickedCount:     0,
+        important:          false,
+        interested:         false,
+      },
     });
 
-    invalidateCache("admin:clients", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`);
+    invalidateCache(
+      "admin:clients",
+      "admin:bin",
+      `csr:dashboard:${csrId}`,
+      `csr:leads:${csrId}`,
+      `csr:not-interested:${csrId}`,
+      `csr:bin:${csrId}`,
+    );
     return res.json({ success: true, lead, message: `Lead reassigned to ${targetCsr.name}` });
   } catch (error) {
     console.log(error);

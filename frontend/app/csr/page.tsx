@@ -12,7 +12,9 @@ import TopNavbar from "./components/navigation/TopNavbar";
 import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
+import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
 import LeadStatusDonut from "./components/shared/LeadStatusDonut";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
@@ -22,7 +24,7 @@ import { useCsrDashboard } from "./hooks/useCsrDashboard";
 import { useLeadActions } from "./hooks/useLeadActions";
 import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
-import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "./constants/timezoneAbbr";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone, leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
 
 const statusLabel = (s: string) => {
@@ -49,6 +51,7 @@ export default function CSRPage() {
   const [page, setPage] = useState(1);
 
   const [stateFilter, setStateFilter] = useState("");
+  const [timezoneFilter, setTimezoneFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
 
   const [dismissedNotification, setDismissedNotification] = useState(false);
@@ -130,9 +133,10 @@ export default function CSRPage() {
             return afterCountry.startsWith(typed);
           })()
         : true;
-      return matchesTab && matchesState && matchesPhone;
+      const matchesTimezone = leadMatchesTimezoneFilter(item, timezoneFilter);
+      return matchesTab && matchesState && matchesPhone && matchesTimezone;
     });
-  }, [mainLeads, activeTab, stateFilter, phoneFilter]);
+  }, [mainLeads, activeTab, stateFilter, timezoneFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
   const paginated  = filteredLinks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -276,6 +280,11 @@ export default function CSRPage() {
                 onChange={v => { setStateFilter(v); setPage(1); }}
               />
 
+              <TimezoneFilterDropdown
+                value={timezoneFilter}
+                onChange={v => { setTimezoneFilter(v); setPage(1); }}
+              />
+
               {/* ── PHONE CODE FILTER ── */}
               <div className="relative">
                 <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
@@ -332,13 +341,12 @@ export default function CSRPage() {
 
           {/* ── TABLE ── */}
           <div className="overflow-x-auto rounded-xl sm:rounded-2xl border border-gray-100">
-            <table className="w-full" style={{ minWidth: "1000px" }}>
+            <table className={CSR_TABLE_CLASS} style={{ minWidth: "1100px" }}>
+              <CsrColGroup widths={COL_6_DASHBOARD} />
               <thead className="bg-[#FAFAFA]">
                 <tr>
                   {["Client","Company","Phone","Status","Notes","Action"].map(h => (
-                    <th key={h} className="text-left py-3 sm:py-4 px-3 sm:px-5 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} className={CSR_TH}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -357,7 +365,7 @@ export default function CSRPage() {
                   <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
 
                     {/* CLIENT */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                    <td className={CSR_TD}>
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
                           {(page - 1) * PAGE_SIZE + idx + 1}
@@ -367,7 +375,7 @@ export default function CSRPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate max-w-[100px] sm:max-w-[140px]">
+                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate">
                               {currentLink.client}
                             </h4>
                             {(() => {
@@ -399,12 +407,12 @@ export default function CSRPage() {
                     </td>
 
                     {/* COMPANY */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] max-w-[120px]">
+                    <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A]`}>
                       <span className="truncate block">{currentLink.company}</span>
                     </td>
 
                     {/* PHONE */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
+                    <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A] whitespace-nowrap`}>
                       <div className="flex items-center gap-1.5">
                         {currentLink.phone}
                         {(() => { const t = getTimezoneAbbrFromPhone(currentLink.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
@@ -412,14 +420,14 @@ export default function CSRPage() {
                     </td>
 
                     {/* STATUS */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                    <td className={CSR_TD}>
                       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
                     </td>
 
                     {/* NOTES */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                    <td className={CSR_TD}>
                       <CommentCell
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}
@@ -440,8 +448,8 @@ export default function CSRPage() {
                     </td>
 
                     {/* ACTION */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
-                      <div className="relative w-full max-w-[180px] sm:max-w-[230px]">
+                    <td className={CSR_TD}>
+                      <div className="relative w-full min-w-[160px]">
                         <select
                           onChange={e => updateStatus(currentLink.id, e.target.value)}
                           defaultValue=""
@@ -466,14 +474,20 @@ export default function CSRPage() {
                     <td colSpan={6} className="py-14 sm:py-20 text-center">
                       <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
                       <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
-                        {stateFilter ? `No leads in "${stateFilter}".` : "No calls available in this category."}
+                        {stateFilter && timezoneFilter
+                          ? `No leads in "${stateFilter}" (${timezoneFilter}).`
+                          : stateFilter
+                          ? `No leads in "${stateFilter}".`
+                          : timezoneFilter
+                          ? `No leads in ${timezoneFilter} timezone.`
+                          : "No calls available in this category."}
                       </p>
-                      {stateFilter && (
+                      {(stateFilter || timezoneFilter || phoneFilter) && (
                         <button
-                          onClick={() => setStateFilter("")}
+                          onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setPage(1); }}
                           className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
                         >
-                          Clear state filter
+                          Clear filters
                         </button>
                       )}
                     </td>

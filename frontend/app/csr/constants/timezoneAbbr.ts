@@ -160,3 +160,35 @@ export function getTimezoneAbbrFromPhone(phone: string): string | null {
   if (!areaCode) return null;
   return AREA_CODE_TZ[areaCode] ?? null;
 }
+
+/** Resolve timezone badge for a lead — state first, then phone area code */
+export function getLeadTimezoneAbbr(lead: { state?: string | null; phone?: string }): string | null {
+  return getTimezoneAbbr(lead.state) ?? (lead.phone ? getTimezoneAbbrFromPhone(lead.phone) : null);
+}
+
+/** Map lead timezone to one of the 4 standard US zones (ET, CT, MT, PT) */
+export function normalizeStandardTimezone(abbr: string | null): string | null {
+  if (!abbr) return null;
+  if (abbr === "MST") return "MT"; /* Arizona → Mountain */
+  if (abbr === "ET" || abbr === "CT" || abbr === "MT" || abbr === "PT") return abbr;
+  return null; /* AK, HI, etc. — not in standard 4 */
+}
+
+export function getLeadStandardTimezone(lead: { state?: string | null; phone?: string }): string | null {
+  return normalizeStandardTimezone(getLeadTimezoneAbbr(lead));
+}
+
+export function leadMatchesTimezoneFilter(
+  lead: { state?: string | null; phone?: string },
+  filterAbbr: string
+): boolean {
+  if (!filterAbbr) return true;
+  return getLeadStandardTimezone(lead) === filterAbbr;
+}
+
+export const TIMEZONE_FILTER_OPTIONS = [
+  { abbr: "ET", label: "Eastern Time",  sub: "NY, FL, GA, OH, PA…" },
+  { abbr: "CT", label: "Central Time",  sub: "TX, IL, MO, MN, LA…" },
+  { abbr: "MT", label: "Mountain Time", sub: "CO, UT, AZ, NM, WY…" },
+  { abbr: "PT", label: "Pacific Time",  sub: "CA, WA, OR, NV…" },
+] as const;

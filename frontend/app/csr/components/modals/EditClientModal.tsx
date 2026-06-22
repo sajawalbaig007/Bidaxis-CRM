@@ -91,7 +91,7 @@ export default function EditClientModal({
                 {[
                   { action: "reschedule" as EditAction,  Icon: CalendarClock, iconBg: "bg-[#EAF5FF] text-[#0B84F3]", title: "Reschedule",    sub: "Pick a new date, time & timezone" },
                   { action: "closeclient" as EditAction, Icon: Trophy,        iconBg: "bg-[#ECFDF5] text-[#065F46]", title: "Close Client",   sub: "Fill project details & move to Projects" },
-                  { action: "deleteclient" as EditAction,Icon: UserX,         iconBg: "bg-[#FFF1F3] text-[#B42318]", title: "Delete Client",  sub: "Remove this client from the list" },
+                  { action: "deleteclient" as EditAction,Icon: UserX,         iconBg: "bg-[#FFF1F3] text-[#B42318]", title: "Delete Client",  sub: "Move this client to Bin" },
                 ].map(opt => (
                   <button
                     key={String(opt.action)}
@@ -191,7 +191,7 @@ export default function EditClientModal({
                   <div className="min-w-0">
                     <h4 className="font-semibold text-[#B42318] text-xs sm:text-[14px]">Confirm Delete Client</h4>
                     <p className="text-[#B42318]/70 text-[11px] sm:text-[12px] mt-0.5">
-                      <strong>{client}</strong> will be removed permanently.
+                      <strong>{client}</strong> will be moved to your Bin.
                     </p>
                   </div>
                 </div>

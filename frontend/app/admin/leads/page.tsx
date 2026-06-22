@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import API from "@/lib/api";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { visibleInterval } from "@/lib/visibleInterval";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -640,16 +641,15 @@ export default function ClientsPage() {
 
               {/* Horizontally scrollable table wrapper */}
               <div className="overflow-x-auto overflow-y-auto max-h-[480px] sm:max-h-[560px] lg:max-h-[620px] xl:max-h-[700px]">
-                <table className="w-full" style={{ minWidth: "760px" }}>
+                <table className={CSR_TABLE_CLASS} style={{ minWidth: "1100px" }}>
+                  <CsrColGroup widths={COL_8_ADMIN} />
                   <thead className="bg-[#FAFAFB] border-b border-gray-100 sticky top-0 z-10">
                     <tr className="text-left text-xs sm:text-sm text-gray-400">
                       {["Client", "Company", "Scope", "Contact", "CSR", "Status", "Notes", ""].map(
                         (h, i) => (
                           <th
                             key={i}
-                            className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 font-medium ${
-                              i === 7 ? "text-right" : ""
-                            }`}
+                            className={`${CSR_TH} ${i === 7 ? "text-right" : ""}`}
                           >
                             {h}
                           </th>
@@ -682,7 +682,7 @@ export default function ClientsPage() {
                           className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-colors"
                         >
                           {/* Client name + email */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             <div className="flex items-center gap-2 sm:gap-3">
                               <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm">
                                 {client.clientName.charAt(0)}
@@ -698,16 +698,16 @@ export default function ClientsPage() {
                             </div>
                           </td>
 
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-[120px]">
+                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-600`}>
                             <span className="truncate block">{client.company}</span>
                           </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-[140px]">
+                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-600`}>
                             <span className="truncate block">{client.scope}</span>
                           </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-500 whitespace-nowrap">
+                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-500 whitespace-nowrap`}>
                             {client.contact}
                           </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
+                          <td className={`${CSR_TD} whitespace-nowrap`}>
                             <div className="flex items-center gap-1.5">
                               {client.csrCode && (
                                 <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{client.csrCode}</span>
@@ -717,7 +717,7 @@ export default function ClientsPage() {
                           </td>
 
                           {/* Status badge */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             <span
                               className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${
                                 client.status === "Active"
@@ -734,7 +734,7 @@ export default function ClientsPage() {
                           </td>
 
                           {/* Notes */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             <CommentCell
                               id={client.id}
                               comment={client.lastComment === "No comments" ? "" : client.lastComment}
@@ -746,7 +746,7 @@ export default function ClientsPage() {
                           </td>
 
                           {/* Actions */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             {/* Desktop: icon row (md+) */}
                             <div className="hidden md:flex items-center justify-end gap-1.5 lg:gap-2">
                               <button

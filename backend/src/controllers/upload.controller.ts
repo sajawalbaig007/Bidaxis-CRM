@@ -1,21 +1,17 @@
 import { Request, Response } from "express";
-import XLSX from "xlsx";
 import prisma from "../config/db";
 import cloudinary from "../config/cloudinary";
 import { invalidateCache } from "../utils/cache";
+import {
+  readExcelRows,
+  parseLeadRows,
+  classifyRows,
+} from "../utils/uploadExcelParse";
+import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
+import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 
-const CHUNK_LOOKUP = 500;
 const CHUNK_INSERT = 1000;
 const BATCH_UPDATE = 30;
-type ExcelRow = {
-  name?: string;    Name?: string;
-  company?: string; Company?: string;
-  phone?: string | number; Phone?: string | number;
-  mobile?: string | number; Mobile?: string | number;
-  email?: string;   Email?: string;
-  address?: string; Address?: string;
-  [key: string]: unknown;
-};
 
 /** Cloudinary sub-folder under crm_uploads based on upload type */
 function getCloudinaryFolder(leadType: string, initialStatuses: string[]): string {
@@ -49,46 +45,11 @@ function uploadRawBuffer(buffer: Buffer, folder: string, publicId?: string): Pro
   });
 }
 
-async function chunkedLookup<T>(
-  items: string[],
-  size: number,
-  query: (chunk: string[]) => Promise<T[]>
-): Promise<T[]> {
-  if (items.length === 0) return [];
-  const out: T[] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(...await query(items.slice(i, i + size)));
-  }
-  return out;
-}
-
 async function runBatched<T>(items: T[], size: number, fn: (item: T) => Promise<unknown>) {
   for (let i = 0; i < items.length; i += size) {
     await Promise.all(items.slice(i, i + size).map(fn));
   }
 }
-
-function resolveColumnKey(
-  keys: string[],
-  possibleKeys: string[],
-  excludeKeys: string[] = []
-): string | undefined {
-  return keys.find(k => {
-    const kl = k.toLowerCase();
-    if (excludeKeys.some(ex => kl.includes(ex.toLowerCase()))) return false;
-    return possibleKeys.some(p => kl.includes(p.toLowerCase()));
-  });
-}
-
-function readCell(row: ExcelRow, key: string | undefined): string {
-  if (!key) return "";
-  const raw = row[key];
-  if (raw === undefined || raw === null) return "";
-  const s = String(raw).trim();
-  if (!s || s.toLowerCase() === "n/a" || s.toLowerCase() === "na" || s === "-") return "";
-  return s;
-}
-
 /** Call-data = daily pending leads on CSR main page */
 const CALL_DATA_STATUSES = ["pending"] as const;
 
@@ -96,18 +57,6 @@ function isCallDataUpload(initialStatuses: string[]): boolean {
   return initialStatuses.every(s =>
     CALL_DATA_STATUSES.includes(s.toLowerCase() as typeof CALL_DATA_STATUSES[number])
   );
-}
-
-/** Cascade-delete only call-data leads; other statuses are untouched */
-async function deleteLeadsByIds(ids: string[]): Promise<number> {
-  if (ids.length === 0) return 0;
-  await Promise.all([
-    prisma.leadNote.deleteMany({ where: { leadId: { in: ids } } }),
-    prisma.subContact.deleteMany({ where: { leadId: { in: ids } } }),
-    prisma.callLog.deleteMany({ where: { leadId: { in: ids } } }),
-  ]);
-  const { count } = await prisma.lead.deleteMany({ where: { id: { in: ids } } });
-  return count;
 }
 
 /* ================= UPLOAD LEADS ================= */
@@ -144,14 +93,10 @@ export const uploadLeads = async (req: Request, res: Response) => {
       ? JSON.parse(rawStatuses)
       : [req.body.initialStatus?.trim() || "pending"];
 
-    const cloudFolder = getCloudinaryFolder(leadType, initialStatuses);
-    const fileBuffer  = req.file.buffer;
-
-    /* ── READ EXCEL (sync — no await) ── */
-    const workbook  = XLSX.read(fileBuffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data      = XLSX.utils.sheet_to_json<ExcelRow>(worksheet);
+    const cloudFolder    = getCloudinaryFolder(leadType, initialStatuses);
+    const uploadCategory = resolveUploadCategory(leadType, initialStatuses);
+    const fileBuffer     = req.file.buffer;
+    const rows        = readExcelRows(fileBuffer);
 
     /* ── CLOUDINARY + CSRS in parallel ── */
     const [cloudinaryUrl, csrs] = await Promise.all([
@@ -223,7 +168,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
         }
       }
 
-      const deleted = await deleteLeadsByIds(callDataLeads.map(l => l.id));
+      const deleted = await deleteLeadsCascade(callDataLeads.map(l => l.id));
+      await invalidateAllLeadCaches([...new Set(callDataLeads.map(l => l.assignedTo))]);
       console.log(`[Renew] ${deleted} call-data leads deleted. All other data untouched ✅`);
     }
 
@@ -232,170 +178,53 @@ export const uploadLeads = async (req: Request, res: Response) => {
       data: {
         fileName:      req.file.originalname,
         cloudinaryUrl: cloudinaryUrl,
-        totalLeads:    data.length,
+        totalLeads:    rows.length,
         uploadedBy,
-        companyName:   companyName || null,
-        sourceId:      source.id,
+        companyName:    companyName || null,
+        sourceId:       source.id,
+        uploadCategory,
       },
     });
 
     const isActiveUpload = leadType === "active";
-
-    /* ── PARSE ALL ROWS FIRST (no DB calls yet) ── */
-    const parsed: Array<{
-      name: string; company: string; phone: string;
-      email: string; state: string; interestedService: string;
-      clientCode: string | null;
-      projectTitle: string | null;
-      projectBudget: string | null;
-      csrId: string; csrName: string;
-      status: string; isOldClient: boolean;
-    }> = [];
-
-    const headerKeys = data.length > 0 ? Object.keys(data[0]) : [];
-    const col = {
-      clientDetail: resolveColumnKey(headerKeys, ["name","client","customer","contact person"], ["code"]),
-      phone:        resolveColumnKey(headerKeys, ["phone","mobile","cell","telephone","number","contact"], ["person","name","detail"]),
-      company:      resolveColumnKey(headerKeys, ["company","business","organization"]),
-      state:        resolveColumnKey(headerKeys, ["location","address","state","province","city","prov","region"]),
-      service:      resolveColumnKey(headerKeys, ["interested in","interested","service","interest","services","scope"], ["status"]),
-      projectTitle: resolveColumnKey(headerKeys, ["project detail","project title","project name","project"], ["code","client"]),
-      projectBudget:resolveColumnKey(headerKeys, ["quotation","quote","budget"]),
-      email:        resolveColumnKey(headerKeys, ["email","mail","e-mail"]),
-      clientCode:   resolveColumnKey(headerKeys, ["client code","clientcode","project code","client_code"]),
-    };
-
-    for (let i = 0; i < data.length; i++) {
-      const row  = data[i];
-      const csr  = csrs[i % csrs.length];
-
-      const rawClientDetail = readCell(row, col.clientDetail);
-      const detailLines = rawClientDetail.split(/[\n\r]/).map(l => l.trim()).filter(Boolean);
-      const name = detailLines[0] || "";
-
-      let phone = readCell(row, col.phone);
-      if (!phone && isActiveUpload) {
-        const phoneLine = detailLines.find(l => /^[\+\d][\d\s\-\(\)\.]{5,}$/.test(l));
-        if (phoneLine) phone = phoneLine.replace(/[^\d\+\-]/g, "");
-      }
-
-      let company = readCell(row, col.company);
-      if (!company && isActiveUpload) company = name;
-
-      const projectTitle = isActiveUpload
-        ? (readCell(row, col.projectTitle) || "")
-        : null;
-
-      const projectBudget = isActiveUpload
-        ? (readCell(row, col.projectBudget) || null)
-        : null;
-
-      parsed.push({
-        name,
-        company,
-        phone,
-        email:             readCell(row, col.email),
-        state:             readCell(row, col.state),
-        interestedService: readCell(row, col.service),
-        clientCode:        readCell(row, col.clientCode) || null,
-        projectTitle,
-        projectBudget,
-        csrId:             csr.id,
-        csrName:           csr.name,
-        status:            initialStatuses[i % initialStatuses.length],
-        isOldClient:       leadType === "old" || isActiveUpload,
-      });
-    }
-
-    /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
+    const parsed         = parseLeadRows(rows, csrs, initialStatuses, leadType);
     const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
 
-    /* ── DEDUP / UPSERT ── */
-    let fresh: typeof parsed;
+    const { fresh, toUpdate, emailUpdates, preview, existingCodeMap } =
+      await classifyRows(parsed, isActiveUpload);
+
     const distributionMap: Record<string, number> = {};
 
-    if (isActiveUpload) {
-      /* Active-project uploads: UPSERT by clientCode.
-         Existing records are refreshed with new Excel data; truly new codes are inserted. */
-      const validParsed = parsed.filter(r => r.name);
-      const uniqueCodes = [...new Set(validParsed.map(r => r.clientCode).filter((c): c is string => !!c))];
-
-      const existingLeads = uniqueCodes.length
-        ? await prisma.lead.findMany({
-            where: { clientCode: { in: uniqueCodes } },
-            select: { id: true, clientCode: true },
-          })
-        : [];
-      const existingCodeMap = new Map<string, string>(existingLeads.map(l => [l.clientCode!, l.id]));
-
-      const toUpdate = validParsed.filter(r => r.clientCode && existingCodeMap.has(r.clientCode));
-      fresh          = validParsed.filter(r => !r.clientCode || !existingCodeMap.has(r.clientCode ?? ""));
-
-      /* Update existing records with fresh data from the new Excel file */
-      if (toUpdate.length > 0) {
-        await runBatched(toUpdate, BATCH_UPDATE, r =>
-          prisma.lead.update({
-            where: { id: existingCodeMap.get(r.clientCode!)! },
-            data: {
-              name:              r.name,
-              company:           r.company           || null,
-              phone:             r.phone             || null,
-              email:             r.email             || null,
-              state:             r.state             || null,
-              interestedService: r.interestedService || null,
-              projectTitle:      r.projectTitle,
-              projectBudget:     r.projectBudget,
-              assignedTo:        r.csrId,
-              hiddenOnMain:      isSpecialUpload,
-            },
-          })
-        );
-        for (const r of toUpdate) {
-          distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
-        }
+    if (isActiveUpload && toUpdate.length > 0 && existingCodeMap) {
+      await runBatched(toUpdate, BATCH_UPDATE, r =>
+        prisma.lead.update({
+          where: { id: existingCodeMap.get(r.clientCode!)! },
+          data: {
+            name:              r.name,
+            company:           r.company           || null,
+            phone:             r.phone             || null,
+            email:             r.email             || null,
+            state:             r.state             || null,
+            interestedService: r.interestedService || null,
+            projectTitle:      r.projectTitle      || null,
+            projectBudget:     r.projectBudget,
+            status:            r.status            || "Close Client",
+            isOldClient:       true,
+            assignedTo:        r.csrId,
+            uploadedFileId:    uploadedFile.id,
+            hiddenOnMain:      isSpecialUpload,
+          },
+        })
+      );
+      for (const r of toUpdate) {
+        distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
       }
-    } else {
-      /* Regular uploads: deduplicate by phone / email */
-      const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
-      const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
+    }
 
-      const [existingByPhone, existingByEmail] = await Promise.all([
-        chunkedLookup(phones, CHUNK_LOOKUP, chunk =>
-          prisma.lead.findMany({ where: { phone: { in: chunk } }, select: { phone: true, id: true, email: true } })
-        ),
-        chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
-          prisma.lead.findMany({ where: { email: { in: chunk } }, select: { email: true } })
-        ),
-      ]);
-
-      const dupPhoneMap = new Map(existingByPhone.map(l => [l.phone ?? "", l]));
-      const dupPhones   = new Set(dupPhoneMap.keys());
-      const dupEmails   = new Set(existingByEmail.map(l => l.email ?? ""));
-
-      /* Collect existing leads that have no email but new upload provides one */
-      const emailUpdates: { id: string; email: string }[] = [];
-
-      fresh = parsed.filter(r => {
-        const hasValidPhone = r.phone.length >= 7;
-        const hasValidEmail = r.email.includes("@");
-        if (!r.name && !hasValidPhone && !hasValidEmail) return false;
-        if (r.phone && dupPhones.has(r.phone)) {
-          const existing = dupPhoneMap.get(r.phone);
-          if (existing && !existing.email && hasValidEmail) {
-            emailUpdates.push({ id: existing.id, email: r.email });
-          }
-          return false;
-        }
-        if (r.email && dupEmails.has(r.email)) return false;
-        return true;
-      });
-
-      /* Patch email onto existing leads that lacked it */
-      if (emailUpdates.length > 0) {
-        await runBatched(emailUpdates, BATCH_UPDATE, ({ id, email }) =>
-          prisma.lead.update({ where: { id }, data: { email } })
-        );
-      }
+    if (!isActiveUpload && emailUpdates.length > 0) {
+      await runBatched(emailUpdates, BATCH_UPDATE, ({ id, email }) =>
+        prisma.lead.update({ where: { id }, data: { email } })
+      );
     }
 
     if (fresh.length > 0) {
@@ -436,15 +265,27 @@ export const uploadLeads = async (req: Request, res: Response) => {
       ])
     );
 
-    const createdLeads = fresh;
     const distribution = Object.entries(distributionMap).map(([name, leads]) => ({ name, leads }));
+    const addedCount   = fresh.length + (isActiveUpload ? toUpdate.length : 0);
+
+    await prisma.uploadFile.update({
+      where: { id: uploadedFile.id },
+      data:  { totalLeads: addedCount },
+    });
 
     return res.json({
       success:       true,
-      totalLeads:    createdLeads.length,
+      totalLeads:    addedCount,
       cloudinaryUrl: cloudinaryUrl,
-      file:          uploadedFile,
+      file:          { ...uploadedFile, uploadCategory },
       distribution,
+      rowResults:    preview,
+      summary: {
+        new:       preview.filter(p => p.status === "new").length,
+        duplicate: preview.filter(p => p.status === "duplicate").length,
+        updated:   preview.filter(p => p.status === "updated").length,
+        empty:     preview.filter(p => p.status === "empty").length,
+      },
     });
 
   } catch (error) {
@@ -499,5 +340,168 @@ export const getLatestUpload = async (req: Request, res: Response) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch latest upload" });
+  }
+};
+
+/* ================= PREVIEW UPLOAD (no save) ================= */
+
+export const previewUpload = async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const selectedCSRs: string[] = req.body.selectedCSRs
+      ? JSON.parse(req.body.selectedCSRs)
+      : [];
+
+    const leadType: string = req.body.leadType || "new";
+    const rawStatuses = req.body.initialStatuses;
+    const initialStatuses: string[] = rawStatuses
+      ? JSON.parse(rawStatuses)
+      : [req.body.initialStatus?.trim() || "pending"];
+
+    const csrs = await prisma.user.findMany({
+      where: {
+        role:     "csr",
+        isActive: true,
+        ...(selectedCSRs.length > 0 && { id: { in: selectedCSRs } }),
+      },
+      select: { id: true, name: true },
+    });
+
+    if (csrs.length === 0) {
+      return res.status(400).json({ success: false, message: "No active CSR users found" });
+    }
+
+    const rows   = readExcelRows(req.file.buffer);
+    const parsed = parseLeadRows(rows, csrs, initialStatuses, leadType);
+    const { preview } = await classifyRows(parsed, leadType === "active");
+
+    const summary = {
+      new:       preview.filter(p => p.status === "new").length,
+      duplicate: preview.filter(p => p.status === "duplicate").length,
+      updated:   preview.filter(p => p.status === "updated").length,
+      empty:     preview.filter(p => p.status === "empty").length,
+      total:     preview.length,
+    };
+
+    return res.json({ success: true, preview, summary });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Preview failed" });
+  }
+};
+
+/* ================= UPLOAD HISTORY ================= */
+
+export const getUploadHistory = async (req: Request, res: Response) => {
+  try {
+    const categoryParam = String(req.query.category ?? "all").trim();
+    const filterCategory =
+      categoryParam !== "all" && isUploadCategory(categoryParam)
+        ? categoryParam
+        : null;
+
+    const uploads = await prisma.uploadFile.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        source: { select: { id: true, name: true } },
+        _count: { select: { leads: true } },
+        leads: {
+          take: 1,
+          select: { status: true, isOldClient: true, projectTitle: true },
+        },
+      },
+    });
+
+    type EnrichedUpload = (typeof uploads)[number] & { effectiveCategory: UploadCategory | "uncategorized" };
+
+    const enriched: EnrichedUpload[] = uploads.map(u => {
+      let effectiveCategory: UploadCategory | "uncategorized" =
+        (u.uploadCategory as UploadCategory | null) ?? "uncategorized";
+
+      if (!u.uploadCategory && u.leads[0]) {
+        effectiveCategory = inferUploadCategoryFromLead(u.leads[0]);
+        /* Backfill DB so future loads are fast — fire-and-forget */
+        void prisma.uploadFile
+          .update({ where: { id: u.id }, data: { uploadCategory: effectiveCategory } })
+          .catch(() => undefined);
+      }
+
+      return { ...u, effectiveCategory };
+    });
+
+    const counts: Record<string, number> = { all: enriched.length };
+    for (const cat of UPLOAD_CATEGORIES) counts[cat] = 0;
+    for (const u of enriched) {
+      if (u.effectiveCategory in counts) {
+        counts[u.effectiveCategory]++;
+      } else {
+        counts.uncategorized = (counts.uncategorized ?? 0) + 1;
+      }
+    }
+
+    const filtered = filterCategory
+      ? enriched.filter(u => u.effectiveCategory === filterCategory)
+      : enriched;
+
+    return res.json({
+      success: true,
+      counts,
+      uploads: filtered.map(u => ({
+        id:             u.id,
+        fileName:       u.fileName,
+        totalLeads:     u.totalLeads,
+        linkedLeads:    u._count.leads,
+        companyName:    u.companyName,
+        cloudinaryUrl:  u.cloudinaryUrl,
+        uploadCategory: u.effectiveCategory === "uncategorized" ? null : u.effectiveCategory,
+        source:         u.source,
+        createdAt:      u.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch upload history" });
+  }
+};
+
+/* ================= DELETE UPLOAD + LINKED LEADS ================= */
+
+export const deleteUploadFile = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+
+    const upload = await prisma.uploadFile.findUnique({
+      where: { id },
+      select: { id: true, fileName: true },
+    });
+
+    if (!upload) {
+      return res.status(404).json({ success: false, message: "Upload not found" });
+    }
+
+    const leads = await prisma.lead.findMany({
+      where: { uploadedFileId: id },
+      select: { id: true, assignedTo: true },
+    });
+
+    const leadIds = leads.map(l => l.id);
+    const deleted = await deleteLeadsCascade(leadIds);
+
+    await prisma.uploadFile.delete({ where: { id } });
+
+    const csrIds = [...new Set(leads.map(l => l.assignedTo))];
+    await invalidateAllLeadCaches(csrIds);
+
+    return res.json({
+      success:      true,
+      message:      `"${upload.fileName}" deleted — ${deleted} lead(s) removed from database and CSR dashboards`,
+      deletedLeads: deleted,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete upload" });
   }
 };

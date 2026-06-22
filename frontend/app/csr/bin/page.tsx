@@ -3,25 +3,27 @@
 import { useMemo, useState } from "react";
 import {
   Search, RefreshCw, Phone, Briefcase,
-  Trash2, X, ArrowUpCircle,
+  Trash2, X, ArrowUpCircle, Star, ThumbsDown, PhoneOff,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
+import { CSR_TABLE_CARD, CSR_TABLE_WRAP } from "../components/shared/csrTableStyles";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
-import { useBinData } from "../hooks/useBinData";
+import { useBinData, binCategory, binReasonLabel } from "../hooks/useBinData";
 import API from "@/lib/api";
 
-const NOT_PICKED_LIMIT = 7;
-const PAGE_SIZE        = 30;
+const PAGE_SIZE = 30;
+type TabKey = "all" | "notpicked" | "notinterested" | "deleted";
 
 export default function CSRBinPage() {
   const { leads, setLeads, loading, refetch } = useBinData();
 
-  const [search,  setSearch]  = useState("");
-  const [page,    setPage]    = useState(1);
+  const [search, setSearch] = useState("");
+  const [page,   setPage]   = useState(1);
+  const [tab,    setTab]    = useState<TabKey>("all");
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "warn" } | null>(null);
   const showToast = (msg: string, type: "success" | "warn" = "success") => {
@@ -31,46 +33,60 @@ export default function CSRBinPage() {
 
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  /* ── Derived ── */
-  const nearLimit = useMemo(() => leads.filter(l => l.notPickedCount >= NOT_PICKED_LIMIT - 1), [leads]);
+  const byTab = useMemo(() => ({
+    notpicked:     leads.filter(l => binCategory(l.binReason) === "notpicked"),
+    notinterested: leads.filter(l => binCategory(l.binReason) === "notinterested"),
+    deleted:       leads.filter(l => binCategory(l.binReason) === "deleted"),
+  }), [leads]);
+
+  const currentList = tab === "all" ? leads : byTab[tab];
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return leads.filter(l =>
+    return currentList.filter(l =>
       !q || l.client.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q) || l.phone.includes(q)
+      l.company.toLowerCase().includes(q) ||
+      l.phone.includes(q) ||
+      binReasonLabel(l.binReason).toLowerCase().includes(q)
     );
-  }, [leads, search]);
+  }, [currentList, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const chartRows = useMemo<StackedBarRow[]>(() => [
     {
-      label: "Bin Status",
+      label: "Bin",
       segments: [
-        { label: "Near Limit (≥6)", value: nearLimit.length,              color: "#F59E0B" },
-        { label: "Safe",            value: leads.length - nearLimit.length, color: "#15803D" },
+        { label: "Not Picked",     value: byTab.notpicked.length,     color: "#F59E0B" },
+        { label: "Not Interested", value: byTab.notinterested.length, color: "#B8112D" },
+        { label: "Deleted",        value: byTab.deleted.length,       color: "#6366F1" },
       ],
     },
-  ], [leads, nearLimit]);
+  ], [byTab]);
 
   const handleRestore = async (id: string, name: string) => {
     setRestoringId(id);
     try {
-      await API.put(`/csr/lead/${id}`, { status: "pending" });
+      await API.put(`/csr/lead/${id}`, { inBin: false });
       setLeads(prev => prev.filter(l => l.id !== id));
-      showToast(`${name} restored to active.`);
+      showToast(`${name} restored.`);
     } catch { showToast("Failed to restore lead.", "warn"); }
     finally { setRestoringId(null); }
   };
+
+  const tabs: { key: TabKey; label: string; count: number; Icon: typeof Trash2 }[] = [
+    { key: "all",           label: "All",            count: leads.length,              Icon: Trash2     },
+    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     Icon: PhoneOff   },
+    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, Icon: ThumbsDown },
+    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       Icon: Star       },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F5F6FA]">
       <TopNavbar />
       <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
 
-        {/* ── TOAST ── */}
         {toast && (
           <div className={`fixed top-4 sm:top-5 right-3 sm:right-5 z-[200] flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-xl text-xs sm:text-sm font-semibold max-w-[90vw] ${
             toast.type === "warn"
@@ -84,36 +100,51 @@ export default function CSRBinPage() {
           </div>
         )}
 
-        {/* ── HEADER ── */}
         <div className="mt-1 flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[#FFF7E6] flex items-center justify-center shrink-0">
             <Trash2 size={18} className="text-[#B54708] sm:w-5 sm:h-5" />
           </div>
           <div>
             <h1 className="text-2xl sm:text-[28px] lg:text-[34px] font-bold text-[#0F172A] leading-tight">My Bin</h1>
-            <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Leads you haven&apos;t picked up yet.</p>
+            <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+              Limit-reached leads and deleted important/interested clients.
+            </p>
           </div>
         </div>
 
-        {/* ── STATS CHART ── */}
         <div className="mt-4 sm:mt-7">
           <StackedHorizontalBarChart
-            title="Pipeline by stage and type"
-            subtitle="Not-picked leads — safe vs near-redistribution-limit."
+            title="Bin overview"
+            subtitle="Only final tries and deleted clients appear here."
             rows={chartRows}
             loading={loading}
           />
         </div>
 
-        {/* ── TABLE CARD ── */}
-        <div
-          className="bg-white rounded-[22px] sm:rounded-[30px] border border-white shadow-sm flex flex-col mt-4 sm:mt-7"
-          style={{ maxHeight: "calc(100vh - 280px)", minHeight: "340px" }}
-        >
-          {/* Card header */}
-          <div className="p-4 sm:p-5 border-b border-[#F3F3F3] shrink-0">
+        <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 overflow-x-auto pb-0.5">
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => { setTab(t.key); setSearch(""); setPage(1); }}
+              className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap ${
+                tab === t.key
+                  ? "bg-[#B8112D] text-white"
+                  : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"
+              }`}
+            >
+              <t.Icon size={14} />
+              {t.label}
+              <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${tab === t.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>
+                {t.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className={CSR_TABLE_CARD}>
+          <div className="p-4 sm:p-5 border-b border-[#F3F3F3]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">Not Picked Leads</h3>
+              <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">Bin Leads</h3>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -123,7 +154,7 @@ export default function CSRBinPage() {
                     className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D]"
                   />
                 </div>
-                <button onClick={() => void refetch()}
+                <button onClick={() => void refetch(true)}
                   className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors"
                   title="Refresh">
                   <RefreshCw size={13} />
@@ -135,12 +166,11 @@ export default function CSRBinPage() {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-auto flex-1 px-3 sm:px-5 pb-4">
-            <table className="w-full" style={{ minWidth: "680px" }}>
+          <div className={CSR_TABLE_WRAP}>
+            <table className="w-full" style={{ minWidth: "760px" }}>
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-[#F1F1F1]">
-                  {["#","Client","Company","Phone","Service","Tries","Updated","Action"].map(h => (
+                  {["#","Client","Company","Phone","Service","Reason","Updated","Action"].map(h => (
                     <th key={h} className="text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -154,105 +184,77 @@ export default function CSRBinPage() {
                       ))}
                     </tr>
                   ))
-                ) : filtered.length > 0 ? paginated.map((lead, idx) => {
-                  const isNear = lead.notPickedCount >= NOT_PICKED_LIMIT - 1;
-                  return (
-                    <tr key={lead.id} className={`border-b border-[#F7F7F7] ${isNear ? "bg-amber-50/60" : "hover:bg-[#FFFBF2]"}`}>
-                      <td className="py-4 px-2 text-xs text-gray-400">{(page - 1) * PAGE_SIZE + idx + 1}</td>
-
-                      <td className="py-4 px-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${isNear ? "bg-amber-500" : "bg-[#B54708]"}`}>
-                            {lead.client.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-[#0F172A] text-[13px]">{lead.client}</span>
-                              {(() => {
-                                const tz = getTimezoneAbbr(lead.state);
-                                return tz ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
-                                    {tz}
-                                  </span>
-                                ) : null;
-                              })()}
-                            </div>
-                          </div>
+                ) : filtered.length > 0 ? paginated.map((lead, idx) => (
+                  <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFFBF2]">
+                    <td className="py-4 px-2 text-xs text-gray-400">{(page - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td className="py-4 px-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 bg-[#B54708]">
+                          {lead.client.charAt(0)}
                         </div>
-                      </td>
-
-                      <td className="py-4 px-2">
-                        <span className="text-[13px] font-medium text-[#0F172A] max-w-[100px] truncate block">{lead.company}</span>
-                      </td>
-
-                      <td className="py-4 px-2">
-                        <div className="flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
-                          <Phone size={10}/>{lead.phone}
-                          {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
+                        <div>
+                          <span className="font-semibold text-[#0F172A] text-[13px]">{lead.client}</span>
+                          {(() => {
+                            const tz = getTimezoneAbbr(lead.state);
+                            return tz ? (
+                              <span className={`ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${tzBadgeClass(tz)}`}>{tz}</span>
+                            ) : null;
+                          })()}
                         </div>
-                      </td>
-
-                      <td className="py-4 px-2">
-                        {lead.interestedService ? (
-                          <div className="flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap">
-                            <Briefcase size={10}/>{lead.interestedService}
-                          </div>
-                        ) : <span className="text-gray-300 text-sm">—</span>}
-                      </td>
-
-                      <td className="py-4 px-2">
-                        <span className={`text-xs font-bold ${isNear ? "text-amber-600" : "text-gray-500"}`}>
-                          {lead.notPickedCount}/{NOT_PICKED_LIMIT}
-                          {isNear && <span className="ml-1 text-[10px] text-amber-500">⚠</span>}
-                        </span>
-                      </td>
-
-                      <td className="py-4 px-2">
-                        <span className="text-xs text-gray-400">
-                          {lead.updatedAt
-                            ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" })
-                            : "—"}
-                        </span>
-                      </td>
-
-                      <td className="py-4 px-2">
-                        <button
-                          onClick={() => handleRestore(lead.id, lead.client)}
-                          disabled={restoringId === lead.id}
-                          title="Restore to active"
-                          className="h-8 px-3 rounded-xl bg-[#F0FFF4] text-green-700 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-green-100 transition-colors disabled:opacity-50 whitespace-nowrap"
-                        >
-                          {restoringId === lead.id
-                            ? <><RefreshCw size={11} className="animate-spin"/>Restoring…</>
-                            : <><ArrowUpCircle size={11}/>Restore</>
-                          }
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }) : (
+                      </div>
+                    </td>
+                    <td className="py-4 px-2">
+                      <span className="text-[13px] font-medium text-[#0F172A] max-w-[100px] truncate block">{lead.company}</span>
+                    </td>
+                    <td className="py-4 px-2">
+                      <div className="flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
+                        <Phone size={10}/>{lead.phone}
+                      </div>
+                    </td>
+                    <td className="py-4 px-2">
+                      {lead.interestedService ? (
+                        <div className="flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap">
+                          <Briefcase size={10}/>{lead.interestedService}
+                        </div>
+                      ) : <span className="text-gray-300 text-sm">—</span>}
+                    </td>
+                    <td className="py-4 px-2">
+                      <span className="text-[11px] font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-lg whitespace-nowrap">
+                        {binReasonLabel(lead.binReason)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-2">
+                      <span className="text-xs text-gray-400">
+                        {lead.updatedAt
+                          ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" })
+                          : "—"}
+                      </span>
+                    </td>
+                    <td className="py-4 px-2">
+                      <button
+                        onClick={() => handleRestore(lead.id, lead.client)}
+                        disabled={restoringId === lead.id}
+                        className="h-8 px-3 rounded-xl bg-[#F0FFF4] text-green-700 text-[11px] font-semibold flex items-center gap-1.5 hover:bg-green-100 transition-colors disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {restoringId === lead.id
+                          ? <><RefreshCw size={11} className="animate-spin"/>Restoring…</>
+                          : <><ArrowUpCircle size={11}/>Restore</>
+                        }
+                      </button>
+                    </td>
+                  </tr>
+                )) : (
                   <tr>
                     <td colSpan={8} className="py-20 text-center">
                       <Trash2 size={28} className="text-gray-200 mx-auto mb-3"/>
                       <p className="text-gray-400 text-sm">{search ? "No leads match your search." : "Your bin is empty."}</p>
-                      {search && (
-                        <button onClick={() => setSearch("")} className="mt-2 text-[#B8112D] text-xs font-semibold hover:underline">
-                          Clear search
-                        </button>
-                      )}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
 
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              total={filtered.length}
-              pageSize={PAGE_SIZE}
-              onPage={setPage}
-            />
+            <Pagination page={page} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
           </div>
         </div>
       </main>

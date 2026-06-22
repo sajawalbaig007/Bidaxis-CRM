@@ -9,7 +9,10 @@ export type BinLead = {
   state: string;
   status: string;
   notPickedCount: number;
+  notInterestedCount: number;
   interestedService: string;
+  binReason: string | null;
+  binPreviousStatus: string | null;
   updatedAt: string;
 };
 
@@ -22,21 +25,27 @@ type RawLead = {
   state?: string;
   status?: string;
   notPickedCount?: number;
+  notInterestedCount?: number;
   interestedService?: string;
+  binReason?: string | null;
+  binPreviousStatus?: string | null;
   updatedAt?: string;
 };
 
 function mapBinLead(l: RawLead): BinLead {
   return {
-    id:                l.id,
-    client:            l.name                    ?? "Unknown",
-    company:           l.uploadFile?.companyName ?? l.company ?? "N/A",
-    phone:             l.phone                   ?? "N/A",
-    state:             l.state                   ?? "",
-    status:            l.status                  ?? "",
-    notPickedCount:    l.notPickedCount           ?? 0,
-    interestedService: l.interestedService        ?? "",
-    updatedAt:         l.updatedAt               ?? "",
+    id:                 l.id,
+    client:             l.name                    ?? "Unknown",
+    company:            l.uploadFile?.companyName ?? l.company ?? "N/A",
+    phone:              l.phone                   ?? "N/A",
+    state:              l.state                   ?? "",
+    status:             l.status                  ?? "",
+    notPickedCount:     l.notPickedCount           ?? 0,
+    notInterestedCount: l.notInterestedCount       ?? 0,
+    interestedService:  l.interestedService        ?? "",
+    binReason:          l.binReason               ?? null,
+    binPreviousStatus:  l.binPreviousStatus       ?? null,
+    updatedAt:          l.updatedAt               ?? "",
   };
 }
 
@@ -59,4 +68,23 @@ export function useBinData() {
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
 
   return { leads, setLeads, loading, refetch };
+}
+
+export function binCategory(reason: string | null | undefined): "notpicked" | "notinterested" | "deleted" {
+  if (reason === "limit-not-picked" || reason === "deleted-pending" || reason === "deleted-other") return "notpicked";
+  if (reason === "limit-not-interested") return "notinterested";
+  if (reason?.startsWith("deleted-")) return "deleted";
+  if (reason) return "deleted";
+  return "notpicked";
+}
+
+export function binReasonLabel(reason: string | null | undefined): string {
+  switch (reason) {
+    case "limit-not-picked":      return "Not Picked — limit reached";
+    case "limit-not-interested":  return "Not Interested — limit reached";
+    case "deleted-important":     return "Deleted (Important)";
+    case "deleted-interested":    return "Deleted (Interested)";
+    case "deleted-pending":       return "Deleted (Pending)";
+    default:                      return reason ? `Deleted (${reason})` : "Bin";
+  }
 }

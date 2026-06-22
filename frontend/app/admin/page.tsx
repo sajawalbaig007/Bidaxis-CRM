@@ -8,6 +8,7 @@ import PerformanceChart, { type ClientLead } from "./components/charts/Performan
 import OverviewChart    from "./components/charts/OverviewChart";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
+import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
 import API from "@/lib/api";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
@@ -129,6 +130,10 @@ export default function DashboardPage() {
                   leads={clientLeads}
                   range={selectedRange}
                 />
+              </div>
+
+              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
+                <ActiveProjectsWidget />
               </div>
 
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
