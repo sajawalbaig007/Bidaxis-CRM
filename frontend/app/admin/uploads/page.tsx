@@ -6,12 +6,15 @@ import {
   UploadCloud, FileText, Trash2, CheckCircle2, Search, Users,
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, RefreshCw, RotateCcw,
-  PhoneCall, Star, Briefcase,
+  PhoneCall, Star, Briefcase, Globe, Plus,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+} from "recharts";
 
 /* ── Types ── */
 type UploadFile = {
@@ -23,6 +26,18 @@ type UploadFile = {
 
 type CSRDistribution = { name: string; leads: number };
 type CSR = { id: string; name: string; email: string; isActive: boolean; csrCode?: string | null };
+
+type SourceStats = {
+  total: number; pending: number; important: number; interested: number;
+  notPicked: number; projectWon: number; notInterested: number;
+};
+
+type UploadSourceRow = {
+  id: string; name: string; createdAt: string;
+  uploadCount: number; lastUpload: string | null; stats: SourceStats;
+};
+
+type ModalStep = "category" | "reset" | "company" | "source" | "pane" | "csrs";
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
 
@@ -59,11 +74,53 @@ export default function UploadPage() {
 
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
-  const [modalStep, setModalStep] = useState<"category" | "reset" | "company" | "pane" | "csrs">("category");
+  const [modalStep, setModalStep] = useState<ModalStep>("category");
   const [resetMode, setResetMode] = useState<"keep" | "reset" | null>(null);
 
   const [selectedPane,     setSelectedPane]     = useState<"pending" | "lead">("pending");
   const [selectedLeadType, setSelectedLeadType] = useState<"new" | "old">("new");
+
+  const [uploadSources,    setUploadSources]    = useState<UploadSourceRow[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [newSourceName,    setNewSourceName]    = useState("");
+  const [addingSource,     setAddingSource]     = useState(false);
+  const [historySourceId,  setHistorySourceId]  = useState<string | "all">("all");
+  const [sourceDetail,     setSourceDetail]     = useState<{
+    stats: SourceStats;
+    uploads: { id: string; fileName: string; totalLeads: number; createdAt: string }[];
+  } | null>(null);
+
+  const fetchUploadSources = async () => {
+    try {
+      const res = await API.get("/admin/upload-sources");
+      setUploadSources(res.data.sources ?? []);
+    } catch { /* non-blocking */ }
+  };
+
+  const fetchSourceDetail = async (sourceId: string) => {
+    try {
+      const res = await API.get(`/admin/upload-sources/${sourceId}`);
+      setSourceDetail({ stats: res.data.stats, uploads: res.data.uploads ?? [] });
+    } catch { setSourceDetail(null); }
+  };
+
+  const addNewSource = async () => {
+    const name = newSourceName.trim();
+    if (!name) { toast.error("Enter a source name"); return; }
+    setAddingSource(true);
+    try {
+      const res = await API.post("/admin/upload-sources", { name });
+      const src = res.data.source as { id: string; name: string };
+      setSelectedSourceId(src.id);
+      setNewSourceName("");
+      toast.success(res.data.created ? `"${name}" added` : `"${name}" selected`);
+      await fetchUploadSources();
+    } catch {
+      toast.error("Failed to add source");
+    } finally {
+      setAddingSource(false);
+    }
+  };
 
   const fetchCSRs = async () => {
     try {
@@ -83,9 +140,17 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); };
+    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); await fetchUploadSources(); };
     load();
   }, []);
+
+  useEffect(() => {
+    if (historySourceId === "all") {
+      setSourceDetail(null);
+      return;
+    }
+    void fetchSourceDetail(historySourceId);
+  }, [historySourceId]);
 
   const openCSRModal = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
@@ -96,6 +161,7 @@ export default function UploadPage() {
     setResetMode(null);
     setSelectedPane("pending");
     setSelectedLeadType("new");
+    setSelectedSourceId("");
     setModalStep("category");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
@@ -110,7 +176,8 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("pending");
     setSelectedLeadType("old");
-    setModalStep("csrs");
+    setSelectedSourceId("");
+    setModalStep("source");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -124,7 +191,8 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("lead");
     setSelectedLeadType("new");
-    setModalStep("csrs");
+    setSelectedSourceId("");
+    setModalStep("source");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -138,7 +206,8 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("lead");
     setSelectedLeadType("old");
-    setModalStep("csrs");
+    setSelectedSourceId("");
+    setModalStep("source");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -150,6 +219,7 @@ export default function UploadPage() {
     /* company is optional for client uploads — comes from Excel rows */
     if (selectedPane !== "lead" && !finalCompany.trim()) { toast.error("Please enter company name"); return; }
     if (selectedCSRs.length === 0) { toast.error("Select at least one CSR"); return; }
+    if (!selectedSourceId) { toast.error("Select an upload source"); return; }
 
     setShowCSRModal(false);
     const tempId = Date.now();
@@ -183,6 +253,7 @@ export default function UploadPage() {
         uploadMode === "active"     ? "active" :
         selectedLeadType
       );
+      formData.append("sourceId", selectedSourceId);
 
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -221,6 +292,7 @@ export default function UploadPage() {
         toast.success(`${created} leads uploaded & distributed for ${finalCompany.trim()}`);
       }
       void fetchLatestUpload();
+      void fetchUploadSources();
     } catch {
       if (processingInterval) clearInterval(processingInterval);
       setFiles(prev => prev.filter(f => f.id !== tempId));
@@ -230,6 +302,28 @@ export default function UploadPage() {
 
   const removeFile = (id: number) => setFiles(prev => prev.filter(f => f.id !== id));
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
+
+  const sourceCompareChart = uploadSources.map(s => ({
+    name: s.name.length > 10 ? `${s.name.slice(0, 10)}…` : s.name,
+    Pending: s.stats.pending,
+    Interested: s.stats.interested,
+    Important: s.stats.important,
+    "Not Picked": s.stats.notPicked,
+    Won: s.stats.projectWon,
+  }));
+
+  const selectedSourceStats = historySourceId === "all"
+    ? null
+    : uploadSources.find(s => s.id === historySourceId)?.stats ?? sourceDetail?.stats ?? null;
+
+  const selectedSourceBreakdown = selectedSourceStats ? [
+    { label: "Pending",      value: selectedSourceStats.pending,      color: "#0B84F3" },
+    { label: "Interested",   value: selectedSourceStats.interested,   color: "#D97706" },
+    { label: "Important",    value: selectedSourceStats.important,    color: "#B8112D" },
+    { label: "Not Picked",   value: selectedSourceStats.notPicked,    color: "#B54708" },
+    { label: "Project Won",  value: selectedSourceStats.projectWon, color: "#065F46" },
+    { label: "Not Interested", value: selectedSourceStats.notInterested, color: "#94A3B8" },
+  ] : [];
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -246,6 +340,7 @@ export default function UploadPage() {
                   {modalStep === "category" ? "Upload Category"
                    : modalStep === "reset"   ? "Data Mode"
                    : modalStep === "company" ? "Select Company"
+                   : modalStep === "source"  ? "Data Source"
                    : modalStep === "pane"    ? "Select CSR Pane"
                    : "Select CSRs"}
                 </h2>
@@ -253,6 +348,7 @@ export default function UploadPage() {
                   {modalStep === "category" ? "Where should this file's data go?"
                    : modalStep === "reset"   ? "What should happen to existing call data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
+                   : modalStep === "source"  ? "Where did you get this data? (Admin only — CSRs won't see this)"
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
                 </p>
@@ -267,12 +363,16 @@ export default function UploadPage() {
 
             {/* Step indicators — scrollable on very small screens */}
             {(() => {
-              const steps  = (selectedPane === "lead"
-                ? ["category", "csrs"]
-                : ["category", "reset", "company", "csrs"]) as readonly string[];
-              const labels = selectedPane === "lead"
-                ? ["Category", "CSRs"]
-                : ["Category", "Data Mode", "Company", "CSRs"];
+              const steps: readonly ModalStep[] = uploadMode !== "regular"
+                ? ["source", "csrs"]
+                : selectedPane === "lead"
+                  ? ["category", "source", "csrs"]
+                  : ["category", "reset", "company", "source", "csrs"];
+              const labels = uploadMode !== "regular"
+                ? ["Source", "CSRs"]
+                : selectedPane === "lead"
+                  ? ["Category", "Source", "CSRs"]
+                  : ["Category", "Data Mode", "Company", "Source", "CSRs"];
               const currentIdx = steps.indexOf(modalStep);
               return (
                 <div className="flex items-center px-4 sm:px-6 pt-3 sm:pt-4 overflow-x-auto shrink-0">
@@ -374,7 +474,7 @@ export default function UploadPage() {
                     onClick={() => {
                       if (selectedPane === "lead") {
                         setResetMode("keep");
-                        setModalStep("csrs");
+                        setModalStep("source");
                       } else {
                         setResetMode(null);
                         setModalStep("reset");
@@ -382,7 +482,7 @@ export default function UploadPage() {
                     }}
                     className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                   >
-                    Next — {selectedPane === "lead" ? "Select CSRs" : "Select Data Mode"}
+                    Next — {selectedPane === "lead" ? "Select Source" : "Select Data Mode"}
                   </button>
                 </div>
               )}
@@ -529,7 +629,7 @@ export default function UploadPage() {
                     <button
                       onClick={() => {
                         if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
-                        setModalStep("csrs");
+                        setModalStep("source");
                       }}
                       disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
@@ -540,6 +640,87 @@ export default function UploadPage() {
                     >
                       Next
                       <ChevronDown size={14} className="inline ml-1 rotate-[-90deg] sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP — Upload Source (admin only) */}
+              {modalStep === "source" && (
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium">
+                    Select where this data came from. CSRs will never see the source name.
+                  </p>
+
+                  {uploadSources.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No sources yet — add your first one below.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-h-48 overflow-y-auto">
+                      {uploadSources.map(src => {
+                        const sel = selectedSourceId === src.id;
+                        return (
+                          <button
+                            key={src.id}
+                            onClick={() => setSelectedSourceId(src.id)}
+                            className={`p-3 rounded-xl border-2 text-left transition-all ${
+                              sel ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Globe size={14} className={sel ? "text-[#B8112D]" : "text-gray-400"} />
+                              <p className={`font-bold text-xs sm:text-sm truncate ${sel ? "text-[#B8112D]" : "text-gray-800"}`}>
+                                {src.name}
+                              </p>
+                            </div>
+                            <p className="text-[10px] text-gray-400">{src.stats.total} leads · {src.uploadCount} uploads</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="border border-dashed border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2">
+                    <p className="text-xs font-semibold text-gray-600">Add new source</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newSourceName}
+                        onChange={e => setNewSourceName(e.target.value)}
+                        placeholder="e.g. Procore, Buildertrend..."
+                        className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                        onKeyDown={e => { if (e.key === "Enter") void addNewSource(); }}
+                      />
+                      <button
+                        onClick={() => void addNewSource()}
+                        disabled={addingSource || !newSourceName.trim()}
+                        className="h-10 px-4 rounded-xl bg-[#111827] text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5"
+                      >
+                        <Plus size={14} /> Add
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
+                      onClick={() => {
+                        if (uploadMode !== "regular") { setShowCSRModal(false); return; }
+                        setModalStep(selectedPane === "lead" ? "category" : "company");
+                      }}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!selectedSourceId) { toast.error("Please select or add a source"); return; }
+                        setModalStep("csrs");
+                      }}
+                      disabled={!selectedSourceId}
+                      className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
+                        selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      Next — Select CSRs
                     </button>
                   </div>
                 </div>
@@ -732,7 +913,7 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => selectedPane === "lead" ? setModalStep("category") : setModalStep("company")}
+                      onClick={() => selectedPane === "lead" ? setModalStep("category") : setModalStep("source")}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
                       Back
@@ -804,6 +985,88 @@ export default function UploadPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── SOURCE HISTORY (admin only — CSRs never see this) ── */}
+        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-sm mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base sm:text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <Globe size={18} className="text-[#B8112D]" /> Source History & Analytics
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                Track performance by data source. Hidden from all CSR views.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setHistorySourceId("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                historySourceId === "all" ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              All Sources
+            </button>
+            {uploadSources.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setHistorySourceId(s.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  historySourceId === s.id ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {s.name} ({s.stats.total})
+              </button>
+            ))}
+          </div>
+
+          {uploadSources.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Upload with a source to see analytics here.</p>
+          ) : historySourceId === "all" ? (
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sourceCompareChart} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                  <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Pending"    fill="#0B84F3" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Interested" fill="#D97706" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Important"  fill="#B8112D" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Not Picked" fill="#B54708" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Won"        fill="#065F46" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {selectedSourceBreakdown.map(item => (
+                  <div key={item.label} className="bg-[#FAFAFA] rounded-xl p-3 text-center">
+                    <p className="text-[10px] text-gray-400 font-medium">{item.label}</p>
+                    <p className="text-xl font-bold mt-1" style={{ color: item.color }}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              {sourceDetail && sourceDetail.uploads.length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Upload history</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {sourceDetail.uploads.map(u => (
+                      <div key={u.id} className="flex items-center justify-between text-xs bg-[#FAFAFA] rounded-xl px-3 py-2">
+                        <span className="font-medium text-gray-700 truncate flex-1">{u.fileName}</span>
+                        <span className="text-gray-400 shrink-0 ml-2">{u.totalLeads} leads</span>
+                        <span className="text-gray-300 shrink-0 ml-2">{new Date(u.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── LATEST DISTRIBUTION ── */}
