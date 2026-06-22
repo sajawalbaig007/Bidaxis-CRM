@@ -7,6 +7,22 @@ exports.getLatestUpload = exports.uploadLeads = void 0;
 const xlsx_1 = __importDefault(require("xlsx"));
 const db_1 = __importDefault(require("../config/db"));
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
+/** Cloudinary sub-folder under crm_uploads based on upload type */
+function getCloudinaryFolder(leadType, initialStatuses) {
+    const status = (initialStatuses[0] ?? "").toLowerCase();
+    if (leadType === "active")
+        return "crm_uploads/active-projects";
+    if (leadType === "old" || status === "important")
+        return "crm_uploads/old-clients";
+    if (leadType === "new" || status === "interested")
+        return "crm_uploads/new-clients";
+    if (status === "pending")
+        return "crm_uploads/call-data";
+    if (status === "close client") {
+        return leadType === "old" ? "crm_uploads/old-clients" : "crm_uploads/new-clients";
+    }
+    return "crm_uploads/call-data";
+}
 /* ================= UPLOAD LEADS ================= */
 const uploadLeads = async (req, res) => {
     try {
@@ -25,10 +41,11 @@ const uploadLeads = async (req, res) => {
         const initialStatuses = rawStatuses
             ? JSON.parse(rawStatuses)
             : [req.body.initialStatus?.trim() || "pending"];
+        const cloudFolder = getCloudinaryFolder(leadType, initialStatuses);
         /* ── UPLOAD FILE TO CLOUDINARY ── */
         const uploaded = await new Promise((resolve, reject) => {
             cloudinary_1.default.uploader
-                .upload_stream({ resource_type: "raw", folder: "crm_uploads" }, (error, result) => {
+                .upload_stream({ resource_type: "raw", folder: cloudFolder }, (error, result) => {
                 if (error || !result)
                     reject(error);
                 else
@@ -124,17 +141,26 @@ const uploadLeads = async (req, res) => {
                     console.log("[Renew] Snapshot upload failed (non-critical):", snapErr);
                 }
             }
-            /* Delete ALL leads — fresh start */
-            /* Delete only completed leads */
-            await db_1.default.lead.deleteMany({
-                where: {
-                    status: {
-                        equals: "completed",
-                        mode: "insensitive",
-                    },
-                },
+            /* Delete pending (main page) leads — cascade children first */
+            const pendingLeads = await db_1.default.lead.findMany({
+                where: { status: { equals: "pending", mode: "insensitive" } },
+                select: { id: true },
             });
-            console.log("[Renew] Only completed leads cleared. Pending, Not Completed, Important, Interested & Close Client preserved ✅");
+            const pendingIds = pendingLeads.map(l => l.id);
+            if (pendingIds.length > 0) {
+                await Promise.all([
+                    db_1.default.leadNote.deleteMany({ where: { leadId: { in: pendingIds } } }),
+                    db_1.default.subContact.deleteMany({ where: { leadId: { in: pendingIds } } }),
+                    db_1.default.callLog.deleteMany({ where: { leadId: { in: pendingIds } } }),
+                ]);
+                await db_1.default.lead.deleteMany({ where: { id: { in: pendingIds } } });
+            }
+            /* Hide all remaining non-pending leads from main page — they stay on their dedicated pages */
+            await db_1.default.lead.updateMany({
+                where: { status: { not: "pending" } },
+                data: { hiddenOnMain: true },
+            });
+            console.log("[Renew] Pending leads deleted, non-pending leads hidden from main page. Dedicated pages unaffected ✅");
         }
         /* ── SAVE UPLOAD FILE RECORD ── */
         const uploadedFile = await db_1.default.uploadFile.create({
@@ -146,14 +172,21 @@ const uploadLeads = async (req, res) => {
                 companyName: companyName || null,
             },
         });
+        const isActiveUpload = leadType === "active";
         /* ── PARSE ALL ROWS FIRST (no DB calls yet) ── */
         const parsed = [];
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
             const csr = csrs[i % csrs.length];
             const keys = Object.keys(row);
-            const findValue = (possibleKeys) => {
-                const foundKey = keys.find(k => possibleKeys.some(p => k.toLowerCase().includes(p.toLowerCase())));
+            /* excludeKeys: skip columns whose header contains any of these strings */
+            const findValue = (possibleKeys, excludeKeys = []) => {
+                const foundKey = keys.find(k => {
+                    const kl = k.toLowerCase();
+                    if (excludeKeys.some(ex => kl.includes(ex.toLowerCase())))
+                        return false;
+                    return possibleKeys.some(p => kl.includes(p.toLowerCase()));
+                });
                 const raw = foundKey ? row[foundKey] : undefined;
                 if (raw === undefined || raw === null)
                     return "";
@@ -162,41 +195,130 @@ const uploadLeads = async (req, res) => {
                     return "";
                 return s;
             };
+            /* Multi-line cells arrive as "Line1\nLine2\nLine3" */
+            const firstLine = (s) => s.split(/[\n\r]/)[0].trim();
+            /* Name / Client Detail: exclude "code" columns */
+            const rawClientDetail = findValue(["name", "client", "customer", "contact person"], ["code"]);
+            const detailLines = rawClientDetail.split(/[\n\r]/).map(l => l.trim()).filter(Boolean);
+            const name = detailLines[0] || "";
+            /* Phone: explicit column first; for active uploads also try 3rd line of client cell */
+            let phone = findValue(["phone", "mobile", "cell", "telephone", "number", "contact"], ["person", "name", "detail"]);
+            if (!phone && isActiveUpload) {
+                const phoneLine = detailLines.find(l => /^[\+\d][\d\s\-\(\)\.]{5,}$/.test(l));
+                if (phoneLine)
+                    phone = phoneLine.replace(/[^\d\+\-]/g, "");
+            }
+            /* Company: explicit column first; for active uploads fall back to first line of client detail */
+            let company = findValue(["company", "business", "organization"]);
+            if (!company && isActiveUpload)
+                company = name;
+            /* Location: only from explicit column */
+            const state = findValue(["location", "address", "state", "province", "city", "prov", "region"]);
+            /* Service: includes "scope" for active project sheets */
+            const interestedService = findValue(["interested in", "interested", "service", "interest", "services", "scope"], ["status"]);
+            /* Project title: for active uploads parse "Project Detail" column */
+            const projectTitle = isActiveUpload
+                ? (findValue(["project detail", "project title", "project name", "project"], ["code", "client"]) || "")
+                : null;
+            /* Project budget: for active uploads parse "Quotation" / "Budget" column */
+            const projectBudget = isActiveUpload
+                ? (findValue(["quotation", "quote", "budget"]) || null)
+                : null;
             parsed.push({
-                name: findValue(["name", "client", "customer", "contact person"]),
-                company: findValue(["company", "business", "organization", "address"]),
-                phone: findValue(["phone", "mobile", "cell", "contact", "telephone", "number"]),
+                name,
+                company,
+                phone,
                 email: findValue(["email", "mail", "e-mail"]),
-                state: findValue(["state", "province", "prov", "st", "region"]),
+                state,
+                interestedService,
+                clientCode: findValue(["client code", "clientcode", "project code", "client_code"]) || null,
+                projectTitle,
+                projectBudget,
                 csrId: csr.id,
                 csrName: csr.name,
                 status: initialStatuses[i % initialStatuses.length],
-                isOldClient: initialStatuses[i % initialStatuses.length] === "lead" && leadType === "old",
+                isOldClient: leadType === "old" || isActiveUpload,
             });
         }
-        /* ── BATCH DUPLICATE CHECK — 3 queries instead of N ── */
-        const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
-        const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
-        const [existingByPhone, existingByEmail] = await Promise.all([
-            phones.length
-                ? db_1.default.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true } })
-                : Promise.resolve([]),
-            emails.length
-                ? db_1.default.lead.findMany({ where: { email: { in: emails } }, select: { email: true } })
-                : Promise.resolve([]),
-        ]);
-        const dupPhones = new Set(existingByPhone.map(l => l.phone ?? ""));
-        const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
-        /* ── FILTER DUPLICATES IN-MEMORY ── */
-        const fresh = parsed.filter(r => {
-            if (r.phone && dupPhones.has(r.phone))
-                return false;
-            if (r.email && dupEmails.has(r.email))
-                return false;
-            return true;
-        });
-        /* ── SINGLE createMany — 1 query for all rows ── */
+        /* Any non-pending upload is hidden from CSR main page — it goes to its dedicated page */
+        const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
+        /* ── DEDUP / UPSERT ── */
+        let fresh;
         const distributionMap = {};
+        if (isActiveUpload) {
+            /* Active-project uploads: UPSERT by clientCode.
+               Existing records are refreshed with new Excel data; truly new codes are inserted. */
+            const validParsed = parsed.filter(r => r.name);
+            const uniqueCodes = [...new Set(validParsed.map(r => r.clientCode).filter((c) => !!c))];
+            const existingLeads = uniqueCodes.length
+                ? await db_1.default.lead.findMany({
+                    where: { clientCode: { in: uniqueCodes } },
+                    select: { id: true, clientCode: true },
+                })
+                : [];
+            const existingCodeMap = new Map(existingLeads.map(l => [l.clientCode, l.id]));
+            const toUpdate = validParsed.filter(r => r.clientCode && existingCodeMap.has(r.clientCode));
+            fresh = validParsed.filter(r => !r.clientCode || !existingCodeMap.has(r.clientCode ?? ""));
+            /* Update existing records with fresh data from the new Excel file */
+            if (toUpdate.length > 0) {
+                await Promise.all(toUpdate.map(r => db_1.default.lead.update({
+                    where: { id: existingCodeMap.get(r.clientCode) },
+                    data: {
+                        name: r.name,
+                        company: r.company || null,
+                        phone: r.phone || null,
+                        email: r.email || null,
+                        state: r.state || null,
+                        interestedService: r.interestedService || null,
+                        projectTitle: r.projectTitle,
+                        projectBudget: r.projectBudget,
+                        assignedTo: r.csrId,
+                        hiddenOnMain: isSpecialUpload,
+                    },
+                })));
+                for (const r of toUpdate) {
+                    distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
+                }
+            }
+        }
+        else {
+            /* Regular uploads: deduplicate by phone / email */
+            const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
+            const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
+            const [existingByPhone, existingByEmail] = await Promise.all([
+                phones.length
+                    ? db_1.default.lead.findMany({ where: { phone: { in: phones } }, select: { phone: true, id: true, email: true } })
+                    : Promise.resolve([]),
+                emails.length
+                    ? db_1.default.lead.findMany({ where: { email: { in: emails } }, select: { email: true } })
+                    : Promise.resolve([]),
+            ]);
+            const dupPhoneMap = new Map(existingByPhone.map(l => [l.phone ?? "", l]));
+            const dupPhones = new Set(dupPhoneMap.keys());
+            const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
+            /* Collect existing leads that have no email but new upload provides one */
+            const emailUpdates = [];
+            fresh = parsed.filter(r => {
+                const hasValidPhone = r.phone.length >= 7;
+                const hasValidEmail = r.email.includes("@");
+                if (!r.name && !hasValidPhone && !hasValidEmail)
+                    return false;
+                if (r.phone && dupPhones.has(r.phone)) {
+                    const existing = dupPhoneMap.get(r.phone);
+                    if (existing && !existing.email && hasValidEmail) {
+                        emailUpdates.push({ id: existing.id, email: r.email });
+                    }
+                    return false;
+                }
+                if (r.email && dupEmails.has(r.email))
+                    return false;
+                return true;
+            });
+            /* Patch email onto existing leads that lacked it */
+            if (emailUpdates.length > 0) {
+                await Promise.all(emailUpdates.map(({ id, email }) => db_1.default.lead.update({ where: { id }, data: { email } })));
+            }
+        }
         if (fresh.length > 0) {
             await db_1.default.lead.createMany({
                 data: fresh.map(r => ({
@@ -205,17 +327,19 @@ const uploadLeads = async (req, res) => {
                     phone: r.phone,
                     email: r.email,
                     state: r.state || null,
+                    interestedService: r.interestedService || null,
+                    clientCode: r.clientCode || null,
+                    projectTitle: r.projectTitle,
+                    projectBudget: r.projectBudget,
                     status: r.status,
                     isOldClient: r.isOldClient,
                     assignedTo: r.csrId,
                     uploadedFileId: uploadedFile.id,
+                    hiddenOnMain: isSpecialUpload,
                 })),
-                skipDuplicates: true,
             });
             for (const r of fresh) {
-                if (!distributionMap[r.csrName])
-                    distributionMap[r.csrName] = 0;
-                distributionMap[r.csrName] += 1;
+                distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
             }
         }
         const createdLeads = fresh;

@@ -8,6 +8,7 @@ const multer_1 = __importDefault(require("multer"));
 const db_1 = __importDefault(require("../config/db"));
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const cache_1 = require("../utils/cache");
 const router = express_1.default.Router();
 /* ── multer: 200 MB in-memory ── */
 const chatUpload = (0, multer_1.default)({
@@ -20,12 +21,63 @@ const typingMap = new Map();
 function p(val) {
     return Array.isArray(val) ? val[0] : val;
 }
+function parseReactions(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+        return {};
+    return raw;
+}
+const EDIT_WINDOW_MS = 10 * 60 * 1000;
+function msgStatus(senderId, userId, createdAt, members) {
+    const others = members.filter(m => m.userId !== userId);
+    if (senderId === userId) {
+        const readBy = others
+            .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
+            .map(m => m.user.name);
+        const allRead = others.length > 0 && readBy.length === others.length;
+        return { status: allRead ? "read" : "delivered", readBy };
+    }
+    const me = members.find(m => m.userId === userId);
+    const read = me?.lastReadAt && me.lastReadAt >= createdAt;
+    return { status: read ? "read" : "delivered", readBy: [] };
+}
+function formatMessage(m, userId, members) {
+    const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
+    return {
+        id: m.id,
+        senderId: m.senderId,
+        senderName: m.sender.name,
+        text: m.text,
+        type: m.type,
+        fileUrl: m.fileUrl,
+        fileName: m.fileName,
+        fileSize: m.fileSize,
+        fileMimeType: m.fileMimeType,
+        createdAt: m.createdAt,
+        editedAt: m.editedAt,
+        mentions: m.mentions ?? [],
+        reactions: parseReactions(m.reactions),
+        readBy,
+        isOwn: m.senderId === userId,
+        status,
+        replyTo: m.replyTo ? {
+            id: m.replyTo.id,
+            text: m.replyTo.text,
+            senderName: m.replyTo.sender.name,
+            type: m.replyTo.type,
+        } : null,
+    };
+}
 /* ═══════════════════════════════════════════════════════
    GET /chat/conversations
 ═══════════════════════════════════════════════════════ */
 router.get("/conversations", auth_middleware_1.verifyToken, async (req, res) => {
     try {
         const userId = req.user.id;
+        const showArchived = req.query.archived === "1";
+        const cacheKey = `chat:convs:${userId}:${showArchived ? "arch" : "active"}`;
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached)
+            return res.json(cached);
         const memberships = await db_1.default.conversationMember.findMany({
             where: { userId },
             include: {
@@ -44,14 +96,15 @@ router.get("/conversations", auth_middleware_1.verifyToken, async (req, res) => 
             },
             orderBy: { conversation: { updatedAt: "desc" } },
         });
-        const unreadCounts = await Promise.all(memberships.map(m => db_1.default.message.count({
+        const filteredMemberships = memberships.filter(m => showArchived ? Boolean(m.archivedAt) : !m.archivedAt);
+        const unreadCounts = await Promise.all(filteredMemberships.map(m => db_1.default.message.count({
             where: {
                 conversationId: m.conversationId,
                 senderId: { not: userId },
                 ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
             },
         })));
-        const conversations = memberships.map((m, idx) => {
+        const conversations = filteredMemberships.map((m, idx) => {
             const conv = m.conversation;
             const lastMsg = conv.messages[0];
             const otherMember = conv.type === "direct"
@@ -71,9 +124,13 @@ router.get("/conversations", auth_middleware_1.verifyToken, async (req, res) => 
                 unreadCount: unreadCounts[idx],
                 memberCount: conv.members.length,
                 isOnline: otherMember?.user?.isOnline ?? false,
+                pinnedMessageId: conv.pinnedMessageId ?? null,
+                archived: Boolean(m.archivedAt),
             };
         });
-        return res.json({ conversations });
+        const payload = { conversations };
+        (0, cache_1.setCache)(cacheKey, payload, 3000);
+        return res.json(payload);
     }
     catch (err) {
         console.error("[chat] GET /conversations", err);
@@ -120,6 +177,7 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
                     name: targetUser?.name ?? "Unknown",
                     otherUserId: targetId,
                     unreadCount: 0, isOnline: targetUser?.isOnline ?? false,
+                    lastMessageAt: new Date().toISOString(),
                 },
             });
         }
@@ -139,6 +197,7 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
                 conversation: {
                     id: conv.id, type: "group", name: conv.name,
                     unreadCount: 0, memberCount: allIds.length,
+                    lastMessageAt: new Date().toISOString(),
                 },
             });
         }
@@ -147,6 +206,9 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
     catch (err) {
         console.error("[chat] POST /conversations", err);
         return res.status(500).json({ message: "Failed to create conversation" });
+    }
+    finally {
+        (0, cache_1.invalidatePattern)("chat:convs:");
     }
 });
 /* ═══════════════════════════════════════════════════════
@@ -183,6 +245,10 @@ router.get("/conversations/:id/messages", auth_middleware_1.verifyToken, async (
         });
         if (!member)
             return res.status(403).json({ message: "Not a member" });
+        const members = await db_1.default.conversationMember.findMany({
+            where: { conversationId },
+            include: { user: { select: { id: true, name: true } } },
+        });
         const raw = await db_1.default.message.findMany({
             where: { conversationId },
             include: {
@@ -197,27 +263,18 @@ router.get("/conversations/:id/messages", auth_middleware_1.verifyToken, async (
             orderBy: { createdAt: "asc" },
             take: 200,
         });
-        const messages = raw.map(m => ({
-            id: m.id,
-            senderId: m.senderId,
-            senderName: m.sender.name,
-            text: m.text,
-            type: m.type,
-            fileUrl: m.fileUrl,
-            fileName: m.fileName,
-            fileSize: m.fileSize,
-            fileMimeType: m.fileMimeType,
-            createdAt: m.createdAt,
-            isOwn: m.senderId === userId,
-            status: member.lastReadAt && m.createdAt <= member.lastReadAt ? "read" : "delivered",
-            replyTo: m.replyTo ? {
-                id: m.replyTo.id,
-                text: m.replyTo.text,
-                senderName: m.replyTo.sender.name,
-                type: m.replyTo.type,
-            } : null,
-        }));
-        return res.json({ messages });
+        const messages = raw.map(m => formatMessage(m, userId, members));
+        const conv = await db_1.default.conversation.findUnique({
+            where: { id: conversationId },
+            select: { pinnedMessageId: true },
+        });
+        let pinnedMessage = null;
+        if (conv?.pinnedMessageId) {
+            const pin = raw.find(m => m.id === conv.pinnedMessageId);
+            if (pin)
+                pinnedMessage = formatMessage(pin, userId, members);
+        }
+        return res.json({ messages, pinnedMessage });
     }
     catch (err) {
         console.error("[chat] GET messages", err);
@@ -235,6 +292,9 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
         const text = (body.text ?? "").trim();
         const msgType = (body.type ?? "text");
         const replyToId = body.replyToId;
+        const mentionIds = Array.isArray(body.mentionIds)
+            ? body.mentionIds.filter(id => typeof id === "string")
+            : [];
         const member = await db_1.default.conversationMember.findUnique({
             where: { conversationId_userId: { conversationId, userId } },
         });
@@ -289,6 +349,7 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
                 fileSize,
                 fileMimeType,
                 replyToId: validReplyToId,
+                mentions: mentionIds,
             },
             include: {
                 sender: { select: { id: true, name: true } },
@@ -304,27 +365,13 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
             where: { id: conversationId },
             data: { updatedAt: new Date() },
         });
+        (0, cache_1.invalidatePattern)("chat:convs:");
+        const members = await db_1.default.conversationMember.findMany({
+            where: { conversationId },
+            include: { user: { select: { id: true, name: true } } },
+        });
         return res.json({
-            message: {
-                id: message.id,
-                senderId: message.senderId,
-                senderName: message.sender.name,
-                text: message.text,
-                type: message.type,
-                fileUrl: message.fileUrl,
-                fileName: message.fileName,
-                fileSize: message.fileSize,
-                fileMimeType: message.fileMimeType,
-                createdAt: message.createdAt,
-                isOwn: true,
-                status: "sent",
-                replyTo: message.replyTo ? {
-                    id: message.replyTo.id,
-                    text: message.replyTo.text,
-                    senderName: message.replyTo.sender.name,
-                    type: message.replyTo.type,
-                } : null,
-            },
+            message: formatMessage(message, userId, members),
         });
     }
     catch (err) {
@@ -339,7 +386,11 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
 router.delete("/messages/:id", auth_middleware_1.verifyToken, async (req, res) => {
     try {
         const userId = req.user.id;
+        const role = req.user.role;
         const msgId = p(req.params.id);
+        if (role !== "admin") {
+            return res.status(403).json({ message: "Only admins can delete messages for everyone" });
+        }
         const msg = await db_1.default.message.findUnique({ where: { id: msgId } });
         if (!msg || msg.senderId !== userId) {
             return res.status(403).json({ message: "Cannot delete this message" });
@@ -419,6 +470,189 @@ router.post("/status", auth_middleware_1.verifyToken, async (req, res) => {
             where: { id: userId },
             data: { isOnline: online, lastActive: new Date() },
         });
+        return res.json({ success: true });
+    }
+    catch {
+        return res.json({ success: true });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   GET /chat/users — admin + csr (for DMs)
+═══════════════════════════════════════════════════════ */
+router.get("/users", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const meId = req.user.id;
+        const users = await db_1.default.user.findMany({
+            where: { isActive: true, id: { not: meId } },
+            select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
+            orderBy: [{ role: "asc" }, { name: "asc" }],
+        });
+        return res.json({ users });
+    }
+    catch {
+        return res.status(500).json({ message: "Failed to fetch users" });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   GET /chat/conversations/:id/members
+═══════════════════════════════════════════════════════ */
+router.get("/conversations/:id/members", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const conversationId = p(req.params.id);
+        const member = await db_1.default.conversationMember.findUnique({
+            where: { conversationId_userId: { conversationId, userId } },
+        });
+        if (!member)
+            return res.status(403).json({ message: "Not a member" });
+        const members = await db_1.default.conversationMember.findMany({
+            where: { conversationId },
+            include: { user: { select: { id: true, name: true, role: true, csrCode: true, isOnline: true } } },
+        });
+        return res.json({
+            members: members.map(m => ({
+                id: m.user.id,
+                name: m.user.name,
+                role: m.user.role,
+                csrCode: m.user.csrCode,
+                isOnline: m.user.isOnline,
+            })),
+        });
+    }
+    catch {
+        return res.status(500).json({ message: "Failed to fetch members" });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   PATCH /chat/messages/:id — edit within 10 minutes
+═══════════════════════════════════════════════════════ */
+router.patch("/messages/:id", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const msgId = p(req.params.id);
+        const text = (req.body.text ?? "").trim();
+        if (!text)
+            return res.status(400).json({ message: "Text required" });
+        const msg = await db_1.default.message.findUnique({ where: { id: msgId } });
+        if (!msg || msg.senderId !== userId || msg.type !== "text") {
+            return res.status(403).json({ message: "Cannot edit this message" });
+        }
+        if (Date.now() - msg.createdAt.getTime() > EDIT_WINDOW_MS) {
+            return res.status(400).json({ message: "Edit window expired (10 minutes)" });
+        }
+        const updated = await db_1.default.message.update({
+            where: { id: msgId },
+            data: { text, editedAt: new Date() },
+            include: {
+                sender: { select: { id: true, name: true } },
+                replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
+            },
+        });
+        const members = await db_1.default.conversationMember.findMany({
+            where: { conversationId: msg.conversationId },
+            include: { user: { select: { id: true, name: true } } },
+        });
+        (0, cache_1.invalidatePattern)("chat:convs:");
+        return res.json({ message: formatMessage(updated, userId, members) });
+    }
+    catch {
+        return res.status(500).json({ message: "Failed to edit message" });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   POST /chat/messages/:id/reactions — toggle emoji
+═══════════════════════════════════════════════════════ */
+router.post("/messages/:id/reactions", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const msgId = p(req.params.id);
+        const emoji = (req.body.emoji ?? "").trim();
+        if (!emoji)
+            return res.status(400).json({ message: "emoji required" });
+        const msg = await db_1.default.message.findUnique({ where: { id: msgId } });
+        if (!msg)
+            return res.status(404).json({ message: "Message not found" });
+        const member = await db_1.default.conversationMember.findUnique({
+            where: { conversationId_userId: { conversationId: msg.conversationId, userId } },
+        });
+        if (!member)
+            return res.status(403).json({ message: "Not a member" });
+        const reactions = parseReactions(msg.reactions);
+        const list = reactions[emoji] ?? [];
+        if (list.includes(userId)) {
+            reactions[emoji] = list.filter(id => id !== userId);
+            if (reactions[emoji].length === 0)
+                delete reactions[emoji];
+        }
+        else {
+            reactions[emoji] = [...list, userId];
+        }
+        await db_1.default.message.update({
+            where: { id: msgId },
+            data: { reactions },
+        });
+        return res.json({ reactions });
+    }
+    catch {
+        return res.status(500).json({ message: "Failed to update reaction" });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   POST /chat/conversations/:id/pin
+═══════════════════════════════════════════════════════ */
+router.post("/conversations/:id/pin", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const conversationId = p(req.params.id);
+        const messageId = req.body.messageId ?? null;
+        const member = await db_1.default.conversationMember.findUnique({
+            where: { conversationId_userId: { conversationId, userId } },
+        });
+        if (!member)
+            return res.status(403).json({ message: "Not a member" });
+        if (messageId) {
+            const msg = await db_1.default.message.findFirst({ where: { id: messageId, conversationId } });
+            if (!msg)
+                return res.status(404).json({ message: "Message not found" });
+        }
+        await db_1.default.conversation.update({
+            where: { id: conversationId },
+            data: { pinnedMessageId: messageId },
+        });
+        (0, cache_1.invalidatePattern)("chat:convs:");
+        return res.json({ success: true, pinnedMessageId: messageId });
+    }
+    catch {
+        return res.status(500).json({ message: "Failed to pin message" });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   POST /chat/conversations/:id/archive | unarchive
+═══════════════════════════════════════════════════════ */
+router.post("/conversations/:id/archive", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const conversationId = p(req.params.id);
+        await db_1.default.conversationMember.updateMany({
+            where: { conversationId, userId },
+            data: { archivedAt: new Date() },
+        });
+        (0, cache_1.invalidatePattern)("chat:convs:");
+        return res.json({ success: true });
+    }
+    catch {
+        return res.json({ success: true });
+    }
+});
+router.post("/conversations/:id/unarchive", auth_middleware_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const conversationId = p(req.params.id);
+        await db_1.default.conversationMember.updateMany({
+            where: { conversationId, userId },
+            data: { archivedAt: null },
+        });
+        (0, cache_1.invalidatePattern)("chat:convs:");
         return res.json({ success: true });
     }
     catch {

@@ -36,7 +36,7 @@ router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRo
             orderBy: { csrCode: "asc" },
         });
         const payload = { success: true, csrs };
-        (0, cache_1.setCache)(CACHE_KEY, payload, 3000);
+        (0, cache_1.setCache)(CACHE_KEY, payload, 15000);
         return res.json(payload);
     }
     catch (error) {
@@ -54,9 +54,9 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         /* Lean select — charts only need id, name, status, createdAt, updatedAt, csr.name */
         const leads = await db_1.default.lead.findMany({
             select: {
-                id:        true,
-                name:      true,
-                status:    true,
+                id: true,
+                name: true,
+                status: true,
                 interested: true,
                 createdAt: true,
                 updatedAt: true,
@@ -65,10 +65,10 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
             orderBy: { updatedAt: "desc" },
         });
         const stats = {
-            totalClients:  leads.length,
+            totalClients: leads.length,
             activeClients: leads.filter(l => l.status?.toLowerCase() === "pending").length,
-            interested:    leads.filter(l => l.status?.toLowerCase() === "interested" || l.interested).length,
-            closed:        leads.filter(l => ["closed", "completed", "close client"].includes(l.status?.toLowerCase() || "")).length,
+            interested: leads.filter(l => l.status?.toLowerCase() === "interested" || l.interested).length,
+            closed: leads.filter(l => ["closed", "completed", "close client"].includes(l.status?.toLowerCase() || "")).length,
         };
         const payload = { success: true, leads, stats };
         (0, cache_1.setCache)(CACHE_KEY, payload, 60000);
@@ -201,7 +201,7 @@ router.get("/csr-history/:csrId", auth_middleware_1.verifyToken, (0, role_middle
 router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
     try {
         const leads = await db_1.default.lead.findMany({
-            where: { status: "Close Client" },
+            where: { status: "Close Client", projectTitle: { not: null } },
             include: {
                 csr: {
                     select: {

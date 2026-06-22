@@ -6,23 +6,42 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.runWeeklyShuffle = runWeeklyShuffle;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
+const security_1 = require("./config/security");
 const app_1 = __importDefault(require("./app"));
 const db_1 = __importDefault(require("./config/db"));
 const cloudinary_1 = __importDefault(require("./config/cloudinary"));
 const PORT = process.env.PORT || 5000;
 /* ═══════════════════════════════════════════════
-   AUTO OFFLINE CRON — every 5s
+   AUTO OFFLINE CRON — every 5s with circuit breaker
+   If DB is unreachable, backs off for 60s to avoid
+   flooding the connection pool.
 ═══════════════════════════════════════════════ */
+let _offlineFailStreak = 0;
+let _offlinePaused = false;
 setInterval(async () => {
+    if (_offlinePaused)
+        return;
     try {
-        const threshold = new Date(Date.now() - 6000);
+        const threshold = new Date(Date.now() - 15000);
         await db_1.default.user.updateMany({
             where: { lastActive: { lt: threshold }, isOnline: true },
             data: { isOnline: false },
         });
+        if (_offlineFailStreak > 0) {
+            console.log("[Auto-offline] DB reconnected ✓");
+            _offlineFailStreak = 0;
+        }
     }
     catch (err) {
-        console.log("Auto-offline cron error:", err);
+        _offlineFailStreak++;
+        const code = err.code ?? "unknown";
+        if (_offlineFailStreak === 1) {
+            console.log(`[Auto-offline] DB unreachable (${code}) — pausing 60s`);
+        }
+        if (_offlineFailStreak >= 10) {
+            _offlinePaused = true;
+            setTimeout(() => { _offlinePaused = false; _offlineFailStreak = 0; }, 60000);
+        }
     }
 }, 5000);
 /* ═══════════════════════════════════════════════
@@ -207,6 +226,7 @@ function scheduleWeeklyShuffle() {
 }
 scheduleAutoReport();
 scheduleWeeklyShuffle();
+(0, security_1.getJwtSecret)();
 /* ── START ── */
 app_1.default.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
