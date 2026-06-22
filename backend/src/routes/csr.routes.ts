@@ -10,7 +10,8 @@ import {
   NOT_INTERESTED_LIMIT,
   NOT_PICKED_LIMIT,
   buildActiveRetryWhere,
-  buildBinWhere,
+  filterActiveLeads,
+  isBinLead,
   resolveDeleteBinReason,
 } from "../utils/binLeads";
 
@@ -59,8 +60,8 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const leads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId, inBin: false },
+    const rawLeads = await prisma.lead.findMany({
+      where:   { assignedTo: csrId },
       include: {
         uploadFile: { select: { companyName: true } },
         notes:      { select: { id: true } },   // IDs only — count badge; content fetched lazily
@@ -68,6 +69,8 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
       },
       orderBy: { createdAt: "desc" },
     });
+
+    const leads = filterActiveLeads(rawLeads);
 
     const payload = { success: true, totalLeads: leads.length, leads };
     setCache(cacheKey, payload, 30_000);
@@ -87,11 +90,13 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const leads = await prisma.lead.findMany({
+    const rawLeads = await prisma.lead.findMany({
       where: buildActiveRetryWhere(csrId),
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
+
+    const leads = filterActiveLeads(rawLeads);
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);
@@ -567,11 +572,12 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const csrLeads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId, inBin: false },
+    const rawLeads = await prisma.lead.findMany({
+      where:   { assignedTo: csrId },
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
+    const csrLeads = filterActiveLeads(rawLeads);
 
     const phones = [...new Set(csrLeads.map(l => l.phone).filter((p): p is string => !!p))];
 
@@ -694,11 +700,13 @@ router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const leads = await prisma.lead.findMany({
-      where:   buildBinWhere(csrId),
+    const rawLeads = await prisma.lead.findMany({
+      where:   { assignedTo: csrId },
       include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
+
+    const leads = rawLeads.filter(isBinLead);
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);

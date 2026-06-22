@@ -30,11 +30,25 @@ export function resolveDeleteBinReason(status: string | null | undefined): BinRe
   return "deleted-other";
 }
 
+/** Match leads not in bin — includes legacy docs where inBin was never set */
+export function notInBinFilter(): Prisma.LeadWhereInput {
+  return { NOT: { inBin: true } };
+}
+
+/** Filter in memory when MongoDB docs lack persisted inBin (Prisma default is false). */
+export function filterActiveLeads<T extends {
+  inBin?: boolean;
+  status?: string | null;
+  notPickedCount?: number | null;
+  notInterestedCount?: number | null;
+}>(leads: T[]): T[] {
+  return leads.filter(l => !isBinLead(l));
+}
+
 /** Leads still being retried on Not Interested / Not Picked pages */
 export function buildActiveRetryWhere(csrId: string): Prisma.LeadWhereInput {
   return {
     assignedTo: csrId,
-    inBin:      false,
     OR: [
       {
         status:             "Not Interested",

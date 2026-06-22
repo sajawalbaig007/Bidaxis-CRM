@@ -6,7 +6,7 @@ import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
-import { buildBinWhere } from "../utils/binLeads";
+import { isBinLead } from "../utils/binLeads";
 
 const router = express.Router();
 
@@ -563,14 +563,15 @@ router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
 
-    const leads = await prisma.lead.findMany({
-      where: buildBinWhere(csrId),
+    const rawLeads = await prisma.lead.findMany({
+      where: csrId ? { assignedTo: csrId } : {},
       include: {
         csr:        { select: { id: true, name: true, csrCode: true } },
         uploadFile: { select: { companyName: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
+    const leads = rawLeads.filter(isBinLead);
     return res.json({ success: true, leads });
   } catch (error) {
     console.log(error);
