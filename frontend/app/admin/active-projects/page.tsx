@@ -189,8 +189,12 @@ export default function AdminProjectsPage() {
   }, [filterCSR, fetchProjects]);
 
   const csrList: [string, string][] = allCsrs.length > 0
-    ? allCsrs.map(c => [c.id, c.name] as [string, string])
-    : Array.from(new Map(projects.map(p => [p.csr?.id ?? "", p.csr?.name ?? "Unknown"]).filter(([id]) => id)).entries());
+    ? allCsrs.map((c): [string, string] => [c.id, c.name])
+    : Array.from(
+        new Map<string, string>(
+          projects.map((p): [string, string] => [p.csr.id, p.csr.name ?? "Unknown"]),
+        ),
+      );
 
   const filtered = projects.filter((p) => {
     const q = search.toLowerCase();
