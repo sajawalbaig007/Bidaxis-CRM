@@ -18,14 +18,19 @@ import {
   ChevronDown,
   Phone,
   Clock,
+  Activity,
 } from "lucide-react";
 import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
-import { getCsrDashboard } from "@/lib/csrDashboardCache";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
+import {
+  formatNotificationStatus,
+  statusBadgeColor,
+} from "../../constants/notificationRoutes";
+import CsrActivityReportModal from "../shared/CsrActivityReportModal";
 
 const navItems = [
   { title: "Call Data",         href: "/csr",                      icon: Link2        },
@@ -51,13 +56,27 @@ type ScheduledCall = {
   date: string;
   time: string;
   timezone: string;
+  status: string;
+};
+
+type DailyStats = {
+  total: number;
+  byStatus: Record<string, number>;
+  periodHours: number;
+};
+
+type NotificationsPayload = {
+  scheduledCalls: ScheduledCall[];
+  dailyStats: DailyStats;
 };
 
 const TODAY = new Date().toISOString().split("T")[0];
 
-// Module-level cache — persists across page navigations within the same session
 let _cachedUser: UserInfo | null = null;
-let _cachedCalls: ScheduledCall[] = [];
+let _cachedNotifications: NotificationsPayload = {
+  scheduledCalls: [],
+  dailyStats: { total: 0, byStatus: {}, periodHours: 24 },
+};
 let _lastFetch = 0;
 const NAV_CACHE_TTL = 60_000;
 
@@ -78,11 +97,15 @@ export default function TopNavbar() {
   const [user, setUser] = useState<UserInfo | null>(
     () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedUser : null)
   );
-  const [calls, setCalls] = useState<ScheduledCall[]>(
-    () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedCalls : [])
+  const [notifications, setNotifications] = useState<NotificationsPayload>(
+    () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedNotifications : {
+      scheduledCalls: [],
+      dailyStats: { total: 0, byStatus: {}, periodHours: 24 },
+    })
   );
   const [profileOpen,  setProfileOpen]  = useState(false);
   const [bellOpen,     setBellOpen]     = useState(false);
+  const [reportOpen,   setReportOpen]   = useState(false);
   const [chatOpen,     setChatOpen]     = useState(false);
   const totalUnread    = useChatUnreadBadge();
   const [loggingOut,   setLoggingOut]   = useState(false);
@@ -105,21 +128,18 @@ export default function TopNavbar() {
 
     Promise.all([
       getAuthMe(),
-      getCsrDashboard(),
-    ]).then(([userData, dashData]) => {
-      const leads = dashData.leads ?? [];
-      const upcoming = leads
-        .filter((l) => l.status === "important" && l.nextSchedule && l.nextTime)
-        .filter((l) => (l.nextSchedule ?? "") >= TODAY)
-        .sort((a, b) => (`${a.nextSchedule}T${a.nextTime}` < `${b.nextSchedule}T${b.nextTime}` ? -1 : 1))
-        .slice(0, 20)
-        .map((l) => ({ id: l.id, client: l.name ?? "Client", date: l.nextSchedule!, time: l.nextTime!, timezone: l.timezone ?? "" }));
+      API.get("/csr/notifications").catch(() => null),
+    ]).then(([userData, notifRes]) => {
+      const payload: NotificationsPayload = {
+        scheduledCalls: notifRes?.data?.scheduledCalls ?? [],
+        dailyStats:     notifRes?.data?.dailyStats ?? { total: 0, byStatus: {}, periodHours: 24 },
+      };
 
-      _cachedUser  = userData;
-      _cachedCalls = upcoming;
-      _lastFetch   = Date.now();
+      _cachedUser          = userData;
+      _cachedNotifications = payload;
+      _lastFetch           = Date.now();
       setUser(userData);
-      setCalls(upcoming);
+      setNotifications(payload);
     });
   }, []);
 
@@ -162,7 +182,14 @@ export default function TopNavbar() {
         .toUpperCase()
     : "CR";
 
-  const todayCalls = calls.filter((c) => c.date === TODAY);
+  const todayCalls = notifications.scheduledCalls.filter((c) => c.date === TODAY);
+  const { dailyStats, scheduledCalls: calls } = notifications;
+
+  const goToScheduledCall = (call: ScheduledCall) => {
+    setBellOpen(false);
+    const params = new URLSearchParams({ leadId: call.id, tab: "schedule" });
+    router.push(`/csr/potential-clients?${params.toString()}`);
+  };
 
   const handleEnableNotifications = async () => {
     const granted = await requestNotificationPermission();
@@ -265,25 +292,46 @@ export default function TopNavbar() {
             </button>
 
             {bellOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[320px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <Bell size={14} className="text-[#B8112D]" />
-                    <span className="text-[13px] font-bold text-[#0F172A]">
-                      Scheduled Calls
+                    <span className="text-[13px] font-bold text-[#0F172A]">Notifications</span>
+                  </div>
+                  {todayCalls.length > 0 && (
+                    <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
+                      {todayCalls.length} call{todayCalls.length > 1 ? "s" : ""} today
                     </span>
-                  </div>
+                  )}
+                </div>
 
-                  <div className="flex items-center gap-2">
-                    {todayCalls.length > 0 && (
-                      <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
-                        {todayCalls.length} today
-                      </span>
-                    )}
-                    {calls.length === 0 && (
-                      <span className="text-[11px] text-gray-400">No upcoming</span>
-                    )}
+                <div className="px-4 py-3 bg-[#F8FAFC] border-b border-gray-100">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Activity size={13} className="text-[#B8112D] shrink-0" />
+                      <p className="text-[12px] font-bold text-[#0F172A] truncate">
+                        Last {dailyStats.periodHours}h — {dailyStats.total} status change{dailyStats.total !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setBellOpen(false); setReportOpen(true); }}
+                      className="text-[10px] font-bold text-[#B8112D] hover:text-[#9a0e25] whitespace-nowrap shrink-0 transition-colors"
+                    >
+                      View Report
+                    </button>
                   </div>
+                  {dailyStats.total === 0 ? (
+                    <p className="text-[11px] text-gray-400">No status updates in the last 24 hours.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(dailyStats.byStatus).map(([status, count]) => (
+                        <span key={status} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeColor(status)}`}>
+                          {formatNotificationStatus(status)} {count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {notifPerm !== "granted" && notifPerm !== "unsupported" && (
@@ -302,70 +350,53 @@ export default function TopNavbar() {
                   </div>
                 )}
 
-                <div className="max-h-[340px] overflow-y-auto divide-y divide-gray-50">
+                <div className="max-h-[360px] overflow-y-auto">
+                  <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    Scheduled Calls
+                  </p>
                   {calls.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <Bell size={26} className="text-gray-200 mx-auto mb-2" />
-                      <p className="text-gray-400 text-[13px]">
-                        No scheduled calls
-                      </p>
-                      <p className="text-gray-300 text-[11px] mt-1">
-                        Mark leads as Important + set a time
-                      </p>
+                    <div className="py-8 text-center">
+                      <Bell size={24} className="text-gray-200 mx-auto mb-2" />
+                      <p className="text-gray-400 text-[13px]">No scheduled calls</p>
+                      <p className="text-gray-300 text-[11px] mt-1">Mark leads as Important + set a time</p>
                     </div>
                   ) : (
                     calls.map((c) => {
                       const label = labelDate(c.date);
                       const isToday = label === "Today";
                       const tzShort = c.timezone
-                        ? c.timezone.split("/").pop()?.replace("_", " ") ??
-                          c.timezone
+                        ? c.timezone.split("/").pop()?.replace("_", " ") ?? c.timezone
                         : "";
 
                       return (
-                        <div
+                        <button
                           key={c.id}
-                          className={`flex items-center gap-3 px-4 py-3 ${
-                            isToday ? "bg-[#FFFBF5]" : "hover:bg-gray-50"
+                          type="button"
+                          onClick={() => goToScheduledCall(c)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                            isToday ? "bg-[#FFFBF5] hover:bg-[#FFF7E6]" : "hover:bg-gray-50"
                           }`}
                         >
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                              isToday
-                                ? "bg-[#FFF1F3] text-[#B8112D]"
-                                : "bg-[#FFF7E6] text-[#B54708]"
-                            }`}
-                          >
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                          }`}>
                             <Phone size={14} />
                           </div>
-
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-[#0F172A] truncate">
-                              {c.client}
-                            </p>
-
+                            <p className="text-[13px] font-semibold text-[#0F172A] truncate">{c.client}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <Clock
-                                size={10}
-                                className="text-gray-400 shrink-0"
-                              />
+                              <Clock size={10} className="text-gray-400 shrink-0" />
                               <p className="text-[11px] text-gray-500 truncate">
-                                {c.time}
-                                {tzShort ? ` · ${tzShort}` : ""}
+                                {c.time}{tzShort ? ` · ${tzShort}` : ""}
                               </p>
                             </div>
                           </div>
-
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                              isToday
-                                ? "bg-[#FFF1F3] text-[#B8112D]"
-                                : "bg-[#FFF7E6] text-[#B54708]"
-                            }`}
-                          >
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                            isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                          }`}>
                             {label}
                           </span>
-                        </div>
+                        </button>
                       );
                     })
                   )}
@@ -457,6 +488,7 @@ export default function TopNavbar() {
     </header>
 
     {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+    <CsrActivityReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
     </>
   );
 }

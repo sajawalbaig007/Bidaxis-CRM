@@ -22,6 +22,7 @@ import ProjectWonModal from "./components/modals/ProjectWonModal";
 
 import { useCsrDashboard } from "./hooks/useCsrDashboard";
 import { useLeadActions } from "./hooks/useLeadActions";
+import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
 import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone, leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
@@ -58,6 +59,8 @@ export default function CSRPage() {
   const [dismissedNotification, setDismissedNotification] = useState(false);
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+
+  useOpenLeadFromQuery(leads, setViewingLead, !loading);
 
   const [showImportantModal,  setShowImportantModal]  = useState(false);
   const [selectedImportantId, setSelectedImportantId] = useState<string | null>(null);
@@ -274,10 +277,18 @@ export default function CSRPage() {
               </h4>
               <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
                 {todayImportantCalls.map(call => (
-                  <span key={call.id} className="inline-flex items-center gap-1 sm:gap-1.5 bg-white border border-[#F59E0B]/30 text-[#92400E] px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl text-[11px] sm:text-[12px] font-semibold">
+                  <button
+                    key={call.id}
+                    type="button"
+                    onClick={() => {
+                      const params = new URLSearchParams({ leadId: call.id, tab: "schedule" });
+                      router.push(`/csr/potential-clients?${params.toString()}`);
+                    }}
+                    className="inline-flex items-center gap-1 sm:gap-1.5 bg-white border border-[#F59E0B]/30 text-[#92400E] px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-xl text-[11px] sm:text-[12px] font-semibold hover:bg-[#FFFBEB] transition-colors"
+                  >
                     <Phone size={10} className="sm:w-[11px] sm:h-[11px]" />{call.client}
                     {call.nextTime && <span className="opacity-70">· {call.nextTime}</span>}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>

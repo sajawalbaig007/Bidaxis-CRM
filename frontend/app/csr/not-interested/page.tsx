@@ -23,6 +23,7 @@ import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
+import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import API from "@/lib/api";
 
 const NOT_INTERESTED_LIMIT = 3;
@@ -42,6 +43,8 @@ export default function NotInterestedPage() {
 
 
   const [viewingLead, setViewingLead] = useState<NiLead | null>(null);
+
+  useOpenLeadFromQuery(leads, setViewingLead, !loading);
 
   /* ── Manual CSR assign (when retry limit reached) ── */
   const [showAssignModal, setShowAssignModal] = useState(false);
