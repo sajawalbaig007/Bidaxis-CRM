@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { getStatusChartData } from "../../constants/statusChart";
 import { Lead } from "../../types/lead";
+import ChartPieSide from "./ChartPieSide";
 
 interface LeadStatusDonutProps {
   leads: Lead[];
@@ -22,21 +23,21 @@ export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps
       </div>
 
       {loading ? (
-        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12 mt-4 sm:mt-6">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-6 mt-4 sm:mt-6">
           <div className="w-50 h-50 lg:w-64 lg:h-64 rounded-full bg-gray-100 animate-pulse mx-auto lg:mx-0 shrink-0" />
-          <div className="flex-1 w-full space-y-3 sm:space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+          <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4">
+            {[1, 2, 3].map(i => (
               <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />
             ))}
           </div>
+          <div className="w-44 h-44 sm:w-52 sm:h-52 lg:w-56 lg:h-56 rounded-full bg-gray-100 animate-pulse mx-auto lg:mx-0 shrink-0" />
         </div>
       ) : data.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
           No leads to display yet.
         </div>
       ) : (
-        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12 mt-4 sm:mt-6">
-          {/* Chart */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-6 mt-4 sm:mt-6">
           <div className="relative w-50 h-50 lg:w-64 lg:h-64 mx-auto lg:mx-0 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -57,8 +58,7 @@ export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps
             </div>
           </div>
 
-          {/* Breakdown */}
-          <div className="flex-1 w-full flex flex-col gap-3 sm:gap-4 lg:border-l lg:border-gray-100 lg:pl-10">
+          <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 lg:px-6 lg:border-x lg:border-gray-100">
             {data.map(slice => {
               const pct = Math.round((slice.value / total) * 100);
               return (
@@ -79,6 +79,10 @@ export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps
                 </div>
               );
             })}
+          </div>
+
+          <div className="shrink-0 flex justify-center lg:justify-end">
+            <ChartPieSide data={data} title="Status Pie Chart" />
           </div>
         </div>
       )}

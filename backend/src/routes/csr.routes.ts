@@ -51,6 +51,132 @@ async function findLeadsByPhone(phone: string) {
   return candidates.filter(l => l.phone && phonesMatch(l.phone, trimmed));
 }
 
+async function logStatusChange(csrId: string, leadId: string, status: string) {
+  try {
+    await prisma.callLog.create({ data: { leadId, csrId, status } });
+  } catch (error) {
+    console.log("Failed to log status change", error);
+  }
+}
+
+function getActivityRange(period: string, dateStr: string) {
+  const parts = dateStr.split("-").map(Number);
+  const y = parts[0] ?? new Date().getFullYear();
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
+
+  if (period === "week") {
+    const dow = new Date(y, m - 1, d).getDay();
+    const diffToMon = dow === 0 ? -6 : 1 - dow;
+    const from = new Date(y, m - 1, d + diffToMon, 0, 0, 0, 0);
+    const to   = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6, 23, 59, 59, 999);
+    const fmt  = (dt: Date) => dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    return { from, to, label: `${fmt(from)} – ${fmt(to)} ${from.getFullYear()}` };
+  }
+
+  if (period === "month") {
+    const from = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    const to   = new Date(y, m, 0, 23, 59, 59, 999);
+    return { from, to, label: from.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) };
+  }
+
+  const from = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const to   = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return {
+    from, to,
+    label: from.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }),
+  };
+}
+
+function aggregateLogs(logs: { status: string }[]) {
+  const byStatus: Record<string, number> = {};
+  for (const log of logs) {
+    byStatus[log.status] = (byStatus[log.status] ?? 0) + 1;
+  }
+  return { total: logs.length, byStatus };
+}
+
+/* ================= CSR ACTIVITY REPORT ================= */
+
+router.get("/activity-report", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const period = String(req.query.period ?? "day");
+    const date   = String(req.query.date   ?? new Date().toISOString().split("T")[0]);
+
+    if (!["day", "week", "month"].includes(period)) {
+      return res.status(400).json({ success: false, message: "Invalid period. Use day, week, or month." });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
+    }
+
+    const { from, to, label } = getActivityRange(period, date);
+    const logs = await prisma.callLog.findMany({
+      where:   { csrId, createdAt: { gte: from, lte: to } },
+      select:  { status: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const { total, byStatus } = aggregateLogs(logs);
+    return res.json({ success: true, period, date, rangeLabel: label, total, byStatus });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch activity report" });
+  }
+});
+
+/* ================= CSR NOTIFICATIONS ================= */
+
+router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId = req.user.id;
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const today = new Date().toISOString().split("T")[0];
+
+    const [scheduledLeads, recentLogs] = await Promise.all([
+      prisma.lead.findMany({
+        where: {
+          assignedTo: csrId,
+          status: "important",
+          nextSchedule: { not: null },
+          nextTime: { not: null },
+          inBin: false,
+        },
+        select: { id: true, name: true, status: true, nextSchedule: true, nextTime: true, timezone: true },
+        orderBy: [{ nextSchedule: "asc" }, { nextTime: "asc" }],
+        take: 30,
+      }),
+      prisma.callLog.findMany({
+        where:   { csrId, createdAt: { gte: since } },
+        select:  { status: true },
+      }),
+    ]);
+
+    const scheduledCalls = scheduledLeads
+      .filter(l => (l.nextSchedule ?? "") >= today)
+      .slice(0, 20)
+      .map(l => ({
+        id: l.id,
+        client: l.name ?? "Client",
+        date: l.nextSchedule!,
+        time: l.nextTime!,
+        timezone: l.timezone ?? "",
+        status: l.status,
+      }));
+
+    const { total, byStatus } = aggregateLogs(recentLogs);
+    return res.json({
+      success: true,
+      scheduledCalls,
+      dailyStats: { total, byStatus, periodHours: 24 },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch notifications" });
+  }
+});
+
 /* ================= CSR DASHBOARD ================= */
 
 router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) => {
@@ -401,6 +527,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         }
 
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
+        await logStatusChange(csrId, leadId, status);
 
         invalidateCsrLeadCaches(csrId);
 
@@ -443,6 +570,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         }
 
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
+        await logStatusChange(csrId, leadId, status);
 
         invalidateCsrLeadCaches(csrId);
 
@@ -531,6 +659,10 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       where: { id: leadId },
       data:  updateData,
     });
+
+    if (status !== undefined && status !== lead.status) {
+      await logStatusChange(csrId, leadId, status);
+    }
 
     invalidateCsrLeadCaches(csrId);
     return res.json({ success: true, lead: updatedLead });

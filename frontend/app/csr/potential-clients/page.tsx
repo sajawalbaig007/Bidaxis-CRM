@@ -15,6 +15,8 @@ import EditClientModal, { EditAction } from "../components/modals/EditClientModa
 
 import { useCsrDashboard } from "../hooks/useCsrDashboard";
 import { useLeadActions } from "../hooks/useLeadActions";
+import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
+import { useQueryTab } from "../hooks/useQueryTab";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import API from "@/lib/api";
 import { usTimezones } from "../constants/timezones";
@@ -27,6 +29,8 @@ import {
   matchesPotentialTab,
   type PotentialTab,
 } from "../utils/potentialClientBuckets";
+
+const POTENTIAL_TABS = ["important", "schedule", "interested"] as const;
 
 const getTzAbbr = (tzValue: string) => {
   const found = usTimezones.find(tz => tz.value === tzValue);
@@ -54,6 +58,9 @@ export default function ImportantCallsPage() {
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
   const [openPhoneDropdown, setOpenPhoneDropdown] = useState<string | null>(null);
+
+  useQueryTab(POTENTIAL_TABS, "important", setActiveTab, !loading);
+  useOpenLeadFromQuery(leads, setViewingLead, !loading);
 
   const [scheduleDate,     setScheduleDate]     = useState("");
   const [scheduleTime,     setScheduleTime]     = useState("");

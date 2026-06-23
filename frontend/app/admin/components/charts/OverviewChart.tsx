@@ -8,7 +8,7 @@ type Props = {
   leads?: ClientLead[];
   distribution?: Record<string, number>;
 };
-
+/* ─── TYPES ─── */
 type Slice = { name: string; value: number; color: string };
 
 const COLORS = ["#B8112D", "#F97316", "#14B8A6", "#6366F1", "#10B981"];

@@ -129,6 +129,11 @@ export default function CSRProjectsPage() {
     },
   ], [inProgressCnt, completedCnt, allTimeSales, todaySales]);
 
+  const projectPieData = useMemo(() => [
+    { name: "Completed",   value: completedCnt,  color: "#15803D" },
+    { name: "In Progress", value: inProgressCnt, color: "#F59E0B" },
+  ].filter(s => s.value > 0), [completedCnt, inProgressCnt]);
+
   /* ── Actions ── */
   const openDetail = (project: Project) => { setViewingProject(project); setIsEditing(false); };
 
@@ -274,6 +279,8 @@ export default function CSRProjectsPage() {
             subtitle="Project status breakdown and today's vs all-time sales."
             rows={chartRows}
             loading={loading}
+            pieTitle="Project Status Pie Chart"
+            pieData={projectPieData}
           />
         </div>
 

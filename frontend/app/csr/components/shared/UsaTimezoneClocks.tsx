@@ -68,7 +68,7 @@ function handPoint(cx: number, cy: number, angleDeg: number, length: number) {
   return { x: cx + length * Math.cos(rad), y: cy + length * Math.sin(rad) };
 }
 
-function AnalogClock({ tz }: { tz: string }) {
+function AnalogClock({ tz, compact = false }: { tz: string; compact?: boolean }) {
   const [angles, setAngles] = useState(() => getHandAngles(tz));
 
   useEffect(() => {
@@ -82,7 +82,10 @@ function AnalogClock({ tz }: { tz: string }) {
   const s = handPoint(cx, cy, angles.second, 21);
 
   return (
-    <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
+    <svg
+      viewBox="0 0 60 60"
+      className={`shrink-0 ${compact ? "w-10 h-10 sm:w-11 sm:h-11 lg:w-12 lg:h-12" : "w-11 h-11 sm:w-12 sm:h-12 xl:w-[60px] xl:h-[60px]"}`}
+    >
       <circle cx={cx} cy={cy} r={r} fill="white" stroke="#E5E7EB" strokeWidth="2" />
       {[...Array(12)].map((_, i) => {
         const a   = (i * 30 - 90) * (Math.PI / 180);
@@ -120,6 +123,36 @@ function DigitalTime({ tz }: { tz: string }) {
     return () => clearInterval(id);
   }, [tz]);
   return <>{str}</>;
+}
+
+type Zone = (typeof US_ZONES)[number] | (typeof CA_ZONES)[number];
+
+function RegionBadge({ flag, label }: { flag: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 min-w-[32px] sm:min-w-[40px] px-1.5 sm:px-2 py-1 rounded-lg bg-gray-50 border border-gray-100 self-center">
+      <span className="text-sm sm:text-base leading-none">{flag}</span>
+      <span className="text-[10px] sm:text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</span>
+    </div>
+  );
+}
+
+function ZoneClock({ zone, compact }: { zone: Zone; compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <AnalogClock tz={zone.tz} compact={compact} />
+      <div className="min-w-0">
+        <p className="text-[10px] sm:text-[11px] xl:text-xs font-bold text-[#0F172A] leading-none truncate max-w-[72px] sm:max-w-none">
+          {zone.city}
+        </p>
+        <p className="text-[9px] sm:text-[10px] xl:text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">
+          {zone.label} · <span className="font-semibold text-gray-500">{zone.abbr}</span>
+        </p>
+        <p className="text-[9px] sm:text-[10px] xl:text-[11px] font-mono font-bold text-[#B8112D] mt-0.5 whitespace-nowrap">
+          <DigitalTime tz={zone.tz} />
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function TimezoneMapModal({ onClose }: { onClose: () => void }) {
@@ -259,55 +292,26 @@ export default function UsaTimezoneClocks() {
 
   return (
     <>
-      <div className="bg-white border-b border-gray-100 shadow-sm">
+      <div className="bg-white border-b border-gray-100 shadow-sm overflow-hidden">
         <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-5 lg:px-6 py-2 sm:py-3">
-          <div className="flex items-center gap-3 sm:gap-5 lg:gap-8 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-
-            {/* 🇺🇸 US */}
-            <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest shrink-0 hidden sm:block">🇺🇸</span>
-            {US_ZONES.map((zone, idx) => (
-              <div key={zone.tz} className="flex items-center gap-2 sm:gap-3 shrink-0">
-                <AnalogClock tz={zone.tz} />
-                <div>
-                  <p className="text-[11px] sm:text-xs font-bold text-[#0F172A] leading-none">{zone.city}</p>
-                  <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">
-                    {zone.label} · <span className="font-semibold text-gray-500">{zone.abbr}</span>
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] font-mono font-bold text-[#B8112D] mt-0.5">
-                    <DigitalTime tz={zone.tz} />
-                  </p>
-                </div>
-                {idx < US_ZONES.length - 1 && (
-                  <div className="w-px h-10 bg-gray-100 ml-1 sm:ml-2 shrink-0" />
-                )}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4 lg:gap-x-5 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
+                <RegionBadge flag="🇺🇸" label="US" />
+                {US_ZONES.map(zone => (
+                  <ZoneClock key={zone.tz} zone={zone} compact />
+                ))}
               </div>
-            ))}
-
-            {/* divider */}
-            <div className="w-px h-10 bg-gray-200 shrink-0" />
-
-            {/* 🇨🇦 Canada */}
-            <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest shrink-0 hidden sm:block">🇨🇦</span>
-            {CA_ZONES.map((zone, idx) => (
-              <div key={zone.tz} className="flex items-center gap-2 sm:gap-3 shrink-0">
-                <AnalogClock tz={zone.tz} />
-                <div>
-                  <p className="text-[11px] sm:text-xs font-bold text-[#0F172A] leading-none">{zone.city}</p>
-                  <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">
-                    {zone.label} · <span className="font-semibold text-gray-500">{zone.abbr}</span>
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] font-mono font-bold text-[#B8112D] mt-0.5">
-                    <DigitalTime tz={zone.tz} />
-                  </p>
-                </div>
-                {idx < CA_ZONES.length - 1 && (
-                  <div className="w-px h-10 bg-gray-100 ml-1 sm:ml-2 shrink-0" />
-                )}
+              <div className="hidden sm:block w-px h-10 bg-gray-200 shrink-0 self-center" />
+              <div className="w-full h-px bg-gray-100 sm:hidden" />
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
+                <RegionBadge flag="🇨🇦" label="CA" />
+                {CA_ZONES.map(zone => (
+                  <ZoneClock key={zone.tz} zone={zone} compact />
+                ))}
               </div>
-            ))}
-
-            {/* Map button */}
-            <div className="ml-auto shrink-0 pl-2 sm:pl-4">
+            </div>
+            <div className="shrink-0 flex justify-end lg:justify-center">
               <button
                 onClick={() => setShowMap(true)}
                 className="flex items-center gap-1.5 h-8 sm:h-9 px-3 sm:px-4 rounded-xl bg-blue-50 text-blue-600 text-[11px] sm:text-xs font-semibold border border-blue-100 hover:bg-blue-100 transition-colors whitespace-nowrap"

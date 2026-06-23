@@ -91,7 +91,7 @@ function issueSessionToken(
   return token;
 }
 
-/* ================= REGISTER ================= */
+/* ================= REGISTER (force=true) ================= */
 export const register = async (req: AuthRequest, res: Response) => {
   try {
     const { name, email, password, role, csrCode, cnic, profilePic } = req.body;
@@ -106,7 +106,6 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: pwdError });
     }
 
-    /* Only admin can create admin accounts */
     if (role === "admin" && req.user?.role !== "admin") {
       return res.status(403).json({ success: false, message: "Only admins can create admin accounts." });
     }
@@ -116,7 +115,6 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: "User already exists" });
     }
 
-    /* Ensure csrCode is unique */
     if (csrCode?.trim()) {
       const codeTaken = await prisma.user.findFirst({ where: { csrCode: csrCode.trim() } });
       if (codeTaken) {
