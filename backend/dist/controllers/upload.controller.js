@@ -105,7 +105,15 @@ const uploadLeads = async (req, res) => {
         const companyName = req.body.companyName?.trim() || "";
         const resetMode = req.body.resetMode || "keep";
         const leadType = req.body.leadType || "new"; /* "new" | "old" — only used when pane = "lead" */
+        const sourceId = String(req.body.sourceId ?? "").trim();
         const uploadedBy = "admin";
+        if (!sourceId) {
+            return res.status(400).json({ success: false, message: "Upload source is required" });
+        }
+        const source = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });
+        if (!source) {
+            return res.status(400).json({ success: false, message: "Invalid upload source" });
+        }
         /* accept array of statuses for multi-pane distribution */
         const rawStatuses = req.body.initialStatuses;
         const initialStatuses = rawStatuses
@@ -190,6 +198,7 @@ const uploadLeads = async (req, res) => {
                 totalLeads: data.length,
                 uploadedBy,
                 companyName: companyName || null,
+                sourceId: source.id,
             },
         });
         const isActiveUpload = leadType === "active";
@@ -371,6 +380,7 @@ const getLatestUpload = async (req, res) => {
         const latestFile = await db_1.default.uploadFile.findFirst({
             orderBy: { createdAt: "desc" },
             include: {
+                source: { select: { id: true, name: true } },
                 leads: {
                     include: {
                         csr: { select: { id: true, name: true, email: true } },
@@ -397,6 +407,7 @@ const getLatestUpload = async (req, res) => {
                 totalLeads: latestFile.totalLeads,
                 cloudinaryUrl: latestFile.cloudinaryUrl,
                 companyName: latestFile.companyName,
+                source: latestFile.source,
                 createdAt: latestFile.createdAt,
                 distribution,
             },

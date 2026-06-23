@@ -4,7 +4,10 @@ import { useMemo } from "react";
 import { Trophy, TrendingUp, Star } from "lucide-react";
 import type { ClientLead } from "../charts/PerformanceChart";
 
-type Props = { leads: ClientLead[] };
+type Props = {
+  leads?: ClientLead[];
+  performers?: Performer[];
+};
 
 type Performer = { name: string; resolved: number; total: number; rate: number };
 
@@ -15,8 +18,9 @@ const rankStyle = (i: number) => {
   return "bg-gradient-to-r from-blue-400 to-blue-500";
 };
 
-export default function TopPerformers({ leads }: Props) {
+export default function TopPerformers({ leads = [], performers: performersProp }: Props) {
   const performers = useMemo<Performer[]>(() => {
+    if (performersProp?.length) return performersProp;
     const map: Record<string, { resolved: number; total: number }> = {};
     leads.forEach(l => {
       const name = l.csr?.name ?? "Unassigned";
@@ -32,7 +36,7 @@ export default function TopPerformers({ leads }: Props) {
       }))
       .sort((a, b) => b.resolved - a.resolved)
       .slice(0, 5);
-  }, [leads]);
+  }, [leads, performersProp]);
 
   return (
     <div>

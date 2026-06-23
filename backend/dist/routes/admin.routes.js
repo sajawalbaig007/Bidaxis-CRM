@@ -9,6 +9,7 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const cache_1 = require("../utils/cache");
 const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
+const uploadSourceStats_1 = require("../utils/uploadSourceStats");
 const router = express_1.default.Router();
 /* ================= ADMIN DASHBOARD ================= */
 router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), (req, res) => {
@@ -502,6 +503,97 @@ router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middlew
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to reassign lead" });
+    }
+});
+/* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */
+async function statsForSource(sourceId) {
+    const uploads = await db_1.default.uploadFile.findMany({
+        where: { sourceId },
+        select: { id: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+    });
+    const fileIds = uploads.map(u => u.id);
+    const leads = fileIds.length
+        ? await db_1.default.lead.findMany({
+            where: { uploadedFileId: { in: fileIds } },
+            select: { status: true },
+        })
+        : [];
+    return {
+        stats: (0, uploadSourceStats_1.countLeadStatuses)(leads),
+        uploads,
+    };
+}
+router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (_req, res) => {
+    try {
+        const sources = await db_1.default.uploadSource.findMany({ orderBy: { name: "asc" } });
+        const enriched = await Promise.all(sources.map(async (src) => {
+            const { stats, uploads } = await statsForSource(src.id);
+            return {
+                id: src.id,
+                name: src.name,
+                createdAt: src.createdAt,
+                uploadCount: uploads.length,
+                lastUpload: uploads[0]?.createdAt ?? null,
+                stats,
+            };
+        }));
+        return res.json({ success: true, sources: enriched });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch upload sources" });
+    }
+});
+router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const name = String(req.body.name ?? "").trim();
+        if (!name) {
+            return res.status(400).json({ success: false, message: "Source name is required" });
+        }
+        const existing = await db_1.default.uploadSource.findUnique({ where: { name } });
+        if (existing) {
+            return res.json({ success: true, source: existing, created: false });
+        }
+        const source = await db_1.default.uploadSource.create({ data: { name } });
+        return res.json({ success: true, source, created: true });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to create upload source" });
+    }
+});
+router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const sourceId = String(req.params.sourceId);
+        const source = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });
+        if (!source) {
+            return res.status(404).json({ success: false, message: "Source not found" });
+        }
+        const { stats, uploads } = await statsForSource(sourceId);
+        const leads = uploads.length
+            ? await db_1.default.lead.findMany({
+                where: { uploadedFileId: { in: uploads.map(u => u.id) } },
+                select: {
+                    id: true, name: true, phone: true, email: true, status: true,
+                    company: true, interestedService: true, updatedAt: true,
+                    csr: { select: { name: true } },
+                },
+                orderBy: { updatedAt: "desc" },
+                take: 200,
+            })
+            : [];
+        return res.json({
+            success: true,
+            source: { id: source.id, name: source.name, createdAt: source.createdAt },
+            stats,
+            uploads,
+            leads,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch source details" });
     }
 });
 exports.default = router;

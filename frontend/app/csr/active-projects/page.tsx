@@ -12,6 +12,7 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
+import { PROJECT_GRID_HEAD, PROJECT_GRID_ROW } from "../components/shared/csrTableStyles";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import SendEmailButton from "../components/shared/SendEmailButton";
 import EmailField from "../components/shared/EmailField";
@@ -395,9 +396,9 @@ export default function CSRProjectsPage() {
             </div>
 
             {/* ── DESKTOP TABLE (lg+) ── */}
-            <div className="hidden lg:block">
-              <div>
-                <div className="grid grid-cols-[115px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA]">
+            <div className="hidden lg:block overflow-x-auto">
+              <div className="min-w-[1180px]">
+                <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA] ${PROJECT_GRID_HEAD}`}>
                   {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
@@ -407,7 +408,7 @@ export default function CSRProjectsPage() {
                   {paginated.map(project => (
                     <div
                       key={project.id}
-                      className="grid grid-cols-[115px_1.5fr_1.1fr_1.3fr_80px_90px_85px_110px_auto] gap-x-3 xl:gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors"
+                      className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors ${PROJECT_GRID_ROW}`}
                     >
                       {/* Project Code */}
                       <div className="min-w-0">

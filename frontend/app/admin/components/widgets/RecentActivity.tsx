@@ -7,7 +7,10 @@ import {
 } from "lucide-react";
 import type { ClientLead } from "../charts/PerformanceChart";
 
-type Props = { leads: ClientLead[] };
+type Props = {
+  leads?: ClientLead[];
+  recent?: ClientLead[];
+};
 
 type ActivityItem = {
   id:     string;
@@ -55,9 +58,10 @@ const timeAgo = (iso: string): string => {
   return `${Math.floor(diff / 86400)} days ago`;
 };
 
-export default function RecentActivity({ leads }: Props) {
+export default function RecentActivity({ leads = [], recent }: Props) {
   const activities = useMemo<ActivityItem[]>(() => {
-    return [...leads]
+    const source = recent?.length ? recent : leads;
+    return [...source]
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
       .slice(0, 6)
       .map((l, index) => {
@@ -70,7 +74,7 @@ export default function RecentActivity({ leads }: Props) {
           type:   statusToType(status),
         };
       });
-  }, [leads]);
+  }, [leads, recent]);
 
   return (
     <div>

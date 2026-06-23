@@ -4,13 +4,22 @@ import { useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { ClientLead } from "./PerformanceChart";
 
-type Props = { leads: ClientLead[] };
+type Props = {
+  leads?: ClientLead[];
+  distribution?: Record<string, number>;
+};
+
 type Slice = { name: string; value: number; color: string };
 
 const COLORS = ["#B8112D", "#F97316", "#14B8A6", "#6366F1", "#10B981"];
 
-export default function OverviewChart({ leads }: Props) {
+export default function OverviewChart({ leads = [], distribution }: Props) {
   const data = useMemo<Slice[]>(() => {
+    if (distribution) {
+      return Object.entries(distribution)
+        .filter(([, v]) => v > 0)
+        .map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
+    }
     const counts: Record<string, number> = {
       Pending: 0, Important: 0, Interested: 0, "Close Client": 0, Closed: 0,
     };
@@ -26,7 +35,7 @@ export default function OverviewChart({ leads }: Props) {
     return Object.entries(counts)
       .filter(([, v]) => v > 0)
       .map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
-  }, [leads]);
+  }, [leads, distribution]);
 
   return (
     <div className="flex flex-col h-full">

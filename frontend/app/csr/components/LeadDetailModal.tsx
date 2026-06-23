@@ -41,6 +41,8 @@ interface LeadDetailModalProps {
   onNoteAdded?: (id: string, note: NoteEntry) => void;
   onSubContactAdded?: (id: string, sub: SubContact) => void;
   onSubContactDeleted?: (id: string, subId: string) => void;
+  /** Use admin routes when opened from admin panel */
+  apiPrefix?: "/csr" | "/admin";
 }
 
 const statusLabel = (s?: string) => {
@@ -164,7 +166,7 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
   return null;
 };
 
-export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactDeleted }: LeadDetailModalProps) {
+export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactDeleted, apiPrefix = "/csr" }: LeadDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [name,  setName]  = useState(lead.name ?? "");
   const [phone, setPhone] = useState(lead.phone ?? "");
@@ -177,7 +179,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
 
   useEffect(() => {
     if ((lead.subContacts ?? []).length > 0) return; // already populated
-    API.get(`/csr/lead/${lead.id}`)
+    API.get(`${apiPrefix}/lead/${lead.id}`)
       .then(res => setSubs(res.data.lead?.subContacts ?? []))
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,7 +203,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const save = async () => {
     setSaving(true);
     try {
-      await API.put(`/csr/lead/${lead.id}`, { name, phone, email, state });
+      await API.put(`${apiPrefix}/lead/${lead.id}`, { name, phone, email, state });
       onSaved?.(lead.id, { name, phone, email, state });
       setIsEditing(false);
     } catch (err) {
@@ -215,7 +217,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     if (!subName.trim()) return;
     setAddingSub(true);
     try {
-      const res = await API.post(`/csr/lead/${lead.id}/subcontacts`, {
+      const res = await API.post(`${apiPrefix}/lead/${lead.id}/subcontacts`, {
         name: subName.trim(), designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim(),
       });
       const sub: SubContact = res.data.subContact ?? { id: Date.now().toString(), name: subName.trim(), designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim() };
@@ -229,7 +231,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const deleteSubContact = async (subId: string) => {
     setDeletingId(subId);
     try {
-      await API.delete(`/csr/lead/${lead.id}/subcontacts/${subId}`);
+      await API.delete(`${apiPrefix}/lead/${lead.id}/subcontacts/${subId}`);
       setSubs(prev => prev.filter(s => s.id !== subId));
       onSubContactDeleted?.(lead.id, subId);
     } catch (err) { console.log(err); }

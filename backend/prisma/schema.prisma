@@ -72,6 +72,9 @@ model Lead {
   notInterestedCount Int       @default(0)
   notPickedCount     Int       @default(0)
   hiddenOnMain       Boolean   @default(false)
+  inBin              Boolean   @default(false)
+  binReason          String?
+  binPreviousStatus  String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -132,16 +135,31 @@ model CallLog {
   csr  User @relation("CSRCallLogs", fields: [csrId], references: [id])
 }
 
-model UploadFile {
-  id            String   @id @default(cuid()) @map("_id")
-  fileName      String
-  cloudinaryUrl String
-  totalLeads    Int
-  uploadedBy    String
-  companyName   String?
-  createdAt     DateTime @default(now())
+model UploadSource {
+  id        String   @id @default(cuid()) @map("_id")
+  name      String   @unique
+  createdAt DateTime @default(now())
 
-  leads Lead[]
+  uploads UploadFile[]
+}
+
+model UploadFile {
+  id             String   @id @default(cuid()) @map("_id")
+  fileName       String
+  cloudinaryUrl  String
+  totalLeads     Int
+  uploadedBy     String
+  companyName    String?
+  sourceId       String?
+  uploadCategory String?  /* call-data | new-client | old-client | interested | important | active-projects */
+  createdAt      DateTime @default(now())
+
+  source UploadSource? @relation(fields: [sourceId], references: [id])
+  leads  Lead[]
+
+  @@index([sourceId])
+  @@index([uploadCategory])
+  @@index([createdAt])
 }
 
 model Conversation {

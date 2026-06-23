@@ -30,8 +30,9 @@ type Project = {
   uploadFile: { companyName: string | null } | null;
 };
 
+type CSROption = { id: string; name: string; csrCode: string | null };
+
 type Stats = { total: number; withBudget: number; thisMonth: number };
-//ok
 const serviceColors: Record<string, string> = {
   "Estimating":   "bg-blue-100 text-blue-700",
   "Scheduling":   "bg-purple-100 text-purple-700",
@@ -98,10 +99,10 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
 
       <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
         <span className="font-medium text-[#065F46] truncate flex items-center gap-1.5">
-          {p.csr.csrCode && (
+          {p.csr?.csrCode && (
             <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
           )}
-          {p.csr.name}
+          {p.csr?.name ?? "—"}
         </span>
         {p.projectBudget && (
           <span className="font-bold text-gray-700 shrink-0 ml-2">${p.projectBudget}</span>
@@ -120,11 +121,11 @@ export default function AdminProjectsPage() {
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
   const [filterCSR, setFilterCSR] = useState("all");
+  const [allCsrs,     setAllCsrs]     = useState<CSROption[]>([]);
   const [selected,  setSelected]  = useState<Project | null>(null);
   const [page,      setPage]      = useState(1);
 
   /* ── Reassign modal ── */
-  type CSROption = { id: string; name: string; csrCode: string | null };
   const [showReassign,  setShowReassign]  = useState(false);
   const [reassignProj,  setReassignProj]  = useState<Project | null>(null);
   const [csrOpts,       setCsrOpts]       = useState<CSROption[]>([]);
@@ -166,7 +167,8 @@ export default function AdminProjectsPage() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await API.get("/admin/projects");
+      const params = filterCSR !== "all" ? { csrId: filterCSR } : {};
+      const res = await API.get("/admin/projects", { params });
       setProjects(res.data.leads ?? []);
       setStats(res.data.stats   ?? { total: 0, withBudget: 0, thisMonth: 0 });
     } catch {
@@ -174,27 +176,33 @@ export default function AdminProjectsPage() {
     } finally {
       setLoading(false);
     }
+  }, [filterCSR]);
+
+  useEffect(() => {
+    API.get("/admin/csrs")
+      .then(res => setAllCsrs(res.data.csrs ?? []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    const load = async () => { await fetchProjects(); };
-    load();
-  }, [fetchProjects]);
+    void fetchProjects();
+  }, [filterCSR, fetchProjects]);
 
-  const csrList = Array.from(
-    new Map(projects.map((p) => [p.csr.id, p.csr.name])).entries()
-  );
+  const csrList: [string, string][] = allCsrs.length > 0
+    ? allCsrs.map(c => [c.id, c.name] as [string, string])
+    : Array.from(new Map(projects.map(p => [p.csr?.id ?? "", p.csr?.name ?? "Unknown"]).filter(([id]) => id)).entries());
 
   const filtered = projects.filter((p) => {
     const q = search.toLowerCase();
+    const csrName = p.csr?.name ?? "";
     const matchSearch =
       (p.name ?? "").toLowerCase().includes(q) ||
       (p.projectTitle ?? "").toLowerCase().includes(q) ||
       (p.company ?? "").toLowerCase().includes(q) ||
       (p.interestedService ?? "").toLowerCase().includes(q) ||
-      p.csr.name.toLowerCase().includes(q) ||
+      csrName.toLowerCase().includes(q) ||
       (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
-    return matchSearch && (filterCSR === "all" || p.csr.id === filterCSR);
+    return matchSearch && (filterCSR === "all" || p.csr?.id === filterCSR);
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -216,10 +224,10 @@ export default function AdminProjectsPage() {
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
-              Close Client
+              Active Projects
             </h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-              All client projects across every CSR — real-time.
+              All CSR active projects — view everyone or filter by CSR.
             </p>
           </div>
           <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
@@ -459,10 +467,10 @@ export default function AdminProjectsPage() {
                       {/* CSR */}
                       <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          {p.csr.csrCode && (
+                          {p.csr?.csrCode && (
                             <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
                           )}
-                          <span className="text-xs xl:text-sm font-semibold text-[#065F46]">{p.csr.name}</span>
+                          <span className="text-xs xl:text-sm font-semibold text-[#065F46]">{p.csr?.name ?? "—"}</span>
                         </div>
                       </td>
 
@@ -492,7 +500,7 @@ export default function AdminProjectsPage() {
                       <FolderKanban size={36} className="text-gray-200 mx-auto mb-3 xl:w-10 xl:h-10" />
                       <p className="font-semibold text-gray-400 text-sm xl:text-base">No projects found</p>
                       <p className="text-xs xl:text-sm text-gray-300 mt-1">
-                        {search ? "Try a different search." : "No leads marked as Close Client yet."}
+                        {search ? "Try a different search." : "No active projects yet."}
                       </p>
                     </td>
                   </tr>

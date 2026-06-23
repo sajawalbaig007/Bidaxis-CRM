@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import API from "@/lib/api";
-import { visibleInterval } from "@/lib/visibleInterval";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import toast, { Toaster } from "react-hot-toast";
+import { formatAdminLead } from "../utils/formatAdminLead";
+import { adminLeadStatusBadgeClass, adminLeadStatusLabel } from "../utils/leadStatus";
 
 import {
   Search,
@@ -11,7 +13,6 @@ import {
   Building2,
   MoreVertical,
   Eye,
-  Pencil,
   Trash2,
   ChevronDown,
   LayoutGrid,
@@ -19,17 +20,9 @@ import {
   BadgeCheck,
   Users,
   ChevronUp,
-  MessageSquare,
   X,
   CircleAlert,
-  PhoneCall,
-  Briefcase,
-  Clock3,
-  Globe,
-  User2,
   CalendarDays,
-  Filter,
-  Phone,
   ArrowRightLeft,
   Check,
 } from "lucide-react";
@@ -37,7 +30,11 @@ import {
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
+import LeadDetailModal from "../../csr/components/LeadDetailModal";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from "recharts";
+import {
+  canAdminReassign,
+} from "@/app/csr/utils/potentialClientBuckets";
 
 /* ─── TYPES ─── */
 type Client = {
@@ -51,13 +48,15 @@ type Client = {
   lastEmail: string;
   lastCall: string;
   lastComment: string;
-  status: "Active" | "Pending" | "Closed" | "Interested";
+  status: string;
   rawStatus: string;
   csr: string;
   csrCode?: string | null;
+  clientCode: string | null;
   nextFollowup: string;
   time: string;
   timezone: string;
+  isOldClient: boolean;
 };
 
 const PAGE_SIZE = 30;
@@ -65,9 +64,10 @@ const PAGE_SIZE = 30;
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [page,    setPage]    = useState(1);
 
-  const [view, setView] = useState<"all" | "important" | "interested" | "closed">("all");
+  const [view, setView] = useState<"all" | "important" | "schedule" | "interested" | "closed">("all");
   const [csrFilter, setCsrFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [openMenu, setOpenMenu] = useState<number | null>(null);
@@ -75,7 +75,6 @@ export default function ClientsPage() {
 
   const [impSearch, setImpSearch] = useState("");
   const [impFilterDate, setImpFilterDate] = useState("");
-  const [selectedImp, setSelectedImp] = useState<Client | null>(null);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,15 +82,7 @@ export default function ClientsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
 
-  /* ── notepad ── */
-  const [noteModal, setNoteModal] = useState<{
-    id: string;
-    name: string;
-    note: string;
-    mode: "view" | "edit";
-  } | null>(null);
-  const [noteDraft, setNoteDraft] = useState("");
-  const [noteSaving, setNoteSaving] = useState(false);
+  /* ── notepad (inline via CommentCell in table) ── */
 
   /* ── Reassign to CSR ── */
   type ReassignCSR = { id: string; name: string; csrCode: string | null };
@@ -121,45 +112,17 @@ export default function ClientsPage() {
     try {
       await API.put(`/admin/lead/${reassignClient.id}/reassign`, { csrId: reassignTargetId });
       const name = reassignCsrList.find(c => c.id === reassignTargetId)?.name ?? "another CSR";
+      const code = reassignCsrList.find(c => c.id === reassignTargetId)?.csrCode ?? null;
       toast.success(`Lead reassigned to ${name}.`);
       setClients(prev => prev.map(c =>
-        c.id === reassignClient.id ? { ...c, csr: name } : c
+        c.id === reassignClient.id ? { ...c, csr: name, csrCode: code } : c
       ));
       setShowReassignModal(false);
       setReassignClient(null);
+      refreshTabCounts();
+      void fetchClients();
     } catch { toast.error("Failed to reassign lead."); }
     finally { setIsReassigning(false); }
-  };
-
-  const openNote = (client: Client, mode: "view" | "edit") => {
-    setNoteModal({
-      id: client.id,
-      name: client.clientName,
-      note: client.lastComment === "No comments" ? "" : client.lastComment,
-      mode,
-    });
-    setNoteDraft(client.lastComment === "No comments" ? "" : client.lastComment);
-  };
-
-  const saveNote = async () => {
-    if (!noteModal) return;
-    setNoteSaving(true);
-    try {
-      await API.patch(`/admin/lead/${noteModal.id}/note`, { comments: noteDraft });
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === noteModal.id
-            ? { ...c, lastComment: noteDraft || "No comments" }
-            : c
-        )
-      );
-      setNoteModal(null);
-      toast.success("Note saved");
-    } catch {
-      toast.error("Failed to save note");
-    } finally {
-      setNoteSaving(false);
-    }
   };
 
   const emptyClient: Client = {
@@ -179,157 +142,94 @@ export default function ClientsPage() {
     nextFollowup: "",
     time: "",
     timezone: "",
+    isOldClient: false,
+    clientCode: null,
   };
 
   const [newClient, setNewClient] = useState<Client>(emptyClient);
 
+  const [tabCounts, setTabCounts] = useState({
+    all: 0, important: 0, schedule: 0, interested: 0, closed: 0,
+  });
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [csrOptions, setCsrOptions] = useState<string[]>([]);
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [impSearchDebounced, setImpSearchDebounced] = useState("");
+
   useEffect(() => {
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        const res = await API.get("/admin/clients");
-        if (!mounted) return;
-
-        const formatted: Client[] = res.data.leads.map(
-          (lead: {
-            id: string;
-            name?: string;
-            email?: string;
-            phone?: string;
-            company?: string;
-            interestedService?: string;
-            comments?: string;
-            updatedAt?: string;
-            status?: string;
-            nextSchedule?: string;
-            nextTime?: string;
-            timezone?: string;
-            uploadFile?: { companyName?: string };
-            csr?: { name?: string; csrCode?: string | null };
-          }) => {
-            const raw = (lead.status || "active").toLowerCase();
-            return {
-              id: lead.id,
-              clientName: lead.name || "Unknown",
-              email: lead.email || "N/A",
-              contact: lead.phone || "N/A",
-              company: lead.company || lead.uploadFile?.companyName || "N/A",
-              parentCompany: lead.uploadFile?.companyName || lead.company || "N/A",
-              scope: lead.interestedService || "N/A",
-              lastEmail: "",
-              lastCall: lead.updatedAt?.split("T")[0] || "",
-              lastComment: lead.comments || "No comments",
-              rawStatus: raw,
-              status:
-                raw === "interested"
-                  ? "Interested"
-                  : ["closed", "completed", "Close Client"].includes(raw)
-                  ? "Closed"
-                  : raw === "pending"
-                  ? "Pending"
-                  : "Active",
-              csr: lead.csr?.name || "Unassigned",
-              csrCode: lead.csr?.csrCode ?? null,
-              nextFollowup: lead.nextSchedule || "",
-              time: lead.nextTime || "N/A",
-              timezone: lead.timezone || "N/A",
-            };
-          }
-        );
-
-        setClients(formatted);
-      } catch (err) {
-        console.log(err);
-        if (mounted) toast.error("Failed to fetch clients");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    load();
-    const stop = visibleInterval(load, 30_000);
-    return () => {
-      mounted = false;
-      stop();
-    };
+    API.get("/admin/clients/summary")
+      .then(res => { if (res.data?.tabCounts) setTabCounts(res.data.tabCounts); })
+      .catch(() => {});
+    API.get("/admin/csrs")
+      .then(res => setCsrOptions((res.data.csrs ?? []).map((c: { name: string }) => c.name)))
+      .catch(() => {});
   }, []);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const csrOptions = useMemo(
-    () => Array.from(new Set(clients.map((c) => c.csr))),
-    [clients]
-  );
+  useEffect(() => {
+    const t = setTimeout(() => setImpSearchDebounced(impSearch), 400);
+    return () => clearTimeout(t);
+  }, [impSearch]);
 
-  const filteredByCSR = useMemo(() => {
-    return csrFilter === "all"
-      ? clients
-      : clients.filter((c) => c.csr === csrFilter);
-  }, [clients, csrFilter]);
+  const fetchClients = useCallback(async () => {
+    setLoading(true);
+    try {
+      const q = view === "important" || view === "schedule" ? impSearchDebounced : searchDebounced;
+      const params = new URLSearchParams({
+        view,
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
+      if (csrFilter !== "all") params.set("csr", csrFilter);
+      if (q.trim()) params.set("search", q.trim());
+      if (view === "schedule" && impFilterDate) params.set("scheduleDate", impFilterDate);
 
-  const importantClients = useMemo(
-    () => filteredByCSR.filter((c) => c.rawStatus === "important"),
-    [filteredByCSR]
-  );
+      const res = await API.get(`/admin/clients?${params}`);
+      setClients((res.data.leads ?? []).map(formatAdminLead));
+      setTotalRecords(res.data.total ?? 0);
+    } catch {
+      toast.error("Failed to fetch clients");
+    } finally {
+      setLoading(false);
+      setInitialLoad(false);
+    }
+  }, [view, page, csrFilter, searchDebounced, impSearchDebounced, impFilterDate]);
 
-  const interestedClients = useMemo(
-    () => filteredByCSR.filter((c) => c.rawStatus === "interested"),
-    [filteredByCSR]
-  );
+  useEffect(() => {
+    void fetchClients();
+  }, [fetchClients]);
 
-  const closedClients = useMemo(
-    () => filteredByCSR.filter((c) => c.status === "Closed"),
-    [filteredByCSR]
-  );
+  const refreshTabCounts = useCallback(() => {
+    API.get("/admin/clients/summary")
+      .then(res => { if (res.data?.tabCounts) setTabCounts(res.data.tabCounts); })
+      .catch(() => {});
+  }, []);
 
-  const projectWonCount = useMemo(
-    () => filteredByCSR.filter((c) => c.rawStatus === "Close Client").length,
-    [filteredByCSR]
-  );
+  const totalPagesClients = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+  const paginatedClients  = clients;
+  const filteredClients     = clients;
 
-  const impTodayCount = useMemo(
-    () => importantClients.filter((c) => c.nextFollowup === todayStr).length,
-    [importantClients, todayStr]
-  );
+  const isScheduleView = view === "schedule";
+  const isClosedView   = view === "closed";
+  const tableMinWidth  = isScheduleView || isClosedView ? "1200px" : "1100px";
+  const tableColWidths = isScheduleView ? COL_9_SCHEDULE_ADMIN : isClosedView ? COL_9_CLOSED : COL_8_ADMIN;
 
-  const filteredImportant = useMemo(() => {
-    const q = impSearch.toLowerCase();
-    return importantClients.filter((c) => {
-      const ms =
-        !q ||
-        c.clientName.toLowerCase().includes(q) ||
-        c.company.toLowerCase().includes(q) ||
-        c.contact.toLowerCase().includes(q);
-      const md = !impFilterDate || c.nextFollowup === impFilterDate;
-      return ms && md;
-    });
-  }, [importantClients, impSearch, impFilterDate]);
+  const tableTitle =
+    view === "interested" ? "Interested Clients"
+    : view === "closed"   ? "Closed Clients"
+    : view === "important"? "Important Clients"
+    : view === "schedule" ? "Schedule Call"
+    : "All Clients";
 
-  const activeImp = selectedImp ?? filteredImportant[0] ?? null;
-
-  const filteredClients = useMemo(
-    () =>
-      filteredByCSR.filter((client) => {
-        const q = search.toLowerCase();
-        const ms =
-          client.clientName.toLowerCase().includes(q) ||
-          client.company.toLowerCase().includes(q) ||
-          client.scope.toLowerCase().includes(q) ||
-          client.csr.toLowerCase().includes(q);
-        const mst =
-          view === "interested"
-            ? client.status === "Interested"
-            : view === "closed"
-            ? client.status === "Closed"
-            : true;
-        return ms && mst;
-      }),
-    [filteredByCSR, search, view]
-  );
-
-  const totalPagesClients = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
-  const paginatedClients  = filteredClients.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const tableHeaders = isScheduleView
+    ? ["Client", "Company", "Contact", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]
+    : isClosedView
+    ? ["Client", "Company", "Type", "Scope", "Contact", "CSR", "Status", "Notes", ""]
+    : ["Client", "Company", "Scope", "Contact", "CSR", "Status", "Notes", ""];
 
   const handleSaveClient = () => {
     if (!newClient.clientName || !newClient.email || !newClient.company) {
@@ -362,7 +262,7 @@ export default function ClientsPage() {
     setClientToDelete(null);
   };
 
-  if (loading) {
+  if (initialLoad) {
     return (
       <div className="flex min-h-screen bg-[#F5F6FA]">
         <DashboardSidebar />
@@ -408,10 +308,10 @@ export default function ClientsPage() {
                   <PieChart>
                     <Pie
                       data={[
-                        { name: "Important",  value: importantClients.length  || 0.001 },
-                        { name: "Today",      value: impTodayCount             || 0.001 },
-                        { name: "Interested", value: interestedClients.length  || 0.001 },
-                        { name: "Closed",     value: projectWonCount           || 0.001 },
+                        { name: "Important",  value: tabCounts.important  || 0.001 },
+                        { name: "Schedule",   value: tabCounts.schedule   || 0.001 },
+                        { name: "Interested", value: tabCounts.interested || 0.001 },
+                        { name: "Closed",     value: tabCounts.closed     || 0.001 },
                       ]}
                       cx="50%" cy="50%" innerRadius={52} outerRadius={80}
                       paddingAngle={3} dataKey="value"
@@ -424,12 +324,12 @@ export default function ClientsPage() {
                     <RTooltip
                       contentStyle={{ borderRadius:"12px", border:"1px solid #eee", fontSize:"12px" }}
                       formatter={(_, n) => {
-                        const total = importantClients.length + interestedClients.length + projectWonCount + impTodayCount;
+                        const total = tabCounts.important + tabCounts.schedule + tabCounts.interested + tabCounts.closed;
                         const val = total === 0 ? 0
-                          : n === "Important"  ? importantClients.length
-                          : n === "Today"      ? impTodayCount
-                          : n === "Interested" ? interestedClients.length
-                          : projectWonCount;
+                          : n === "Important"  ? tabCounts.important
+                          : n === "Schedule"   ? tabCounts.schedule
+                          : n === "Interested" ? tabCounts.interested
+                          : tabCounts.closed;
                         return [val, String(n)];
                       }}
                     />
@@ -439,10 +339,10 @@ export default function ClientsPage() {
             </div>
             <div className="flex-1 grid grid-cols-2 gap-3">
               {[
-                { label:"Important Calls",  value: importantClients.length, dot:"bg-[#B8112D]", sub:"total flagged"      },
-                { label:"Important Today",  value: impTodayCount,           dot:"bg-[#0B84F3]", sub:"scheduled today"   },
-                { label:"Interested",       value: interestedClients.length,dot:"bg-[#027A48]", sub:"service interest"  },
-                { label:"Close Client",     value: projectWonCount,         dot:"bg-[#065F46]", sub:"closed deals"      },
+                { label:"Important",      value: tabCounts.important, dot:"bg-[#B8112D]", sub:"flagged only"       },
+                { label:"Schedule Call",  value: tabCounts.schedule,  dot:"bg-[#0B84F3]", sub:"meetings scheduled" },
+                { label:"Interested",     value: tabCounts.interested, dot:"bg-[#027A48]", sub:"service interest"   },
+                { label:"Closed",         value: tabCounts.closed,     dot:"bg-[#065F46]", sub:"closed deals"       },
               ].map(s => (
                 <div key={s.label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">
                   <div className="flex items-center gap-2 mb-1">
@@ -465,25 +365,31 @@ export default function ClientsPage() {
               {
                 key: "all",
                 label: "All Clients",
-                count: filteredByCSR.length,
+                count: tabCounts.all,
                 Icon: LayoutGrid,
               },
               {
                 key: "important",
                 label: "Important",
-                count: importantClients.length,
+                count: tabCounts.important,
                 Icon: CircleAlert,
+              },
+              {
+                key: "schedule",
+                label: "Schedule Call",
+                count: tabCounts.schedule,
+                Icon: CalendarDays,
               },
               {
                 key: "interested",
                 label: "Interested",
-                count: interestedClients.length,
+                count: tabCounts.interested,
                 Icon: HeartHandshake,
               },
               {
                 key: "closed",
                 label: "Closed",
-                count: closedClients.length,
+                count: tabCounts.closed,
                 Icon: BadgeCheck,
               },
             ].map((item) => (
@@ -492,7 +398,6 @@ export default function ClientsPage() {
                 onClick={() => {
                   setView(item.key as typeof view);
                   setPage(1);
-                  if (item.key === "important") setSelectedImp(null);
                 }}
                 className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
                   view === item.key
@@ -522,7 +427,6 @@ export default function ClientsPage() {
                 value={csrFilter}
                 onChange={(e) => {
                   setCsrFilter(e.target.value);
-                  setSelectedImp(null);
                   setPage(1);
                 }}
                 className="h-9 sm:h-10 border border-gray-200 rounded-xl px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white text-gray-700 font-medium"
@@ -538,9 +442,8 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        {/* ─── ALL / INTERESTED / CLOSED VIEW ─── */}
-        {(view === "all" || view === "interested" || view === "closed") && (
-          <>
+        {/* ─── TABLE VIEWS (all tabs — row layout) ─── */}
+        <>
             {/* Parent Companies accordion — only in "all" view */}
             {view === "all" && (
               <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm mb-4 sm:mb-5">
@@ -594,74 +497,90 @@ export default function ClientsPage() {
               </div>
             )}
 
-            {/* Search + Add button row */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
-              <div className="relative w-full sm:w-[280px] md:w-[320px] lg:w-[360px]">
-                <Search
-                  size={15}
-                  className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  placeholder="Search clients..."
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                  className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
-                />
+            {/* Search + filters */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
+              <div className="flex flex-col sm:flex-row flex-1 gap-2 sm:gap-3">
+                <div className="relative w-full sm:max-w-[360px]">
+                  <Search
+                    size={15}
+                    className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    placeholder={view === "important" || view === "schedule" ? "Search name, phone, company..." : "Search clients..."}
+                    value={view === "important" || view === "schedule" ? impSearch : search}
+                    onChange={(e) => {
+                      if (view === "important" || view === "schedule") setImpSearch(e.target.value);
+                      else setSearch(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                  />
+                </div>
+                {view === "schedule" && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={impFilterDate}
+                      onChange={(e) => { setImpFilterDate(e.target.value); setPage(1); }}
+                      className="h-10 sm:h-11 rounded-xl sm:rounded-2xl border border-gray-200 px-3 bg-white text-sm outline-none focus:border-[#B8112D]"
+                    />
+                    {impFilterDate && (
+                      <button
+                        onClick={() => { setImpFilterDate(""); setPage(1); }}
+                        className="h-10 px-3 rounded-xl border border-gray-200 text-sm text-gray-500 hover:text-[#B8112D]"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
+              {view === "all" && (
               <button
                 onClick={() => {
                   setShowAddModal(true);
                   setIsEditing(false);
                   setNewClient(emptyClient);
                 }}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
+                className="w-full lg:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all"
               >
                 <Plus size={15} />
                 Add Client
               </button>
+              )}
             </div>
 
             {/* ─── TABLE ─── */}
             <div className="bg-white border border-gray-100 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm">
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800 text-sm sm:text-base">
-                  {view === "interested"
-                    ? "Interested Clients"
-                    : view === "closed"
-                    ? "Closed Clients"
-                    : "All Clients"}
-                </h3>
+                <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{tableTitle}</h3>
                 <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
-                  {filteredClients.length} records
+                  {totalRecords} records
                 </p>
               </div>
 
-              {/* Horizontally scrollable table wrapper */}
-              <div className="overflow-x-auto overflow-y-auto max-h-[480px] sm:max-h-[560px] lg:max-h-[620px] xl:max-h-[700px]">
-                <table className="w-full" style={{ minWidth: "760px" }}>
-                  <thead className="bg-[#FAFAFB] border-b border-gray-100 sticky top-0 z-10">
+              <div className="overflow-x-auto">
+                <table className={CSR_TABLE_CLASS} style={{ minWidth: tableMinWidth }}>
+                  <CsrColGroup widths={tableColWidths} />
+                  <thead className="bg-[#FAFAFB] border-b border-gray-100">
                     <tr className="text-left text-xs sm:text-sm text-gray-400">
-                      {["Client", "Company", "Scope", "Contact", "CSR", "Status", "Notes", ""].map(
-                        (h, i) => (
+                      {tableHeaders.map((h, i) => (
                           <th
                             key={i}
-                            className={`px-3 sm:px-4 lg:px-6 py-3 sm:py-4 font-medium ${
-                              i === 7 ? "text-right" : ""
-                            }`}
+                            className={`${CSR_TH} ${i === tableHeaders.length - 1 ? "text-right" : ""}`}
                           >
                             {h}
                           </th>
-                        )
-                      )}
+                        ))}
                     </tr>
                   </thead>
 
                   <tbody>
                     {filteredClients.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-16 sm:py-20 text-center">
+                        <td colSpan={tableHeaders.length} className="px-6 py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center">
                             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4">
                               <Building2 size={28} className="text-[#B8112D] sm:w-8 sm:h-8" />
@@ -682,32 +601,75 @@ export default function ClientsPage() {
                           className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-colors"
                         >
                           {/* Client name + email */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             <div className="flex items-center gap-2 sm:gap-3">
                               <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm">
                                 {client.clientName.charAt(0)}
                               </div>
                               <div className="min-w-0">
-                                <h3 className="text-xs sm:text-sm font-semibold text-gray-700 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
-                                  {client.clientName}
-                                </h3>
-                                <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
-                                  {client.email}
-                                </p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {client.clientCode && (
+                                    <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+                                      {client.clientCode}
+                                    </span>
+                                  )}
+                                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
+                                    {client.clientName}
+                                  </h3>
+                                </div>
+                                {client.email !== "N/A" && (
+                                  <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
+                                    {client.email}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-[120px]">
+                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-600`}>
                             <span className="truncate block">{client.company}</span>
                           </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 max-w-[140px]">
-                            <span className="truncate block">{client.scope}</span>
-                          </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-500 whitespace-nowrap">
+
+                          {isClosedView && (
+                            <td className={CSR_TD}>
+                              <span className={`px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
+                                client.isOldClient
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}>
+                                {client.isOldClient ? "Old Client" : "New Client"}
+                              </span>
+                            </td>
+                          )}
+
+                          {!isScheduleView && (
+                            <td className={`${CSR_TD} text-xs sm:text-sm text-gray-600`}>
+                              <span className="truncate block">{client.scope}</span>
+                            </td>
+                          )}
+
+                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-500 whitespace-nowrap`}>
                             {client.contact}
                           </td>
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
+
+                          {isScheduleView && (
+                            <>
+                              <td className={CSR_TD}>
+                                <div className="inline-flex items-center gap-1.5 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-[#FAFAFA]">
+                                  <CalendarDays size={12} className="text-[#B8112D] shrink-0" />
+                                  {client.nextFollowup || "—"}
+                                </div>
+                              </td>
+                              <td className={CSR_TD}>
+                                <p className="text-xs sm:text-sm font-semibold text-[#0F172A]">{client.time !== "N/A" ? client.time : "—"}</p>
+                                {client.timezone !== "N/A" && (
+                                  <p className="text-[10px] text-gray-400 mt-0.5">{client.timezone}</p>
+                                )}
+                              </td>
+                            </>
+                          )}
+
+                          <td className={`${CSR_TD} whitespace-nowrap`}>
                             <div className="flex items-center gap-1.5">
                               {client.csrCode && (
                                 <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{client.csrCode}</span>
@@ -717,24 +679,16 @@ export default function ClientsPage() {
                           </td>
 
                           {/* Status badge */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             <span
-                              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${
-                                client.status === "Active"
-                                  ? "bg-green-100 text-green-700"
-                                  : client.status === "Pending"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : client.status === "Interested"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
+                              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${adminLeadStatusBadgeClass(client.rawStatus, client.nextFollowup)}`}
                             >
-                              {client.status}
+                              {adminLeadStatusLabel(client.rawStatus, client.nextFollowup)}
                             </span>
                           </td>
 
                           {/* Notes */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             <CommentCell
                               id={client.id}
                               comment={client.lastComment === "No comments" ? "" : client.lastComment}
@@ -746,7 +700,7 @@ export default function ClientsPage() {
                           </td>
 
                           {/* Actions */}
-                          <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+                          <td className={CSR_TD}>
                             {/* Desktop: icon row (md+) */}
                             <div className="hidden md:flex items-center justify-end gap-1.5 lg:gap-2">
                               <button
@@ -755,31 +709,6 @@ export default function ClientsPage() {
                                 title="View details"
                               >
                                 <Eye size={13} className="lg:w-[15px] lg:h-[15px]" />
-                              </button>
-                              <button
-                                onClick={() => openNote(client, "view")}
-                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-all"
-                                title="View note"
-                              >
-                                <MessageSquare size={13} className="lg:w-[15px] lg:h-[15px]" />
-                              </button>
-                              <button
-                                onClick={() => openNote(client, "edit")}
-                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all"
-                                title="Edit note"
-                              >
-                                <Pencil size={13} className="lg:w-[15px] lg:h-[15px]" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowAddModal(true);
-                                  setIsEditing(true);
-                                  setNewClient(client);
-                                }}
-                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
-                                title="Edit lead"
-                              >
-                                <Pencil size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
                               <button
                                 onClick={() => {
@@ -791,15 +720,16 @@ export default function ClientsPage() {
                               >
                                 <Trash2 size={13} className="lg:w-[15px] lg:h-[15px]" />
                               </button>
-                              <button
-                                onClick={() => void openReassignModal(client)}
-                                className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
-                                title="Reassign to CSR"
-                              >
-                                <ArrowRightLeft size={13} className="lg:w-[15px] lg:h-[15px]" />
-                              </button>
+                              {canAdminReassign(client) && (
+                                <button
+                                  onClick={() => void openReassignModal(client)}
+                                  className="w-8 h-8 lg:w-9 lg:h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all"
+                                  title="Reassign to CSR"
+                                >
+                                  <ArrowRightLeft size={13} className="lg:w-[15px] lg:h-[15px]" />
+                                </button>
+                              )}
                             </div>
-
                             {/* Mobile: three-dot dropdown */}
                             <div className="relative md:hidden flex justify-end">
                               <button
@@ -824,35 +754,6 @@ export default function ClientsPage() {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      openNote(client, "view");
-                                      setOpenMenu(null);
-                                    }}
-                                    className="w-full px-4 py-3 text-left text-sm hover:bg-amber-50 text-amber-700 flex items-center gap-2"
-                                  >
-                                    <MessageSquare size={14} /> View Note
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      openNote(client, "edit");
-                                      setOpenMenu(null);
-                                    }}
-                                    className="w-full px-4 py-3 text-left text-sm hover:bg-emerald-50 text-emerald-700 flex items-center gap-2"
-                                  >
-                                    <Pencil size={14} /> Edit Note
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setShowAddModal(true);
-                                      setIsEditing(true);
-                                      setNewClient(client);
-                                      setOpenMenu(null);
-                                    }}
-                                    className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                                  >
-                                    <Pencil size={14} /> Edit Lead
-                                  </button>
-                                  <button
-                                    onClick={() => {
                                       setClientToDelete(client.id);
                                       setShowDeleteModal(true);
                                       setOpenMenu(null);
@@ -861,15 +762,17 @@ export default function ClientsPage() {
                                   >
                                     <Trash2 size={14} /> Delete
                                   </button>
-                                  <button
-                                    onClick={() => {
-                                      void openReassignModal(client);
-                                      setOpenMenu(null);
-                                    }}
-                                    className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 text-blue-600 flex items-center gap-2"
-                                  >
-                                    <ArrowRightLeft size={14} /> Reassign CSR
-                                  </button>
+                                  {canAdminReassign(client) && (
+                                    <button
+                                      onClick={() => {
+                                        void openReassignModal(client);
+                                        setOpenMenu(null);
+                                      }}
+                                      className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 text-blue-600 flex items-center gap-2"
+                                    >
+                                      <ArrowRightLeft size={14} /> Reassign CSR
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -883,7 +786,7 @@ export default function ClientsPage() {
               {totalPagesClients > 1 && (
                 <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-gray-100">
                   <p className="text-xs text-gray-400">
-                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredClients.length)} of {filteredClients.length}
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalRecords)} of {totalRecords}
                   </p>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -895,368 +798,40 @@ export default function ClientsPage() {
                 </div>
               )}
             </div>
-          </>
-        )}
-
-        {/* ─── IMPORTANT VIEW ─── */}
-        {view === "important" && (
-          <>
-            {/* Filter bar */}
-            <div className="bg-white rounded-2xl sm:rounded-[26px] shadow-sm px-4 sm:px-5 py-3 sm:py-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-              <div className="relative w-full sm:max-w-[380px]">
-                <Search
-                  size={15}
-                  className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  placeholder="Search by client, company or phone..."
-                  value={impSearch}
-                  onChange={(e) => {
-                    setImpSearch(e.target.value);
-                    setSelectedImp(null);
-                  }}
-                  className="w-full h-10 sm:h-[46px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-9 sm:pl-10 pr-4 text-sm outline-none focus:border-[#B8112D]"
-                />
-              </div>
-
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
-                <div className="flex items-center gap-1.5 text-[#B8112D] font-semibold text-xs sm:text-sm whitespace-nowrap">
-                  <Filter size={14} />
-                  Filter by Schedule
-                </div>
-                <input
-                  type="date"
-                  value={impFilterDate}
-                  onChange={(e) => {
-                    setImpFilterDate(e.target.value);
-                    setSelectedImp(null);
-                  }}
-                  className="h-10 sm:h-[46px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
-                />
-                {impFilterDate && (
-                  <button
-                    onClick={() => {
-                      setImpFilterDate("");
-                      setSelectedImp(null);
-                    }}
-                    className="h-10 sm:h-[46px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-500 hover:text-[#B8112D] transition-all whitespace-nowrap"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Split panel: list + detail
-                Mobile/tablet: stacked (col)
-                Desktop (xl+): side by side (row) */}
-            <div className="flex flex-col xl:grid xl:grid-cols-12 gap-4 sm:gap-5">
-
-              {/* LEFT: client list */}
-              <div className="xl:col-span-5 bg-white rounded-2xl sm:rounded-[30px] border border-gray-100 shadow-sm flex flex-col"
-                style={{ maxHeight: "calc(100vh - 380px)", minHeight: "320px" }}>
-                <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-[#F3F3F3] shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-base sm:text-[19px] font-bold text-[#0F172A]">
-                        Important Clients
-                      </h3>
-                      <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-                        Scheduled follow-up meetings.
-                      </p>
-                    </div>
-                    <div className="bg-[#FFF1F3] text-[#B8112D] text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl">
-                      {importantClients.length} Total
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-y-auto flex-1 p-3 sm:p-4 space-y-2 sm:space-y-3">
-                  {filteredImportant.length > 0 ? (
-                    filteredImportant.map((client) => (
-                      <button
-                        key={client.id}
-                        onClick={() => setSelectedImp(client)}
-                        className={`w-full text-left rounded-2xl sm:rounded-[22px] border p-3 sm:p-4 transition-all ${
-                          activeImp?.id === client.id
-                            ? "border-[#B8112D] bg-[#FFF8F9]"
-                            : "border-gray-100 bg-white hover:border-[#B8112D]/30"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2 sm:gap-3">
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
-                              {client.clientName.charAt(0)}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-[#0F172A] text-xs sm:text-[13px]">
-                                {client.clientName}
-                              </h4>
-                              <p className="text-gray-500 text-[11px] sm:text-[12px] mt-0.5">
-                                {client.company}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold shrink-0 bg-[#FFF7E6] text-[#B54708]">
-                            High
-                          </span>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 sm:py-10">
-                      <CircleAlert size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
-                      <p className="text-gray-400 text-xs sm:text-sm">
-                        No important clients found.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* RIGHT: detail panel */}
-              {activeImp ? (
-                <div
-                  className="xl:col-span-7 bg-white rounded-2xl sm:rounded-[30px] border border-gray-100 shadow-sm flex flex-col"
-                  style={{ maxHeight: "calc(100vh - 380px)", minHeight: "320px" }}
-                >
-                  <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-[#F3F3F3] shrink-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-                      <div>
-                        <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">
-                          {activeImp.clientName}
-                        </h3>
-                        <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-                          Follow-up details.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => setSelectedClient(activeImp)}
-                          className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-600 text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 hover:bg-gray-200 transition-colors"
-                        >
-                          <Eye size={13} className="sm:w-[14px] sm:h-[14px]" />
-                          View
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowAddModal(true);
-                            setIsEditing(true);
-                            setNewClient(activeImp);
-                          }}
-                          className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm hover:bg-[#a30f27] transition-colors"
-                        >
-                          <Pencil size={13} className="sm:w-[14px] sm:h-[14px]" />
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="overflow-y-auto flex-1 p-4 sm:p-5">
-                    {/* 1 col mobile, 2 col sm+ */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                      {[
-                        { label: "Contact Number", value: activeImp.contact, Icon: Phone },
-                        { label: "Next Schedule", value: activeImp.nextFollowup || "N/A", Icon: CalendarDays },
-                        { label: "Call Time", value: activeImp.time || "N/A", Icon: Clock3 },
-                        { label: "Timezone", value: activeImp.timezone || "N/A", Icon: Globe },
-                        { label: "CSR Assigned", value: activeImp.csrCode ? `${activeImp.csrCode} · ${activeImp.csr}` : activeImp.csr, Icon: Users },
-                        { label: "Scope", value: activeImp.scope, Icon: Briefcase },
-                      ].map(({ label, value, Icon }) => (
-                        <div key={label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                              <Icon size={14} className="sm:w-4 sm:h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-gray-500 text-[10px] sm:text-xs">{label}</p>
-                              <h4 className="font-semibold text-[#0F172A] mt-0.5 text-xs sm:text-[13px] truncate">
-                                {value}
-                              </h4>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-3 sm:mt-4">
-                      <h4 className="text-sm sm:text-[16px] font-bold text-[#0F172A]">
-                        Follow-up Notes
-                      </h4>
-                      <div className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4 mt-2 sm:mt-3">
-                        <div className="flex items-start gap-2 sm:gap-3">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                            <User2 size={12} className="sm:w-[14px] sm:h-[14px]" />
-                          </div>
-                          <p className="text-gray-600 leading-6 text-xs sm:text-[13px]">
-                            {activeImp.lastComment}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="xl:col-span-7 bg-white rounded-2xl sm:rounded-[30px] border border-gray-100 shadow-sm flex items-center justify-center"
-                  style={{ minHeight: "320px" }}
-                >
-                  <div className="text-center">
-                    <CircleAlert size={32} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-9 sm:h-9" />
-                    <p className="text-gray-400 text-xs sm:text-sm">
-                      Select a client to view details
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+        </>
 
         {/* ─── MODALS ─── */}
 
-        {/* View Client Modal */}
+        {/* View Client — CSR-style detail modal */}
         {selectedClient && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-lg lg:max-w-2xl rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-semibold text-gray-800">
-                    Client Details
-                  </h2>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-                    Complete client information.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedClient(null)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                >
-                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {[
-                  { label: "Client Name", value: selectedClient.clientName },
-                  { label: "Email", value: selectedClient.email },
-                  { label: "Contact", value: selectedClient.contact },
-                  { label: "Company", value: selectedClient.company },
-                  { label: "CSR", value: selectedClient.csr },
-                ].map((f) => (
-                  <div key={f.label} className="bg-[#F8F9FC] p-3 sm:p-4 rounded-xl sm:rounded-2xl">
-                    <p className="text-[10px] sm:text-xs text-gray-400">{f.label}</p>
-                    <h3 className="font-medium text-gray-700 mt-0.5 sm:mt-1 text-sm">
-                      {f.value}
-                    </h3>
-                  </div>
-                ))}
-                <div className="bg-[#F8F9FC] p-3 sm:p-4 rounded-xl sm:rounded-2xl sm:col-span-2">
-                  <p className="text-[10px] sm:text-xs text-gray-400">Scope of Work</p>
-                  <h3 className="font-medium text-gray-700 mt-0.5 sm:mt-1 text-sm">
-                    {selectedClient.scope}
-                  </h3>
-                </div>
-                <div className="bg-[#F8F9FC] p-3 sm:p-4 rounded-xl sm:rounded-2xl sm:col-span-2">
-                  <div className="flex items-start gap-2 sm:gap-3">
-                    <MessageSquare size={15} className="text-[#B8112D] mt-0.5 shrink-0 sm:w-[18px] sm:h-[18px]" />
-                    <div>
-                      <p className="text-[10px] sm:text-xs text-gray-400">Last Call Comments</p>
-                      <h3 className="font-medium text-gray-700 mt-0.5 sm:mt-1 text-sm">
-                        {selectedClient.lastComment}
-                      </h3>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Note Modal */}
-        {noteModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <MessageSquare size={16} className="sm:w-[18px] sm:h-[18px]" />
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Note</h2>
-                    <p className="text-[10px] sm:text-xs text-gray-400">{noteModal.name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  {noteModal.mode === "view" ? (
-                    <button
-                      onClick={() => setNoteModal((m) => m ? { ...m, mode: "edit" } : m)}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center"
-                      title="Edit note"
-                    >
-                      <Pencil size={13} className="sm:w-[15px] sm:h-[15px]" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setNoteModal((m) => m ? { ...m, mode: "view" } : m)}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center"
-                      title="View note"
-                    >
-                      <Eye size={13} className="sm:w-[15px] sm:h-[15px]" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setNoteModal(null)}
-                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                  >
-                    <X size={13} className="sm:w-[15px] sm:h-[15px]" />
-                  </button>
-                </div>
-              </div>
-
-              {noteModal.mode === "view" ? (
-                <div className="min-h-[120px] sm:min-h-[160px] bg-[#FAFAFA] rounded-xl sm:rounded-2xl border border-gray-100 p-3 sm:p-4">
-                  {noteDraft ? (
-                    <p className="text-sm text-[#0F172A] leading-relaxed whitespace-pre-wrap">
-                      {noteDraft}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic">
-                      No note written yet. Click the pen icon to add one.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <textarea
-                    value={noteDraft}
-                    onChange={(e) => setNoteDraft(e.target.value)}
-                    placeholder="Write your note here..."
-                    rows={5}
-                    className="w-full rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] p-3 sm:p-4 text-sm outline-none focus:border-[#B8112D] resize-none transition-colors"
-                    autoFocus
-                  />
-                  <div className="flex justify-end gap-2 sm:gap-3 mt-3 sm:mt-4">
-                    <button
-                      onClick={() => setNoteModal(null)}
-                      className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={saveNote}
-                      disabled={noteSaving}
-                      className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60 transition-all"
-                    >
-                      {noteSaving ? "Saving…" : "Save Note"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <LeadDetailModal
+            apiPrefix="/admin"
+            lead={{
+              id: selectedClient.id,
+              name:    selectedClient.clientName,
+              company: selectedClient.company !== "N/A" ? selectedClient.company : undefined,
+              phone:   selectedClient.contact !== "N/A" ? selectedClient.contact : undefined,
+              email:   selectedClient.email !== "N/A" ? selectedClient.email : undefined,
+              status:  selectedClient.rawStatus,
+              interestedService: selectedClient.scope !== "N/A" ? selectedClient.scope : undefined,
+              followUpNotes: selectedClient.lastComment !== "No comments" ? selectedClient.lastComment : undefined,
+              nextSchedule: selectedClient.nextFollowup || undefined,
+              nextTime:     selectedClient.time !== "N/A" ? selectedClient.time : undefined,
+              timezone:     selectedClient.timezone !== "N/A" ? selectedClient.timezone : undefined,
+            }}
+            onClose={() => setSelectedClient(null)}
+            onSaved={(id, updates) => {
+              setClients(prev => prev.map(c => {
+                if (c.id !== id) return c;
+                return {
+                  ...c,
+                  clientName: updates.name?.trim() || c.clientName,
+                  contact:    updates.phone?.trim() || c.contact,
+                  email:      updates.email?.trim() || c.email,
+                };
+              }));
+            }}
+          />
         )}
 
         {/* Delete Modal */}

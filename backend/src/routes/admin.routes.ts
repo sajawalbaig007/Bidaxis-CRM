@@ -2,8 +2,20 @@ import express from "express";
 import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
-import { getCache, setCache, invalidateCache } from "../utils/cache";
+import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
+import { countLeadStatuses } from "../utils/uploadSourceStats";
+import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { isBinLead } from "../utils/binLeads";
+import {
+  buildAdminClientListWhere,
+  buildAdminClientViewWhere,
+  importantOnlyWhere,
+  scheduledCallWhere,
+  isInterestedStatusWhere,
+  ADMIN_LEAD_LIST_SELECT,
+  type AdminClientView,
+} from "../utils/adminClientQueries";
 
 const router = express.Router();
 
@@ -44,40 +56,250 @@ router.get("/csrs", verifyToken, allowRoles("admin"), async (req, res) => {
   }
 });
 
-/* ================= GET ALL CLIENTS / LEADS ================= */
-router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
+/* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
+router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, res) => {
   try {
-    const CACHE_KEY = "admin:clients";
+    const CACHE_KEY = "admin:clients:summary";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
-    /* Lean select — charts only need id, name, status, createdAt, updatedAt, csr.name */
-    const leads = await prisma.lead.findMany({
-      select: {
-        id:         true,
-        name:       true,
-        status:     true,
-        interested: true,
-        createdAt:  true,
-        updatedAt:  true,
-        csr: { select: { id: true, name: true, csrCode: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+    const yearAgo = new Date();
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
 
-    const stats = {
-      totalClients:  leads.length,
-      activeClients: leads.filter(l => l.status?.toLowerCase() === "pending").length,
-      interested:    leads.filter(l => l.status?.toLowerCase() === "interested" || l.interested).length,
-      closed:        leads.filter(l => ["closed","completed","close client"].includes(l.status?.toLowerCase() || "")).length,
+    const [
+      totalLeads,
+      pending,
+      interested,
+      projectWon,
+      completed,
+      importantOnly,
+      scheduled,
+      closed,
+      recent,
+      chartLeads,
+      csrGroups,
+      resolvedGroups,
+    ] = await Promise.all([
+      prisma.lead.count(),
+      prisma.lead.count({ where: { status: "pending" } }),
+      prisma.lead.count({ where: isInterestedStatusWhere() }),
+      prisma.lead.count({ where: { status: { in: ["Close Client", "close client"] } } }),
+      prisma.lead.count({ where: { status: { in: ["completed", "closed"] } } }),
+      prisma.lead.count({ where: importantOnlyWhere() }),
+      prisma.lead.count({ where: scheduledCallWhere() }),
+      prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
+      prisma.lead.findMany({
+        select: {
+          id: true, name: true, status: true, updatedAt: true,
+          csr: { select: { name: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 15,
+      }),
+      prisma.lead.findMany({
+        where:   { createdAt: { gte: yearAgo } },
+        select:  { createdAt: true },
+      }),
+      prisma.lead.groupBy({ by: ["assignedTo"], _count: { _all: true } }),
+      prisma.lead.groupBy({
+        by:    ["assignedTo"],
+        where: { status: { in: ["Close Client", "close client", "interested", "important"] } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const csrIds = [...new Set([
+      ...csrGroups.map(g => g.assignedTo),
+      ...resolvedGroups.map(g => g.assignedTo),
+    ])].filter((id): id is string => typeof id === "string" && id.length > 0);
+    const csrUsers = csrIds.length
+      ? await prisma.user.findMany({ where: { id: { in: csrIds } }, select: { id: true, name: true } })
+      : [];
+    const csrNameById = new Map(csrUsers.map(u => [u.id, u.name]));
+
+    const totalMap     = new Map(csrGroups.map(g => [g.assignedTo, g._count._all]));
+    const resolvedMap  = new Map(resolvedGroups.map(g => [g.assignedTo, g._count._all]));
+    const performers = [...totalMap.entries()]
+      .filter(([id]) => typeof id === "string" && id.length > 0)
+      .map(([id, total]) => {
+        const resolved = resolvedMap.get(id) ?? 0;
+        const name = csrNameById.get(id) ?? "Unassigned";
+        return { name, resolved, total, rate: total > 0 ? Math.round((resolved / total) * 100) : 0 };
+      })
+      .sort((a, b) => b.resolved - a.resolved)
+      .slice(0, 5);
+
+    const payload = {
+      success: true,
+      stats: {
+        totalLeads,
+        pending,
+        important: importantOnly + scheduled,
+        importantOnly,
+        scheduled,
+        interested,
+        projectWon,
+        completed,
+        closed,
+      },
+      tabCounts: {
+        all:        totalLeads,
+        important:  importantOnly,
+        schedule:   scheduled,
+        interested,
+        closed,
+      },
+      distribution: {
+        Pending:      pending,
+        Important:    importantOnly + scheduled,
+        Interested:   interested,
+        "Close Client": projectWon,
+        Closed:       completed + closed,
+      },
+      recent,
+      chartLeads,
+      performers,
     };
 
-    const payload = { success: true, leads, stats };
-    setCache(CACHE_KEY, payload, 60_000);
+    setCache(CACHE_KEY, payload, 120_000);
+    return res.json(payload);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch client summary" });
+  }
+});
+
+/* ================= GET CLIENTS / LEADS (paginated — admin leads page) ================= */
+router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const view = (String(req.query.view || "all") as AdminClientView);
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
+    const csrName = req.query.csr ? String(req.query.csr) : undefined;
+    const search = req.query.search ? String(req.query.search) : undefined;
+    const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
+
+    const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}`;
+    const cached = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const where = buildAdminClientListWhere(view, csrName, search, scheduleDate);
+
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        select:  ADMIN_LEAD_LIST_SELECT,
+        orderBy: { updatedAt: "desc" },
+        skip:    (page - 1) * limit,
+        take:    limit,
+      }),
+      prisma.lead.count({ where }),
+    ]);
+
+    const payload = {
+      success: true,
+      leads,
+      total,
+      page,
+      limit,
+      stats: {
+        totalClients: total,
+        activeClients: view === "all"
+          ? await prisma.lead.count({ where: { status: "pending" } })
+          : undefined,
+      },
+    };
+
+    setCache(cacheKey, payload, 60_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch clients" });
+  }
+});
+
+/* ================= GET SINGLE LEAD (ADMIN) ================= */
+router.get("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const lead = await prisma.lead.findFirst({
+      where:   { id: leadId },
+      include: {
+        uploadFile:  { select: { companyName: true } },
+        notes:       { orderBy: { createdAt: "asc" } },
+        subContacts: { orderBy: { createdAt: "asc" } },
+        csr:         { select: { id: true, name: true, csrCode: true } },
+      },
+    });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+    return res.json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch lead" });
+  }
+});
+
+/* ================= UPDATE LEAD DETAILS (ADMIN) ================= */
+router.put("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const { name, phone, email, state } = req.body;
+
+    const existing = await prisma.lead.findFirst({ where: { id: leadId } });
+    if (!existing) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const updateData: Record<string, unknown> = {};
+    if (name  !== undefined) updateData.name  = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email;
+    if (state !== undefined) updateData.state = state;
+
+    const lead = await prisma.lead.update({ where: { id: leadId }, data: updateData });
+
+    flushAdminClientsCache();
+    return res.json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to update lead" });
+  }
+});
+
+router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const { name, designation, phone, email } = req.body as { name: string; designation?: string; phone?: string; email?: string };
+    if (!name?.trim()) return res.status(400).json({ success: false, message: "Name is required" });
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const subContact = await prisma.subContact.create({
+      data: { leadId, name: name.trim(), designation: designation?.trim() || null, phone: phone?.trim() || null, email: email?.trim() || null },
+    });
+    flushAdminClientsCache();
+    invalidateCache(`csr:dashboard:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+    return res.status(201).json({ success: true, subContact });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
+  }
+});
+
+router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const subId  = String(req.params.subId);
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    await prisma.subContact.delete({ where: { id: subId } });
+    flushAdminClientsCache();
+    invalidateCache(`csr:dashboard:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete sub-contact" });
   }
 });
 
@@ -89,7 +311,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res
       where: { id: String(req.params.id) },
       data:  { comments: comments ?? "" },
     });
-    invalidateCache("admin:clients");
+    flushAdminClientsCache();
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to save note" });
@@ -208,7 +430,7 @@ router.get(
       ).length;
 
       const projectWon = leads.filter(
-        (l) => l.status?.toLowerCase() === "Close Client"
+        (l) => l.status?.toLowerCase() === "close client"
       ).length;
 
       return res.json({
@@ -234,17 +456,20 @@ router.get(
   }
 );
 
-/* ================= ALL Close Client LEADS ================= */
+/* ================= ALL ACTIVE PROJECT LEADS (all CSRs) ================= */
 router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
-    const leads = await prisma.lead.findMany({
-      where: { status: "Close Client", projectTitle: { not: null } },
+    const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+
+    const rawLeads = await prisma.lead.findMany({
+      where: buildProjectLeadWhere(csrId),
       include: {
         csr: {
           select: {
             id: true,
             name: true,
             email: true,
+            csrCode: true,
           },
         },
         uploadFile: {
@@ -252,9 +477,12 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
             companyName: true,
           },
         },
+        notes: { orderBy: { createdAt: "asc" } },
       },
       orderBy: { updatedAt: "desc" },
     });
+
+    const leads = rawLeads.filter(isDisplayableProjectLead);
 
     const now = new Date();
 
@@ -401,7 +629,8 @@ router.delete(
       /* Permanently purge all lead data for this CSR from DB */
       const purged = await purgeCsrLeads(csrId);
 
-      invalidateCache("admin:clients", "admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
+      flushAdminClientsCache();
+      invalidateCache("admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
       return res.json({
         success: true,
         message: `Removed all data for ${csr.name} from database`,
@@ -530,7 +759,7 @@ router.post(
         ...updateOps,
       ]);
 
-      invalidateCache("admin:clients");
+      flushAdminClientsCache();
       return res.json({
         success: true,
         shuffled,
@@ -552,14 +781,17 @@ router.post(
 
 router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
-    const leads = await prisma.lead.findMany({
-      where: { status: { in: ["not picked", "not completed", "Not Interested"] } },
+    const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+
+    const rawLeads = await prisma.lead.findMany({
+      where: csrId ? { assignedTo: csrId } : {},
       include: {
         csr:        { select: { id: true, name: true, csrCode: true } },
         uploadFile: { select: { companyName: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
+    const leads = rawLeads.filter(isBinLead);
     return res.json({ success: true, leads });
   } catch (error) {
     console.log(error);
@@ -579,16 +811,141 @@ router.put("/lead/:id/reassign", verifyToken, allowRoles("admin"), async (req, r
     const targetCsr = await prisma.user.findFirst({ where: { id: csrId, role: "csr" } });
     if (!targetCsr) return res.status(404).json({ success: false, message: "CSR not found" });
 
+    const existing = await prisma.lead.findFirst({ where: { id: leadId } });
+    if (!existing) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const prevCsrId = existing.assignedTo;
+
     const lead = await prisma.lead.update({
       where: { id: leadId },
-      data:  { assignedTo: csrId },
+      data:  {
+        assignedTo:        csrId,
+        inBin:             false,
+        binReason:         null,
+        binPreviousStatus: null,
+      },
     });
 
-    invalidateCache("admin:clients", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`);
+    flushAdminClientsCache();
+    invalidateCache(
+      "admin:bin",
+      `csr:dashboard:${csrId}`,
+      `csr:leads:${csrId}`,
+      `csr:not-interested:${csrId}`,
+      `csr:bin:${csrId}`,
+      `csr:dashboard:${prevCsrId}`,
+      `csr:leads:${prevCsrId}`,
+      `csr:not-interested:${prevCsrId}`,
+      `csr:bin:${prevCsrId}`,
+    );
     return res.json({ success: true, lead, message: `Lead reassigned to ${targetCsr.name}` });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to reassign lead" });
+  }
+});
+
+/* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */
+
+async function statsForSource(sourceId: string) {
+  const uploads = await prisma.uploadFile.findMany({
+    where:   { sourceId },
+    select:  { id: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const fileIds = uploads.map(u => u.id);
+  const leads = fileIds.length
+    ? await prisma.lead.findMany({
+        where:   { uploadedFileId: { in: fileIds } },
+        select:  { status: true },
+      })
+    : [];
+
+  return {
+    stats:   countLeadStatuses(leads),
+    uploads,
+  };
+}
+
+router.get("/upload-sources", verifyToken, allowRoles("admin"), async (_req, res) => {
+  try {
+    const sources = await prisma.uploadSource.findMany({ orderBy: { name: "asc" } });
+
+    const enriched = await Promise.all(
+      sources.map(async (src) => {
+        const { stats, uploads } = await statsForSource(src.id);
+        return {
+          id:          src.id,
+          name:        src.name,
+          createdAt:   src.createdAt,
+          uploadCount: uploads.length,
+          lastUpload:  uploads[0]?.createdAt ?? null,
+          stats,
+        };
+      })
+    );
+
+    return res.json({ success: true, sources: enriched });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch upload sources" });
+  }
+});
+
+router.post("/upload-sources", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const name = String(req.body.name ?? "").trim();
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Source name is required" });
+    }
+
+    const existing = await prisma.uploadSource.findUnique({ where: { name } });
+    if (existing) {
+      return res.json({ success: true, source: existing, created: false });
+    }
+
+    const source = await prisma.uploadSource.create({ data: { name } });
+    return res.json({ success: true, source, created: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to create upload source" });
+  }
+});
+
+router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const sourceId = String(req.params.sourceId);
+    const source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+    if (!source) {
+      return res.status(404).json({ success: false, message: "Source not found" });
+    }
+
+    const { stats, uploads } = await statsForSource(sourceId);
+
+    const leads = uploads.length
+      ? await prisma.lead.findMany({
+          where:   { uploadedFileId: { in: uploads.map(u => u.id) } },
+          select:  {
+            id: true, name: true, phone: true, email: true, status: true,
+            company: true, interestedService: true, updatedAt: true,
+            csr: { select: { name: true } },
+          },
+          orderBy: { updatedAt: "desc" },
+          take:    200,
+        })
+      : [];
+
+    return res.json({
+      success: true,
+      source:  { id: source.id, name: source.name, createdAt: source.createdAt },
+      stats,
+      uploads,
+      leads,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch source details" });
   }
 });
 

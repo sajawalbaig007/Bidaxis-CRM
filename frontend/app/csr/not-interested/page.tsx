@@ -18,6 +18,7 @@ import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../cons
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
 
@@ -80,9 +81,14 @@ export default function NotInterestedPage() {
   const countKey      = activeTab === "notinterested" ? "notInterestedCount" : "notPickedCount";
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
     return currentList.filter(l =>
-      !q || l.client.toLowerCase().includes(q) || l.company.toLowerCase().includes(q) || l.phone.includes(q)
+      matchesLeadSearch(search, {
+        name: l.client,
+        company: l.company,
+        phone: l.phone,
+        service: l.interestedService,
+        state: l.state,
+      })
     );
   }, [currentList, search]);
 
@@ -121,9 +127,7 @@ export default function NotInterestedPage() {
         setAssignLead(lead);
         setSelectedCsrId("");
         setShowAssignModal(true);
-        setLeads(prev => prev.map(l =>
-          l.id === lead.id ? { ...l, [countKey]: (l[countKey as keyof NiLead] as number) + 1 } : l
-        ));
+        setLeads(prev => prev.filter(l => l.id !== lead.id));
       } else {
         const triesLeft    = res.data.triesLeft ?? 0;
         const updatedNotes = res.data.lead?.followUpNotes ?? lead.followUpNotes ?? "";
@@ -293,12 +297,9 @@ export default function NotInterestedPage() {
         </div>
 
         {/* ── TABLE CARD ── */}
-        <div
-          className="bg-white rounded-2xl sm:rounded-[30px] border border-white shadow-sm flex flex-col mt-4 sm:mt-7"
-          style={{ maxHeight: "calc(100vh - 300px)", minHeight: "340px" }}
-        >
+        <div className={CSR_TABLE_CARD}>
           {/* Card header */}
-          <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3] shrink-0">
+          <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
                 <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">
@@ -314,7 +315,7 @@ export default function NotInterestedPage() {
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search name, phone, company..."
                     value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }}
                     className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
@@ -337,14 +338,13 @@ export default function NotInterestedPage() {
           </div>
 
           {/* Table */}
-          <div className="overflow-auto flex-1 px-3 sm:px-5 lg:px-6 pb-4 sm:pb-5">
-            <table className="w-full" style={{ minWidth: "960px" }}>
+          <div className={CSR_TABLE_WRAP}>
+            <table className={CSR_TABLE_CLASS} style={{ minWidth: "1280px" }}>
+              <CsrColGroup widths={COL_8_FOLLOWUP} />
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-[#F1F1F1]">
                   {["Client","Company","Contact","Service","Note","Tries","Status","Action"].map(h => (
-                    <th key={h} className="text-left py-3 sm:py-4 px-2 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} className={CSR_TH}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -353,7 +353,7 @@ export default function NotInterestedPage() {
                   [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
                       {[1,2,3,4,5,6,7,8].map(j => (
-                        <td key={j} className="py-4 sm:py-5 px-2">
+                        <td key={j} className={CSR_TD}>
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-14 sm:w-20" />
                         </td>
                       ))}
@@ -376,7 +376,7 @@ export default function NotInterestedPage() {
                         className={`border-b border-[#F7F7F7] transition-all ${isAtLimit ? "opacity-60 bg-gray-50" : "hover:bg-[#FFF8F9]"}`}
                       >
                         {/* Client */}
-                        <td className="py-4 sm:py-5 px-2">
+                        <td className={CSR_TD}>
                           <div className="flex items-center gap-2 sm:gap-3">
                             <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${
                               isAtLimit ? "bg-gray-400" : isNearLimit ? "bg-amber-500" : "bg-[#B8112D]"
@@ -403,12 +403,12 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Company */}
-                        <td className="py-4 sm:py-5 px-2">
+                        <td className={CSR_TD}>
                           <h4 className="font-medium text-[#0F172A] text-[12px] sm:text-[14px] max-w-[110px] truncate">{lead.company}</h4>
                         </td>
 
                         {/* Contact */}
-                        <td className="py-4 sm:py-5 px-2">
+                        <td className={CSR_TD}>
                           <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[13px] font-medium w-fit whitespace-nowrap">
                             <Phone size={11} className="sm:w-3 sm:h-3" />{lead.phone}
                             {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
@@ -416,7 +416,7 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Service */}
-                        <td className="py-4 sm:py-5 px-2">
+                        <td className={CSR_TD}>
                           {lead.interestedService ? (
                             <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FFF4E5] text-[#D97706] px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[13px] font-semibold whitespace-nowrap">
                               <Briefcase size={11} className="sm:w-3 sm:h-3" />{lead.interestedService}
@@ -427,7 +427,7 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Sticky Note */}
-                        <td className="py-4 sm:py-5 px-2">
+                        <td className={CSR_TD}>
                           <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                         </td>
 
@@ -440,7 +440,7 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Status badge */}
-                        <td className="py-4 sm:py-5 px-2">
+                        <td className={CSR_TD}>
                           {isAtLimit ? (
                             <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-gray-100 text-gray-500 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap">
                               <ArrowRightLeft size={11} className="sm:w-3 sm:h-3" />Redistributed
@@ -460,48 +460,41 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Action */}
-                        <td className="py-3 sm:py-4 px-2">
-                          <div className="flex flex-col gap-1.5 sm:gap-2 min-w-[170px] sm:min-w-[200px]">
-                            <div className="flex items-center gap-1.5 sm:gap-2">
+                        <td className={CSR_TD}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={() => setViewingLead(lead)}
+                              title="View details"
+                              className="h-9 w-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                            >
+                              <Eye size={13} />
+                            </button>
+                            {!isAtLimit ? (
                               <button
-                                onClick={() => setViewingLead(lead)}
-                                title="View details"
-                                className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                                onClick={() => handleRetry(lead)}
+                                className="h-9 px-3 rounded-xl bg-[#F5F6FA] text-gray-700 text-[12px] font-semibold flex items-center gap-1.5 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap shrink-0"
                               >
-                                <Eye size={12} className="sm:w-[13px] sm:h-[13px]" />
+                                <RefreshCw size={12} />Retry
                               </button>
-                              {!isAtLimit ? (
-                                <button
-                                  onClick={() => handleRetry(lead)}
-                                  className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-xl bg-[#F5F6FA] text-gray-700 text-[11px] sm:text-[12px] font-semibold flex items-center gap-1 sm:gap-1.5 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap"
-                                >
-                                  <RefreshCw size={11} className="sm:w-3 sm:h-3" />Retry
-                                </button>
-                              ) : (
-                                <div className="flex items-center gap-1 text-gray-400 text-[11px] sm:text-[12px]">
-                                  <Users size={12} className="sm:w-[13px] sm:h-[13px]" />Reassigned
-                                </div>
-                              )}
-                              {lead.followUpNotes && (
-                                <button
-                                  onClick={() => setExpandedRow(expandedRow === lead.id ? null : lead.id)}
-                                  title="View history"
-                                  className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-[#F5F6FA] text-gray-500 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-all shrink-0"
-                                >
-                                  {expandedRow === lead.id
-                                    ? <ChevronUp   size={12} className="sm:w-[13px] sm:h-[13px]" />
-                                    : <ChevronDown size={12} className="sm:w-[13px] sm:h-[13px]" />
-                                  }
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Status dropdown */}
-                            <div className="relative w-full max-w-[200px] sm:max-w-[230px]">
+                            ) : (
+                              <span className="flex items-center gap-1 text-gray-400 text-[12px] shrink-0">
+                                <Users size={13} />Reassigned
+                              </span>
+                            )}
+                            {lead.followUpNotes && (
+                              <button
+                                onClick={() => setExpandedRow(expandedRow === lead.id ? null : lead.id)}
+                                title="View history"
+                                className="h-9 w-9 rounded-xl bg-[#F5F6FA] text-gray-500 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-all shrink-0"
+                              >
+                                {expandedRow === lead.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                              </button>
+                            )}
+                            <div className="relative flex-1 min-w-[140px]">
                               <select
                                 defaultValue=""
                                 onChange={e => { handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
-                                className="appearance-none h-9 sm:h-[46px] w-full rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-11 text-[12px] sm:text-[14px] font-semibold text-[#0F172A] outline-none"
+                                className="appearance-none h-10 w-full rounded-xl border border-gray-200 bg-white px-3 pr-9 text-[13px] font-semibold text-[#0F172A] outline-none"
                               >
                                 <option value="">Update Status</option>
                                 <option value="pending">Pending</option>
@@ -509,8 +502,8 @@ export default function NotInterestedPage() {
                                 <option value="interested">Interested</option>
                                 <option value="Close Client">Close Client</option>
                               </select>
-                              <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <ChevronDown size={15} className="sm:w-[18px] sm:h-[18px]" />
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <ChevronDown size={16} />
                               </div>
                             </div>
                           </div>

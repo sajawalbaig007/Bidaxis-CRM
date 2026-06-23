@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Trash2, Search, RefreshCw, Phone, Briefcase,
-  ThumbsDown, PhoneOff, X, Check, ArrowRightLeft, Users,
+  ThumbsDown, PhoneOff, X, Check, ArrowRightLeft, Star, User2, ChevronDown,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -11,85 +11,84 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
-//bin
+import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
+
 type BinLead = {
-  id:               string;
-  client:           string;
-  company:          string;
-  phone:            string;
-  status:           string;
-  notPickedCount:   number;
+  id:                 string;
+  client:             string;
+  company:            string;
+  phone:              string;
+  status:             string;
+  notPickedCount:     number;
   notInterestedCount: number;
   interestedService?: string;
-  updatedAt?:       string;
-  csr:              { id: string; name: string; csrCode: string | null };
+  binReason:          string | null;
+  updatedAt?:         string;
+  csr:                { id: string; name: string; csrCode: string | null };
 };
 
 type CSR = { id: string; name: string; csrCode: string | null };
-
-const NOT_INTERESTED_LIMIT = 3;
-const NOT_PICKED_LIMIT     = 7;
+type TabKey = "all" | "notpicked" | "notinterested" | "deleted";
 
 export default function AdminBinPage() {
-  const [leads,   setLeads]   = useState<BinLead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState("");
-  const [tab,     setTab]     = useState<"notpicked" | "notinterested">("notpicked");
+  const [leads,      setLeads]      = useState<BinLead[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState("");
+  const [tab,        setTab]        = useState<TabKey>("all");
+  const [filterCSR,  setFilterCSR]  = useState("all");
+  const [allCsrs,    setAllCsrs]    = useState<CSR[]>([]);
 
-  /* ── Reassign modals ── */
-  const [showReassign,   setShowReassign]   = useState(false);
-  const [reassignLead,   setReassignLead]   = useState<BinLead | null>(null);
-  const [csrOptions,     setCsrOptions]     = useState<CSR[]>([]);
-  const [selectedCsrId,  setSelectedCsrId]  = useState("");
-  const [isReassigning,  setIsReassigning]  = useState(false);
-  const [csrLoading,     setCsrLoading]     = useState(false);
+  const [showReassign,  setShowReassign]  = useState(false);
+  const [reassignLead,  setReassignLead]  = useState<BinLead | null>(null);
+  const [csrOptions,    setCsrOptions]    = useState<CSR[]>([]);
+  const [selectedCsrId, setSelectedCsrId] = useState("");
+  const [isReassigning, setIsReassigning] = useState(false);
 
-  const fetchLeads = async () => {
+  const mapLeads = (raw: unknown[]): BinLead[] =>
+    (raw as Array<Record<string, unknown>>).map(l => ({
+      id:                 String(l.id ?? ""),
+      client:             String(l.name ?? "Unknown"),
+      company:            String((l.uploadFile as { companyName?: string })?.companyName ?? l.company ?? "N/A"),
+      phone:              String(l.phone ?? "N/A"),
+      status:             String(l.status ?? ""),
+      notPickedCount:     Number(l.notPickedCount ?? 0),
+      notInterestedCount: Number(l.notInterestedCount ?? 0),
+      interestedService:  String(l.interestedService ?? ""),
+      binReason:          (l.binReason as string | null) ?? null,
+      updatedAt:          String(l.updatedAt ?? ""),
+      csr: {
+        id:      String((l.csr as { id?: string })?.id ?? ""),
+        name:    String((l.csr as { name?: string })?.name ?? "—"),
+        csrCode: ((l.csr as { csrCode?: string | null })?.csrCode) ?? null,
+      },
+    }));
+
+  const fetchLeads = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await API.get("/admin/bin");
-      const formatted: BinLead[] = (res.data.leads ?? []).map((l: {
-        id: string; name?: string; company?: string;
-        uploadFile?: { companyName?: string }; phone?: string;
-        status?: string; notPickedCount?: number; notInterestedCount?: number;
-        interestedService?: string; updatedAt?: string;
-        csr?: { id: string; name: string; csrCode?: string | null };
-      }) => ({
-        id:                 l.id,
-        client:             l.name                    ?? "Unknown",
-        company:            l.uploadFile?.companyName ?? l.company ?? "N/A",
-        phone:              l.phone                   ?? "N/A",
-        status:             l.status                  ?? "",
-        notPickedCount:     l.notPickedCount           ?? 0,
-        notInterestedCount: l.notInterestedCount       ?? 0,
-        interestedService:  l.interestedService        ?? "",
-        updatedAt:          l.updatedAt               ?? "",
-        csr:                { id: l.csr?.id ?? "", name: l.csr?.name ?? "—", csrCode: l.csr?.csrCode ?? null },
-      }));
-      setLeads(formatted);
-    } catch { toast.error("Failed to load bin."); }
-    finally { setLoading(false); }
-  };
-
-  const fetchCSRs = async () => {
-    setCsrLoading(true);
-    try {
-      const res = await API.get("/admin/csrs");
-      setCsrOptions(res.data.csrs ?? []);
-    } catch { toast.error("Failed to load CSRs."); }
-    finally { setCsrLoading(false); }
-  };
+      const params = filterCSR !== "all" ? { csrId: filterCSR } : {};
+      const res = await API.get("/admin/bin", { params });
+      setLeads(mapLeads(res.data.leads ?? []));
+    } catch {
+      toast.error("Failed to load bin.");
+    } finally {
+      setLoading(false);
+    }
+  }, [filterCSR]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => { void fetchLeads(); }, 0);
-    return () => window.clearTimeout(t);
+    API.get("/admin/csrs").then(res => setAllCsrs(res.data.csrs ?? [])).catch(() => {});
   }, []);
+
+  useEffect(() => { void fetchLeads(); }, [fetchLeads]);
 
   const openReassign = (lead: BinLead) => {
     setReassignLead(lead);
     setSelectedCsrId("");
     setShowReassign(true);
-    if (csrOptions.length === 0) void fetchCSRs();
+    if (csrOptions.length === 0) {
+      API.get("/admin/csrs").then(res => setCsrOptions(res.data.csrs ?? [])).catch(() => toast.error("Failed to load CSRs."));
+    }
   };
 
   const confirmReassign = async () => {
@@ -106,19 +105,31 @@ export default function AdminBinPage() {
     finally { setIsReassigning(false); }
   };
 
-  const notPicked     = useMemo(() => leads.filter(l => l.status === "not picked" || l.status === "not completed"), [leads]);
-  const notInterested = useMemo(() => leads.filter(l => l.status === "Not Interested"), [leads]);
-  const currentList   = tab === "notpicked" ? notPicked : notInterested;
+  const byTab = useMemo(() => ({
+    notpicked:     leads.filter(l => binCategory(l.binReason) === "notpicked"),
+    notinterested: leads.filter(l => binCategory(l.binReason) === "notinterested"),
+    deleted:       leads.filter(l => binCategory(l.binReason) === "deleted"),
+  }), [leads]);
+
+  const currentList = tab === "all" ? leads : byTab[tab];
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return currentList.filter(l =>
       !q || l.client.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q)      ||
-      l.phone.includes(q)                      ||
-      l.csr.name.toLowerCase().includes(q)
+      l.company.toLowerCase().includes(q) ||
+      l.phone.includes(q) ||
+      l.csr.name.toLowerCase().includes(q) ||
+      binReasonLabel(l.binReason).toLowerCase().includes(q)
     );
   }, [currentList, search]);
+
+  const tabs: { key: TabKey; label: string; count: number; Icon: typeof Trash2 }[] = [
+    { key: "all",           label: "All",            count: leads.length,              Icon: Trash2     },
+    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     Icon: PhoneOff   },
+    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, Icon: ThumbsDown },
+    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       Icon: Star       },
+  ];
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -129,30 +140,17 @@ export default function AdminBinPage() {
         <DashboardNavbar />
 
         <div className="p-4 sm:p-6 lg:p-8 pt-[64px]">
-
-          {/* ── HEADER ── */}
           <div className="flex items-center gap-3 mb-6">
             <div className="w-11 h-11 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
               <Trash2 size={20} className="text-amber-600" />
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Bin</h1>
-              <p className="text-sm text-gray-400 mt-0.5">All not-picked &amp; not-interested leads across all CSRs.</p>
+              <p className="text-sm text-gray-400 mt-0.5">Limit-reached and deleted leads — all CSRs or filter individually.</p>
             </div>
           </div>
 
-          {/* ── BIN OVERVIEW CHART ── */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-              <div>
-                <h3 className="font-bold text-[#111827] text-base">Bin Overview</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Not-picked & not-interested leads across all CSRs</p>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"/>Not Picked</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#B8112D] inline-block"/>Not Interested</span>
-              </div>
-            </div>
             <div className="h-[130px]">
               {loading ? (
                 <div className="h-full bg-gray-50 rounded-2xl animate-pulse"/>
@@ -160,10 +158,10 @@ export default function AdminBinPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={[
-                      { name: "Not Picked",     value: notPicked.length,     fill: "#F59E0B" },
-                      { name: "Not Interested", value: notInterested.length, fill: "#B8112D" },
-                      { name: "Total",          value: leads.length,         fill: "#6B7280" },
-                      { name: "CSRs Affected",  value: new Set(leads.map(l => l.csr.id)).size, fill: "#3B82F6" },
+                      { name: "Not Picked",     value: byTab.notpicked.length,     fill: "#F59E0B" },
+                      { name: "Not Interested", value: byTab.notinterested.length, fill: "#B8112D" },
+                      { name: "Deleted",        value: byTab.deleted.length,       fill: "#6366F1" },
+                      { name: "Total",          value: leads.length,               fill: "#6B7280" },
                     ]}
                     barSize={52}
                   >
@@ -172,92 +170,71 @@ export default function AdminBinPage() {
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
                     <Tooltip contentStyle={{ borderRadius:"12px", border:"1px solid #e5e7eb", fontSize:"12px" }}/>
                     <Bar dataKey="value" radius={[7,7,0,0]} name="Count">
-                      {[
-                        { fill: "#F59E0B" },
-                        { fill: "#B8112D" },
-                        { fill: "#6B7280" },
-                        { fill: "#3B82F6" },
-                      ].map((e, i) => <Cell key={i} fill={e.fill}/>)}
+                      {["#F59E0B","#B8112D","#6366F1","#6B7280"].map((fill, i) => <Cell key={i} fill={fill}/>)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
-            <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
-              {[
-                { label:"Not Picked",    value: notPicked.length,     color:"text-amber-600"  },
-                { label:"Not Interested",value: notInterested.length, color:"text-[#B8112D]"  },
-                { label:"Total",         value: leads.length,          color:"text-gray-700"  },
-                { label:"CSRs Affected", value: new Set(leads.map(l => l.csr.id)).size, color:"text-blue-600" },
-              ].map(s => (
-                <div key={s.label} className="text-center">
-                  <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
-                </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4">
+            <div className="flex gap-2 overflow-x-auto pb-0.5 flex-1">
+              {tabs.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => { setTab(t.key); setSearch(""); }}
+                  className={`h-10 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap ${
+                    tab === t.key ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20"
+                  }`}
+                >
+                  <t.Icon size={14} />{t.label}
+                  <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${tab === t.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>{t.count}</span>
+                </button>
               ))}
+            </div>
+            <div className="relative w-full sm:w-auto">
+              <User2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <select
+                value={filterCSR}
+                onChange={e => setFilterCSR(e.target.value)}
+                className="appearance-none w-full sm:min-w-[200px] h-10 bg-white border border-gray-200 rounded-xl pl-10 pr-9 text-sm outline-none focus:border-[#B8112D]"
+              >
+                <option value="all">All CSRs</option>
+                {allCsrs.map(c => (
+                  <option key={c.id} value={c.id}>{c.csrCode ? `${c.csrCode} — ${c.name}` : c.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
 
-          {/* ── TABS ── */}
-          <div className="flex gap-2 sm:gap-3 mb-4 overflow-x-auto pb-0.5">
-            {[
-              { key: "notpicked",     label: "Not Picked",     count: notPicked.length,     Icon: PhoneOff   },
-              { key: "notinterested", label: "Not Interested", count: notInterested.length, Icon: ThumbsDown },
-            ].map(t => (
-              <button
-                key={t.key}
-                onClick={() => { setTab(t.key as typeof tab); setSearch(""); }}
-                className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap ${
-                  tab === t.key
-                    ? "bg-[#B8112D] text-white"
-                    : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"
-                }`}
-              >
-                <t.Icon size={14} />
-                {t.label}
-                <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${tab === t.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>
-                  {t.count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* ── TABLE CARD ── */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm flex flex-col"
-               style={{ maxHeight: "calc(100vh - 380px)", minHeight: "340px" }}>
-
-            {/* card header */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm">
             <div className="p-4 sm:p-5 border-b border-gray-100 shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h3 className="font-semibold text-gray-800 text-base sm:text-lg">
-                  {tab === "notpicked" ? "Not Picked" : "Not Interested"} Leads
-                </h3>
+                <h3 className="font-semibold text-gray-800 text-base sm:text-lg">Bin Leads</h3>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
-                      type="text" placeholder="Search by name, company, CSR…"
+                      type="text" placeholder="Search..."
                       value={search} onChange={e => setSearch(e.target.value)}
                       className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D]"
                     />
                   </div>
-                  <button onClick={() => void fetchLeads()}
-                    className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] text-gray-500 transition-colors">
+                  <button onClick={() => void fetchLeads()} className="h-9 w-9 rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] text-gray-500">
                     <RefreshCw size={13} />
                   </button>
-                  <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">
-                    {filtered.length} Leads
-                  </span>
+                  <span className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">{filtered.length} Leads</span>
                 </div>
               </div>
             </div>
 
-            {/* table */}
-            <div className="overflow-auto flex-1 px-4 sm:px-5 pb-4">
-              <table className="w-full" style={{ minWidth: "780px" }}>
+            <div className="overflow-x-auto px-4 sm:px-5 pb-4">
+              <table className="w-full" style={{ minWidth: "860px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-gray-100">
-                    {["#","CSR","Client","Company","Phone","Service","Tries","Updated","Action"].map(h => (
+                    {["#","CSR","Client","Company","Phone","Service","Reason","Updated","Action"].map(h => (
                       <th key={h} className="text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-400 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -271,85 +248,50 @@ export default function AdminBinPage() {
                         ))}
                       </tr>
                     ))
-                  ) : filtered.length > 0 ? filtered.map((lead, idx) => {
-                    const tries   = tab === "notpicked" ? lead.notPickedCount : lead.notInterestedCount;
-                    const limit   = tab === "notpicked" ? NOT_PICKED_LIMIT   : NOT_INTERESTED_LIMIT;
-                    const isNear  = tries >= limit - 1;
-
-                    return (
-                      <tr key={lead.id} className={`border-b border-gray-50 ${isNear ? "bg-red-50/40" : "hover:bg-gray-50"}`}>
-                        <td className="py-3.5 px-2 text-xs text-gray-400">{idx + 1}</td>
-
-                        {/* CSR badge */}
-                        <td className="py-3.5 px-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-bold shrink-0">
-                              {lead.csr.name.charAt(0)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-[12px] font-semibold text-gray-800 truncate max-w-[80px]">{lead.csr.name}</p>
-                              {lead.csr.csrCode && <p className="text-[10px] text-gray-400">{lead.csr.csrCode}</p>}
-                            </div>
+                  ) : filtered.length > 0 ? filtered.map((lead, idx) => (
+                    <tr key={lead.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-3.5 px-2 text-xs text-gray-400">{idx + 1}</td>
+                      <td className="py-3.5 px-2">
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-semibold text-gray-800 truncate max-w-[90px]">{lead.csr.name}</p>
+                          {lead.csr.csrCode && <p className="text-[10px] text-gray-400">{lead.csr.csrCode}</p>}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-2"><span className="font-semibold text-[13px] text-gray-800">{lead.client}</span></td>
+                      <td className="py-3.5 px-2"><span className="text-[13px] text-gray-700 truncate block max-w-[100px]">{lead.company}</span></td>
+                      <td className="py-3.5 px-2">
+                        <div className="flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit">
+                          <Phone size={10}/>{lead.phone}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-2">
+                        {lead.interestedService ? (
+                          <div className="flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap">
+                            <Briefcase size={10}/>{lead.interestedService}
                           </div>
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0 ${isNear ? "bg-red-500" : tab === "notpicked" ? "bg-amber-500" : "bg-[#B8112D]"}`}>
-                              {lead.client.charAt(0)}
-                            </div>
-                            <span className="font-semibold text-[13px] text-gray-800">{lead.client}</span>
-                          </div>
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          <span className="text-[13px] font-medium text-gray-700 max-w-[100px] truncate block">{lead.company}</span>
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          <div className="flex items-center gap-1 bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
-                            <Phone size={10}/>{lead.phone}
-                          </div>
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          {lead.interestedService ? (
-                            <div className="flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap">
-                              <Briefcase size={10}/>{lead.interestedService}
-                            </div>
-                          ) : <span className="text-gray-300 text-sm">—</span>}
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          <span className={`text-xs font-bold ${isNear ? "text-red-600" : "text-gray-500"}`}>
-                            {tries}/{limit}
-                            {isNear && <span className="ml-1 text-[10px]">⚠</span>}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          <span className="text-xs text-gray-400">
-                            {lead.updatedAt ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" }) : "—"}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-2">
-                          <button
-                            onClick={() => openReassign(lead)}
-                            className="h-8 px-3 rounded-xl bg-[#EAF5FF] text-[#0B84F3] text-[11px] font-semibold flex items-center gap-1.5 hover:bg-blue-100 transition-colors whitespace-nowrap"
-                          >
-                            <ArrowRightLeft size={11}/>Reassign
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  }) : (
+                        ) : <span className="text-gray-300 text-sm">—</span>}
+                      </td>
+                      <td className="py-3.5 px-2">
+                        <span className="text-[11px] font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded-lg whitespace-nowrap">
+                          {binReasonLabel(lead.binReason)}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-2">
+                        <span className="text-xs text-gray-400">
+                          {lead.updatedAt ? new Date(lead.updatedAt).toLocaleDateString("en-GB", { day:"2-digit", month:"short" }) : "—"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-2">
+                        <button onClick={() => openReassign(lead)} className="h-8 px-3 rounded-xl bg-[#EAF5FF] text-[#0B84F3] text-[11px] font-semibold flex items-center gap-1.5 hover:bg-blue-100 whitespace-nowrap">
+                          <ArrowRightLeft size={11}/>Reassign
+                        </button>
+                      </td>
+                    </tr>
+                  )) : (
                     <tr>
                       <td colSpan={9} className="py-20 text-center">
                         <Trash2 size={28} className="text-gray-200 mx-auto mb-3"/>
-                        <p className="text-gray-400 text-sm">
-                          {search ? "No leads match your search." : `No ${tab === "notpicked" ? "not-picked" : "not-interested"} leads.`}
-                        </p>
+                        <p className="text-gray-400 text-sm">{search ? "No leads match your search." : "Bin is empty."}</p>
                       </td>
                     </tr>
                   )}
@@ -360,77 +302,36 @@ export default function AdminBinPage() {
         </div>
       </div>
 
-      {/* ══ REASSIGN MODAL ══ */}
       {showReassign && reassignLead && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
-            {/* header */}
             <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-base sm:text-lg font-bold text-white">Reassign Lead</h2>
-                  <p className="text-white/70 text-xs sm:text-sm mt-0.5">
-                    Assigning <span className="font-semibold text-white">{reassignLead.client}</span> to a new CSR
-                  </p>
+                  <p className="text-white/70 text-xs sm:text-sm mt-0.5">Assigning <span className="font-semibold text-white">{reassignLead.client}</span></p>
                 </div>
-                <button onClick={() => setShowReassign(false)}
-                  className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white shrink-0">
-                  <X size={15}/>
-                </button>
+                <button onClick={() => setShowReassign(false)} className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white"><X size={15}/></button>
               </div>
             </div>
-
-            {/* CSR list */}
             <div className="px-5 sm:px-6 py-4 space-y-2 max-h-64 overflow-y-auto">
-              {csrLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw size={20} className="animate-spin text-gray-400"/>
-                </div>
-              ) : csrOptions.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">No CSRs available.</p>
-              ) : csrOptions.map(csr => (
-                <button
-                  key={csr.id}
-                  onClick={() => setSelectedCsrId(csr.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
-                    selectedCsrId === csr.id
-                      ? "border-[#B8112D] bg-[#FFF1F3]"
-                      : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
-                  }`}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                    selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"
-                  }`}>
-                    {csr.name.charAt(0).toUpperCase()}
-                  </div>
+              {csrOptions.map(csr => (
+                <button key={csr.id} onClick={() => setSelectedCsrId(csr.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${selectedCsrId === csr.id ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA]"}`}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white ${selectedCsrId === csr.id ? "bg-[#B8112D]" : "bg-gray-400"}`}>{csr.name.charAt(0)}</div>
                   <div className="min-w-0">
-                    <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
-                      {csr.name}
-                    </p>
+                    <p className={`font-semibold text-sm truncate ${selectedCsrId === csr.id ? "text-[#B8112D]" : "text-[#0F172A]"}`}>{csr.name}</p>
                     {csr.csrCode && <p className="text-xs text-gray-400">{csr.csrCode}</p>}
                   </div>
-                  {selectedCsrId === csr.id && (
-                    <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
-                      <Check size={11} className="text-white"/>
-                    </div>
-                  )}
+                  {selectedCsrId === csr.id && <div className="ml-auto w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center"><Check size={11} className="text-white"/></div>}
                 </button>
               ))}
             </div>
-
-            {/* actions */}
             <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
-              <button onClick={() => setShowReassign(false)}
-                className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">
-                Cancel
-              </button>
-              <button
-                onClick={confirmReassign}
-                disabled={!selectedCsrId || isReassigning}
-                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
-              >
-                <ArrowRightLeft size={14}/>
-                {isReassigning ? "Reassigning…" : "Reassign"}
+              <button onClick={() => setShowReassign(false)} className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm">Cancel</button>
+              <button onClick={confirmReassign} disabled={!selectedCsrId || isReassigning}
+                className="flex-1 h-11 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                <ArrowRightLeft size={14}/>{isReassigning ? "Reassigning…" : "Reassign"}
               </button>
             </div>
           </div>

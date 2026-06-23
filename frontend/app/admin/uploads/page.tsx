@@ -3,15 +3,18 @@
 import { useRef, useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import {
-  UploadCloud, FileText, Trash2, CheckCircle2, Search, Users,
+  UploadCloud, FileText, Trash2, CheckCircle2, Users,
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, RefreshCw, RotateCcw,
-  PhoneCall, Star, Briefcase,
+  PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+} from "recharts";
 
 /* ── Types ── */
 type UploadFile = {
@@ -24,7 +27,78 @@ type UploadFile = {
 type CSRDistribution = { name: string; leads: number };
 type CSR = { id: string; name: string; email: string; isActive: boolean; csrCode?: string | null };
 
+type SourceStats = {
+  total: number; pending: number; important: number; interested: number;
+  notPicked: number; projectWon: number; notInterested: number;
+};
+
+type UploadSourceRow = {
+  id: string; name: string; createdAt: string;
+  uploadCount: number; lastUpload: string | null; stats: SourceStats;
+};
+
+type RowResult = {
+  row: number;
+  name: string;
+  phone: string;
+  email: string;
+  company: string;
+  status: "new" | "duplicate" | "updated" | "empty";
+  reason: string;
+};
+
+type UploadSummary = {
+  new: number;
+  duplicate: number;
+  updated: number;
+  empty: number;
+  total?: number;
+};
+
+type HistoryUpload = {
+  id: string;
+  fileName: string;
+  totalLeads: number;
+  linkedLeads: number;
+  companyName: string | null;
+  uploadCategory: string | null;
+  source: { id: string; name: string } | null;
+  createdAt: string;
+};
+
+type UploadCategoryKey =
+  | "all"
+  | "call-data"
+  | "new-client"
+  | "old-client"
+  | "interested"
+  | "important"
+  | "active-projects";
+
+const HISTORY_CATEGORIES: { key: UploadCategoryKey; label: string; color: string }[] = [
+  { key: "all",             label: "All",             color: "text-gray-700" },
+  { key: "call-data",       label: "Call Data",       color: "text-[#0B84F3]" },
+  { key: "new-client",      label: "New Client",      color: "text-[#15803D]" },
+  { key: "old-client",      label: "Old Client",      color: "text-[#B45309]" },
+  { key: "interested",      label: "Interested",      color: "text-[#D97706]" },
+  { key: "important",       label: "Important",       color: "text-[#B8112D]" },
+  { key: "active-projects", label: "Active Projects", color: "text-indigo-600" },
+];
+
+const CATEGORY_LABEL_MAP = Object.fromEntries(
+  HISTORY_CATEGORIES.map(c => [c.key, c.label])
+) as Record<UploadCategoryKey, string>;
+
+type ModalStep = "category" | "reset" | "company" | "source" | "pane" | "csrs";
+
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
+
+const STATUS_STYLE: Record<RowResult["status"], { bg: string; text: string; label: string }> = {
+  new:       { bg: "bg-green-100",  text: "text-green-700",  label: "New" },
+  duplicate: { bg: "bg-red-100",    text: "text-red-700",    label: "Duplicate" },
+  updated:   { bg: "bg-blue-100",   text: "text-blue-700",   label: "Updated" },
+  empty:     { bg: "bg-gray-100",   text: "text-gray-500",   label: "Skipped" },
+};
 
 const getFileIcon = (type: string) => {
   if (type.includes("sheet") || type.includes("excel") || type.includes("csv"))
@@ -47,10 +121,21 @@ export default function UploadPage() {
   const [draggingInterested,  setDraggingInterested]  = useState(false);
   const [draggingActive,      setDraggingActive]      = useState(false);
   const [uploadMode,          setUploadMode]          = useState<"regular" | "important" | "interested" | "active">("regular");
-  const [search,             setSearch]             = useState("");
   const [files,              setFiles]              = useState<UploadFile[]>([]);
   const [latestDistribution, setLatestDistribution] = useState<CSRDistribution[]>([]);
   const [latestTotalLeads,   setLatestTotalLeads]   = useState(0);
+
+  const [showHistoryModal,   setShowHistoryModal]   = useState(false);
+  const [uploadHistory,      setUploadHistory]      = useState<HistoryUpload[]>([]);
+  const [historyCategory,    setHistoryCategory]    = useState<UploadCategoryKey>("all");
+  const [historyCounts,      setHistoryCounts]      = useState<Record<string, number>>({});
+  const [historyLoading,     setHistoryLoading]     = useState(false);
+  const [deletingUploadId,   setDeletingUploadId]   = useState<string | null>(null);
+
+  const [rowResults,         setRowResults]         = useState<RowResult[]>([]);
+  const [uploadSummary,      setUploadSummary]      = useState<UploadSummary | null>(null);
+  const [lastUploadName,     setLastUploadName]     = useState("");
+  const [resultsFilter,      setResultsFilter]      = useState<"all" | RowResult["status"]>("all");
 
   const [showCSRModal,  setShowCSRModal]  = useState(false);
   const [selectedFile,  setSelectedFile]  = useState<File | null>(null);
@@ -59,17 +144,100 @@ export default function UploadPage() {
 
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
-  const [modalStep, setModalStep] = useState<"category" | "reset" | "company" | "pane" | "csrs">("category");
+  const [modalStep, setModalStep] = useState<ModalStep>("category");
   const [resetMode, setResetMode] = useState<"keep" | "reset" | null>(null);
 
   const [selectedPane,     setSelectedPane]     = useState<"pending" | "lead">("pending");
   const [selectedLeadType, setSelectedLeadType] = useState<"new" | "old">("new");
+
+  const [uploadSources,    setUploadSources]    = useState<UploadSourceRow[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [newSourceName,    setNewSourceName]    = useState("");
+  const [addingSource,     setAddingSource]     = useState(false);
+  const [historySourceId,  setHistorySourceId]  = useState<string | "all">("all");
+  const [sourceDetail,     setSourceDetail]     = useState<{
+    stats: SourceStats;
+    uploads: { id: string; fileName: string; totalLeads: number; createdAt: string }[];
+  } | null>(null);
+
+  const fetchUploadSources = async () => {
+    try {
+      const res = await API.get("/admin/upload-sources");
+      setUploadSources(res.data.sources ?? []);
+    } catch { /* non-blocking */ }
+  };
+
+  const fetchSourceDetail = async (sourceId: string) => {
+    try {
+      const res = await API.get(`/admin/upload-sources/${sourceId}`);
+      setSourceDetail({ stats: res.data.stats, uploads: res.data.uploads ?? [] });
+    } catch { setSourceDetail(null); }
+  };
+
+  const addNewSource = async () => {
+    const name = newSourceName.trim();
+    if (!name) { toast.error("Enter a source name"); return; }
+    setAddingSource(true);
+    try {
+      const res = await API.post("/admin/upload-sources", { name });
+      const src = res.data.source as { id: string; name: string };
+      setSelectedSourceId(src.id);
+      setNewSourceName("");
+      toast.success(res.data.created ? `"${name}" added` : `"${name}" selected`);
+      await fetchUploadSources();
+    } catch {
+      toast.error("Failed to add source");
+    } finally {
+      setAddingSource(false);
+    }
+  };
 
   const fetchCSRs = async () => {
     try {
       const res = await API.get("/admin/csrs");
       setCsrs(res.data.csrs);
     } catch { toast.error("Failed to fetch CSRs"); }
+  };
+
+  const fetchUploadHistory = async (category?: UploadCategoryKey) => {
+    const cat = category ?? historyCategory;
+    setHistoryLoading(true);
+    try {
+      const res = await API.get("/uploads/history", { params: { category: cat } });
+      setUploadHistory(res.data.uploads ?? []);
+      setHistoryCounts(res.data.counts ?? {});
+    } catch {
+      toast.error("Failed to load upload history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const deleteHistoryUpload = async (id: string, fileName: string) => {
+    const linked = uploadHistory.find(u => u.id === id)?.linkedLeads ?? 0;
+    if (!confirm(`Delete "${fileName}"?\n\n${linked} contact(s) will be permanently removed from the database and CSR dashboards.`)) return;
+    setDeletingUploadId(id);
+    try {
+      const res = await API.delete(`/uploads/${id}`);
+      toast.success(res.data.message ?? "Upload deleted from DB & CSR dashboards");
+      void fetchUploadHistory(historyCategory);
+      void fetchLatestUpload();
+      void fetchUploadSources();
+    } catch {
+      toast.error("Failed to delete upload");
+    } finally {
+      setDeletingUploadId(null);
+    }
+  };
+
+  const openHistoryModal = () => {
+    setShowHistoryModal(true);
+    void fetchUploadHistory(historyCategory);
+  };
+
+  const switchHistoryCategory = (cat: UploadCategoryKey) => {
+    setHistoryCategory(cat);
+    void fetchUploadHistory(cat);
   };
 
   const fetchLatestUpload = async () => {
@@ -83,9 +251,17 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); };
+    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); await fetchUploadSources(); };
     load();
   }, []);
+
+  useEffect(() => {
+    if (historySourceId === "all") {
+      setSourceDetail(null);
+      return;
+    }
+    void fetchSourceDetail(historySourceId);
+  }, [historySourceId]);
 
   const openCSRModal = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
@@ -96,6 +272,7 @@ export default function UploadPage() {
     setResetMode(null);
     setSelectedPane("pending");
     setSelectedLeadType("new");
+    setSelectedSourceId("");
     setModalStep("category");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
@@ -110,7 +287,8 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("pending");
     setSelectedLeadType("old");
-    setModalStep("csrs");
+    setSelectedSourceId("");
+    setModalStep("source");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -124,7 +302,8 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("lead");
     setSelectedLeadType("new");
-    setModalStep("csrs");
+    setSelectedSourceId("");
+    setModalStep("source");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -138,7 +317,8 @@ export default function UploadPage() {
     setResetMode("keep");
     setSelectedPane("lead");
     setSelectedLeadType("old");
-    setModalStep("csrs");
+    setSelectedSourceId("");
+    setModalStep("source");
     setSelectedCSRs(csrs.filter(c => c.isActive).map(c => c.id));
     setShowCSRModal(true);
   };
@@ -150,6 +330,7 @@ export default function UploadPage() {
     /* company is optional for client uploads — comes from Excel rows */
     if (selectedPane !== "lead" && !finalCompany.trim()) { toast.error("Please enter company name"); return; }
     if (selectedCSRs.length === 0) { toast.error("Select at least one CSR"); return; }
+    if (!selectedSourceId) { toast.error("Select an upload source"); return; }
 
     setShowCSRModal(false);
     const tempId = Date.now();
@@ -183,6 +364,7 @@ export default function UploadPage() {
         uploadMode === "active"     ? "active" :
         selectedLeadType
       );
+      formData.append("sourceId", selectedSourceId);
 
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -215,12 +397,23 @@ export default function UploadPage() {
       ));
 
       const created = res.data.totalLeads as number;
-      if (created === 0) {
-        toast.error("No new leads added — all rows were duplicates.");
+      const results = (res.data.rowResults ?? []) as RowResult[];
+      const summary = (res.data.summary ?? null) as UploadSummary | null;
+      setRowResults(results);
+      setUploadSummary(summary);
+      setLastUploadName(selectedFile.name);
+      setResultsFilter("all");
+
+      if (created === 0 && (summary?.duplicate ?? 0) > 0) {
+        toast.error("No new leads added — all rows were duplicates or already in database.");
+      } else if (created === 0) {
+        toast.error("No leads were added from this file.");
       } else {
-        toast.success(`${created} leads uploaded & distributed for ${finalCompany.trim()}`);
+        const dupMsg = summary?.duplicate ? ` · ${summary.duplicate} duplicate(s) skipped` : "";
+        toast.success(`${created} leads uploaded & distributed${dupMsg}`);
       }
       void fetchLatestUpload();
+      void fetchUploadSources();
     } catch {
       if (processingInterval) clearInterval(processingInterval);
       setFiles(prev => prev.filter(f => f.id !== tempId));
@@ -229,7 +422,32 @@ export default function UploadPage() {
   };
 
   const removeFile = (id: number) => setFiles(prev => prev.filter(f => f.id !== id));
-  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
+
+  const filteredResults = resultsFilter === "all"
+    ? rowResults
+    : rowResults.filter(r => r.status === resultsFilter);
+
+  const sourceCompareChart = uploadSources.map(s => ({
+    name: s.name.length > 10 ? `${s.name.slice(0, 10)}…` : s.name,
+    Pending: s.stats.pending,
+    Interested: s.stats.interested,
+    Important: s.stats.important,
+    "Not Picked": s.stats.notPicked,
+    Won: s.stats.projectWon,
+  }));
+
+  const selectedSourceStats = historySourceId === "all"
+    ? null
+    : uploadSources.find(s => s.id === historySourceId)?.stats ?? sourceDetail?.stats ?? null;
+
+  const selectedSourceBreakdown = selectedSourceStats ? [
+    { label: "Pending",      value: selectedSourceStats.pending,      color: "#0B84F3" },
+    { label: "Interested",   value: selectedSourceStats.interested,   color: "#D97706" },
+    { label: "Important",    value: selectedSourceStats.important,    color: "#B8112D" },
+    { label: "Not Picked",   value: selectedSourceStats.notPicked,    color: "#B54708" },
+    { label: "Project Won",  value: selectedSourceStats.projectWon, color: "#065F46" },
+    { label: "Not Interested", value: selectedSourceStats.notInterested, color: "#94A3B8" },
+  ] : [];
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -246,6 +464,7 @@ export default function UploadPage() {
                   {modalStep === "category" ? "Upload Category"
                    : modalStep === "reset"   ? "Data Mode"
                    : modalStep === "company" ? "Select Company"
+                   : modalStep === "source"  ? "Data Source"
                    : modalStep === "pane"    ? "Select CSR Pane"
                    : "Select CSRs"}
                 </h2>
@@ -253,6 +472,7 @@ export default function UploadPage() {
                   {modalStep === "category" ? "Where should this file's data go?"
                    : modalStep === "reset"   ? "What should happen to existing call data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
+                   : modalStep === "source"  ? "Where did you get this data? (Admin only — CSRs won't see this)"
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
                 </p>
@@ -267,12 +487,16 @@ export default function UploadPage() {
 
             {/* Step indicators — scrollable on very small screens */}
             {(() => {
-              const steps  = (selectedPane === "lead"
-                ? ["category", "csrs"]
-                : ["category", "reset", "company", "csrs"]) as readonly string[];
-              const labels = selectedPane === "lead"
-                ? ["Category", "CSRs"]
-                : ["Category", "Data Mode", "Company", "CSRs"];
+              const steps: readonly ModalStep[] = uploadMode !== "regular"
+                ? ["source", "csrs"]
+                : selectedPane === "lead"
+                  ? ["category", "source", "csrs"]
+                  : ["category", "reset", "company", "source", "csrs"];
+              const labels = uploadMode !== "regular"
+                ? ["Source", "CSRs"]
+                : selectedPane === "lead"
+                  ? ["Category", "Source", "CSRs"]
+                  : ["Category", "Data Mode", "Company", "Source", "CSRs"];
               const currentIdx = steps.indexOf(modalStep);
               return (
                 <div className="flex items-center px-4 sm:px-6 pt-3 sm:pt-4 overflow-x-auto shrink-0">
@@ -374,7 +598,7 @@ export default function UploadPage() {
                     onClick={() => {
                       if (selectedPane === "lead") {
                         setResetMode("keep");
-                        setModalStep("csrs");
+                        setModalStep("source");
                       } else {
                         setResetMode(null);
                         setModalStep("reset");
@@ -382,7 +606,7 @@ export default function UploadPage() {
                     }}
                     className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                   >
-                    Next — {selectedPane === "lead" ? "Select CSRs" : "Select Data Mode"}
+                    Next — {selectedPane === "lead" ? "Select Source" : "Select Data Mode"}
                   </button>
                 </div>
               )}
@@ -529,7 +753,7 @@ export default function UploadPage() {
                     <button
                       onClick={() => {
                         if (!finalCompany.trim()) { toast.error("Please select or enter a company name"); return; }
-                        setModalStep("csrs");
+                        setModalStep("source");
                       }}
                       disabled={!selectedCompany || (selectedCompany === "Other" && !customCompany.trim())}
                       className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
@@ -540,6 +764,87 @@ export default function UploadPage() {
                     >
                       Next
                       <ChevronDown size={14} className="inline ml-1 rotate-[-90deg] sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP — Upload Source (admin only) */}
+              {modalStep === "source" && (
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium">
+                    Select where this data came from. CSRs will never see the source name.
+                  </p>
+
+                  {uploadSources.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No sources yet — add your first one below.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-h-48 overflow-y-auto">
+                      {uploadSources.map(src => {
+                        const sel = selectedSourceId === src.id;
+                        return (
+                          <button
+                            key={src.id}
+                            onClick={() => setSelectedSourceId(src.id)}
+                            className={`p-3 rounded-xl border-2 text-left transition-all ${
+                              sel ? "border-[#B8112D] bg-[#FFF1F3]" : "border-gray-100 bg-[#FAFAFA] hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Globe size={14} className={sel ? "text-[#B8112D]" : "text-gray-400"} />
+                              <p className={`font-bold text-xs sm:text-sm truncate ${sel ? "text-[#B8112D]" : "text-gray-800"}`}>
+                                {src.name}
+                              </p>
+                            </div>
+                            <p className="text-[10px] text-gray-400">{src.stats.total} leads · {src.uploadCount} uploads</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="border border-dashed border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2">
+                    <p className="text-xs font-semibold text-gray-600">Add new source</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newSourceName}
+                        onChange={e => setNewSourceName(e.target.value)}
+                        placeholder="e.g. Procore, Buildertrend..."
+                        className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                        onKeyDown={e => { if (e.key === "Enter") void addNewSource(); }}
+                      />
+                      <button
+                        onClick={() => void addNewSource()}
+                        disabled={addingSource || !newSourceName.trim()}
+                        className="h-10 px-4 rounded-xl bg-[#111827] text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5"
+                      >
+                        <Plus size={14} /> Add
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
+                      onClick={() => {
+                        if (uploadMode !== "regular") { setShowCSRModal(false); return; }
+                        setModalStep(selectedPane === "lead" ? "category" : "company");
+                      }}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!selectedSourceId) { toast.error("Please select or add a source"); return; }
+                        setModalStep("csrs");
+                      }}
+                      disabled={!selectedSourceId}
+                      className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
+                        selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      Next — Select CSRs
                     </button>
                   </div>
                 </div>
@@ -732,7 +1037,7 @@ export default function UploadPage() {
 
                   <div className="flex gap-2 sm:gap-3">
                     <button
-                      onClick={() => selectedPane === "lead" ? setModalStep("category") : setModalStep("company")}
+                      onClick={() => selectedPane === "lead" ? setModalStep("category") : setModalStep("source")}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
                     >
                       Back
@@ -756,6 +1061,106 @@ export default function UploadPage() {
         </div>
       )}
 
+      {/* ── UPLOAD HISTORY MODAL ── */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl lg:max-w-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="flex items-start justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b border-gray-100 shrink-0">
+              <div>
+                <h2 className="text-lg sm:text-2xl font-semibold text-gray-800 flex items-center gap-2">
+                  <History size={20} className="text-[#B8112D]" /> Upload History
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1">
+                  Files grouped by type. Delete removes contacts from DB and CSR dashboards.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all shrink-0"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="px-4 sm:px-6 pt-3 border-b border-gray-100 shrink-0">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2 pb-3">
+                {HISTORY_CATEGORIES.map(cat => {
+                  const count = historyCounts[cat.key] ?? 0;
+                  const active = historyCategory === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      onClick={() => switchHistoryCategory(cat.key)}
+                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition-all ${
+                        active
+                          ? "bg-[#B8112D] text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {cat.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6">
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+                  <Loader2 size={20} className="animate-spin" /> Loading history...
+                </div>
+              ) : uploadHistory.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <History size={36} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">
+                    {historyCategory === "all"
+                      ? "No uploads yet"
+                      : `No ${CATEGORY_LABEL_MAP[historyCategory]} uploads yet`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {uploadHistory.map(u => (
+                    <div key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-2xl border border-gray-100 bg-[#FAFAFA] hover:bg-white transition-all">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] flex items-center justify-center shrink-0">
+                          <FileSpreadsheet size={18} className="text-[#B8112D]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm text-gray-800 truncate">{u.fileName}</p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-gray-400">
+                            {u.uploadCategory && (
+                              <span className={`font-semibold ${HISTORY_CATEGORIES.find(c => c.key === u.uploadCategory)?.color ?? "text-gray-500"}`}>
+                                {CATEGORY_LABEL_MAP[u.uploadCategory as UploadCategoryKey] ?? u.uploadCategory}
+                              </span>
+                            )}
+                            {u.source && <span className="text-[#B8112D] font-medium">{u.source.name}</span>}
+                            {u.companyName && <span>· {u.companyName}</span>}
+                            <span>· {u.linkedLeads} contacts in DB</span>
+                            <span>· {new Date(u.createdAt).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => void deleteHistoryUpload(u.id, u.fileName)}
+                        disabled={deletingUploadId === u.id}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 text-xs font-semibold transition-all shrink-0 disabled:opacity-50"
+                      >
+                        {deletingUploadId === u.id
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <Trash2 size={14} />
+                        }
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <DashboardSidebar />
 
       <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
@@ -771,16 +1176,13 @@ export default function UploadPage() {
               Upload Excel or CSV files and auto distribute leads equally among active CSRs.
             </p>
           </div>
-          <div className="relative w-full lg:w-[280px] xl:w-[320px]">
-            <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search uploaded files..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-gray-200 bg-white pl-10 sm:pl-11 pr-4 text-sm outline-none focus:border-[#B8112D]"
-            />
-          </div>
+          <button
+            onClick={openHistoryModal}
+            className="inline-flex items-center justify-center gap-2 h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all shrink-0"
+          >
+            <History size={16} />
+            Upload History
+          </button>
         </div>
 
         {/* ── STAT CARDS ── */}
@@ -804,6 +1206,88 @@ export default function UploadPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── SOURCE HISTORY (admin only — CSRs never see this) ── */}
+        <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-sm mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base sm:text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <Globe size={18} className="text-[#B8112D]" /> Source History & Analytics
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                Track performance by data source. Hidden from all CSR views.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setHistorySourceId("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                historySourceId === "all" ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              All Sources
+            </button>
+            {uploadSources.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setHistorySourceId(s.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  historySourceId === s.id ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {s.name} ({s.stats.total})
+              </button>
+            ))}
+          </div>
+
+          {uploadSources.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Upload with a source to see analytics here.</p>
+          ) : historySourceId === "all" ? (
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sourceCompareChart} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                  <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Pending"    fill="#0B84F3" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Interested" fill="#D97706" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Important"  fill="#B8112D" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Not Picked" fill="#B54708" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Won"        fill="#065F46" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {selectedSourceBreakdown.map(item => (
+                  <div key={item.label} className="bg-[#FAFAFA] rounded-xl p-3 text-center">
+                    <p className="text-[10px] text-gray-400 font-medium">{item.label}</p>
+                    <p className="text-xl font-bold mt-1" style={{ color: item.color }}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              {sourceDetail && sourceDetail.uploads.length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Upload history</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {sourceDetail.uploads.map(u => (
+                      <div key={u.id} className="flex items-center justify-between text-xs bg-[#FAFAFA] rounded-xl px-3 py-2">
+                        <span className="font-medium text-gray-700 truncate flex-1">{u.fileName}</span>
+                        <span className="text-gray-400 shrink-0 ml-2">{u.totalLeads} leads</span>
+                        <span className="text-gray-300 shrink-0 ml-2">{new Date(u.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── LATEST DISTRIBUTION ── */}
@@ -948,7 +1432,7 @@ export default function UploadPage() {
             <h3 className="text-base sm:text-lg font-semibold text-gray-800">Uploaded Lead Sheets</h3>
           </div>
 
-          {filteredFiles.length === 0 && (
+          {files.length === 0 && (
             <div className="p-10 sm:p-12 lg:p-14 text-center">
               <UploadCloud size={36} className="mx-auto text-[#B8112D] lg:w-[42px] lg:h-[42px]" />
               <p className="mt-3 sm:mt-4 text-gray-500 text-sm">No files uploaded yet</p>
@@ -956,7 +1440,7 @@ export default function UploadPage() {
           )}
 
           <div className="divide-y divide-gray-100">
-            {filteredFiles.map(file => (
+            {files.map(file => (
               <div key={file.id} className="p-4 sm:p-5">
                 {/* File info + actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-5">
@@ -1017,6 +1501,91 @@ export default function UploadPage() {
             ))}
           </div>
         </div>
+
+        {/* ── UPLOAD RESULTS — per-contact duplicate check ── */}
+        {rowResults.length > 0 && uploadSummary && (
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 overflow-hidden shadow-sm mt-4 sm:mt-6">
+            <div className="px-4 sm:px-5 py-3 sm:py-4 lg:p-5 border-b border-gray-100">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">
+                    Upload Results — {lastUploadName}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                    Each row checked against the database before import.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { key: "all" as const,       count: rowResults.length,              label: "All" },
+                    { key: "new" as const,       count: uploadSummary.new,              label: "New" },
+                    { key: "duplicate" as const, count: uploadSummary.duplicate,        label: "Duplicate" },
+                    { key: "updated" as const,   count: uploadSummary.updated,          label: "Updated" },
+                    { key: "empty" as const,     count: uploadSummary.empty,            label: "Skipped" },
+                  ]).map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setResultsFilter(f.key)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                        resultsFilter === f.key
+                          ? "bg-[#B8112D] text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {f.label} ({f.count})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#FAFAFA] sticky top-0 z-10">
+                  <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">
+                    <th className="px-4 py-3 font-semibold w-12">#</th>
+                    <th className="px-4 py-3 font-semibold">Name</th>
+                    <th className="px-4 py-3 font-semibold hidden sm:table-cell">Phone</th>
+                    <th className="px-4 py-3 font-semibold hidden md:table-cell">Email</th>
+                    <th className="px-4 py-3 font-semibold hidden lg:table-cell">Company</th>
+                    <th className="px-4 py-3 font-semibold w-28">Status</th>
+                    <th className="px-4 py-3 font-semibold hidden sm:table-cell">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredResults.map(row => {
+                    const st = STATUS_STYLE[row.status];
+                    return (
+                      <tr key={row.row} className={`hover:bg-gray-50/80 ${row.status === "duplicate" ? "bg-red-50/40" : ""}`}>
+                        <td className="px-4 py-2.5 text-gray-400 text-xs">{row.row}</td>
+                        <td className="px-4 py-2.5 font-medium text-gray-800">{row.name}</td>
+                        <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell">{row.phone}</td>
+                        <td className="px-4 py-2.5 text-gray-600 hidden md:table-cell truncate max-w-[180px]">{row.email}</td>
+                        <td className="px-4 py-2.5 text-gray-600 hidden lg:table-cell">{row.company}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${st.bg} ${st.text}`}>
+                            {row.status === "duplicate" && <AlertCircle size={10} />}
+                            {st.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500 hidden sm:table-cell">{row.reason}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {uploadSummary.duplicate > 0 && (
+              <div className="px-4 sm:px-5 py-3 bg-[#FFF7ED] border-t border-[#FED7AA]/50 flex items-start gap-2">
+                <AlertCircle size={14} className="text-[#B45309] mt-0.5 shrink-0" />
+                <p className="text-xs text-[#92400E]">
+                  <strong>{uploadSummary.duplicate} duplicate contact(s)</strong> were skipped — they already exist in the database (matched by phone or email). Only new contacts were added.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

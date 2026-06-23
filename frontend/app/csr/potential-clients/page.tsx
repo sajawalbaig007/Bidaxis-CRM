@@ -10,14 +10,23 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_IMPORTANT, COL_7_INTERESTED, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 
 import { useCsrDashboard } from "../hooks/useCsrDashboard";
 import { useLeadActions } from "../hooks/useLeadActions";
+import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
+import API from "@/lib/api";
 import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 import { Lead, getPriority } from "../types/lead";
+import {
+  isImportantOnly,
+  isScheduledCall,
+  matchesPotentialTab,
+  type PotentialTab,
+} from "../utils/potentialClientBuckets";
 
 const getTzAbbr = (tzValue: string) => {
   const found = usTimezones.find(tz => tz.value === tzValue);
@@ -60,10 +69,11 @@ export default function ImportantCallsPage() {
 
   /* ── Derived ── */
   const stats = useMemo(() => ({
-    totalImportantCount: leads.filter(l => l.status === "important").length,
-    interestedCount:     leads.filter(l => l.status === "interested").length,
-    projectWonCount:     leads.filter(l => l.status === "Close Client").length,
-    callsTodayCount:     leads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR).length,
+    importantOnlyCount: leads.filter(l => isImportantOnly(l)).length,
+    scheduledCount:     leads.filter(l => isScheduledCall(l)).length,
+    interestedCount:    leads.filter(l => l.status === "interested").length,
+    projectWonCount:    leads.filter(l => l.status === "Close Client").length,
+    callsTodayCount:    leads.filter(l => isScheduledCall(l) && l.nextSchedule === TODAY_STR).length,
   }), [leads]);
 
   const interestedWithService = useMemo(
@@ -73,10 +83,16 @@ export default function ImportantCallsPage() {
 
   const chartRows = useMemo<StackedBarRow[]>(() => [
     {
+      label: "Schedule Call",
+      segments: [
+        { label: "Today",  value: stats.callsTodayCount,                         color: "#B8112D" },
+        { label: "Later",  value: stats.scheduledCount - stats.callsTodayCount, color: "#F59E0B" },
+      ],
+    },
+    {
       label: "Important",
       segments: [
-        { label: "Today",  value: stats.callsTodayCount,                            color: "#B8112D" },
-        { label: "Later",  value: stats.totalImportantCount - stats.callsTodayCount, color: "#F59E0B" },
+        { label: "Flagged", value: stats.importantOnlyCount, color: "#DC2626" },
       ],
     },
     {
@@ -95,11 +111,17 @@ export default function ImportantCallsPage() {
   ], [stats, interestedWithService]);
 
   const filteredCalls = useMemo(() => {
-    const q = searchQuery.toLowerCase();
     return leads.filter(lead => {
-      const matchesTab    = activeTab === "important" ? lead.status === "important" : lead.status === "interested";
-      const matchesSearch = !q || lead.client.toLowerCase().includes(q) || lead.company.toLowerCase().includes(q) || lead.phone.toLowerCase().includes(q);
-      const matchesDate   = !filterDate || lead.nextSchedule === filterDate;
+      const matchesTab    = matchesPotentialTab(lead, activeTab as PotentialTab);
+      const matchesSearch = matchesLeadSearch(searchQuery, {
+        name: lead.client,
+        company: lead.company,
+        phone: lead.phone,
+        email: lead.email,
+        service: lead.interestedService,
+        state: lead.state,
+      });
+      const matchesDate   = activeTab !== "schedule" || !filterDate || lead.nextSchedule === filterDate;
       return matchesTab && matchesSearch && matchesDate;
     });
   }, [leads, activeTab, searchQuery, filterDate]);
@@ -141,10 +163,14 @@ export default function ImportantCallsPage() {
     } catch (err) { console.log(err); }
   };
 
-  const saveCloseClient = async () => {
+  const moveToBin = async () => {
     if (!editingLead) return;
-    try { await updateLead(editingLead.id, { status: "closed", email }); closeEditModal(); }
-    catch (err) { console.log(err); }
+    try {
+      await API.put(`/csr/lead/${editingLead.id}`, { moveToBin: true });
+      invalidateAllCsrListCaches();
+      setLeads(prev => prev.filter(l => l.id !== editingLead.id));
+      closeEditModal();
+    } catch (err) { console.log(err); }
   };
 
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
@@ -160,7 +186,7 @@ export default function ImportantCallsPage() {
             Potential Clients
           </h1>
           <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-            Manage important and interested clients.
+            Manage important, scheduled, and interested clients.
           </p>
         </div>
 
@@ -168,7 +194,7 @@ export default function ImportantCallsPage() {
         <div className="mt-4 sm:mt-7">
           <StackedHorizontalBarChart
             title="Pipeline by stage and type"
-            subtitle="Important calls (today vs later), interested clients, and closed deals."
+            subtitle="Schedule calls (today vs later), important-only clients, interested clients, and closed deals."
             rows={chartRows}
             loading={loading}
           />
@@ -177,8 +203,9 @@ export default function ImportantCallsPage() {
         {/* ── TAB BUTTONS ── */}
         <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7 overflow-x-auto pb-1">
           {[
-            { key: "important",  label: "Important Calls",    count: stats.totalImportantCount, Icon: CircleAlert },
-            { key: "interested", label: "Interested Clients", count: stats.interestedCount,     Icon: PhoneCall   },
+            { key: "important",  label: "Important Calls",    count: stats.importantOnlyCount, Icon: CircleAlert },
+            { key: "schedule",   label: "Schedule Call",      count: stats.scheduledCount,     Icon: CalendarDays },
+            { key: "interested", label: "Interested Clients", count: stats.interestedCount,    Icon: PhoneCall   },
           ].map(tab => (
             <button
               key={tab.key}
@@ -198,23 +225,123 @@ export default function ImportantCallsPage() {
           ))}
         </div>
 
-        {/* ══ IMPORTANT TABLE ══ */}
+        {/* ══ IMPORTANT-ONLY TABLE ══ */}
         {activeTab === "important" && (
-          <div
-            className="bg-white rounded-2xl sm:rounded-[30px] border border-white shadow-sm mt-4 sm:mt-7 flex flex-col"
-            style={{ maxHeight: "calc(100vh - 300px)", minHeight: "360px" }}
-          >
-            <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3] shrink-0">
+          <div className={CSR_TABLE_CARD}>
+            <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3]">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>
-                  <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Important Clients</h3>
-                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Scheduled follow-up meetings.</p>
+                  <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Important Calls</h3>
+                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Clients marked important without a scheduled meeting.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative flex-1 min-w-[160px] sm:flex-none sm:w-[220px] lg:w-[260px]">
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
                     <input
-                      type="text" placeholder="Search..."
+                      type="text" placeholder="Search name, phone, company..."
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                    />
+                  </div>
+                  <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
+                    {filteredCalls.length} Leads
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={CSR_TABLE_WRAP}>
+              <table className={CSR_TABLE_CLASS} style={{ minWidth: "1080px" }}>
+                <CsrColGroup widths={COL_7_INTERESTED} />
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr className="border-b border-[#F1F1F1]">
+                    <th className={CSR_TH}>Client</th>
+                    <th className={`hidden md:table-cell ${CSR_TH}`}>Company</th>
+                    <th className={CSR_TH}>Contact</th>
+                    <th className={`hidden sm:table-cell ${CSR_TH}`}>Note</th>
+                    <th className={`hidden lg:table-cell ${CSR_TH}`}>Status</th>
+                    <th className={CSR_TH}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    [1,2,3].map(i => (
+                      <tr key={i} className="border-b border-[#F7F7F7]">
+                        {[1,2,3,4,5].map(j => (
+                          <td key={j} className={CSR_TD}>
+                            <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : filteredCalls.length > 0 ? paginated.map(lead => (
+                    <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
+                      <td className={CSR_TD}>
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
+                            {lead.client.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.client}</h4>
+                            <p className="text-gray-400 text-[10px] sm:text-[11px] mt-0.5">Important Lead</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`hidden md:table-cell ${CSR_TD}`}>
+                        <p className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] truncate max-w-[130px]">{lead.company}</p>
+                      </td>
+                      <td className={CSR_TD}>
+                        <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium">
+                          <span className="truncate max-w-[110px] sm:max-w-none">{lead.phone}</span>
+                        </div>
+                      </td>
+                      <td className={`hidden sm:table-cell ${CSR_TD}`}>
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
+                      </td>
+                      <td className={`hidden lg:table-cell ${CSR_TD}`}>
+                        <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D]">Important</span>
+                      </td>
+                      <td className={CSR_TD}>
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <button onClick={() => setViewingLead(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center" title="View">
+                            <Eye size={14} />
+                          </button>
+                          <button onClick={() => openEditModal(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center" title="Edit">
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={6} className="py-16 sm:py-20 text-center">
+                        <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
+                        <p className="text-gray-400 text-xs sm:text-sm">No important clients found.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pagination page={page} totalPages={totalPages} total={filteredCalls.length} pageSize={PAGE_SIZE} onPage={setPage} />
+            </div>
+          </div>
+        )}
+
+        {/* ══ SCHEDULE CALL TABLE ══ */}
+        {activeTab === "schedule" && (
+          <div className={CSR_TABLE_CARD}>
+            <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3]">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                <div>
+                  <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Schedule Call</h3>
+                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Clients with scheduled follow-up meetings.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-[160px] sm:flex-none sm:w-[220px] lg:w-[260px]">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
+                    <input
+                      type="text" placeholder="Search name, phone, company..."
                       value={searchQuery}
                       onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
                       className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
@@ -238,12 +365,13 @@ export default function ImportantCallsPage() {
               </div>
             </div>
 
-            <div className="overflow-auto flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5">
-              <table className="w-full" style={{ minWidth: "960px" }}>
+            <div className={CSR_TABLE_WRAP}>
+              <table className={CSR_TABLE_CLASS} style={{ minWidth: "1240px" }}>
+                <CsrColGroup widths={COL_8_IMPORTANT} />
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
                     {["Client","Company","Contact","Next Schedule","Time & Timezone","Note","Status","Action"].map(h => (
-                      <th key={h} className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                      <th key={h} className={CSR_TH}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -252,7 +380,7 @@ export default function ImportantCallsPage() {
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
                         {[1,2,3,4,5,6,7,8].map(j => (
-                          <td key={j} className="py-4 sm:py-5 px-2">
+                          <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
                         ))}
@@ -260,7 +388,7 @@ export default function ImportantCallsPage() {
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         <div className="flex items-center gap-2 sm:gap-3">
                           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
                             {lead.client.charAt(0)}
@@ -281,10 +409,10 @@ export default function ImportantCallsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         <h4 className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] max-w-[120px] truncate">{lead.company}</h4>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         {(() => {
                           const phones = parsePhones(lead.phone);
                           const tz = getTimezoneAbbrFromPhone(phones[0]);
@@ -321,7 +449,7 @@ export default function ImportantCallsPage() {
                           );
                         })()}
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         {lead.nextSchedule ? (
                           <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap ${
                             lead.nextSchedule === TODAY_STR ? "bg-[#EAF5FF] text-[#0B84F3]" : "bg-[#F5F6FA] text-gray-600"
@@ -331,7 +459,7 @@ export default function ImportantCallsPage() {
                           </span>
                         ) : <span className="text-gray-300 text-sm">—</span>}
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         <p className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] whitespace-nowrap">
                           {lead.nextTime || "—"}
                         </p>
@@ -341,17 +469,17 @@ export default function ImportantCallsPage() {
                           </p>
                         )}
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         <div className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold w-fit whitespace-nowrap ${
                           getPriority(lead.status) === "High" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#FFF1F3] text-[#B42318]"
                         }`}>
                           {getPriority(lead.status)}
                         </div>
                       </td>
-                      <td className="py-4 sm:py-5 px-2">
+                      <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 sm:gap-2">
                           <button
                             onClick={() => setViewingLead(lead)}
@@ -372,7 +500,7 @@ export default function ImportantCallsPage() {
                     <tr>
                       <td colSpan={8} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
-                        <p className="text-gray-400 text-xs sm:text-sm">No important clients found.</p>
+                        <p className="text-gray-400 text-xs sm:text-sm">No scheduled calls found.</p>
                         {(searchQuery || filterDate) && (
                           <button onClick={() => { setSearchQuery(""); setFilterDate(""); }}
                             className="mt-2 sm:mt-3 text-[#B8112D] text-xs sm:text-sm font-semibold hover:underline">
@@ -398,33 +526,51 @@ export default function ImportantCallsPage() {
 
         {/* ══ INTERESTED TABLE ══ */}
         {activeTab === "interested" && (
-          <div
-            className="bg-white rounded-2xl sm:rounded-[30px] border border-white shadow-sm mt-4 sm:mt-7 flex flex-col"
-            style={{ maxHeight: "calc(100vh - 300px)", minHeight: "360px" }}
-          >
-            <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3] shrink-0">
+          <div className={CSR_TABLE_CARD}>
+            <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3]">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>
                   <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Interested Clients</h3>
                   <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Clients who have shown interest in our services.</p>
                 </div>
-                <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl w-fit">
-                  {filteredCalls.length} Leads
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-[160px] sm:flex-none sm:w-[220px] lg:w-[260px]">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
+                    <input
+                      type="text"
+                      placeholder="Search name, phone, company..."
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                      className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
+                    />
+                  </div>
+                  {searchQuery && (
+                    <button
+                      onClick={() => { setSearchQuery(""); setPage(1); }}
+                      className="h-9 sm:h-[40px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-[13px] text-gray-500 hover:text-[#B8112D] transition-all"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <div className="bg-[#FFF1F3] text-[#B8112D] text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap">
+                    {filteredCalls.length} Leads
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="overflow-auto flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5">
-              <table className="w-full" style={{ minWidth: "780px" }}>
+            <div className={CSR_TABLE_WRAP}>
+              <table className={CSR_TABLE_CLASS} style={{ minWidth: "1080px" }}>
+                <CsrColGroup widths={COL_7_INTERESTED} />
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-[#F1F1F1]">
-                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Client</th>
-                    <th className="hidden md:table-cell text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Company</th>
-                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Contact</th>
-                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Interested In</th>
-                    <th className="hidden sm:table-cell text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Note</th>
-                    <th className="hidden lg:table-cell text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Status</th>
-                    <th className="text-left py-3 sm:py-4 px-2 text-[12px] sm:text-[13px] font-semibold text-gray-500">Action</th>
+                    <th className={CSR_TH}>Client</th>
+                    <th className={`hidden md:table-cell ${CSR_TH}`}>Company</th>
+                    <th className={CSR_TH}>Contact</th>
+                    <th className={CSR_TH}>Interested In</th>
+                    <th className={`hidden sm:table-cell ${CSR_TH}`}>Note</th>
+                    <th className={`hidden lg:table-cell ${CSR_TH}`}>Status</th>
+                    <th className={CSR_TH}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -432,7 +578,7 @@ export default function ImportantCallsPage() {
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
                         {[1,2,3,4,5].map(j => (
-                          <td key={j} className="py-4 sm:py-5 px-2">
+                          <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
                         ))}
@@ -441,7 +587,7 @@ export default function ImportantCallsPage() {
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       {/* Client */}
-                      <td className="py-3 sm:py-4 px-2">
+                      <td className={CSR_TD}>
                         <div className="flex items-center gap-2 sm:gap-3">
                           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
                             {lead.client.charAt(0)}
@@ -461,11 +607,11 @@ export default function ImportantCallsPage() {
                         </div>
                       </td>
                       {/* Company — hidden on mobile */}
-                      <td className="hidden md:table-cell py-3 sm:py-4 px-2">
+                      <td className={`hidden md:table-cell ${CSR_TD}`}>
                         <p className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] truncate max-w-[130px]">{lead.company}</p>
                       </td>
                       {/* Contact */}
-                      <td className="py-3 sm:py-4 px-2">
+                      <td className={CSR_TD}>
                         {(() => {
                           const phones = parsePhones(lead.phone);
                           const tz = getTimezoneAbbrFromPhone(phones[0]);
@@ -503,7 +649,7 @@ export default function ImportantCallsPage() {
                         })()}
                       </td>
                       {/* Interested In */}
-                      <td className="py-3 sm:py-4 px-2">
+                      <td className={CSR_TD}>
                         {lead.interestedService ? (
                           <div className="inline-flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold max-w-[150px] sm:max-w-[200px]">
                             <Briefcase size={11} className="shrink-0" />
@@ -512,17 +658,17 @@ export default function ImportantCallsPage() {
                         ) : <span className="text-gray-300 text-xs">—</span>}
                       </td>
                       {/* Note — hidden on mobile */}
-                      <td className="hidden sm:table-cell py-3 sm:py-4 px-2">
+                      <td className={`hidden sm:table-cell ${CSR_TD}`}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
                       {/* Status — hidden on tablet and below */}
-                      <td className="hidden lg:table-cell py-3 sm:py-4 px-2">
+                      <td className={`hidden lg:table-cell ${CSR_TD}`}>
                         <div className="bg-[#FFF1F3] text-[#B8112D] px-3 py-1.5 rounded-xl text-xs font-semibold w-fit">
                           Interested
                         </div>
                       </td>
                       {/* Action */}
-                      <td className="py-3 sm:py-4 px-2">
+                      <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => setViewingLead(lead)}
@@ -548,7 +694,13 @@ export default function ImportantCallsPage() {
                   )) : (
                     <tr>
                       <td colSpan={7} className="py-16 sm:py-20 text-center text-gray-400 text-xs sm:text-sm">
-                        No interested clients found.
+                        {searchQuery ? "No leads match your search." : "No interested clients found."}
+                        {searchQuery && (
+                          <button onClick={() => setSearchQuery("")}
+                            className="block mx-auto mt-2 text-[#B8112D] font-semibold hover:underline">
+                            Clear search
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )}
@@ -588,7 +740,7 @@ export default function ImportantCallsPage() {
             projectNotes={projectNotes}    onProjectNotesChange={setProjectNotes}
             projectWonValid={projectWonValid}
             onSaveProjectWon={saveProjectWon}
-            onDeleteClient={saveCloseClient}
+            onDeleteClient={moveToBin}
           />
         )}
 

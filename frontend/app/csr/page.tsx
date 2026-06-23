@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   PhoneCall, CircleCheckBig, AlertTriangle,
-  Clock3, Phone, Users, Bell, X, Eye, ChevronDown,
+  Clock3, Phone, Users, Bell, X, Eye, ChevronDown, CalendarDays,
 } from "lucide-react";
 
 import TopNavbar from "./components/navigation/TopNavbar";
 import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
+import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
 import LeadStatusDonut from "./components/shared/LeadStatusDonut";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
@@ -22,8 +24,9 @@ import { useCsrDashboard } from "./hooks/useCsrDashboard";
 import { useLeadActions } from "./hooks/useLeadActions";
 import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
-import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "./constants/timezoneAbbr";
+import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone, leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
+import { isImportantOnly, isScheduledCall } from "./utils/potentialClientBuckets";
 
 const statusLabel = (s: string) => {
   if (s === "Not Interested" || s === "completed")     return "Not Interested";
@@ -49,6 +52,7 @@ export default function CSRPage() {
   const [page, setPage] = useState(1);
 
   const [stateFilter, setStateFilter] = useState("");
+  const [timezoneFilter, setTimezoneFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
 
   const [dismissedNotification, setDismissedNotification] = useState(false);
@@ -69,6 +73,7 @@ export default function CSRPage() {
 
   const [showNiModal,     setShowNiModal]     = useState(false);
   const [showNpModal,     setShowNpModal]     = useState(false);
+  const [showImpOnlyModal, setShowImpOnlyModal] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [pendingNote,     setPendingNote]     = useState("");
 
@@ -94,7 +99,8 @@ export default function CSRPage() {
   const stats = useMemo(() => ({
     totalLeads:         mainLeads.length,
     pendingCount:       mainLeads.filter(i => i.status === "pending").length,
-    importantCount:     mainLeads.filter(i => i.status === "important").length,
+    importantOnlyCount: mainLeads.filter(i => isImportantOnly(i)).length,
+    scheduledCount:     mainLeads.filter(i => isScheduledCall(i)).length,
     interestedCount:    mainLeads.filter(i => i.status === "interested").length,
     projectWonCount:    mainLeads.filter(i => i.status === "Close Client").length,
     notInterestedCount: mainLeads.filter(i => i.status === "Not Interested" || i.status === "completed").length,
@@ -108,7 +114,8 @@ export default function CSRPage() {
         : activeTab === "notinterested" ? item.status === "Not Interested"
         : activeTab === "pending"       ? item.status === "pending"
         : activeTab === "notpicked"     ? (item.status === "not picked" || item.status === "not completed")
-        : activeTab === "important"     ? item.status === "important"
+        : activeTab === "important"     ? isImportantOnly(item)
+        : activeTab === "schedule"      ? isScheduledCall(item)
         : activeTab === "interested"    ? item.status === "interested"
         : activeTab === "projectwon"    ? item.status === "Close Client"
         : true;
@@ -130,9 +137,10 @@ export default function CSRPage() {
             return afterCountry.startsWith(typed);
           })()
         : true;
-      return matchesTab && matchesState && matchesPhone;
+      const matchesTimezone = leadMatchesTimezoneFilter(item, timezoneFilter);
+      return matchesTab && matchesState && matchesPhone && matchesTimezone;
     });
-  }, [mainLeads, activeTab, stateFilter, phoneFilter]);
+  }, [mainLeads, activeTab, stateFilter, timezoneFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
   const paginated  = filteredLinks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -143,6 +151,12 @@ export default function CSRPage() {
     if (!lead) return;
 
     if (status === "important") {
+      setPendingStatusId(id);
+      setPendingNote("");
+      setShowImpOnlyModal(true);
+      return;
+    }
+    if (status === "schedule call") {
       setSelectedImportantId(id); setSelectedTimezone(lead.timezone || "America/New_York");
       setShowImportantModal(true); return;
     }
@@ -188,6 +202,23 @@ export default function CSRPage() {
       if (interestedNote.trim()) await addNote(selectedInterestedId, interestedNote.trim());
     } catch (err) { console.log(err); }
     setShowInterestedModal(false); setSelectedService(""); setSelectedInterestedId(null); setInterestedNote("");
+  };
+
+  const saveImpOnlyStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      const res = await updateLead(pendingStatusId, {
+        status: "important",
+        nextSchedule: "",
+        nextTime: "",
+      });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+      else toast.success("Marked as Important.");
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+    } catch (err) { console.log(err); }
+    setShowImpOnlyModal(false);
+    setPendingStatusId(null);
+    setPendingNote("");
   };
 
   const saveNiStatus = async () => {
@@ -276,6 +307,11 @@ export default function CSRPage() {
                 onChange={v => { setStateFilter(v); setPage(1); }}
               />
 
+              <TimezoneFilterDropdown
+                value={timezoneFilter}
+                onChange={v => { setTimezoneFilter(v); setPage(1); }}
+              />
+
               {/* ── PHONE CODE FILTER ── */}
               <div className="relative">
                 <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[14px] sm:h-[14px]" />
@@ -314,7 +350,8 @@ export default function CSRPage() {
                 { tab:"notinterested",  label:"Not Interested", count: stats.notInterestedCount, icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"  },
                 { tab:"pending",        label:"Pending",        count: stats.pendingCount,       icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"  },
                 { tab:"notpicked",      label:"Not Picked",     count: stats.notPickedCount,     icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"  },
-                { tab:"important",      label:"Important",      count: stats.importantCount,     icon:<AlertTriangle  size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
+                { tab:"important",      label:"Important",      count: stats.importantOnlyCount, icon:<AlertTriangle  size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
+                { tab:"schedule",       label:"Schedule",       count: stats.scheduledCount,     icon:<CalendarDays   size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#0B84F3] text-white",            inactive:"bg-[#EAF5FF] text-[#0B84F3]"  },
                 { tab:"interested",     label:"Interested",     count: stats.interestedCount,    icon:<Users          size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
                 { tab:"projectwon",     label:"Close Client",   count: stats.projectWonCount,    icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"  },
               ].map(btn => (
@@ -332,13 +369,12 @@ export default function CSRPage() {
 
           {/* ── TABLE ── */}
           <div className="overflow-x-auto rounded-xl sm:rounded-2xl border border-gray-100">
-            <table className="w-full" style={{ minWidth: "1000px" }}>
+            <table className={CSR_TABLE_CLASS} style={{ minWidth: "1100px" }}>
+              <CsrColGroup widths={COL_6_DASHBOARD} />
               <thead className="bg-[#FAFAFA]">
                 <tr>
                   {["Client","Company","Phone","Status","Notes","Action"].map(h => (
-                    <th key={h} className="text-left py-3 sm:py-4 px-3 sm:px-5 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={h} className={CSR_TH}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -357,7 +393,7 @@ export default function CSRPage() {
                   <tr key={currentLink.id} className="border-t border-gray-100 bg-white hover:bg-[#FAFAFA] transition-colors">
 
                     {/* CLIENT */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                    <td className={CSR_TD}>
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#F3F4F6] text-[#0F172A] flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
                           {(page - 1) * PAGE_SIZE + idx + 1}
@@ -367,7 +403,7 @@ export default function CSRPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate max-w-[100px] sm:max-w-[140px]">
+                            <h4 className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] leading-tight truncate">
                               {currentLink.client}
                             </h4>
                             {(() => {
@@ -399,12 +435,12 @@ export default function CSRPage() {
                     </td>
 
                     {/* COMPANY */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] max-w-[120px]">
+                    <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A]`}>
                       <span className="truncate block">{currentLink.company}</span>
                     </td>
 
                     {/* PHONE */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5 text-[12px] sm:text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
+                    <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A] whitespace-nowrap`}>
                       <div className="flex items-center gap-1.5">
                         {currentLink.phone}
                         {(() => { const t = getTimezoneAbbrFromPhone(currentLink.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
@@ -412,14 +448,25 @@ export default function CSRPage() {
                     </td>
 
                     {/* STATUS */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                    <td className={CSR_TD}>
+                      {activeTab === "schedule" && currentLink.nextSchedule ? (
+                        <div>
+                          <div className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
+                            Scheduled
+                          </div>
+                          <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1">
+                            {currentLink.nextSchedule}{currentLink.nextTime ? ` · ${currentLink.nextTime}` : ""}
+                          </p>
+                        </div>
+                      ) : (
                       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
+                      )}
                     </td>
 
                     {/* NOTES */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
+                    <td className={CSR_TD}>
                       <CommentCell
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}
@@ -440,9 +487,10 @@ export default function CSRPage() {
                     </td>
 
                     {/* ACTION */}
-                    <td className="py-3 sm:py-5 px-3 sm:px-5">
-                      <div className="relative w-full max-w-[180px] sm:max-w-[230px]">
+                    <td className={CSR_TD}>
+                      <div className="relative w-full min-w-[160px]">
                         <select
+                          key={`${currentLink.id}-${currentLink.status}`}
                           onChange={e => updateStatus(currentLink.id, e.target.value)}
                           defaultValue=""
                           className="appearance-none h-10 sm:h-[46px] w-full rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-11 text-[12px] sm:text-[14px] font-semibold text-[#0F172A] outline-none"
@@ -452,6 +500,7 @@ export default function CSRPage() {
                           <option value="not picked">Not Picked</option>
                           <option value="pending">Pending</option>
                           <option value="important">Important</option>
+                          <option value="schedule call">Schedule Call</option>
                           <option value="interested">Interested</option>
                           <option value="Close Client">Close Client</option>
                         </select>
@@ -466,14 +515,20 @@ export default function CSRPage() {
                     <td colSpan={6} className="py-14 sm:py-20 text-center">
                       <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
                       <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
-                        {stateFilter ? `No leads in "${stateFilter}".` : "No calls available in this category."}
+                        {stateFilter && timezoneFilter
+                          ? `No leads in "${stateFilter}" (${timezoneFilter}).`
+                          : stateFilter
+                          ? `No leads in "${stateFilter}".`
+                          : timezoneFilter
+                          ? `No leads in ${timezoneFilter} timezone.`
+                          : "No calls available in this category."}
                       </p>
-                      {stateFilter && (
+                      {(stateFilter || timezoneFilter || phoneFilter) && (
                         <button
-                          onClick={() => setStateFilter("")}
+                          onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setPage(1); }}
                           className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
                         >
-                          Clear state filter
+                          Clear filters
                         </button>
                       )}
                     </td>
@@ -518,6 +573,35 @@ export default function CSRPage() {
             onClose={() => { setShowInterestedModal(false); setSelectedService(""); setInterestedNote(""); }}
             onSave={saveInterestedCall}
           />
+        )}
+
+        {/* ══ IMPORTANT QUICK-NOTE MODAL (no schedule) ══ */}
+        {showImpOnlyModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Important</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowImpOnlyModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Why is this client important?"
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#B8112D] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowImpOnlyModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveImpOnlyStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ══ NOT INTERESTED QUICK-NOTE MODAL ══ */}
