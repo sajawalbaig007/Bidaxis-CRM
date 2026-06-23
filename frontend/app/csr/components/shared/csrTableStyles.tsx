@@ -11,6 +11,8 @@ export const COL_8_IMPORTANT = ["16%", "11%", "12%", "11%", "10%", "9%", "10%", 
 export const COL_7_INTERESTED = ["18%", "13%", "14%", "14%", "12%", "10%", "19%"] as const;
 export const COL_6_DASHBOARD = ["22%", "14%", "14%", "12%", "13%", "25%"] as const;
 export const COL_8_ADMIN = ["18%", "13%", "13%", "12%", "10%", "11%", "10%", "13%"] as const;
+export const COL_9_CLOSED = ["15%", "12%", "9%", "11%", "11%", "10%", "9%", "10%", "13%"] as const;
+export const COL_9_SCHEDULE_ADMIN = ["15%", "11%", "12%", "12%", "9%", "10%", "9%", "10%", "12%"] as const;
 
 export function CsrColGroup({ widths }: { widths: readonly string[] }) {
   return (

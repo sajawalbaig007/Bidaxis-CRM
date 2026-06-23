@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   PhoneCall, CircleCheckBig, AlertTriangle,
-  Clock3, Phone, Users, Bell, X, Eye, ChevronDown,
+  Clock3, Phone, Users, Bell, X, Eye, ChevronDown, CalendarDays,
 } from "lucide-react";
 
 import TopNavbar from "./components/navigation/TopNavbar";
@@ -26,6 +26,7 @@ import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone, leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
+import { isImportantOnly, isScheduledCall } from "./utils/potentialClientBuckets";
 
 const statusLabel = (s: string) => {
   if (s === "Not Interested" || s === "completed")     return "Not Interested";
@@ -72,6 +73,7 @@ export default function CSRPage() {
 
   const [showNiModal,     setShowNiModal]     = useState(false);
   const [showNpModal,     setShowNpModal]     = useState(false);
+  const [showImpOnlyModal, setShowImpOnlyModal] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [pendingNote,     setPendingNote]     = useState("");
 
@@ -97,7 +99,8 @@ export default function CSRPage() {
   const stats = useMemo(() => ({
     totalLeads:         mainLeads.length,
     pendingCount:       mainLeads.filter(i => i.status === "pending").length,
-    importantCount:     mainLeads.filter(i => i.status === "important").length,
+    importantOnlyCount: mainLeads.filter(i => isImportantOnly(i)).length,
+    scheduledCount:     mainLeads.filter(i => isScheduledCall(i)).length,
     interestedCount:    mainLeads.filter(i => i.status === "interested").length,
     projectWonCount:    mainLeads.filter(i => i.status === "Close Client").length,
     notInterestedCount: mainLeads.filter(i => i.status === "Not Interested" || i.status === "completed").length,
@@ -111,7 +114,8 @@ export default function CSRPage() {
         : activeTab === "notinterested" ? item.status === "Not Interested"
         : activeTab === "pending"       ? item.status === "pending"
         : activeTab === "notpicked"     ? (item.status === "not picked" || item.status === "not completed")
-        : activeTab === "important"     ? item.status === "important"
+        : activeTab === "important"     ? isImportantOnly(item)
+        : activeTab === "schedule"      ? isScheduledCall(item)
         : activeTab === "interested"    ? item.status === "interested"
         : activeTab === "projectwon"    ? item.status === "Close Client"
         : true;
@@ -147,6 +151,12 @@ export default function CSRPage() {
     if (!lead) return;
 
     if (status === "important") {
+      setPendingStatusId(id);
+      setPendingNote("");
+      setShowImpOnlyModal(true);
+      return;
+    }
+    if (status === "schedule call") {
       setSelectedImportantId(id); setSelectedTimezone(lead.timezone || "America/New_York");
       setShowImportantModal(true); return;
     }
@@ -192,6 +202,23 @@ export default function CSRPage() {
       if (interestedNote.trim()) await addNote(selectedInterestedId, interestedNote.trim());
     } catch (err) { console.log(err); }
     setShowInterestedModal(false); setSelectedService(""); setSelectedInterestedId(null); setInterestedNote("");
+  };
+
+  const saveImpOnlyStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      const res = await updateLead(pendingStatusId, {
+        status: "important",
+        nextSchedule: "",
+        nextTime: "",
+      });
+      if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+      else toast.success("Marked as Important.");
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+    } catch (err) { console.log(err); }
+    setShowImpOnlyModal(false);
+    setPendingStatusId(null);
+    setPendingNote("");
   };
 
   const saveNiStatus = async () => {
@@ -323,7 +350,8 @@ export default function CSRPage() {
                 { tab:"notinterested",  label:"Not Interested", count: stats.notInterestedCount, icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"  },
                 { tab:"pending",        label:"Pending",        count: stats.pendingCount,       icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"  },
                 { tab:"notpicked",      label:"Not Picked",     count: stats.notPickedCount,     icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"  },
-                { tab:"important",      label:"Important",      count: stats.importantCount,     icon:<AlertTriangle  size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
+                { tab:"important",      label:"Important",      count: stats.importantOnlyCount, icon:<AlertTriangle  size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
+                { tab:"schedule",       label:"Schedule",       count: stats.scheduledCount,     icon:<CalendarDays   size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#0B84F3] text-white",            inactive:"bg-[#EAF5FF] text-[#0B84F3]"  },
                 { tab:"interested",     label:"Interested",     count: stats.interestedCount,    icon:<Users          size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
                 { tab:"projectwon",     label:"Close Client",   count: stats.projectWonCount,    icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"  },
               ].map(btn => (
@@ -421,9 +449,20 @@ export default function CSRPage() {
 
                     {/* STATUS */}
                     <td className={CSR_TD}>
+                      {activeTab === "schedule" && currentLink.nextSchedule ? (
+                        <div>
+                          <div className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
+                            Scheduled
+                          </div>
+                          <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1">
+                            {currentLink.nextSchedule}{currentLink.nextTime ? ` · ${currentLink.nextTime}` : ""}
+                          </p>
+                        </div>
+                      ) : (
                       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
                         {statusLabel(currentLink.status)}
                       </div>
+                      )}
                     </td>
 
                     {/* NOTES */}
@@ -451,6 +490,7 @@ export default function CSRPage() {
                     <td className={CSR_TD}>
                       <div className="relative w-full min-w-[160px]">
                         <select
+                          key={`${currentLink.id}-${currentLink.status}`}
                           onChange={e => updateStatus(currentLink.id, e.target.value)}
                           defaultValue=""
                           className="appearance-none h-10 sm:h-[46px] w-full rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 sm:px-4 pr-9 sm:pr-11 text-[12px] sm:text-[14px] font-semibold text-[#0F172A] outline-none"
@@ -460,6 +500,7 @@ export default function CSRPage() {
                           <option value="not picked">Not Picked</option>
                           <option value="pending">Pending</option>
                           <option value="important">Important</option>
+                          <option value="schedule call">Schedule Call</option>
                           <option value="interested">Interested</option>
                           <option value="Close Client">Close Client</option>
                         </select>
@@ -532,6 +573,35 @@ export default function CSRPage() {
             onClose={() => { setShowInterestedModal(false); setSelectedService(""); setInterestedNote(""); }}
             onSave={saveInterestedCall}
           />
+        )}
+
+        {/* ══ IMPORTANT QUICK-NOTE MODAL (no schedule) ══ */}
+        {showImpOnlyModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Important</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowImpOnlyModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Why is this client important?"
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#B8112D] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowImpOnlyModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveImpOnlyStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ══ NOT INTERESTED QUICK-NOTE MODAL ══ */}

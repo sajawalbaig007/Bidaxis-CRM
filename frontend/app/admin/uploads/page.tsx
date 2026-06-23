@@ -1539,7 +1539,7 @@ export default function UploadPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-[#FAFAFA] sticky top-0 z-10">
                   <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">

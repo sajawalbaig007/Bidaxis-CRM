@@ -3,7 +3,7 @@ import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
-import { getCache, setCache, invalidateCache } from "../utils/cache";
+import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import { normalizePhone, phonesMatch } from "../utils/phone";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
 import {
@@ -18,13 +18,13 @@ import {
 const router = express.Router();
 
 function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
+  flushAdminClientsCache();
   invalidateCache(
     `csr:dashboard:${csrId}`,
     `csr:leads:${csrId}`,
     `csr:projects:${csrId}`,
     `csr:not-interested:${csrId}`,
     `csr:bin:${csrId}`,
-    "admin:clients",
     "admin:bin",
     ...extra,
   );
@@ -193,7 +193,8 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       },
     });
 
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`);
+    flushAdminClientsCache();
     return res.status(201).json({ success: true, lead });
   } catch (error) {
     console.log(error);
@@ -235,7 +236,8 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     await prisma.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+    flushAdminClientsCache();
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to save note" });
@@ -255,7 +257,8 @@ router.post("/lead/:id/notes", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     const note = await prisma.leadNote.create({ data: { text: text.trim(), leadId } });
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+    flushAdminClientsCache();
     return res.json({ success: true, note });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to add note" });
@@ -272,7 +275,8 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
     const updated = await prisma.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
-    invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+    invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+    flushAdminClientsCache();
     return res.json({ success: true, note: updated });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to update note" });
@@ -287,7 +291,8 @@ router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
     await prisma.leadNote.delete({ where: { id: noteId } });
-    invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+    invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+    flushAdminClientsCache();
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to delete note" });
@@ -466,6 +471,11 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       if (status === "important") {
         updateData.important  = true;
         updateData.interested = false;
+        /* Direct "Important" (not Schedule Call) → important-only bucket for admin */
+        if (nextSchedule === undefined && nextTime === undefined) {
+          updateData.nextSchedule = null;
+          updateData.nextTime     = null;
+        }
       }
 
       /* ── INTERESTED ── */
@@ -555,7 +565,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
       },
     });
 
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
+    flushAdminClientsCache();
     return res.status(201).json({ success: true, lead });
   } catch (error) {
     console.log(error);

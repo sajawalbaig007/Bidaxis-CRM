@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
-import { invalidateCache } from "../utils/cache";
+import { invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 
 export const getUsers = async (req: Request, res: Response) => {
@@ -69,7 +69,8 @@ export const deleteUser = async (req: Request, res: Response) => {
     /* 6. Delete the user */
     await prisma.user.delete({ where: { id } });
 
-    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs", "admin:clients", `csr:dashboard:${id}`, `csr:leads:${id}`);
+    flushAdminClientsCache();
+    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs", `csr:dashboard:${id}`, `csr:leads:${id}`);
     res.json({ success: true, message: "User deleted" });
   } catch (err) {
     console.log("[deleteUser]", err);

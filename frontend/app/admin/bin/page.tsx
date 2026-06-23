@@ -209,7 +209,7 @@ export default function AdminBinPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm flex flex-col" style={{ maxHeight: "calc(100vh - 380px)", minHeight: "340px" }}>
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm">
             <div className="p-4 sm:p-5 border-b border-gray-100 shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h3 className="font-semibold text-gray-800 text-base sm:text-lg">Bin Leads</h3>
@@ -230,7 +230,7 @@ export default function AdminBinPage() {
               </div>
             </div>
 
-            <div className="overflow-auto flex-1 px-4 sm:px-5 pb-4">
+            <div className="overflow-x-auto px-4 sm:px-5 pb-4">
               <table className="w-full" style={{ minWidth: "860px" }}>
                 <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-gray-100">

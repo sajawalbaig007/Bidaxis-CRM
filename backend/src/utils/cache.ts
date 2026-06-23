@@ -28,3 +28,9 @@ export function invalidatePattern(prefix: string): void {
     if (key.startsWith(prefix)) store.delete(key);
   }
 }
+
+/** Clear admin leads list + summary caches after any lead mutation */
+export function flushAdminClientsCache(): void {
+  invalidateCache("admin:clients:summary");
+  invalidatePattern("admin:clients:list:");
+}

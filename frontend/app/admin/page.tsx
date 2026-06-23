@@ -15,7 +15,7 @@ import {
   TrendingUp, Briefcase, Trophy,
 } from "lucide-react";
 
-const REFRESH_INTERVAL = 30_000;
+const REFRESH_INTERVAL = 120_000;
 
 type QuickStats = {
   totalLeads:  number;
@@ -28,33 +28,40 @@ type QuickStats = {
   totalOnline: number;
 };
 
+type DashboardSummary = {
+  stats: QuickStats & { importantOnly?: number; scheduled?: number };
+  distribution: Record<string, number>;
+  recent: ClientLead[];
+  chartLeads: { createdAt: string }[];
+  performers: { name: string; resolved: number; total: number; rate: number }[];
+};
+
 export default function DashboardPage() {
   const [selectedRange,  setSelectedRange]  = useState("week");
   const [stats,          setStats]          = useState<QuickStats | null>(null);
   const [loadingStats,   setLoadingStats]   = useState(true);
-  const [clientLeads,    setClientLeads]    = useState<ClientLead[]>([]);
+  const [summary,        setSummary]        = useState<DashboardSummary | null>(null);
 
   useEffect(() => {
     const fetchQuick = async () => {
       try {
-        const [rep, usrs, cls] = await Promise.all([
-          API.get("/reports?period=today"),
+        const [usrs, sumRes] = await Promise.all([
           API.get("/users"),
-          API.get("/admin/clients"),
+          API.get("/admin/clients/summary"),
         ]);
-        const d        = rep.data;
+        const s = sumRes.data;
         const usersArr = Array.isArray(usrs.data) ? usrs.data : [];
+        setSummary(s);
         setStats({
-          totalLeads:  d.totalLeads  ?? 0,
-          completed:   d.completed   ?? 0,
-          pending:     d.pending     ?? 0,
-          important:   d.important   ?? 0,
-          interested:  d.interested  ?? 0,
-          projectWon:  d.projectWon  ?? 0,
+          totalLeads:  s.stats?.totalLeads  ?? 0,
+          completed:   s.stats?.completed   ?? 0,
+          pending:     s.stats?.pending     ?? 0,
+          important:   s.stats?.important   ?? 0,
+          interested:  s.stats?.interested  ?? 0,
+          projectWon:  s.stats?.projectWon  ?? 0,
           onlineCSRs:  usersArr.filter((u: { role?: string; isOnline?: boolean }) => u.role === "csr" && u.isOnline).length,
           totalOnline: usersArr.filter((u: { isOnline?: boolean }) => u.isOnline).length,
         });
-        setClientLeads(cls.data.leads ?? []);
       } catch (err) {
         if (process.env.NODE_ENV === "development") console.error("[AdminDash]", err);
       }
@@ -63,6 +70,8 @@ export default function DashboardPage() {
     void fetchQuick();
     return visibleInterval(() => void fetchQuick(), REFRESH_INTERVAL);
   }, []);
+
+  const chartLeads: ClientLead[] = (summary?.chartLeads ?? []).map(c => ({ createdAt: c.createdAt }));
 
   const tiles = [
     { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%" },
@@ -127,7 +136,7 @@ export default function DashboardPage() {
                   <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
                 </div>
                 <PerformanceChart
-                  leads={clientLeads}
+                  leads={chartLeads}
                   range={selectedRange}
                 />
               </div>
@@ -137,17 +146,17 @@ export default function DashboardPage() {
               </div>
 
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <RecentActivity leads={clientLeads} />
+                <RecentActivity recent={summary?.recent} />
               </div>
             </div>
 
             {/* RIGHT — 4 cols */}
             <div className="lg:col-span-4 space-y-3 sm:space-y-4">
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <OverviewChart leads={clientLeads} />
+                <OverviewChart distribution={summary?.distribution} />
               </div>
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <TopPerformers leads={clientLeads} />
+                <TopPerformers performers={summary?.performers} />
               </div>
             </div>
           </div>

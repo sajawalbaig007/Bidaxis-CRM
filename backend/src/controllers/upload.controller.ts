@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
 import cloudinary from "../config/cloudinary";
-import { invalidateCache } from "../utils/cache";
+import { invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import {
   readExcelRows,
   parseLeadRows,
@@ -239,6 +239,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
         projectTitle:      r.projectTitle,
         projectBudget:     r.projectBudget,
         status:            r.status,
+        important:         (r.status ?? "").toLowerCase() === "important",
+        interested:        (r.status ?? "").toLowerCase() === "interested",
         isOldClient:       r.isOldClient,
         assignedTo:        r.csrId,
         uploadedFileId:    uploadedFile.id,
@@ -254,8 +256,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
       }
     }
 
+    flushAdminClientsCache();
     invalidateCache(
-      "admin:clients",
       "admin:csrs",
       ...csrs.flatMap(c => [
         `csr:dashboard:${c.id}`,
