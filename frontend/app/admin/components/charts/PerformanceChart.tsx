@@ -6,6 +6,7 @@ import {
   CartesianGrid, Tooltip, XAxis, YAxis,
 } from "recharts";
 
+/* ─── TYPES ─── */
 export type ClientLead = {
   id?: string;
   name?: string;
@@ -18,7 +19,8 @@ export type ClientLead = {
 type Props = { leads: ClientLead[]; range?: string };
 
 type DataPoint = { label: string; calls: number };
-
+  
+/* ─── FUNCTIONS ─── */
 function groupLeads(leads: ClientLead[], range: string): DataPoint[] {
   const now   = new Date();
   const buckets: Record<string, number> = {};

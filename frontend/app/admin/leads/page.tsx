@@ -27,6 +27,7 @@ import {
   Check,
 } from "lucide-react";
 
+/* ─── COMPONENTS ─── */
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
@@ -60,7 +61,7 @@ type Client = {
 };
 
 const PAGE_SIZE = 30;
-
+/* ─── STATES ─── */
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,8 +83,7 @@ export default function ClientsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
 
-  /* ── notepad (inline via CommentCell in table) ── */
-
+  
   /* ── Reassign to CSR ── */
   type ReassignCSR = { id: string; name: string; csrCode: string | null };
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -198,7 +198,7 @@ export default function ClientsPage() {
       setInitialLoad(false);
     }
   }, [view, page, csrFilter, searchDebounced, impSearchDebounced, impFilterDate]);
-
+//
   useEffect(() => {
     void fetchClients();
   }, [fetchClients]);
