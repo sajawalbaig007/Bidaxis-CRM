@@ -1018,4 +1018,52 @@ router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), asy
   }
 });
 
+/* ================= RESTORE LEGACY COMMENTS → LeadNote ================= */
+router.post("/migrate-legacy-notes", verifyToken, allowRoles("admin"), async (_req, res) => {
+  try {
+    const leads = await prisma.lead.findMany({
+      where: {
+        OR: [
+          { comments: { not: null } },
+          { followUpNotes: { not: null } },
+        ],
+      },
+      select: {
+        id: true,
+        comments: true,
+        followUpNotes: true,
+        createdAt: true,
+        _count: { select: { notes: true } },
+      },
+    });
+
+    let migrated = 0;
+    for (const lead of leads) {
+      if (lead._count.notes > 0) continue;
+
+      const text = [lead.comments?.trim(), lead.followUpNotes?.trim()].filter(Boolean).join("\n\n");
+      if (!text) continue;
+
+      await prisma.leadNote.create({
+        data: {
+          leadId: lead.id,
+          text,
+          createdAt: lead.createdAt,
+        },
+      });
+      migrated++;
+    }
+
+    flushAdminClientsCache();
+    return res.json({
+      success: true,
+      message: `Restored notes on ${migrated} lead(s) from legacy comments fields`,
+      migrated,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Migration failed" });
+  }
+});
+
 export default router;

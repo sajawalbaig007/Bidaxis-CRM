@@ -47,14 +47,16 @@ type RawLead = {
 };
 
 function mapClientLead(l: RawLead): ClientLead {
-  const legacyNote: NoteEntry[] = l.comments
-    ? [{ id: "legacy", text: l.comments, createdAt: l.createdAt ?? new Date().toISOString() }]
-    : [];
+  const fullNotes = (l.notes ?? []).filter(n => n.text?.trim());
+  const legacyNote: NoteEntry[] = [];
+  if (fullNotes.length === 0 && l.comments?.trim()) {
+    legacyNote.push({ id: "legacy-comments", text: l.comments.trim(), createdAt: l.createdAt ?? new Date().toISOString() });
+  }
 
-  const noteHistory: NoteEntry[] = (l.notes ?? []).length > 0
-    ? (l.notes ?? []).map((n: RawNote) => ({
+  const noteHistory: NoteEntry[] = fullNotes.length > 0
+    ? fullNotes.map((n: RawNote) => ({
         id:        n.id        ?? String(Math.random()),
-        text:      n.text      ?? "",
+        text:      n.text!.trim(),
         createdAt: n.createdAt ?? new Date().toISOString(),
       }))
     : legacyNote;
