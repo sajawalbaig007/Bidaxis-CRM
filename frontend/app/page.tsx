@@ -6,7 +6,7 @@ import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react
 import toast from "react-hot-toast";
 import API from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
-import { setFrontendSession } from "@/lib/session";
+import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 
 interface APIError {
@@ -145,17 +145,23 @@ export default function LoginPage() {
   };
 
   async function completeLogin(data: { role?: string; user?: { role?: string }; token?: string }) {
-    if (data.token) await setFrontendSession(data.token);
+    const role = resolveLoginRole(data);
+    if (!role) {
+      toast.error("Could not determine your role. Contact admin.");
+      return;
+    }
+    if (!data.token?.trim()) {
+      toast.error("Session could not be created. Redeploy backend and try again.");
+      return;
+    }
+    const saved = await setFrontendSession(data.token);
+    if (!saved) {
+      toast.error("Failed to save login session. Please try again.");
+      return;
+    }
     invalidateAuthMeCache();
     toast.success("Login successful");
-    redirect(data.role, data.user);
-  }
-
-  function redirect(role?: string, user?: { role?: string }) {
-    const r = (role ?? user?.role ?? "").toLowerCase();
-    if (r === "admin") window.location.href = "/admin";
-    else if (r === "csr") window.location.href = "/csr";
-    else toast.error("Could not determine your role. Please contact admin.");
+    window.location.replace(dashboardPathForRole(role));
   }
 
   const otpFilled = otp.join("").length === 6;
