@@ -24,3 +24,23 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* CSR + login hardening — mouse select / drag blocked; inputs stay editable */
+body.crm-secure-view {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+body.crm-secure-view input,
+body.crm-secure-view textarea,
+body.crm-secure-view select,
+body.crm-secure-view [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+body.crm-secure-view img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}

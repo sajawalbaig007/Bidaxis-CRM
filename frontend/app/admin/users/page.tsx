@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { visibleInterval } from "@/lib/visibleInterval";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
@@ -11,6 +10,7 @@ import {
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
+import API from "@/lib/api";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 type UserRole = "CSR" | "Admin";
@@ -27,6 +27,15 @@ type User = {
   openedAt:    string | null;
   tabVisible:  boolean | null;
   hiddenAt:    string | null;
+};
+
+type AccessHistoryRow = {
+  id: string;
+  event: string;
+  ip: string | null;
+  deviceId: string | null;
+  browser: string | null;
+  createdAt: string;
 };
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
@@ -179,8 +188,9 @@ export default function UsersPage() {
   const [detailUser,   setDetailUser]   = useState<User | null>(null);
   const [openMenu,     setOpenMenu]     = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [showDetailPw, setShowDetailPw] = useState(false);
   const [loading,      setLoading]      = useState(true);
+  const [accessHistory, setAccessHistory] = useState<AccessHistoryRow[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [form, setForm] = useState({
     name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", profilePic: "",
@@ -238,17 +248,17 @@ export default function UsersPage() {
     load();
   }, [fetchUsers]);
 
-  /* 2s poll — fast "On Dashboard" / "Away" updates */
   useEffect(() => {
-    return visibleInterval(() => fetchUsers(true), 30_000);
-  }, [fetchUsers]);
-
-  /* Refresh on tab focus */
-  useEffect(() => {
-    const onFocus = () => fetchUsers(true);
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [fetchUsers]);
+    if (!detailUser) {
+      setAccessHistory([]);
+      return;
+    }
+    setLoadingHistory(true);
+    API.get(`/admin/access-history/${detailUser.id}?limit=30`)
+      .then(res => setAccessHistory(res.data.history ?? []))
+      .catch(() => setAccessHistory([]))
+      .finally(() => setLoadingHistory(false));
+  }, [detailUser]);
 
   const totalUsers   = users.length;
   const onlineNow    = users.filter(u => u.isOnline).length;
@@ -396,9 +406,8 @@ export default function UsersPage() {
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <div>
               <h3 className="font-bold text-[#111827] text-base">User Activity Overview</h3>
-              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"/>
-                Live · refreshes every 2s
+              <p className="text-xs text-gray-400 mt-0.5">
+                User presence overview
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -635,7 +644,7 @@ export default function UsersPage() {
         {/* DETAIL MODAL */}
         {detailUser && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="bg-white w-full rounded-3xl p-6 max-w-sm">
+            <div className="bg-white w-full rounded-3xl p-6 max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="flex items-center gap-3 mb-5">
                 <div className={`relative w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold ${roleColor(detailUser.role)}`}>
                   {detailUser.name.charAt(0).toUpperCase()}
@@ -661,14 +670,48 @@ export default function UsersPage() {
 
                 <div className="bg-[#F8F9FC] rounded-2xl p-4">
                   <p className="text-xs text-gray-400 mb-1">Password</p>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-gray-700">
-                      {showDetailPw ? (detailUser.password || "Hidden") : "••••••••"}
-                    </h3>
-                    <button onClick={() => setShowDetailPw(!showDetailPw)} className="text-gray-400 hover:text-gray-600">
-                      {showDetailPw ? <EyeOff size={16}/> : <Eye size={16}/>}
-                    </button>
-                  </div>
+                  <h3 className="text-sm font-medium text-gray-700">Encrypted (bcrypt hash in database)</h3>
+                </div>
+
+                <div className="bg-[#F8F9FC] rounded-2xl p-4">
+                  <p className="text-xs text-gray-400 mb-2">IP &amp; Device Access History</p>
+                  <p className="text-[10px] text-gray-400 mb-3">
+                    Browsers cannot expose MAC addresses — device ID is the session tab identifier.
+                  </p>
+                  {loadingHistory ? (
+                    <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+                  ) : accessHistory.length === 0 ? (
+                    <p className="text-xs text-gray-400">No access records yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto -mx-1">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="text-left text-gray-400 border-b border-gray-200">
+                            <th className="pb-2 pr-2 font-medium">When</th>
+                            <th className="pb-2 pr-2 font-medium">Event</th>
+                            <th className="pb-2 pr-2 font-medium">IP</th>
+                            <th className="pb-2 pr-2 font-medium">Device</th>
+                            <th className="pb-2 font-medium">Browser</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {accessHistory.map(row => (
+                            <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                              <td className="py-2 pr-2 text-gray-600 whitespace-nowrap">
+                                {new Date(row.createdAt).toLocaleString("en-GB", {
+                                  day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                                })}
+                              </td>
+                              <td className="py-2 pr-2 font-medium text-gray-700 capitalize">{row.event}</td>
+                              <td className="py-2 pr-2 font-mono text-gray-600">{row.ip ?? "—"}</td>
+                              <td className="py-2 pr-2 font-mono text-gray-500">{row.deviceId ?? "—"}</td>
+                              <td className="py-2 text-gray-500">{row.browser ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 {/* ONLINE + BROWSER */}
@@ -699,7 +742,7 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              <button onClick={() => { setDetailUser(null); setShowDetailPw(false); }}
+              <button onClick={() => setDetailUser(null)}
                 className="w-full mt-5 bg-[#B8112D] text-white py-3 rounded-2xl font-medium">
                 Close
               </button>

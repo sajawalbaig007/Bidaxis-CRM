@@ -6,7 +6,12 @@ import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
-import { isBinLead } from "../utils/binLeads";
+import {
+  normalizePaymentsInput,
+  parseProjectPayments,
+  paidTotalFromEntries,
+} from "../utils/projectPayments";
+import { isBinLead, filterActiveLeads } from "../utils/binLeads";
 import {
   buildAdminClientListWhere,
   buildAdminClientViewWhere,
@@ -16,12 +21,84 @@ import {
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
 } from "../utils/adminClientQueries";
+import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 
 const router = express.Router();
+router.use(enforceAdminIpAllowlist);
+
+function applyProjectPayload(updateData: Record<string, unknown>, body: Record<string, unknown>) {
+  const scalars = [
+    "name", "company", "phone", "email", "state", "ownerName",
+    "projectCode", "projectTitle", "projectScope", "interestedService",
+    "projectBudget", "projectDeadline", "projectNotes", "projectPhase",
+    "takeoffDeadline", "pricingDeadline", "qaDeadline",
+  ] as const;
+  for (const key of scalars) {
+    if (body[key] !== undefined) updateData[key] = body[key];
+  }
+  const payments = normalizePaymentsInput(body.projectPayments);
+  if (payments !== undefined) {
+    updateData.projectPayments = payments;
+    updateData.paidAmount = String(paidTotalFromEntries(parseProjectPayments(payments)));
+  } else if (body.paidAmount !== undefined) {
+    updateData.paidAmount = body.paidAmount;
+  }
+}
 
 /* ================= ADMIN DASHBOARD ================= */
 router.get("/dashboard", verifyToken, allowRoles("admin"), (req, res) => {
   res.json({ success: true, message: "Welcome Admin" });
+});
+
+/* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
+router.get("/notifications", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+
+    const rawScheduled = await prisma.lead.findMany({
+      where: {
+        ...(csrId ? { assignedTo: csrId } : {}),
+        status: "important",
+        nextSchedule: { not: null },
+        nextTime: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        notPickedCount: true,
+        notInterestedCount: true,
+        nextSchedule: true,
+        nextTime: true,
+        timezone: true,
+        csr: { select: { id: true, name: true, csrCode: true } },
+      },
+      orderBy: [{ nextSchedule: "asc" }, { nextTime: "asc" }],
+      take: 50,
+    });
+
+    const scheduledLeads = filterActiveLeads(rawScheduled);
+
+    const scheduledCalls = scheduledLeads
+      .filter((l) => (l.nextSchedule ?? "") >= today)
+      .slice(0, 30)
+      .map((l) => ({
+        id: l.id,
+        client: l.name ?? "Client",
+        date: l.nextSchedule!,
+        time: l.nextTime!,
+        timezone: l.timezone ?? "",
+        csrName: l.csr?.name ?? "",
+        csrCode: l.csr?.csrCode ?? "",
+        csrId: l.csr?.id ?? "",
+      }));
+
+    return res.json({ success: true, scheduledCalls });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch notifications" });
+  }
 });
 
 /* ================= GET ALL CSRS ================= */
@@ -318,6 +395,59 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res
   }
 });
 
+/* ================= ADMIN TIMESTAMPED NOTES (shared with CSR) ================= */
+router.post("/lead/:id/notes", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const { text } = req.body as { text: string };
+    if (!text?.trim()) return res.status(400).json({ success: false, message: "Note text required" });
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const note = await prisma.leadNote.create({ data: { text: text.trim(), leadId } });
+    flushAdminClientsCache();
+    invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+    return res.json({ success: true, note });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to add note" });
+  }
+});
+
+router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const { noteId } = req.params as { noteId: string };
+    const { text } = req.body as { text: string };
+    if (!text?.trim()) return res.status(400).json({ success: false, message: "Note text required" });
+
+    const note = await prisma.leadNote.findFirst({ where: { id: noteId, leadId } });
+    if (!note) return res.status(404).json({ success: false, message: "Note not found" });
+
+    const updated = await prisma.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+    flushAdminClientsCache();
+    return res.json({ success: true, note: updated });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to update note" });
+  }
+});
+
+router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const { noteId } = req.params as { noteId: string };
+
+    const note = await prisma.leadNote.findFirst({ where: { id: noteId, leadId } });
+    if (!note) return res.status(404).json({ success: false, message: "Note not found" });
+
+    await prisma.leadNote.delete({ where: { id: noteId } });
+    flushAdminClientsCache();
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to delete note" });
+  }
+});
+
 /* ================= UPDATE CSR STATUS ================= */
 router.put(
   "/csr-status/:id",
@@ -460,6 +590,8 @@ router.get(
 router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+    const from  = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
+    const to    = typeof req.query.to   === "string" ? req.query.to.trim()   : undefined;
 
     const rawLeads = await prisma.lead.findMany({
       where: buildProjectLeadWhere(csrId),
@@ -482,7 +614,18 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
       orderBy: { updatedAt: "desc" },
     });
 
-    const leads = rawLeads.filter(isDisplayableProjectLead);
+    let leads = rawLeads.filter(isDisplayableProjectLead);
+
+    if (from || to) {
+      leads = leads.filter((l) => {
+        const dateStr = l.projectDeadline
+          ? new Date(l.projectDeadline).toISOString().split("T")[0]
+          : new Date(l.updatedAt).toISOString().split("T")[0];
+        if (from && dateStr < from) return false;
+        if (to && dateStr > to) return false;
+        return true;
+      });
+    }
 
     const now = new Date();
 
@@ -516,22 +659,22 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
 router.put("/project/:id", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
-    const {
-      projectCode, projectTitle, projectBudget, projectDeadline, projectNotes,
-    } = req.body;
-
     const updateData: Record<string, unknown> = {};
 
-    if (projectCode     !== undefined) updateData.projectCode     = projectCode;
-    if (projectTitle    !== undefined) updateData.projectTitle    = projectTitle;
-    if (projectBudget   !== undefined) updateData.projectBudget   = projectBudget;
-    if (projectDeadline !== undefined) updateData.projectDeadline = projectDeadline;
-    if (projectNotes    !== undefined) updateData.projectNotes    = projectNotes;
+    applyProjectPayload(updateData, req.body as Record<string, unknown>);
+    if (req.body.assignedTo !== undefined) updateData.assignedTo = req.body.assignedTo;
 
     const lead = await prisma.lead.update({
       where: { id: leadId },
       data:  updateData,
+      include: {
+        csr: { select: { id: true, name: true, email: true, csrCode: true } },
+        notes: { orderBy: { createdAt: "asc" } },
+      },
     });
+
+    flushAdminClientsCache();
+    invalidateCache(`csr:projects:${lead.assignedTo}`);
 
     return res.json({ success: true, lead });
   } catch (error) {
@@ -956,6 +1099,34 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async 
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch source details" });
+  }
+});
+
+});
+
+/* ================= ACCESS HISTORY (IP / device) ================= */
+router.get("/access-history/:userId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const userId = typeof req.params.userId === "string"
+      ? req.params.userId
+      : req.params.userId?.[0];
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User id required." });
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    const history = await prisma.accessHistory.findMany({
+      where:   { userId },
+      orderBy: { createdAt: "desc" },
+      take:    limit,
+      select: {
+        id: true, event: true, ip: true, deviceId: true,
+        browser: true, userAgent: true, createdAt: true,
+      },
+    });
+    return res.json({ success: true, history });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch access history" });
   }
 });
 

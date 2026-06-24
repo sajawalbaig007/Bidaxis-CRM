@@ -11,6 +11,7 @@ interface CommentCellProps {
   noteHistory?: NoteEntry[];
   noteCount?: number;
   comment?: string;
+  apiRole?: "csr" | "admin";
   onAddNote?:    (id: string, text: string) => Promise<unknown>;
   onSave?:       (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string) => void;
@@ -28,7 +29,7 @@ function fmtTime(iso: string): string {
 }
 
 export default function CommentCell({
-  id, noteHistory, noteCount, comment, onAddNote, onSave, onNoteUpdated, onNoteDeleted,
+  id, noteHistory, noteCount, comment, apiRole = "csr", onAddNote, onSave, onNoteUpdated, onNoteDeleted,
 }: CommentCellProps) {
   const [open,        setOpen]        = useState(false);
   const [draft,       setDraft]       = useState("");
@@ -111,7 +112,7 @@ export default function CommentCell({
     fetchStartedRef.current = true;
     setNotesLoading(true);
     try {
-      const res = await API.get(`/csr/lead/${id}`);
+      const res = await API.get(`/${apiRole}/lead/${id}`);
       const fetched: NoteEntry[] = (res.data.lead?.notes ?? []).map(
         (n: { id: string; text: string; createdAt: string }) => ({
           id: n.id, text: n.text, createdAt: n.createdAt,
@@ -161,7 +162,7 @@ export default function CommentCell({
     if (!text) return;
     setEditSaving(true);
     try {
-      await API.put(`/csr/lead/${id}/notes/${noteId}`, { text });
+      await API.put(`/${apiRole}/lead/${id}/notes/${noteId}`, { text });
       setLocalNotes(prev => prev !== null ? prev.map(n => n.id === noteId ? { ...n, text } : n) : null);
       onNoteUpdated?.(id, noteId, text);
       setEditId(null);
@@ -173,7 +174,7 @@ export default function CommentCell({
   const handleDelete = async (noteId: string) => {
     setDeleting(noteId);
     try {
-      await API.delete(`/csr/lead/${id}/notes/${noteId}`);
+      await API.delete(`/${apiRole}/lead/${id}/notes/${noteId}`);
       setLocalNotes(prev => prev !== null ? prev.filter(n => n.id !== noteId) : null);
       onNoteDeleted?.(id, noteId);
     } catch { /* toast from interceptor */ }

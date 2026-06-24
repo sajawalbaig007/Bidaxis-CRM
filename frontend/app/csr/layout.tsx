@@ -1,13 +1,11 @@
 import CsrPresenceInit from "./components/CsrPresenceInit";
-import SessionNotifierInit from "../components/SessionNotifierInit";
-import ChatUnreadInit from "../components/ChatUnreadInit";
+import DevToolsGuard from "../components/DevToolsGuard";
 
 export default function CsrLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <SessionNotifierInit />
+      <DevToolsGuard />
       <CsrPresenceInit />
-      <ChatUnreadInit />
       {children}
     </>
   );

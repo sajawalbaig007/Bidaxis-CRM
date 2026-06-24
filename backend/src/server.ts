@@ -2,11 +2,16 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { getJwtSecret } from "./config/security";
+import { validateEnv } from "./config/env";
+import { writeAuditLog } from "./utils/auditLog";
+import { clearActiveSession } from "./utils/sessions";
 import app          from "./app";
 import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
 
 const PORT = process.env.PORT || 5000;
+
+validateEnv();
 
 /* ═══════════════════════════════════════════════
    AUTO OFFLINE CRON — every 5s with circuit breaker
@@ -245,9 +250,47 @@ function scheduleWeeklyShuffle() {
     setInterval(runWeeklyShuffle, 2 * 24 * 60 * 60 * 1000);
   }, msUntil);
 }
-
+//
 scheduleAutoReport();
 scheduleWeeklyShuffle();
+
+/* ── Deactivate inactive CSR accounts (90 days) ── */
+async function deactivateInactiveUsers() {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const stale = await prisma.user.findMany({
+      where: {
+        role: "csr",
+        isActive: true,
+        OR: [
+          { lastActive: { lt: cutoff } },
+          { lastActive: null, createdAt: { lt: cutoff } },
+        ],
+      },
+      select: { id: true, email: true },
+    });
+    if (stale.length === 0) return;
+    for (const u of stale) {
+      await prisma.user.update({
+        where: { id: u.id },
+        data:  { isActive: false },
+      });
+      await clearActiveSession(u.id);
+      await writeAuditLog({
+        action: "account_deactivated",
+        userId: u.id,
+        email:  u.email,
+        meta:   { reason: "inactive_90_days" },
+      });
+    }
+    console.log(`[Security] Deactivated ${stale.length} inactive CSR account(s)`);
+  } catch (err) {
+    console.log("[Security] Inactive-user check failed:", err);
+  }
+}
+
+setInterval(() => { void deactivateInactiveUsers(); }, 24 * 60 * 60 * 1000);
+void deactivateInactiveUsers();
 
 getJwtSecret();
 

@@ -5,7 +5,7 @@ import {
   FolderKanban, CalendarDays, DollarSign,
   Search, Filter, Phone, AlignLeft, Briefcase,
   X, FileText, Eye, Clock3, CheckCircle2,
-  Plus, User2, Pencil, Hash, Mail, StickyNote, Loader2,
+  Plus, User2, Hash, StickyNote, Loader2,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -14,17 +14,63 @@ import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/S
 import Pagination from "../components/shared/Pagination";
 import { PROJECT_GRID_HEAD, PROJECT_GRID_ROW } from "../components/shared/csrTableStyles";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
-import SendEmailButton from "../components/shared/SendEmailButton";
-import EmailField from "../components/shared/EmailField";
-import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import CommentCell from "../components/shared/CommentCell";
-
+import {
+  ClientDetailCell,
+  FulfillmentCell,
+  PaymentDetailCell,
+  ProjectDetailCell,
+  QuotedAmountCell,
+} from "@/app/components/projects/ProjectTableCells";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/useProjectsData";
 import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
-import { getTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import API from "@/lib/api";
 
+import { ProjectWorkbenchData, emptyWorkbench } from "@/lib/projectFields";
+
+function csrToWorkbench(p: Project): ProjectWorkbenchData {
+  return {
+    id: p.id,
+    name: p.client,
+    company: p.company === "N/A" ? "" : p.company,
+    phone: p.phone === "N/A" ? "" : p.phone,
+    email: p.email,
+    ownerName: p.ownerName,
+    state: p.state === "N/A" ? "" : p.state,
+    projectCode: p.projectCode,
+    projectTitle: p.projectTitle,
+    projectScope: p.projectScope,
+    interestedService: p.service === "N/A" ? "" : p.service,
+    projectBudget: p.budget,
+    projectDeadline: p.deadline === "N/A" ? "" : p.deadline.split("T")[0],
+    projectPhase: p.projectPhase,
+    takeoffDeadline: p.takeoffDeadline,
+    pricingDeadline: p.pricingDeadline,
+    qaDeadline: p.qaDeadline,
+    projectPayments: p.projectPayments,
+    csrName: "You",
+  };
+}
+
+function projectAsRow(p: Project) {
+  return {
+    id: p.id,
+    name: p.client,
+    ownerName: p.ownerName,
+    phone: p.phone,
+    email: p.email,
+    projectCode: p.projectCode,
+    projectTitle: p.projectTitle,
+    projectScope: p.projectScope,
+    interestedService: p.service,
+    projectBudget: p.budget,
+    projectDeadline: p.deadline,
+    projectPhase: p.projectPhase,
+    projectPayments: p.projectPayments,
+  };
+}
 const emptyForm = {
   clientName: "", clientCompany: "", clientPhone: "",
   projectCode: "", projectTitle: "", service: "", deadline: "", budget: "", notes: "",
@@ -51,16 +97,7 @@ export default function CSRProjectsPage() {
   const [page,         setPage]         = useState(1);
 
   const [viewingProject,  setViewingProject]  = useState<Project | null>(null);
-  const [isEditing,       setIsEditing]       = useState(false);
-  const [editProjectCode, setEditProjectCode] = useState("");
-  const [editEmail,       setEditEmail]       = useState("");
-  const [editTitle,       setEditTitle]       = useState("");
-  const [editDeadline,    setEditDeadline]    = useState("");
-  const [editBudget,      setEditBudget]      = useState("");
-  const [editPaidAmount,  setEditPaidAmount]  = useState("");
-  const [editNotes,       setEditNotes]       = useState("");
-  const [editService,     setEditService]     = useState("");
-  const [saving,          setSaving]          = useState(false);
+  const [workbenchSaving, setWorkbenchSaving] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm,      setAddForm]      = useState(emptyForm);
@@ -135,21 +172,59 @@ export default function CSRProjectsPage() {
   ].filter(s => s.value > 0), [completedCnt, inProgressCnt]);
 
   /* ── Actions ── */
-  const openDetail = (project: Project) => { setViewingProject(project); setIsEditing(false); };
+  const openDetail = (project: Project) => { setViewingProject(project); };
 
-  const startEdit = (project?: Project) => {
-    const target = project ?? viewingProject;
-    if (!target) return;
-    if (!viewingProject || viewingProject.id !== target.id) setViewingProject(target);
-    setEditProjectCode(target.projectCode);
-    setEditEmail(target.email);
-    setEditTitle(target.projectTitle);
-    setEditDeadline(target.deadline === "N/A" ? "" : target.deadline);
-    setEditBudget(target.budget);
-    setEditPaidAmount(target.paidAmount);
-    setEditNotes(target.notes !== "undefined" ? target.notes : "");
-    setEditService(target.service !== "N/A" ? target.service : "");
-    setIsEditing(true);
+  const saveWorkbench = async (data: ProjectWorkbenchData) => {
+    if (!viewingProject) return;
+    setWorkbenchSaving(true);
+    try {
+      await API.put(`/csr/lead/${data.id}`, {
+        name: data.name,
+        company: data.company,
+        phone: data.phone,
+        email: data.email,
+        ownerName: data.ownerName,
+        state: data.state,
+        projectCode: data.projectCode,
+        projectTitle: data.projectTitle,
+        projectScope: data.projectScope,
+        interestedService: data.interestedService,
+        projectBudget: data.projectBudget,
+        projectDeadline: data.projectDeadline,
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline,
+        pricingDeadline: data.pricingDeadline,
+        qaDeadline: data.qaDeadline,
+        projectPayments: data.projectPayments,
+      });
+      const updated: Project = {
+        ...viewingProject,
+        client: data.name,
+        company: data.company || "N/A",
+        phone: data.phone || "N/A",
+        email: data.email,
+        ownerName: data.ownerName,
+        state: data.state || "N/A",
+        projectCode: data.projectCode,
+        projectTitle: data.projectTitle,
+        projectScope: data.projectScope,
+        service: data.interestedService || "N/A",
+        budget: data.projectBudget,
+        budgetNum: parseBudget(data.projectBudget),
+        deadline: data.projectDeadline || "N/A",
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline,
+        pricingDeadline: data.pricingDeadline,
+        qaDeadline: data.qaDeadline,
+        projectPayments: data.projectPayments,
+        paidAmountNum: data.projectPayments.filter(p => p.isPaid).reduce((s, p) => s + parseBudget(p.amount), 0),
+      };
+      updated.paidPercent = updated.budgetNum > 0 ? (updated.paidAmountNum / updated.budgetNum) * 100 : 0;
+      updated.paidAmount = String(updated.paidAmountNum);
+      setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
+      setViewingProject(updated);
+    } catch (error) { console.log(error); }
+    setWorkbenchSaving(false);
   };
 
   const markComplete = async (project: Project) => {
@@ -171,32 +246,6 @@ export default function CSRProjectsPage() {
     ));
     if (viewingProject?.id === id)
       setViewingProject(prev => prev ? { ...prev, noteHistory: [...(prev.noteHistory ?? []), note] } : prev);
-  };
-
-  const saveEdit = async () => {
-    if (!viewingProject || !editTitle || !editDeadline) return;
-    setSaving(true);
-    const autoComplete  = isDeadlinePast(editDeadline);
-    const newStatus     = autoComplete ? "completed" : "Close Client";
-    const displayStatus = autoComplete ? "Completed" : "In Progress";
-    const budgetNum     = parseBudget(editBudget);
-    const paidAmountNum = parseBudget(editPaidAmount);
-    const paidPercent   = budgetNum > 0 ? (paidAmountNum / budgetNum) * 100 : 0;
-    try {
-      await API.put(`/csr/lead/${viewingProject.id}`, {
-        projectCode: editProjectCode, email: editEmail, projectTitle: editTitle, projectDeadline: editDeadline,
-        projectBudget: editBudget, paidAmount: editPaidAmount, projectNotes: editNotes,
-        interestedService: editService, status: newStatus,
-      });
-      const updated: Project = {
-        ...viewingProject, projectCode: editProjectCode, email: editEmail, projectTitle: editTitle, deadline: editDeadline,
-        budget: editBudget, budgetNum, paidAmount: editPaidAmount, paidAmountNum, paidPercent,
-        notes: editNotes, service: editService, status: displayStatus,
-      };
-      setProjects(prev => prev.map(p => p.id === viewingProject.id ? updated : p));
-      setViewingProject(updated); setIsEditing(false);
-    } catch (error) { console.log(error); }
-    setSaving(false);
   };
 
   const handleAddProject = async () => {
@@ -228,6 +277,7 @@ export default function CSRProjectsPage() {
         client:        addForm.clientName.trim(),
         company:       addForm.clientCompany.trim() || "N/A",
         email:         "",
+        ownerName:     "",
         status:        autoCompleted ? "Completed" : "In Progress",
         state:         "N/A",
         deadline:      addForm.deadline,
@@ -236,6 +286,12 @@ export default function CSRProjectsPage() {
         paidAmount:    "",
         paidAmountNum: 0,
         paidPercent:   0,
+        projectPayments: [],
+        projectScope:  "",
+        projectPhase:  "not_started",
+        takeoffDeadline: "",
+        pricingDeadline: "",
+        qaDeadline:    "",
         notes:         addForm.notes.trim(),
         service:       addForm.service,
         timezone:      "N/A",
@@ -406,7 +462,7 @@ export default function CSRProjectsPage() {
             <div className="hidden lg:block overflow-x-auto">
               <div className="min-w-[1180px]">
                 <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA] ${PROJECT_GRID_HEAD}`}>
-                  {["Project Code","Client Detail","Email","Project Detail","Payment","Scope","Quotation","Notes","Actions"].map(h => (
+                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Fulfillment", "Email", "Notes", "Actions"].map(h => (
                     <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
                   ))}
                 </div>
@@ -417,98 +473,19 @@ export default function CSRProjectsPage() {
                       key={project.id}
                       className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 items-start hover:bg-[#FAFAFA] transition-colors ${PROJECT_GRID_ROW}`}
                     >
-                      {/* Project Code */}
-                      <div className="min-w-0">
-                        {(project.clientCode || project.projectCode) ? (
-                          <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-2 py-1 rounded-lg truncate">{project.clientCode || project.projectCode}</span>
-                        ) : <span className="text-xs text-gray-400">N/A</span>}
-                      </div>
-
-                      {/* Client Detail */}
-                      <div className="flex items-center gap-2 xl:gap-3 min-w-0 pl-6">
-                        <div className="w-7 h-7 xl:w-9 xl:h-9 rounded-lg xl:rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center shrink-0">
-                          <span className="text-[11px] xl:text-xs font-bold">{project.client.charAt(0).toUpperCase()}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-[11px] xl:text-xs font-semibold text-[#0F172A] truncate">{project.client}</p>
-                            {(() => {
-                              const tz = getTimezoneAbbr(project.state !== "N/A" ? project.state : null);
-                              return tz ? (
-                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
-                                  {tz}
-                                </span>
-                              ) : null;
-                            })()}
-                          </div>
-                          <p className="text-[10px] xl:text-xs text-gray-400 truncate mt-0.5">
-                            {project.company && project.company !== "N/A" && project.company !== project.client
-                              ? project.company
-                              : project.phone && project.phone !== "N/A" ? project.phone : ""}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Email */}
+                      <div className="min-w-0"><ClientDetailCell p={projectAsRow(project)} /></div>
+                      <div className="min-w-0"><ProjectDetailCell p={projectAsRow(project)} /></div>
+                      <div className="min-w-0"><QuotedAmountCell p={projectAsRow(project)} /></div>
+                      <div className="min-w-0"><PaymentDetailCell p={projectAsRow(project)} /></div>
+                      <div className="min-w-0"><FulfillmentCell p={projectAsRow(project)} /></div>
                       <div className="min-w-0">
                         {project.email ? (
                           <span className="text-[11px] xl:text-xs text-[#0F172A] truncate block">{project.email}</span>
                         ) : <span className="text-[11px] text-gray-400">N/A</span>}
                       </div>
-
-                      {/* Project Detail */}
-                      <div className="min-w-0">
-                        {project.projectTitle
-                          ? <p className="text-[11px] xl:text-xs font-semibold text-[#0F172A] truncate">{project.projectTitle}</p>
-                          : <span className="text-[11px] text-gray-400">N/A</span>
-                        }
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {project.deadline && project.deadline !== "N/A" && (
-                            <span className={`text-[10px] xl:text-[11px] font-medium whitespace-nowrap ${isDeadlinePast(project.deadline) ? "text-red-500" : "text-gray-400"}`}>
-                              {project.deadline}
-                            </span>
-                          )}
-                          {project.status === "Completed" ? (
-                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-1.5 xl:px-2 py-0.5 rounded-md text-[9px] xl:text-[10px] font-semibold whitespace-nowrap">
-                              <CheckCircle2 size={9} /> Completed
-                            </span>
-                          ) : (
-                            <span className="inline-block bg-[#FFF7E6] text-[#B54708] px-1.5 xl:px-2 py-0.5 rounded-md text-[9px] xl:text-[10px] font-semibold whitespace-nowrap">
-                              In Progress
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Payment Status */}
-                      <div className="flex items-start pt-0.5">
-                        <PaymentStatusCircle percent={project.paidPercent} size={30} strokeWidth={3} />
-                      </div>
-
-                      {/* Scope */}
-                      <div className="min-w-0 pt-0.5 pl-4">
-                        {project.service && project.service !== "N/A" ? (
-                          <span className="text-[11px] xl:text-xs text-[#0F172A] truncate block">{project.service}</span>
-                        ) : <span className="text-[11px] text-gray-400">—</span>}
-                      </div>
-
-                      {/* Quotation */}
                       <div className="min-w-0 pt-0.5">
-                        {project.budgetNum > 0 ? (
-                          <span className="inline-flex bg-emerald-50 text-emerald-700 text-[11px] xl:text-xs font-semibold px-2 py-0.5 rounded-lg whitespace-nowrap">${project.budgetNum.toLocaleString()}</span>
-                        ) : <span className="text-[11px] text-gray-400">—</span>}
+                        <CommentCell id={project.id} noteHistory={project.noteHistory} onAddNote={addNote} />
                       </div>
-
-                      {/* Notes */}
-                      <div className="min-w-0 pt-0.5">
-                        <CommentCell
-                          id={project.id}
-                          noteHistory={project.noteHistory}
-                          onAddNote={addNote}
-                        />
-                      </div>
-
-                      {/* Actions */}
                       <div className="flex items-center gap-1.5 xl:gap-2 pt-0.5">
                         <button onClick={() => openDetail(project)}
                           className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity">
@@ -727,188 +704,17 @@ export default function CSRProjectsPage() {
           </div>
         )}
 
-        {/* ══ DETAIL / EDIT MODAL ══ */}
-        {viewingProject && (
-          <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div
-              className="w-full sm:max-w-[520px] lg:max-w-[540px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
-              style={{ maxHeight: "92vh" }}
-            >
-              <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
-                <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
-                <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
-                <button
-                  onClick={() => { setViewingProject(null); setIsEditing(false); }}
-                  className="absolute top-3 sm:top-4 right-3 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors z-10"
-                >
-                  <X size={13} className="sm:w-[15px] sm:h-[15px]" />
-                </button>
-                <div className="flex items-center gap-2.5 sm:gap-3 pr-10">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white text-base sm:text-xl font-bold shrink-0">
-                    {viewingProject.projectTitle.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-sm sm:text-base lg:text-lg font-bold text-white leading-tight truncate">
-                      {isEditing ? "Edit Project" : viewingProject.projectTitle}
-                    </h2>
-                    <p className="text-white/65 text-[10px] sm:text-xs mt-0.5 truncate">
-                      {viewingProject.client}
-                      {viewingProject.company !== "N/A" && viewingProject.company !== viewingProject.client
-                        ? ` · ${viewingProject.company}` : ""}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  {viewingProject.projectCode && (
-                    <span className="inline-flex items-center gap-1 bg-white/20 text-white px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold">
-                      <Hash size={9} className="sm:w-[10px] sm:h-[10px]" /> {viewingProject.projectCode}
-                    </span>
-                  )}
-                  {viewingProject.status === "Completed" ? (
-                    <span className="inline-flex items-center gap-1 bg-green-500/25 text-green-100 border border-green-400/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold">
-                      <CheckCircle2 size={9} className="sm:w-[10px] sm:h-[10px]" /> Completed
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 bg-amber-400/25 text-amber-100 border border-amber-300/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold">
-                      <Clock3 size={9} className="sm:w-[10px] sm:h-[10px]" /> In Progress
-                    </span>
-                  )}
-                  {viewingProject.deadline && viewingProject.deadline !== "N/A" && (
-                    isDeadlinePast(viewingProject.deadline) ? (
-                      <span className="inline-flex items-center gap-1 bg-red-500/25 text-red-100 border border-red-400/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold">
-                        <Clock3 size={9} /> Overdue · {viewingProject.deadline}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 bg-white/15 text-white/75 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px]">
-                        <CalendarDays size={9} /> {viewingProject.deadline}
-                      </span>
-                    )
-                  )}
-                </div>
-              </div>
+        <ProjectWorkbenchModal
+          open={!!viewingProject}
+          onClose={() => setViewingProject(null)}
+          initial={viewingProject ? csrToWorkbench(viewingProject) : emptyWorkbench()}
+          mode="csr"
+          saving={workbenchSaving}
+          onSave={saveWorkbench}
+          noteHistory={viewingProject?.noteHistory}
+          onAddNote={async (text) => { if (viewingProject) await addNote(viewingProject.id, text); }}
+        />
 
-              <div className="flex-1 overflow-y-auto overscroll-contain">
-                <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-3 sm:space-y-5">
-
-                  {/* EMAIL */}
-                  {isEditing ? (
-                    <EmailField email={editEmail} onEmailChange={setEditEmail} />
-                  ) : (
-                    <div className="flex items-center justify-between gap-2 sm:gap-3 bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-3.5">
-                      <div className="min-w-0 flex items-center gap-2 sm:gap-2.5">
-                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center shrink-0">
-                          <Mail size={13} className="sm:w-3.75 sm:h-3.75" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-gray-400 text-[10px] sm:text-[11px]">Email</p>
-                          <p className="text-[#0F172A] text-xs sm:text-[13px] font-semibold truncate">{viewingProject.email || "Not provided"}</p>
-                        </div>
-                      </div>
-                      <SendEmailButton email={viewingProject.email} subject={`Regarding ${viewingProject.projectTitle}`} />
-                    </div>
-                  )}
-
-                  {!isEditing && (
-                    <>
-                      <div className="flex gap-2 sm:gap-3">
-                        {viewingProject.status !== "Completed" && (
-                          <button onClick={() => markComplete(viewingProject)}
-                            className="flex-1 h-9 sm:h-10 rounded-xl sm:rounded-2xl bg-green-50 border border-green-200 text-green-700 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-green-100 transition-colors">
-                            <CheckCircle2 size={12} className="sm:w-[14px] sm:h-[14px]" /> Mark Completed
-                          </button>
-                        )}
-                        <button onClick={() => startEdit()}
-                          className="flex-1 h-9 sm:h-10 rounded-xl sm:rounded-2xl bg-[#FFF1F3] border border-[#f5c5ce] text-[#B8112D] text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-[#fce8ec] transition-colors">
-                          <Pencil size={11} className="sm:w-[13px] sm:h-[13px]" /> Edit Project
-                        </button>
-                      </div>
-
-                      <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
-                            <DollarSign size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />
-                            <p className="text-gray-400 text-[10px] sm:text-[11px]">Payment Status</p>
-                          </div>
-                          <h4 className="font-semibold text-[#0F172A] text-[12px] sm:text-[13px] break-words">
-                            {viewingProject.paidAmountNum > 0 ? `$${viewingProject.paidAmountNum.toLocaleString()} paid` : "Nothing paid yet"}
-                            {viewingProject.budgetNum > 0 && ` of $${viewingProject.budgetNum.toLocaleString()} quotation`}
-                          </h4>
-                        </div>
-                        <PaymentStatusCircle percent={viewingProject.paidPercent} />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                        {[
-                          { icon: <Briefcase    size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />, label: "Service",   value: viewingProject.service              },
-                          { icon: <Phone        size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />, label: "Contact",   value: viewingProject.phone                },
-                          { icon: <DollarSign   size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />, label: "Quotation",  value: viewingProject.budget || "Not set"  },
-                          { icon: <CalendarDays size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />, label: "Timezone",  value: viewingProject.timezone             },
-                          { icon: <FolderKanban size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />, label: "State",     value: viewingProject.state                },
-                        ].map(({ icon, label, value }) => (
-                          <div key={label} className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-3.5">
-                            <div className="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">{icon}<p className="text-gray-400 text-[10px] sm:text-[11px]">{label}</p></div>
-                            <h4 className="font-semibold text-[#0F172A] text-[12px] sm:text-[13px] break-words">{value || "N/A"}</h4>
-                          </div>
-                        ))}
-                      </div>
-
-                      {viewingProject.notes && viewingProject.notes !== "undefined" && viewingProject.notes !== "" && (
-                        <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-3.5">
-                          <div className="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
-                            <AlignLeft size={11} className="text-[#B8112D] sm:w-3 sm:h-3" />
-                            <p className="text-gray-400 text-[10px] sm:text-[11px]">Project Notes</p>
-                          </div>
-                          <p className="text-[#0F172A] text-[12px] sm:text-[13px] leading-relaxed">{viewingProject.notes}</p>
-                        </div>
-                      )}
-
-                      <div className="bg-[#FFFBF0] border border-amber-100 rounded-xl sm:rounded-2xl p-3 sm:p-3.5">
-                        <div className="flex items-center gap-1 sm:gap-1.5 mb-2">
-                          <StickyNote size={11} className="text-amber-500 sm:w-3 sm:h-3" />
-                          <p className="text-amber-700 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider">Notes History</p>
-                        </div>
-                        <CommentCell
-                          id={viewingProject.id}
-                          noteHistory={viewingProject.noteHistory}
-                          onAddNote={addNote}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {isEditing && (
-                    <>
-                      <ProjectDetailsForm
-                        projectCode={editProjectCode} onProjectCodeChange={setEditProjectCode}
-                        title={editTitle} onTitleChange={setEditTitle}
-                        service={editService} onServiceChange={setEditService}
-                        deadline={editDeadline} onDeadlineChange={setEditDeadline}
-                        budget={editBudget} onBudgetChange={setEditBudget}
-                        paidAmount={editPaidAmount} onPaidAmountChange={setEditPaidAmount}
-                        notes={editNotes} onNotesChange={setEditNotes}
-                      />
-
-                      <div className="flex gap-2 sm:gap-3 pb-1">
-                        <button onClick={() => setIsEditing(false)} className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100 transition-colors">Cancel</button>
-                        <button onClick={saveEdit} disabled={!editTitle || !editDeadline || saving}
-                          className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all ${
-                            editTitle && editDeadline && !saving
-                              ? "bg-gradient-to-r from-[#B8112D] to-[#d4173a] shadow-md shadow-red-200"
-                              : "bg-gray-200 cursor-not-allowed text-gray-400"
-                          }`}>
-                          {saving
-                            ? <><div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving...</>
-                            : "Save Changes"
-                          }
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

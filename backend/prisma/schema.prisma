@@ -28,6 +28,11 @@ model User {
   updatedAt    DateTime  @updatedAt
   twoFAEnabled Boolean   @default(false)
   tokenVersion Int       @default(0)
+  activeSessionId String?
+  lastLoginAt  DateTime?
+
+  auditLogs      SecurityAuditLog[]
+  accessHistory  AccessHistory[]
 
   leads        Lead[]               @relation("AssignedLeads")
   callLogs     CallLog[]            @relation("CSRCallLogs")
@@ -63,6 +68,13 @@ model Lead {
   projectBudget      String?
   projectNotes       String?
   paidAmount         String?
+  ownerName          String?
+  projectScope       String?
+  projectPhase       String?   @default("not_started")
+  takeoffDeadline    String?
+  pricingDeadline    String?
+  qaDeadline         String?
+  projectPayments    String?
   clientCode         String?
   state              String?
   isOldClient        Boolean   @default(false)
@@ -227,4 +239,62 @@ model Report {
   createdAt   DateTime @default(now())
 
   user User? @relation(fields: [generatedBy], references: [id])
+}
+
+model SecurityAuditLog {
+  id        String   @id @default(cuid()) @map("_id")
+  userId    String?
+  email     String?
+  action    String
+  ip        String?
+  userAgent String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model LoginLockout {
+  id           String    @id @default(cuid()) @map("_id")
+  key          String    @unique
+  failCount    Int       @default(0)
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+model LoginAttemptAlert {
+  id        String   @id @default(cuid()) @map("_id")
+  userId    String   @unique
+  attemptId Int
+  createdAt DateTime @default(now())
+}
+
+model RateLimitEntry {
+  id        String   @id @default(cuid()) @map("_id")
+  key       String   @unique
+  hits      Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model AccessHistory {
+  id        String   @id @default(cuid()) @map("_id")
+  userId    String
+  email     String?
+  ip        String?
+  userAgent String?
+  deviceId  String?
+  browser   String?
+  event     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }

@@ -32,10 +32,15 @@ export const CLIENT_GRID_ROW =
   "lg:grid-cols-[minmax(90px,90px)_minmax(200px,2fr)_minmax(140px,1.4fr)_minmax(130px,1.1fr)_minmax(130px,1.1fr)_minmax(120px,1fr)_minmax(160px,1.5fr)_minmax(72px,72px)]";
 
 export const PROJECT_GRID_HEAD =
-  "grid-cols-[minmax(115px,115px)_minmax(200px,1.5fr)_minmax(140px,1.1fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(96px,96px)_minmax(92px,92px)_minmax(120px,120px)_minmax(140px,auto)]";
+  "grid-cols-[minmax(150px,1.3fr)_minmax(150px,1.2fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(110px,1.1fr)_minmax(72px,72px)]";
 
 export const PROJECT_GRID_ROW =
-  "lg:grid-cols-[minmax(115px,115px)_minmax(200px,1.5fr)_minmax(140px,1.1fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(96px,96px)_minmax(92px,92px)_minmax(120px,120px)_minmax(140px,auto)]";
+  "lg:grid-cols-[minmax(150px,1.3fr)_minmax(150px,1.2fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(110px,1.1fr)_minmax(72px,72px)]";
+
+/** Admin Project DB table — fixed column widths prevent email/actions overlap */
+export const ADMIN_PROJECT_COLS = [
+  "14%", "14%", "8%", "12%", "11%", "10%", "14%", "12%", "5%",
+] as const;
 
 /** Table card — no inner vertical scroll; page scrolls instead */
 export const CSR_TABLE_CARD =

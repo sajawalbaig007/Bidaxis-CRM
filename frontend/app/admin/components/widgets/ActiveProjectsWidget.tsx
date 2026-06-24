@@ -44,7 +44,7 @@ export default function ActiveProjectsWidget() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <FolderKanban size={16} className="text-[#065F46]" />
-          <h3 className="font-semibold text-gray-800">Active Projects</h3>
+          <h3 className="font-semibold text-gray-800">Project DB</h3>
           {!loading && (
             <span className="text-xs font-bold bg-[#ECFDF5] text-[#065F46] px-2 py-0.5 rounded-lg">
               {projects.length}

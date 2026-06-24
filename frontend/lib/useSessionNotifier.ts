@@ -6,6 +6,7 @@ import API from "./api";
 import { visibleInterval } from "./visibleInterval";
 
 const STORAGE_KEY = "crm_login_attempt_ack";
+const POLL_MS = 12_000;
 
 export function useSessionNotifier() {
   const notifiedRef = useRef(0);
@@ -25,14 +26,18 @@ export function useSessionNotifier() {
         ) {
           notifiedRef.current = attemptId;
           sessionStorage.setItem(STORAGE_KEY, String(attemptId));
-          toast.error(message ?? "Someone is trying to login to your account.", { duration: 6000 });
+          toast.error(
+            message ?? "Someone is trying to log in to your account from another device.",
+            { duration: 8000, id: `login-attempt-${attemptId}` }
+          );
+          void API.post("/auth/session-alert/ack").catch(() => {});
         }
       } catch {
-        /* ignore */
+        /* not logged in or network error */
       }
     };
 
     void check();
-    return visibleInterval(check, 30_000);
+    return visibleInterval(check, POLL_MS);
   }, []);
 }

@@ -1,0 +1,144 @@
+export type ProjectPayment = {
+  id: string;
+  type: string;
+  amount: string;
+  link?: string;
+  isPaid: boolean;
+  paidAt?: string;
+};
+
+export const PROJECT_PHASE_OPTIONS = [
+  { value: "not_started",       label: "Not Started" },
+  { value: "takeoff_started",   label: "Takeoff Started" },
+  { value: "takeoff_completed", label: "Takeoff Completed" },
+  { value: "pricing_phase",     label: "Pricing Phase" },
+  { value: "qa_phase",          label: "QA Phase" },
+  { value: "delivery_phase",    label: "Delivery Phase" },
+] as const;
+
+export const PAYMENT_TYPE_OPTIONS = [
+  "Advance",
+  "Partial",
+  "Milestone",
+  "Final",
+  "Retainer",
+  "Other",
+] as const;
+
+export function parsePayments(raw: unknown): ProjectPayment[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as ProjectPayment[];
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function parseMoney(raw: string | number | null | undefined): number {
+  if (!raw) return 0;
+  const cleaned = String(raw).replace(/[^0-9.]/g, "");
+  const num = parseFloat(cleaned);
+  return Number.isNaN(num) ? 0 : num;
+}
+
+/** Strip currency symbol for budget input display (avoids "$" + "$620" overlap) */
+export function stripBudgetForInput(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return String(raw).replace(/^\$/, "").trim();
+}
+
+export function formatQuotedAmount(raw: string | null | undefined): string {
+  const n = parseMoney(raw);
+  return n > 0 ? `$${n.toLocaleString()}` : "—";
+}
+
+export function paidTotal(payments: ProjectPayment[]): number {
+  return payments.filter((p) => p.isPaid).reduce((s, p) => s + parseMoney(p.amount), 0);
+}
+
+export function latestPaidPayment(payments: ProjectPayment[]): ProjectPayment | null {
+  const paid = payments.filter((p) => p.isPaid);
+  if (!paid.length) return null;
+  const withDate = paid.filter((p) => p.paidAt);
+  if (!withDate.length) return paid[paid.length - 1];
+  return [...withDate].sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
+}
+
+export function paymentPercent(payments: ProjectPayment[], budget: string | number | null | undefined): number {
+  const budgetNum = parseMoney(budget);
+  if (budgetNum <= 0) return 0;
+  return Math.min(100, (paidTotal(payments) / budgetNum) * 100);
+}
+
+export function phaseLabel(phase: string | null | undefined): string {
+  return PROJECT_PHASE_OPTIONS.find((p) => p.value === phase)?.label ?? "Not Started";
+}
+
+export function formatPaymentWhen(iso: string | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function newPaymentId(): string {
+  return `pay_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export type ProjectWorkbenchData = {
+  id: string;
+  name: string;
+  company: string;
+  phone: string;
+  email: string;
+  ownerName: string;
+  state: string;
+  projectCode: string;
+  projectTitle: string;
+  projectScope: string;
+  interestedService: string;
+  projectBudget: string;
+  projectDeadline: string;
+  projectPhase: string;
+  takeoffDeadline: string;
+  pricingDeadline: string;
+  qaDeadline: string;
+  projectPayments: ProjectPayment[];
+  assignedTo?: string;
+  csrName?: string;
+  csrCode?: string | null;
+};
+
+export function emptyWorkbench(): ProjectWorkbenchData {
+  return {
+    id: "",
+    name: "",
+    company: "",
+    phone: "",
+    email: "",
+    ownerName: "",
+    state: "",
+    projectCode: "",
+    projectTitle: "",
+    projectScope: "",
+    interestedService: "",
+    projectBudget: "",
+    projectDeadline: "",
+    projectPhase: "not_started",
+    takeoffDeadline: "",
+    pricingDeadline: "",
+    qaDeadline: "",
+    projectPayments: [],
+  };
+}

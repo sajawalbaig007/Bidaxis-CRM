@@ -41,6 +41,8 @@ export default function AdminSettingsPage() {
   const [profileImage,    setProfileImage]     = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showLogoutModal, setShowLogoutModal]  = useState(false);
+  const [loggingOutAll,   setLoggingOutAll]    = useState(false);
+  const [auditLogs,       setAuditLogs]        = useState<{ action: string; email?: string; ip?: string; createdAt: string }[]>([]);
 
   /* ── FETCH ── */
   const fetchProfile = useCallback(async () => {
@@ -61,6 +63,9 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     const load = async () => { await fetchProfile(); };
     load();
+    API.get("/auth/audit-logs?limit=20")
+      .then((res) => setAuditLogs(res.data.logs ?? []))
+      .catch(() => {});
   }, [fetchProfile]);
 
   /* ── SAVE PROFILE ── */
@@ -103,9 +108,21 @@ export default function AdminSettingsPage() {
     try {
       await API.put("/auth/toggle-2fa", { enabled: newVal });
       setTwoFactor(newVal);
-      toast.success(newVal ? `2FA enabled — OTP to ${ADMIN_2FA_EMAIL}` : "2FA disabled.");
+      toast.success(newVal ? `2FA enabled — OTP to ${profile?.email ?? "your email"}` : "2FA disabled.");
     } catch { toast.error("Failed to toggle 2FA."); }
     finally { setTogglingTwoFa(false); }
+  };
+
+  const handleLogoutAll = async () => {
+    setLoggingOutAll(true);
+    try {
+      const res = await API.post("/auth/logout-all");
+      toast.success(res.data?.message ?? "Logged out from all devices.");
+      await logoutSession(async () => {});
+      setTimeout(() => { window.location.href = "/"; }, 800);
+    } catch {
+      toast.error("Failed to logout all devices.");
+    } finally { setLoggingOutAll(false); }
   };
 
   /* ── LOGOUT ── */
@@ -449,11 +466,11 @@ export default function AdminSettingsPage() {
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-semibold text-gray-800 text-sm sm:text-base">Two Factor Auth</h3>
-                    <p className="text-[11px] sm:text-sm text-gray-400 mt-0.5">OTP sent via email on admin login</p>
+                    <p className="text-[11px] sm:text-sm text-gray-400 mt-0.5">OTP sent to your email on login</p>
                     <div className="flex items-center gap-1 sm:gap-1.5 mt-1.5 sm:mt-2 bg-white border border-gray-100 rounded-xl px-2.5 sm:px-3 py-1 sm:py-1.5 w-fit">
                       <Mail size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />
                       <span className="text-[10px] sm:text-xs font-medium text-gray-600 truncate max-w-[160px] sm:max-w-none">
-                        {ADMIN_2FA_EMAIL}
+                        {profile?.email ?? ADMIN_2FA_EMAIL}
                       </span>
                     </div>
                   </div>
@@ -488,23 +505,42 @@ export default function AdminSettingsPage() {
             </div>
 
             {/* Danger Zone */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl border border-red-100 p-4 sm:p-6 shadow-sm">
-              <div className="flex items-center gap-2.5 sm:gap-3 mb-3 sm:mb-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-red-100 p-4 sm:p-6 shadow-sm space-y-3">
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
                   <LogOut size={15} className="sm:w-[18px] sm:h-[18px]" />
                 </div>
                 <div>
-                  <h2 className="text-base sm:text-lg font-semibold text-red-600">Danger Zone</h2>
-                  <p className="text-xs sm:text-sm text-gray-400">Logout your current session</p>
+                  <h2 className="text-base sm:text-lg font-semibold text-red-600">Session</h2>
+                  <p className="text-xs sm:text-sm text-gray-400">Logout this device or all devices</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowLogoutModal(true)}
-                className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-all"
-              >
-                Logout
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setShowLogoutModal(true)}
+                  className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-all">
+                  Logout
+                </button>
+                <button onClick={handleLogoutAll} disabled={loggingOutAll}
+                  className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border-2 border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 transition-all">
+                  {loggingOutAll ? "Logging out…" : "Logout all devices"}
+                </button>
+              </div>
             </div>
+
+            {/* Audit log */}
+            {auditLogs.length > 0 && (
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-6 shadow-sm">
+                <h2 className="text-base sm:text-xl font-semibold text-gray-800 mb-3">Security Activity</h2>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {auditLogs.map((log, i) => (
+                    <div key={i} className="text-xs text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1.5">
+                      <span className="font-medium capitalize">{log.action.replace(/_/g, " ")}</span>
+                      <span className="text-gray-400 shrink-0">{new Date(log.createdAt).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
