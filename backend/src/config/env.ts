@@ -2,9 +2,11 @@ const REQUIRED_PROD = [
   "JWT_SECRET",
   "DATABASE_URL",
   "FRONTEND_URL",
-  "SMTP_USER",
-  "SMTP_PASS",
 ] as const;
+
+export function isSmtpConfigured(): boolean {
+  return !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
+}
 
 export function validateEnv(): void {
   const isProd = process.env.NODE_ENV === "production";
@@ -18,6 +20,10 @@ export function validateEnv(): void {
   const jwt = process.env.JWT_SECRET?.trim() ?? "";
   if (jwt.length < 32) {
     throw new Error("[Security] JWT_SECRET must be at least 32 characters in production.");
+  }
+
+  if (!isSmtpConfigured()) {
+    console.warn("[Security] SMTP_USER / SMTP_PASS not set — OTP and login alert emails will be skipped.");
   }
 }
 
