@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrProjectsApi } from "@/lib/csrApiCache";
+import { parsePayments, paidTotal, paymentPercent } from "@/lib/projectFields";
+import type { ProjectPayment } from "@/lib/projectFields";
 import { NoteEntry } from "./useLeadsData";
 
 export type Project = {
@@ -9,6 +11,7 @@ export type Project = {
   client: string;
   company: string;
   email: string;
+  ownerName: string;
   status: string;
   state: string;
   deadline: string;
@@ -17,6 +20,12 @@ export type Project = {
   paidAmount: string;
   paidAmountNum: number;
   paidPercent: number;
+  projectPayments: ProjectPayment[];
+  projectScope: string;
+  projectPhase: string;
+  takeoffDeadline: string;
+  pricingDeadline: string;
+  qaDeadline: string;
   notes: string;
   service: string;
   timezone: string;
@@ -69,6 +78,13 @@ type RawLead = {
   projectCode?: string | null;
   state?: string | null;
   paidAmount?: string | number | null;
+  ownerName?: string | null;
+  projectScope?: string | null;
+  projectPhase?: string | null;
+  takeoffDeadline?: string | null;
+  pricingDeadline?: string | null;
+  qaDeadline?: string | null;
+  projectPayments?: string | null;
 };
 
 export const parseBudget = (raw: string | number | null | undefined): number => {
@@ -102,9 +118,13 @@ function mapProject(lead: RawLead): Project {
   const derivedStatus    = backendCompleted || pastDeadline ? "Completed" : "In Progress";
 
   const budgetNum    = parseBudget(budget);
-  const paidAmount   = lead.paidAmount ?? "";
-  const paidAmountNum = parseBudget(paidAmount);
-  const paidPercent  = budgetNum > 0 ? (paidAmountNum / budgetNum) * 100 : 0;
+  const payments     = parsePayments(lead.projectPayments);
+  const paidAmountNum = payments.length > 0
+    ? paidTotal(payments)
+    : parseBudget(lead.paidAmount);
+  const paidPercent  = payments.length > 0
+    ? paymentPercent(payments, budget)
+    : (budgetNum > 0 ? (paidAmountNum / budgetNum) * 100 : 0);
 
   const rawNotes = Array.isArray(lead.notes) ? lead.notes : [];
   const legacyNote: NoteEntry[] = (lead.comments || lead.followUpNotes)
@@ -121,14 +141,21 @@ function mapProject(lead: RawLead): Project {
     client:        String(lead.name    || "Unknown"),
     company:       String(lead.company || "N/A"),
     email:         String(lead.email   || ""),
+    ownerName:     String(lead.ownerName || ""),
     status:        derivedStatus,
     state:         String(lead.state   || "N/A"),
     deadline:      deadlineStr,
     budget:        String(budget),
     budgetNum,
-    paidAmount:    String(paidAmount),
+    paidAmount:    String(paidAmountNum),
     paidAmountNum,
     paidPercent,
+    projectPayments: payments,
+    projectScope:  String(lead.projectScope ?? ""),
+    projectPhase:  String(lead.projectPhase ?? "not_started"),
+    takeoffDeadline: String(lead.takeoffDeadline ?? ""),
+    pricingDeadline: String(lead.pricingDeadline ?? ""),
+    qaDeadline:    String(lead.qaDeadline ?? ""),
     notes:         String(notes),
     service:       String(service),
     timezone:      String(lead.timezone || "N/A"),

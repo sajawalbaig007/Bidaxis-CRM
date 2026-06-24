@@ -1,6 +1,4 @@
-/* ─────────────────────────────────────────────────
-   Shared in-memory stores
-───────────────────────────────────────────────── */
+import prisma from "../config/db";
 
 /* OTP store: userId → { otp, expiresAt } */
 export const otpStore = new Map<string, { otp: string; expiresAt: number }>();
@@ -20,59 +18,62 @@ export const userBrowserMap = new Map<string, {
   hiddenAt:    string | null;
 }>();
 
-/* Active login sessions: userId → session */
-export type ActiveSession = {
-  sid: string;
-  tv:  number;
-  at:  number;
-};
-export const activeSessions = new Map<string, ActiveSession>();
-
-/* Login-attempt alerts for already-logged-in users */
 export type LoginAttemptAlert = {
   attemptId: number;
   at:        number;
 };
-export const loginAttemptAlerts = new Map<string, LoginAttemptAlert>();
 
 let loginAttemptSeq = 0;
 
-const SESSION_IDLE_MS = 30 * 60 * 1000; // 30 min without activity → allow re-login
-
-export function getActiveSession(userId: string): ActiveSession | null {
-  const session = activeSessions.get(userId);
-  if (!session) return null;
-  if (Date.now() - session.at > SESSION_IDLE_MS) {
-    activeSessions.delete(userId);
-    return null;
-  }
-  return session;
+export async function hasActiveSession(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { activeSessionId: true },
+  });
+  return !!user?.activeSessionId;
 }
 
-export function registerActiveSession(userId: string, sid: string, tv: number): void {
-  activeSessions.set(userId, { sid, tv, at: Date.now() });
+export async function registerActiveSession(userId: string, sid: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data:  { activeSessionId: sid, lastActive: new Date(), lastLoginAt: new Date() },
+  });
 }
 
-export function touchActiveSession(userId: string): void {
-  const session = activeSessions.get(userId);
-  if (session) session.at = Date.now();
+export async function touchActiveSession(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data:  { lastActive: new Date() },
+  }).catch(() => { /* non-fatal */ });
 }
 
-export function clearActiveSession(userId: string): void {
-  activeSessions.delete(userId);
+export async function clearActiveSession(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data:  { activeSessionId: null },
+  }).catch(() => { /* user may already be deleted */ });
 }
 
-export function recordLoginAttempt(userId: string): number {
+export async function recordLoginAttempt(userId: string): Promise<number> {
   loginAttemptSeq += 1;
-  loginAttemptAlerts.set(userId, { attemptId: loginAttemptSeq, at: Date.now() });
+  await prisma.loginAttemptAlert.upsert({
+    where:  { userId },
+    create: { userId, attemptId: loginAttemptSeq },
+    update: { attemptId: loginAttemptSeq, createdAt: new Date() },
+  });
   return loginAttemptSeq;
 }
 
-export function getLoginAttemptAlert(userId: string): LoginAttemptAlert | null {
-  return loginAttemptAlerts.get(userId) ?? null;
+export async function getLoginAttemptAlert(userId: string): Promise<LoginAttemptAlert | null> {
+  const row = await prisma.loginAttemptAlert.findUnique({ where: { userId } });
+  if (!row) return null;
+  return { attemptId: row.attemptId, at: row.createdAt.getTime() };
 }
 
-/* ── Detect browser from User-Agent ── */
+export async function clearLoginAttemptAlert(userId: string): Promise<void> {
+  await prisma.loginAttemptAlert.deleteMany({ where: { userId } });
+}
+
 export function detectBrowser(ua: string): string {
   if (!ua)                                              return "Unknown";
   if (ua.includes("Edg/"))                             return "Edge";

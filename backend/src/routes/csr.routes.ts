@@ -3,9 +3,16 @@ import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
+import { recordHeartbeatAccess } from "../utils/accessHistory";
+import { getClientIp } from "../utils/requestMeta";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import { normalizePhone, phonesMatch } from "../utils/phone";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import {
+  normalizePaymentsInput,
+  parseProjectPayments,
+  paidTotalFromEntries,
+} from "../utils/projectPayments";
 import {
   NOT_INTERESTED_LIMIT,
   NOT_PICKED_LIMIT,
@@ -504,6 +511,18 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (phone             !== undefined) updateData.phone             = phone;
     if (email             !== undefined) updateData.email             = email;
     if (state             !== undefined) updateData.state             = state;
+    if (req.body.ownerName        !== undefined) updateData.ownerName        = req.body.ownerName;
+    if (req.body.projectScope     !== undefined) updateData.projectScope     = req.body.projectScope;
+    if (req.body.projectPhase     !== undefined) updateData.projectPhase     = req.body.projectPhase;
+    if (req.body.takeoffDeadline  !== undefined) updateData.takeoffDeadline  = req.body.takeoffDeadline;
+    if (req.body.pricingDeadline  !== undefined) updateData.pricingDeadline  = req.body.pricingDeadline;
+    if (req.body.qaDeadline       !== undefined) updateData.qaDeadline       = req.body.qaDeadline;
+    if (req.body.company          !== undefined) updateData.company          = req.body.company;
+    const payments = normalizePaymentsInput(req.body.projectPayments);
+    if (payments !== undefined) {
+      updateData.projectPayments = payments;
+      updateData.paidAmount = String(paidTotalFromEntries(parseProjectPayments(payments)));
+    }
 
     /* ── STATUS HANDLING ── */
     if (status !== undefined) {
@@ -927,6 +946,13 @@ router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) 
     await prisma.user.update({
       where: { id: userId },
       data:  { isOnline: true, lastActive: new Date() },
+    });
+
+    void recordHeartbeatAccess({
+      userId,
+      ip:        getClientIp(req),
+      userAgent: userAgent,
+      deviceId:  tabId,
     });
 
     return res.json({ success: true });

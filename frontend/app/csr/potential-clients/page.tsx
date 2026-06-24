@@ -57,7 +57,6 @@ export default function ImportantCallsPage() {
   const [editAction,    setEditAction]    = useState<EditAction>(null);
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
-  const [openPhoneDropdown, setOpenPhoneDropdown] = useState<string | null>(null);
 
   useQueryTab(POTENTIAL_TABS, "important", setActiveTab, !loading);
   useOpenLeadFromQuery(leads, setViewingLead, !loading);
@@ -430,28 +429,10 @@ export default function ImportantCallsPage() {
                             </div>
                           );
                           return (
-                            <div className="relative">
-                              <button
-                                onClick={() => setOpenPhoneDropdown(openPhoneDropdown === lead.id ? null : lead.id)}
-                                className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap"
-                              >
-                                <span className="max-w-[100px] truncate">{phones[0]}</span>
-                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                                <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
-                              </button>
-                              {openPhoneDropdown === lead.id && (
-                                <>
-                                  <div className="fixed inset-0 z-20" onClick={() => setOpenPhoneDropdown(null)} />
-                                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px]">
-                                    {phones.map((ph, idx) => (
-                                      <div key={idx} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]">
-                                        <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
-                                        {ph}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
+                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
+                              <span className="max-w-[100px] truncate">{phones[0]}</span>
+                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                              <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
                             </div>
                           );
                         })()}
@@ -629,28 +610,10 @@ export default function ImportantCallsPage() {
                             </div>
                           );
                           return (
-                            <div className="relative">
-                              <button
-                                onClick={() => setOpenPhoneDropdown(openPhoneDropdown === lead.id ? null : lead.id)}
-                                className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap"
-                              >
-                                <span className="max-w-[100px] truncate">{phones[0]}</span>
-                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                                <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
-                              </button>
-                              {openPhoneDropdown === lead.id && (
-                                <>
-                                  <div className="fixed inset-0 z-20" onClick={() => setOpenPhoneDropdown(null)} />
-                                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px]">
-                                    {phones.map((ph, idx) => (
-                                      <div key={idx} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]">
-                                        <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
-                                        {ph}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
+                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
+                              <span className="max-w-[100px] truncate">{phones[0]}</span>
+                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                              <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
                             </div>
                           );
                         })()}

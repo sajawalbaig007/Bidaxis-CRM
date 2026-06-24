@@ -11,6 +11,7 @@ import {
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
+import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
 import API from "@/lib/api";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
@@ -159,6 +160,12 @@ export default function UploadPage() {
     stats: SourceStats;
     uploads: { id: string; fileName: string; totalLeads: number; createdAt: string }[];
   } | null>(null);
+
+  const [filePreviewRows,    setFilePreviewRows]    = useState<PreviewRow[]>([]);
+  const [filePreviewSummary, setFilePreviewSummary] = useState<PreviewSummary | null>(null);
+  const [filePreviewLoading, setFilePreviewLoading] = useState(false);
+  const [hideDupInPreview,     setHideDupInPreview]     = useState(true);
+  const [previewFilter,        setPreviewFilter]        = useState<"all" | PreviewRow["status"]>("all");
 
   const fetchUploadSources = async () => {
     try {
@@ -324,6 +331,63 @@ export default function UploadPage() {
   };
 
   const finalCompany = selectedCompany === "Other" ? customCompany : selectedCompany;
+
+  const buildPreviewFormData = () => {
+    if (!selectedFile) return null;
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    const csrIds = selectedCSRs.length > 0
+      ? selectedCSRs
+      : csrs.filter(c => c.isActive).map(c => c.id);
+    formData.append("selectedCSRs", JSON.stringify(csrIds));
+    formData.append("leadType",
+      uploadMode === "important"  ? "old"    :
+      uploadMode === "interested" ? "new"    :
+      uploadMode === "active"     ? "active" :
+      selectedLeadType
+    );
+    formData.append("initialStatuses", JSON.stringify(
+      uploadMode === "important"  ? ["important"]    :
+      uploadMode === "interested" ? ["interested"]   :
+      uploadMode === "active"     ? ["Close Client"] :
+      selectedPane === "lead"     ? ["Close Client"] :
+      ["pending"]
+    ));
+    return formData;
+  };
+
+  const fetchFilePreview = async () => {
+    const formData = buildPreviewFormData();
+    if (!formData) return;
+    setFilePreviewLoading(true);
+    try {
+      const res = await API.post("/uploads/preview", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setFilePreviewRows((res.data.preview ?? []) as PreviewRow[]);
+      setFilePreviewSummary((res.data.summary ?? null) as PreviewSummary | null);
+      setPreviewFilter("all");
+    } catch {
+      setFilePreviewRows([]);
+      setFilePreviewSummary(null);
+    } finally {
+      setFilePreviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showCSRModal || modalStep !== "csrs" || !selectedFile) {
+      if (!showCSRModal) {
+        setFilePreviewRows([]);
+        setFilePreviewSummary(null);
+        setHideDupInPreview(true);
+        setPreviewFilter("all");
+      }
+      return;
+    }
+    void fetchFilePreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCSRModal, modalStep, selectedFile, selectedCSRs, uploadMode, selectedPane, selectedLeadType]);
 
   const handleFiles = async () => {
     if (!selectedFile) return;
@@ -954,6 +1018,17 @@ export default function UploadPage() {
                       </span>
                     )}
                   </div>
+
+                  <UploadFilePreview
+                    fileName={selectedFile?.name}
+                    rows={filePreviewRows}
+                    summary={filePreviewSummary}
+                    loading={filePreviewLoading}
+                    hideDuplicates={hideDupInPreview}
+                    onToggleHideDuplicates={() => setHideDupInPreview(v => !v)}
+                    filter={previewFilter}
+                    onFilterChange={setPreviewFilter}
+                  />
 
                   {/* Select All / Deselect All */}
                   {(() => {

@@ -24,6 +24,7 @@ import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import ChatPanel from "@/app/components/chat/ChatPanel";
+import { pollChatUnread } from "@/lib/chatUnreadStore";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 import {
@@ -124,6 +125,7 @@ export default function TopNavbar() {
   }, []);
 
   useEffect(() => {
+    void pollChatUnread();
     if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
 
     Promise.all([
@@ -470,7 +472,11 @@ export default function TopNavbar() {
                   )}
                 </div>
 
-                <div className="px-3 pb-3">
+                <div className="px-3 pb-3 space-y-1.5">
+                  <Link href="/csr/settings" onClick={() => setProfileOpen(false)}
+                    className="w-full h-9 rounded-xl bg-[#F5F6FA] hover:bg-gray-100 text-gray-700 text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors">
+                    Security Settings
+                  </Link>
                   <button
                     onClick={handleLogout}
                     disabled={loggingOut}

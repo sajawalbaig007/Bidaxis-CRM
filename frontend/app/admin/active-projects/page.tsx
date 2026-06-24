@@ -3,14 +3,32 @@
 import { useState, useEffect, useCallback } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  Search, FolderKanban, X,
-  DollarSign, Calendar, Briefcase, Building2, User2,
-  Phone, Mail, Clock3, ChevronDown, ArrowRightLeft, Check, RefreshCw,
+  Search, FolderKanban, X, Eye,
+  Calendar, Building2, User2,
+  Phone, Mail, ChevronDown, ArrowRightLeft, Check, RefreshCw,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
+import CommentCell from "@/app/csr/components/shared/CommentCell";
+import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
+import { ADMIN_PROJECT_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
+import {
+  ClientDetailCell,
+  FulfillmentCell,
+  PaymentDetailCell,
+  ProjectDetailCell,
+  QuotedAmountCell,
+  PROJECT_TABLE_CARD,
+  PROJECT_TABLE_HEAD,
+} from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
+import {
+  emptyWorkbench,
+  parsePayments,
+  ProjectWorkbenchData,
+} from "@/lib/projectFields";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 type Project = {
@@ -20,15 +38,52 @@ type Project = {
   phone:             string | null;
   email:             string | null;
   status:            string;
+  state:             string | null;
+  ownerName:         string | null;
   interestedService: string | null;
   projectTitle:      string | null;
+  projectCode:       string | null;
+  projectScope:      string | null;
+  projectPhase:      string | null;
   projectDeadline:   string | null;
+  takeoffDeadline:   string | null;
+  pricingDeadline:   string | null;
+  qaDeadline:        string | null;
   projectBudget:     string | null;
   projectNotes:      string | null;
+  projectPayments:   string | null;
+  isOldClient:       boolean;
   updatedAt:         string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
   uploadFile: { companyName: string | null } | null;
+  notes?: { id: string; text: string; createdAt: string }[];
 };
+
+function projectToWorkbench(p: Project): ProjectWorkbenchData {
+  return {
+    id: p.id,
+    name: p.name ?? "",
+    company: p.company ?? "",
+    phone: p.phone ?? "",
+    email: p.email ?? "",
+    ownerName: p.ownerName ?? "",
+    state: p.state ?? "",
+    projectCode: p.projectCode ?? "",
+    projectTitle: p.projectTitle ?? "",
+    projectScope: p.projectScope ?? "",
+    interestedService: p.interestedService ?? "",
+    projectBudget: p.projectBudget ?? "",
+    projectDeadline: (p.projectDeadline ?? "").split("T")[0],
+    projectPhase: p.projectPhase ?? "not_started",
+    takeoffDeadline: p.takeoffDeadline ?? "",
+    pricingDeadline: p.pricingDeadline ?? "",
+    qaDeadline: p.qaDeadline ?? "",
+    projectPayments: parsePayments(p.projectPayments),
+    assignedTo: p.csr.id,
+    csrName: p.csr.name,
+    csrCode: p.csr.csrCode,
+  };
+}
 
 type CSROption = { id: string; name: string; csrCode: string | null };
 
@@ -53,27 +108,85 @@ const formatDate = (iso: string | null | undefined) => {
 
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date();
 
+const isProjectActive = (p: Project): boolean => {
+  const st = (p.status ?? "").toLowerCase();
+  if (st === "completed") return false;
+  if (p.projectDeadline) {
+    const deadline = p.projectDeadline.split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
+    return deadline >= today;
+  }
+  return st === "close client";
+};
+
+
+function notesToHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
+  return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+}
+
+function projectAsRow(p: Project) {
+  return {
+    id: p.id,
+    name: p.name,
+    ownerName: p.ownerName,
+    phone: p.phone,
+    email: p.email,
+    projectCode: p.projectCode,
+    projectTitle: p.projectTitle,
+    projectScope: p.projectScope,
+    interestedService: p.interestedService,
+    projectBudget: p.projectBudget,
+    projectDeadline: p.projectDeadline,
+    projectPhase: p.projectPhase,
+    projectPayments: p.projectPayments,
+  };
+}
 
 /* ── Projects Card (mobile / tablet) ── */
-function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
+function ProjectCard({
+  p,
+  onView,
+  onReassign,
+  onAddNote,
+}: {
+  p: Project;
+  onView: () => void;
+  onReassign: () => void;
+  onAddNote: (id: string, text: string) => Promise<unknown>;
+}) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-bold text-gray-800 truncate">{p.name ?? "—"}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{p.phone ?? "—"}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1"><ClientDetailCell p={projectAsRow(p)} /></div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={onReassign}
+            className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100">
+            <ArrowRightLeft size={13} />
+          </button>
+          <button onClick={onView}
+            className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80">
+            <Eye size={13} />
+          </button>
         </div>
-        <button
-          onClick={onView}
-          className="px-3 py-1.5 rounded-xl bg-[#111827] text-white text-xs font-semibold shrink-0 hover:bg-black transition-all"
-        >
-          View
-        </button>
       </div>
 
-      {p.projectTitle && (
-        <p className="text-sm font-semibold text-gray-700 truncate">{p.projectTitle}</p>
-      )}
+      <ProjectDetailCell p={projectAsRow(p)} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <QuotedAmountCell p={projectAsRow(p)} />
+        <PaymentDetailCell p={projectAsRow(p)} />
+      </div>
+      <FulfillmentCell p={projectAsRow(p)} />
+
+      <div className="pt-1">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Notes</p>
+        <CommentCell
+          id={p.id}
+          apiRole="admin"
+          noteHistory={notesToHistory(p.notes)}
+          onAddNote={onAddNote}
+        />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {p.uploadFile?.companyName && (
@@ -86,33 +199,203 @@ function ProjectCard({ p, onView }: { p: Project; onView: () => void }) {
             {p.interestedService}
           </span>
         )}
-        {p.projectDeadline && (
-          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-xl ${
-            isOverdue(p.projectDeadline)
-              ? "bg-red-100 text-red-600"
-              : "bg-[#ECFDF5] text-[#065F46]"
-          }`}>
-            <Calendar size={10} />{formatDate(p.projectDeadline)}
-          </span>
-        )}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-50">
+      <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
         <span className="font-medium text-[#065F46] truncate flex items-center gap-1.5">
           {p.csr?.csrCode && (
             <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
           )}
           {p.csr?.name ?? "—"}
         </span>
-        {p.projectBudget && (
-          <span className="font-bold text-gray-700 shrink-0 ml-2">${p.projectBudget}</span>
+        {p.email && <span className="text-gray-400 truncate max-w-[140px]">{p.email}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Projects list section ── */
+function ProjectsSection({
+  projects,
+  page,
+  setPage,
+  loading,
+  search,
+  onView,
+  onReassign,
+  onAddNote,
+}: {
+  projects: Project[];
+  page: number;
+  setPage: (p: number) => void;
+  loading: boolean;
+  search: string;
+  onView: (p: Project) => void;
+  onReassign: (p: Project) => void;
+  onAddNote: (id: string, text: string) => Promise<unknown>;
+}) {
+  const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
+  const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  return (
+    <div>
+      <div className="lg:hidden space-y-3">
+        {loading ? (
+          [1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-32 animate-pulse" />
+          ))
+        ) : projects.length > 0 ? (
+          paginated.map((p) => (
+            <ProjectCard
+              key={p.id}
+              p={p}
+              onView={() => onView(p)}
+              onReassign={() => void onReassign(p)}
+              onAddNote={onAddNote}
+            />
+          ))
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 p-10 sm:p-12 text-center">
+            <FolderKanban size={32} className="text-gray-200 mx-auto mb-3 sm:w-9 sm:h-9" />
+            <p className="text-gray-400 font-medium text-sm sm:text-base">No projects found</p>
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-gray-100">
+            <p className="text-xs text-gray-400">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, projects.length)} of {projects.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+              <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+              <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed border-collapse" style={{ minWidth: "1280px" }}>
+            <CsrColGroup widths={ADMIN_PROJECT_COLS} />
+            <thead className="bg-[#FAFAFA] border-b border-[#F3F3F3]">
+              <tr className="text-left">
+                {[
+                  "Client Detail",
+                  "Project Detail",
+                  "Quoted",
+                  "Payment Detail",
+                  "Fulfillment",
+                  "CSR",
+                  "Email",
+                  "Notes",
+                  "",
+                ].map((h, i) => (
+                  <th
+                    key={i}
+                    className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD} ${
+                      i === 8 ? "text-right" : ""
+                    }`}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="border-b border-[#F3F3F3]">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((j) => (
+                      <td key={j} className="px-3 xl:px-4 py-4 xl:py-5">
+                        <div className="h-4 bg-gray-100 rounded animate-pulse w-16 xl:w-20" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : projects.length > 0 ? (
+                paginated.map((p) => (
+                  <tr key={p.id} className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top">
+                    <td className="px-3 xl:px-4 py-3 xl:py-4"><ClientDetailCell p={projectAsRow(p)} /></td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4"><ProjectDetailCell p={projectAsRow(p)} /></td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4"><QuotedAmountCell p={projectAsRow(p)} /></td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4"><PaymentDetailCell p={projectAsRow(p)} /></td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4"><FulfillmentCell p={projectAsRow(p)} /></td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {p.csr?.csrCode && (
+                          <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{p.csr.csrCode}</span>
+                        )}
+                        <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate">{p.csr?.name ?? "—"}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-hidden">
+                      <span className="text-xs text-gray-700 truncate block" title={p.email ?? undefined}>
+                        {p.email ?? "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4">
+                      <CommentCell
+                        id={p.id}
+                        apiRole="admin"
+                        noteHistory={notesToHistory(p.notes)}
+                        onAddNote={onAddNote}
+                      />
+                    </td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => void onReassign(p)}
+                          className="px-2.5 py-1.5 rounded-xl bg-blue-100 text-blue-700 text-[10px] xl:text-xs font-medium hover:bg-blue-200 flex items-center gap-1 shrink-0"
+                        >
+                          <ArrowRightLeft size={11} />
+                          <span className="hidden xl:inline">Reassign</span>
+                        </button>
+                        <button
+                          onClick={() => onView(p)}
+                          className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="py-16 xl:py-20 text-center">
+                    <FolderKanban size={36} className="text-gray-200 mx-auto mb-3 xl:w-10 xl:h-10" />
+                    <p className="font-semibold text-gray-400 text-sm xl:text-base">No projects found</p>
+                    <p className="text-xs xl:text-sm text-gray-300 mt-1">
+                      {search ? "Try a different search." : "No projects in this section yet."}
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, projects.length)} of {projects.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+              <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
+              <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-/* ── Main Pages ── */
 const PAGE_SIZE = 30;
 
 export default function AdminProjectsPage() {
@@ -122,8 +405,12 @@ export default function AdminProjectsPage() {
   const [search,    setSearch]    = useState("");
   const [filterCSR, setFilterCSR] = useState("all");
   const [allCsrs,     setAllCsrs]     = useState<CSROption[]>([]);
-  const [selected,  setSelected]  = useState<Project | null>(null);
-  const [page,      setPage]      = useState(1);
+  const [workbenchProject, setWorkbenchProject] = useState<Project | null>(null);
+  const [workbenchSaving, setWorkbenchSaving]   = useState(false);
+  const [projectTab,  setProjectTab]  = useState<"all" | "active">("all");
+  const [page,        setPage]        = useState(1);
+  const [dateFrom,    setDateFrom]    = useState("");
+  const [dateTo,      setDateTo]      = useState("");
 
   /* ── Reassign modal ── */
   const [showReassign,  setShowReassign]  = useState(false);
@@ -132,6 +419,53 @@ export default function AdminProjectsPage() {
   const [selCsrId,      setSelCsrId]      = useState("");
   const [isReassigning, setIsReassigning] = useState(false);
   const [csrOptsLoaded, setCsrOptsLoaded] = useState(false);
+
+  const addAdminNote = async (id: string, text: string) => {
+    const res = await API.post(`/admin/lead/${id}/notes`, { text });
+    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, notes: [...(p.notes ?? []), note] } : p))
+    );
+    setWorkbenchProject((prev) =>
+      prev?.id === id ? { ...prev, notes: [...(prev.notes ?? []), note] } : prev
+    );
+    return entry;
+  };
+
+  const saveWorkbench = async (data: ProjectWorkbenchData) => {
+    setWorkbenchSaving(true);
+    try {
+      const res = await API.put(`/admin/project/${data.id}`, {
+        name: data.name,
+        company: data.company,
+        phone: data.phone,
+        email: data.email,
+        ownerName: data.ownerName,
+        state: data.state,
+        projectCode: data.projectCode,
+        projectTitle: data.projectTitle,
+        projectScope: data.projectScope,
+        interestedService: data.interestedService,
+        projectBudget: data.projectBudget,
+        projectDeadline: data.projectDeadline,
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline,
+        pricingDeadline: data.pricingDeadline,
+        qaDeadline: data.qaDeadline,
+        projectPayments: data.projectPayments,
+        assignedTo: data.assignedTo,
+      });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setWorkbenchProject((prev) => (prev?.id === lead.id ? { ...prev, ...lead } : prev));
+      toast.success("Project updated");
+    } catch {
+      toast.error("Failed to save project");
+    } finally {
+      setWorkbenchSaving(false);
+    }
+  };
 
   const openReassign = async (p: Project) => {
     setReassignProj(p);
@@ -167,7 +501,10 @@ export default function AdminProjectsPage() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const params = filterCSR !== "all" ? { csrId: filterCSR } : {};
+      const params: Record<string, string> = {};
+      if (filterCSR !== "all") params.csrId = filterCSR;
+      if (dateFrom) params.from = dateFrom;
+      if (dateTo) params.to = dateTo;
       const res = await API.get("/admin/projects", { params });
       setProjects(res.data.leads ?? []);
       setStats(res.data.stats   ?? { total: 0, withBudget: 0, thisMonth: 0 });
@@ -176,7 +513,7 @@ export default function AdminProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterCSR]);
+  }, [filterCSR, dateFrom, dateTo]);
 
   useEffect(() => {
     API.get("/admin/csrs")
@@ -196,7 +533,7 @@ export default function AdminProjectsPage() {
         ),
       );
 
-  const filtered = projects.filter((p) => {
+  const baseFiltered = projects.filter((p) => {
     const q = search.toLowerCase();
     const csrName = p.csr?.name ?? "";
     const matchSearch =
@@ -209,8 +546,9 @@ export default function AdminProjectsPage() {
     return matchSearch && (filterCSR === "all" || p.csr?.id === filterCSR);
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const allProjects    = baseFiltered;
+  const activeProjects = baseFiltered.filter(isProjectActive);
+  const displayedProjects = projectTab === "all" ? allProjects : activeProjects;
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -228,10 +566,10 @@ export default function AdminProjectsPage() {
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
-              Active Projects
+              Project DB
             </h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-              All CSR active projects — view everyone or filter by CSR.
+              All CSR projects — filter by date, view all or active only.
             </p>
           </div>
           <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
@@ -300,352 +638,120 @@ export default function AdminProjectsPage() {
         </div>
 
         {/* SEARCH + FILTER */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4 sm:mb-5">
-          {/* Search */}
-          <div className="relative flex-1 sm:max-w-sm lg:max-w-md">
-            <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search projects, client, service..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
-            />
+        <div className="flex flex-col gap-2 sm:gap-3 mb-4 sm:mb-5">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="relative flex-1 sm:max-w-sm lg:max-w-md">
+              <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search projects, client, service..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+              />
+            </div>
+
+            <div className="relative w-full sm:w-auto">
+              <User2 size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <select
+                value={filterCSR}
+                onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
+                className="appearance-none w-full sm:min-w-[200px] lg:min-w-[220px] h-10 sm:h-12 bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D]"
+              >
+                <option value="all">All CSRs</option>
+                {csrList.map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+              <ChevronDown size={15} className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
           </div>
 
-          {/* CSR filter */}
-          <div className="relative w-full sm:w-auto">
-            <User2 size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              value={filterCSR}
-              onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
-              className="appearance-none w-full sm:min-w-[200px] lg:min-w-[220px] h-10 sm:h-12 bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D]"
-            >
-              <option value="all">All CSRs</option>
-              {csrList.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </select>
-            <ChevronDown size={15} className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+            <div className="flex items-center gap-2 flex-1 sm:max-w-md">
+              <Calendar size={15} className="text-gray-400 shrink-0" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
+              />
+              <span className="text-xs text-gray-400 shrink-0">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                className="h-10 px-4 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-all"
+              >
+                Clear dates
+              </button>
+            )}
           </div>
         </div>
 
-        {/* ── MOBILE / TABLET CARDS (< lg) ── */}
-        <div className="lg:hidden space-y-3">
-          {loading ? (
-            [1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-32 animate-pulse" />
-            ))
-          ) : filtered.length > 0 ? (
-            paginated.map((p) => (
-              <ProjectCard key={p.id} p={p} onView={() => setSelected(p)} />
-            ))
-          ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 p-10 sm:p-12 text-center">
-              <FolderKanban size={32} className="text-gray-200 mx-auto mb-3 sm:w-9 sm:h-9" />
-              <p className="text-gray-400 font-medium text-sm sm:text-base">No projects found</p>
-            </div>
-          )}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-gray-100">
-              <p className="text-xs text-gray-400">
-                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
-                <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
-              </div>
-            </div>
-          )}
+        {/* ALL / ACTIVE TABS */}
+        <div className="flex flex-wrap gap-2 mb-4 sm:mb-5">
+          {([
+            { key: "all" as const,    label: "All Projects",    count: allProjects.length,    sub: "New, old, completed & in-progress" },
+            { key: "active" as const, label: "Active Projects", count: activeProjects.length, sub: "Currently in progress only" },
+          ]).map(tab => {
+            const active = projectTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => { setProjectTab(tab.key); setPage(1); }}
+                className={`flex flex-col items-start px-4 py-3 rounded-xl sm:rounded-2xl border-2 transition-all text-left min-w-[140px] sm:min-w-[180px] ${
+                  active
+                    ? "border-[#B8112D] bg-[#FFF1F3] shadow-sm"
+                    : "border-gray-100 bg-white hover:border-gray-200"
+                }`}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <span className={`text-sm font-bold ${active ? "text-[#B8112D]" : "text-gray-800"}`}>
+                    {tab.label}
+                  </span>
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-lg ${
+                    active ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600"
+                  }`}>
+                    {tab.count}
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-xs text-gray-400 mt-1 leading-snug">{tab.sub}</p>
+              </button>
+            );
+          })}
         </div>
 
-        {/* ── DESKTOP TABLE (lg+) ── */}
-        <div className="hidden lg:block bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
-          {/* Scrollable wrapper so table never breaks layout on laptop */}
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ minWidth: "860px" }}>
-              <thead className="bg-[#FAFAFB] border-b border-gray-100">
-                <tr className="text-left text-xs xl:text-sm text-gray-400">
-                  {["Client", "Project Title", "Company", "Service", "Budget", "Deadline", "CSR", ""].map(
-                    (h, i) => (
-                      <th
-                        key={i}
-                        className={`px-4 xl:px-5 py-3 xl:py-4 font-medium whitespace-nowrap ${
-                          i === 7 ? "text-right" : ""
-                        }`}
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
+        <ProjectsSection
+          projects={displayedProjects}
+          page={page}
+          setPage={setPage}
+          loading={loading}
+          search={search}
+          onView={setWorkbenchProject}
+          onReassign={openReassign}
+          onAddNote={addAdminNote}
+        />
 
-              <tbody>
-                {loading ? (
-                  [1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="border-b border-gray-100">
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
-                        <td key={j} className="px-4 xl:px-5 py-4 xl:py-5">
-                          <div className="h-4 bg-gray-100 rounded animate-pulse w-16 xl:w-20" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : filtered.length > 0 ? (
-                  paginated.map((p) => (
-                    <tr key={p.id} className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all">
+        <ProjectWorkbenchModal
+          open={!!workbenchProject}
+          onClose={() => setWorkbenchProject(null)}
+          initial={workbenchProject ? projectToWorkbench(workbenchProject) : emptyWorkbench()}
+          mode="admin"
+          csrs={allCsrs}
+          saving={workbenchSaving}
+          onSave={saveWorkbench}
+          noteHistory={workbenchProject ? notesToHistory(workbenchProject.notes) : undefined}
+          onAddNote={workbenchProject ? async (text) => { await addAdminNote(workbenchProject.id, text); } : undefined}
+        />
 
-                      {/* CLIENT */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4">
-                        <p className="font-semibold text-gray-800 text-xs xl:text-sm whitespace-nowrap">
-                          {p.name ?? "—"}
-                        </p>
-                        <p className="text-[11px] xl:text-xs text-gray-400 mt-0.5">
-                          {p.phone ?? "—"}
-                        </p>
-                      </td>
-
-                      {/* PROJECT TITLE */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4">
-                        <p className="font-semibold text-gray-800 text-xs xl:text-sm whitespace-nowrap max-w-[140px] xl:max-w-[180px] truncate">
-                          {p.projectTitle ?? "—"}
-                        </p>
-                        <p className="text-[11px] xl:text-xs text-gray-400 mt-0.5 truncate max-w-[140px] xl:max-w-[160px]">
-                          {p.company ?? "—"}
-                        </p>
-                      </td>
-
-                      {/* COMPANY */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
-                        {p.uploadFile?.companyName ? (
-                          <span className="inline-flex items-center gap-1 bg-[#FFF1F3] text-[#B8112D] px-2 xl:px-2.5 py-1 rounded-xl text-[11px] xl:text-xs font-semibold">
-                            <Building2 size={9} className="xl:w-2.5 xl:h-2.5" />
-                            <span className="max-w-[80px] xl:max-w-none truncate">
-                              {p.uploadFile.companyName}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs xl:text-sm">—</span>
-                        )}
-                      </td>
-
-                      {/* SERVICE */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
-                        {p.interestedService ? (
-                          <span className={`px-2 xl:px-2.5 py-1 rounded-xl text-[11px] xl:text-xs font-semibold ${getServiceColor(p.interestedService)}`}>
-                            {p.interestedService}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs xl:text-sm">—</span>
-                        )}
-                      </td>
-
-                      {/* BUDGET */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
-                        <span className={`text-xs xl:text-sm font-semibold ${p.projectBudget ? "text-[#065F46]" : "text-gray-400"}`}>
-                          {p.projectBudget ? `$${p.projectBudget}` : "Not set"}
-                        </span>
-                      </td>
-
-                      {/* DEADLINE */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
-                        {p.projectDeadline ? (
-                          <span className={`inline-flex items-center gap-1 text-[11px] xl:text-xs font-semibold px-2 xl:px-2.5 py-1 rounded-xl ${
-                            isOverdue(p.projectDeadline)
-                              ? "bg-red-100 text-red-600"
-                              : "bg-[#ECFDF5] text-[#065F46]"
-                          }`}>
-                            <Calendar size={9} className="xl:w-2.5 xl:h-2.5" />
-                            {formatDate(p.projectDeadline)}
-                            {isOverdue(p.projectDeadline) && " · Overdue"}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs xl:text-sm">—</span>
-                        )}
-                      </td>
-
-                      {/* CSR */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          {p.csr?.csrCode && (
-                            <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
-                          )}
-                          <span className="text-xs xl:text-sm font-semibold text-[#065F46]">{p.csr?.name ?? "—"}</span>
-                        </div>
-                      </td>
-
-                      {/* ACTIONS */}
-                      <td className="px-4 xl:px-5 py-3 xl:py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => void openReassign(p)}
-                            className="px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl bg-blue-100 text-blue-700 text-xs xl:text-sm font-medium hover:bg-blue-200 transition-all whitespace-nowrap flex items-center gap-1.5"
-                          >
-                            <ArrowRightLeft size={12} className="xl:w-[13px] xl:h-[13px]" />
-                            Reassign
-                          </button>
-                          <button
-                            onClick={() => setSelected(p)}
-                            className="px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl bg-[#111827] text-white text-xs xl:text-sm font-medium hover:bg-black transition-all whitespace-nowrap"
-                          >
-                            View
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="py-16 xl:py-20 text-center">
-                      <FolderKanban size={36} className="text-gray-200 mx-auto mb-3 xl:w-10 xl:h-10" />
-                      <p className="font-semibold text-gray-400 text-sm xl:text-base">No projects found</p>
-                      <p className="text-xs xl:text-sm text-gray-300 mt-1">
-                        {search ? "Try a different search." : "No active projects yet."}
-                      </p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-              <p className="text-xs text-gray-400">
-                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
-                <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── DETAIL MODAL ── */}
-        {selected && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-lg lg:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto">
-
-              {/* Modal header */}
-              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100">
-                <div className="min-w-0 pr-3">
-                  <h2 className="text-base sm:text-xl font-bold text-gray-800 truncate">
-                    {selected.projectTitle ?? "Untitled Project"}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5">{selected.name ?? "—"}</p>
-                </div>
-                <button
-                  onClick={() => setSelected(null)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all shrink-0"
-                >
-                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-                </button>
-              </div>
-
-              <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
-
-                {/* Company + Service */}
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <div className="bg-[#FFF1F3] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 sm:gap-1.5 mb-1.5 sm:mb-2">
-                      <Building2 size={11} />Company
-                    </p>
-                    <p className="font-bold text-[#B8112D] text-sm truncate">
-                      {selected.uploadFile?.companyName ?? "—"}
-                    </p>
-                  </div>
-                  <div className="bg-[#F0FDF4] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 sm:gap-1.5 mb-1.5 sm:mb-2">
-                      <Briefcase size={11} />Service
-                    </p>
-                    <p className="font-bold text-[#065F46] text-sm truncate">
-                      {selected.interestedService ?? "—"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Budget + Deadline */}
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 sm:gap-1.5 mb-1.5 sm:mb-2">
-                      <DollarSign size={11} />Budget
-                    </p>
-                    <p className="font-bold text-gray-800 text-base sm:text-lg">
-                      {selected.projectBudget ? `$${selected.projectBudget}` : "Not set"}
-                    </p>
-                  </div>
-                  <div className={`rounded-xl sm:rounded-2xl p-3 sm:p-4 ${isOverdue(selected.projectDeadline) ? "bg-red-50" : "bg-[#F8F9FC]"}`}>
-                    <p className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 sm:gap-1.5 mb-1.5 sm:mb-2">
-                      <Calendar size={11} />Deadline
-                    </p>
-                    <p className={`font-bold text-base sm:text-lg ${isOverdue(selected.projectDeadline) ? "text-red-600" : "text-gray-800"}`}>
-                      {formatDate(selected.projectDeadline)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Client info */}
-                <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                  <p className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 sm:mb-3">
-                    Client Info
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                    {[
-                      { icon: <User2 size={12} />,     label: "Name",    value: selected.name    },
-                      { icon: <Phone size={12} />,     label: "Phone",   value: selected.phone   },
-                      { icon: <Mail size={12} />,      label: "Email",   value: selected.email   },
-                      { icon: <Building2 size={12} />, label: "Address", value: selected.company },
-                    ].map(({ icon, label, value }) => (
-                      <div key={label} className="flex items-start gap-2">
-                        <span className="text-gray-400 mt-0.5 shrink-0">{icon}</span>
-                        <div className="min-w-0">
-                          <p className="text-[10px] sm:text-xs text-gray-400">{label}</p>
-                          <p className="text-xs sm:text-sm font-medium text-gray-700 truncate">
-                            {value ?? "—"}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* CSR */}
-                <div className="bg-emerald-50 rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                  <p className="text-[10px] sm:text-xs text-gray-500 mb-1">Handled by CSR</p>
-                  <div className="flex items-center gap-2">
-                    {selected.csr.csrCode && (
-                      <span className="bg-[#B8112D]/10 text-[#B8112D] text-[11px] font-bold px-2 py-0.5 rounded-lg">{selected.csr.csrCode}</span>
-                    )}
-                    <p className="font-bold text-[#065F46] text-sm sm:text-base">{selected.csr.name}</p>
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-gray-400">{selected.csr.email}</p>
-                </div>
-
-                {/* Notes */}
-                {selected.projectNotes && (
-                  <div className="bg-[#FFFBEB] rounded-xl sm:rounded-2xl p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs text-gray-500 mb-1.5 sm:mb-2">Project Notes</p>
-                    <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-                      {selected.projectNotes}
-                    </p>
-                  </div>
-                )}
-
-                <p className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-400">
-                  <Clock3 size={10} className="sm:w-[11px] sm:h-[11px]" />
-                  Close Client on {formatDate(selected.updatedAt)}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       {/* ══ REASSIGN CSR MODAL ══ */}
       {showReassign && reassignProj && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">

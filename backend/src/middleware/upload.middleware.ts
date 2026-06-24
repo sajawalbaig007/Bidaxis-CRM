@@ -13,12 +13,21 @@ const EXCEL_TYPES = new Set([
 ]);
 
 function imageFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
+  const name = file.originalname?.toLowerCase() ?? "";
+  if (name.includes("..") || /\.(exe|bat|cmd|sh|php)$/i.test(name)) {
+    cb(new Error("Invalid file name."));
+    return;
+  }
   if (IMAGE_TYPES.has(file.mimetype)) cb(null, true);
   else cb(new Error("Only JPEG, PNG, WebP, or GIF images are allowed."));
 }
 
 function excelFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
   const name = file.originalname?.toLowerCase() ?? "";
+  if (name.includes("..") || /\.(exe|bat|cmd|sh|php|js|html)$/i.test(name)) {
+    cb(new Error("Invalid file name."));
+    return;
+  }
   const okType = EXCEL_TYPES.has(file.mimetype);
   const okExt  = name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv");
   if (okType || okExt) cb(null, true);

@@ -79,7 +79,6 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<"new" | "old">("new");
   const [search,    setSearch]    = useState("");
   const [page,      setPage]      = useState(1);
-  const [openPhoneDropdown, setOpenPhoneDropdown] = useState<string | null>(null);
 
   /* ── detail / edit modal ── */
   const [viewing,      setViewing]      = useState<ClientLead | null>(null);
@@ -524,33 +523,10 @@ export default function LeadsPage() {
                             );
                           }
                           return (
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() => setOpenPhoneDropdown(openPhoneDropdown === lead.id ? null : lead.id)}
-                                className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 py-1 rounded-xl text-xs lg:text-sm font-medium whitespace-nowrap max-w-full"
-                              >
-                                <span className="max-w-[90px] truncate">{phones[0]}</span>
-                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                                <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">+{phones.length - 1}</span>
-                              </button>
-                              {openPhoneDropdown === lead.id && (
-                                <>
-                                  <div className="fixed inset-0 z-20" onClick={() => setOpenPhoneDropdown(null)} />
-                                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px]">
-                                    {phones.map((ph, idx) => {
-                                      const pt = getTimezoneAbbrFromPhone(ph);
-                                      return (
-                                        <div key={idx} className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]">
-                                          <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
-                                          <span className="truncate">{ph}</span>
-                                          {pt && <span className={`ml-auto inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(pt)}`}>{pt}</span>}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </>
-                              )}
+                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 py-1 rounded-xl text-xs lg:text-sm font-medium whitespace-nowrap max-w-full">
+                              <span className="max-w-[90px] truncate">{phones[0]}</span>
+                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
+                              <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">+{phones.length - 1}</span>
                             </div>
                           );
                         })()}

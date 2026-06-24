@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { visibleInterval } from "@/lib/visibleInterval";
 import DashboardNavbar  from "./components/layout/Navbar";
 import DashboardSidebar from "./components/layout/Sidebar";
 import PerformanceChart, { type ClientLead } from "./components/charts/PerformanceChart";
@@ -14,8 +13,6 @@ import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
   TrendingUp, Briefcase, Trophy,
 } from "lucide-react";
-
-const REFRESH_INTERVAL = 120_000;
 
 type QuickStats = {
   totalLeads:  number;
@@ -68,7 +65,6 @@ export default function DashboardPage() {
       finally { setLoadingStats(false); }
     };
     void fetchQuick();
-    return visibleInterval(() => void fetchQuick(), REFRESH_INTERVAL);
   }, []);
 
   const chartLeads: ClientLead[] = (summary?.chartLeads ?? []).map(c => ({ createdAt: c.createdAt }));
