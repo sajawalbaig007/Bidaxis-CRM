@@ -7,7 +7,7 @@ import { generateToken } from "../utils/jwt";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { getJwtSecret, validatePassword } from "../config/security";
-import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured } from "../config/env";
+import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured, isSmtpConfigured } from "../config/env";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
@@ -50,6 +50,7 @@ function setCookieToken(res: Response, token: string, rememberMe: boolean) {
     httpOnly: true,
     secure:   isProd,
     sameSite: isProd ? "none" : "lax",
+    path:     "/",
     maxAge:   hours * 60 * 60 * 1000,
   });
 }
@@ -90,7 +91,7 @@ async function finishLogin(
   rememberMe: boolean
 ) {
   await clearLoginFailures(user.email, getClientIp(req));
-  await issueSessionToken(res, user, rememberMe);
+  const token = await issueSessionToken(res, user, rememberMe);
 
   const ip = getClientIp(req);
   const ua = getUserAgent(req);
@@ -119,6 +120,7 @@ async function finishLogin(
     requires2FA: false,
     role:        user.role,
     user:        userPayload(user),
+    token,
   });
 }
 
@@ -251,7 +253,7 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    if (user.twoFAEnabled) {
+    if (user.twoFAEnabled && isSmtpConfigured()) {
       if (await blockIfAlreadyLoggedIn(user.id, res)) return;
 
       const existing = otpAttempts.get(user.id);

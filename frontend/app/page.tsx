@@ -5,6 +5,8 @@ import Image from "next/image";
 import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import API from "@/lib/api";
+import { invalidateAuthMeCache } from "@/lib/authMeCache";
+import { setFrontendSession } from "@/lib/session";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 
 interface APIError {
@@ -73,7 +75,7 @@ export default function LoginPage() {
         setOtp(["", "", "", "", "", ""]); setStep("otp");
         toast.success(data.message ?? "OTP sent to your email");
       } else {
-        toast.success("Login successful"); redirect(data.role);
+        await completeLogin(data);
       }
     } catch (err: unknown) {
       const e = err as APIError;
@@ -97,7 +99,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await API.post("/auth/verify-otp", { userId, otp: code, rememberMe }, { withCredentials: true });
-      toast.success("Login successful"); redirect(res.data.role);
+      await completeLogin(res.data);
     } catch (err: unknown) {
       const e = err as APIError; const data = e?.response?.data;
       if (data?.code === "ALREADY_LOGGED_IN") {
@@ -142,8 +144,18 @@ export default function LoginPage() {
     if (pasted.length === 6) { setOtp(pasted.split("")); otpRefs.current[5]?.focus(); }
   };
 
-  function redirect(role: string) {
-    window.location.href = role === "admin" ? "/admin" : role === "csr" ? "/csr" : "/";
+  async function completeLogin(data: { role?: string; user?: { role?: string }; token?: string }) {
+    if (data.token) await setFrontendSession(data.token);
+    invalidateAuthMeCache();
+    toast.success("Login successful");
+    redirect(data.role, data.user);
+  }
+
+  function redirect(role?: string, user?: { role?: string }) {
+    const r = (role ?? user?.role ?? "").toLowerCase();
+    if (r === "admin") window.location.href = "/admin";
+    else if (r === "csr") window.location.href = "/csr";
+    else toast.error("Could not determine your role. Please contact admin.");
   }
 
   const otpFilled = otp.join("").length === 6;

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import API from "@/lib/api";
+import API, { getApiBase } from "@/lib/api";
 
 export function useCsrPresence() {
   useEffect(() => {
@@ -20,7 +20,7 @@ export function useCsrPresence() {
     };
 
     const markOffline = () => {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/csr/offline`, {
+      fetch(`${getApiBase()}/csr/offline`, {
         method: "POST", credentials: "include", keepalive: true,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tabId }),
