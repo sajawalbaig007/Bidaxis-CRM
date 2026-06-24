@@ -9,15 +9,20 @@ function isLocalHost(): boolean {
 
 /**
  * Local dev → direct backend (fast, CORS allowed).
- * Production (dashboard.bemsolutions.io etc.) → /api/backend proxy (same-origin cookies).
+ * Production → NEXT_PUBLIC_API_URL when set (direct Render); else /api/backend proxy.
  */
 export function resolveBaseURL(): string {
+  const direct = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+
   if (typeof window !== "undefined") {
     if (isLocalHost()) {
-      return (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api").replace(/\/$/, "");
+      return direct || "http://localhost:5000/api";
     }
+    // Vercel production: direct Render URL avoids broken/missing proxy on older deploys.
+    if (direct && !/localhost|127\.0\.0\.1/i.test(direct)) return direct;
     return "/api/backend";
   }
+
   const root = backendRoot();
   return `${root}/api`;
 }
@@ -67,6 +72,9 @@ export function apiErrorMessage(err: unknown, fallback = "Something went wrong."
     message?: string;
   };
   if (e?.response?.data?.message) return e.response.data.message;
+  if (e?.response?.status === 404) {
+    return "API not found. Redeploy frontend and set BACKEND_URL on Vercel.";
+  }
   if (e?.response?.status === 502) {
     return "API server unreachable. Set BACKEND_URL on Vercel to your Render backend URL.";
   }
