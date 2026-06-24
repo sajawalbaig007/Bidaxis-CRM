@@ -9,6 +9,7 @@ import {
 } from "../utils/uploadExcelParse";
 import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
+import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 
 const CHUNK_INSERT = 1000;
 const BATCH_UPDATE = 30;
@@ -303,7 +304,7 @@ export const getLatestUpload = async (req: Request, res: Response) => {
     const latestFile = await prisma.uploadFile.findFirst({
       orderBy: { createdAt: "desc" },
       include: {
-        source: { select: { id: true, name: true } },
+        source: { select: ADMIN_UPLOAD_SOURCE_SELECT },
         leads: {
           include: {
             csr: { select: { id: true, name: true, email: true } },
@@ -408,7 +409,7 @@ export const getUploadHistory = async (req: Request, res: Response) => {
     const uploads = await prisma.uploadFile.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        source: { select: { id: true, name: true } },
+        source: { select: ADMIN_UPLOAD_SOURCE_SELECT },
         _count: { select: { leads: true } },
         leads: {
           take: 1,
@@ -466,6 +467,83 @@ export const getUploadHistory = async (req: Request, res: Response) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch upload history" });
+  }
+};
+
+/* ================= ASSIGN SOURCE TO EXISTING UPLOAD ================= */
+
+export const patchUploadFileSource = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    let sourceId = String(req.body.sourceId ?? "").trim();
+
+    const name = String(req.body.name ?? "").trim();
+    const sudoNameRaw = req.body.sudoName !== undefined ? String(req.body.sudoName).trim() : "";
+
+    if (!sourceId && name) {
+      const existing = await prisma.uploadSource.findUnique({ where: { name } });
+      if (existing) {
+        if (sudoNameRaw && existing.sudoName !== sudoNameRaw) {
+          await prisma.uploadSource.update({
+            where: { id: existing.id },
+            data:  { sudoName: sudoNameRaw || null },
+          });
+        }
+        sourceId = existing.id;
+      } else {
+        const created = await prisma.uploadSource.create({
+          data: { name, sudoName: sudoNameRaw || null },
+        });
+        sourceId = created.id;
+      }
+    }
+
+    if (!sourceId) {
+      return res.status(400).json({ success: false, message: "Select or create a source" });
+    }
+
+    const source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+    if (!source) {
+      return res.status(404).json({ success: false, message: "Source not found" });
+    }
+
+    const upload = await prisma.uploadFile.findUnique({ where: { id } });
+    if (!upload) {
+      return res.status(404).json({ success: false, message: "Upload not found" });
+    }
+
+    const updated = await prisma.uploadFile.update({
+      where: { id },
+      data:  { sourceId },
+      include: {
+        source: { select: ADMIN_UPLOAD_SOURCE_SELECT },
+        _count:  { select: { leads: true } },
+      },
+    });
+
+    const leads = await prisma.lead.findMany({
+      where:  { uploadedFileId: id },
+      select: { assignedTo: true },
+    });
+    const csrIds = [...new Set(leads.map(l => l.assignedTo))];
+    await invalidateAllLeadCaches(csrIds);
+
+    return res.json({
+      success: true,
+      upload: {
+        id:             updated.id,
+        fileName:       updated.fileName,
+        totalLeads:     updated.totalLeads,
+        linkedLeads:    updated._count.leads,
+        companyName:    updated.companyName,
+        uploadCategory: updated.uploadCategory,
+        source:         updated.source,
+        createdAt:      updated.createdAt,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to assign source" });
   }
 };
 
