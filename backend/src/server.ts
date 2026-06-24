@@ -250,7 +250,7 @@ function scheduleWeeklyShuffle() {
     setInterval(runWeeklyShuffle, 2 * 24 * 60 * 60 * 1000);
   }, msUntil);
 }
-
+//
 scheduleAutoReport();
 scheduleWeeklyShuffle();
 
