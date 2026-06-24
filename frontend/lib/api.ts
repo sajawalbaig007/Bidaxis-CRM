@@ -1,8 +1,21 @@
 import axios from "axios";
 import toast from "react-hot-toast";
 
+/** Browser uses same-origin proxy so httpOnly auth cookies work (no third-party blocking). */
+function resolveBaseURL(): string {
+  if (typeof window !== "undefined") {
+    return "/api/backend";
+  }
+  const root = (process.env.BACKEND_URL ?? "http://localhost:5000").replace(/\/$/, "");
+  return `${root}/api`;
+}
+
+export function getApiBase(): string {
+  return resolveBaseURL();
+}
+
 const API = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api",
+  baseURL: resolveBaseURL(),
   withCredentials: true,
 });
 

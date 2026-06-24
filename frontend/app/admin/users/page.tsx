@@ -10,7 +10,7 @@ import {
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
-import API from "@/lib/api";
+import API, { getApiBase } from "@/lib/api";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 type UserRole = "CSR" | "Admin";
@@ -38,7 +38,7 @@ type AccessHistoryRow = {
   createdAt: string;
 };
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
+const apiBase = () => getApiBase();
 
 const roleColor = (role: UserRole) => {
   if (role === "Admin") return "bg-blue-100 text-blue-600";
@@ -206,7 +206,7 @@ export default function UsersPage() {
   const fetchUsers = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const res  = await fetch(`${BASE}/users`, { credentials: "include" });
+      const res  = await fetch(`${apiBase()}/users`, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) { if (!silent) toast.error("Failed to fetch users."); return; }
 
@@ -278,7 +278,7 @@ export default function UsersPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res  = await fetch(`${BASE}/users/upload-pic`, { method: "POST", credentials: "include", body: fd });
+      const res  = await fetch(`${apiBase()}/users/upload-pic`, { method: "POST", credentials: "include", body: fd });
       const data = await res.json();
       if (!res.ok) { toast.error("Image upload failed."); return; }
       setForm(f => ({ ...f, profilePic: data.url }));
@@ -296,7 +296,7 @@ export default function UsersPage() {
     }
     try {
       const role = form.role === "CSR" ? "csr" : "admin";
-      const url    = editingUser ? `${BASE}/users/${editingUser.id}` : `${BASE}/auth/register`;
+      const url    = editingUser ? `${apiBase()}/users/${editingUser.id}` : `${apiBase()}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
       const shared = {
         name: form.name, email: form.email, role,
@@ -333,7 +333,7 @@ export default function UsersPage() {
             toast.dismiss(t.id);
             const tid = toast.loading("Deleting...");
             try {
-              const res  = await fetch(`${BASE}/users/${id}`, { method: "DELETE", credentials: "include" });
+              const res  = await fetch(`${apiBase()}/users/${id}`, { method: "DELETE", credentials: "include" });
               const data = await res.json();
               if (!res.ok) { toast.error(data.message || "Delete failed.", { id: tid }); return; }
               toast.success("User deleted.", { id: tid });
@@ -361,7 +361,7 @@ export default function UsersPage() {
             toast.dismiss(t.id);
             const tid = toast.loading(`Resetting ${user.name}'s data...`);
             try {
-              const res  = await fetch(`${BASE}/admin/csr-leads/${user.id}`, { method: "DELETE", credentials: "include" });
+              const res  = await fetch(`${apiBase()}/admin/csr-leads/${user.id}`, { method: "DELETE", credentials: "include" });
               const data = await res.json();
               if (!res.ok) { toast.error(data.message || "Reset failed.", { id: tid }); return; }
               toast.success(`All data removed for ${user.name} (${data.deleted ?? 0} leads deleted).`, { id: tid });
@@ -376,7 +376,7 @@ export default function UsersPage() {
   const toggleStatus = async (user: User) => {
     const newActive = user.status !== "Active";
     try {
-      const res = await fetch(`${BASE}/users/${user.id}`, {
+      const res = await fetch(`${apiBase()}/users/${user.id}`, {
         method: "PUT", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: newActive }),
