@@ -17,14 +17,30 @@ const report_routes_1 = __importDefault(require("./routes/report.routes"));
 const reportUpload_routes_1 = __importDefault(require("./routes/reportUpload.routes"));
 const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
 const rateLimit_middleware_1 = require("./middleware/rateLimit.middleware");
+const env_1 = require("./config/env");
 dotenv_1.default.config();
+(0, env_1.validateEnv)();
 const app = (0, express_1.default)();
+const isProd = process.env.NODE_ENV === "production";
 const allowedOrigins = [
     "http://localhost:3000",
+    "https://crm-blond-theta.vercel.app",
+    "https://dashboard.bemsolutions.io",
     process.env.FRONTEND_URL,
 ].filter(Boolean);
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: isProd ? {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "https://challenges.cloudflare.com"],
+            frameSrc: ["'self'", "https://challenges.cloudflare.com"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", process.env.FRONTEND_URL ?? ""].filter(Boolean),
+        },
+    } : false,
+    hsts: isProd ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
 }));
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {

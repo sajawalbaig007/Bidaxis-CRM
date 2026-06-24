@@ -7,10 +7,14 @@ exports.runWeeklyShuffle = runWeeklyShuffle;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const security_1 = require("./config/security");
+const env_1 = require("./config/env");
+const auditLog_1 = require("./utils/auditLog");
+const sessions_1 = require("./utils/sessions");
 const app_1 = __importDefault(require("./app"));
 const db_1 = __importDefault(require("./config/db"));
 const cloudinary_1 = __importDefault(require("./config/cloudinary"));
 const PORT = process.env.PORT || 5000;
+(0, env_1.validateEnv)();
 /* ═══════════════════════════════════════════════
    AUTO OFFLINE CRON — every 5s with circuit breaker
    If DB is unreachable, backs off for 60s to avoid
@@ -224,8 +228,47 @@ function scheduleWeeklyShuffle() {
         setInterval(runWeeklyShuffle, 2 * 24 * 60 * 60 * 1000);
     }, msUntil);
 }
+//
 scheduleAutoReport();
 scheduleWeeklyShuffle();
+/* ── Deactivate inactive CSR accounts (90 days) ── */
+async function deactivateInactiveUsers() {
+    try {
+        const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+        const stale = await db_1.default.user.findMany({
+            where: {
+                role: "csr",
+                isActive: true,
+                OR: [
+                    { lastActive: { lt: cutoff } },
+                    { lastActive: null, createdAt: { lt: cutoff } },
+                ],
+            },
+            select: { id: true, email: true },
+        });
+        if (stale.length === 0)
+            return;
+        for (const u of stale) {
+            await db_1.default.user.update({
+                where: { id: u.id },
+                data: { isActive: false },
+            });
+            await (0, sessions_1.clearActiveSession)(u.id);
+            await (0, auditLog_1.writeAuditLog)({
+                action: "account_deactivated",
+                userId: u.id,
+                email: u.email,
+                meta: { reason: "inactive_90_days" },
+            });
+        }
+        console.log(`[Security] Deactivated ${stale.length} inactive CSR account(s)`);
+    }
+    catch (err) {
+        console.log("[Security] Inactive-user check failed:", err);
+    }
+}
+setInterval(() => { void deactivateInactiveUsers(); }, 24 * 60 * 60 * 1000);
+void deactivateInactiveUsers();
 (0, security_1.getJwtSecret)();
 /* ── START ── */
 app_1.default.listen(PORT, () => {

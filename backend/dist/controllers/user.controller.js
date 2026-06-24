@@ -72,7 +72,8 @@ const deleteUser = async (req, res) => {
         await db_1.default.report.updateMany({ where: { generatedBy: id }, data: { generatedBy: null } });
         /* 6. Delete the user */
         await db_1.default.user.delete({ where: { id } });
-        (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs", "admin:clients", `csr:dashboard:${id}`, `csr:leads:${id}`);
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs", `csr:dashboard:${id}`, `csr:leads:${id}`);
         res.json({ success: true, message: "User deleted" });
     }
     catch (err) {
