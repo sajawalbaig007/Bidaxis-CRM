@@ -107,11 +107,22 @@ function mapProject(lead: RawLead): Project {
   const paidPercent  = budgetNum > 0 ? (paidAmountNum / budgetNum) * 100 : 0;
 
   const rawNotes = Array.isArray(lead.notes) ? lead.notes : [];
-  const legacyNote: NoteEntry[] = (lead.comments || lead.followUpNotes)
-    ? [{ id: "legacy", text: lead.comments ?? lead.followUpNotes ?? "", createdAt: lead.createdAt ?? new Date().toISOString() }]
-    : [];
-  const noteHistory: NoteEntry[] = rawNotes.length > 0
-    ? rawNotes.map((n: RawNote) => ({ id: n.id ?? String(Math.random()), text: n.text ?? "", createdAt: n.createdAt ?? new Date().toISOString() }))
+  const fullNotes = rawNotes.filter(n => n.text?.trim());
+  const legacyNote: NoteEntry[] = [];
+  if (fullNotes.length === 0 && (lead.comments?.trim() || lead.followUpNotes?.trim())) {
+    if (lead.comments?.trim()) {
+      legacyNote.push({ id: "legacy-comments", text: lead.comments.trim(), createdAt: lead.createdAt ?? new Date().toISOString() });
+    }
+    if (lead.followUpNotes?.trim()) {
+      legacyNote.push({ id: "legacy-followup", text: lead.followUpNotes.trim(), createdAt: lead.createdAt ?? new Date().toISOString() });
+    }
+  }
+  const noteHistory: NoteEntry[] = fullNotes.length > 0
+    ? fullNotes.map((n: RawNote) => ({
+        id: n.id ?? String(Math.random()),
+        text: n.text!.trim(),
+        createdAt: n.createdAt ?? new Date().toISOString(),
+      }))
     : legacyNote;
 
   return {

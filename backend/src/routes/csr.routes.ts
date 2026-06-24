@@ -65,7 +65,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
       where:   { assignedTo: csrId },
       include: {
         uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
-        notes:      { select: { id: true } },   // IDs only — count badge; content fetched lazily
+        notes:      { orderBy: { createdAt: "asc" }, select: { id: true, text: true, createdAt: true } },
         // subContacts omitted — fetched on demand via GET /csr/lead/:id
       },
       orderBy: { createdAt: "desc" },

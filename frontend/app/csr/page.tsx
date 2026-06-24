@@ -475,6 +475,8 @@ export default function CSRPage() {
                       <CommentCell
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}
+                        noteCount={currentLink.noteCount}
+                        comment={currentLink.comments?.trim() || undefined}
                         onAddNote={addNote}
                         onNoteUpdated={(leadId, noteId, text) => {
                           setLeads(prev => prev.map(l => l.id === leadId
