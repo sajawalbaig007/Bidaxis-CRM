@@ -5,8 +5,8 @@ import toast from "react-hot-toast";
 import {
   UploadCloud, FileText, Trash2, CheckCircle2, Users,
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
-  Loader2, X, Building2, ChevronDown, RefreshCw, RotateCcw,
-  PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle,
+  Loader2, X, Building2, ChevronDown, ChevronUp, RefreshCw, RotateCcw,
+  PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle, Pencil,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -33,7 +33,7 @@ type SourceStats = {
 };
 
 type UploadSourceRow = {
-  id: string; name: string; createdAt: string;
+  id: string; name: string; sudoName: string | null; createdAt: string;
   uploadCount: number; lastUpload: string | null; stats: SourceStats;
 };
 
@@ -62,7 +62,7 @@ type HistoryUpload = {
   linkedLeads: number;
   companyName: string | null;
   uploadCategory: string | null;
-  source: { id: string; name: string } | null;
+  source: { id: string; name: string; sudoName: string | null } | null;
   createdAt: string;
 };
 
@@ -92,6 +92,17 @@ const CATEGORY_LABEL_MAP = Object.fromEntries(
 type ModalStep = "category" | "reset" | "company" | "source" | "pane" | "csrs";
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
+
+const sourceAdminLabel = (s: { name: string; sudoName?: string | null }) =>
+  s.sudoName ? `${s.name} · ${s.sudoName}` : s.name;
+const PREVIEW_PAGE_SIZE = 30;
+const RESULT_FILTER_OPTIONS = [
+  { key: "all" as const, label: "All" },
+  { key: "new" as const, label: "New" },
+  { key: "duplicate" as const, label: "Duplicate" },
+  { key: "updated" as const, label: "Updated" },
+  { key: "empty" as const, label: "Skipped" },
+];
 
 const STATUS_STYLE: Record<RowResult["status"], { bg: string; text: string; label: string }> = {
   new:       { bg: "bg-green-100",  text: "text-green-700",  label: "New" },
@@ -136,6 +147,11 @@ export default function UploadPage() {
   const [uploadSummary,      setUploadSummary]      = useState<UploadSummary | null>(null);
   const [lastUploadName,     setLastUploadName]     = useState("");
   const [resultsFilter,      setResultsFilter]      = useState<"all" | RowResult["status"]>("all");
+  const [resultsPage,        setResultsPage]        = useState(1);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const [previewLoading,     setPreviewLoading]     = useState(false);
+  const [previewLive,        setPreviewLive]        = useState(false);
+  const [resultsExpanded,    setResultsExpanded]    = useState(true);
 
   const [showCSRModal,  setShowCSRModal]  = useState(false);
   const [selectedFile,  setSelectedFile]  = useState<File | null>(null);
@@ -153,7 +169,18 @@ export default function UploadPage() {
   const [uploadSources,    setUploadSources]    = useState<UploadSourceRow[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [newSourceName,    setNewSourceName]    = useState("");
+  const [newSourceSudoName, setNewSourceSudoName] = useState("");
   const [addingSource,     setAddingSource]     = useState(false);
+  const [editingSourceId,  setEditingSourceId]  = useState<string | null>(null);
+  const [editSourceName,   setEditSourceName]   = useState("");
+  const [editSourceSudoName, setEditSourceSudoName] = useState("");
+  const [savingSourceId,   setSavingSourceId]   = useState<string | null>(null);
+  const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null);
+  const [assigningUploadId, setAssigningUploadId] = useState<string | null>(null);
+  const [assignSourceId,   setAssignSourceId]   = useState("");
+  const [assignNewSourceName, setAssignNewSourceName] = useState("");
+  const [assignNewSourceSudoName, setAssignNewSourceSudoName] = useState("");
+  const [savingAssignId,   setSavingAssignId]   = useState<string | null>(null);
   const [historySourceId,  setHistorySourceId]  = useState<string | "all">("all");
   const [sourceDetail,     setSourceDetail]     = useState<{
     stats: SourceStats;
@@ -176,19 +203,108 @@ export default function UploadPage() {
 
   const addNewSource = async () => {
     const name = newSourceName.trim();
+    const sudoName = newSourceSudoName.trim();
     if (!name) { toast.error("Enter a source name"); return; }
     setAddingSource(true);
     try {
-      const res = await API.post("/admin/upload-sources", { name });
+      const res = await API.post("/admin/upload-sources", { name, sudoName: sudoName || undefined });
       const src = res.data.source as { id: string; name: string };
       setSelectedSourceId(src.id);
       setNewSourceName("");
+      setNewSourceSudoName("");
       toast.success(res.data.created ? `"${name}" added` : `"${name}" selected`);
       await fetchUploadSources();
     } catch {
       toast.error("Failed to add source");
     } finally {
       setAddingSource(false);
+    }
+  };
+
+  const startEditSource = (src: UploadSourceRow) => {
+    setEditingSourceId(src.id);
+    setEditSourceName(src.name);
+    setEditSourceSudoName(src.sudoName ?? "");
+  };
+
+  const cancelEditSource = () => {
+    setEditingSourceId(null);
+    setEditSourceName("");
+    setEditSourceSudoName("");
+  };
+
+  const saveEditSource = async (id: string) => {
+    const name = editSourceName.trim();
+    if (!name) { toast.error("Source name required"); return; }
+    setSavingSourceId(id);
+    try {
+      await API.patch(`/admin/upload-sources/${id}`, {
+        name,
+        sudoName: editSourceSudoName.trim() || null,
+      });
+      toast.success("Source updated");
+      cancelEditSource();
+      await fetchUploadSources();
+    } catch {
+      toast.error("Failed to update source");
+    } finally {
+      setSavingSourceId(null);
+    }
+  };
+
+  const deleteSource = async (id: string, name: string) => {
+    if (!confirm(`Delete source "${name}"?\n\nPast uploads will remain but lose their source link.`)) return;
+    setDeletingSourceId(id);
+    try {
+      await API.delete(`/admin/upload-sources/${id}`);
+      toast.success("Source deleted");
+      if (historySourceId === id) setHistorySourceId("all");
+      if (selectedSourceId === id) setSelectedSourceId("");
+      await fetchUploadSources();
+    } catch {
+      toast.error("Failed to delete source");
+    } finally {
+      setDeletingSourceId(null);
+    }
+  };
+
+  const cancelAssignSource = () => {
+    setAssigningUploadId(null);
+    setAssignSourceId("");
+    setAssignNewSourceName("");
+    setAssignNewSourceSudoName("");
+  };
+
+  const openAssignSource = (uploadId: string) => {
+    setAssigningUploadId(uploadId);
+    setAssignSourceId("");
+    setAssignNewSourceName("");
+    setAssignNewSourceSudoName("");
+  };
+
+  const saveAssignSource = async (uploadId: string) => {
+    if (!assignSourceId && !assignNewSourceName.trim()) {
+      toast.error("Select or create a source");
+      return;
+    }
+    setSavingAssignId(uploadId);
+    try {
+      const body: Record<string, string> = assignSourceId
+        ? { sourceId: assignSourceId }
+        : {
+            name: assignNewSourceName.trim(),
+            ...(assignNewSourceSudoName.trim() ? { sudoName: assignNewSourceSudoName.trim() } : {}),
+          };
+      const res = await API.patch(`/uploads/${uploadId}/source`, body);
+      const updated = res.data.upload as HistoryUpload;
+      setUploadHistory(prev => prev.map(u => (u.id === uploadId ? { ...u, source: updated.source } : u)));
+      toast.success("Source assigned");
+      cancelAssignSource();
+      void fetchUploadSources();
+    } catch {
+      toast.error("Failed to assign source");
+    } finally {
+      setSavingAssignId(null);
     }
   };
 
@@ -233,6 +349,7 @@ export default function UploadPage() {
   const openHistoryModal = () => {
     setShowHistoryModal(true);
     void fetchUploadHistory(historyCategory);
+    void fetchUploadSources();
   };
 
   const switchHistoryCategory = (cat: UploadCategoryKey) => {
@@ -325,6 +442,30 @@ export default function UploadPage() {
 
   const finalCompany = selectedCompany === "Other" ? customCompany : selectedCompany;
 
+  const buildUploadFormData = () => {
+    if (!selectedFile) return null;
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("selectedCSRs", JSON.stringify(selectedCSRs));
+    formData.append("companyName", finalCompany.trim());
+    formData.append("resetMode", resetMode ?? "keep");
+    formData.append("initialStatuses", JSON.stringify(
+      uploadMode === "important"  ? ["important"]    :
+      uploadMode === "interested" ? ["interested"]   :
+      uploadMode === "active"     ? ["Close Client"] :
+      selectedPane === "lead"     ? ["Close Client"] :
+      ["pending"]
+    ));
+    formData.append("leadType",
+      uploadMode === "important"  ? "old"    :
+      uploadMode === "interested" ? "new"    :
+      uploadMode === "active"     ? "active" :
+      selectedLeadType
+    );
+    formData.append("sourceId", selectedSourceId);
+    return formData;
+  };
+
   const handleFiles = async () => {
     if (!selectedFile) return;
     /* company is optional for client uploads — comes from Excel rows */
@@ -332,7 +473,21 @@ export default function UploadPage() {
     if (selectedCSRs.length === 0) { toast.error("Select at least one CSR"); return; }
     if (!selectedSourceId) { toast.error("Select an upload source"); return; }
 
+    const formData = buildUploadFormData();
+    if (!formData) return;
+    const previewFormData = buildUploadFormData();
+    if (!previewFormData) return;
+
     setShowCSRModal(false);
+    setResultsExpanded(true);
+    setPreviewLoading(true);
+    setPreviewLive(true);
+    setRowResults([]);
+    setUploadSummary(null);
+    setLastUploadName(selectedFile.name);
+    setResultsFilter("all");
+    setResultsPage(1);
+
     const tempId = Date.now();
 
     setFiles(prev => [{
@@ -345,27 +500,17 @@ export default function UploadPage() {
 
     let processingInterval: ReturnType<typeof setInterval> | null = null;
 
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("selectedCSRs", JSON.stringify(selectedCSRs));
-      formData.append("companyName", finalCompany.trim());
-      formData.append("resetMode", resetMode ?? "keep");
-      formData.append("initialStatuses", JSON.stringify(
-        uploadMode === "important"  ? ["important"]    :
-        uploadMode === "interested" ? ["interested"]   :
-        uploadMode === "active"     ? ["Close Client"] :
-        selectedPane === "lead"     ? ["Close Client"] :
-        ["pending"]
-      ));
-      formData.append("leadType",
-        uploadMode === "important"  ? "old"    :
-        uploadMode === "interested" ? "new"    :
-        uploadMode === "active"     ? "active" :
-        selectedLeadType
-      );
-      formData.append("sourceId", selectedSourceId);
+    const previewPromise = API.post("/uploads/preview", previewFormData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then(res => {
+      setRowResults((res.data.preview ?? []) as RowResult[]);
+      setUploadSummary((res.data.summary ?? null) as UploadSummary | null);
+      setPreviewLoading(false);
+    }).catch(() => {
+      setPreviewLoading(false);
+    });
 
+    try {
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (event) => {
@@ -396,13 +541,18 @@ export default function UploadPage() {
           : f
       ));
 
+      await previewPromise;
+
       const created = res.data.totalLeads as number;
       const results = (res.data.rowResults ?? []) as RowResult[];
       const summary = (res.data.summary ?? null) as UploadSummary | null;
       setRowResults(results);
       setUploadSummary(summary);
+      setPreviewLive(false);
+      setPreviewLoading(false);
       setLastUploadName(selectedFile.name);
       setResultsFilter("all");
+      setResultsPage(1);
 
       if (created === 0 && (summary?.duplicate ?? 0) > 0) {
         toast.error("No new leads added — all rows were duplicates or already in database.");
@@ -417,6 +567,8 @@ export default function UploadPage() {
     } catch {
       if (processingInterval) clearInterval(processingInterval);
       setFiles(prev => prev.filter(f => f.id !== tempId));
+      setPreviewLive(false);
+      setPreviewLoading(false);
       toast.error("Upload failed");
     }
   };
@@ -427,8 +579,21 @@ export default function UploadPage() {
     ? rowResults
     : rowResults.filter(r => r.status === resultsFilter);
 
+  const previewTotalPages = Math.max(1, Math.ceil(filteredResults.length / PREVIEW_PAGE_SIZE));
+  const safeResultsPage = Math.min(resultsPage, previewTotalPages);
+  const paginatedResults = filteredResults.slice(
+    (safeResultsPage - 1) * PREVIEW_PAGE_SIZE,
+    safeResultsPage * PREVIEW_PAGE_SIZE,
+  );
+  const filterCount = (key: typeof resultsFilter) =>
+    key === "all" ? rowResults.length : (uploadSummary?.[key] ?? rowResults.filter(r => r.status === key).length);
+  const activeFilterLabel = RESULT_FILTER_OPTIONS.find(o => o.key === resultsFilter)?.label ?? "All";
+
   const sourceCompareChart = uploadSources.map(s => ({
-    name: s.name.length > 10 ? `${s.name.slice(0, 10)}…` : s.name,
+    name: (() => {
+      const label = sourceAdminLabel(s);
+      return label.length > 10 ? `${label.slice(0, 10)}…` : label;
+    })(),
     Pending: s.stats.pending,
     Interested: s.stats.interested,
     Important: s.stats.important,
@@ -472,7 +637,7 @@ export default function UploadPage() {
                   {modalStep === "category" ? "Where should this file's data go?"
                    : modalStep === "reset"   ? "What should happen to existing call data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
-                   : modalStep === "source"  ? "Where did you get this data? (Admin only — CSRs won't see this)"
+                   : modalStep === "source"  ? "Source name is admin-only. Sudo name is what CSRs see on leads."
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
                 </p>
@@ -773,7 +938,7 @@ export default function UploadPage() {
               {modalStep === "source" && (
                 <div className="space-y-3 sm:space-y-4">
                   <p className="text-xs sm:text-sm text-gray-500 font-medium">
-                    Select where this data came from. CSRs will never see the source name.
+                    Select where this data came from. Sudo name is shown to CSRs; source name is admin-only.
                   </p>
 
                   {uploadSources.length === 0 ? (
@@ -796,6 +961,9 @@ export default function UploadPage() {
                                 {src.name}
                               </p>
                             </div>
+                            {src.sudoName && (
+                              <p className="text-[10px] text-gray-500 truncate mb-0.5">CSR: {src.sudoName}</p>
+                            )}
                             <p className="text-[10px] text-gray-400">{src.stats.total} leads · {src.uploadCount} uploads</p>
                           </button>
                         );
@@ -805,12 +973,20 @@ export default function UploadPage() {
 
                   <div className="border border-dashed border-gray-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-600">Add new source</p>
+                    <input
+                      type="text"
+                      value={newSourceName}
+                      onChange={e => setNewSourceName(e.target.value)}
+                      placeholder="Source name (admin only)..."
+                      className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                      onKeyDown={e => { if (e.key === "Enter") void addNewSource(); }}
+                    />
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        value={newSourceName}
-                        onChange={e => setNewSourceName(e.target.value)}
-                        placeholder="e.g. Procore, Buildertrend..."
+                        value={newSourceSudoName}
+                        onChange={e => setNewSourceSudoName(e.target.value)}
+                        placeholder="Sudo name (shown to CSRs)..."
                         className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
                         onKeyDown={e => { if (e.key === "Enter") void addNewSource(); }}
                       />
@@ -1121,37 +1297,117 @@ export default function UploadPage() {
               ) : (
                 <div className="space-y-2">
                   {uploadHistory.map(u => (
-                    <div key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-2xl border border-gray-100 bg-[#FAFAFA] hover:bg-white transition-all">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] flex items-center justify-center shrink-0">
-                          <FileSpreadsheet size={18} className="text-[#B8112D]" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm text-gray-800 truncate">{u.fileName}</p>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-gray-400">
-                            {u.uploadCategory && (
-                              <span className={`font-semibold ${HISTORY_CATEGORIES.find(c => c.key === u.uploadCategory)?.color ?? "text-gray-500"}`}>
-                                {CATEGORY_LABEL_MAP[u.uploadCategory as UploadCategoryKey] ?? u.uploadCategory}
-                              </span>
-                            )}
-                            {u.source && <span className="text-[#B8112D] font-medium">{u.source.name}</span>}
-                            {u.companyName && <span>· {u.companyName}</span>}
-                            <span>· {u.linkedLeads} contacts in DB</span>
-                            <span>· {new Date(u.createdAt).toLocaleString()}</span>
+                    <div key={u.id} className="flex flex-col gap-3 p-3 sm:p-4 rounded-2xl border border-gray-100 bg-[#FAFAFA] hover:bg-white transition-all">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] flex items-center justify-center shrink-0">
+                            <FileSpreadsheet size={18} className="text-[#B8112D]" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-gray-800 truncate">{u.fileName}</p>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-gray-400">
+                              {u.uploadCategory && (
+                                <span className={`font-semibold ${HISTORY_CATEGORIES.find(c => c.key === u.uploadCategory)?.color ?? "text-gray-500"}`}>
+                                  {CATEGORY_LABEL_MAP[u.uploadCategory as UploadCategoryKey] ?? u.uploadCategory}
+                                </span>
+                              )}
+                              {u.source ? (
+                                <span className="text-[#B8112D] font-medium">{sourceAdminLabel(u.source)}</span>
+                              ) : (
+                                <span className="text-amber-600 font-medium">No source</span>
+                              )}
+                              {u.companyName && <span>· {u.companyName}</span>}
+                              <span>· {u.linkedLeads} contacts in DB</span>
+                              <span>· {new Date(u.createdAt).toLocaleString()}</span>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {assigningUploadId !== u.id && (
+                            <button
+                              onClick={() => openAssignSource(u.id)}
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#FFF1F3] text-[#B8112D] hover:bg-[#FFE4E8] text-xs font-semibold transition-all"
+                            >
+                              {u.source ? "Change Source" : "Assign Source"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => void deleteHistoryUpload(u.id, u.fileName)}
+                            disabled={deletingUploadId === u.id}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 text-xs font-semibold transition-all shrink-0 disabled:opacity-50"
+                          >
+                            {deletingUploadId === u.id
+                              ? <Loader2 size={14} className="animate-spin" />
+                              : <Trash2 size={14} />
+                            }
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => void deleteHistoryUpload(u.id, u.fileName)}
-                        disabled={deletingUploadId === u.id}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 text-xs font-semibold transition-all shrink-0 disabled:opacity-50"
-                      >
-                        {deletingUploadId === u.id
-                          ? <Loader2 size={14} className="animate-spin" />
-                          : <Trash2 size={14} />
-                        }
-                        Delete
-                      </button>
+
+                      {assigningUploadId === u.id && (
+                        <div className="border border-[#B8112D]/20 bg-[#FFF6F8] rounded-xl p-3 sm:p-4 space-y-3">
+                          <p className="text-xs font-semibold text-gray-600">
+                            {u.source ? "Change source for this upload" : "Assign a source to this upload"}
+                          </p>
+                          {uploadSources.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {uploadSources.map(src => (
+                                <button
+                                  key={src.id}
+                                  onClick={() => {
+                                    setAssignSourceId(src.id);
+                                    setAssignNewSourceName("");
+                                    setAssignNewSourceSudoName("");
+                                  }}
+                                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                                    assignSourceId === src.id
+                                      ? "bg-[#B8112D] text-white"
+                                      : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {sourceAdminLabel(src)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={assignNewSourceName}
+                              onChange={e => {
+                                setAssignNewSourceName(e.target.value);
+                                setAssignSourceId("");
+                              }}
+                              placeholder="Or new source name (admin)..."
+                              className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                            />
+                            <input
+                              type="text"
+                              value={assignNewSourceSudoName}
+                              onChange={e => setAssignNewSourceSudoName(e.target.value)}
+                              placeholder="Sudo name (CSR)..."
+                              className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={cancelAssignSource}
+                              className="flex-1 h-9 rounded-xl bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => void saveAssignSource(u.id)}
+                              disabled={savingAssignId === u.id || (!assignSourceId && !assignNewSourceName.trim())}
+                              className="flex-1 h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:opacity-40 flex items-center justify-center gap-1.5"
+                            >
+                              {savingAssignId === u.id ? <Loader2 size={14} className="animate-spin" /> : null}
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1238,7 +1494,7 @@ export default function UploadPage() {
                   historySourceId === s.id ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                {s.name} ({s.stats.total})
+                {sourceAdminLabel(s)} ({s.stats.total})
               </button>
             ))}
           </div>
@@ -1286,6 +1542,81 @@ export default function UploadPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {uploadSources.length > 0 && (
+            <div className="border-t border-gray-100 pt-4 mt-4">
+              <p className="text-xs font-semibold text-gray-500 mb-3">Manage Sources</p>
+              <div className="space-y-2">
+                {uploadSources.map(src => (
+                  <div key={src.id} className="bg-[#FAFAFA] rounded-xl px-3 py-2.5">
+                    {editingSourceId === src.id ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={editSourceName}
+                            onChange={e => setEditSourceName(e.target.value)}
+                            placeholder="Source name (admin)..."
+                            className="h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                          />
+                          <input
+                            type="text"
+                            value={editSourceSudoName}
+                            onChange={e => setEditSourceSudoName(e.target.value)}
+                            placeholder="Sudo name (CSR)..."
+                            className="h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={cancelEditSource}
+                            className="flex-1 h-8 rounded-lg bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => void saveEditSource(src.id)}
+                            disabled={savingSourceId === src.id || !editSourceName.trim()}
+                            className="flex-1 h-8 rounded-lg bg-[#B8112D] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:opacity-40 flex items-center justify-center gap-1"
+                          >
+                            {savingSourceId === src.id ? <Loader2 size={12} className="animate-spin" /> : null}
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{sourceAdminLabel(src)}</p>
+                          <p className="text-[10px] text-gray-400">{src.stats.total} leads · {src.uploadCount} uploads</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => startEditSource(src)}
+                            className="w-8 h-8 rounded-lg bg-white border border-gray-200 text-gray-600 hover:border-gray-300 flex items-center justify-center"
+                            title="Edit source"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => void deleteSource(src.id, src.name)}
+                            disabled={deletingSourceId === src.id}
+                            className="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center disabled:opacity-50"
+                            title="Delete source"
+                          >
+                            {deletingSourceId === src.id
+                              ? <Loader2 size={14} className="animate-spin" />
+                              : <Trash2 size={14} />
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1503,86 +1834,165 @@ export default function UploadPage() {
         </div>
 
         {/* ── UPLOAD RESULTS — per-contact duplicate check ── */}
-        {rowResults.length > 0 && uploadSummary && (
+        {(rowResults.length > 0 || previewLoading || previewLive) && (
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 overflow-hidden shadow-sm mt-4 sm:mt-6">
-            <div className="px-4 sm:px-5 py-3 sm:py-4 lg:p-5 border-b border-gray-100">
+            <div
+              className="px-4 sm:px-5 py-3 sm:py-4 lg:p-5 border-b border-gray-100 cursor-pointer select-none"
+              onClick={() => setResultsExpanded(v => !v)}
+            >
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">
-                    Upload Results — {lastUploadName}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                    Each row checked against the database before import.
-                  </p>
+                <div className="flex items-start gap-2 min-w-0">
+                  {resultsExpanded
+                    ? <ChevronUp size={18} className="text-gray-400 shrink-0 mt-0.5" />
+                    : <ChevronDown size={18} className="text-gray-400 shrink-0 mt-0.5" />
+                  }
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2">
+                      {previewLive ? "Live Preview" : "Upload Results"} — {lastUploadName}
+                      {previewLoading && <Loader2 size={16} className="animate-spin text-[#B8112D]" />}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                      {previewLoading
+                        ? "Analyzing rows while upload processes..."
+                        : "Each row checked against the database before import."}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    { key: "all" as const,       count: rowResults.length,              label: "All" },
-                    { key: "new" as const,       count: uploadSummary.new,              label: "New" },
-                    { key: "duplicate" as const, count: uploadSummary.duplicate,        label: "Duplicate" },
-                    { key: "updated" as const,   count: uploadSummary.updated,          label: "Updated" },
-                    { key: "empty" as const,     count: uploadSummary.empty,            label: "Skipped" },
-                  ]).map(f => (
+                <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                  <div className="relative">
                     <button
-                      key={f.key}
-                      onClick={() => setResultsFilter(f.key)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
-                        resultsFilter === f.key
-                          ? "bg-[#B8112D] text-white"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
+                      onClick={() => setFilterDropdownOpen(v => !v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200 transition-all"
                     >
-                      {f.label} ({f.count})
+                      {activeFilterLabel} ({filterCount(resultsFilter)})
+                      <ChevronDown size={14} className={`transition-transform ${filterDropdownOpen ? "rotate-180" : ""}`} />
                     </button>
-                  ))}
+                    {filterDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setFilterDropdownOpen(false)} />
+                        <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-100 rounded-xl shadow-lg py-1 min-w-[150px]">
+                          {RESULT_FILTER_OPTIONS.map(opt => (
+                            <button
+                              key={opt.key}
+                              onClick={() => {
+                                setResultsFilter(opt.key);
+                                setResultsPage(1);
+                                setFilterDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-gray-50 ${
+                                resultsFilter === opt.key ? "text-[#B8112D]" : "text-gray-600"
+                              }`}
+                            >
+                              {opt.label} ({filterCount(opt.key)})
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-[#FAFAFA] sticky top-0 z-10">
-                  <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">
-                    <th className="px-4 py-3 font-semibold w-12">#</th>
-                    <th className="px-4 py-3 font-semibold">Name</th>
-                    <th className="px-4 py-3 font-semibold hidden sm:table-cell">Phone</th>
-                    <th className="px-4 py-3 font-semibold hidden md:table-cell">Email</th>
-                    <th className="px-4 py-3 font-semibold hidden lg:table-cell">Company</th>
-                    <th className="px-4 py-3 font-semibold w-28">Status</th>
-                    <th className="px-4 py-3 font-semibold hidden sm:table-cell">Reason</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredResults.map(row => {
-                    const st = STATUS_STYLE[row.status];
+              {!resultsExpanded && uploadSummary && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {RESULT_FILTER_OPTIONS.filter(o => o.key !== "all").map(opt => {
+                    const count = filterCount(opt.key);
+                    if (count === 0) return null;
+                    const st = STATUS_STYLE[opt.key];
                     return (
-                      <tr key={row.row} className={`hover:bg-gray-50/80 ${row.status === "duplicate" ? "bg-red-50/40" : ""}`}>
-                        <td className="px-4 py-2.5 text-gray-400 text-xs">{row.row}</td>
-                        <td className="px-4 py-2.5 font-medium text-gray-800">{row.name}</td>
-                        <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell">{row.phone}</td>
-                        <td className="px-4 py-2.5 text-gray-600 hidden md:table-cell truncate max-w-[180px]">{row.email}</td>
-                        <td className="px-4 py-2.5 text-gray-600 hidden lg:table-cell">{row.company}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${st.bg} ${st.text}`}>
-                            {row.status === "duplicate" && <AlertCircle size={10} />}
-                            {st.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500 hidden sm:table-cell">{row.reason}</td>
-                      </tr>
+                      <span
+                        key={opt.key}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${st.bg} ${st.text}`}
+                      >
+                        {opt.label}: {count}
+                      </span>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
 
-            {uploadSummary.duplicate > 0 && (
-              <div className="px-4 sm:px-5 py-3 bg-[#FFF7ED] border-t border-[#FED7AA]/50 flex items-start gap-2">
-                <AlertCircle size={14} className="text-[#B45309] mt-0.5 shrink-0" />
-                <p className="text-xs text-[#92400E]">
-                  <strong>{uploadSummary.duplicate} duplicate contact(s)</strong> were skipped — they already exist in the database (matched by phone or email). Only new contacts were added.
-                </p>
-              </div>
+            {resultsExpanded && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#FAFAFA] sticky top-0 z-10">
+                      <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">
+                        <th className="px-4 py-3 font-semibold w-12">#</th>
+                        <th className="px-4 py-3 font-semibold">Name</th>
+                        <th className="px-4 py-3 font-semibold hidden sm:table-cell">Phone</th>
+                        <th className="px-4 py-3 font-semibold hidden md:table-cell">Email</th>
+                        <th className="px-4 py-3 font-semibold hidden lg:table-cell">Company</th>
+                        <th className="px-4 py-3 font-semibold w-28">Status</th>
+                        <th className="px-4 py-3 font-semibold hidden sm:table-cell">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {paginatedResults.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                            {previewLoading ? "Loading preview..." : "No rows match this filter."}
+                          </td>
+                        </tr>
+                      ) : paginatedResults.map(row => {
+                        const st = STATUS_STYLE[row.status];
+                        return (
+                          <tr key={row.row} className={`hover:bg-gray-50/80 ${row.status === "duplicate" ? "bg-red-50/40" : ""}`}>
+                            <td className="px-4 py-2.5 text-gray-400 text-xs">{row.row}</td>
+                            <td className="px-4 py-2.5 font-medium text-gray-800">{row.name}</td>
+                            <td className="px-4 py-2.5 text-gray-600 hidden sm:table-cell">{row.phone}</td>
+                            <td className="px-4 py-2.5 text-gray-600 hidden md:table-cell truncate max-w-[180px]">{row.email}</td>
+                            <td className="px-4 py-2.5 text-gray-600 hidden lg:table-cell">{row.company}</td>
+                            <td className="px-4 py-2.5">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${st.bg} ${st.text}`}>
+                                {row.status === "duplicate" && <AlertCircle size={10} />}
+                                {st.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500 hidden sm:table-cell">{row.reason}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {filteredResults.length > PREVIEW_PAGE_SIZE && (
+                  <div className="px-4 sm:px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-400">
+                      Showing {(safeResultsPage - 1) * PREVIEW_PAGE_SIZE + 1}–{Math.min(safeResultsPage * PREVIEW_PAGE_SIZE, filteredResults.length)} of {filteredResults.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setResultsPage(p => Math.max(1, p - 1))}
+                        disabled={safeResultsPage <= 1}
+                        className="px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600 hover:bg-gray-200 disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+                      <span className="text-xs text-gray-500 font-medium">
+                        {safeResultsPage} / {previewTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setResultsPage(p => Math.min(previewTotalPages, p + 1))}
+                        disabled={safeResultsPage >= previewTotalPages}
+                        className="px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-semibold text-gray-600 hover:bg-gray-200 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {uploadSummary && uploadSummary.duplicate > 0 && !previewLive && (
+                  <div className="px-4 sm:px-5 py-3 bg-[#FFF7ED] border-t border-[#FED7AA]/50 flex items-start gap-2">
+                    <AlertCircle size={14} className="text-[#B45309] mt-0.5 shrink-0" />
+                    <p className="text-xs text-[#92400E]">
+                      <strong>{uploadSummary.duplicate} duplicate contact(s)</strong> were skipped — they already exist in the database (matched by phone or email). Only new contacts were added.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

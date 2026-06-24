@@ -19,7 +19,7 @@ export interface BackendLead {
   comments?: string;
   state?: string;
   hiddenOnMain?: boolean;
-  uploadFile?: { companyName?: string };
+  uploadFile?: { companyName?: string; source?: { sudoName?: string | null } };
   notes?: { id: string; text?: string; createdAt?: string; }[];
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
@@ -41,6 +41,7 @@ export type Lead = {
   comments: string;
   state: string;
   hiddenOnMain: boolean;
+  sourceSudoName: string;
   noteCount: number;
   noteHistory: NoteEntry[];
   subContacts: SubContact[];
@@ -81,6 +82,7 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     comments:     lead.comments     ?? "",
     state:        lead.state        ?? "",
     hiddenOnMain: lead.hiddenOnMain ?? false,
+    sourceSudoName: lead.uploadFile?.source?.sudoName?.trim() ?? "",
     noteCount,
     noteHistory,
     subContacts: (lead.subContacts ?? []).map(s => ({

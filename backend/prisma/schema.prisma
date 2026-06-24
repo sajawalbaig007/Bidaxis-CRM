@@ -138,6 +138,7 @@ model CallLog {
 model UploadSource {
   id        String   @id @default(cuid()) @map("_id")
   name      String   @unique
+  sudoName  String?
   createdAt DateTime @default(now())
 
   uploads UploadFile[]
