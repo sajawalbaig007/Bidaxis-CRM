@@ -25,7 +25,8 @@ API.interceptors.response.use(
     if (
       err?.response?.status === 401 &&
       err?.response?.data?.code === "SESSION_INVALID" &&
-      typeof window !== "undefined"
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/"
     ) {
       void fetch("/api/auth/clear-session", { method: "POST", credentials: "include" });
       toast.error("Session expired. Please log in again.", { duration: 4000 });
