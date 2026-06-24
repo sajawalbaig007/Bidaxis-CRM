@@ -1,11 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_ROOT = (process.env.BACKEND_URL ?? "http://localhost:5000").replace(/\/$/, "");
+function backendRoot(): string {
+  const raw =
+    process.env.BACKEND_URL ??
+    process.env.NEXT_PUBLIC_BACKEND_URL ??
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ??
+    "http://127.0.0.1:5000";
+  return raw.replace(/\/$/, "").replace(/:\/\/localhost\b/i, "://127.0.0.1");
+}
 
-const SKIP_REQ_HEADERS = new Set(["host", "connection", "content-length"]);
+/** Headers Node fetch cannot forward (breaks POST login with UND_ERR_NOT_SUPPORTED). */
+const SKIP_REQ_HEADERS = new Set([
+  "host",
+  "connection",
+  "content-length",
+  "expect",
+  "transfer-encoding",
+  "keep-alive",
+  "upgrade",
+  "proxy-connection",
+]);
 const SKIP_RES_HEADERS = new Set(["transfer-encoding", "connection", "content-encoding"]);
 
 async function proxyRequest(req: NextRequest, pathSegments: string[]) {
+  const BACKEND_ROOT = backendRoot();
   const path = pathSegments.join("/");
   const target = `${BACKEND_ROOT}/api/${path}${req.nextUrl.search}`;
 
@@ -15,6 +33,9 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
       headers.set(key, value);
     }
   });
+
+  const cookie = req.headers.get("cookie");
+  if (cookie) headers.set("cookie", cookie);
 
   const init: RequestInit = {
     method:  req.method,
@@ -34,7 +55,7 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
     return NextResponse.json(
       {
         success: false,
-        message: `Backend unavailable at ${BACKEND_ROOT}. Set BACKEND_URL on Vercel.`,
+        message: "Cannot reach API server. Set BACKEND_URL on Vercel to your Render URL.",
       },
       { status: 502 }
     );

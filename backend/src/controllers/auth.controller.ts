@@ -25,7 +25,6 @@ import {
   otpStore,
   otpAttempts,
   otpResendCount,
-  hasActiveSession,
   registerActiveSession,
   clearActiveSession,
   recordLoginAttempt,
@@ -59,15 +58,9 @@ function userPayload(u: AuthUser) {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
-async function blockIfAlreadyLoggedIn(userId: string, res: Response): Promise<boolean> {
-  if (!(await hasActiveSession(userId))) return false;
-  await recordLoginAttempt(userId);
-  res.status(409).json({
-    success: false,
-    code:    "ALREADY_LOGGED_IN",
-    message: "Already logged in on another device. Please log out there first.",
-  });
-  return true;
+async function blockIfAlreadyLoggedIn(_userId: string, _res: Response): Promise<boolean> {
+  /* Allow new login — registerActiveSession replaces the previous session. */
+  return false;
 }
 
 async function issueSessionToken(
@@ -198,12 +191,17 @@ export const getCaptchaConfig = async (_req: Request, res: Response) => {
 /* ================= LOGIN — Step 1 ================= */
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password, rememberMe, captchaToken } = req.body as {
+    const { email: rawEmail, password, rememberMe, captchaToken } = req.body as {
       email: string;
       password: string;
       rememberMe?: boolean;
       captchaToken?: string;
     };
+
+    const email = (rawEmail ?? "").trim().toLowerCase();
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: "Email and password are required." });
+    }
 
     const ip = getClientIp(req);
     const ua = getUserAgent(req);
@@ -214,7 +212,7 @@ export const login = async (req: Request, res: Response) => {
       return res.status(429).json({ success: false, blocked: true, message: block.message });
     }
 
-    if (await requiresCaptcha(email ?? "", ip)) {
+    if (isCaptchaConfigured() && await requiresCaptcha(email, ip)) {
       const ok = await verifyCaptchaToken(captchaToken);
       if (!ok) {
         return res.status(400).json({
@@ -225,7 +223,12 @@ export const login = async (req: Request, res: Response) => {
       }
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+      });
+    }
     if (!user) {
       await recordFailedLogin(email ?? "", ip);
       await writeAuditLog({ action: "login_failed", email, ip, userAgent: ua, meta: { reason: "user_not_found" } });

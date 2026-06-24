@@ -7,7 +7,10 @@ function isLocalHost(): boolean {
   return h === "localhost" || h === "127.0.0.1";
 }
 
-/** Local dev → direct backend. Production → same-origin proxy (cookies work). */
+/**
+ * Local dev → direct backend (fast, CORS allowed).
+ * Production (dashboard.bemsolutions.io etc.) → /api/backend proxy (same-origin cookies).
+ */
 export function resolveBaseURL(): string {
   if (typeof window !== "undefined") {
     if (isLocalHost()) {
@@ -15,12 +18,17 @@ export function resolveBaseURL(): string {
     }
     return "/api/backend";
   }
-  const root = (
-    process.env.BACKEND_URL ??
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ??
-    "http://localhost:5000"
-  ).replace(/\/$/, "");
+  const root = backendRoot();
   return `${root}/api`;
+}
+
+function backendRoot(): string {
+  const raw =
+    process.env.BACKEND_URL ??
+    process.env.NEXT_PUBLIC_BACKEND_URL ??
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ??
+    "http://127.0.0.1:5000";
+  return raw.replace(/\/$/, "").replace(/:\/\/localhost\b/i, "://127.0.0.1");
 }
 
 export function getApiBase(): string {
@@ -59,11 +67,13 @@ export function apiErrorMessage(err: unknown, fallback = "Something went wrong."
     message?: string;
   };
   if (e?.response?.data?.message) return e.response.data.message;
-  if (e?.response?.status === 502) return "Server is unreachable. Check BACKEND_URL on Vercel.";
+  if (e?.response?.status === 502) {
+    return "API server unreachable. Set BACKEND_URL on Vercel to your Render backend URL.";
+  }
   if (e?.response?.status === 429) return "Too many attempts. Please wait and try again.";
   if (!e?.response) {
-    if (isLocalHost()) return "Cannot reach backend. Run: cd backend && npm run dev";
-    return "Cannot reach server. Please try again in a moment.";
+    if (isLocalHost()) return "Cannot reach backend. Start it: cd backend && npm run dev";
+    return "Cannot reach server. Check BACKEND_URL on Vercel.";
   }
   if (e?.code === "ECONNABORTED") return "Request timed out. Please try again.";
   return fallback;

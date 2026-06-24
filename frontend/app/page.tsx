@@ -65,7 +65,8 @@ export default function LoginPage() {
     e.preventDefault(); setLoading(true);
     try {
       const res  = await API.post("/auth/login", {
-        ...formData,
+        email:    formData.email.trim().toLowerCase(),
+        password: formData.password,
         rememberMe,
         captchaToken: captchaToken || undefined,
       }, { withCredentials: true });
@@ -86,7 +87,7 @@ export default function LoginPage() {
         setShowCaptcha(true);
         toast.error(data?.message ?? "Please complete security verification.");
       } else {
-        toast.error(apiErrorMessage(err, "Invalid email or password"));
+        toast.error(apiErrorMessage(err, "Login failed. Check email and password."));
         if (captchaEnabled) setShowCaptcha(true);
       }
     } finally { setLoading(false); }
