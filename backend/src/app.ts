@@ -25,10 +25,10 @@ const isProd = process.env.NODE_ENV === "production";
 
 const allowedOrigins = [
   "http://localhost:3000",
-  
+  "http://127.0.0.1:3000",
   "https://crm-blond-theta.vercel.app",
   "https://dashboard.bemsolutions.io",
-  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL?.replace(/\/$/, ""),
 ].filter(Boolean) as string[];
 
 app.use(helmet({

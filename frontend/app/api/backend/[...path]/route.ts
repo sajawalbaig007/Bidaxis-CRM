@@ -26,7 +26,19 @@ async function proxyRequest(req: NextRequest, pathSegments: string[]) {
     init.body = await req.arrayBuffer();
   }
 
-  const upstream = await fetch(target, init);
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, init);
+  } catch (err) {
+    console.error("[api/backend proxy] fetch failed:", target, err);
+    return NextResponse.json(
+      {
+        success: false,
+        message: `Backend unavailable at ${BACKEND_ROOT}. Set BACKEND_URL on Vercel.`,
+      },
+      { status: 502 }
+    );
+  }
 
   const resHeaders = new Headers();
   upstream.headers.forEach((value, key) => {

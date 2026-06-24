@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
-import API from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
@@ -86,7 +86,7 @@ export default function LoginPage() {
         setShowCaptcha(true);
         toast.error(data?.message ?? "Please complete security verification.");
       } else {
-        toast.error(data?.message ?? "Invalid email or password");
+        toast.error(apiErrorMessage(err, "Invalid email or password"));
         if (captchaEnabled) setShowCaptcha(true);
       }
     } finally { setLoading(false); }
@@ -109,7 +109,7 @@ export default function LoginPage() {
       else {
         const left = data?.attempts !== undefined ? 2 - data.attempts : attemptsLeft - 1;
         setAttemptsLeft(Math.max(0, left));
-        toast.error(data?.message ?? "Incorrect OTP");
+        toast.error(apiErrorMessage(err, data?.message ?? "Incorrect OTP"));
         setOtp(["", "", "", "", "", ""]); otpRefs.current[0]?.focus();
       }
     } finally { setLoading(false); }
