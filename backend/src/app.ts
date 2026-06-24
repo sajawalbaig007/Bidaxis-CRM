@@ -49,11 +49,11 @@ app.use(helmet({
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (/^https:\/\/([a-z0-9-]+\.)?bemsolutions\.io$/i.test(origin)) return callback(null, true);
+      if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return callback(null, true);
+      callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
     maxAge: 86_400,

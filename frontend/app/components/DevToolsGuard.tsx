@@ -41,6 +41,7 @@ export default function DevToolsGuard() {
     };
 
     const blockKeys = (e: KeyboardEvent) => {
+      if (!e.key) return;
       const k = e.key.toUpperCase();
 
       if ((e.ctrlKey || e.metaKey) && ["C", "V", "X", "A"].includes(k)) {
