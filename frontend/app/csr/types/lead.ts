@@ -19,7 +19,8 @@ export interface BackendLead {
   comments?: string;
   state?: string;
   hiddenOnMain?: boolean;
-  uploadFile?: { companyName?: string };
+  updatedAt?: string;
+  uploadFile?: { companyName?: string; source?: { sudoName?: string | null } };
   notes?: { id: string; text?: string; createdAt?: string; }[];
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
@@ -41,6 +42,7 @@ export type Lead = {
   comments: string;
   state: string;
   hiddenOnMain: boolean;
+  sourceSudoName: string;
   noteCount: number;
   noteHistory: NoteEntry[];
   subContacts: SubContact[];
@@ -48,16 +50,32 @@ export type Lead = {
 
 export const mapBackendLead = (lead: BackendLead): Lead => {
   const rawNotes = lead.notes ?? [];
-  /* notes from list endpoint only have `id` — use length for count badge */
-  const noteCount = rawNotes.length;
-  /* only build noteHistory when full text is present (detail endpoint) */
-  const fullNotes = rawNotes.filter(n => !!n.text);
-  const legacyNote: NoteEntry[] = (fullNotes.length === 0 && lead.comments)
-    ? [{ id: "legacy", text: lead.comments, createdAt: lead.createdAt ?? new Date().toISOString() }]
-    : [];
+  const fullNotes = rawNotes.filter(n => n.text?.trim());
+  const noteCount = fullNotes.length > 0 ? fullNotes.length : rawNotes.length;
+
+  const legacyNotes: NoteEntry[] = [];
+  if (fullNotes.length === 0 && lead.comments?.trim()) {
+    legacyNotes.push({
+      id: "legacy-comments",
+      text: lead.comments.trim(),
+      createdAt: lead.createdAt ?? new Date().toISOString(),
+    });
+  }
+  if (fullNotes.length === 0 && lead.followUpNotes?.trim()) {
+    legacyNotes.push({
+      id: "legacy-followup",
+      text: lead.followUpNotes.trim(),
+      createdAt: lead.updatedAt ?? lead.createdAt ?? new Date().toISOString(),
+    });
+  }
+
   const noteHistory: NoteEntry[] = fullNotes.length > 0
-    ? fullNotes.map(n => ({ id: n.id, text: n.text!, createdAt: n.createdAt ?? new Date().toISOString() }))
-    : legacyNote;
+    ? fullNotes.map(n => ({
+        id: n.id!,
+        text: n.text!.trim(),
+        createdAt: n.createdAt ?? new Date().toISOString(),
+      }))
+    : legacyNotes;
 
   return {
     id:               lead.id,
@@ -81,6 +99,7 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     comments:     lead.comments     ?? "",
     state:        lead.state        ?? "",
     hiddenOnMain: lead.hiddenOnMain ?? false,
+    sourceSudoName: lead.uploadFile?.source?.sudoName?.trim() ?? "",
     noteCount,
     noteHistory,
     subContacts: (lead.subContacts ?? []).map(s => ({

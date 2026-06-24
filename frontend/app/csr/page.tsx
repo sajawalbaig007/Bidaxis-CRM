@@ -448,6 +448,11 @@ export default function CSRPage() {
                     {/* COMPANY */}
                     <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A]`}>
                       <span className="truncate block">{currentLink.company}</span>
+                      {currentLink.sourceSudoName && (
+                        <span className="inline-flex mt-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold truncate max-w-[140px]">
+                          {currentLink.sourceSudoName}
+                        </span>
+                      )}
                     </td>
 
                     {/* PHONE */}
@@ -481,6 +486,8 @@ export default function CSRPage() {
                       <CommentCell
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}
+                        noteCount={currentLink.noteCount}
+                        comment={currentLink.comments?.trim() || undefined}
                         onAddNote={addNote}
                         onNoteUpdated={(leadId, noteId, text) => {
                           setLeads(prev => prev.map(l => l.id === leadId

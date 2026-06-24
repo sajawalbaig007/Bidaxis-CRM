@@ -40,13 +40,18 @@ type RawLead = {
 };
 
 function mapNiLead(l: RawLead): NiLead {
-  const legacyNote: NoteEntry[] = l.comments
-    ? [{ id: "legacy", text: l.comments, createdAt: l.createdAt ?? new Date().toISOString() }]
-    : [];
-  const noteHistory: NoteEntry[] = (l.notes ?? []).length > 0
-    ? (l.notes ?? []).map((n: RawNote) => ({
+  const fullNotes = (l.notes ?? []).filter(n => n.text?.trim());
+  const legacyNote: NoteEntry[] = [];
+  if (fullNotes.length === 0 && l.comments?.trim()) {
+    legacyNote.push({ id: "legacy-comments", text: l.comments.trim(), createdAt: l.createdAt ?? new Date().toISOString() });
+  }
+  if (fullNotes.length === 0 && l.followUpNotes?.trim()) {
+    legacyNote.push({ id: "legacy-followup", text: l.followUpNotes.trim(), createdAt: l.createdAt ?? new Date().toISOString() });
+  }
+  const noteHistory: NoteEntry[] = fullNotes.length > 0
+    ? fullNotes.map((n: RawNote) => ({
         id:        n.id        ?? String(Math.random()),
-        text:      n.text      ?? "",
+        text:      n.text!.trim(),
         createdAt: n.createdAt ?? new Date().toISOString(),
       }))
     : legacyNote;

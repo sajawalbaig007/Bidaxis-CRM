@@ -55,7 +55,8 @@ export default function CommentCell({
   const count          = displayCount + (comment ? 1 : 0);
 
   /* ── Notes to display in popup ── */
-  const displayNotes = localNotes !== null ? localNotes : (noteHistory ?? []);
+  const displayNotes = (localNotes !== null ? localNotes : (noteHistory ?? []))
+    .filter(n => n.text?.trim());
   const sorted       = [...displayNotes].reverse();
 
   /* Close on outside click */
@@ -100,8 +101,13 @@ export default function CommentCell({
 
   const loadNotesIfNeeded = async () => {
     if (localNotes !== null || fetchStartedRef.current) return;
-    if ((noteHistory?.length ?? 0) > 0) return;
-    if (preloadedCount === 0) return;
+
+    const hasText = (noteHistory ?? []).some(n => n.text?.trim());
+    const needsFetch =
+      !hasText &&
+      ((noteCount ?? 0) > 0 || (noteHistory?.length ?? 0) > 0 || !!comment?.trim());
+
+    if (!needsFetch) return;
 
     fetchStartedRef.current = true;
     setNotesLoading(true);

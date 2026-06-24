@@ -520,7 +520,7 @@ export default function AdminProjectsPage() {
       .then(res => setAllCsrs(res.data.csrs ?? []))
       .catch(() => {});
   }, []);
-
+//
   useEffect(() => {
     void fetchProjects();
   }, [filterCSR, fetchProjects]);

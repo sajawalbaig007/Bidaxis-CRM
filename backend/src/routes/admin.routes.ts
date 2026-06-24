@@ -1021,6 +1021,7 @@ router.get("/upload-sources", verifyToken, allowRoles("admin"), async (_req, res
         return {
           id:          src.id,
           name:        src.name,
+          sudoName:    src.sudoName,
           createdAt:   src.createdAt,
           uploadCount: uploads.length,
           lastUpload:  uploads[0]?.createdAt ?? null,
@@ -1039,16 +1040,25 @@ router.get("/upload-sources", verifyToken, allowRoles("admin"), async (_req, res
 router.post("/upload-sources", verifyToken, allowRoles("admin"), async (req, res) => {
   try {
     const name = String(req.body.name ?? "").trim();
+    const sudoNameRaw = String(req.body.sudoName ?? "").trim();
+    const sudoName = sudoNameRaw || null;
     if (!name) {
       return res.status(400).json({ success: false, message: "Source name is required" });
     }
 
     const existing = await prisma.uploadSource.findUnique({ where: { name } });
     if (existing) {
+      if (sudoName && existing.sudoName !== sudoName) {
+        const updated = await prisma.uploadSource.update({
+          where: { id: existing.id },
+          data:  { sudoName },
+        });
+        return res.json({ success: true, source: updated, created: false, updated: true });
+      }
       return res.json({ success: true, source: existing, created: false });
     }
 
-    const source = await prisma.uploadSource.create({ data: { name } });
+    const source = await prisma.uploadSource.create({ data: { name, sudoName } });
     return res.json({ success: true, source, created: true });
   } catch (error) {
     console.log(error);
@@ -1081,7 +1091,7 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async 
 
     return res.json({
       success: true,
-      source:  { id: source.id, name: source.name, createdAt: source.createdAt },
+      source:  { id: source.id, name: source.name, sudoName: source.sudoName, createdAt: source.createdAt },
       stats,
       uploads,
       leads,
@@ -1090,6 +1100,8 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async 
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch source details" });
   }
+});
+
 });
 
 /* ================= ACCESS HISTORY (IP / device) ================= */
@@ -1115,6 +1127,113 @@ router.get("/access-history/:userId", verifyToken, allowRoles("admin"), async (r
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch access history" });
+  }
+});
+
+router.patch("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const sourceId = String(req.params.sourceId);
+    const existing = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Source not found" });
+    }
+
+    const nameRaw = req.body.name !== undefined ? String(req.body.name).trim() : undefined;
+    const sudoNameRaw = req.body.sudoName !== undefined ? String(req.body.sudoName).trim() : undefined;
+
+    if (nameRaw !== undefined && !nameRaw) {
+      return res.status(400).json({ success: false, message: "Source name cannot be empty" });
+    }
+
+    if (nameRaw && nameRaw !== existing.name) {
+      const conflict = await prisma.uploadSource.findUnique({ where: { name: nameRaw } });
+      if (conflict) {
+        return res.status(409).json({ success: false, message: "A source with this name already exists" });
+      }
+    }
+
+    const source = await prisma.uploadSource.update({
+      where: { id: sourceId },
+      data: {
+        ...(nameRaw !== undefined ? { name: nameRaw } : {}),
+        ...(sudoNameRaw !== undefined ? { sudoName: sudoNameRaw || null } : {}),
+      },
+    });
+
+    return res.json({ success: true, source });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to update upload source" });
+  }
+});
+
+router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const sourceId = String(req.params.sourceId);
+    const existing = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Source not found" });
+    }
+
+    await prisma.uploadFile.updateMany({
+      where: { sourceId },
+      data:  { sourceId: null },
+    });
+
+    await prisma.uploadSource.delete({ where: { id: sourceId } });
+
+    return res.json({ success: true, message: "Source deleted" });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete upload source" });
+  }
+});
+
+/* ================= RESTORE LEGACY COMMENTS → LeadNote ================= */
+router.post("/migrate-legacy-notes", verifyToken, allowRoles("admin"), async (_req, res) => {
+  try {
+    const leads = await prisma.lead.findMany({
+      where: {
+        OR: [
+          { comments: { not: null } },
+          { followUpNotes: { not: null } },
+        ],
+      },
+      select: {
+        id: true,
+        comments: true,
+        followUpNotes: true,
+        createdAt: true,
+        _count: { select: { notes: true } },
+      },
+    });
+
+    let migrated = 0;
+    for (const lead of leads) {
+      if (lead._count.notes > 0) continue;
+
+      const text = [lead.comments?.trim(), lead.followUpNotes?.trim()].filter(Boolean).join("\n\n");
+      if (!text) continue;
+
+      await prisma.leadNote.create({
+        data: {
+          leadId: lead.id,
+          text,
+          createdAt: lead.createdAt,
+        },
+      });
+      migrated++;
+    }
+
+    flushAdminClientsCache();
+    return res.json({
+      success: true,
+      message: `Restored notes on ${migrated} lead(s) from legacy comments fields`,
+      migrated,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Migration failed" });
   }
 });
 

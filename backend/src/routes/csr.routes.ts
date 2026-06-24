@@ -21,6 +21,7 @@ import {
   isBinLead,
   resolveDeleteBinReason,
 } from "../utils/binLeads";
+import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
 
 const router = express.Router();
 
@@ -196,8 +197,8 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     const rawLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
       include: {
-        uploadFile: { select: { companyName: true } },
-        notes:      { select: { id: true } },   // IDs only — count badge; content fetched lazily
+        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
+        notes:      { orderBy: { createdAt: "asc" }, select: { id: true, text: true, createdAt: true } },
         // subContacts omitted — fetched on demand via GET /csr/lead/:id
       },
       orderBy: { createdAt: "desc" },
@@ -225,7 +226,7 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
 
     const rawLeads = await prisma.lead.findMany({
       where: buildActiveRetryWhere(csrId),
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -735,7 +736,7 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
     const rawLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
     const csrLeads = filterActiveLeads(rawLeads);
@@ -778,7 +779,7 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     const rawLeads = await prisma.lead.findMany({
       where: buildProjectLeadWhere(csrId),
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -863,7 +864,7 @@ router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
 
     const rawLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
       orderBy: { updatedAt: "desc" },
     });
 
