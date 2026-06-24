@@ -1,16 +1,18 @@
 "use strict";
-/* ─────────────────────────────────────────────────
-   Shared in-memory stores
-───────────────────────────────────────────────── */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loginAttemptAlerts = exports.activeSessions = exports.userBrowserMap = exports.otpResendCount = exports.otpAttempts = exports.otpStore = void 0;
-exports.getActiveSession = getActiveSession;
+exports.userBrowserMap = exports.otpResendCount = exports.otpAttempts = exports.otpStore = void 0;
+exports.hasActiveSession = hasActiveSession;
 exports.registerActiveSession = registerActiveSession;
 exports.touchActiveSession = touchActiveSession;
 exports.clearActiveSession = clearActiveSession;
 exports.recordLoginAttempt = recordLoginAttempt;
 exports.getLoginAttemptAlert = getLoginAttemptAlert;
+exports.clearLoginAttemptAlert = clearLoginAttemptAlert;
 exports.detectBrowser = detectBrowser;
+const db_1 = __importDefault(require("../config/db"));
 /* OTP store: userId → { otp, expiresAt } */
 exports.otpStore = new Map();
 /* OTP wrong attempts: userId → { count, blockedUntil? } */
@@ -19,40 +21,50 @@ exports.otpAttempts = new Map();
 exports.otpResendCount = new Map();
 /* Browser/Tab info: userId → { browser, tabId, openedAt, tabVisible, hiddenAt } */
 exports.userBrowserMap = new Map();
-exports.activeSessions = new Map();
-exports.loginAttemptAlerts = new Map();
 let loginAttemptSeq = 0;
-const SESSION_IDLE_MS = 30 * 60 * 1000; // 30 min without activity → allow re-login
-function getActiveSession(userId) {
-    const session = exports.activeSessions.get(userId);
-    if (!session)
-        return null;
-    if (Date.now() - session.at > SESSION_IDLE_MS) {
-        exports.activeSessions.delete(userId);
-        return null;
-    }
-    return session;
+async function hasActiveSession(userId) {
+    const user = await db_1.default.user.findUnique({
+        where: { id: userId },
+        select: { activeSessionId: true },
+    });
+    return !!user?.activeSessionId;
 }
-function registerActiveSession(userId, sid, tv) {
-    exports.activeSessions.set(userId, { sid, tv, at: Date.now() });
+async function registerActiveSession(userId, sid) {
+    await db_1.default.user.update({
+        where: { id: userId },
+        data: { activeSessionId: sid, lastActive: new Date(), lastLoginAt: new Date() },
+    });
 }
-function touchActiveSession(userId) {
-    const session = exports.activeSessions.get(userId);
-    if (session)
-        session.at = Date.now();
+async function touchActiveSession(userId) {
+    await db_1.default.user.update({
+        where: { id: userId },
+        data: { lastActive: new Date() },
+    }).catch(() => { });
 }
-function clearActiveSession(userId) {
-    exports.activeSessions.delete(userId);
+async function clearActiveSession(userId) {
+    await db_1.default.user.update({
+        where: { id: userId },
+        data: { activeSessionId: null },
+    }).catch(() => { });
 }
-function recordLoginAttempt(userId) {
+async function recordLoginAttempt(userId) {
     loginAttemptSeq += 1;
-    exports.loginAttemptAlerts.set(userId, { attemptId: loginAttemptSeq, at: Date.now() });
+    await db_1.default.loginAttemptAlert.upsert({
+        where: { userId },
+        create: { userId, attemptId: loginAttemptSeq },
+        update: { attemptId: loginAttemptSeq, createdAt: new Date() },
+    });
     return loginAttemptSeq;
 }
-function getLoginAttemptAlert(userId) {
-    return exports.loginAttemptAlerts.get(userId) ?? null;
+async function getLoginAttemptAlert(userId) {
+    const row = await db_1.default.loginAttemptAlert.findUnique({ where: { userId } });
+    if (!row)
+        return null;
+    return { attemptId: row.attemptId, at: row.createdAt.getTime() };
 }
-/* ── Detect browser from User-Agent ── */
+async function clearLoginAttemptAlert(userId) {
+    await db_1.default.loginAttemptAlert.deleteMany({ where: { userId } });
+}
 function detectBrowser(ua) {
     if (!ua)
         return "Unknown";

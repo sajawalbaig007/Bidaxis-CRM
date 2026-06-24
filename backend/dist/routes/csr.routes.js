@@ -8,9 +8,19 @@ const db_1 = __importDefault(require("../config/db"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const sessions_1 = require("../utils/sessions");
+const accessHistory_1 = require("../utils/accessHistory");
+const requestMeta_1 = require("../utils/requestMeta");
 const cache_1 = require("../utils/cache");
 const phone_1 = require("../utils/phone");
+const projectLeads_1 = require("../utils/projectLeads");
+const projectPayments_1 = require("../utils/projectPayments");
+const binLeads_1 = require("../utils/binLeads");
+const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const router = express_1.default.Router();
+function invalidateCsrLeadCaches(csrId, ...extra) {
+    (0, cache_1.flushAdminClientsCache)();
+    (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, `csr:bin:${csrId}`, "admin:bin", ...extra);
+}
 async function findLeadsByPhone(phone) {
     const trimmed = phone.trim();
     if (!trimmed)
@@ -31,9 +41,119 @@ async function findLeadsByPhone(phone) {
     });
     return candidates.filter(l => l.phone && (0, phone_1.phonesMatch)(l.phone, trimmed));
 }
-/* ─── LIMITS ─── */
-const NOT_INTERESTED_LIMIT = 3;
-const NOT_PICKED_LIMIT = 7;
+async function logStatusChange(csrId, leadId, status) {
+    try {
+        await db_1.default.callLog.create({ data: { leadId, csrId, status } });
+    }
+    catch (error) {
+        console.log("Failed to log status change", error);
+    }
+}
+function getActivityRange(period, dateStr) {
+    const parts = dateStr.split("-").map(Number);
+    const y = parts[0] ?? new Date().getFullYear();
+    const m = parts[1] ?? 1;
+    const d = parts[2] ?? 1;
+    if (period === "week") {
+        const dow = new Date(y, m - 1, d).getDay();
+        const diffToMon = dow === 0 ? -6 : 1 - dow;
+        const from = new Date(y, m - 1, d + diffToMon, 0, 0, 0, 0);
+        const to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6, 23, 59, 59, 999);
+        const fmt = (dt) => dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+        return { from, to, label: `${fmt(from)} – ${fmt(to)} ${from.getFullYear()}` };
+    }
+    if (period === "month") {
+        const from = new Date(y, m - 1, 1, 0, 0, 0, 0);
+        const to = new Date(y, m, 0, 23, 59, 59, 999);
+        return { from, to, label: from.toLocaleDateString("en-GB", { month: "long", year: "numeric" }) };
+    }
+    const from = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const to = new Date(y, m - 1, d, 23, 59, 59, 999);
+    return {
+        from, to,
+        label: from.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }),
+    };
+}
+function aggregateLogs(logs) {
+    const byStatus = {};
+    for (const log of logs) {
+        byStatus[log.status] = (byStatus[log.status] ?? 0) + 1;
+    }
+    return { total: logs.length, byStatus };
+}
+/* ================= CSR ACTIVITY REPORT ================= */
+router.get("/activity-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const period = String(req.query.period ?? "day");
+        const date = String(req.query.date ?? new Date().toISOString().split("T")[0]);
+        if (!["day", "week", "month"].includes(period)) {
+            return res.status(400).json({ success: false, message: "Invalid period. Use day, week, or month." });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
+        }
+        const { from, to, label } = getActivityRange(period, date);
+        const logs = await db_1.default.callLog.findMany({
+            where: { csrId, createdAt: { gte: from, lte: to } },
+            select: { status: true },
+            orderBy: { createdAt: "desc" },
+        });
+        const { total, byStatus } = aggregateLogs(logs);
+        return res.json({ success: true, period, date, rangeLabel: label, total, byStatus });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch activity report" });
+    }
+});
+/* ================= CSR NOTIFICATIONS ================= */
+router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const csrId = req.user.id;
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const today = new Date().toISOString().split("T")[0];
+        const [scheduledLeads, recentLogs] = await Promise.all([
+            db_1.default.lead.findMany({
+                where: {
+                    assignedTo: csrId,
+                    status: "important",
+                    nextSchedule: { not: null },
+                    nextTime: { not: null },
+                    inBin: false,
+                },
+                select: { id: true, name: true, status: true, nextSchedule: true, nextTime: true, timezone: true },
+                orderBy: [{ nextSchedule: "asc" }, { nextTime: "asc" }],
+                take: 30,
+            }),
+            db_1.default.callLog.findMany({
+                where: { csrId, createdAt: { gte: since } },
+                select: { status: true },
+            }),
+        ]);
+        const scheduledCalls = scheduledLeads
+            .filter(l => (l.nextSchedule ?? "") >= today)
+            .slice(0, 20)
+            .map(l => ({
+            id: l.id,
+            client: l.name ?? "Client",
+            date: l.nextSchedule,
+            time: l.nextTime,
+            timezone: l.timezone ?? "",
+            status: l.status,
+        }));
+        const { total, byStatus } = aggregateLogs(recentLogs);
+        return res.json({
+            success: true,
+            scheduledCalls,
+            dailyStats: { total, byStatus, periodHours: 24 },
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch notifications" });
+    }
+});
 /* ================= CSR DASHBOARD ================= */
 router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
@@ -42,15 +162,16 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const leads = await db_1.default.lead.findMany({
+        const rawLeads = await db_1.default.lead.findMany({
             where: { assignedTo: csrId },
             include: {
-                uploadFile: { select: { companyName: true } },
-                notes: { select: { id: true } }, // IDs only — count badge; content fetched lazily
+                uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT },
+                notes: { orderBy: { createdAt: "asc" }, select: { id: true, text: true, createdAt: true } },
                 // subContacts omitted — fetched on demand via GET /csr/lead/:id
             },
             orderBy: { createdAt: "desc" },
         });
+        const leads = (0, binLeads_1.filterActiveLeads)(rawLeads);
         const payload = { success: true, totalLeads: leads.length, leads };
         (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
@@ -68,14 +189,12 @@ router.get("/not-interested", auth_middleware_1.verifyToken, (0, role_middleware
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const leads = await db_1.default.lead.findMany({
-            where: {
-                assignedTo: csrId,
-                status: { in: ["Not Interested", "not picked", "not completed"] },
-            },
-            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+        const rawLeads = await db_1.default.lead.findMany({
+            where: (0, binLeads_1.buildActiveRetryWhere)(csrId),
+            include: { uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { updatedAt: "desc" },
         });
+        const leads = (0, binLeads_1.filterActiveLeads)(rawLeads);
         const payload = { success: true, leads };
         (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
@@ -149,7 +268,8 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 isOldClient: existingLeads.length > 0,
             },
         });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`);
+        (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });
     }
     catch (error) {
@@ -189,7 +309,8 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
         await db_1.default.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+        (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true });
     }
     catch {
@@ -208,7 +329,8 @@ router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middlewar
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
         const note = await db_1.default.leadNote.create({ data: { text: text.trim(), leadId } });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+        (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note });
     }
     catch {
@@ -227,7 +349,8 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
         if (!note)
             return res.status(404).json({ success: false, message: "Note not found" });
         const updated = await db_1.default.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
-        (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+        (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note: updated });
     }
     catch {
@@ -243,7 +366,8 @@ router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role
         if (!note)
             return res.status(404).json({ success: false, message: "Note not found" });
         await db_1.default.leadNote.delete({ where: { id: noteId } });
-        (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+        (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true });
     }
     catch {
@@ -255,13 +379,47 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
     try {
         const csrId = req.user.id;
         const leadId = req.params.id;
-        const { status, nextSchedule, nextTime, timezone, followUpNotes, interestedService, projectTitle, projectCode, projectDeadline, projectBudget, projectNotes, paidAmount, comments, name, phone, email, state, } = req.body;
+        const { status, nextSchedule, nextTime, timezone, followUpNotes, interestedService, projectTitle, projectCode, projectDeadline, projectBudget, projectNotes, paidAmount, comments, name, phone, email, state, moveToBin, inBin, } = req.body;
         /* Fetch current lead to get existing counts */
         const lead = await db_1.default.lead.findFirst({
             where: { id: leadId, assignedTo: csrId },
         });
         if (!lead) {
             return res.status(404).json({ success: false, message: "Lead not found" });
+        }
+        if (moveToBin === true) {
+            const reason = (0, binLeads_1.resolveDeleteBinReason)(lead.status);
+            const updated = await db_1.default.lead.update({
+                where: { id: leadId },
+                data: {
+                    inBin: true,
+                    binReason: reason,
+                    binPreviousStatus: lead.status,
+                    important: false,
+                    interested: false,
+                    status: "pending",
+                },
+            });
+            invalidateCsrLeadCaches(csrId);
+            return res.json({ success: true, lead: updated, movedToBin: true });
+        }
+        if (inBin === false) {
+            const restoreStatus = lead.binPreviousStatus || "pending";
+            const updated = await db_1.default.lead.update({
+                where: { id: leadId },
+                data: {
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    status: restoreStatus,
+                    important: restoreStatus === "important",
+                    interested: restoreStatus === "interested",
+                    notPickedCount: 0,
+                    notInterestedCount: 0,
+                },
+            });
+            invalidateCsrLeadCaches(csrId);
+            return res.json({ success: true, lead: updated, restored: true });
         }
         /* Build base update object */
         const updateData = {};
@@ -297,6 +455,25 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.email = email;
         if (state !== undefined)
             updateData.state = state;
+        if (req.body.ownerName !== undefined)
+            updateData.ownerName = req.body.ownerName;
+        if (req.body.projectScope !== undefined)
+            updateData.projectScope = req.body.projectScope;
+        if (req.body.projectPhase !== undefined)
+            updateData.projectPhase = req.body.projectPhase;
+        if (req.body.takeoffDeadline !== undefined)
+            updateData.takeoffDeadline = req.body.takeoffDeadline;
+        if (req.body.pricingDeadline !== undefined)
+            updateData.pricingDeadline = req.body.pricingDeadline;
+        if (req.body.qaDeadline !== undefined)
+            updateData.qaDeadline = req.body.qaDeadline;
+        if (req.body.company !== undefined)
+            updateData.company = req.body.company;
+        const payments = (0, projectPayments_1.normalizePaymentsInput)(req.body.projectPayments);
+        if (payments !== undefined) {
+            updateData.projectPayments = payments;
+            updateData.paidAmount = String((0, projectPayments_1.paidTotalFromEntries)((0, projectPayments_1.parseProjectPayments)(payments)));
+        }
         /* ── STATUS HANDLING ── */
         if (status !== undefined) {
             updateData.status = status;
@@ -307,11 +484,17 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 updateData.important = false;
                 updateData.interested = false;
                 const ts = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-                const tag = newCount >= NOT_INTERESTED_LIMIT ? " — LIMIT REACHED" : "";
-                const entry = `[Try ${newCount}/${NOT_INTERESTED_LIMIT} · ${ts}] Not Interested${tag}`;
+                const tag = newCount >= binLeads_1.NOT_INTERESTED_LIMIT ? " — LIMIT REACHED" : "";
+                const entry = `[Try ${newCount}/${binLeads_1.NOT_INTERESTED_LIMIT} · ${ts}] Not Interested${tag}`;
                 updateData.followUpNotes = [lead.followUpNotes, entry].filter(Boolean).join("\n");
+                if (newCount >= binLeads_1.NOT_INTERESTED_LIMIT) {
+                    updateData.inBin = true;
+                    updateData.binReason = "limit-not-interested";
+                }
                 await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
-                if (newCount >= NOT_INTERESTED_LIMIT) {
+                await logStatusChange(csrId, leadId, status);
+                invalidateCsrLeadCaches(csrId);
+                if (newCount >= binLeads_1.NOT_INTERESTED_LIMIT) {
                     const otherCsrs = await db_1.default.user.findMany({
                         where: { id: { not: csrId }, role: "csr", isActive: true },
                         select: { id: true, name: true, csrCode: true },
@@ -327,7 +510,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 return res.json({
                     success: true,
                     lead: await db_1.default.lead.findUnique({ where: { id: leadId } }),
-                    triesLeft: NOT_INTERESTED_LIMIT - newCount,
+                    triesLeft: binLeads_1.NOT_INTERESTED_LIMIT - newCount,
                 });
             }
             /* ── NOT PICKED (limit = 7) ── */
@@ -337,11 +520,17 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 updateData.important = false;
                 updateData.interested = false;
                 const ts = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-                const tag = newCount >= NOT_PICKED_LIMIT ? " — LIMIT REACHED" : "";
-                const entry = `[Try ${newCount}/${NOT_PICKED_LIMIT} · ${ts}] Not Picked${tag}`;
+                const tag = newCount >= binLeads_1.NOT_PICKED_LIMIT ? " — LIMIT REACHED" : "";
+                const entry = `[Try ${newCount}/${binLeads_1.NOT_PICKED_LIMIT} · ${ts}] Not Picked${tag}`;
                 updateData.followUpNotes = [lead.followUpNotes, entry].filter(Boolean).join("\n");
+                if (newCount >= binLeads_1.NOT_PICKED_LIMIT) {
+                    updateData.inBin = true;
+                    updateData.binReason = "limit-not-picked";
+                }
                 await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
-                if (newCount >= NOT_PICKED_LIMIT) {
+                await logStatusChange(csrId, leadId, status);
+                invalidateCsrLeadCaches(csrId);
+                if (newCount >= binLeads_1.NOT_PICKED_LIMIT) {
                     const otherCsrs = await db_1.default.user.findMany({
                         where: { id: { not: csrId }, role: "csr", isActive: true },
                         select: { id: true, name: true, csrCode: true },
@@ -357,13 +546,18 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 return res.json({
                     success: true,
                     lead: await db_1.default.lead.findUnique({ where: { id: leadId } }),
-                    triesLeft: NOT_PICKED_LIMIT - newCount,
+                    triesLeft: binLeads_1.NOT_PICKED_LIMIT - newCount,
                 });
             }
             /* ── IMPORTANT ── */
             if (status === "important") {
                 updateData.important = true;
                 updateData.interested = false;
+                /* Direct "Important" (not Schedule Call) → important-only bucket for admin */
+                if (nextSchedule === undefined && nextTime === undefined) {
+                    updateData.nextSchedule = null;
+                    updateData.nextTime = null;
+                }
             }
             /* ── INTERESTED ── */
             if (status === "interested") {
@@ -415,7 +609,10 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             where: { id: leadId },
             data: updateData,
         });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, "admin:clients");
+        if (status !== undefined && status !== lead.status) {
+            await logStatusChange(csrId, leadId, status);
+        }
+        invalidateCsrLeadCaches(csrId);
         return res.json({ success: true, lead: updatedLead });
     }
     catch (error) {
@@ -444,7 +641,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
                 interested: false,
             },
         });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, "admin:clients");
+        (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });
     }
     catch (error) {
@@ -460,11 +657,12 @@ router.get("/leads", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const csrLeads = await db_1.default.lead.findMany({
+        const rawLeads = await db_1.default.lead.findMany({
             where: { assignedTo: csrId },
-            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+            include: { uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { createdAt: "desc" },
         });
+        const csrLeads = (0, binLeads_1.filterActiveLeads)(rawLeads);
         const phones = [...new Set(csrLeads.map(l => l.phone).filter((p) => !!p))];
         const phoneCountMap = new Map();
         if (phones.length > 0) {
@@ -498,15 +696,12 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const leads = await db_1.default.lead.findMany({
-            where: {
-                assignedTo: csrId,
-                status: { in: ["Close Client", "completed"] },
-                projectTitle: { not: null },
-            },
-            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+        const rawLeads = await db_1.default.lead.findMany({
+            where: (0, projectLeads_1.buildProjectLeadWhere)(csrId),
+            include: { uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { updatedAt: "desc" },
         });
+        const leads = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
         const payload = { success: true, leads };
         (0, cache_1.setCache)(cacheKey, payload, 30000);
         return res.json(payload);
@@ -557,9 +752,12 @@ router.put("/lead/:id/assign", auth_middleware_1.verifyToken, (0, role_middlewar
                 notPickedCount: 0,
                 important: false,
                 interested: false,
+                inBin: false,
+                binReason: null,
+                binPreviousStatus: null,
             },
         });
-        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`, "admin:clients");
+        invalidateCsrLeadCaches(csrId, `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`, `csr:bin:${targetCsrId}`);
         return res.json({ success: true, message: `Lead assigned to ${targetCsr.name}` });
     }
     catch (error) {
@@ -571,12 +769,19 @@ router.put("/lead/:id/assign", auth_middleware_1.verifyToken, (0, role_middlewar
 router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
-        const leads = await db_1.default.lead.findMany({
-            where: { assignedTo: csrId, status: { in: ["not picked", "not completed"] } },
-            include: { uploadFile: { select: { companyName: true } }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+        const cacheKey = `csr:bin:${csrId}`;
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached)
+            return res.json(cached);
+        const rawLeads = await db_1.default.lead.findMany({
+            where: { assignedTo: csrId },
+            include: { uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
             orderBy: { updatedAt: "desc" },
         });
-        return res.json({ success: true, leads });
+        const leads = rawLeads.filter(binLeads_1.isBinLead);
+        const payload = { success: true, leads };
+        (0, cache_1.setCache)(cacheKey, payload, 30000);
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
@@ -644,6 +849,12 @@ router.post("/heartbeat", auth_middleware_1.verifyToken, (0, role_middleware_1.a
         await db_1.default.user.update({
             where: { id: userId },
             data: { isOnline: true, lastActive: new Date() },
+        });
+        void (0, accessHistory_1.recordHeartbeatAccess)({
+            userId,
+            ip: (0, requestMeta_1.getClientIp)(req),
+            userAgent: userAgent,
+            deviceId: tabId,
         });
         return res.json({ success: true });
     }

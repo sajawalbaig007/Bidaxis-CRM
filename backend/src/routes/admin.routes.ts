@@ -1102,8 +1102,6 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async 
   }
 });
 
-});
-
 /* ================= ACCESS HISTORY (IP / device) ================= */
 router.get("/access-history/:userId", verifyToken, allowRoles("admin"), async (req, res) => {
   try {

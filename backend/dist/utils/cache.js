@@ -4,6 +4,7 @@ exports.getCache = getCache;
 exports.setCache = setCache;
 exports.invalidateCache = invalidateCache;
 exports.invalidatePattern = invalidatePattern;
+exports.flushAdminClientsCache = flushAdminClientsCache;
 const store = new Map();
 function getCache(key) {
     const entry = store.get(key);
@@ -26,4 +27,9 @@ function invalidatePattern(prefix) {
         if (key.startsWith(prefix))
             store.delete(key);
     }
+}
+/** Clear admin leads list + summary caches after any lead mutation */
+function flushAdminClientsCache() {
+    invalidateCache("admin:clients:summary");
+    invalidatePattern("admin:clients:list:");
 }
