@@ -6,7 +6,8 @@ import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
 import { getClientIp } from "../utils/requestMeta";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../utils/cache";
-import { normalizePhone, phonesMatch } from "../utils/phone";
+import { normalizePhone } from "../utils/phone";
+import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
 import {
   normalizePaymentsInput,
@@ -36,27 +37,6 @@ function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
     "admin:bin",
     ...extra,
   );
-}
-
-async function findLeadsByPhone(phone: string) {
-  const trimmed = phone.trim();
-  if (!trimmed) return [];
-
-  const exact = await prisma.lead.findMany({
-    where:   { phone: trimmed },
-    orderBy: { updatedAt: "desc" },
-  });
-  if (exact.length > 0) return exact;
-
-  const digits = normalizePhone(trimmed);
-  if (digits.length < 7) return [];
-
-  const suffix = digits.slice(-10);
-  const candidates = await prisma.lead.findMany({
-    where:   { phone: { not: null, contains: suffix } },
-    orderBy: { updatedAt: "desc" },
-  });
-  return candidates.filter(l => l.phone && phonesMatch(l.phone, trimmed));
 }
 
 async function logStatusChange(csrId: string, leadId: string, status: string) {
@@ -255,24 +235,7 @@ router.get("/lookup-by-phone", verifyToken, allowRoles("csr"), async (req: any, 
       return res.json({ success: true, found: false });
     }
 
-    const latest = matches[0];
-    const wonProject = matches.find(l =>
-      ["Close Client", "completed"].includes(l.status ?? "")
-    );
-
-    return res.json({
-      success:           true,
-      found:             true,
-      isReturningClient: matches.length >= 1,
-      projectCount:      matches.length,
-      client: {
-        name:              latest.name              ?? "",
-        company:           latest.company           ?? "",
-        email:             latest.email             ?? "",
-        state:             latest.state             ?? "",
-        interestedService: wonProject?.interestedService ?? latest.interestedService ?? "",
-      },
-    });
+    return res.json(buildPhoneLookupResponse(matches));
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to lookup client" });
