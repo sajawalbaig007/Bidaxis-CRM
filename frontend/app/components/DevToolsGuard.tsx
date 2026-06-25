@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 
-const BODY_CLASS = "crm-secure-view";
+const BODY_CLASS_STRICT = "crm-secure-view";
+const BODY_CLASS_CSR = "crm-secure-view-csr";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -11,10 +12,20 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
+function hasTextSelection(): boolean {
+  const sel = window.getSelection();
+  return !!sel && sel.toString().length > 0;
+}
+
+type DevToolsGuardProps = {
+  /** CSR: mouse select + Ctrl/Cmd+C/V/X; login stays fully locked down. */
+  allowSelection?: boolean;
+};
+
 /** Best-effort deterrent — OS-level screenshots cannot be fully blocked in a browser. */
-export default function DevToolsGuard() {
+export default function DevToolsGuard({ allowSelection = false }: DevToolsGuardProps) {
   useEffect(() => {
-    document.body.classList.add(BODY_CLASS);
+    document.body.classList.add(allowSelection ? BODY_CLASS_CSR : BODY_CLASS_STRICT);
 
     let keyboardClipboard = false;
     let clipboardTimer: ReturnType<typeof setTimeout> | null = null;
@@ -22,7 +33,7 @@ export default function DevToolsGuard() {
     const markKeyboardClipboard = () => {
       keyboardClipboard = true;
       if (clipboardTimer) clearTimeout(clipboardTimer);
-      clipboardTimer = setTimeout(() => { keyboardClipboard = false; }, 150);
+      clipboardTimer = setTimeout(() => { keyboardClipboard = false; }, 400);
     };
 
     const blockContext = (e: MouseEvent) => e.preventDefault();
@@ -37,6 +48,10 @@ export default function DevToolsGuard() {
 
     const blockClipboard = (e: ClipboardEvent) => {
       if (keyboardClipboard) return;
+      if (allowSelection) {
+        if ((e.type === "copy" || e.type === "cut") && hasTextSelection()) return;
+        if (e.type === "paste" && isEditableTarget(e.target)) return;
+      }
       e.preventDefault();
     };
 
@@ -73,25 +88,29 @@ export default function DevToolsGuard() {
     };
 
     document.addEventListener("contextmenu", blockContext);
-    document.addEventListener("selectstart", blockSelectStart);
-    document.addEventListener("dragstart", blockDrag);
+    if (!allowSelection) {
+      document.addEventListener("selectstart", blockSelectStart);
+      document.addEventListener("dragstart", blockDrag);
+    }
     document.addEventListener("copy", blockClipboard);
     document.addEventListener("cut", blockClipboard);
     document.addEventListener("paste", blockClipboard);
     document.addEventListener("keydown", blockKeys);
 
     return () => {
-      document.body.classList.remove(BODY_CLASS);
+      document.body.classList.remove(allowSelection ? BODY_CLASS_CSR : BODY_CLASS_STRICT);
       if (clipboardTimer) clearTimeout(clipboardTimer);
       document.removeEventListener("contextmenu", blockContext);
-      document.removeEventListener("selectstart", blockSelectStart);
-      document.removeEventListener("dragstart", blockDrag);
+      if (!allowSelection) {
+        document.removeEventListener("selectstart", blockSelectStart);
+        document.removeEventListener("dragstart", blockDrag);
+      }
       document.removeEventListener("copy", blockClipboard);
       document.removeEventListener("cut", blockClipboard);
       document.removeEventListener("paste", blockClipboard);
       document.removeEventListener("keydown", blockKeys);
     };
-  }, []);
+  }, [allowSelection]);
 
   return null;
 }
