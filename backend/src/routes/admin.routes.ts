@@ -676,20 +676,8 @@ router.get("/lookup-by-phone", verifyToken, allowRoles("admin"), async (req, res
 /* ================= ADD PROJECT (ADMIN) ================= */
 router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
   try {
-    const {
-      csrId,
-      projectSource,
-      name,
-      company,
-      phone,
-      projectTitle,
-      projectCode,
-      interestedService,
-      projectDeadline,
-      projectBudget,
-      projectNotes,
-      status,
-    } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const { name, projectTitle, interestedService, projectDeadline } = body;
 
     if (!name || !projectTitle || !interestedService || !projectDeadline) {
       return res.status(400).json({
@@ -704,8 +692,8 @@ router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthReques
     }
 
     const CSR_OTHER = "__other__";
-    const rawCsrId = csrId ? String(csrId).trim() : "";
-    const sourceText = typeof projectSource === "string" ? projectSource.trim() : "";
+    const rawCsrId = body.csrId ? String(body.csrId).trim() : "";
+    const sourceText = typeof body.projectSource === "string" ? body.projectSource.trim() : "";
 
     let assignTo = adminId;
     let source: string | null = null;
@@ -731,27 +719,21 @@ router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthReques
       source = sourceText;
     }
 
-    const trimmedPhone = phone?.trim() || null;
+    const createData: Record<string, unknown> = {};
+    applyProjectPayload(createData, body);
+    createData.assignedTo = assignTo;
+    createData.projectSource = source;
+    createData.status = body.status ?? "Close Client";
+    createData.important = false;
+    createData.interested = false;
+
+    const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : null;
+    if (trimmedPhone) createData.phone = trimmedPhone;
     const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+    createData.isOldClient = existingLeads.length > 0;
 
     const lead = await prisma.lead.create({
-      data: {
-        name,
-        company:           company           ?? null,
-        phone:             trimmedPhone,
-        status:            status            ?? "Close Client",
-        projectTitle,
-        projectCode:       projectCode       ?? null,
-        interestedService,
-        projectDeadline,
-        projectBudget:     projectBudget     ?? null,
-        projectNotes:      projectNotes      ?? null,
-        projectSource:     source,
-        assignedTo:        assignTo,
-        important:         false,
-        interested:        false,
-        isOldClient:       existingLeads.length > 0,
-      },
+      data: createData as Parameters<typeof prisma.lead.create>[0]["data"],
       include: {
         csr: { select: { id: true, name: true, email: true, csrCode: true } },
       },
