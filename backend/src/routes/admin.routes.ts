@@ -12,6 +12,8 @@ import {
   paidTotalFromEntries,
 } from "../utils/projectPayments";
 import { isBinLead, filterActiveLeads } from "../utils/binLeads";
+import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
+import { normalizePhone } from "../utils/phone";
 import {
   buildAdminClientListWhere,
   buildAdminClientViewWhere,
@@ -22,6 +24,7 @@ import {
   type AdminClientView,
 } from "../utils/adminClientQueries";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -31,7 +34,7 @@ function applyProjectPayload(updateData: Record<string, unknown>, body: Record<s
     "name", "company", "phone", "email", "state", "ownerName",
     "projectCode", "projectTitle", "projectScope", "interestedService",
     "projectBudget", "projectDeadline", "projectNotes", "projectPhase",
-    "takeoffDeadline", "pricingDeadline", "qaDeadline",
+    "takeoffDeadline", "pricingDeadline", "qaDeadline", "projectSource",
   ] as const;
   for (const key of scalars) {
     if (body[key] !== undefined) updateData[key] = body[key];
@@ -652,6 +655,116 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
       success: false,
       message: "Failed to fetch projects",
     });
+  }
+});
+
+/* ================= LOOKUP CLIENT BY PHONE (ADMIN) ================= */
+router.get("/lookup-by-phone", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const phone = (req.query.phone as string)?.trim();
+    if (!phone || normalizePhone(phone).length < 7) {
+      return res.json({ success: true, found: false });
+    }
+    const matches = await findLeadsByPhone(phone);
+    return res.json(buildPhoneLookupResponse(matches));
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to lookup client" });
+  }
+});
+
+/* ================= ADD PROJECT (ADMIN) ================= */
+router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const {
+      csrId,
+      projectSource,
+      name,
+      company,
+      phone,
+      projectTitle,
+      projectCode,
+      interestedService,
+      projectDeadline,
+      projectBudget,
+      projectNotes,
+      status,
+    } = req.body;
+
+    if (!name || !projectTitle || !interestedService || !projectDeadline) {
+      return res.status(400).json({
+        success: false,
+        message: "name, projectTitle, interestedService and projectDeadline are required.",
+      });
+    }
+
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const CSR_OTHER = "__other__";
+    const rawCsrId = csrId ? String(csrId).trim() : "";
+    const sourceText = typeof projectSource === "string" ? projectSource.trim() : "";
+
+    let assignTo = adminId;
+    let source: string | null = null;
+
+    if (rawCsrId && rawCsrId !== CSR_OTHER) {
+      const csr = await prisma.user.findFirst({
+        where: { id: rawCsrId, role: "csr", isActive: true },
+        select: { id: true },
+      });
+      if (!csr) {
+        return res.status(400).json({ success: false, message: "Invalid or inactive CSR." });
+      }
+      assignTo = csr.id;
+    } else if (rawCsrId === CSR_OTHER) {
+      if (!sourceText) {
+        return res.status(400).json({
+          success: false,
+          message: "Please enter the external resource name for Other.",
+        });
+      }
+      source = sourceText;
+    } else if (sourceText) {
+      source = sourceText;
+    }
+
+    const trimmedPhone = phone?.trim() || null;
+    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+
+    const lead = await prisma.lead.create({
+      data: {
+        name,
+        company:           company           ?? null,
+        phone:             trimmedPhone,
+        status:            status            ?? "Close Client",
+        projectTitle,
+        projectCode:       projectCode       ?? null,
+        interestedService,
+        projectDeadline,
+        projectBudget:     projectBudget     ?? null,
+        projectNotes:      projectNotes      ?? null,
+        projectSource:     source,
+        assignedTo:        assignTo,
+        important:         false,
+        interested:        false,
+        isOldClient:       existingLeads.length > 0,
+      },
+      include: {
+        csr: { select: { id: true, name: true, email: true, csrCode: true } },
+      },
+    });
+
+    flushAdminClientsCache();
+    if (assignTo !== adminId) {
+      invalidateCache(`csr:dashboard:${assignTo}`, `csr:projects:${assignTo}`, `csr:leads:${assignTo}`);
+    }
+    return res.status(201).json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to create project" });
   }
 });
 

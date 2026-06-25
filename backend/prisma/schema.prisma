@@ -78,6 +78,7 @@ model Lead {
   clientCode         String?
   state              String?
   isOldClient        Boolean   @default(false)
+  projectSource      String?
   assignedTo         String
   uploadedFileId     String?
   shuffleAttempts    Int       @default(0)

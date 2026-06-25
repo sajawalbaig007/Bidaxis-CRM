@@ -25,7 +25,10 @@ function phoneDigits(phone: string): string {
   return extractPhoneForLookup(phone).replace(/\D/g, "");
 }
 
-export function useClientPhoneLookup(onApply: (client: ClientLookupData) => void) {
+export function useClientPhoneLookup(
+  onApply: (client: ClientLookupData) => void,
+  lookupPath = "/csr/lookup-by-phone",
+) {
   const [phoneLookupLoading, setPhoneLookupLoading] = useState(false);
   const [returningClient, setReturningClient] = useState(false);
   const lastLookedUpDigits = useRef("");
@@ -44,7 +47,7 @@ export function useClientPhoneLookup(onApply: (client: ClientLookupData) => void
 
     setPhoneLookupLoading(true);
     try {
-      const res = await API.get("/csr/lookup-by-phone", { params: { phone: trimmed } });
+      const res = await API.get(lookupPath, { params: { phone: trimmed } });
       lastLookedUpDigits.current = digits;
 
       if (res.data?.found && res.data?.client) {
@@ -64,7 +67,7 @@ export function useClientPhoneLookup(onApply: (client: ClientLookupData) => void
       /* silent — user can still fill manually */
     }
     setPhoneLookupLoading(false);
-  }, [onApply]);
+  }, [onApply, lookupPath]);
 
   const scheduleLookup = useCallback((phone: string) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -86,10 +89,14 @@ export function useClientPhoneLookup(onApply: (client: ClientLookupData) => void
   }, [lookupClientByPhone]);
 
   const onPhonePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
     const pasted = e.clipboardData.getData("text");
     if (!pasted?.trim()) return;
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    setTimeout(() => void lookupClientByPhone(pasted), 80);
+    const input = e.currentTarget;
+    setTimeout(() => {
+      void lookupClientByPhone(pasted.trim() || input.value);
+    }, 50);
   }, [lookupClientByPhone]);
 
   return {
