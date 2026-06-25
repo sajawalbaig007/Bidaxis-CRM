@@ -32,6 +32,12 @@ body.crm-secure-view {
   -webkit-touch-callout: none;
 }
 
+/* CSR: text selection allowed; right-click / devtools still blocked */
+body.crm-secure-view-csr {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 body.crm-secure-view input,
 body.crm-secure-view textarea,
 body.crm-secure-view select,
@@ -41,6 +47,11 @@ body.crm-secure-view [contenteditable="true"] {
 }
 
 body.crm-secure-view img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+body.crm-secure-view-csr img {
   -webkit-user-drag: none;
   user-drag: none;
 }
