@@ -13,6 +13,7 @@ import {
   PROJECT_PHASE_OPTIONS,
   ProjectPayment,
   ProjectWorkbenchData,
+  CSR_ASSIGN_OTHER,
   newPaymentId,
   paidTotal,
   paymentPercent,
@@ -23,16 +24,26 @@ import PaymentStatusCircle from "@/app/csr/components/shared/PaymentStatusCircle
 
 type CSROption = { id: string; name: string; csrCode?: string | null };
 
+type PhoneLookupProps = {
+  phoneLookupLoading?: boolean;
+  returningClient?: boolean;
+  onPhoneValueChange?: (value: string) => void;
+  onPhoneBlur?: (value: string) => void;
+  onPhonePaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void;
+};
+
 type Props = {
   open: boolean;
   onClose: () => void;
   initial: ProjectWorkbenchData;
   mode: "admin" | "csr";
+  createMode?: boolean;
   csrs?: CSROption[];
   saving?: boolean;
   onSave: (data: ProjectWorkbenchData) => Promise<void>;
   noteHistory?: NoteEntry[];
   onAddNote?: (text: string) => Promise<void>;
+  phoneLookup?: PhoneLookupProps;
 };
 
 const inputCls =
@@ -84,11 +95,13 @@ export default function ProjectWorkbenchModal({
   onClose,
   initial,
   mode,
+  createMode = false,
   csrs = [],
   saving = false,
   onSave,
   noteHistory,
   onAddNote,
+  phoneLookup,
 }: Props) {
   const [data, setData] = useState<ProjectWorkbenchData>(initial);
   const [openSection, setOpenSection] = useState<string>("client");
@@ -154,10 +167,12 @@ export default function ProjectWorkbenchModal({
             </div>
             <div className="min-w-0">
               <h2 className="text-base sm:text-lg font-bold text-white truncate">
-                {data.projectTitle || data.name || "Project"}
+                {createMode ? "Add New Project" : (data.projectTitle || data.name || "Project")}
               </h2>
               <p className="text-white/70 text-xs mt-0.5 truncate">
-                {data.name}{data.projectCode ? ` · ${data.projectCode}` : ""}
+                {createMode
+                  ? "Fill in client, project, payment & fulfillment details"
+                  : `${data.name}${data.projectCode ? ` · ${data.projectCode}` : ""}`}
               </p>
             </div>
           </div>
@@ -192,39 +207,83 @@ export default function ProjectWorkbenchModal({
                   onChange={(e) => setData((d) => ({ ...d, company: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Phone</label>
-                <input className={inputCls} value={data.phone}
-                  onChange={(e) => setData((d) => ({ ...d, phone: e.target.value }))} />
+                <label className={labelCls}>
+                  Phone
+                  {createMode && phoneLookup && (
+                    <span className="text-gray-300 normal-case font-normal"> (paste to auto-fill)</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    className={inputCls}
+                    value={data.phone}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setData((d) => ({ ...d, phone: value }));
+                      phoneLookup?.onPhoneValueChange?.(value);
+                    }}
+                    onBlur={(e) => phoneLookup?.onPhoneBlur?.(e.target.value)}
+                    onPaste={phoneLookup?.onPhonePaste}
+                  />
+                  {phoneLookup?.phoneLookupLoading && (
+                    <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
+                  )}
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Email</label>
                 <input className={inputCls} type="email" value={data.email}
                   onChange={(e) => setData((d) => ({ ...d, email: e.target.value }))} />
               </div>
-              {mode === "admin" ? (
-                <div className="sm:col-span-2">
-                  <label className={labelCls}>Assigned CSR</label>
-                  <select
-                    className={inputCls}
-                    value={data.assignedTo ?? ""}
-                    onChange={(e) => {
-                      const csr = csrs.find((c) => c.id === e.target.value);
-                      setData((d) => ({
-                        ...d,
-                        assignedTo: e.target.value,
-                        csrName: csr?.name ?? d.csrName,
-                        csrCode: csr?.csrCode ?? d.csrCode,
-                      }));
-                    }}
-                  >
-                    <option value="">Select CSR</option>
-                    {csrs.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.csrCode ? `${c.csrCode} — ` : ""}{c.name}
-                      </option>
-                    ))}
-                  </select>
+              {phoneLookup?.returningClient && (
+                <div className="sm:col-span-2 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-xl">
+                  <User2 size={12} className="shrink-0" />
+                  Returning client — details auto-filled from previous record
                 </div>
+              )}
+              {mode === "admin" ? (
+                <>
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>
+                      Assigned CSR
+                      {createMode && <span className="text-gray-300 normal-case font-normal"> (optional)</span>}
+                    </label>
+                    <select
+                      className={inputCls}
+                      value={data.assignedTo ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const csr = csrs.find((c) => c.id === val);
+                        setData((d) => ({
+                          ...d,
+                          assignedTo: val,
+                          csrName: csr?.name ?? d.csrName,
+                          csrCode: csr?.csrCode ?? d.csrCode,
+                          projectSource: val === CSR_ASSIGN_OTHER ? d.projectSource : "",
+                        }));
+                      }}
+                    >
+                      <option value="">— No CSR —</option>
+                      <option value={CSR_ASSIGN_OTHER}>Other / External resource…</option>
+                      {csrs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.csrCode ? `${c.csrCode} — ` : ""}{c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {data.assignedTo === CSR_ASSIGN_OTHER && (
+                    <div className="sm:col-span-2">
+                      <label className={labelCls}>Resource name *</label>
+                      <input
+                        className={inputCls}
+                        value={data.projectSource ?? ""}
+                        placeholder="e.g. Freelancer, Partner agency…"
+                        onChange={(e) => setData((d) => ({ ...d, projectSource: e.target.value }))}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="sm:col-span-2 bg-[#ECFDF5] rounded-xl px-3 py-2.5 border border-emerald-100">
                   <label className={labelCls}>CSR</label>
@@ -440,17 +499,26 @@ export default function ProjectWorkbenchModal({
             </div>
           </Section>
 
-          {noteHistory && onAddNote && (
+          {(createMode || (noteHistory && onAddNote)) && (
             <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <StickyNote size={12} className="text-[#B8112D]" /> Notes
               </p>
-              <CommentCell
-                id={data.id}
-                apiRole={mode === "admin" ? "admin" : "csr"}
-                noteHistory={noteHistory}
-                onAddNote={async (_id, text) => { await onAddNote(text); }}
-              />
+              {createMode ? (
+                <textarea
+                  className={`${inputCls} h-24 py-2.5 resize-none`}
+                  value={data.projectNotes ?? ""}
+                  placeholder="Project notes…"
+                  onChange={(e) => setData((d) => ({ ...d, projectNotes: e.target.value }))}
+                />
+              ) : noteHistory && onAddNote ? (
+                <CommentCell
+                  id={data.id}
+                  apiRole={mode === "admin" ? "admin" : "csr"}
+                  noteHistory={noteHistory}
+                  onAddNote={async (_id, text) => { await onAddNote(text); }}
+                />
+              ) : null}
             </div>
           )}
         </div>
@@ -470,7 +538,7 @@ export default function ProjectWorkbenchModal({
             className="flex-1 h-11 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#B8112D] to-[#d4173a] text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-red-200"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            {saving ? "Saving…" : "Save Changes"}
+            {saving ? (createMode ? "Adding…" : "Saving…") : (createMode ? "Add Project" : "Save Changes")}
           </button>
         </div>
       </div>

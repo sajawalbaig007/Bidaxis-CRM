@@ -5,17 +5,16 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, X, Eye,
   Calendar, Building2, User2,
-  Phone, Mail, ChevronDown, ArrowRightLeft, Check, RefreshCw,
-  Plus, Hash, FileText, Briefcase, Clock3, DollarSign, AlignLeft, Loader2,
+  ChevronDown, ArrowRightLeft, Check, RefreshCw,
+  Plus,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
-import ServicePicker from "@/app/csr/components/shared/ServicePicker";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
-import { useClientPhoneLookup } from "@/app/csr/hooks/useClientPhoneLookup";
+import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ClientDetailCell,
@@ -31,6 +30,7 @@ import {
   emptyWorkbench,
   parsePayments,
   ProjectWorkbenchData,
+  CSR_ASSIGN_OTHER,
 } from "@/lib/projectFields";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
@@ -64,6 +64,7 @@ type Project = {
 };
 
 function projectToWorkbench(p: Project): ProjectWorkbenchData {
+  const isOther = !!p.projectSource?.trim();
   return {
     id: p.id,
     name: p.name ?? "",
@@ -83,7 +84,8 @@ function projectToWorkbench(p: Project): ProjectWorkbenchData {
     pricingDeadline: p.pricingDeadline ?? "",
     qaDeadline: p.qaDeadline ?? "",
     projectPayments: parsePayments(p.projectPayments),
-    assignedTo: p.csr.id,
+    assignedTo: isOther ? CSR_ASSIGN_OTHER : p.csr.id,
+    projectSource: p.projectSource ?? "",
     csrName: projectAssigneeLabel(p),
     csrCode: p.projectSource ? null : p.csr.csrCode,
   };
@@ -401,31 +403,11 @@ function ProjectsSection({
 }
 
 const PAGE_SIZE = 30;
-const CSR_OTHER = "__other__";
 
 function projectAssigneeLabel(p: Project): string {
   if (p.projectSource?.trim()) return p.projectSource.trim();
   if (p.csr?.csrCode) return p.csr.name ?? "—";
   return p.csr?.name ?? "Unassigned";
-}
-
-const emptyAddForm = {
-  csrId:         "",
-  projectSource: "",
-  clientName:    "",
-  clientCompany: "",
-  clientPhone:   "",
-  projectCode:   "",
-  projectTitle:  "",
-  service:       "",
-  deadline:      "",
-  budget:        "",
-  notes:         "",
-};
-
-function isDeadlinePast(deadline: string) {
-  if (!deadline) return false;
-  return deadline.split("T")[0] < new Date().toISOString().split("T")[0];
 }
 
 export default function AdminProjectsPage() {
@@ -451,17 +433,21 @@ export default function AdminProjectsPage() {
   const [csrOptsLoaded, setCsrOptsLoaded] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm,      setAddForm]      = useState(emptyAddForm);
+  const [addDraft,     setAddDraft]     = useState<ProjectWorkbenchData | null>(null);
   const [addSaving,    setAddSaving]    = useState(false);
-  const [addError,     setAddError]     = useState("");
 
-  const applyClientLookup = useCallback((client: { name: string; company: string; interestedService: string }) => {
-    setAddForm(f => ({
-      ...f,
-      clientName:    client.name    || f.clientName,
-      clientCompany: client.company || f.clientCompany,
-      service:       f.service || client.interestedService || "",
-    }));
+  const applyClientLookup = useCallback((client: ClientLookupData) => {
+    setAddDraft((d) => {
+      if (!d) return d;
+      return {
+        ...d,
+        name: client.name || d.name,
+        company: client.company || d.company,
+        email: client.email || d.email,
+        state: client.state || d.state,
+        interestedService: d.interestedService || client.interestedService || "",
+      };
+    });
   }, []);
 
   const { phoneLookupLoading, returningClient, resetLookup, onPhoneValueChange, onPhoneBlur, onPhonePaste } =
@@ -469,55 +455,64 @@ export default function AdminProjectsPage() {
 
   const resetAddModal = useCallback(() => {
     setShowAddModal(false);
-    setAddForm(emptyAddForm);
-    setAddError("");
+    setAddDraft(null);
     resetLookup();
   }, [resetLookup]);
 
   const openAddModal = useCallback(() => {
-    setAddForm(f => ({ ...emptyAddForm, csrId: filterCSR !== "all" ? filterCSR : f.csrId }));
-    setAddError("");
     resetLookup();
+    setAddDraft({
+      ...emptyWorkbench(),
+      assignedTo: filterCSR !== "all" ? filterCSR : "",
+    });
     setShowAddModal(true);
   }, [filterCSR, resetLookup]);
 
-  const handleAddProject = async () => {
-    const { csrId, clientName, projectTitle, service, deadline, projectSource } = addForm;
-    if (csrId === CSR_OTHER && !projectSource.trim()) {
-      setAddError("Enter the external resource name for Other.");
+  const saveNewProject = async (data: ProjectWorkbenchData) => {
+    if (data.assignedTo === CSR_ASSIGN_OTHER && !(data.projectSource ?? "").trim()) {
+      toast.error("Enter the external resource name for Other.");
       return;
     }
-    if (!clientName.trim())   { setAddError("Client name is required."); return; }
-    if (!projectTitle.trim()) { setAddError("Project title is required."); return; }
-    if (!service)             { setAddError("Please select a service."); return; }
-    if (!deadline)            { setAddError("Deadline is required."); return; }
+    if (!data.name.trim()) { toast.error("Client name is required."); return; }
+    if (!data.projectTitle.trim()) { toast.error("Project title is required."); return; }
+    if (!data.interestedService) { toast.error("Please select a service."); return; }
+    if (!data.projectDeadline) { toast.error("Deadline is required."); return; }
     setAddSaving(true);
-    setAddError("");
     try {
       const res = await API.post("/admin/project", {
-        csrId:             csrId || undefined,
-        projectSource:     projectSource.trim() || undefined,
-        name:              addForm.clientName.trim(),
-        company:           addForm.clientCompany.trim() || undefined,
-        phone:             addForm.clientPhone.trim()   || undefined,
-        projectTitle:      addForm.projectTitle.trim(),
-        projectCode:       addForm.projectCode.trim()  || undefined,
-        interestedService: addForm.service,
-        projectDeadline:   addForm.deadline,
-        projectBudget:     addForm.budget.trim()  || undefined,
-        projectNotes:      addForm.notes.trim()   || undefined,
+        csrId:             data.assignedTo || undefined,
+        projectSource:     data.projectSource?.trim() || undefined,
+        name:              data.name.trim(),
+        company:           data.company.trim() || undefined,
+        phone:             data.phone.trim() || undefined,
+        email:             data.email.trim() || undefined,
+        ownerName:         data.ownerName.trim() || undefined,
+        state:             data.state.trim() || undefined,
+        projectCode:       data.projectCode.trim() || undefined,
+        projectTitle:      data.projectTitle.trim(),
+        projectScope:      data.projectScope.trim() || undefined,
+        interestedService: data.interestedService,
+        projectDeadline:   data.projectDeadline,
+        projectBudget:     data.projectBudget.trim() || undefined,
+        projectNotes:      data.projectNotes?.trim() || undefined,
+        projectPhase:      data.projectPhase,
+        takeoffDeadline:   data.takeoffDeadline || undefined,
+        pricingDeadline:   data.pricingDeadline || undefined,
+        qaDeadline:        data.qaDeadline || undefined,
+        projectPayments:   data.projectPayments,
         status:            "Close Client",
       });
       const lead = res.data.lead as Project;
-      setProjects(prev => [lead, ...prev]);
-      setStats(s => ({ ...s, total: s.total + 1 }));
+      setProjects((prev) => [lead, ...prev]);
+      setStats((s) => ({ ...s, total: s.total + 1 }));
       toast.success("Project added");
       resetAddModal();
       void fetchProjects();
     } catch {
-      setAddError("Failed to save project. Please try again.");
+      toast.error("Failed to save project. Please try again.");
+    } finally {
+      setAddSaving(false);
     }
-    setAddSaving(false);
   };
 
   const addAdminNote = async (id: string, text: string) => {
@@ -536,6 +531,7 @@ export default function AdminProjectsPage() {
   const saveWorkbench = async (data: ProjectWorkbenchData) => {
     setWorkbenchSaving(true);
     try {
+      const isOther = data.assignedTo === CSR_ASSIGN_OTHER;
       const res = await API.put(`/admin/project/${data.id}`, {
         name: data.name,
         company: data.company,
@@ -554,7 +550,8 @@ export default function AdminProjectsPage() {
         pricingDeadline: data.pricingDeadline,
         qaDeadline: data.qaDeadline,
         projectPayments: data.projectPayments,
-        assignedTo: data.assignedTo,
+        assignedTo: isOther ? undefined : data.assignedTo,
+        projectSource: isOther ? data.projectSource : "",
       });
       const lead = res.data.lead as Project;
       setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
@@ -862,205 +859,23 @@ export default function AdminProjectsPage() {
           onAddNote={workbenchProject ? async (text) => { await addAdminNote(workbenchProject.id, text); } : undefined}
         />
 
-      {/* ══ ADD NEW PROJECT MODAL ══ */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="w-full sm:max-w-[540px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
-            style={{ maxHeight: "92vh" }}
-          >
-            <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 pt-5 pb-5 shrink-0">
-              <button type="button" onClick={resetAddModal}
-                className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white">
-                <X size={15} />
-              </button>
-              <div className="flex items-center gap-3 pr-10">
-                <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
-                  <Plus size={20} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-white">Add New Project</h2>
-                  <p className="text-white/65 text-xs mt-0.5">Assign a project to any CSR</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-4">
-              {addError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{addError}</div>
-              )}
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                  Assign to CSR <span className="text-gray-300 normal-case font-normal">(optional)</span>
-                </label>
-                <select
-                  value={addForm.csrId}
-                  onChange={e => setAddForm(f => ({
-                    ...f,
-                    csrId: e.target.value,
-                    projectSource: e.target.value === CSR_OTHER ? f.projectSource : "",
-                  }))}
-                  className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm outline-none focus:border-[#B8112D]"
-                >
-                  <option value="">— No CSR —</option>
-                  <option value={CSR_OTHER}>Other / External resource…</option>
-                  {allCsrs.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}{c.csrCode ? ` (${c.csrCode})` : ""}</option>
-                  ))}
-                </select>
-              </div>
-
-              {(addForm.csrId === CSR_OTHER) && (
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                    Resource name <span className="text-[#B8112D]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addForm.projectSource}
-                    placeholder="e.g. Freelancer, Partner agency, Direct client…"
-                    onChange={e => setAddForm(f => ({ ...f, projectSource: e.target.value }))}
-                    className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm outline-none focus:border-[#B8112D]"
-                  />
-                </div>
-              )}
-
-              <div className="bg-[#F8F9FC] rounded-2xl p-4 space-y-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <User2 size={12} className="text-[#B8112D]" /> Client Information
-                </p>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                    Phone <span className="text-gray-300 normal-case font-normal">(paste or type to auto-fill)</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={addForm.clientPhone}
-                      placeholder="+1 234 567 890"
-                      onChange={e => {
-                        const value = e.target.value;
-                        setAddForm(f => ({ ...f, clientPhone: value }));
-                        onPhoneValueChange(value);
-                      }}
-                      onBlur={e => onPhoneBlur(e.target.value)}
-                      onPaste={onPhonePaste}
-                      className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-white px-4 pr-10 text-sm outline-none focus:border-[#B8112D]"
-                    />
-                    {phoneLookupLoading && (
-                      <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D] animate-spin" />
-                    )}
-                  </div>
-                </div>
-
-                {returningClient && (
-                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-xl">
-                    <User2 size={12} className="shrink-0" />
-                    Returning client — name &amp; company auto-filled
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                    Client Name <span className="text-[#B8112D]">*</span>
-                  </label>
-                  <input type="text" value={addForm.clientName} placeholder="e.g. John Smith"
-                    onChange={e => setAddForm(f => ({ ...f, clientName: e.target.value }))}
-                    className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm outline-none focus:border-[#B8112D]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Company</label>
-                  <input type="text" value={addForm.clientCompany} placeholder="Company name"
-                    onChange={e => setAddForm(f => ({ ...f, clientCompany: e.target.value }))}
-                    className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-white px-4 text-sm outline-none focus:border-[#B8112D]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <Hash size={10} className="text-[#B8112D]" /> Project Code <span className="text-gray-300 normal-case">(optional)</span>
-                </label>
-                <input type="text" value={addForm.projectCode} placeholder="e.g. BIM-2024-001"
-                  onChange={e => setAddForm(f => ({ ...f, projectCode: e.target.value }))}
-                  className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <FileText size={10} className="text-[#B8112D]" /> Project Title <span className="text-[#B8112D]">*</span>
-                </label>
-                <input type="text" value={addForm.projectTitle} placeholder="e.g. BIM Modeling Phase 1"
-                  onChange={e => setAddForm(f => ({ ...f, projectTitle: e.target.value }))}
-                  className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <Briefcase size={10} className="text-[#B8112D]" /> Service Type <span className="text-[#B8112D]">*</span>
-                </label>
-                <ServicePicker value={addForm.service} onChange={v => setAddForm(f => ({ ...f, service: v }))} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                    <Clock3 size={10} className="text-[#B8112D]" /> Deadline <span className="text-[#B8112D]">*</span>
-                  </label>
-                  <input type="date" value={addForm.deadline}
-                    onChange={e => setAddForm(f => ({ ...f, deadline: e.target.value }))}
-                    className={`w-full h-11 rounded-2xl border-2 px-3 text-sm outline-none ${
-                      addForm.deadline && isDeadlinePast(addForm.deadline)
-                        ? "border-green-400 bg-green-50"
-                        : "border-gray-200 bg-[#FAFAFA] focus:border-[#B8112D]"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                    <DollarSign size={10} className="text-[#B8112D]" /> Budget
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                    <input type="text" placeholder="0.00" value={addForm.budget}
-                      onChange={e => setAddForm(f => ({ ...f, budget: e.target.value }))}
-                      className="w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] pl-7 pr-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <AlignLeft size={10} className="text-[#B8112D]" /> Notes
-                </label>
-                <textarea value={addForm.notes} placeholder="Any project notes…" rows={3}
-                  onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
-                  className="w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white resize-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pb-2">
-                <button type="button" onClick={resetAddModal}
-                  className="flex-1 h-12 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100">
-                  Cancel
-                </button>
-                <button type="button" onClick={() => void handleAddProject()} disabled={addSaving}
-                  className={`flex-1 h-12 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 ${
-                    addSaving ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-[#B8112D] hover:bg-[#a30f27]"
-                  }`}>
-                  {addSaving ? <><Loader2 size={16} className="animate-spin" /> Saving…</> : <><Plus size={14} /> Add Project</>}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+        <ProjectWorkbenchModal
+          open={showAddModal && !!addDraft}
+          onClose={resetAddModal}
+          initial={addDraft ?? emptyWorkbench()}
+          mode="admin"
+          createMode
+          csrs={allCsrs}
+          saving={addSaving}
+          onSave={saveNewProject}
+          phoneLookup={{
+            phoneLookupLoading,
+            returningClient,
+            onPhoneValueChange,
+            onPhoneBlur,
+            onPhonePaste,
+          }}
+        />
 
       {/* ══ REASSIGN CSR MODAL ══ */}
       {showReassign && reassignProj && (

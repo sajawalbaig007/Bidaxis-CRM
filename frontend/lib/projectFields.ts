@@ -116,9 +116,13 @@ export type ProjectWorkbenchData = {
   qaDeadline: string;
   projectPayments: ProjectPayment[];
   assignedTo?: string;
+  projectSource?: string;
+  projectNotes?: string;
   csrName?: string;
   csrCode?: string | null;
 };
+
+export const CSR_ASSIGN_OTHER = "__other__";
 
 export function emptyWorkbench(): ProjectWorkbenchData {
   return {
