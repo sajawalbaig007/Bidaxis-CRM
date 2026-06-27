@@ -12,7 +12,8 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CLIENT_GRID_HEAD, CLIENT_GRID_ROW } from "../components/shared/csrTableStyles";
+import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../components/shared/csrTableStyles";
+import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { useLeadsData, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
@@ -457,9 +458,9 @@ export default function LeadsPage() {
             <>
               <div className="overflow-x-auto">
               {/* Desktop header */}
-              <div className={`hidden lg:grid gap-3 px-5 lg:px-6 py-3 border-b border-[#F3F3F3] bg-[#FAFAFA] min-w-[1120px] ${CLIENT_GRID_HEAD}`}>
+              <div className={`hidden lg:grid gap-3 px-5 lg:px-6 py-3 min-w-[1120px] ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
                 {["Code", "Client", "Company", "Phone", "Email", "Service", "Latest Note", ""].map(h => (
-                  <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</span>
+                  <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                 ))}
               </div>
 

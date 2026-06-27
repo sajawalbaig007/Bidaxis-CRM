@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 
 export type PreviewRow = {
   row: number;
@@ -117,8 +118,8 @@ export default function UploadFilePreview({
       ) : (
         <div className="max-h-[200px] sm:max-h-[240px] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="bg-white sticky top-0 z-10">
-              <tr className="text-left text-[10px] uppercase tracking-wide text-gray-400">
+            <thead className={CSR_THEAD}>
+              <tr className="text-left text-[10px] uppercase tracking-wide text-crm-text-faint">
                 <th className="px-3 py-2 font-semibold w-10">#</th>
                 <th className="px-3 py-2 font-semibold">Name</th>
                 <th className="px-3 py-2 font-semibold hidden sm:table-cell">Phone</th>

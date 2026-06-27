@@ -68,5 +68,23 @@ const uploadReportFile = multer({
   fileFilter: reportFilter,
 });
 
+function pdfFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
+  const name = file.originalname?.toLowerCase() ?? "";
+  if (name.includes("..") || /\.(exe|bat|cmd|sh|php|js|html)$/i.test(name)) {
+    cb(new Error("Invalid file name."));
+    return;
+  }
+  const okType = file.mimetype === "application/pdf";
+  const okExt = name.endsWith(".pdf");
+  if (okType || okExt) cb(null, true);
+  else cb(new Error("Only PDF files are allowed."));
+}
+
+const uploadPdf = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: pdfFilter,
+});
+
 export default uploadImage;
-export { uploadExcel, uploadReportFile };
+export { uploadExcel, uploadReportFile, uploadPdf };

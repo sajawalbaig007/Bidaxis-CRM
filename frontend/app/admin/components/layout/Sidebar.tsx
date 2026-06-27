@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   LayoutDashboard, Users, FileText, BarChart3,
@@ -13,9 +13,9 @@ import {
 import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
-import { pollChatUnread } from "@/lib/chatUnreadStore";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import AdminChatPanel from "./AdminChatPanel";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 const navItems = [
   { title: "Dashboard",       href: "/admin",                 icon: LayoutDashboard },
@@ -52,7 +52,6 @@ function labelDate(d: string) {
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
-  const router   = useRouter();
 
   const [user,        setUser]        = useState<UserInfo | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -65,7 +64,6 @@ export default function DashboardSidebar() {
   const bellRef       = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    void pollChatUnread();
     getAuthMe().then(u => { if (u) setUser(u); }).catch(() => {});
     API.get("/admin/notifications")
       .then(res => setScheduledCalls(res.data.scheduledCalls ?? []))
@@ -86,8 +84,7 @@ export default function DashboardSidebar() {
     try {
       await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
-      router.push("/");
-      router.refresh();
+      window.location.href = "/";
     } catch { toast.error("Logout failed."); }
     finally { setLoggingOut(false); }
   };
@@ -98,13 +95,20 @@ export default function DashboardSidebar() {
 
   const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
 
+  const handleClearNotifications = () => {
+    setScheduledCalls([]);
+    toast.success("Notifications cleared.");
+  };
+
+  const hasNotifications = scheduledCalls.length > 0;
+
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+      <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
 
           {/* Logo */}
-          <Link href="/admin" className="flex items-center gap-3 shrink-0">
+          <Link href="/admin" prefetch={false} className="flex items-center gap-3 shrink-0">
             <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
               <Image
                 src="/images/image.png" alt="logo"
@@ -113,7 +117,7 @@ export default function DashboardSidebar() {
               />
             </div>
             <div className="hidden sm:block">
-              <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-[#111827] tracking-tight">
+              <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
                 CRM Dashboard
               </h2>
               <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
@@ -125,7 +129,7 @@ export default function DashboardSidebar() {
           {/* Nav */}
           <div className="flex-1 min-w-0">
             <nav
-              className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-[#F3F4F6] rounded-[18px] p-1 overflow-x-auto"
+              className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto"
               style={{ scrollbarWidth: "none" }}
             >
               {navItems.map(({ title, href, icon: Icon }) => {
@@ -136,7 +140,7 @@ export default function DashboardSidebar() {
                     className={`h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
                       active
                         ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                        : "text-[#374151] hover:bg-white hover:text-[#B8112D]"
+                        : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
                     }`}
                   >
                     <Icon size={15} className="shrink-0" />
@@ -147,10 +151,12 @@ export default function DashboardSidebar() {
             </nav>
           </div>
 
+          <ThemeToggle />
+
           {/* Chat button */}
           <button
             onClick={() => { setChatOpen(v => !v); setBellOpen(false); }}
-            className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${chatOpen ? "bg-[#B8112D] text-white shadow-md" : "bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"}`}
+            className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${chatOpen ? "bg-[#B8112D] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"}`}
             title="Messages"
           >
             <MessageSquare size={16} />
@@ -166,7 +172,7 @@ export default function DashboardSidebar() {
             <button
               type="button"
               onClick={() => { setBellOpen(v => !v); setProfileOpen(false); }}
-              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-[#4B5563] hover:text-[#B8112D] hover:bg-[#F3F4F6] transition-colors"
+              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#B8112D] hover:bg-crm-nav-pill transition-colors"
               title="Scheduled meetings"
             >
               <Bell size={17} />
@@ -178,17 +184,28 @@ export default function DashboardSidebar() {
             </button>
 
             {bellOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                   <div className="flex items-center gap-2">
                     <Bell size={14} className="text-[#B8112D]" />
                     <span className="text-[13px] font-bold text-[#0F172A]">Meetings</span>
                   </div>
-                  {todayCalls.length > 0 && (
-                    <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
-                      {todayCalls.length} today
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {todayCalls.length > 0 && (
+                      <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
+                        {todayCalls.length} today
+                      </span>
+                    )}
+                    {hasNotifications && (
+                      <button
+                        type="button"
+                        onClick={handleClearNotifications}
+                        className="text-[10px] font-semibold text-gray-400 hover:text-[#B8112D] transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="max-h-[360px] overflow-y-auto">
@@ -249,26 +266,27 @@ export default function DashboardSidebar() {
           {/* Profile */}
           <div ref={profileRef} className="relative shrink-0">
             <button
+              type="button"
               onClick={() => { setProfileOpen(v => !v); setBellOpen(false); }}
-              className="flex items-center gap-2 hover:bg-[#F3F4F6] rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
+              className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
             >
               <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0">
                 {initials}
               </div>
               <div className="hidden lg:block text-left">
-                <p className="text-[12px] font-bold leading-none text-[#111827] max-w-[90px] truncate">
+                <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
                   {user?.name ?? "Admin"}
                 </p>
-                <p className="text-[10px] text-gray-500 mt-1">Administration</p>
+                <p className="text-[10px] text-crm-text-muted mt-1">Administration</p>
               </div>
               <ChevronDown
                 size={13}
-                className={`hidden sm:block text-gray-400 transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}
+                className={`hidden sm:block text-crm-text-faint transition-transform duration-200 ${profileOpen ? "rotate-180" : ""}`}
               />
             </button>
 
             {profileOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                 <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0">
                     {initials}

@@ -12,6 +12,7 @@ import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
+import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 
 type BinLead = {
   id:                 string;
@@ -232,7 +233,7 @@ export default function AdminBinPage() {
 
             <div className="overflow-x-auto px-4 sm:px-5 pb-4">
               <table className="w-full" style={{ minWidth: "860px" }}>
-                <thead className="sticky top-0 bg-white z-10">
+                <thead className={CSR_THEAD}>
                   <tr className="border-b border-gray-100">
                     {["#","CSR","Client","Company","Phone","Service","Reason","Updated","Action"].map(h => (
                       <th key={h} className="text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-400 whitespace-nowrap">{h}</th>

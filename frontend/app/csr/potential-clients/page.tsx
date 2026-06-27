@@ -10,7 +10,7 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_IMPORTANT, COL_7_INTERESTED, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_IMPORTANT, COL_7_INTERESTED, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 
 import { useCsrDashboard } from "../hooks/useCsrDashboard";
@@ -260,7 +260,7 @@ export default function ImportantCallsPage() {
             <div className={CSR_TABLE_WRAP}>
               <table className={CSR_TABLE_CLASS} style={{ minWidth: "1080px" }}>
                 <CsrColGroup widths={COL_7_INTERESTED} />
-                <thead className="sticky top-0 bg-white z-10">
+                <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
                     <th className={CSR_TH}>Client</th>
                     <th className={`hidden md:table-cell ${CSR_TH}`}>Company</th>
@@ -374,7 +374,7 @@ export default function ImportantCallsPage() {
             <div className={CSR_TABLE_WRAP}>
               <table className={CSR_TABLE_CLASS} style={{ minWidth: "1240px" }}>
                 <CsrColGroup widths={COL_8_IMPORTANT} />
-                <thead className="sticky top-0 bg-white z-10">
+                <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
                     {["Client","Company","Contact","Next Schedule","Time & Timezone","Note","Status","Action"].map(h => (
                       <th key={h} className={CSR_TH}>{h}</th>
@@ -550,7 +550,7 @@ export default function ImportantCallsPage() {
             <div className={CSR_TABLE_WRAP}>
               <table className={CSR_TABLE_CLASS} style={{ minWidth: "1080px" }}>
                 <CsrColGroup widths={COL_7_INTERESTED} />
-                <thead className="sticky top-0 bg-white z-10">
+                <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
                     <th className={CSR_TH}>Client</th>
                     <th className={`hidden md:table-cell ${CSR_TH}`}>Company</th>

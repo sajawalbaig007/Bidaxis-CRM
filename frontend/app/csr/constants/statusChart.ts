@@ -17,6 +17,9 @@ export const STATUS_GROUPS: StatusGroup[] = [
   { name: "Close Client",   color: "#065F46", match: s => s === "Close Client" },
   { name: "Not Interested", color: "#475569", match: s => s === "Not Interested" || s === "completed" },
   { name: "Not Picked",     color: "#F97316", match: s => s === "not picked" || s === "not completed" },
+  { name: "No Owner",       color: "#D97706", match: s => s === "no owner available" },
+  { name: "Not In Service", color: "#7C3AED", match: s => s === "not in service" },
+  { name: "In House",       color: "#0D9488", match: s => s === "in house" },
 ];
 
 export function getStatusChartData(leads: { status: string }[]): StatusSlice[] {

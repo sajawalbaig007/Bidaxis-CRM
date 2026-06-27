@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import {
   PhoneCall, CircleCheckBig, AlertTriangle,
   Clock3, Phone, Users, Bell, X, Eye, ChevronDown, CalendarDays,
+  UserX, Ban, Home,
 } from "lucide-react";
 
 import TopNavbar from "./components/navigation/TopNavbar";
@@ -13,6 +14,7 @@ import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
 import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
+import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
 import LeadStatusDonut from "./components/shared/LeadStatusDonut";
@@ -28,21 +30,16 @@ import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone, leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
 import { isImportantOnly, isScheduledCall } from "./utils/potentialClientBuckets";
-
-const statusLabel = (s: string) => {
-  if (s === "Not Interested" || s === "completed")     return "Not Interested";
-  if (s === "not picked"     || s === "not completed") return "Not Picked";
-  return s;
-};
-
-const statusBadgeClass = (s: string) => {
-  if (s === "not picked" || s === "not completed") return "bg-[#FFF7E6] text-[#B54708]";
-  if (s === "Not Interested" || s === "completed") return "bg-[#F1F5F9] text-[#475569]";
-  if (s === "important")    return "bg-[#FFF1F3] text-[#B8112D]";
-  if (s === "interested")   return "bg-[#FFF4E5] text-[#D97706]";
-  if (s === "Close Client") return "bg-[#ECFDF5] text-[#065F46]";
-  return "bg-[#F4F4F5] text-[#52525B]";
-};
+import {
+  STATUS_NO_OWNER,
+  STATUS_NOT_IN_SERVICE,
+  STATUS_IN_HOUSE,
+  isNotInterestedStatus,
+  isNotPickedStatus,
+  statusDisplayLabel,
+  statusBadgeClass,
+} from "./constants/leadStatuses";
+import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 
 export default function CSRPage() {
   const router = useRouter();
@@ -55,6 +52,7 @@ export default function CSRPage() {
   const [stateFilter, setStateFilter] = useState("");
   const [timezoneFilter, setTimezoneFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
 
   const [dismissedNotification, setDismissedNotification] = useState(false);
 
@@ -76,6 +74,9 @@ export default function CSRPage() {
 
   const [showNiModal,     setShowNiModal]     = useState(false);
   const [showNpModal,     setShowNpModal]     = useState(false);
+  const [showNoOwnerModal, setShowNoOwnerModal] = useState(false);
+  const [showNotInServiceModal, setShowNotInServiceModal] = useState(false);
+  const [showInHouseModal, setShowInHouseModal] = useState(false);
   const [showImpOnlyModal, setShowImpOnlyModal] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [pendingNote,     setPendingNote]     = useState("");
@@ -106,17 +107,32 @@ export default function CSRPage() {
     scheduledCount:     mainLeads.filter(i => isScheduledCall(i)).length,
     interestedCount:    mainLeads.filter(i => i.status === "interested").length,
     projectWonCount:    mainLeads.filter(i => i.status === "Close Client").length,
-    notInterestedCount: mainLeads.filter(i => i.status === "Not Interested" || i.status === "completed").length,
-    notPickedCount:     mainLeads.filter(i => i.status === "not picked" || i.status === "not completed").length,
+    notInterestedCount: mainLeads.filter(i => isNotInterestedStatus(i.status)).length,
+    notPickedCount:     mainLeads.filter(i => isNotPickedStatus(i.status)).length,
+    noOwnerCount:       mainLeads.filter(i => i.status === STATUS_NO_OWNER).length,
+    notInServiceCount:  mainLeads.filter(i => i.status === STATUS_NOT_IN_SERVICE).length,
+    inHouseCount:       mainLeads.filter(i => i.status === STATUS_IN_HOUSE).length,
   }), [mainLeads]);
 
-  const filteredLinks = useMemo(() => {
+  const sourceSudoOptions = useMemo(() => {
+    const names = new Set<string>();
+    mainLeads.forEach(l => {
+      const s = l.sourceSudoName?.trim();
+      if (s) names.add(s);
+    });
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [mainLeads]);
+
+  const tabFiltered = useMemo(() => {
     return mainLeads.filter(item => {
       const matchesTab =
         activeTab === "today"           ? item.status === "pending"
-        : activeTab === "notinterested" ? item.status === "Not Interested"
+        : activeTab === "notinterested" ? isNotInterestedStatus(item.status)
         : activeTab === "pending"       ? item.status === "pending"
-        : activeTab === "notpicked"     ? (item.status === "not picked" || item.status === "not completed")
+        : activeTab === "notpicked"     ? isNotPickedStatus(item.status)
+        : activeTab === "noowner"       ? item.status === STATUS_NO_OWNER
+        : activeTab === "notinservice"  ? item.status === STATUS_NOT_IN_SERVICE
+        : activeTab === "inhouse"       ? item.status === STATUS_IN_HOUSE
         : activeTab === "important"     ? isImportantOnly(item)
         : activeTab === "schedule"      ? isScheduledCall(item)
         : activeTab === "interested"    ? item.status === "interested"
@@ -141,9 +157,23 @@ export default function CSRPage() {
           })()
         : true;
       const matchesTimezone = leadMatchesTimezoneFilter(item, timezoneFilter);
-      return matchesTab && matchesState && matchesPhone && matchesTimezone;
+      const matchesSource = sourceFilter
+        ? (item.sourceSudoName?.trim().toLowerCase() === sourceFilter.toLowerCase())
+        : true;
+      return matchesTab && matchesState && matchesPhone && matchesTimezone && matchesSource;
     });
-  }, [mainLeads, activeTab, stateFilter, timezoneFilter, phoneFilter]);
+  }, [mainLeads, activeTab, stateFilter, timezoneFilter, phoneFilter, sourceFilter]);
+
+  const columnPredicates = useMemo(() => ({
+    client:  (item: Lead, v: string) => textColumnMatch(item.client, v),
+    company: (item: Lead, v: string) =>
+      textColumnMatch(item.company, v) || textColumnMatch(item.sourceSudoName, v),
+    phone:   (item: Lead, v: string) => textColumnMatch(item.phone, v),
+    status:  (item: Lead, v: string) => textColumnMatch(statusDisplayLabel(item.status), v),
+  }), []);
+
+  const { filters: colFilters, setFilter: setColFilter, filtered: filteredLinks } =
+    useColumnFilters(tabFiltered, columnPredicates);
 
   const totalPages = Math.max(1, Math.ceil(filteredLinks.length / PAGE_SIZE));
   const paginated  = filteredLinks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -178,6 +208,15 @@ export default function CSRPage() {
     }
     if (status === "not picked") {
       setPendingStatusId(id); setPendingNote(""); setShowNpModal(true); return;
+    }
+    if (status === STATUS_NO_OWNER) {
+      setPendingStatusId(id); setPendingNote(""); setShowNoOwnerModal(true); return;
+    }
+    if (status === STATUS_NOT_IN_SERVICE) {
+      setPendingStatusId(id); setPendingNote(""); setShowNotInServiceModal(true); return;
+    }
+    if (status === STATUS_IN_HOUSE) {
+      setPendingStatusId(id); setPendingNote(""); setShowInHouseModal(true); return;
     }
     try {
       const res = await updateLead(id, { status });
@@ -242,6 +281,36 @@ export default function CSRPage() {
       if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
     } catch (err) { console.log(err); }
     setShowNpModal(false); setPendingStatusId(null); setPendingNote("");
+  };
+
+  const saveNoOwnerStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      await updateLead(pendingStatusId, { status: STATUS_NO_OWNER });
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+      toast.success("Marked as No Owner Available.");
+    } catch (err) { console.log(err); }
+    setShowNoOwnerModal(false); setPendingStatusId(null); setPendingNote("");
+  };
+
+  const saveNotInServiceStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      await updateLead(pendingStatusId, { status: STATUS_NOT_IN_SERVICE });
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+      toast.success("Marked as Not In Service.");
+    } catch (err) { console.log(err); }
+    setShowNotInServiceModal(false); setPendingStatusId(null); setPendingNote("");
+  };
+
+  const saveInHouseStatus = async () => {
+    if (!pendingStatusId) return;
+    try {
+      await updateLead(pendingStatusId, { status: STATUS_IN_HOUSE });
+      if (pendingNote.trim()) await addNote(pendingStatusId, pendingNote.trim());
+      toast.success("Marked as In House.");
+    } catch (err) { console.log(err); }
+    setShowInHouseModal(false); setPendingStatusId(null); setPendingNote("");
   };
 
   const saveProjectWon = async () => {
@@ -312,7 +381,7 @@ export default function CSRPage() {
               <p className="text-gray-500 mt-0.5 sm:mt-1 text-xs sm:text-[13px]">Manage assigned client calls.</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 relative z-20">
               <StateFilterDropdown
                 value={stateFilter}
                 onChange={v => { setStateFilter(v); setPage(1); }}
@@ -321,6 +390,12 @@ export default function CSRPage() {
               <TimezoneFilterDropdown
                 value={timezoneFilter}
                 onChange={v => { setTimezoneFilter(v); setPage(1); }}
+              />
+
+              <SourceSudoFilterDropdown
+                value={sourceFilter}
+                options={sourceSudoOptions}
+                onChange={v => { setSourceFilter(v); setPage(1); }}
               />
 
               {/* ── PHONE CODE FILTER ── */}
@@ -354,28 +429,62 @@ export default function CSRPage() {
           </div>
 
           {/* ── TABS ── */}
-          <div className="relative mt-4 sm:mt-7 mb-4 sm:mb-7">
-            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 pr-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {[
-                { tab:"today",          label:"Today Leads",    count: stats.pendingCount,       icon:<PhoneCall      size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700"   },
-                { tab:"notinterested",  label:"Not Interested", count: stats.notInterestedCount, icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569]"  },
-                { tab:"pending",        label:"Pending",        count: stats.pendingCount,       icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708]"  },
-                { tab:"notpicked",      label:"Not Picked",     count: stats.notPickedCount,     icon:<Clock3         size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316]"  },
-                { tab:"important",      label:"Important",      count: stats.importantOnlyCount, icon:<AlertTriangle  size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B42318] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
-                { tab:"schedule",       label:"Schedule",       count: stats.scheduledCount,     icon:<CalendarDays   size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#0B84F3] text-white",            inactive:"bg-[#EAF5FF] text-[#0B84F3]"  },
-                { tab:"interested",     label:"Interested",     count: stats.interestedCount,    icon:<Users          size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#B8112D] text-white",            inactive:"bg-[#FFF1F3] text-[#B42318]"  },
-                { tab:"projectwon",     label:"Close Client",   count: stats.projectWonCount,    icon:<CircleCheckBig size={12} className="sm:w-3.5 sm:h-3.5"/>, active:"bg-[#065F46] text-white",            inactive:"bg-[#ECFDF5] text-[#065F46]"  },
-              ].map(btn => (
-                <button key={btn.tab} onClick={() => { setActiveTab(btn.tab); setPage(1); setPhoneFilter(""); }}
-                  className={`h-8 sm:h-10 px-2.5 sm:px-4 rounded-lg sm:rounded-xl flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-[12.5px] font-semibold transition-all whitespace-nowrap shrink-0 ${activeTab === btn.tab ? btn.active : btn.inactive}`}>
-                  {btn.icon}
-                  <span className="hidden sm:inline">{btn.label}</span>
-                  <span className="sm:hidden">{btn.label.split(" ")[0]}</span>
-                  <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px]">{btn.count}</span>
-                </button>
-              ))}
-            </div>
-            <div className="pointer-events-none absolute top-0 right-0 h-full w-8 bg-linear-to-l from-white to-transparent" />
+          <div className="mt-4 sm:mt-7 mb-4 sm:mb-7 space-y-3">
+            {[
+              {
+                label: "Today's queue",
+                tabs: [
+                  { tab:"today",         label:"Today Leads",    short:"Today",    count: stats.pendingCount,       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700 dark:text-gray-200"   },
+                  { tab:"pending",       label:"Pending",        short:"Pending",  count: stats.pendingCount,       icon:<Clock3         size={13}/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708] dark:text-amber-300"  },
+                  { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: stats.notPickedCount,     icon:<Clock3         size={13}/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316] dark:text-orange-300"  },
+                  { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: stats.notInterestedCount, icon:<CircleCheckBig size={13}/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569] dark:text-slate-300"  },
+                ],
+              },
+              {
+                label: "Follow-up & pipeline",
+                tabs: [
+                  { tab:"noowner",      label:"No Owner",     short:"No Owner", count: stats.noOwnerCount,      icon:<UserX        size={13}/>, active:"bg-[#D97706] text-white", inactive:"bg-[#FEF3C7] text-[#B45309] dark:text-amber-300"   },
+                  { tab:"notinservice", label:"Not In Svc",   short:"Not Svc",  count: stats.notInServiceCount, icon:<Ban          size={13}/>, active:"bg-[#7C3AED] text-white", inactive:"bg-[#F3E8FF] text-[#7C3AED] dark:text-violet-300" },
+                  { tab:"inhouse",      label:"In House",     short:"In House", count: stats.inHouseCount,      icon:<Home         size={13}/>, active:"bg-[#0D9488] text-white", inactive:"bg-[#CCFBF1] text-[#0D9488] dark:text-teal-300"   },
+                  { tab:"important",    label:"Important",    short:"Important",count: stats.importantOnlyCount,icon:<AlertTriangle size={13}/>, active:"bg-[#B42318] text-white", inactive:"bg-[#FFF1F3] text-[#B42318] dark:text-red-300"   },
+                  { tab:"schedule",     label:"Schedule",     short:"Schedule", count: stats.scheduledCount,    icon:<CalendarDays size={13}/>, active:"bg-[#0B84F3] text-white", inactive:"bg-[#EAF5FF] text-[#0B84F3] dark:text-blue-300"   },
+                  { tab:"interested",   label:"Interested",   short:"Interested",count: stats.interestedCount,  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white", inactive:"bg-[#FFF1F3] text-[#B42318] dark:text-red-300"   },
+                  { tab:"projectwon",   label:"Close Client", short:"Closed",   count: stats.projectWonCount,   icon:<CircleCheckBig size={13}/>, active:"bg-[#065F46] text-white", inactive:"bg-[#ECFDF5] text-[#065F46] dark:text-emerald-300"},
+                ],
+              },
+            ].map((group, gi) => (
+              <div key={group.label}>
+                <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">
+                  {group.label}
+                </p>
+                <div className={`grid gap-1.5 sm:gap-2 ${
+                  gi === 0
+                    ? "grid-cols-2 sm:grid-cols-4"
+                    : "grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
+                }`}>
+                  {group.tabs.map(btn => {
+                    const isActive = activeTab === btn.tab;
+                    return (
+                      <button
+                        key={btn.tab}
+                        type="button"
+                        onClick={() => { setActiveTab(btn.tab); setPage(1); setPhoneFilter(""); }}
+                        className={`min-h-[40px] sm:min-h-[42px] px-2 sm:px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] font-semibold transition-all ${
+                          isActive ? btn.active : btn.inactive
+                        }`}
+                      >
+                        <span className="shrink-0">{btn.icon}</span>
+                        <span className="truncate hidden md:inline">{btn.label}</span>
+                        <span className="truncate md:hidden">{btn.short}</span>
+                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold shrink-0 ${
+                          isActive ? "bg-white/25 text-white" : "bg-black/8 dark:bg-white/15"
+                        }`}>{btn.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* ── TABLE ── */}
@@ -384,9 +493,12 @@ export default function CSRPage() {
               <CsrColGroup widths={COL_6_DASHBOARD} />
               <thead className="bg-[#FAFAFA]">
                 <tr>
-                  {["Client","Company","Phone","Status","Notes","Action"].map(h => (
-                    <th key={h} className={CSR_TH}>{h}</th>
-                  ))}
+                  <FilterableTh title="Client" filter={colFilters.client ?? ""} onFilter={v => { setColFilter("client", v); setPage(1); }} className={CSR_TH} placeholder="Name…" />
+                  <FilterableTh title="Company" filter={colFilters.company ?? ""} onFilter={v => { setColFilter("company", v); setPage(1); }} className={CSR_TH} placeholder="Company / source…" />
+                  <FilterableTh title="Phone" filter={colFilters.phone ?? ""} onFilter={v => { setColFilter("phone", v); setPage(1); }} className={CSR_TH} placeholder="Phone…" />
+                  <FilterableTh title="Status" filter={colFilters.status ?? ""} onFilter={v => { setColFilter("status", v); setPage(1); }} className={CSR_TH} placeholder="Status…" />
+                  <th className={CSR_TH}>Notes</th>
+                  <th className={CSR_TH}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -476,7 +588,7 @@ export default function CSRPage() {
                         </div>
                       ) : (
                       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
-                        {statusLabel(currentLink.status)}
+                        {statusDisplayLabel(currentLink.status)}
                       </div>
                       )}
                     </td>
@@ -516,6 +628,9 @@ export default function CSRPage() {
                           <option value="">Update Status</option>
                           <option value="Not Interested">Not Interested</option>
                           <option value="not picked">Not Picked</option>
+                          <option value={STATUS_NO_OWNER}>No Owner Available</option>
+                          <option value={STATUS_NOT_IN_SERVICE}>Not In Service</option>
+                          <option value={STATUS_IN_HOUSE}>In House</option>
                           <option value="pending">Pending</option>
                           <option value="important">Important</option>
                           <option value="schedule call">Schedule Call</option>
@@ -533,17 +648,25 @@ export default function CSRPage() {
                     <td colSpan={6} className="py-14 sm:py-20 text-center">
                       <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
                       <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
-                        {stateFilter && timezoneFilter
+                        {stateFilter && timezoneFilter && sourceFilter
+                          ? `No leads in "${stateFilter}" (${timezoneFilter}) from source "${sourceFilter}".`
+                          : stateFilter && timezoneFilter
                           ? `No leads in "${stateFilter}" (${timezoneFilter}).`
+                          : stateFilter && sourceFilter
+                          ? `No leads in "${stateFilter}" from source "${sourceFilter}".`
+                          : timezoneFilter && sourceFilter
+                          ? `No leads in ${timezoneFilter} from source "${sourceFilter}".`
+                          : sourceFilter
+                          ? `No leads from source "${sourceFilter}".`
                           : stateFilter
                           ? `No leads in "${stateFilter}".`
                           : timezoneFilter
                           ? `No leads in ${timezoneFilter} timezone.`
                           : "No calls available in this category."}
                       </p>
-                      {(stateFilter || timezoneFilter || phoneFilter) && (
+                      {(stateFilter || timezoneFilter || phoneFilter || sourceFilter) && (
                         <button
-                          onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setPage(1); }}
+                          onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setSourceFilter(""); setPage(1); }}
                           className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
                         >
                           Clear filters
@@ -675,6 +798,93 @@ export default function CSRPage() {
                   className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
                 <button onClick={saveNpStatus}
                   className="flex-1 h-11 rounded-xl bg-[#F97316] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ NO OWNER AVAILABLE MODAL ══ */}
+        {showNoOwnerModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">No Owner Available</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowNoOwnerModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#D97706] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowNoOwnerModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveNoOwnerStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#D97706] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ NOT IN SERVICE MODAL ══ */}
+        {showNotInServiceModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">Not In Service</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowNotInServiceModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#7C3AED] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowNotInServiceModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveNotInServiceStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#7C3AED] text-white font-semibold text-sm">Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ IN HOUSE MODAL ══ */}
+        {showInHouseModal && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-[28px] p-5 sm:p-6 shadow-2xl">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0F172A]">In House</h2>
+                  <p className="text-gray-500 text-xs mt-1">Add a note (optional) before confirming.</p>
+                </div>
+                <button onClick={() => { setShowInHouseModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="w-8 h-8 rounded-xl bg-[#F5F6FA] flex items-center justify-center text-gray-500">
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={pendingNote} onChange={e => setPendingNote(e.target.value)} rows={3}
+                placeholder="Reason or note..."
+                className="w-full rounded-2xl border border-gray-200 bg-[#F5F6FA] px-4 py-3 text-sm outline-none resize-none text-[#0F172A] placeholder:text-gray-400 focus:border-[#0D9488] transition-colors"
+              />
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => { setShowInHouseModal(false); setPendingStatusId(null); setPendingNote(""); }}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] font-semibold text-gray-600 text-sm">Cancel</button>
+                <button onClick={saveInHouseStatus}
+                  className="flex-1 h-11 rounded-xl bg-[#0D9488] text-white font-semibold text-sm">Confirm</button>
               </div>
             </div>
           </div>

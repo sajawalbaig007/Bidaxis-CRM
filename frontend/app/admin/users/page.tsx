@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw, User2,
+  Globe, RotateCcw, User2, KeyRound,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
+import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
+import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 type UserRole = "CSR" | "Admin";
@@ -20,6 +23,7 @@ type User = {
   status: "Active" | "Inactive"; role: UserRole;
   csrCode:    string | null;
   cnic:       string | null;
+  cnicPdfUrl: string | null;
   profilePic: string | null;
   isOnline: boolean; lastActive: string | null;
   browser:     string | null;
@@ -84,6 +88,45 @@ function BrowserBadge({ browser }: { browser: string | null }) {
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${cls}`}>
       <Globe size={10}/>{browser}
     </span>
+  );
+}
+
+const actionBtnBase =
+  "rounded-xl flex items-center justify-center transition-all shrink-0";
+
+const actionBtnStyles = {
+  details: `${actionBtnBase} px-4 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-crm-muted dark:text-crm-text dark:hover:bg-crm-nav-pill`,
+  edit:    `${actionBtnBase} w-9 h-9 bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60`,
+  block:   `${actionBtnBase} w-9 h-9 bg-yellow-100 text-yellow-600 hover:bg-yellow-200 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60`,
+  unblock: `${actionBtnBase} w-9 h-9 bg-green-100 text-green-600 hover:bg-green-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60`,
+  reset:   `${actionBtnBase} w-9 h-9 bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:hover:bg-orange-900/60`,
+  password:`${actionBtnBase} w-9 h-9 bg-violet-100 text-violet-600 hover:bg-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-900/60`,
+  delete:  `${actionBtnBase} w-9 h-9 bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60`,
+};
+
+function ActionTip({
+  label,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative group shrink-0">
+      <button type="button" onClick={onClick} aria-label={label} title={label} className={className}>
+        {children}
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-2 px-2 py-1 rounded-lg bg-[#111827] text-white text-[10px] font-semibold whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-[200] shadow-lg dark:bg-[#eef0f4] dark:text-[#111827]"
+      >
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -188,14 +231,20 @@ export default function UsersPage() {
   const [detailUser,   setDetailUser]   = useState<User | null>(null);
   const [openMenu,     setOpenMenu]     = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [pwUser, setPwUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [loading,      setLoading]      = useState(true);
   const [accessHistory, setAccessHistory] = useState<AccessHistoryRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [form, setForm] = useState({
-    name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", profilePic: "",
+    name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "",
   });
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [uploadingCnic, setUploadingCnic] = useState(false);
 
   /* Single 1s tick — replaces per-row useLiveSeconds intervals */
   useEffect(() => {
@@ -212,7 +261,7 @@ export default function UsersPage() {
 
       const formatted: User[] = (Array.isArray(data) ? data : []).map((u: {
         id: string; name: string; email: string; role: string; csrCode?: string;
-        cnic?: string; profilePic?: string;
+        cnic?: string; cnicPdfUrl?: string; profilePic?: string;
         isActive?: boolean; isOnline?: boolean; lastActive?: string;
         browser?: string; tabId?: string; openedAt?: string;
         tabVisible?: boolean; hiddenAt?: string;
@@ -223,6 +272,7 @@ export default function UsersPage() {
         role:       u.role === "csr" ? "CSR" : "Admin",
         csrCode:    u.csrCode    ?? null,
         cnic:       u.cnic       ?? null,
+        cnicPdfUrl: u.cnicPdfUrl ?? null,
         profilePic: u.profilePic ?? null,
         status:     u.isActive === false ? "Inactive" : "Active",
         isOnline:   u.isOnline   ?? false,
@@ -270,8 +320,19 @@ export default function UsersPage() {
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalPagesUsers = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const paginatedUsers  = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const userColPredicates = useMemo(() => ({
+    user:    (u: User, v: string) => textColumnMatch(u.name, v) || textColumnMatch(u.email, v),
+    role:    (u: User, v: string) => textColumnMatch(u.role, v),
+    online:  (u: User, v: string) => textColumnMatch(u.isOnline ? "online" : "offline", v),
+    browser: (u: User, v: string) => textColumnMatch(u.browser, v),
+    account: (u: User, v: string) => textColumnMatch(u.status, v),
+  }), []);
+
+  const { filters: userColFilters, setFilter: setUserColFilter, filtered: colFilteredUsers } =
+    useColumnFilters(filteredUsers, userColPredicates);
+
+  const totalPagesUsers = Math.max(1, Math.ceil(colFilteredUsers.length / PAGE_SIZE));
+  const paginatedUsers  = colFilteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handlePicUpload = async (file: File) => {
     setUploadingPic(true);
@@ -283,6 +344,23 @@ export default function UsersPage() {
       if (!res.ok) { toast.error("Image upload failed."); return; }
       setForm(f => ({ ...f, profilePic: data.url }));
     } catch { toast.error("Upload failed."); } finally { setUploadingPic(false); }
+  };
+
+  const handleCnicUpload = async (file: File) => {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Only PDF files are allowed for CNIC.");
+      return;
+    }
+    setUploadingCnic(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res  = await fetch(`${apiBase()}/users/upload-cnic`, { method: "POST", credentials: "include", body: fd });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.message || "CNIC PDF upload failed."); return; }
+      setForm(f => ({ ...f, cnicPdfUrl: data.url }));
+      toast.success("CNIC PDF uploaded.");
+    } catch { toast.error("Upload failed."); } finally { setUploadingCnic(false); }
   };
 
   const handleSubmit = async () => {
@@ -302,6 +380,7 @@ export default function UsersPage() {
         name: form.name, email: form.email, role,
         csrCode:    role === "csr" ? form.csrCode.trim() : null,
         cnic:       form.cnic.trim() || null,
+        cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic  || null,
       };
       const body = editingUser ? shared : { ...shared, password: form.password };
@@ -317,7 +396,7 @@ export default function UsersPage() {
       toast.success(editingUser ? "User updated." : "User created.");
       fetchUsers();
       setShowModal(false); setEditingUser(null);
-      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", profilePic: "" });
+      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "" });
       setShowPassword(false);
     } catch {
       toast.error("Something went wrong.");
@@ -386,6 +465,53 @@ export default function UsersPage() {
       toast.success(newActive ? "User activated." : "User blocked.");
       fetchUsers();
     } catch { toast.error("Something went wrong."); }
+  };
+
+  const openPasswordModal = (user: User) => {
+    setPwUser(user);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPassword(false);
+  };
+
+  const closePasswordModal = () => {
+    setPwUser(null);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPassword(false);
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!pwUser) return;
+    if (!newPassword || !confirmPassword) {
+      toast.error("Enter and confirm the new password.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch(`${apiBase()}/users/${pwUser.id}/password`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "Failed to update password.");
+        return;
+      }
+      toast.success(`Password updated for ${pwUser.name}. They must sign in again.`);
+      closePasswordModal();
+      fetchUsers(true);
+    } catch {
+      toast.error("Something went wrong.");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -463,23 +589,23 @@ export default function UsersPage() {
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
           </div>
-          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"", cnic:"", profilePic:"" }); setShowModal(true); }}
+          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"", cnic:"", cnicPdfUrl:"", profilePic:"" }); setShowModal(true); }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
         </div>
 
         {/* TABLE */}
-        <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
-              <thead className="bg-[#FAFAFB] border-b border-gray-100">
-                <tr className="text-left text-sm text-gray-400">
-                  <th className="px-6 py-4 font-medium">User</th>
-                  <th className="px-6 py-4 font-medium">Role</th>
-                  <th className="px-6 py-4 font-medium">Online Status</th>
-                  <th className="px-6 py-4 font-medium">Browser / Tab</th>
-                  <th className="px-6 py-4 font-medium">Account</th>
+        <div className="bg-white border border-gray-100 rounded-3xl overflow-x-auto">
+          <div className="min-w-[700px]">
+            <table className="w-full">
+              <thead className={CSR_THEAD}>
+                <tr className="text-left text-sm text-crm-text-faint">
+                  <FilterableTh title="User" filter={userColFilters.user ?? ""} onFilter={v => { setUserColFilter("user", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Name/email…" />
+                  <FilterableTh title="Role" filter={userColFilters.role ?? ""} onFilter={v => { setUserColFilter("role", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Role…" />
+                  <FilterableTh title="Online Status" filter={userColFilters.online ?? ""} onFilter={v => { setUserColFilter("online", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Online…" />
+                  <FilterableTh title="Browser / Tab" filter={userColFilters.browser ?? ""} onFilter={v => { setUserColFilter("browser", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Browser…" />
+                  <FilterableTh title="Account" filter={userColFilters.account ?? ""} onFilter={v => { setUserColFilter("account", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Status…" />
                   <th className="px-6 py-4 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -564,35 +690,48 @@ export default function UsersPage() {
                     </td>
 
                     {/* ACTIONS */}
-                    <td className="px-4 sm:px-6 py-4">
+                    <td className="px-4 sm:px-6 py-4 overflow-visible">
                       <div className="hidden md:flex items-center justify-end gap-2">
-                        <button onClick={() => setDetailUser(u)}
-                          className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all text-sm">
+                        <ActionTip label="View Details" onClick={() => setDetailUser(u)} className={actionBtnStyles.details}>
                           Details
-                        </button>
-                        <button onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); }}
-                          className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-all">
+                        </ActionTip>
+                        <ActionTip
+                          label="Edit User"
+                          onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); }}
+                          className={actionBtnStyles.edit}
+                        >
                           <Pencil size={16}/>
-                        </button>
-                        <button onClick={() => toggleStatus(u)}
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                            u.status === "Active"
-                              ? "bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
-                              : "bg-green-100 text-green-600 hover:bg-green-200"
-                          }`}>
+                        </ActionTip>
+                        <ActionTip
+                          label="Change Password"
+                          onClick={() => openPasswordModal(u)}
+                          className={actionBtnStyles.password}
+                        >
+                          <KeyRound size={16}/>
+                        </ActionTip>
+                        <ActionTip
+                          label={u.status === "Active" ? "Block User" : "Unblock User"}
+                          onClick={() => toggleStatus(u)}
+                          className={u.status === "Active" ? actionBtnStyles.block : actionBtnStyles.unblock}
+                        >
                           <Ban size={16}/>
-                        </button>
+                        </ActionTip>
                         {u.role === "CSR" && (
-                          <button onClick={() => handleResetCSR(u)}
-                            title="Reset CSR data"
-                            className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 hover:bg-orange-200 flex items-center justify-center transition-all">
+                          <ActionTip
+                            label="Reset CSR Data"
+                            onClick={() => handleResetCSR(u)}
+                            className={actionBtnStyles.reset}
+                          >
                             <RotateCcw size={16}/>
-                          </button>
+                          </ActionTip>
                         )}
-                        <button onClick={() => handleDelete(u.id)}
-                          className="w-9 h-9 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-all">
+                        <ActionTip
+                          label="Delete User"
+                          onClick={() => handleDelete(u.id)}
+                          className={actionBtnStyles.delete}
+                        >
                           <Trash2 size={16}/>
-                        </button>
+                        </ActionTip>
                       </div>
                       <div className="relative md:hidden flex justify-end">
                         <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
@@ -603,7 +742,8 @@ export default function UsersPage() {
                           <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
                             {[
                               { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
-                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); setOpenMenu(null); }},
+                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); setOpenMenu(null); }},
+                              { label:"Change Password", action:() => { openPasswordModal(u); setOpenMenu(null); }},
                               { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
                             ].map(({ label, action }) => (
                               <button key={label} onClick={action} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all">{label}</button>
@@ -628,7 +768,7 @@ export default function UsersPage() {
           {totalPagesUsers > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
               <p className="text-xs text-gray-400">
-                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length}
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, colFilteredUsers.length)} of {colFilteredUsers.length}
               </p>
               <div className="flex items-center gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -750,6 +890,66 @@ export default function UsersPage() {
           </div>
         )}
 
+        {/* CHANGE PASSWORD MODAL */}
+        {pwUser && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <div className="bg-white dark:bg-crm-surface w-full rounded-3xl p-6 max-w-md border border-gray-100 dark:border-crm-border-subtle">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-300 flex items-center justify-center">
+                  <KeyRound size={18}/>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800 dark:text-crm-text">Change Password</h2>
+                  <p className="text-xs text-gray-400 dark:text-crm-text-muted">{pwUser.name} · {pwUser.email}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-gray-500 dark:text-crm-text-muted block mb-2">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      placeholder="Min 8 chars, upper, lower, number"
+                      className="w-full border border-gray-200 dark:border-crm-border rounded-2xl px-4 py-3 pr-12 outline-none focus:border-[#B8112D] text-sm bg-white dark:bg-crm-input dark:text-crm-text"
+                    />
+                    <button type="button" onClick={() => setShowNewPassword(v => !v)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-crm-text">
+                      {showNewPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-500 dark:text-crm-text-muted block mb-2">Confirm Password</label>
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="w-full border border-gray-200 dark:border-crm-border rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm bg-white dark:bg-crm-input dark:text-crm-text"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 dark:text-crm-text-faint">
+                  User will be signed out on all devices and must log in with the new password.
+                </p>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={closePasswordModal}
+                  className="flex-1 py-3 rounded-2xl bg-gray-100 dark:bg-crm-muted text-gray-600 dark:text-crm-text-secondary font-medium text-sm">
+                  Cancel
+                </button>
+                <button type="button" onClick={handlePasswordSubmit} disabled={savingPassword}
+                  className="flex-1 py-3 rounded-2xl bg-[#B8112D] text-white font-medium text-sm disabled:opacity-60">
+                  {savingPassword ? "Saving…" : "Update Password"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CREATE / EDIT MODAL */}
         {showModal && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
@@ -759,11 +959,11 @@ export default function UsersPage() {
               </h2>
               <div className="space-y-4">
                 {[
-                  { label:"Full Name",     key:"name",  type:"text",  placeholder:"Enter full name" },
-                  { label:"Email Address", key:"email", type:"email", placeholder:"Enter email"      },
-                ].map(({ label, key, type, placeholder }) => (
+                  { label:"Full Name",     key:"name",  type:"text",  placeholder:"Enter full name", req: true },
+                  { label:"Email Address", key:"email", type:"email", placeholder:"Enter email",      req: true },
+                ].map(({ label, key, type, placeholder, req }) => (
                   <div key={key}>
-                    <label className="text-sm text-gray-500 block mb-2">{label}</label>
+                    <label className="text-sm text-gray-500 block mb-2">{label}{req && <RequiredMark />}</label>
                     <input type={type} value={form[key as "name"|"email"]}
                       onChange={e => setForm({ ...form, [key]: e.target.value })}
                       placeholder={placeholder}
@@ -772,7 +972,7 @@ export default function UsersPage() {
                 ))}
                 {!editingUser && (
                   <div>
-                    <label className="text-sm text-gray-500 block mb-2">Password</label>
+                    <label className="text-sm text-gray-500 block mb-2">Password<RequiredMark /></label>
                     <div className="relative">
                       <input type={showPassword ? "text" : "password"} value={form.password}
                         onChange={e => setForm({ ...form, password: e.target.value })}
@@ -826,6 +1026,49 @@ export default function UsersPage() {
                     maxLength={15}
                     className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
                   />
+                </div>
+
+                {/* CNIC PDF */}
+                <div>
+                  <label className="text-sm text-gray-500 block mb-2">
+                    CNIC Document (PDF) <span className="text-xs text-gray-400">(optional)</span>
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    {form.cnicPdfUrl ? (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-[#B8112D]/20 bg-[#FFF1F3]">
+                        <a
+                          href={form.cnicPdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-[#B8112D] truncate hover:underline"
+                        >
+                          CNIC PDF uploaded — View
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, cnicPdfUrl: "" }))}
+                          className="text-[11px] font-semibold text-gray-500 hover:text-[#B8112D] shrink-0"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : null}
+                    <label className="flex items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 bg-[#FAFAFA] cursor-pointer text-xs font-semibold text-gray-600 hover:text-[#B8112D] transition-colors">
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        disabled={uploadingCnic}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) void handleCnicUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      {uploadingCnic ? "Uploading PDF…" : form.cnicPdfUrl ? "Replace CNIC PDF" : "Upload CNIC PDF"}
+                    </label>
+                    <p className="text-[11px] text-gray-400">Stored securely on cloud — max 10MB</p>
+                  </div>
                 </div>
 
                 {/* Profile Picture */}

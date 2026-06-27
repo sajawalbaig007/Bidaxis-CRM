@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import ServicePicker from "@/app/csr/components/shared/ServicePicker";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
+import { ReqLabel } from "@/app/components/form/RequiredMark";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import {
   PAYMENT_TYPE_OPTIONS,
@@ -41,15 +42,16 @@ type Props = {
   csrs?: CSROption[];
   saving?: boolean;
   onSave: (data: ProjectWorkbenchData) => Promise<void>;
+  onDelete?: () => Promise<void>;
   noteHistory?: NoteEntry[];
   onAddNote?: (text: string) => Promise<void>;
   phoneLookup?: PhoneLookupProps;
 };
 
 const inputCls =
-  "w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors";
+  "w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input px-3 sm:px-4 text-sm text-crm-text outline-none focus:border-[#B8112D] focus:bg-white dark:focus:bg-crm-surface transition-colors";
 const labelCls =
-  "text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 sm:mb-2 block";
+  "text-[10px] sm:text-[11px] font-semibold text-gray-500 dark:text-crm-text-muted uppercase tracking-wider mb-1.5 sm:mb-2 block";
 
 function Section({
   title,
@@ -66,26 +68,28 @@ function Section({
 }) {
   return (
     <div className={`rounded-2xl overflow-hidden border-2 transition-all ${
-      open ? "border-[#B8112D]/30 shadow-sm shadow-[#B8112D]/5" : "border-gray-100"
+      open ? "border-[#B8112D]/30 shadow-sm shadow-[#B8112D]/5" : "border-gray-100 dark:border-crm-border-subtle"
     }`}>
       <button
         type="button"
         onClick={onToggle}
         className={`w-full flex items-center justify-between px-4 py-3.5 transition-colors ${
-          open ? "bg-gradient-to-r from-[#FFF1F3] to-white" : "bg-[#FAFAFA] hover:bg-gray-50"
+          open
+            ? "bg-gradient-to-r from-[#FFF1F3] to-white dark:from-crm-muted dark:to-crm-surface-raised"
+            : "bg-[#FAFAFA] hover:bg-gray-50 dark:bg-crm-muted dark:hover:bg-crm-surface-raised"
         }`}
       >
-        <span className="flex items-center gap-2.5 text-sm font-bold text-[#0F172A]">
+        <span className="flex items-center gap-2.5 text-sm font-bold text-[#0F172A] dark:text-crm-text">
           <span className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-            open ? "bg-[#B8112D] text-white" : "bg-[#FFF1F3] text-[#B8112D]"
+            open ? "bg-[#B8112D] text-white" : "bg-[#FFF1F3] text-[#B8112D] dark:bg-crm-surface-raised"
           }`}>
             <Icon size={15} />
           </span>
           {title}
         </span>
-        <ChevronDown size={16} className={`text-gray-400 transition-transform ${open ? "rotate-180 text-[#B8112D]" : ""}`} />
+        <ChevronDown size={16} className={`transition-transform ${open ? "rotate-180 text-[#B8112D]" : "text-gray-400 dark:text-crm-text-muted"}`} />
       </button>
-      {open && <div className="p-4 sm:p-5 space-y-3 border-t border-[#B8112D]/10 bg-white">{children}</div>}
+      {open && <div className="p-4 sm:p-5 space-y-3 border-t border-[#B8112D]/10 dark:border-crm-border-subtle bg-white dark:bg-crm-surface">{children}</div>}
     </div>
   );
 }
@@ -99,17 +103,21 @@ export default function ProjectWorkbenchModal({
   csrs = [],
   saving = false,
   onSave,
+  onDelete,
   noteHistory,
   onAddNote,
   phoneLookup,
 }: Props) {
   const [data, setData] = useState<ProjectWorkbenchData>(initial);
   const [openSection, setOpenSection] = useState<string>("client");
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (open) {
       setData(initial);
       setOpenSection("client");
+      setConfirmDelete(false);
     }
   }, [open, initial]);
 
@@ -151,7 +159,7 @@ export default function ProjectWorkbenchModal({
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-2xl rounded-t-[24px] sm:rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-crm-surface w-full sm:max-w-2xl rounded-t-[24px] sm:rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
           <button
@@ -183,7 +191,7 @@ export default function ProjectWorkbenchModal({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3 bg-[#F5F6FA]">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3 bg-[#F5F6FA] dark:bg-crm-bg-subtle">
           <Section
             title="Client Detail"
             icon={User2}
@@ -192,7 +200,7 @@ export default function ProjectWorkbenchModal({
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Client Name</label>
+                <ReqLabel required>Client Name</ReqLabel>
                 <input className={inputCls} value={data.name}
                   onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))} />
               </div>
@@ -274,7 +282,7 @@ export default function ProjectWorkbenchModal({
                   </div>
                   {data.assignedTo === CSR_ASSIGN_OTHER && (
                     <div className="sm:col-span-2">
-                      <label className={labelCls}>Resource name *</label>
+                      <ReqLabel required>Resource name</ReqLabel>
                       <input
                         className={inputCls}
                         value={data.projectSource ?? ""}
@@ -308,12 +316,12 @@ export default function ProjectWorkbenchModal({
                   onChange={(e) => setData((d) => ({ ...d, projectCode: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Project Title</label>
+                <ReqLabel required>Project Title</ReqLabel>
                 <input className={inputCls} value={data.projectTitle}
                   onChange={(e) => setData((d) => ({ ...d, projectTitle: e.target.value }))} />
               </div>
               <div className="sm:col-span-2">
-                <label className={labelCls}>Service</label>
+                <ReqLabel required>Service</ReqLabel>
                 <ServicePicker
                   value={data.interestedService}
                   onChange={(v) => setData((d) => ({ ...d, interestedService: v }))}
@@ -523,11 +531,51 @@ export default function ProjectWorkbenchModal({
           )}
         </div>
 
-        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0 bg-white">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-crm-border-subtle flex flex-col gap-2 shrink-0 bg-white dark:bg-crm-surface">
+          {mode === "admin" && !createMode && onDelete && (
+            confirmDelete ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => void (async () => {
+                    setDeleting(true);
+                    try {
+                      await onDelete();
+                    } finally {
+                      setDeleting(false);
+                      setConfirmDelete(false);
+                    }
+                  })()}
+                  className="flex-1 h-11 rounded-xl bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  {deleting ? "Deleting…" : "Confirm Delete"}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 h-11 rounded-xl bg-[#F5F6FA] dark:bg-crm-muted text-gray-600 dark:text-crm-text font-semibold text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="w-full h-10 rounded-xl border-2 border-red-200 dark:border-red-900/40 text-red-600 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              >
+                <Trash2 size={15} /> Delete Project
+              </button>
+            )
+          )}
+          <div className="flex gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 h-11 sm:h-12 rounded-xl sm:rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm hover:bg-gray-100"
+            className="flex-1 h-11 sm:h-12 rounded-xl sm:rounded-2xl bg-[#F5F6FA] dark:bg-crm-muted text-gray-600 dark:text-crm-text font-semibold text-sm hover:bg-gray-100 dark:hover:bg-crm-surface-raised"
           >
             Close
           </button>
@@ -540,6 +588,7 @@ export default function ProjectWorkbenchModal({
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {saving ? (createMode ? "Adding…" : "Saving…") : (createMode ? "Add Project" : "Save Changes")}
           </button>
+          </div>
         </div>
       </div>
     </div>

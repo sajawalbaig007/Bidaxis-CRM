@@ -4,15 +4,32 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
+import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number; captchaRequired?: boolean } };
 }
 type Step = "credentials" | "otp";
+
+const LOGIN_SLIDES = [
+  {
+    title: "CRM Dashboard",
+    subtitle: "Customer Relationship Management — BEM Solutions",
+  },
+  {
+    title: "Track Every Lead",
+    subtitle: "Monitor CSR calls, follow-ups, and client status in real time.",
+  },
+  {
+    title: "Close More Deals",
+    subtitle: "From first contact to project won — all in one secure platform.",
+  },
+] as const;
 
 declare global {
   interface Window {
@@ -38,6 +55,14 @@ export default function LoginPage() {
   const captchaRef = useRef<HTMLDivElement>(null);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((s) => (s + 1) % LOGIN_SLIDES.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     API.get("/auth/captcha-config")
@@ -60,6 +85,49 @@ export default function LoginPage() {
       script.remove();
     };
   }, [captchaEnabled, showCaptcha]);
+
+  /** Recover when session exists but client stayed on login (RSC redirect loop / stale bundle). */
+  useEffect(() => {
+    const token = getClientAuthToken();
+    if (!token) return;
+    try {
+      const part = token.split(".")[1];
+      if (!part) return;
+      const payload = JSON.parse(
+        atob(part.replace(/-/g, "+").replace(/_/g, "/"))
+      ) as { role?: string };
+      const role = resolveLoginRole({ role: payload.role });
+      if (role) window.location.href = dashboardPathForRole(role);
+    } catch { /* ignore malformed token */ }
+  }, []);
+
+  function hardRedirect(path: string) {
+    window.location.href = path.startsWith("http") ? path : `${window.location.origin}${path}`;
+  }
+
+  async function completeLogin(data: { role?: string; user?: { role?: string }; token?: string }) {
+    const role = resolveLoginRole(data);
+    if (!role) {
+      toast.error("Could not determine your role. Contact admin.");
+      return;
+    }
+    const token = data.token?.trim();
+    if (!token) {
+      toast.error("Session could not be created. Redeploy backend and try again.");
+      return;
+    }
+    const saved = await setFrontendSession(token);
+    if (!saved) {
+      toast.error("Failed to save login session. Please try again.");
+      return;
+    }
+
+    invalidateAuthMeCache();
+    invalidateCsrDashboardCache();
+
+    const dest = dashboardPathForRole(role);
+    hardRedirect(dest);
+  }
 
   const handleLogin = async (e: { preventDefault(): void }) => {
     e.preventDefault(); setLoading(true);
@@ -145,50 +213,59 @@ export default function LoginPage() {
     if (pasted.length === 6) { setOtp(pasted.split("")); otpRefs.current[5]?.focus(); }
   };
 
-  async function completeLogin(data: { role?: string; user?: { role?: string }; token?: string }) {
-    const role = resolveLoginRole(data);
-    if (!role) {
-      toast.error("Could not determine your role. Contact admin.");
-      return;
-    }
-    if (!data.token?.trim()) {
-      toast.error("Session could not be created. Redeploy backend and try again.");
-      return;
-    }
-    const saved = await setFrontendSession(data.token);
-    if (!saved) {
-      toast.error("Failed to save login session. Please try again.");
-      return;
-    }
-    invalidateAuthMeCache();
-    toast.success("Login successful");
-    window.location.replace(dashboardPathForRole(role));
-  }
-
   const otpFilled = otp.join("").length === 6;
 
-  const inputCls = "w-full h-[52px] border border-gray-200 bg-white rounded-xl px-4 text-sm text-gray-800 placeholder:text-gray-300 outline-none transition-all focus:border-[#B8112D] focus:ring-4 focus:ring-[#B8112D]/8";
+  const inputCls = "w-full h-[52px] border border-crm-border bg-crm-surface rounded-xl px-4 text-sm text-crm-text placeholder:text-crm-text-faint outline-none transition-all focus:border-[#B8112D] focus:ring-4 focus:ring-[#B8112D]/8";
 
   return (
     <>
       <DevToolsGuard />
-      <div className="min-h-screen bg-[#F0F2F7] flex items-center justify-center p-4">
-      <div className="w-full max-w-[880px] bg-white rounded-[28px] overflow-hidden flex flex-col md:flex-row shadow-[0_24px_64px_rgba(0,0,0,0.12)]">
+      <div className="min-h-screen bg-crm-bg-subtle flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle className="!w-10 !h-10 rounded-xl shadow-sm bg-crm-surface border border-crm-border" />
+      </div>
+      <div className="w-full max-w-[880px] bg-crm-surface rounded-[28px] overflow-hidden flex flex-col md:flex-row shadow-[0_24px_64px_rgba(0,0,0,0.12)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.5)]">
 
         <div className="flex md:w-[42%] relative flex-col items-center justify-center px-8 py-10 md:p-10 overflow-hidden select-none"
           style={{ background: "linear-gradient(160deg, #B8112D 0%, #7A0B1E 55%, #4a0612 100%)" }}>
           <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
           <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
-          <div className="relative z-10 text-center">
+          <div className="relative z-10 text-center w-full max-w-[260px]">
             <div className="bg-white rounded-2xl px-5 py-3 inline-flex items-center justify-center shadow-lg mb-5 md:mb-8">
               <Image src="/images/logo.jpeg" alt="BEM Solutions" width={140} height={44} className="object-contain h-[38px] md:h-[44px] w-auto" />
             </div>
-            <h1 className="text-white text-[24px] md:text-[32px] font-black leading-tight tracking-tight mb-2 md:mb-3">
-              CRM Dashboard
-            </h1>
-            <p className="text-white/60 text-[12px] md:text-[13px] leading-relaxed max-w-[220px] mx-auto">
-              Customer Relationship Management  BEM Solutions
-            </p>
+            <div className="relative min-h-[88px] md:min-h-[100px]">
+              {LOGIN_SLIDES.map((slide, i) => (
+                <div
+                  key={slide.title}
+                  className={`absolute inset-x-0 top-0 transition-all duration-500 ${
+                    i === activeSlide
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-2 pointer-events-none"
+                  }`}
+                >
+                  <h1 className="text-white text-[24px] md:text-[32px] font-black leading-tight tracking-tight mb-2 md:mb-3">
+                    {slide.title}
+                  </h1>
+                  <p className="text-white/60 text-[12px] md:text-[13px] leading-relaxed mx-auto">
+                    {slide.subtitle}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-6 md:mt-10">
+              {LOGIN_SLIDES.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`Go to slide ${i + 1}`}
+                  onClick={() => setActiveSlide(i)}
+                  className={`rounded-full bg-white transition-all duration-300 ${
+                    i === activeSlide ? "w-6 h-2 opacity-100" : "w-2 h-2 opacity-40 hover:opacity-70"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </div>
 

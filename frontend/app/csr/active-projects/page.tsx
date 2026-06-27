@@ -12,7 +12,8 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { PROJECT_GRID_HEAD, PROJECT_GRID_ROW } from "../components/shared/csrTableStyles";
+import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW } from "../components/shared/csrTableStyles";
+import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import CommentCell from "../components/shared/CommentCell";
 import {
@@ -58,6 +59,7 @@ function projectAsRow(p: Project) {
   return {
     id: p.id,
     name: p.client,
+    company: p.company,
     ownerName: p.ownerName,
     phone: p.phone,
     email: p.email,
@@ -69,6 +71,8 @@ function projectAsRow(p: Project) {
     projectDeadline: p.deadline,
     projectPhase: p.projectPhase,
     projectPayments: p.projectPayments,
+    state: p.state,
+    timezone: p.timezone,
   };
 }
 const emptyForm = {
@@ -461,9 +465,9 @@ export default function CSRProjectsPage() {
             {/* ── DESKTOP TABLE (lg+) ── */}
             <div className="hidden lg:block overflow-x-auto">
               <div className="min-w-[1180px]">
-                <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 border-b border-[#F3F3F3] bg-[#FAFAFA] ${PROJECT_GRID_HEAD}`}>
-                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Fulfillment", "Email", "Notes", "Actions"].map(h => (
-                    <span key={h} className="text-[10px] xl:text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</span>
+                <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 ${CRM_GRID_HEAD_ROW} ${PROJECT_GRID_HEAD}`}>
+                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Fulfillment", "Notes", "Actions"].map(h => (
+                    <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                   ))}
                 </div>
 
@@ -478,11 +482,6 @@ export default function CSRProjectsPage() {
                       <div className="min-w-0"><QuotedAmountCell p={projectAsRow(project)} /></div>
                       <div className="min-w-0"><PaymentDetailCell p={projectAsRow(project)} /></div>
                       <div className="min-w-0"><FulfillmentCell p={projectAsRow(project)} /></div>
-                      <div className="min-w-0">
-                        {project.email ? (
-                          <span className="text-[11px] xl:text-xs text-[#0F172A] truncate block">{project.email}</span>
-                        ) : <span className="text-[11px] text-gray-400">N/A</span>}
-                      </div>
                       <div className="min-w-0 pt-0.5">
                         <CommentCell id={project.id} noteHistory={project.noteHistory} onAddNote={addNote} />
                       </div>

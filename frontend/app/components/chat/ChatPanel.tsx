@@ -1,18 +1,18 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { visibleInterval } from "@/lib/visibleInterval";
 import {
   Send, Plus, Search, X, MessageSquare, Hash, User2,
   Check, CheckCheck, ChevronLeft, Loader2, Paperclip,
   Mic, StopCircle, Play, Pause, Download, FileText,
-  Film, Music, Bell, BellOff, Image as ImageIcon,
-  Trash2, Reply, Copy, Pin, PinOff, CheckSquare, Pencil,
-  Archive, ArchiveRestore, Volume2, VolumeX,
+  Film, Music, Image as ImageIcon,
+  Trash2, Reply, Copy, Pin, PinOff, Pencil,
+  Archive, ArchiveRestore,
 } from "lucide-react";
 import API from "@/lib/api";
-import { pollChatUnread } from "@/lib/chatUnreadStore";
+import { ensureChatUnreadPolling, pollChatUnread, stopChatUnreadPolling, subscribeChatUnread } from "@/lib/chatUnreadStore";
 import { playChatSound } from "@/lib/chatSound";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
@@ -32,11 +32,15 @@ interface Message {
   reactions?: Record<string, string[]>;
   readBy?: string[];
 }
-interface Conversation extends ChatConversation {}
-interface CtxMenu { x: number; y: number; msg: Message; }
+interface CtxMenu { x: number; y: number; msg: Message; canEdit: boolean; }
+type Conversation = ChatConversation;
 
 /* ΓöÇΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
+const EDIT_WINDOW_MS = 10 * 60 * 1000;
+function messageCanEdit(msg: Message) {
+  return msg.isOwn && msg.type === "text" && Date.now() - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS;
+}
 function initials(name: string) { return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(); }
 function fmtConvTime(iso: string) {
   try {
@@ -291,7 +295,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const [editText,       setEditText]       = useState("");
   const [mentionQuery,   setMentionQuery]   = useState<string | null>(null);
   const [soundOn,        setSoundOn]        = useState(true);
-  const [showReactPicker,setShowReactPicker]= useState<string | null>(null);
 
   const messagesEndRef   = useRef<HTMLDivElement>(null);
   const inputRef         = useRef<HTMLTextAreaElement>(null);
@@ -305,13 +308,15 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const notifRef         = useRef(typeof Notification !== "undefined" && Notification.permission === "granted");
   const meRef            = useRef<ChatUser | null>(null);
   const recConvRef       = useRef<string | null>(null);
-  const dmLoadingRef     = useRef<string | null>(null);
+  const [dmLoadingUserId, setDmLoadingUserId] = useState<string | null>(null);
   const blockPanelCloseRef = useRef(false);
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
-  const [portalReady, setPortalReady] = useState(false);
-
-  useEffect(() => { setPortalReady(true); }, []);
+  const portalReady = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   useEffect(() => {
     void (async () => {
@@ -326,13 +331,39 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   };
 
   useEffect(() => {
-    void (async () => {
-      try { const r = await API.get("/chat/conversations"); setConversations(deduplicateConvs(r.data.conversations ?? r.data ?? [])); }
-      catch { setConversations([]); } finally { setLoadingConvs(false); }
-    })();
+    ensureChatUnreadPolling();
+    return () => stopChatUnreadPolling();
+  }, []);
+
+  useEffect(() => {
+    void pollChatUnread().then(() => setLoadingConvs(false));
     void (async () => {
       try { const r = await API.get("/chat/conversations?archived=1"); setArchivedConvs(deduplicateConvs(r.data.conversations ?? r.data ?? [])); } catch {}
     })();
+  }, []);
+
+  useEffect(() => {
+    return subscribeChatUnread((_total, convs) => {
+      setConversations(prev => mergeConversationLists(deduplicateConvs(convs), prev));
+    });
+  }, []);
+
+  useEffect(() => {
+    return visibleInterval(async () => {
+      try {
+        const r = await API.get("/chat/conversations?archived=1");
+        setArchivedConvs(prev => mergeConversationLists(
+          deduplicateConvs(r.data.conversations ?? r.data ?? []),
+          prev.filter(c => c.archived),
+        ));
+      } catch {}
+    }, 60_000);
+  }, []);
+
+  useEffect(() => {
+    const ping = () => void API.post("/chat/status", { online: true }).catch(() => {});
+    ping(); const t = setInterval(ping, 30000);
+    return () => { clearInterval(t); void API.post("/chat/status", { online: false }).catch(() => {}); };
   }, []);
 
   useEffect(() => {
@@ -350,32 +381,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
-    return visibleInterval(async () => {
-      try {
-        const [active, archived] = await Promise.all([
-          API.get("/chat/conversations"),
-          API.get("/chat/conversations?archived=1").catch(() => ({ data: { conversations: [] } })),
-        ]);
-        setConversations(prev => mergeConversationLists(
-          deduplicateConvs(active.data.conversations ?? active.data ?? []),
-          prev,
-        ));
-        setArchivedConvs(prev => mergeConversationLists(
-          deduplicateConvs(archived.data.conversations ?? archived.data ?? []),
-          prev.filter(c => c.archived),
-        ));
-        void pollChatUnread();
-      } catch {}
-    }, 10_000);
-  }, []);
-
-  useEffect(() => {
-    const ping = () => void API.post("/chat/status", { online: true }).catch(() => {});
-    ping(); const t = setInterval(ping, 30000);
-    return () => { clearInterval(t); void API.post("/chat/status", { online: false }).catch(() => {}); };
-  }, []);
-
-  useEffect(() => {
     if (!activeConvId || activeConvId.startsWith("temp-")) return;
     const cid = activeConvId;
     lastMsgCount.current = 0;
@@ -390,7 +395,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         lastMsgCount.current = msgs.length;
         setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
         void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
-        void pollChatUnread();
         void API.get(`/chat/conversations/${cid}/members`).then(res => {
           setGroupMembers((res.data.members ?? []) as ChatUser[]);
         }).catch(() => setGroupMembers([]));
@@ -412,7 +416,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           lastMsgCount.current = msgs.length;
           setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
           void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
-        void pollChatUnread();
           const newest = msgs[msgs.length - 1];
           if (hadNew && newest && !newest.isOwn) {
             if (soundOn) playChatSound();
@@ -452,7 +455,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     try {
       await API.post(`/chat/conversations/${activeConvId}/messages`, { text, ...(reply ? { replyToId: reply.id } : {}), ...(mentionIds.length ? { mentionIds } : {}) });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
-      void pollChatUnread();
     } catch {
       addToOfflineQueue({ id: opt.id, conversationId: activeConvId, text, replyToId: reply?.id, createdAt: new Date().toISOString() });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
@@ -476,7 +478,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
       const reactions = r.data.reactions as Record<string, string[]>;
       setMessages(p => p.map(m => m.id === msg.id ? { ...m, reactions } : m));
     } catch { /* ignore */ }
-    setShowReactPicker(null); setCtxMenu(null);
+    setCtxMenu(null);
   };
 
   const pinMessage = async (msg: Message | null) => {
@@ -504,8 +506,11 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     } catch { /* ignore */ }
   };
 
-  const canEdit = (msg: Message) => msg.isOwn && msg.type === "text" && Date.now() - new Date(msg.createdAt).getTime() < 10 * 60 * 1000;
-
+  const handleCtxMenu = (e: React.MouseEvent, msg: Message) => {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 200); const y = Math.min(e.clientY, window.innerHeight - 200);
+    setCtxMenu({ x, y, msg, canEdit: messageCanEdit(msg) });
+  };
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendText(); } };
   const onMsgTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -613,7 +618,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     if (!groupName.trim() || creatingGroup) return; setCreatingGroup(true);
     try {
       const r = await API.post("/chat/conversations", { type: "group", name: groupName.trim(), memberIds: selectedUsers });
-      const conv: Conversation = r.data.conversation ?? { id: r.data.id ?? `grp-${Date.now()}`, type: "group", name: groupName.trim(), unreadCount: 0, memberCount: selectedUsers.length + 1 };
+      const conv: Conversation = r.data.conversation ?? { id: r.data.id ?? `grp-${crypto.randomUUID()}`, type: "group", name: groupName.trim(), unreadCount: 0, memberCount: selectedUsers.length + 1 };
       guardPanelClose();
       setConversations(p => [conv, ...p]); setActiveConvId(conv.id);
       window.setTimeout(() => { setShowGroupModal(false); setGroupName(""); setSelectedUsers([]); setUserSearch(""); }, 0);
@@ -623,13 +628,13 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   };
 
   const startDm = async (user: ChatUser) => {
-    if (dmLoadingRef.current) return;
-    dmLoadingRef.current = user.id;
+    if (dmLoadingUserId) return;
+    setDmLoadingUserId(user.id);
     guardPanelClose();
     closeDmModal();
     setMobileSideOpen(false);
     const existing = conversations.find(c => c.type === "direct" && c.otherUserId === user.id);
-    if (existing) { setActiveConvId(existing.id); dmLoadingRef.current = null; return; }
+    if (existing) { setActiveConvId(existing.id); setDmLoadingUserId(null); return; }
     const tempId = `temp-${user.id}`;
     const placeholder: Conversation = {
       id: tempId, type: "direct", name: user.name, unreadCount: 0,
@@ -655,7 +660,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     } catch {
       /* Keep thread in sidebar even if sync failed — user can retry by opening it again */
     }
-    finally { dmLoadingRef.current = null; }
+    finally { setDmLoadingUserId(null); }
   };
 
   const deleteConversations = async (ids: string[]) => {
@@ -667,11 +672,6 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   const deleteMsg = async (msgId: string, forEveryone: boolean) => {
     setMessages(p => p.filter(m => m.id !== msgId)); setCtxMenu(null);
     if (forEveryone) await API.delete(`/chat/messages/${msgId}`).catch(() => {});
-  };
-  const handleCtxMenu = (e: React.MouseEvent, msg: Message) => {
-    e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 200); const y = Math.min(e.clientY, window.innerHeight - 200);
-    setCtxMenu({ x, y, msg });
   };
   const handleReply = (msg: Message) => { setReplyTo(msg); setCtxMenu(null); setTimeout(() => inputRef.current?.focus(), 50); };
   const copyText = async (text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); setCtxMenu(null); };
@@ -696,7 +696,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   };
 
   /* ΓöÇΓöÇΓöÇ Derived ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
-  const activeConv = useMemo(() => conversations.find(c => c.id === activeConvId) ?? null, [conversations, activeConvId]);
+  const activeConv = conversations.find(c => c.id === activeConvId) ?? null;
   const filteredConvs = useMemo(() => { const q = convSearch.toLowerCase(); return !q ? conversations : conversations.filter(c => c.name.toLowerCase().includes(q)); }, [conversations, convSearch]);
   const filteredUsers = useMemo(() => { const q = (showGroupModal ? userSearch : dmSearch).toLowerCase(); return !q ? allUsers : allUsers.filter(u => u.name.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || (u.csrCode ?? "").toLowerCase().includes(q)); }, [allUsers, userSearch, dmSearch, showGroupModal]);
   const visibleMessages = useMemo(() => { if (!msgSearchText.trim()) return messages; const q = msgSearchText.toLowerCase(); return messages.filter(m => m.text.toLowerCase().includes(q) || m.fileName?.toLowerCase().includes(q)); }, [messages, msgSearchText]);
@@ -873,7 +873,10 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               {pendingFile && (
                 <div className="px-3 pb-2 pt-2 shrink-0 bg-white">
                   <div className="flex items-center gap-2.5 bg-[#F5F6FA] rounded-2xl border border-gray-100 px-3 py-2">
-                    {pendingPreview ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={pendingPreview} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0">{mimeIcon(pendingFile.type)}</div>}
+                    {pendingPreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={pendingPreview} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                    ) : <div className="w-10 h-10 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0">{mimeIcon(pendingFile.type)}</div>}
                     <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-[#0F172A] truncate">{pendingFile.name}</p><p className="text-[10px] text-gray-400">{fmtSize(pendingFile.size)}</p></div>
                     <button onClick={clearPending} className="w-6 h-6 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center shrink-0 transition-colors"><X size={10} /></button>
                   </div>
@@ -954,7 +957,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           <div className="fixed z-[61] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[170px] overflow-hidden pointer-events-auto" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
             <button onClick={() => handleReply(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"><Reply size={13} className="text-gray-400" />Reply</button>
             {ctxMenu.msg.type === "text" && <button onClick={() => void copyText(ctxMenu.msg.text)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"><Copy size={13} className="text-gray-400" />Copy text</button>}
-            {canEdit(ctxMenu.msg) && (
+            {ctxMenu.canEdit && (
               <button onClick={() => { setEditingMsg(ctxMenu.msg); setEditText(ctxMenu.msg.text); setCtxMenu(null); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"><Pencil size={13} className="text-gray-400" />Edit</button>
             )}
             <button onClick={() => void pinMessage(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F5F6FA] transition-colors"><Pin size={13} className="text-gray-400" />Pin message</button>
@@ -1019,7 +1022,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
               {filteredUsers.length === 0 ? (
                 <div className="py-10 text-center"><User2 size={26} className="text-gray-200 mx-auto mb-2" /><p className="text-sm text-gray-400">{dmSearch ? "No users found" : "No team members"}</p></div>
               ) : filteredUsers.map(u => (
-                <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingRef.current === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group disabled:opacity-50">
+                <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingUserId === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group disabled:opacity-50">
                   <Avatar name={u.name} size="sm" online={u.isOnline} />
                   <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-[#0F172A] truncate group-hover:text-[#B8112D] transition-colors">{u.name}</p><p className="text-[10px] text-gray-400">{u.csrCode ?? u.role ?? u.email}</p></div>
                   {u.isOnline && <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}

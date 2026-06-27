@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import prisma from "../config/db";
@@ -135,7 +136,7 @@ function assertAdminIp(req: Request, role: string): string | null {
 /* ================= REGISTER ================= */
 export const register = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, email, password, role, csrCode, cnic, profilePic } = req.body;
+    const { name, email, password, role, csrCode, cnic, cnicPdfUrl, profilePic } = req.body;
 
     if (role === "csr" && !csrCode?.trim()) {
       return res.status(400).json({ success: false, message: "CSR Code is required for CSR accounts." });
@@ -168,9 +169,29 @@ export const register = async (req: AuthRequest, res: Response) => {
     }
 
     const hashed = await hashPassword(password);
+    const userData: Prisma.UserCreateInput = {
+      name,
+      email,
+      password: hashed,
+      role,
+      csrCode: role === "csr" ? csrCode.trim() : null,
+      cnic: cnic?.trim() || null,
+      cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
+      profilePic: profilePic || null,
+    };
     const user = await prisma.user.create({
-      data:   { name, email, password: hashed, role, csrCode: role === "csr" ? csrCode.trim() : null, cnic: cnic?.trim() || null, profilePic: profilePic || null },
-      select: { id: true, name: true, email: true, role: true, csrCode: true, cnic: true, profilePic: true, createdAt: true },
+      data: userData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        csrCode: true,
+        cnic: true,
+        cnicPdfUrl: true,
+        profilePic: true,
+        createdAt: true,
+      },
     });
     invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
     return res.status(201).json({ success: true, user });

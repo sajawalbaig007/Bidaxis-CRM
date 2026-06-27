@@ -24,7 +24,7 @@ export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps
 
       {loading ? (
         <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-6 mt-4 sm:mt-6">
-          <div className="w-50 h-50 lg:w-64 lg:h-64 rounded-full bg-gray-100 animate-pulse mx-auto lg:mx-0 shrink-0" />
+          <div className="w-48 h-48 sm:w-52 sm:h-52 lg:w-64 lg:h-64 rounded-full bg-gray-100 animate-pulse mx-auto lg:mx-0 shrink-0" />
           <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />
@@ -38,7 +38,7 @@ export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps
         </div>
       ) : (
         <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-6 mt-4 sm:mt-6">
-          <div className="relative w-50 h-50 lg:w-64 lg:h-64 mx-auto lg:mx-0 shrink-0">
+          <div className="relative w-48 h-48 sm:w-52 sm:h-52 lg:w-64 lg:h-64 mx-auto lg:mx-0 shrink-0 min-h-[12rem] min-w-[12rem]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Tooltip

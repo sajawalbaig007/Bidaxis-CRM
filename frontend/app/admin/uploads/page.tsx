@@ -13,6 +13,7 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
 import API from "@/lib/api";
+import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
@@ -516,7 +517,6 @@ export default function UploadPage() {
     /* company is optional for client uploads — comes from Excel rows */
     if (selectedPane !== "lead" && !finalCompany.trim()) { toast.error("Please enter company name"); return; }
     if (selectedCSRs.length === 0) { toast.error("Select at least one CSR"); return; }
-    if (!selectedSourceId) { toast.error("Select an upload source"); return; }
 
     const formData = buildUploadFormData();
     if (!formData) return;
@@ -1045,28 +1045,42 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 sm:gap-3">
-                    <button
-                      onClick={() => {
-                        if (uploadMode !== "regular") { setShowCSRModal(false); return; }
-                        setModalStep(selectedPane === "lead" ? "category" : "company");
-                      }}
-                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!selectedSourceId) { toast.error("Please select or add a source"); return; }
-                        setModalStep("csrs");
-                      }}
-                      disabled={!selectedSourceId}
-                      className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
-                        selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      Next — Select CSRs
-                    </button>
+                  <div className="flex flex-col gap-2 sm:gap-3">
+                    <div className="flex gap-2 sm:gap-3">
+                      <button
+                        onClick={() => {
+                          if (uploadMode !== "regular") { setShowCSRModal(false); return; }
+                          setModalStep(selectedPane === "lead" ? "category" : "company");
+                        }}
+                        className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedSourceId("");
+                          setModalStep("csrs");
+                        }}
+                        className="h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-500 font-semibold text-sm hover:border-gray-300 hover:text-gray-700 transition-all"
+                      >
+                        Skip
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!selectedSourceId) { toast.error("Please select or add a source"); return; }
+                          setModalStep("csrs");
+                        }}
+                        disabled={!selectedSourceId}
+                        className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
+                          selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        }`}
+                      >
+                        Next — Select CSRs
+                      </button>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-gray-400 text-center">
+                      Skip if you don&apos;t want to assign a source or sudo name for this upload.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1972,7 +1986,7 @@ export default function UploadPage() {
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-[#FAFAFA] sticky top-0 z-10">
+                    <thead className={CSR_THEAD}>
                       <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">
                         <th className="px-4 py-3 font-semibold w-12">#</th>
                         <th className="px-4 py-3 font-semibold">Name</th>

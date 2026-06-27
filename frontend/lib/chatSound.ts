@@ -1,8 +1,12 @@
 let audioCtx: AudioContext | null = null;
+let lastPlayedAt = 0;
 
-/** Short notification beep for new chat messages. */
+/** Short notification beep for new chat messages (debounced to avoid double pings). */
 export function playChatSound(): void {
   if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastPlayedAt < 1_200) return;
+  lastPlayedAt = now;
   try {
     audioCtx ??= new AudioContext();
     const ctx = audioCtx;

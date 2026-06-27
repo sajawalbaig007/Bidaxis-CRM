@@ -1,0 +1,115 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, FileInput, Search, X } from "lucide-react";
+
+interface SourceSudoFilterDropdownProps {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}
+
+export default function SourceSudoFilterDropdown({
+  value,
+  options,
+  onChange,
+}: SourceSudoFilterDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(o => o.toLowerCase().includes(q));
+  }, [options, search]);
+
+  const select = (name: string) => {
+    onChange(name);
+    setOpen(false);
+    setSearch("");
+  };
+
+  const clear = () => {
+    onChange("");
+    setSearch("");
+  };
+
+  return (
+    <div className="relative z-30" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors min-w-[130px] sm:min-w-[160px] ${
+          value
+            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            : "border-gray-200 bg-[#FAFAFA] text-gray-600 hover:border-gray-300"
+        }`}
+      >
+        <FileInput size={12} className="shrink-0 sm:w-[14px] sm:h-[14px]" />
+        <span className="truncate max-w-[100px] sm:max-w-[120px]">
+          {value || "Source (sudo)"}
+        </span>
+        {value ? (
+          <span
+            role="button"
+            onClick={e => { e.stopPropagation(); clear(); }}
+            className="ml-auto text-[#B8112D] hover:text-[#8b0d22] shrink-0"
+          >
+            <X size={12} className="sm:w-[13px] sm:h-[13px]" />
+          </span>
+        ) : (
+          <ChevronDown size={12} className="text-gray-400 shrink-0 ml-auto sm:w-[13px] sm:h-[13px]" />
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute top-11 sm:top-12 right-0 z-[200] w-[240px] sm:w-[280px] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border-subtle overflow-hidden">
+          <div className="px-3 py-2 border-b border-gray-100 dark:border-crm-border-subtle bg-[#FAFAFB] dark:bg-crm-muted">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Upload source sudo</p>
+          </div>
+          <div className="p-2 border-b border-gray-100 dark:border-crm-border-subtle">
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search source…"
+                className="w-full h-8 pl-8 pr-2 rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-xs outline-none focus:border-[#B8112D]"
+              />
+            </div>
+          </div>
+          <div className="max-h-[220px] overflow-y-auto py-1">
+            {options.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-gray-400 text-center">No source sudo on your leads</p>
+            ) : filtered.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-gray-400 text-center">No match</p>
+            ) : (
+              filtered.map(name => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => select(name)}
+                  className={`w-full text-left px-3 sm:px-4 py-2.5 text-[12px] sm:text-[13px] font-semibold transition-colors hover:bg-[#FFF1F3] truncate ${
+                    value === name ? "bg-[#FFF1F3] text-[#B8112D]" : "text-[#0F172A] dark:text-crm-text"
+                  }`}
+                >
+                  {name}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

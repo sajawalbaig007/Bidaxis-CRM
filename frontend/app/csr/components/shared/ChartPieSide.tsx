@@ -14,7 +14,7 @@ export default function ChartPieSide({ data, title }: Props) {
       {title && (
         <p className="text-xs sm:text-[13px] font-semibold text-gray-600 mb-2 text-center">{title}</p>
       )}
-      <div className="w-44 h-44 sm:w-52 sm:h-52 lg:w-56 lg:h-56">
+      <div className="w-44 h-44 sm:w-52 sm:h-52 lg:w-56 lg:h-56 min-h-[11rem] min-w-[11rem]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip

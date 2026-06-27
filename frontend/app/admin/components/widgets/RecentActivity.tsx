@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import {
   Activity, UserPlus, CheckCircle, Edit,
-  AlertCircle, ChevronRight, Phone,
+  AlertCircle, Phone,
 } from "lucide-react";
 import type { ClientLead } from "../charts/PerformanceChart";
 
@@ -80,9 +80,6 @@ export default function RecentActivity({ leads = [], recent }: Props) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold text-gray-800">🔄 Recent Activity</h3>
-        <button className="text-xs text-[#B8112D] hover:underline flex items-center gap-1">
-          View All <ChevronRight size={12}/>
-        </button>
       </div>
 
       <div className="space-y-3">

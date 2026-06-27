@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import API from "./../../../lib/api";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
@@ -40,6 +40,18 @@ export default function ReportsPage() {
   const [toDate,        setToDate]        = useState("");
   const [selectedCSRId, setSelectedCSRId] = useState<string>("all");
   const [dropdownOpen,  setDropdownOpen]  = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [dropdownOpen]);
 
   const fetchReports = async (
     period: string = "today",
@@ -53,7 +65,6 @@ export default function ReportsPage() {
         : `/reports?period=${period}`;
       const res = await API.get(url);
       setReportData(res.data);
-      setSelectedCSRId("all");
     } catch (err) {
       console.log(err);
     } finally {
@@ -170,9 +181,9 @@ export default function ReportsPage() {
         </div>
 
         {/* ── PERIOD + CSR FILTER BAR ── */}
-        {/* Horizontally scrollable on mobile */}
-        <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 px-3 sm:px-4 py-3 shadow-sm mb-4 sm:mb-6 overflow-x-auto">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-max">
+        <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 shadow-sm mb-4 sm:mb-6">
+          <div className="px-3 sm:px-4 py-3 overflow-x-auto">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-max">
             {/* Period buttons */}
             {([
               { key: "today", label: "Today"   },
@@ -197,11 +208,13 @@ export default function ReportsPage() {
               </button>
             ))}
 
-            <div className="h-5 sm:h-6 w-px bg-gray-200 shrink-0" />
+            </div>
+          </div>
 
-            {/* CSR Dropdown */}
-            <div className="relative">
+          <div className="px-3 sm:px-4 pb-3 flex flex-wrap items-center gap-2 sm:gap-3 border-t border-gray-50">
+            <div className="relative z-[60]" ref={dropdownRef}>
               <button
+                type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5 sm:gap-2 min-w-[140px] sm:min-w-[160px] hover:bg-gray-50 transition-all"
               >
@@ -214,8 +227,9 @@ export default function ReportsPage() {
               </button>
 
               {dropdownOpen && (
-                <div className="absolute left-0 top-11 sm:top-12 z-50 bg-white border border-gray-100 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden min-w-[180px] sm:min-w-[200px]">
+                <div className="absolute left-0 top-11 sm:top-12 z-[70] bg-white border border-gray-100 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden min-w-[180px] sm:min-w-[200px]">
                   <button
+                    type="button"
                     onClick={() => { setSelectedCSRId("all"); setDropdownOpen(false); }}
                     className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] transition-all ${
                       selectedCSRId === "all" ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
@@ -229,6 +243,7 @@ export default function ReportsPage() {
                   {csrList.map(csr => (
                     <button
                       key={csr.id}
+                      type="button"
                       onClick={() => { setSelectedCSRId(csr.id); setDropdownOpen(false); }}
                       className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] transition-all border-t border-gray-50 ${
                         selectedCSRId === csr.id ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
@@ -259,7 +274,7 @@ export default function ReportsPage() {
             )}
 
             {loadingReport && (
-              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin ml-auto" />
+              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
             )}
           </div>
         </div>
@@ -506,10 +521,6 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Close dropdown on outside click */}
-        {dropdownOpen && (
-          <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
-        )}
       </main>
     </div>
   );

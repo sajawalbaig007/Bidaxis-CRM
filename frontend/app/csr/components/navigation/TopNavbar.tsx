@@ -24,7 +24,6 @@ import API from "@/lib/api";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import ChatPanel from "@/app/components/chat/ChatPanel";
-import { pollChatUnread } from "@/lib/chatUnreadStore";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 import {
@@ -32,6 +31,7 @@ import {
   statusBadgeColor,
 } from "../../constants/notificationRoutes";
 import CsrActivityReportModal from "../shared/CsrActivityReportModal";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 const navItems = [
   { title: "Call Data",         href: "/csr",                      icon: Link2        },
@@ -125,7 +125,6 @@ export default function TopNavbar() {
   }, []);
 
   useEffect(() => {
-    void pollChatUnread();
     if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
 
     Promise.all([
@@ -166,8 +165,7 @@ export default function TopNavbar() {
     try {
       await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
-      router.push("/");
-      router.refresh();
+      window.location.href = "/";
     } catch {
       toast.error("Logout failed.");
     } finally {
@@ -187,6 +185,18 @@ export default function TopNavbar() {
   const todayCalls = notifications.scheduledCalls.filter((c) => c.date === TODAY);
   const { dailyStats, scheduledCalls: calls } = notifications;
 
+  const hasNotifications = calls.length > 0 || dailyStats.total > 0;
+
+  const handleClearNotifications = () => {
+    const empty: NotificationsPayload = {
+      scheduledCalls: [],
+      dailyStats: { total: 0, byStatus: {}, periodHours: 24 },
+    };
+    _cachedNotifications = empty;
+    setNotifications(empty);
+    toast.success("Notifications cleared.");
+  };
+
   const goToScheduledCall = (call: ScheduledCall) => {
     setBellOpen(false);
     const params = new URLSearchParams({ leadId: call.id, tab: "schedule" });
@@ -202,9 +212,9 @@ export default function TopNavbar() {
 
   return (
     <>
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+    <header className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
-        <Link href="/csr" className="flex items-center gap-3 shrink-0">
+        <Link href="/csr" prefetch={false} className="flex items-center gap-3 shrink-0">
           <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
             <Image
               src="/images/image.png"
@@ -216,7 +226,7 @@ export default function TopNavbar() {
           </div>
 
           <div className="hidden sm:block min-w-[170px]">
-            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-[#111827] tracking-tight">
+            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
               CRM Dashboard
             </h2>
             <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
@@ -227,7 +237,7 @@ export default function TopNavbar() {
 
         <div className="flex-1 min-w-0">
           <nav
-            className="mx-auto w-fit max-w-full flex items-center gap-1 bg-[#F3F4F6] rounded-[18px] p-1 overflow-x-auto"
+            className="mx-auto w-fit max-w-full flex items-center gap-1 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto"
             style={{ scrollbarWidth: "none" }}
           >
             {navItems.map(({ title, href, icon: Icon }) => {
@@ -242,7 +252,7 @@ export default function TopNavbar() {
                   className={`h-10 px-3.5 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
                     active
                       ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                      : "text-[#374151] hover:bg-white hover:text-[#B8112D]"
+                      : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
                   }`}
                 >
                   <Icon size={15} className="shrink-0" />
@@ -252,6 +262,8 @@ export default function TopNavbar() {
             })}
           </nav>
         </div>
+
+        <ThemeToggle />
 
         <button
           type="button"
@@ -263,7 +275,7 @@ export default function TopNavbar() {
           className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
             chatOpen
               ? "bg-[#B8112D] text-white shadow-md"
-              : "bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"
+              : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
           }`}
           title="Messages"
         >
@@ -282,7 +294,7 @@ export default function TopNavbar() {
                 setBellOpen((v) => !v);
                 setProfileOpen(false);
               }}
-              className="relative w-10 h-10 rounded-[13px] flex items-center justify-center text-[#4B5563] hover:text-[#B8112D] hover:bg-[#F3F4F6] transition-colors"
+              className="relative w-10 h-10 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#B8112D] hover:bg-crm-nav-pill transition-colors"
             >
               <Bell size={18} />
 
@@ -294,17 +306,28 @@ export default function TopNavbar() {
             </button>
 
             {bellOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <Bell size={14} className="text-[#B8112D]" />
                     <span className="text-[13px] font-bold text-[#0F172A]">Notifications</span>
                   </div>
-                  {todayCalls.length > 0 && (
-                    <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
-                      {todayCalls.length} call{todayCalls.length > 1 ? "s" : ""} today
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {todayCalls.length > 0 && (
+                      <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
+                        {todayCalls.length} call{todayCalls.length > 1 ? "s" : ""} today
+                      </span>
+                    )}
+                    {hasNotifications && (
+                      <button
+                        type="button"
+                        onClick={handleClearNotifications}
+                        className="text-[10px] font-semibold text-gray-400 hover:text-[#B8112D] transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="px-4 py-3 bg-[#F8FAFC] border-b border-gray-100">
@@ -409,11 +432,12 @@ export default function TopNavbar() {
 
           <div ref={profileRef} className="relative">
             <button
+              type="button"
               onClick={() => {
                 setProfileOpen((v) => !v);
                 setBellOpen(false);
               }}
-              className="flex items-center gap-2 hover:bg-[#F3F4F6] rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
+              className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
             >
               <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
                 {user?.profilePic
@@ -423,24 +447,24 @@ export default function TopNavbar() {
               </div>
 
               <div className="hidden lg:block text-left">
-                <p className="text-[12px] font-bold leading-none text-[#111827] max-w-[90px] truncate">
+                <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
                   {user?.name ?? "CSR User"}
                 </p>
-                <p className="text-[10px] text-gray-500 mt-1 max-w-[90px] truncate">
+                <p className="text-[10px] text-crm-text-muted mt-1 max-w-[90px] truncate">
                   {user?.csrCode ?? "Customer Support"}
                 </p>
               </div>
 
               <ChevronDown
                 size={13}
-                className={`hidden sm:block text-gray-400 transition-transform duration-200 ${
+                className={`hidden sm:block text-crm-text-faint transition-transform duration-200 ${
                   profileOpen ? "rotate-180" : ""
                 }`}
               />
             </button>
 
             {profileOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-white rounded-2xl border border-gray-100 shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                 <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0 overflow-hidden">
                     {user?.profilePic
@@ -473,7 +497,7 @@ export default function TopNavbar() {
                 </div>
 
                 <div className="px-3 pb-3 space-y-1.5">
-                  <Link href="/csr/settings" onClick={() => setProfileOpen(false)}
+                  <Link href="/csr/settings" prefetch={false} onClick={() => setProfileOpen(false)}
                     className="w-full h-9 rounded-xl bg-[#F5F6FA] hover:bg-gray-100 text-gray-700 text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors">
                     Security Settings
                   </Link>
