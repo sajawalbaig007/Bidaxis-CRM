@@ -5,13 +5,14 @@ import { allowRoles } from "../middleware/role.middleware";
 import { maskCnic } from "../config/security";
 import { userBrowserMap } from "../utils/sessions";
 import { getCache, setCache, invalidateCache } from "../utils/cache";
-import upload from "../middleware/upload.middleware";
+import upload, { uploadPdf } from "../middleware/upload.middleware";
 import cloudinary from "../config/cloudinary";
 import { Readable } from "stream";
 
 import {
   updateUser,
   deleteUser,
+  adminSetUserPassword,
 } from "../controllers/user.controller";
 
 const router = express.Router();
@@ -34,6 +35,7 @@ router.get("/", allowRoles("admin", "csr"), async (req: AuthRequest, res) => {
           role:       true,
           csrCode:    true,
           cnic:       true,
+          cnicPdfUrl: true,
           profilePic: true,
           isActive:   true,
           isOnline:   true,
@@ -48,6 +50,7 @@ router.get("/", allowRoles("admin", "csr"), async (req: AuthRequest, res) => {
     const withBrowser = users.map(u => ({
       ...u,
       cnic:       maskCnic(u.cnic as string | null, viewerRole),
+      cnicPdfUrl: viewerRole === "admin" ? (u.cnicPdfUrl as string | null) : null,
       browser:    userBrowserMap.get(u.id as string)?.browser    ?? null,
       tabId:      userBrowserMap.get(u.id as string)?.tabId      ?? null,
       openedAt:   userBrowserMap.get(u.id as string)?.openedAt   ?? null,
@@ -80,6 +83,28 @@ router.post("/upload-pic", upload.single("file"), async (req: AuthRequest, res) 
   }
 });
 
+/* ================= UPLOAD CNIC PDF — admin only ================= */
+router.post("/upload-cnic", allowRoles("admin"), uploadPdf.single("file"), async (req: AuthRequest, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No PDF file provided" });
+    const url = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "crm_cnic_docs",
+          resource_type: "raw",
+        },
+        (err, result) => { if (err || !result) return reject(err); resolve(result.secure_url); }
+      );
+      Readable.from(req.file!.buffer).pipe(stream);
+    });
+    return res.json({ url });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: "CNIC PDF upload failed" });
+  }
+});
+
+router.put("/:id/password", allowRoles("admin"), adminSetUserPassword);
 router.put("/:id", allowRoles("admin"), updateUser);
 router.delete("/:id", allowRoles("admin"), deleteUser);
 

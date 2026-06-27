@@ -1,6 +1,20 @@
 import axios from "axios";
 import toast from "react-hot-toast";
 
+const TOKEN_STORAGE_KEY = "crm_api_token";
+
+/** Mirror JWT for Authorization header (httpOnly cookie alone fails on cross-port dev). */
+export function setClientAuthToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  if (token) sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+export function getClientAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
 function isLocalHost(): boolean {
   if (typeof window === "undefined") return false;
   const h = window.location.hostname;
@@ -8,17 +22,16 @@ function isLocalHost(): boolean {
 }
 
 /**
- * Local dev → direct backend (fast, CORS allowed).
- * Production → NEXT_PUBLIC_API_URL when set (direct Render); else /api/backend proxy.
+ * Browser → same-origin `/api/backend` proxy (forwards httpOnly session cookie).
+ * Server-side / SSR → direct BACKEND_URL.
  */
 export function resolveBaseURL(): string {
   const direct = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
   if (typeof window !== "undefined") {
     if (isLocalHost()) {
-      return direct || "http://localhost:5000/api";
+      return "/api/backend";
     }
-    // Vercel production: direct Render URL avoids broken/missing proxy on older deploys.
     if (direct && !/localhost|127\.0\.0\.1/i.test(direct)) return direct;
     return "/api/backend";
   }
@@ -41,20 +54,36 @@ export function getApiBase(): string {
 }
 
 const API = axios.create({
-  baseURL: resolveBaseURL(),
   withCredentials: true,
   timeout: 30_000,
+});
+
+let handling401 = false;
+
+API.interceptors.request.use((config) => {
+  config.baseURL = resolveBaseURL();
+  const token = getClientAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 API.interceptors.response.use(
   r => r,
   err => {
+    const status = err?.response?.status;
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    const isProtected = path.startsWith("/admin") || path.startsWith("/csr");
+
     if (
-      err?.response?.status === 401 &&
-      err?.response?.data?.code === "SESSION_INVALID" &&
+      status === 401 &&
       typeof window !== "undefined" &&
-      window.location.pathname !== "/"
+      isProtected &&
+      !handling401
     ) {
+      handling401 = true;
+      setClientAuthToken(null);
       void fetch("/api/auth/clear-session", { method: "POST", credentials: "include" });
       toast.error("Session expired. Please log in again.", { duration: 4000 });
       setTimeout(() => { window.location.href = "/"; }, 1200);

@@ -9,7 +9,7 @@ import {
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CSR_TABLE_CARD, CSR_TABLE_WRAP } from "../components/shared/csrTableStyles";
+import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD } from "../components/shared/csrTableStyles";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
 import { useBinData, binCategory, binReasonLabel } from "../hooks/useBinData";
@@ -168,7 +168,7 @@ export default function CSRBinPage() {
 
           <div className={CSR_TABLE_WRAP}>
             <table className="w-full" style={{ minWidth: "760px" }}>
-              <thead className="sticky top-0 bg-white z-10">
+              <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
                   {["#","Client","Company","Phone","Service","Reason","Updated","Action"].map(h => (
                     <th key={h} className="text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>

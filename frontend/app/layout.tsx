@@ -9,6 +9,7 @@ import {
   Toaster,
 } from "react-hot-toast";
 
+import ThemeProvider from "./components/ThemeProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`
         ${geistSans.variable}
         ${geistMono.variable}
@@ -47,54 +49,42 @@ export default function RootLayout({
         antialiased
       `}
     >
+      <body className="min-h-full flex flex-col bg-crm-bg text-crm-text">
+        <ThemeProvider>
+          {children}
 
-      <body className="min-h-full flex flex-col bg-[#F5F6FA]">
-
-        {children}
-
-        {/* TOASTER */}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 3000,
-
-            style: {
-              borderRadius:
-                "16px",
-
-              background:
-                "#111827",
-
-              color: "#fff",
-
-              padding:
-                "14px 18px",
-
-              fontSize:
-                "14px",
-
-              fontWeight:
-                "600",
-            },
-
-            success: {
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 3000,
               style: {
-                background:
-                  "#027A48",
+                borderRadius: "16px",
+                background: "var(--crm-surface)",
+                color: "var(--crm-text)",
+                border: "1px solid var(--crm-border)",
+                padding: "14px 18px",
+                fontSize: "14px",
+                fontWeight: "600",
+                boxShadow: "var(--crm-card-shadow)",
               },
-            },
-
-            error: {
-              style: {
-                background:
-                  "#B8112D",
+              success: {
+                style: {
+                  background: "#027A48",
+                  color: "#fff",
+                  border: "none",
+                },
               },
-            },
-          }}
-        />
-
+              error: {
+                style: {
+                  background: "#B8112D",
+                  color: "#fff",
+                  border: "none",
+                },
+              },
+            }}
+          />
+        </ThemeProvider>
       </body>
-
     </html>
   );
 }

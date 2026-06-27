@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import API, { getApiBase } from "@/lib/api";
+import API, { getApiBase, getClientAuthToken } from "@/lib/api";
 
 export function useCsrPresence() {
   useEffect(() => {
@@ -20,9 +20,12 @@ export function useCsrPresence() {
     };
 
     const markOffline = () => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const token = getClientAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
       fetch(`${getApiBase()}/csr/offline`, {
         method: "POST", credentials: "include", keepalive: true,
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ tabId }),
       }).catch(() => {});
     };

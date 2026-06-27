@@ -1,8 +1,10 @@
 /** Shared CSR lead-table layout — prevents column overlap on dense rows */
 
 export const CSR_TABLE_CLASS = "w-full table-fixed border-collapse";
+export const CSR_THEAD =
+  "crm-thead sticky top-0 z-10 border-b border-crm-border-subtle bg-crm-surface-raised";
 export const CSR_TH =
-  "text-left py-3 sm:py-3.5 px-3 sm:px-4 text-[11px] sm:text-[13px] font-semibold text-gray-500 whitespace-nowrap";
+  "text-left py-3 sm:py-3.5 px-3 sm:px-4 text-[11px] sm:text-[13px] font-semibold text-crm-text-muted whitespace-nowrap";
 export const CSR_TD = "py-3 sm:py-4 px-3 sm:px-4 align-middle";
 export const CSR_TD_TOP = "py-3 sm:py-4 px-3 sm:px-4 align-top";
 
@@ -31,20 +33,23 @@ export const CLIENT_GRID_HEAD =
 export const CLIENT_GRID_ROW =
   "lg:grid-cols-[minmax(90px,90px)_minmax(200px,2fr)_minmax(140px,1.4fr)_minmax(130px,1.1fr)_minmax(130px,1.1fr)_minmax(120px,1fr)_minmax(160px,1.5fr)_minmax(72px,72px)]";
 
+export const CRM_GRID_HEAD_ROW =
+  "crm-grid-head border-b border-crm-border-subtle bg-crm-surface-raised";
+
 export const PROJECT_GRID_HEAD =
-  "grid-cols-[minmax(150px,1.3fr)_minmax(150px,1.2fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(110px,1.1fr)_minmax(72px,72px)]";
+  "grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
 
 export const PROJECT_GRID_ROW =
-  "lg:grid-cols-[minmax(150px,1.3fr)_minmax(150px,1.2fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(110px,1.1fr)_minmax(72px,72px)]";
+  "lg:grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
 
-/** Admin Project DB table — fixed column widths prevent email/actions overlap */
+/** Admin Project DB table — fixed column widths */
 export const ADMIN_PROJECT_COLS = [
-  "14%", "14%", "8%", "12%", "11%", "10%", "14%", "12%", "5%",
+  "16%", "17%", "9%", "12%", "12%", "12%", "16%", "6%",
 ] as const;
 
 /** Table card — no inner vertical scroll; page scrolls instead */
 export const CSR_TABLE_CARD =
-  "bg-white rounded-2xl sm:rounded-[30px] border border-white shadow-sm mt-4 sm:mt-7";
+  "crm-table-card rounded-2xl sm:rounded-[30px] border shadow-sm mt-4 sm:mt-7";
 
 /** Horizontal scroll only when table is wider than viewport */
 export const CSR_TABLE_WRAP = "overflow-x-auto px-3 sm:px-5 lg:px-6 pb-4 sm:pb-5";

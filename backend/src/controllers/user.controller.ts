@@ -2,6 +2,13 @@ import { Request, Response } from "express";
 import prisma from "../config/db";
 import { invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
+import { AuthRequest } from "../middleware/auth.middleware";
+import { hashPassword } from "../utils/hash";
+import { validatePassword } from "../config/security";
+import { assertPasswordNotBreached } from "../utils/passwordBreach";
+import { writeAuditLog } from "../utils/auditLog";
+import { getClientIp, getUserAgent } from "../utils/requestMeta";
+import { clearActiveSession } from "../utils/sessions";
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -15,7 +22,7 @@ export const getUsers = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { name, email, role, isActive, csrCode, cnic, profilePic } = req.body;
+    const { name, email, role, isActive, csrCode, cnic, cnicPdfUrl, profilePic } = req.body;
 
     const data: Record<string, unknown> = {};
     if (name       !== undefined) data.name       = name;
@@ -24,6 +31,7 @@ export const updateUser = async (req: Request, res: Response) => {
     if (isActive   !== undefined) data.isActive   = isActive;
     if (csrCode    !== undefined) data.csrCode    = csrCode    || null;
     if (cnic       !== undefined) data.cnic       = cnic       || null;
+    if (cnicPdfUrl !== undefined) data.cnicPdfUrl = cnicPdfUrl || null;
     if (profilePic !== undefined) data.profilePic = profilePic || null;
 
     if (Object.keys(data).length === 0) {
@@ -33,12 +41,59 @@ export const updateUser = async (req: Request, res: Response) => {
     const user = await prisma.user.update({
       where:  { id },
       data,
-      select: { id: true, name: true, email: true, role: true, csrCode: true, isActive: true },
+      select: { id: true, name: true, email: true, role: true, csrCode: true, cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true },
     });
     invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
     return res.json(user);
   } catch {
     return res.status(500).json({ message: "Update failed" });
+  }
+};
+
+export const adminSetUserPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { newPassword } = req.body as { newPassword?: string };
+
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: "New password is required." });
+    }
+
+    const pwdError = validatePassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ success: false, message: pwdError });
+    }
+
+    const breachError = await assertPasswordNotBreached(newPassword);
+    if (breachError) {
+      return res.status(400).json({ success: false, message: breachError });
+    }
+
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
+    if (!target) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    const hashed = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id },
+      data:  { password: hashed, tokenVersion: { increment: 1 } },
+    });
+
+    await clearActiveSession(id);
+    await writeAuditLog({
+      action:    "admin_password_reset",
+      userId:    id,
+      email:     target.email,
+      ip:        getClientIp(req),
+      userAgent: getUserAgent(req),
+      meta:      { resetBy: req.user?.id },
+    });
+
+    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
+    return res.json({ success: true, message: "Password updated. User must sign in again." });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to update password." });
   }
 };
 

@@ -1,3 +1,5 @@
+import { setClientAuthToken } from "./api";
+
 /** Set httpOnly session cookie on the Next.js domain (same-origin — works with /api/backend proxy). */
 export async function setFrontendSession(token: string): Promise<boolean> {
   try {
@@ -10,8 +12,10 @@ export async function setFrontendSession(token: string): Promise<boolean> {
     if (!res.ok) {
       const data = await res.json().catch(() => ({})) as { message?: string };
       console.error("[session] set-session failed:", data.message ?? res.status);
+      setClientAuthToken(null);
       return false;
     }
+    setClientAuthToken(token);
     return true;
   } catch (err) {
     console.error("[session] set-session error:", err);
@@ -21,6 +25,7 @@ export async function setFrontendSession(token: string): Promise<boolean> {
 
 /** Clear httpOnly session cookie on the Next.js domain. */
 export async function clearFrontendSession(): Promise<void> {
+  setClientAuthToken(null);
   await fetch("/api/auth/clear-session", {
     method:      "POST",
     credentials: "include",

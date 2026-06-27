@@ -14,6 +14,8 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ChatActionRail from "@/app/components/chat/ChatActionRail";
 import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 import API from "@/lib/api";
+import { playChatSound } from "@/lib/chatSound";
+import { ensureChatUnreadPolling, pollChatUnread, stopChatUnreadPolling, subscribeChatUnread } from "@/lib/chatUnreadStore";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface ChatUser {
@@ -406,34 +408,17 @@ export default function ChatPage() {
     setNotifGranted(ok); notifRef.current = ok;
   };
 
-  /* ── Initial conversations load ── */
+  /* ── Conversation list via shared store — poll only while this page is open ── */
   useEffect(() => {
-    void (async () => {
-      try {
-        const r = await API.get("/chat/conversations");
-        setConversations(prev => mergeConversationLists(
-          deduplicateConvs(r.data.conversations ?? r.data ?? []),
-          prev,
-        ));
-      } catch {
-        setConversations([]);
-      } finally {
-        setLoadingConvs(false);
-      }
-    })();
-  }, []);
-
-  /* ── Poll conversation list every 10 s (paused when tab hidden) ── */
-  useEffect(() => {
-    return visibleInterval(async () => {
-      try {
-        const r = await API.get("/chat/conversations");
-        setConversations(prev => mergeConversationLists(
-          deduplicateConvs(r.data.conversations ?? r.data ?? []),
-          prev,
-        ));
-      } catch { /* ignore */ }
-    }, 20_000);
+    ensureChatUnreadPolling();
+    void pollChatUnread().finally(() => setLoadingConvs(false));
+    const unsub = subscribeChatUnread((_total, convs) => {
+      setConversations(prev => mergeConversationLists(deduplicateConvs(convs), prev));
+    });
+    return () => {
+      unsub();
+      stopChatUnreadPolling();
+    };
   }, []);
 
   /* ── Heartbeat ── */
@@ -483,21 +468,25 @@ export default function ChatPage() {
 
         const msgs: Message[] = msgRes.data.messages ?? [];
         if (msgs.length !== lastMsgCount.current) {
+          const hadNew = msgs.length > lastMsgCount.current;
           lastMsgCount.current = msgs.length;
           setMessages(msgs);
           setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
           void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
           const newest = msgs[msgs.length - 1];
-          if (newest && !newest.isOwn && notifRef.current && !document.hasFocus()) {
-            new Notification(newest.senderName, {
-              body: newest.type !== "text" ? `Sent a ${newest.type}` : newest.text.slice(0, 80),
-              icon: "/images/image.png",
-            });
+          if (hadNew && newest && !newest.isOwn) {
+            playChatSound();
+            if (notifRef.current && !document.hasFocus()) {
+              new Notification(newest.senderName, {
+                body: newest.type !== "text" ? `Sent a ${newest.type}` : newest.text.slice(0, 80),
+                icon: "/images/image.png",
+              });
+            }
           }
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
       } catch { /* ignore */ }
-    }, 8_000);
+    }, 3_000);
 
     return stopPoll;
   }, [activeConvId]);

@@ -6,7 +6,7 @@ import {
   X, ArrowRightLeft, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
   Phone, Briefcase, Check,
-  History,
+  History, UserX, Ban, Home,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -18,22 +18,55 @@ import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../cons
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
+import { useCsrDashboard } from "../hooks/useCsrDashboard";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import API from "@/lib/api";
+import {
+  STATUS_NO_OWNER,
+  STATUS_NOT_IN_SERVICE,
+  STATUS_IN_HOUSE,
+  isNotInterestedStatus,
+  isNotPickedStatus,
+  statusDisplayLabel,
+} from "../constants/leadStatuses";
+import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
+import type { Lead } from "../types/lead";
 
 const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT     = 7;
 const PAGE_SIZE            = 30;
 
+type FollowUpTab = "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse";
+
+function leadToNiLead(l: Lead): NiLead {
+  return {
+    id: l.id,
+    client: l.client,
+    company: l.company,
+    phone: l.phone,
+    email: l.email,
+    state: l.state,
+    status: l.status,
+    notInterestedCount: 0,
+    notPickedCount: 0,
+    interestedService: l.interestedService,
+    followUpNotes: l.followUpNotes,
+    comments: l.comments,
+    noteHistory: l.noteHistory,
+    subContacts: l.subContacts,
+  };
+}
+
 export default function NotInterestedPage() {
   const { leads, setLeads, loading, refetch } = useNotInterested();
+  const { leads: dashboardLeads, loading: dashLoading } = useCsrDashboard();
 
-  const [activeTab, setActiveTab] = useState<"notinterested" | "notpicked">("notinterested");
+  const [activeTab, setActiveTab] = useState<FollowUpTab>("notinterested");
   const [search,    setSearch]    = useState("");
   const [page,      setPage]      = useState(1);
 
@@ -77,13 +110,23 @@ export default function NotInterestedPage() {
   };
 
   /* ── Derived lists ── */
-  const notInterested = useMemo(() => leads.filter(l => l.status === "Not Interested"), [leads]);
-  const notPicked     = useMemo(() => leads.filter(l => l.status === "not picked" || l.status === "not completed"), [leads]);
-  const currentList   = activeTab === "notinterested" ? notInterested : notPicked;
+  const notInterested = useMemo(() => leads.filter(l => isNotInterestedStatus(l.status)), [leads]);
+  const notPicked     = useMemo(() => leads.filter(l => isNotPickedStatus(l.status)), [leads]);
+  const noOwner       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NO_OWNER && !l.hiddenOnMain).map(leadToNiLead), [dashboardLeads]);
+  const notInService  = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE && !l.hiddenOnMain).map(leadToNiLead), [dashboardLeads]);
+  const inHouse       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE && !l.hiddenOnMain).map(leadToNiLead), [dashboardLeads]);
+
+  const isRetryTab = activeTab === "notinterested" || activeTab === "notpicked";
+  const currentList = activeTab === "notinterested" ? notInterested
+    : activeTab === "notpicked" ? notPicked
+    : activeTab === "noowner" ? noOwner
+    : activeTab === "notinservice" ? notInService
+    : inHouse;
   const limit         = activeTab === "notinterested" ? NOT_INTERESTED_LIMIT : NOT_PICKED_LIMIT;
   const countKey      = activeTab === "notinterested" ? "notInterestedCount" : "notPickedCount";
+  const pageLoading   = isRetryTab ? loading : dashLoading;
 
-  const filtered = useMemo(() => {
+  const searchFiltered = useMemo(() => {
     return currentList.filter(l =>
       matchesLeadSearch(search, {
         name: l.client,
@@ -94,6 +137,17 @@ export default function NotInterestedPage() {
       })
     );
   }, [currentList, search]);
+
+  const columnPredicates = useMemo(() => ({
+    client:  (l: NiLead, v: string) => textColumnMatch(l.client, v),
+    company: (l: NiLead, v: string) => textColumnMatch(l.company, v),
+    contact: (l: NiLead, v: string) => textColumnMatch(l.phone, v),
+    service: (l: NiLead, v: string) => textColumnMatch(l.interestedService, v),
+    status:  (l: NiLead, v: string) => textColumnMatch(statusDisplayLabel(l.status), v),
+  }), []);
+
+  const { filters: colFilters, setFilter: setColFilter, filtered } =
+    useColumnFilters(searchFiltered, columnPredicates);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -261,7 +315,7 @@ export default function NotInterestedPage() {
             Leads Follow-up
           </h1>
           <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-            Track Not Interested &amp; Not Picked leads with automatic redistribution.
+            Track Not Interested, Not Picked, No Owner, Not In Service &amp; In House leads.
           </p>
         </div>
 
@@ -278,12 +332,15 @@ export default function NotInterestedPage() {
         {/* ── TAB BUTTONS ── */}
         <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7 overflow-x-auto pb-0.5">
           {[
-            { key: "notinterested", label: "Not Interested", count: notInterested.length, Icon: ThumbsDown },
-            { key: "notpicked",     label: "Not Picked",     count: notPicked.length,     Icon: PhoneOff   },
+            { key: "notinterested" as const, label: "Not Interested", count: notInterested.length, Icon: ThumbsDown },
+            { key: "notpicked" as const,     label: "Not Picked",     count: notPicked.length,     Icon: PhoneOff   },
+            { key: "noowner" as const,       label: "No Owner",       count: noOwner.length,       Icon: UserX      },
+            { key: "notinservice" as const,  label: "Not In Service", count: notInService.length,  Icon: Ban        },
+            { key: "inhouse" as const,       label: "In House",       count: inHouse.length,       Icon: Home       },
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => { setActiveTab(tab.key as "notinterested" | "notpicked"); setSearch(""); setPage(1); }}
+              onClick={() => { setActiveTab(tab.key); setSearch(""); setPage(1); }}
               className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all whitespace-nowrap ${
                 activeTab === tab.key
                   ? "bg-[#B8112D] text-white"
@@ -306,11 +363,18 @@ export default function NotInterestedPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
                 <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">
-                  {activeTab === "notinterested" ? "Not Interested" : "Not Picked"} Leads
+                  {activeTab === "notinterested" ? "Not Interested"
+                    : activeTab === "notpicked" ? "Not Picked"
+                    : activeTab === "noowner" ? "No Owner Available"
+                    : activeTab === "notinservice" ? "Not In Service"
+                    : "In House"} Leads
                 </h3>
                 <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
-                  Auto-redistributed after{" "}
-                  <span className="font-semibold text-[#B8112D]">{limit} tries</span>.
+                  {isRetryTab ? (
+                    <>Auto-redistributed after <span className="font-semibold text-[#B8112D]">{limit} tries</span>.</>
+                  ) : (
+                    <>Leads marked from the main call dashboard.</>
+                  )}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -344,15 +408,20 @@ export default function NotInterestedPage() {
           <div className={CSR_TABLE_WRAP}>
             <table className={CSR_TABLE_CLASS} style={{ minWidth: "1280px" }}>
               <CsrColGroup widths={COL_8_FOLLOWUP} />
-              <thead className="sticky top-0 bg-white z-10">
+              <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
-                  {["Client","Company","Contact","Service","Note","Tries","Status","Action"].map(h => (
-                    <th key={h} className={CSR_TH}>{h}</th>
-                  ))}
+                  <FilterableTh title="Client" filter={colFilters.client ?? ""} onFilter={v => { setColFilter("client", v); setPage(1); }} className={CSR_TH} placeholder="Name…" />
+                  <FilterableTh title="Company" filter={colFilters.company ?? ""} onFilter={v => { setColFilter("company", v); setPage(1); }} className={CSR_TH} placeholder="Company…" />
+                  <FilterableTh title="Contact" filter={colFilters.contact ?? ""} onFilter={v => { setColFilter("contact", v); setPage(1); }} className={CSR_TH} placeholder="Phone…" />
+                  <FilterableTh title="Service" filter={colFilters.service ?? ""} onFilter={v => { setColFilter("service", v); setPage(1); }} className={CSR_TH} placeholder="Service…" />
+                  <th className={CSR_TH}>Note</th>
+                  <th className={CSR_TH}>Tries</th>
+                  <FilterableTh title="Status" filter={colFilters.status ?? ""} onFilter={v => { setColFilter("status", v); setPage(1); }} className={CSR_TH} placeholder="Status…" />
+                  <th className={CSR_TH}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {pageLoading ? (
                   [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
                       {[1,2,3,4,5,6,7,8].map(j => (
@@ -363,9 +432,9 @@ export default function NotInterestedPage() {
                     </tr>
                   ))
                 ) : filtered.length > 0 ? paginated.map(lead => {
-                  const tries       = lead[countKey as keyof NiLead] as number;
-                  const isNearLimit = tries >= limit - 1;
-                  const isAtLimit   = tries >= limit;
+                  const tries       = isRetryTab ? (lead[countKey as keyof NiLead] as number) : 0;
+                  const isNearLimit = isRetryTab && tries >= limit - 1;
+                  const isAtLimit   = isRetryTab && tries >= limit;
                   const barColor    = isAtLimit
                     ? "bg-gray-300"
                     : isNearLimit
@@ -399,7 +468,7 @@ export default function NotInterestedPage() {
                                 })()}
                               </div>
                               <p className="text-gray-500 text-[10px] sm:text-[12px] mt-0.5">
-                                {activeTab === "notinterested" ? "Not Interested" : "Not Picked"}
+                                {statusDisplayLabel(lead.status)}
                               </p>
                             </div>
                           </div>
@@ -436,28 +505,33 @@ export default function NotInterestedPage() {
 
                         {/* Tries bar */}
                         <td className="py-4 sm:py-5 px-2 w-[130px] sm:w-[160px]">
-                          <TriesBar used={tries} limit={limit} color={barColor} />
-                          {isNearLimit && !isAtLimit && (
-                            <span className="text-[10px] font-bold text-amber-600 mt-0.5 block">⚠ Last try</span>
+                          {isRetryTab ? (
+                            <>
+                              <TriesBar used={tries} limit={limit} color={barColor} />
+                              {isNearLimit && !isAtLimit && (
+                                <span className="text-[10px] font-bold text-amber-600 mt-0.5 block">⚠ Last try</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-gray-300 text-sm">—</span>
                           )}
                         </td>
 
                         {/* Status badge */}
                         <td className={CSR_TD}>
-                          {isAtLimit ? (
+                          {isRetryTab && isAtLimit ? (
                             <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-gray-100 text-gray-500 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap">
                               <ArrowRightLeft size={11} className="sm:w-3 sm:h-3" />Redistributed
                             </span>
                           ) : (
                             <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap ${
-                              activeTab === "notinterested"
-                                ? "bg-[#FFF1F3] text-[#B8112D]"
-                                : "bg-[#FFF7E6] text-[#B54708]"
+                              activeTab === "notinterested" ? "bg-[#FFF1F3] text-[#B8112D]"
+                              : activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]"
+                              : activeTab === "noowner" ? "bg-[#FEF3C7] text-[#B45309]"
+                              : activeTab === "notinservice" ? "bg-[#F3E8FF] text-[#7C3AED]"
+                              : "bg-[#CCFBF1] text-[#0D9488]"
                             }`}>
-                              {activeTab === "notinterested"
-                                ? <><ThumbsDown size={11} className="sm:w-3 sm:h-3" />Not Interested</>
-                                : <><PhoneOff   size={11} className="sm:w-3 sm:h-3" />Not Picked</>
-                              }
+                              {statusDisplayLabel(lead.status)}
                             </span>
                           )}
                         </td>
@@ -472,18 +546,18 @@ export default function NotInterestedPage() {
                             >
                               <Eye size={13} />
                             </button>
-                            {!isAtLimit ? (
+                            {isRetryTab && !isAtLimit ? (
                               <button
                                 onClick={() => handleRetry(lead)}
                                 className="h-9 px-3 rounded-xl bg-[#F5F6FA] text-gray-700 text-[12px] font-semibold flex items-center gap-1.5 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap shrink-0"
                               >
                                 <RefreshCw size={12} />Retry
                               </button>
-                            ) : (
+                            ) : isRetryTab ? (
                               <span className="flex items-center gap-1 text-gray-400 text-[12px] shrink-0">
                                 <Users size={13} />Reassigned
                               </span>
-                            )}
+                            ) : null}
                             {lead.followUpNotes && (
                               <button
                                 onClick={() => setExpandedRow(expandedRow === lead.id ? null : lead.id)}
@@ -504,6 +578,7 @@ export default function NotInterestedPage() {
                                 <option value="important">Important</option>
                                 <option value="interested">Interested</option>
                                 <option value="Close Client">Close Client</option>
+                                <option value={STATUS_IN_HOUSE}>In House</option>
                               </select>
                               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                                 <ChevronDown size={16} />

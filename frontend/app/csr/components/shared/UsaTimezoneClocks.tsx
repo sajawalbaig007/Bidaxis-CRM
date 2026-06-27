@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { Globe, X } from "lucide-react";
+import { useTheme } from "next-themes";
 
 const US_ZONES = [
-  { tz: "America/New_York",    label: "Eastern",  abbr: "ET", city: "New York"    },
-  { tz: "America/Chicago",     label: "Central",  abbr: "CT", city: "Chicago"     },
-  { tz: "America/Denver",      label: "Mountain", abbr: "MT", city: "Denver"      },
-  { tz: "America/Los_Angeles", label: "Pacific",  abbr: "PT", city: "Los Angeles" },
+  { tz: "America/New_York",    label: "Eastern",  abbr: "ET", city: "New York",    accent: "#3B82F6" },
+  { tz: "America/Chicago",     label: "Central",  abbr: "CT", city: "Chicago",     accent: "#10B981" },
+  { tz: "America/Denver",      label: "Mountain", abbr: "MT", city: "Denver",      accent: "#F59E0B" },
+  { tz: "America/Los_Angeles", label: "Pacific",  abbr: "PT", city: "Los Angeles", accent: "#8B5CF6" },
 ];
 
 const CA_ZONES = [
-  { tz: "America/Halifax",  label: "Atlantic",     abbr: "AT", city: "Halifax"    },
-  { tz: "America/St_Johns", label: "Newfoundland", abbr: "NT", city: "St. John's" },
+  { tz: "America/Halifax",  label: "Atlantic",     abbr: "AT", city: "Halifax",    accent: "#06B6D4" },
+  { tz: "America/St_Johns", label: "Newfoundland", abbr: "NT", city: "St. John's", accent: "#EC4899" },
 ];
 
 const MAP_ZONES = [
@@ -68,7 +69,7 @@ function handPoint(cx: number, cy: number, angleDeg: number, length: number) {
   return { x: cx + length * Math.cos(rad), y: cy + length * Math.sin(rad) };
 }
 
-function AnalogClock({ tz, compact = false }: { tz: string; compact?: boolean }) {
+function AnalogClock({ tz, accent, dark }: { tz: string; accent: string; dark: boolean }) {
   const [angles, setAngles] = useState(() => getHandAngles(tz));
 
   useEffect(() => {
@@ -76,38 +77,52 @@ function AnalogClock({ tz, compact = false }: { tz: string; compact?: boolean })
     return () => clearInterval(id);
   }, [tz]);
 
-  const cx = 30; const cy = 30; const r = 26;
-  const h = handPoint(cx, cy, angles.hour,   15);
-  const m = handPoint(cx, cy, angles.minute, 20);
-  const s = handPoint(cx, cy, angles.second, 21);
+  const cx = 32; const cy = 32; const r = 28;
+  const h = handPoint(cx, cy, angles.hour,   14);
+  const m = handPoint(cx, cy, angles.minute, 19);
+  const s = handPoint(cx, cy, angles.second, 20);
+  const faceFill = dark ? "#1e2330" : "#ffffff";
+  const tickMajor = dark ? "#9CA3AF" : "#6B7280";
+  const tickMinor = dark ? "#4B5563" : "#D1D5DB";
+  const hourHand = dark ? "#F3F4F6" : "#111827";
+  const minuteHand = dark ? "#D1D5DB" : "#374151";
 
   return (
-    <svg
-      viewBox="0 0 60 60"
-      className={`shrink-0 ${compact ? "w-10 h-10 sm:w-11 sm:h-11 lg:w-12 lg:h-12" : "w-11 h-11 sm:w-12 sm:h-12 xl:w-[60px] xl:h-[60px]"}`}
+    <div
+      className="relative shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center"
+      style={{ boxShadow: `0 3px 10px ${accent}33`, background: `linear-gradient(145deg, ${accent}18, transparent)` }}
     >
-      <circle cx={cx} cy={cy} r={r} fill="white" stroke="#E5E7EB" strokeWidth="2" />
-      {[...Array(12)].map((_, i) => {
-        const a   = (i * 30 - 90) * (Math.PI / 180);
-        const isQ = i % 3 === 0;
-        const x1  = cx + (r - (isQ ? 6 : 4)) * Math.cos(a);
-        const y1  = cy + (r - (isQ ? 6 : 4)) * Math.sin(a);
-        const x2  = cx + (r - 1) * Math.cos(a);
-        const y2  = cy + (r - 1) * Math.sin(a);
-        return (
-          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke={isQ ? "#9CA3AF" : "#D1D5DB"}
-            strokeWidth={isQ ? 2 : 1}
-            strokeLinecap="round"
-          />
-        );
-      })}
-      <line x1={cx} y1={cy} x2={h.x} y2={h.y} stroke="#111827" strokeWidth="2.8" strokeLinecap="round" />
-      <line x1={cx} y1={cy} x2={m.x} y2={m.y} stroke="#374151" strokeWidth="2"   strokeLinecap="round" />
-      <line x1={cx} y1={cy} x2={s.x} y2={s.y} stroke="#B8112D" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx={cx} cy={cy} r={2.5} fill="#B8112D" />
-      <circle cx={cx} cy={cy} r={1}   fill="white" />
-    </svg>
+      <svg viewBox="0 0 64 64" className="w-full h-full">
+        <defs>
+          <radialGradient id={`face-${tz}`} cx="40%" cy="35%">
+            <stop offset="0%" stopColor={dark ? "#2a3040" : "#ffffff"} />
+            <stop offset="100%" stopColor={faceFill} />
+          </radialGradient>
+        </defs>
+        <circle cx={cx} cy={cy} r={r + 2} fill="none" stroke={accent} strokeWidth="2.5" opacity="0.85" />
+        <circle cx={cx} cy={cy} r={r} fill={`url(#face-${tz})`} stroke={accent} strokeWidth="1.5" opacity="0.9" />
+        {[...Array(12)].map((_, i) => {
+          const a   = (i * 30 - 90) * (Math.PI / 180);
+          const isQ = i % 3 === 0;
+          const x1  = cx + (r - (isQ ? 7 : 5)) * Math.cos(a);
+          const y1  = cy + (r - (isQ ? 7 : 5)) * Math.sin(a);
+          const x2  = cx + (r - 1.5) * Math.cos(a);
+          const y2  = cy + (r - 1.5) * Math.sin(a);
+          return (
+            <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={isQ ? tickMajor : tickMinor}
+              strokeWidth={isQ ? 2.2 : 1}
+              strokeLinecap="round"
+            />
+          );
+        })}
+        <line x1={cx} y1={cy} x2={h.x} y2={h.y} stroke={hourHand} strokeWidth="3" strokeLinecap="round" />
+        <line x1={cx} y1={cy} x2={m.x} y2={m.y} stroke={minuteHand} strokeWidth="2.2" strokeLinecap="round" />
+        <line x1={cx} y1={cy} x2={s.x} y2={s.y} stroke="#B8112D" strokeWidth="1.4" strokeLinecap="round" opacity="0.95" />
+        <circle cx={cx} cy={cy} r={3} fill="#B8112D" />
+        <circle cx={cx} cy={cy} r={1.2} fill={dark ? "#1e2330" : "#ffffff"} />
+      </svg>
+    </div>
   );
 }
 
@@ -116,9 +131,9 @@ function DigitalTime({ tz }: { tz: string }) {
   useEffect(() => {
     const fmt = () =>
       new Intl.DateTimeFormat("en-US", {
-        timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true,
+        timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
       }).format(new Date());
-    void (async () => { await Promise.resolve(); setStr(fmt()); })();
+    setStr(fmt());
     const id = setInterval(() => setStr(fmt()), 1000);
     return () => clearInterval(id);
   }, [tz]);
@@ -129,25 +144,34 @@ type Zone = (typeof US_ZONES)[number] | (typeof CA_ZONES)[number];
 
 function RegionBadge({ flag, label }: { flag: string; label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 min-w-[32px] sm:min-w-[40px] px-1.5 sm:px-2 py-1 rounded-lg bg-gray-50 border border-gray-100 self-center">
-      <span className="text-sm sm:text-base leading-none">{flag}</span>
-      <span className="text-[10px] sm:text-xs font-bold text-gray-600 uppercase tracking-wide">{label}</span>
+    <div className="flex flex-col items-center justify-center gap-0.5 shrink-0 min-w-[32px] px-1.5 py-1 rounded-lg bg-crm-muted border border-crm-border-subtle">
+      <span className="text-sm leading-none">{flag}</span>
+      <span className="text-[9px] font-bold text-crm-text-muted uppercase tracking-wide">{label}</span>
     </div>
   );
 }
 
-function ZoneClock({ zone, compact }: { zone: Zone; compact?: boolean }) {
+function ZoneClock({ zone, dark }: { zone: Zone; dark: boolean }) {
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-      <AnalogClock tz={zone.tz} compact={compact} />
+    <div
+      className="flex items-center gap-2 shrink-0 px-2 py-1.5 rounded-xl border border-crm-border-subtle bg-crm-surface-raised hover:border-[#B8112D]/25 transition-all"
+      style={{ boxShadow: "var(--crm-shadow)" }}
+    >
+      <AnalogClock tz={zone.tz} accent={zone.accent} dark={dark} />
       <div className="min-w-0">
-        <p className="text-[10px] sm:text-[11px] xl:text-xs font-bold text-[#0F172A] leading-none truncate max-w-[72px] sm:max-w-none">
-          {zone.city}
-        </p>
-        <p className="text-[9px] sm:text-[10px] xl:text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">
-          {zone.label} · <span className="font-semibold text-gray-500">{zone.abbr}</span>
-        </p>
-        <p className="text-[9px] sm:text-[10px] xl:text-[11px] font-mono font-bold text-[#B8112D] mt-0.5 whitespace-nowrap">
+        <div className="flex items-center gap-1">
+          <p className="text-[10px] sm:text-[11px] font-bold text-crm-text leading-none truncate max-w-[72px] sm:max-w-none">
+            {zone.city}
+          </p>
+          <span
+            className="text-[8px] font-black px-1 py-px rounded text-white shrink-0"
+            style={{ backgroundColor: zone.accent }}
+          >
+            {zone.abbr}
+          </span>
+        </div>
+        <p className="text-[9px] text-crm-text-muted mt-0.5 whitespace-nowrap">{zone.label}</p>
+        <p className="text-[9px] sm:text-[10px] font-mono font-bold text-[#B8112D] mt-0.5 whitespace-nowrap tabular-nums">
           <DigitalTime tz={zone.tz} />
         </p>
       </div>
@@ -158,51 +182,40 @@ function ZoneClock({ zone, compact }: { zone: Zone; compact?: boolean }) {
 function TimezoneMapModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[860px] max-h-[88vh] flex flex-col overflow-hidden">
+      <div className="bg-crm-surface rounded-2xl shadow-2xl w-full max-w-[860px] max-h-[88vh] flex flex-col overflow-hidden border border-crm-border-subtle">
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-crm-border-subtle shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-500 flex items-center justify-center shrink-0">
               <Globe size={17} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">US & Canada Timezone Map</h2>
-              <p className="text-[11px] text-gray-400">Reference for identifying which state is in which timezone</p>
+              <h2 className="text-base font-bold text-crm-text">US & Canada Timezone Map</h2>
+              <p className="text-[11px] text-crm-text-muted">Reference for identifying which state is in which timezone</p>
             </div>
           </div>
-          <button onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+          <button type="button" onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-crm-muted hover:bg-crm-nav-pill flex items-center justify-center transition-colors">
             <X size={15} />
           </button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4">
-
-          {/* Visual map — timezone bands */}
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">← West to East →</p>
-            <div className="flex rounded-xl overflow-hidden border border-gray-200">
+            <p className="text-[10px] font-semibold text-crm-text-faint uppercase tracking-wider mb-2">← West to East →</p>
+            <div className="flex rounded-xl overflow-hidden border border-crm-border">
               {MAP_ZONES.map((z, i) => (
                 <div
                   key={z.abbr}
-                  className={`flex-1 ${z.colorHeader} flex flex-col items-center justify-center py-3 sm:py-4 ${i < MAP_ZONES.length - 1 ? "border-r border-gray-200" : ""}`}
+                  className={`flex-1 ${z.colorHeader} flex flex-col items-center justify-center py-3 sm:py-4 ${i < MAP_ZONES.length - 1 ? "border-r border-crm-border" : ""}`}
                 >
                   <span className={`text-lg sm:text-2xl font-black ${z.colorText}`}>{z.abbr}</span>
                   <span className={`text-[9px] sm:text-[10px] font-medium ${z.colorText} opacity-70 mt-0.5 hidden sm:block`}>{z.hours}</span>
                 </div>
               ))}
             </div>
-            <div className="flex mt-0.5">
-              {MAP_ZONES.map((z, i) => (
-                <div key={z.abbr} className={`flex-1 text-center ${i < MAP_ZONES.length - 1 ? "border-r border-transparent" : ""}`}>
-                  <span className={`text-[9px] ${z.colorText} opacity-60 sm:hidden`}>{z.hours}</span>
-                </div>
-              ))}
-            </div>
           </div>
 
-          {/* State columns */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {MAP_ZONES.map(z => (
               <div key={z.abbr} className={`rounded-xl border ${z.colorBorder} ${z.colorBg} p-3 sm:p-3.5`}>
@@ -210,23 +223,18 @@ function TimezoneMapModal({ onClose }: { onClose: () => void }) {
                   <span className={`font-black text-sm ${z.colorText}`}>{z.abbr}</span>
                   <span className={`text-[10px] ${z.colorText} opacity-60 hidden sm:inline`}>{z.label}</span>
                 </div>
-
-                {/* US States */}
                 <p className={`text-[9px] font-semibold uppercase tracking-wide ${z.colorText} opacity-50 mb-1`}>US States</p>
                 <div className="flex flex-wrap gap-1 mb-2.5">
                   {z.states.map(s => (
                     <span key={s} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-white/70 ${z.colorText}`}>{s}</span>
                   ))}
                 </div>
-
-                {/* Canada */}
                 <p className={`text-[9px] font-semibold uppercase tracking-wide ${z.colorText} opacity-50 mb-1`}>Canada</p>
                 <div className="flex flex-wrap gap-1">
                   {z.canada.map(s => (
                     <span key={s} className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white/40 ${z.colorText} opacity-80`}>{s}</span>
                   ))}
                 </div>
-
                 {z.note && (
                   <p className={`text-[9px] ${z.colorText} opacity-60 mt-2 italic`}>{z.note}</p>
                 )}
@@ -234,53 +242,11 @@ function TimezoneMapModal({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
-          {/* Alaska + Hawaii */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 sm:p-3.5">
-              <div className="flex items-baseline gap-1.5 mb-1.5">
-                <span className="font-black text-sm text-teal-800">AKT</span>
-                <span className="text-[10px] text-teal-700 opacity-70">Alaska Time</span>
-              </div>
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-teal-700 opacity-50 mb-1">UTC −9/−8</p>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-white/70 text-teal-800">AK — Alaska</span>
-            </div>
-            <div className="rounded-xl border border-pink-200 bg-pink-50 p-3 sm:p-3.5">
-              <div className="flex items-baseline gap-1.5 mb-1.5">
-                <span className="font-black text-sm text-pink-800">HST</span>
-                <span className="text-[10px] text-pink-700 opacity-70">Hawaii Time</span>
-              </div>
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-pink-700 opacity-50 mb-1">UTC −10 (no DST)</p>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-white/70 text-pink-800">HI — Hawaii</span>
-            </div>
-          </div>
-
-          {/* MST note */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <p className="text-[11px] text-amber-800">
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl p-3">
+            <p className="text-[11px] text-amber-800 dark:text-amber-200">
               <span className="font-bold">⚠ Arizona (AZ)</span> uses Mountain Standard Time (MST) year-round and does <span className="font-semibold">not</span> observe Daylight Saving Time.
             </p>
           </div>
-
-          {/* Canada full note */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Canada — Full Reference</p>
-            <div className="space-y-1">
-              {[
-                { label: "Pacific (PT)",    val: "British Columbia (BC), Yukon (YT)" },
-                { label: "Mountain (MT)",   val: "Alberta (AB), Northwest Territories (NT)" },
-                { label: "Central (CT)",    val: "Saskatchewan (SK), Manitoba (MB)" },
-                { label: "Eastern (ET)",    val: "Ontario (ON), Quebec (QC)" },
-                { label: "Atlantic (AT)",   val: "New Brunswick (NB), Nova Scotia (NS), Prince Edward Island (PE) — UTC −4/−3" },
-                { label: "Newfoundland",    val: "Newfoundland & Labrador (NL) — UTC −3:30/−2:30" },
-              ].map(row => (
-                <div key={row.label} className="flex gap-2 text-[11px]">
-                  <span className="font-semibold text-gray-600 shrink-0 w-[110px]">{row.label}</span>
-                  <span className="text-gray-500">{row.val}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
@@ -289,39 +255,36 @@ function TimezoneMapModal({ onClose }: { onClose: () => void }) {
 
 export default function UsaTimezoneClocks() {
   const [showMap, setShowMap] = useState(false);
+  const { resolvedTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
 
   return (
     <>
-      <div className="bg-white border-b border-gray-100 shadow-sm overflow-hidden">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-5 lg:px-6 py-2 sm:py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4 lg:gap-x-5 flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
-                <RegionBadge flag="🇺🇸" label="US" />
-                {US_ZONES.map(zone => (
-                  <ZoneClock key={zone.tz} zone={zone} compact />
-                ))}
-              </div>
-              <div className="hidden sm:block w-px h-10 bg-gray-200 shrink-0 self-center" />
-              <div className="w-full h-px bg-gray-100 sm:hidden" />
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
-                <RegionBadge flag="🇨🇦" label="CA" />
-                {CA_ZONES.map(zone => (
-                  <ZoneClock key={zone.tz} zone={zone} compact />
-                ))}
-              </div>
-            </div>
-            <div className="shrink-0 flex justify-end lg:justify-center">
-              <button
-                onClick={() => setShowMap(true)}
-                className="flex items-center gap-1.5 h-8 sm:h-9 px-3 sm:px-4 rounded-xl bg-blue-50 text-blue-600 text-[11px] sm:text-xs font-semibold border border-blue-100 hover:bg-blue-100 transition-colors whitespace-nowrap"
-                title="View US & Canada timezone map"
-              >
-                <Globe size={13} />
-                <span className="hidden sm:inline">Timezone Map</span>
-                <span className="sm:hidden">Map</span>
-              </button>
-            </div>
+      <div className="bg-crm-surface border-b border-crm-border-subtle shadow-sm overflow-hidden">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-5 lg:px-6 py-2">
+          <div className="flex items-center gap-2 overflow-x-auto flex-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <RegionBadge flag="🇺🇸" label="US" />
+            {US_ZONES.map(zone => (
+              <ZoneClock key={zone.tz} zone={zone} dark={dark} />
+            ))}
+
+            <span className="w-px h-10 bg-crm-border shrink-0" />
+
+            <RegionBadge flag="🇨🇦" label="CA" />
+            {CA_ZONES.map(zone => (
+              <ZoneClock key={zone.tz} zone={zone} dark={dark} />
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setShowMap(true)}
+              className="ml-auto shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[11px] font-semibold border border-blue-500/20 hover:bg-blue-500/15 transition-colors whitespace-nowrap"
+              title="View US & Canada timezone map"
+            >
+              <Globe size={13} />
+              <span className="hidden sm:inline">Timezone Map</span>
+              <span className="sm:hidden">Map</span>
+            </button>
           </div>
         </div>
       </div>

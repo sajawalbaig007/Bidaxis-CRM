@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import API from "@/lib/api";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import toast, { Toaster } from "react-hot-toast";
 import { formatAdminLead } from "../utils/formatAdminLead";
 import { adminLeadStatusBadgeClass, adminLeadStatusLabel } from "../utils/leadStatus";
@@ -14,12 +16,9 @@ import {
   MoreVertical,
   Eye,
   Trash2,
-  ChevronDown,
-  LayoutGrid,
   HeartHandshake,
   BadgeCheck,
   Users,
-  ChevronUp,
   X,
   CircleAlert,
   CalendarDays,
@@ -61,18 +60,49 @@ type Client = {
 };
 
 const PAGE_SIZE = 30;
-/* ─── STATES ─── */
+type ClientView = "important" | "schedule" | "interested" | "closed";
+
+function isClientView(v: string | null): v is ClientView {
+  return v === "important" || v === "schedule" || v === "interested" || v === "closed";
+}
+
+function LeadsPageFallback() {
+  return (
+    <div className="flex min-h-screen bg-[#F5F6FA]">
+      <DashboardSidebar />
+      <main className="flex-1 p-6 mt-[64px]">
+        <DashboardNavbar />
+        <div className="flex items-center justify-center h-[50vh]">
+          <div className="w-12 h-12 border-4 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </main>
+    </div>
+  );
+}
+
 export default function ClientsPage() {
+  return (
+    <Suspense fallback={<LeadsPageFallback />}>
+      <ClientsPageContent />
+    </Suspense>
+  );
+}
+
+/* ─── STATES ─── */
+function ClientsPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const urlTab = searchParams.get("tab");
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [page,    setPage]    = useState(1);
 
-  const [view, setView] = useState<"all" | "important" | "schedule" | "interested" | "closed">("all");
+  const [view, setView] = useState<ClientView>("important");
+  const effectiveView: ClientView = isClientView(urlTab) ? urlTab : view;
   const [csrFilter, setCsrFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [showCompanies, setShowCompanies] = useState(false);
 
   const [impSearch, setImpSearch] = useState("");
   const [impFilterDate, setImpFilterDate] = useState("");
@@ -120,7 +150,7 @@ export default function ClientsPage() {
       setShowReassignModal(false);
       setReassignClient(null);
       refreshTabCounts();
-      void fetchClients();
+      setRefreshToken(t => t + 1);
     } catch { toast.error("Failed to reassign lead."); }
     finally { setIsReassigning(false); }
   };
@@ -155,6 +185,7 @@ export default function ClientsPage() {
   const [csrOptions, setCsrOptions] = useState<string[]>([]);
   const [searchDebounced, setSearchDebounced] = useState("");
   const [impSearchDebounced, setImpSearchDebounced] = useState("");
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     API.get("/admin/clients/summary")
@@ -175,61 +206,101 @@ export default function ClientsPage() {
     return () => clearTimeout(t);
   }, [impSearch]);
 
-  const fetchClients = useCallback(async () => {
-    setLoading(true);
-    try {
-      const q = view === "important" || view === "schedule" ? impSearchDebounced : searchDebounced;
-      const params = new URLSearchParams({
-        view,
-        page: String(page),
-        limit: String(PAGE_SIZE),
-      });
-      if (csrFilter !== "all") params.set("csr", csrFilter);
-      if (q.trim()) params.set("search", q.trim());
-      if (view === "schedule" && impFilterDate) params.set("scheduleDate", impFilterDate);
-
-      const res = await API.get(`/admin/clients?${params}`);
-      setClients((res.data.leads ?? []).map(formatAdminLead));
-      setTotalRecords(res.data.total ?? 0);
-    } catch {
-      toast.error("Failed to fetch clients");
-    } finally {
-      setLoading(false);
-      setInitialLoad(false);
-    }
-  }, [view, page, csrFilter, searchDebounced, impSearchDebounced, impFilterDate]);
-//
   useEffect(() => {
-    void fetchClients();
-  }, [fetchClients]);
+    let cancelled = false;
 
-  const refreshTabCounts = useCallback(() => {
+    const loadClients = async () => {
+      setLoading(true);
+      try {
+        const q = effectiveView === "important" || effectiveView === "schedule"
+          ? impSearchDebounced
+          : searchDebounced;
+        const params = new URLSearchParams({
+          view: effectiveView,
+          page: String(page),
+          limit: String(PAGE_SIZE),
+        });
+        if (csrFilter !== "all") params.set("csr", csrFilter);
+        if (q.trim()) params.set("search", q.trim());
+        if (effectiveView === "schedule" && impFilterDate) {
+          params.set("scheduleDate", impFilterDate);
+        }
+
+        const res = await API.get(`/admin/clients?${params}`);
+        if (cancelled) return;
+        setClients((res.data.leads ?? []).map(formatAdminLead));
+        setTotalRecords(res.data.total ?? 0);
+      } catch {
+        if (!cancelled) toast.error("Failed to fetch clients");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setInitialLoad(false);
+        }
+      }
+    };
+
+    void loadClients();
+    return () => { cancelled = true; };
+  }, [
+    effectiveView,
+    page,
+    csrFilter,
+    searchDebounced,
+    impSearchDebounced,
+    impFilterDate,
+    refreshToken,
+  ]);
+
+  const refreshTabCounts = () => {
     API.get("/admin/clients/summary")
       .then(res => { if (res.data?.tabCounts) setTabCounts(res.data.tabCounts); })
       .catch(() => {});
-  }, []);
+  };
 
   const totalPagesClients = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
-  const paginatedClients  = clients;
-  const filteredClients     = clients;
 
-  const isScheduleView = view === "schedule";
-  const isClosedView   = view === "closed";
+  const leadColPredicates = useMemo(() => ({
+    client:  (c: ReturnType<typeof formatAdminLead>, v: string) =>
+      textColumnMatch(c.clientName, v) || textColumnMatch(c.email, v),
+    company: (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.company, v),
+    contact: (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.contact, v),
+    scope:   (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.scope, v),
+    csr:     (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.csr, v),
+    status:  (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.status, v),
+    schedule:(c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.nextFollowup, v),
+    time:    (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.time, v),
+    type:    (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.rawStatus, v),
+  }), []);
+
+  const { filters: leadColFilters, setFilter: setLeadColFilter, filtered: colFilteredClients } =
+    useColumnFilters(clients, leadColPredicates);
+
+  const paginatedClients  = colFilteredClients;
+  const filteredClients     = colFilteredClients;
+
+  const isScheduleView = effectiveView === "schedule";
+  const isClosedView   = effectiveView === "closed";
   const tableMinWidth  = isScheduleView || isClosedView ? "1200px" : "1100px";
   const tableColWidths = isScheduleView ? COL_9_SCHEDULE_ADMIN : isClosedView ? COL_9_CLOSED : COL_8_ADMIN;
 
   const tableTitle =
-    view === "interested" ? "Interested Clients"
-    : view === "closed"   ? "Closed Clients"
-    : view === "important"? "Important Clients"
-    : view === "schedule" ? "Schedule Call"
-    : "All Clients";
+    effectiveView === "interested" ? "Interested Clients"
+    : effectiveView === "closed"   ? "Closed Clients"
+    : effectiveView === "important"? "Important Clients"
+    : effectiveView === "schedule" ? "Schedule Call"
+    : "Important Clients";
 
   const tableHeaders = isScheduleView
     ? ["Client", "Company", "Contact", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]
     : isClosedView
     ? ["Client", "Company", "Type", "Scope", "Contact", "CSR", "Status", "Notes", ""]
     : ["Client", "Company", "Scope", "Contact", "CSR", "Status", "Notes", ""];
+
+  const headerFilterKey: Record<string, string> = {
+    Client: "client", Company: "company", Contact: "contact", Scope: "scope",
+    CSR: "csr", Status: "status", "Next Schedule": "schedule", Time: "time", Type: "type",
+  };
 
   const handleSaveClient = () => {
     if (!newClient.clientName || !newClient.email || !newClient.company) {
@@ -363,12 +434,6 @@ export default function ClientsPage() {
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
             {[
               {
-                key: "all",
-                label: "All Clients",
-                count: tabCounts.all,
-                Icon: LayoutGrid,
-              },
-              {
                 key: "important",
                 label: "Important",
                 count: tabCounts.important,
@@ -396,11 +461,12 @@ export default function ClientsPage() {
               <button
                 key={item.key}
                 onClick={() => {
-                  setView(item.key as typeof view);
+                  setView(item.key as ClientView);
                   setPage(1);
+                  router.replace(`/admin/leads?tab=${item.key}`);
                 }}
                 className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
-                  view === item.key
+                  effectiveView === item.key
                     ? "bg-[#B8112D] text-white shadow-md shadow-red-200"
                     : "text-gray-600 hover:bg-[#FFF6F7] hover:text-[#B8112D]"
                 }`}
@@ -409,7 +475,7 @@ export default function ClientsPage() {
                 {item.label}
                 <span
                   className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold ${
-                    view === item.key
+                    effectiveView === item.key
                       ? "bg-white/20"
                       : "bg-gray-100 text-gray-500"
                   }`}
@@ -444,59 +510,6 @@ export default function ClientsPage() {
 
         {/* ─── TABLE VIEWS (all tabs — row layout) ─── */}
         <>
-            {/* Parent Companies accordion — only in "all" view */}
-            {view === "all" && (
-              <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm mb-4 sm:mb-5">
-                <button
-                  onClick={() => setShowCompanies(!showCompanies)}
-                  className="w-full flex items-center justify-between"
-                >
-                  <div>
-                    <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-800 text-left">
-                      Parent Companies
-                    </h2>
-                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1 text-left">
-                      Company groups and associated clients.
-                    </p>
-                  </div>
-                  {showCompanies ? (
-                    <ChevronUp size={18} className="text-gray-500 sm:w-5 sm:h-5" />
-                  ) : (
-                    <ChevronDown size={18} className="text-gray-500 sm:w-5 sm:h-5" />
-                  )}
-                </button>
-
-                <div
-                  className={`overflow-hidden transition-all duration-300 ${
-                    showCompanies ? "max-h-[600px] mt-4 sm:mt-6" : "max-h-0"
-                  }`}
-                >
-                  {/* 2 cols mobile → 3 cols md → 5 cols xl */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                    {[
-                      "BEM DESIGN STUDIO",
-                      "GPS",
-                      "BEM SOLUTIONS",
-                      "PS-ESTIMATING",
-                      "DEVCON-ESTIMATING",
-                    ].map((company) => (
-                      <div
-                        key={company}
-                        className="bg-[#FAFAFB] border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-4"
-                      >
-                        <h3 className="font-semibold text-gray-700 text-xs sm:text-sm">
-                          {company}
-                        </h3>
-                        <p className="text-[11px] sm:text-sm text-gray-400 mt-1 sm:mt-2">
-                          Active Projects & Clients
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Search + filters */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
               <div className="flex flex-col sm:flex-row flex-1 gap-2 sm:gap-3">
@@ -507,17 +520,17 @@ export default function ClientsPage() {
                   />
                   <input
                     type="text"
-                    placeholder={view === "important" || view === "schedule" ? "Search name, phone, company..." : "Search clients..."}
-                    value={view === "important" || view === "schedule" ? impSearch : search}
+                    placeholder={effectiveView === "important" || effectiveView === "schedule" ? "Search name, phone, company..." : "Search clients..."}
+                    value={effectiveView === "important" || effectiveView === "schedule" ? impSearch : search}
                     onChange={(e) => {
-                      if (view === "important" || view === "schedule") setImpSearch(e.target.value);
+                      if (effectiveView === "important" || effectiveView === "schedule") setImpSearch(e.target.value);
                       else setSearch(e.target.value);
                       setPage(1);
                     }}
                     className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
                   />
                 </div>
-                {view === "schedule" && (
+                {effectiveView === "schedule" && (
                   <div className="flex items-center gap-2">
                     <input
                       type="date"
@@ -537,7 +550,6 @@ export default function ClientsPage() {
                 )}
               </div>
 
-              {view === "all" && (
               <button
                 onClick={() => {
                   setShowAddModal(true);
@@ -549,7 +561,6 @@ export default function ClientsPage() {
                 <Plus size={15} />
                 Add Client
               </button>
-              )}
             </div>
 
             {/* ─── TABLE ─── */}
@@ -564,21 +575,40 @@ export default function ClientsPage() {
               <div className="overflow-x-auto">
                 <table className={CSR_TABLE_CLASS} style={{ minWidth: tableMinWidth }}>
                   <CsrColGroup widths={tableColWidths} />
-                  <thead className="bg-[#FAFAFB] border-b border-gray-100">
+                  <thead className={CSR_THEAD}>
                     <tr className="text-left text-xs sm:text-sm text-gray-400">
-                      {tableHeaders.map((h, i) => (
-                          <th
-                            key={i}
-                            className={`${CSR_TH} ${i === tableHeaders.length - 1 ? "text-right" : ""}`}
-                          >
-                            {h}
-                          </th>
-                        ))}
+                      {tableHeaders.map((h, i) => {
+                        const fKey = headerFilterKey[h];
+                        const thCls = `${CSR_TH} ${i === tableHeaders.length - 1 ? "text-right" : ""}`;
+                        if (fKey) {
+                          return (
+                            <FilterableTh
+                              key={h}
+                              title={h}
+                              filter={leadColFilters[fKey] ?? ""}
+                              onFilter={v => setLeadColFilter(fKey, v)}
+                              className={thCls}
+                              placeholder={`${h}…`}
+                            />
+                          );
+                        }
+                        return <th key={h} className={thCls}>{h}</th>;
+                      })}
                     </tr>
                   </thead>
 
                   <tbody>
-                    {filteredClients.length === 0 ? (
+                    {loading ? (
+                      [1, 2, 3, 4, 5].map(i => (
+                        <tr key={i} className="border-b border-gray-100">
+                          {tableHeaders.map((_, j) => (
+                            <td key={j} className="py-4 px-3 sm:px-4">
+                              <div className="h-3.5 bg-gray-100 rounded animate-pulse w-20 sm:w-28" />
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : filteredClients.length === 0 ? (
                       <tr>
                         <td colSpan={tableHeaders.length} className="px-6 py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center">

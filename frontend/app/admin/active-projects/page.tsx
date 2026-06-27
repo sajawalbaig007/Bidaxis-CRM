@@ -15,7 +15,7 @@ import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchMod
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
-import { ADMIN_PROJECT_COLS, CsrColGroup } from "@/app/csr/components/shared/csrTableStyles";
+import { ADMIN_PROJECT_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ClientDetailCell,
   FulfillmentCell,
@@ -42,6 +42,7 @@ type Project = {
   email:             string | null;
   status:            string;
   state:             string | null;
+  timezone:          string | null;
   ownerName:         string | null;
   interestedService: string | null;
   projectTitle:      string | null;
@@ -134,6 +135,7 @@ function projectAsRow(p: Project) {
   return {
     id: p.id,
     name: p.name,
+    company: p.company ?? p.uploadFile?.companyName ?? null,
     ownerName: p.ownerName,
     phone: p.phone,
     email: p.email,
@@ -145,6 +147,8 @@ function projectAsRow(p: Project) {
     projectDeadline: p.projectDeadline,
     projectPhase: p.projectPhase,
     projectPayments: p.projectPayments,
+    state: p.state,
+    timezone: p.timezone,
   };
 }
 
@@ -286,7 +290,7 @@ function ProjectsSection({
         <div className="overflow-x-auto">
           <table className="w-full table-fixed border-collapse" style={{ minWidth: "1280px" }}>
             <CsrColGroup widths={ADMIN_PROJECT_COLS} />
-            <thead className="bg-[#FAFAFA] border-b border-[#F3F3F3]">
+            <thead className={CSR_THEAD}>
               <tr className="text-left">
                 {[
                   "Client Detail",
@@ -295,14 +299,13 @@ function ProjectsSection({
                   "Payment Detail",
                   "Fulfillment",
                   "CSR",
-                  "Email",
                   "Notes",
                   "",
                 ].map((h, i) => (
                   <th
                     key={i}
                     className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD} ${
-                      i === 8 ? "text-right" : ""
+                      i === 7 ? "text-right" : ""
                     }`}
                   >
                     {h}
@@ -314,7 +317,7 @@ function ProjectsSection({
               {loading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="border-b border-[#F3F3F3]">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((j) => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
                       <td key={j} className="px-3 xl:px-4 py-4 xl:py-5">
                         <div className="h-4 bg-gray-100 rounded animate-pulse w-16 xl:w-20" />
                       </td>
@@ -336,11 +339,6 @@ function ProjectsSection({
                         )}
                         <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate">{projectAssigneeLabel(p)}</span>
                       </div>
-                    </td>
-                    <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-hidden">
-                      <span className="text-xs text-gray-700 truncate block" title={p.email ?? undefined}>
-                        {p.email ?? "—"}
-                      </span>
                     </td>
                     <td className="px-3 xl:px-4 py-3 xl:py-4">
                       <CommentCell
@@ -371,7 +369,7 @@ function ProjectsSection({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-16 xl:py-20 text-center">
+                  <td colSpan={8} className="py-16 xl:py-20 text-center">
                     <FolderKanban size={36} className="text-gray-200 mx-auto mb-3 xl:w-10 xl:h-10" />
                     <p className="font-semibold text-gray-400 text-sm xl:text-base">No projects found</p>
                     <p className="text-xs xl:text-sm text-gray-300 mt-1">
@@ -561,6 +559,21 @@ export default function AdminProjectsPage() {
       toast.error("Failed to save project");
     } finally {
       setWorkbenchSaving(false);
+    }
+  };
+
+  const deleteWorkbenchProject = async () => {
+    if (!workbenchProject) return;
+    try {
+      await API.delete(`/admin/lead/${workbenchProject.id}`);
+      setProjects((prev) => prev.filter((p) => p.id !== workbenchProject.id));
+      setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }));
+      setWorkbenchProject(null);
+      toast.success("Project deleted");
+      void fetchProjects();
+    } catch {
+      toast.error("Failed to delete project");
+      throw new Error("delete failed");
     }
   };
 
@@ -855,6 +868,7 @@ export default function AdminProjectsPage() {
           csrs={allCsrs}
           saving={workbenchSaving}
           onSave={saveWorkbench}
+          onDelete={deleteWorkbenchProject}
           noteHistory={workbenchProject ? notesToHistory(workbenchProject.notes) : undefined}
           onAddNote={workbenchProject ? async (text) => { await addAdminNote(workbenchProject.id, text); } : undefined}
         />

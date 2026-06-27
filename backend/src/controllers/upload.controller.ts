@@ -79,13 +79,12 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const sourceId:    string = String(req.body.sourceId ?? "").trim();
     const uploadedBy          = "admin";
 
-    if (!sourceId) {
-      return res.status(400).json({ success: false, message: "Upload source is required" });
-    }
-
-    const source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
-    if (!source) {
-      return res.status(400).json({ success: false, message: "Invalid upload source" });
+    let source: { id: string } | null = null;
+    if (sourceId) {
+      source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
+      if (!source) {
+        return res.status(400).json({ success: false, message: "Invalid upload source" });
+      }
     }
 
     /* accept array of statuses for multi-pane distribution */
@@ -182,7 +181,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         totalLeads:    rows.length,
         uploadedBy,
         companyName:    companyName || null,
-        sourceId:       source.id,
+        sourceId:       source?.id ?? null,
         uploadCategory,
       },
     });

@@ -1,38 +1,337 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── CRM design tokens ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --crm-bg: #f5f6fa;
+  --crm-bg-subtle: #f0f2f7;
+  --crm-surface: #ffffff;
+  --crm-surface-raised: #fafafa;
+  --crm-surface-muted: #f8f9fc;
+  --crm-muted: #f3f4f6;
+  --crm-input: #fafafa;
+  --crm-border: #e5e7eb;
+  --crm-border-subtle: #f3f4f6;
+  --crm-text: #111827;
+  --crm-text-secondary: #374151;
+  --crm-text-muted: #6b7280;
+  --crm-text-faint: #9ca3af;
+  --crm-brand: #b8112d;
+  --crm-brand-soft: #fff1f3;
+  --crm-nav-pill: #f3f4f6;
+  --crm-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --crm-card-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --background: var(--crm-bg);
+  --foreground: var(--crm-text);
+  color-scheme: light;
+}
+
+.dark {
+  /* Dark companion to light — same brand red, soft gray surfaces like light mode */
+  --crm-bg: #13151a;
+  --crm-bg-subtle: #111318;
+  --crm-surface: #1a1d24;
+  --crm-surface-raised: #22262f;
+  --crm-surface-muted: #181b22;
+  --crm-muted: #272c38;
+  --crm-input: #22262f;
+  --crm-border: #343a48;
+  --crm-border-subtle: #2a2f3a;
+  --crm-text: #eef0f4;
+  --crm-text-secondary: #c8cdd6;
+  --crm-text-muted: #949bab;
+  --crm-text-faint: #6e7686;
+  --crm-brand: #b8112d;
+  --crm-brand-soft: #2a1419;
+  --crm-nav-pill: #272c38;
+  --crm-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --crm-card-shadow: 0 8px 28px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --background: var(--crm-bg);
+  --foreground: var(--crm-text);
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-crm-bg: var(--crm-bg);
+  --color-crm-bg-subtle: var(--crm-bg-subtle);
+  --color-crm-surface: var(--crm-surface);
+  --color-crm-surface-raised: var(--crm-surface-raised);
+  --color-crm-surface-muted: var(--crm-surface-muted);
+  --color-crm-muted: var(--crm-muted);
+  --color-crm-input: var(--crm-input);
+  --color-crm-border: var(--crm-border);
+  --color-crm-border-subtle: var(--crm-border-subtle);
+  --color-crm-text: var(--crm-text);
+  --color-crm-text-secondary: var(--crm-text-secondary);
+  --color-crm-text-muted: var(--crm-text-muted);
+  --color-crm-text-faint: var(--crm-text-faint);
+  --color-crm-brand: var(--crm-brand);
+  --color-crm-brand-soft: var(--crm-brand-soft);
+  --color-crm-nav-pill: var(--crm-nav-pill);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--crm-bg);
+  color: var(--crm-text);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* CSR + login hardening — mouse select / drag blocked; inputs stay editable */
+/* ── Dark-mode bridge: maps existing hardcoded Tailwind classes to tokens ── */
+.dark .bg-white { background-color: var(--crm-surface) !important; }
+.dark .bg-gray-50 { background-color: var(--crm-surface-muted) !important; }
+.dark .bg-gray-100 { background-color: var(--crm-muted) !important; }
+.dark .bg-\[\#F5F6FA\] { background-color: var(--crm-bg) !important; }
+.dark .bg-\[\#F0F2F8\] { background-color: var(--crm-bg-subtle) !important; }
+.dark .bg-\[\#F0F2F7\] { background-color: var(--crm-bg-subtle) !important; }
+.dark .bg-\[\#FAFAFA\] { background-color: var(--crm-surface-raised) !important; }
+.dark .bg-\[\#F8F9FC\] { background-color: var(--crm-surface-muted) !important; }
+.dark .bg-\[\#F8F8F8\] { background-color: var(--crm-surface-muted) !important; }
+.dark .bg-\[\#F3F4F6\] { background-color: var(--crm-nav-pill) !important; }
+.dark .bg-\[\#F1F2F6\] { background-color: var(--crm-muted) !important; }
+.dark .bg-\[\#F1F5F9\] { background-color: rgba(100, 116, 139, 0.18) !important; }
+.dark .bg-\[\#F4F4F5\] { background-color: var(--crm-muted) !important; }
+
+.dark .text-gray-900,
+.dark .text-gray-800 { color: var(--crm-text) !important; }
+.dark .text-gray-700,
+.dark .text-gray-600 { color: var(--crm-text-secondary) !important; }
+.dark .text-gray-500 { color: var(--crm-text-muted) !important; }
+.dark .text-gray-400,
+.dark .text-gray-300 { color: var(--crm-text-faint) !important; }
+.dark .text-\[\#0F172A\],
+.dark .text-\[\#111827\] { color: var(--crm-text) !important; }
+.dark .text-\[\#374151\] { color: var(--crm-text-secondary) !important; }
+.dark .text-\[\#4B5563\] { color: var(--crm-text-muted) !important; }
+
+.dark .border-gray-100,
+.dark .border-\[\#F3F3F3\],
+.dark .border-\[\#F7F7F7\] { border-color: var(--crm-border-subtle) !important; }
+.dark .border-gray-200,
+.dark .border-gray-300 { border-color: var(--crm-border) !important; }
+.dark .border-white { border-color: var(--crm-border) !important; }
+
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--crm-border-subtle) !important; }
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--crm-border) !important; }
+
+.dark .hover\:bg-\[\#FAFAFA\]:hover,
+.dark .hover\:bg-\[\#FFFBF2\]:hover { background-color: var(--crm-surface-raised) !important; }
+.dark .hover\:bg-gray-50:hover { background-color: var(--crm-surface-muted) !important; }
+.dark .hover\:bg-gray-100:hover { background-color: var(--crm-muted) !important; }
+.dark .hover\:bg-white:hover { background-color: var(--crm-surface-raised) !important; }
+
+/* ── Dark hover fixes — stop white flashes on tables/rows/dropdowns ── */
+html.dark [class~="hover:bg-white"]:hover,
+html.dark [class~="hover:bg-gray-50"]:hover,
+html.dark [class~="hover:bg-gray-50/80"]:hover,
+html.dark [class~="hover:bg-gray-100"]:hover,
+html.dark [class~="hover:bg-gray-200"]:hover,
+html.dark [class~="hover:bg-[#FAFAFA]"]:hover,
+html.dark table tbody tr:hover {
+  background-color: var(--crm-surface-raised) !important;
+}
+
+/* Red / pink tinted hovers — subtle brand tint like light mode */
+html.dark [class~="hover:bg-[#FFF8F9]"]:hover,
+html.dark [class~="hover:bg-[#FFF6F7]"]:hover,
+html.dark [class~="hover:bg-[#FFF1F3]"]:hover,
+html.dark [class~="hover:bg-[#FFF7E6]"]:hover,
+html.dark [class~="hover:bg-[#FFFBEB]"]:hover,
+html.dark [class~="hover:bg-[#FFFBF5]"]:hover,
+html.dark [class~="hover:bg-[#FFFBF2]"]:hover,
+html.dark [class~="hover:bg-[#FFE4E8]"]:hover,
+html.dark [class~="hover:bg-[#fce8ec]"]:hover,
+html.dark [class~="hover:bg-[#dcecff]"]:hover {
+  background-color: #2f1820 !important;
+}
+
+html.dark table tbody tr:hover :where(.text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-\[\#0F172A\], .text-\[\#111827\]),
+html.dark [class~="hover:bg-white"]:hover :where(.text-gray-800, .text-gray-700, .text-gray-600, .text-\[\#0F172A\]),
+html.dark [class~="hover:bg-gray-50"]:hover :where(.text-gray-800, .text-gray-700, .text-gray-600, .text-\[\#0F172A\]),
+html.dark [class~="hover:bg-[#FAFAFA]"]:hover :where(.text-gray-800, .text-gray-700, .text-gray-600, .text-\[\#0F172A\]) {
+  color: var(--crm-text) !important;
+}
+
+/* Grid/list rows (clients, projects) */
+html.dark [class~="hover:bg-[#F3F4F6]"]:hover,
+html.dark button[class*="hover:bg-[#F3F4F6]"]:hover {
+  background-color: var(--crm-nav-pill) !important;
+}
+
+html.dark button[class*="hover:bg-[#F3F4F6]"]:hover .text-\[\#111827\],
+html.dark button[class*="hover:bg-[#F3F4F6]"]:hover .text-crm-text {
+  color: var(--crm-text) !important;
+}
+
+/* Navbar profile button — no white flash on hover (admin + CSR) */
+.crm-profile-btn {
+  background-color: transparent !important;
+  border: none;
+  cursor: pointer;
+}
+.crm-profile-btn:hover {
+  background-color: var(--crm-nav-pill) !important;
+}
+html.dark .crm-profile-btn:hover {
+  background-color: var(--crm-muted) !important;
+}
+html.dark .crm-profile-btn:hover p,
+html.dark .crm-profile-btn:hover .text-crm-text {
+  color: var(--crm-text) !important;
+}
+html.dark .crm-profile-btn:hover .text-crm-text-muted {
+  color: var(--crm-text-muted) !important;
+}
+
+html.dark .hover\:bg-gray-200:hover { background-color: var(--crm-muted) !important; }
+
+.dark .focus\:bg-white:focus { background-color: var(--crm-input) !important; }
+.dark .placeholder\:text-gray-400::placeholder,
+.dark .placeholder\:text-gray-300::placeholder { color: var(--crm-text-faint) !important; }
+
+.dark .shadow-sm { box-shadow: var(--crm-shadow) !important; }
+.dark .shadow-md { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.04) !important; }
+.dark .shadow-2xl { box-shadow: var(--crm-card-shadow) !important; }
+.dark .shadow-red-200 { box-shadow: 0 4px 14px rgba(184, 17, 45, 0.2) !important; }
+
+/* Status badges — same hues as light, darker tinted backgrounds */
+.dark .bg-\[\#FFF1F3\] { background-color: #2a1419 !important; }
+.dark .bg-\[\#FFF7E6\] { background-color: #2a2210 !important; }
+.dark .bg-\[\#FFF4E5\] { background-color: #2a1e0f !important; }
+.dark .bg-\[\#FFF1E8\] { background-color: #2a1a12 !important; }
+.dark .bg-\[\#ECFDF5\],
+.dark .bg-\[\#ECFDF3\] { background-color: #132820 !important; }
+.dark .bg-\[\#EAF5FF\] { background-color: #141f2e !important; }
+.dark .bg-\[\#F1F5F9\] { background-color: #1e2430 !important; }
+.dark .bg-\[\#F4F4F5\] { background-color: #242830 !important; }
+.dark .bg-red-50 { background-color: #2a1419 !important; }
+.dark .bg-amber-50 { background-color: #2a2210 !important; }
+.dark .bg-\[\#F0FFF4\] { background-color: #132820 !important; }
+
+.dark .hover\:bg-\[\#FFF1F3\]:hover,
+.dark .hover\:bg-\[\#fce8ec\]:hover { background-color: #3a1a22 !important; }
+.dark .hover\:bg-\[\#dcecff\]:hover { background-color: #1a2840 !important; }
+.dark .hover\:bg-\[\#FFFBEB\]:hover { background-color: #322a14 !important; }
+.dark .hover\:bg-green-100:hover { background-color: #1a3328 !important; }
+
+/* Active tabs / selected rows — red tint like light #FFF1F3 */
+.dark .border-\[\#B8112D\].bg-\[\#FFF1F3\],
+.dark .bg-\[\#FFF1F3\].border-\[\#B8112D\] { background-color: #2a1419 !important; }
+
+/* Inputs & search fields */
+.dark input.bg-\[\#FAFAFA\],
+.dark textarea.bg-\[\#FAFAFA\],
+.dark select.bg-\[\#FAFAFA\] { background-color: var(--crm-input) !important; color: var(--crm-text) !important; }
+.dark .border-2.border-gray-200 { border-color: var(--crm-border) !important; }
+
+/* Table headers */
+.crm-thead {
+  background-color: var(--crm-surface-raised);
+  border-bottom-color: var(--crm-border-subtle);
+}
+
+.crm-thead th {
+  color: var(--crm-text-muted);
+  background-color: transparent;
+}
+
+.crm-grid-head {
+  background-color: var(--crm-surface-raised);
+  border-bottom-color: var(--crm-border-subtle);
+}
+
+.crm-grid-head > * {
+  color: var(--crm-text-faint);
+  font-weight: 600;
+}
+
+html.dark .crm-thead,
+html.dark thead.crm-thead,
+html.dark thead[class*="crm-thead"] {
+  background-color: var(--crm-muted) !important;
+}
+
+html.dark thead,
+html.dark thead.bg-white,
+html.dark thead.bg-\[\#FAFAFA\],
+html.dark thead.bg-\[\#FAFAFB\],
+html.dark thead[class*="bg-white"],
+html.dark thead[class*="bg-\[\#FAFA"] {
+  background-color: var(--crm-muted) !important;
+  border-bottom-color: var(--crm-border) !important;
+}
+
+html.dark .crm-thead th,
+html.dark thead th,
+html.dark thead tr.text-gray-400,
+html.dark thead tr.text-gray-500,
+html.dark thead .text-gray-400,
+html.dark thead .text-gray-500 {
+  color: var(--crm-text) !important;
+  background-color: transparent !important;
+  opacity: 0.92;
+}
+
+html.dark thead tr.border-b,
+html.dark thead tr[class*="border-"] {
+  border-color: var(--crm-border) !important;
+}
+
+html.dark .crm-grid-head,
+html.dark div.bg-\[\#FAFAFA\].border-b,
+html.dark .bg-\[\#FAFAFA\].border-b.border-\[\#F3F3F3\] {
+  background-color: var(--crm-muted) !important;
+  border-color: var(--crm-border) !important;
+}
+
+html.dark .crm-grid-head > *,
+html.dark div.bg-\[\#FAFAFA\].border-b .text-gray-400,
+html.dark div.bg-\[\#FAFAFA\].border-b .text-gray-500 {
+  color: var(--crm-text) !important;
+  opacity: 0.9;
+}
+
+html.dark .crm-table-card > div.border-b {
+  border-color: var(--crm-border) !important;
+}
+
+.dark .border-\[\#F3F3F3\],
+.dark .border-\[\#F1F1F1\] { border-color: var(--crm-border) !important; }
+
+.dark .bg-\[\#FAFAFB\] { background-color: var(--crm-surface-raised) !important; }
+.dark thead.bg-\[\#FAFAFA\],
+.dark .bg-\[\#FAFAFA\].border-b { background-color: var(--crm-surface-raised) !important; }
+
+/* Table card token */
+.crm-table-card {
+  background-color: var(--crm-surface);
+  border-color: var(--crm-border-subtle);
+  box-shadow: var(--crm-shadow);
+}
+
+.dark .crm-table-card {
+  border-color: var(--crm-border);
+}
+
+/* CSR + login hardening */
 body.crm-secure-view {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 }
 
-/* CSR: text selection allowed; right-click / devtools still blocked */
 body.crm-secure-view-csr {
   -webkit-user-select: text;
   user-select: text;
@@ -46,11 +345,7 @@ body.crm-secure-view [contenteditable="true"] {
   user-select: text;
 }
 
-body.crm-secure-view img {
-  -webkit-user-drag: none;
-  user-drag: none;
-}
-
+body.crm-secure-view img,
 body.crm-secure-view-csr img {
   -webkit-user-drag: none;
   user-drag: none;

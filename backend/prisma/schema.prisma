@@ -20,6 +20,7 @@ model User {
   role         Role
   csrCode      String?
   cnic         String?
+  cnicPdfUrl   String?
   profilePic   String?
   isActive     Boolean   @default(true)
   isOnline     Boolean   @default(false)
