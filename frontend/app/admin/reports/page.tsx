@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
-import API from "./../../../lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
+import toast from "react-hot-toast";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 
@@ -34,7 +35,7 @@ type ReportResponse = {
 /* ── Main Page ── */
 export default function ReportsPage() {
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
-  const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("today");
+  const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("all");
   const [loadingReport, setLoadingReport] = useState(false);
   const [fromDate,      setFromDate]      = useState("");
   const [toDate,        setToDate]        = useState("");
@@ -66,15 +67,15 @@ export default function ReportsPage() {
       const res = await API.get(url);
       setReportData(res.data);
     } catch (err) {
-      console.log(err);
+      console.error(err);
+      toast.error(apiErrorMessage(err, "Failed to load reports."));
     } finally {
       setLoadingReport(false);
     }
   };
 
   useEffect(() => {
-    const load = async () => { await fetchReports("today"); };
-    load();
+    void fetchReports("all");
   }, []);
 
   const csrList     = useMemo(() => reportData?.csrPerformance ?? [], [reportData]);
@@ -170,8 +171,8 @@ export default function ReportsPage() {
               onClick={() => {
                 setFromDate("");
                 setToDate("");
-                setActivePeriod("today");
-                fetchReports("today");
+                setActivePeriod("all");
+                fetchReports("all");
               }}
               className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 whitespace-nowrap"
             >
@@ -186,6 +187,7 @@ export default function ReportsPage() {
             <div className="flex items-center gap-2 sm:gap-3 min-w-max">
             {/* Period buttons */}
             {([
+              { key: "all",   label: "All Time" },
               { key: "today", label: "Today"   },
               { key: "week",  label: "7 Days"  },
               { key: "month", label: "30 Days" },
@@ -286,7 +288,7 @@ export default function ReportsPage() {
               <h2 className="text-base sm:text-lg font-bold text-[#111827]">Lead Status Breakdown</h2>
               <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
                 {selectedCSR ? selectedCSR.name : "All CSRs"} ·{" "}
-                {activePeriod === "today" ? "Today" : activePeriod === "week" ? "7 Days" : activePeriod === "month" ? "30 Days" : "Custom"}
+                {activePeriod === "all" ? "All time" : activePeriod === "today" ? "Today" : activePeriod === "week" ? "7 Days" : activePeriod === "month" ? "30 Days" : "Custom"}
               </p>
             </div>
             <div className="grid grid-cols-4 gap-3 sm:gap-4 text-center flex-1">
@@ -347,7 +349,8 @@ export default function ReportsPage() {
                   {selectedCSR ? `${selectedCSR.name}'s Performance` : "Overall Performance"}
                 </h2>
                 <p className="mt-0.5 text-xs sm:text-sm text-gray-400">
-                  {activePeriod === "today"  ? "Today's breakdown by hour" :
+                  {activePeriod === "all"    ? "All leads" :
+                   activePeriod === "today"  ? "Today's breakdown by hour" :
                    activePeriod === "week"   ? "Last 7 days" :
                    activePeriod === "month"  ? "Last 30 days" :
                    fromDate && toDate        ? `${fromDate} → ${toDate}` : "All time"}
@@ -400,7 +403,8 @@ export default function ReportsPage() {
               {selectedCSR ? selectedCSR.name : "Quick Insights"}
             </h2>
             <p className="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-5">
-              {activePeriod === "today" ? "Today" :
+              {activePeriod === "all"   ? "All time" :
+               activePeriod === "today" ? "Today" :
                activePeriod === "week"  ? "Last 7 days" :
                activePeriod === "month" ? "Last 30 days" : "Custom range"}
             </p>
