@@ -10,6 +10,7 @@ export type NiLead = {
   email: string;
   state: string;
   status: string;
+  statusUpdatedAt: string;
   notInterestedCount: number;
   notPickedCount: number;
   interestedService: string;
@@ -37,6 +38,7 @@ type RawLead = {
   notes?: RawNote[];
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
+  updatedAt?: string;
 };
 
 function mapNiLead(l: RawLead): NiLead {
@@ -64,6 +66,7 @@ function mapNiLead(l: RawLead): NiLead {
     email:              l.email                   ?? "",
     state:              l.state                   ?? "",
     status:             l.status                  ?? "",
+    statusUpdatedAt:    l.updatedAt               ?? l.createdAt ?? "",
     notInterestedCount: l.notInterestedCount       ?? 0,
     notPickedCount:     l.notPickedCount           ?? 0,
     interestedService:  l.interestedService        ?? "",

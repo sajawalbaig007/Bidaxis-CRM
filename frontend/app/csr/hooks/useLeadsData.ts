@@ -27,6 +27,8 @@ export type ClientLead = {
   status: string;
   interestedService: string;
   comments: string;
+  projectBudget: string;
+  paidAmount: string;
   isOldClient: boolean;
   createdAt: string;
   clientCode: string | null;
@@ -41,8 +43,10 @@ type RawLead = {
   name?: string; company?: string; phone?: string; email?: string; state?: string;
   uploadFile?: { companyName?: string };
   status?: string; interestedService?: string; comments?: string;
+  projectBudget?: string | null; paidAmount?: string | null;
   isOldClient?: boolean; createdAt?: string; clientCode?: string | null;
   contacts?: RawContact[];
+  subContacts?: RawContact[];
   notes?: RawNote[];
 };
 
@@ -72,10 +76,12 @@ function mapClientLead(l: RawLead): ClientLead {
     status:            l.status            ?? "pending",
     interestedService: l.interestedService ?? "",
     comments:          l.comments          ?? "",
+    projectBudget:     l.projectBudget     ?? "",
+    paidAmount:        l.paidAmount        ?? "",
     isOldClient:       l.isOldClient       ?? false,
     createdAt:         l.createdAt         ?? "",
     clientCode:        l.clientCode        ?? null,
-    contacts: (l.contacts ?? []).map((c: RawContact) => ({
+    contacts: (l.subContacts ?? l.contacts ?? []).map((c: RawContact) => ({
       id:          c.id          ?? String(Math.random()),
       name:        c.name        ?? "",
       designation: c.designation ?? "",

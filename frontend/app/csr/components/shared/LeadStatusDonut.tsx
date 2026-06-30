@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip } from "recharts";
 import { getStatusChartData } from "../../constants/statusChart";
 import { Lead } from "../../types/lead";
 import ChartPieSide from "./ChartPieSide";
+import { useMounted } from "@/lib/useMounted";
+
+const DONUT_SIZE = 208;
+const DONUT_INNER = 72;
+const DONUT_OUTER = 104;
 
 interface LeadStatusDonutProps {
   leads: Lead[];
@@ -14,6 +19,7 @@ interface LeadStatusDonutProps {
 export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps) {
   const data  = useMemo(() => getStatusChartData(leads), [leads]);
   const total = useMemo(() => data.reduce((sum, slice) => sum + slice.value, 0), [data]);
+  const mounted = useMounted();
 
   return (
     <div className="bg-white rounded-2xl sm:rounded-[28px] p-4 sm:p-5 lg:p-6 shadow-sm border border-white">
@@ -38,20 +44,28 @@ export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps
         </div>
       ) : (
         <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-6 mt-4 sm:mt-6">
-          <div className="relative w-48 h-48 sm:w-52 sm:h-52 lg:w-64 lg:h-64 mx-auto lg:mx-0 shrink-0 min-h-[12rem] min-w-[12rem]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+          <div className="relative w-48 h-48 sm:w-52 sm:h-52 lg:w-64 lg:h-64 mx-auto lg:mx-0 shrink-0 flex items-center justify-center" style={{ minWidth: DONUT_SIZE, minHeight: DONUT_SIZE }}>
+            {mounted && (
+              <PieChart width={DONUT_SIZE} height={DONUT_SIZE}>
                 <Tooltip
                   formatter={(value, name) => [`${value} Leads`, name]}
                   contentStyle={{ borderRadius: "14px", border: "1px solid #eee", boxShadow: "0 10px 30px rgba(0,0,0,0.08)" }}
                 />
-                <Pie data={data} cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" paddingAngle={4} dataKey="value">
+                <Pie
+                  data={data}
+                  cx={DONUT_SIZE / 2}
+                  cy={DONUT_SIZE / 2}
+                  innerRadius={DONUT_INNER}
+                  outerRadius={DONUT_OUTER}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
                   {data.map(slice => (
                     <Cell key={slice.name} fill={slice.color} stroke="transparent" />
                   ))}
                 </Pie>
               </PieChart>
-            </ResponsiveContainer>
+            )}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-3xl sm:text-4xl font-bold text-[#0F172A]">{total}</span>
               <span className="text-[11px] sm:text-xs text-gray-500 mt-1">Total Leads</span>

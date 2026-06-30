@@ -7,6 +7,7 @@ import {
   formatNotificationStatus,
   statusBadgeColor,
 } from "../../constants/notificationRoutes";
+import { formatStatusTimestamp } from "@/lib/formatStatusTimestamp";
 
 type Period = "day" | "week" | "month";
 
@@ -16,6 +17,7 @@ type ReportData = {
   rangeLabel: string;
   total: number;
   byStatus: Record<string, number>;
+  entries?: { id: string; status: string; createdAt: string; leadName: string }[];
 };
 
 interface Props {
@@ -123,6 +125,7 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
               {report.total === 0 ? (
                 <p className="text-[12px] text-gray-400 mt-3">No status updates in this period.</p>
               ) : (
+                <>
                 <div className="flex flex-wrap gap-2 mt-4">
                   {Object.entries(report.byStatus).map(([status, count]) => (
                     <div
@@ -134,6 +137,25 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
                     </div>
                   ))}
                 </div>
+                {report.entries && report.entries.length > 0 && (
+                  <div className="mt-4 max-h-[220px] overflow-y-auto space-y-1.5 border-t border-gray-100 pt-3">
+                    {report.entries.map(entry => (
+                      <div key={entry.id} className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="text-gray-600 truncate">
+                          <span className="font-semibold text-gray-800">{entry.leadName}</span>
+                          {" → "}
+                          <span className={`font-semibold px-1.5 py-0.5 rounded ${statusBadgeColor(entry.status)}`}>
+                            {formatNotificationStatus(entry.status)}
+                          </span>
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-mono tabular-nums shrink-0">
+                          {formatStatusTimestamp(entry.createdAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                </>
               )}
             </div>
           ) : (

@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw, User2, KeyRound,
+  Globe, RotateCcw, User2, KeyRound, ChevronDown,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -13,8 +13,10 @@ import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
+import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 
 type UserRole = "CSR" | "Admin";
 
@@ -239,6 +241,8 @@ export default function UsersPage() {
   const [loading,      setLoading]      = useState(true);
   const [accessHistory, setAccessHistory] = useState<AccessHistoryRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [editIpOpen, setEditIpOpen] = useState(false);
+  const [detailIpOpen, setDetailIpOpen] = useState(false);
 
   const [form, setForm] = useState({
     name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "",
@@ -299,15 +303,20 @@ export default function UsersPage() {
   }, [fetchUsers]);
 
   useEffect(() => {
-    if (!detailUser) {
+    const target = detailUser ?? editingUser;
+    if (!target) {
       setAccessHistory([]);
       return;
     }
     setLoadingHistory(true);
-    API.get(`/admin/access-history/${detailUser.id}?limit=30`)
+    API.get(`/admin/access-history/${target.id}?limit=30`)
       .then(res => setAccessHistory(res.data.history ?? []))
       .catch(() => setAccessHistory([]))
       .finally(() => setLoadingHistory(false));
+  }, [detailUser, editingUser]);
+
+  useEffect(() => {
+    if (!detailUser) setDetailIpOpen(false);
   }, [detailUser]);
 
   const totalUsers   = users.length;
@@ -541,28 +550,26 @@ export default function UsersPage() {
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#E5E7EB] inline-block"/>Offline</span>
             </div>
           </div>
-          <div className="h-[150px]">
-            {loading ? (
-              <div className="h-full bg-gray-50 rounded-2xl animate-pulse"/>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    { name: "CSR",   online: activeCSR,    offline: users.filter(u => u.role === "CSR").length   - activeCSR   },
-                    { name: "Admin", online: activeAdmins, offline: users.filter(u => u.role === "Admin").length - activeAdmins },
-                  ]}
-                  barGap={8} barSize={52}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:13, fontWeight:700, fill:"#374151" }}/>
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
-                  <Tooltip contentStyle={{ borderRadius:"14px", border:"1px solid #e5e7eb", fontSize:"12px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}/>
-                  <Bar dataKey="online"  fill="#12B76A" radius={[7,7,0,0]} name="Online"/>
-                  <Bar dataKey="offline" fill="#E5E7EB" radius={[7,7,0,0]} name="Offline"/>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+          {loading ? (
+            <div className="h-[150px] bg-gray-50 rounded-2xl animate-pulse" />
+          ) : (
+            <RechartsBox height={150}>
+              <BarChart
+                data={[
+                  { name: "CSR",   online: activeCSR,    offline: users.filter(u => u.role === "CSR").length   - activeCSR   },
+                  { name: "Admin", online: activeAdmins, offline: users.filter(u => u.role === "Admin").length - activeAdmins },
+                ]}
+                barGap={8} barSize={52}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:13, fontWeight:700, fill:"#374151" }}/>
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
+                <Tooltip contentStyle={{ borderRadius:"14px", border:"1px solid #e5e7eb", fontSize:"12px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}/>
+                <Bar dataKey="online"  fill="#12B76A" radius={[7,7,0,0]} name="Online"/>
+                <Bar dataKey="offline" fill="#E5E7EB" radius={[7,7,0,0]} name="Offline"/>
+              </BarChart>
+            </RechartsBox>
+          )}
           <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
             {[
               { label:"Total Users",    value: totalUsers,   color:"text-[#111827]" },
@@ -808,48 +815,105 @@ export default function UsersPage() {
                   </div>
                 ))}
 
+                {(detailUser.cnic || detailUser.cnicPdfUrl) && (
+                  <div className="bg-[#F8F9FC] rounded-2xl p-4">
+                    <p className="text-xs text-gray-400 mb-1">CNIC</p>
+                    {detailUser.cnic && (
+                      <p className="text-sm font-mono font-medium text-gray-700">{detailUser.cnic}</p>
+                    )}
+                    {detailUser.cnicPdfUrl && (
+                      <div className="mt-3">
+                        {/\.(png|jpe?g|webp|gif)(\?|$)/i.test(detailUser.cnicPdfUrl) ? (
+                          <img
+                            src={detailUser.cnicPdfUrl}
+                            alt="CNIC"
+                            className="w-full max-h-44 object-contain rounded-xl border border-gray-200 bg-white"
+                          />
+                        ) : (
+                          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                            <iframe
+                              src={detailUser.cnicPdfUrl}
+                              title="CNIC document"
+                              className="w-full h-44"
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 mt-2">
+                          <PdfPreview url={detailUser.cnicPdfUrl} fileName="CNIC document" />
+                          <a
+                            href={detailUser.cnicPdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-[#B8112D] hover:underline"
+                          >
+                            Open in new tab
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="bg-[#F8F9FC] rounded-2xl p-4">
                   <p className="text-xs text-gray-400 mb-1">Password</p>
                   <h3 className="text-sm font-medium text-gray-700">Encrypted (bcrypt hash in database)</h3>
                 </div>
 
-                <div className="bg-[#F8F9FC] rounded-2xl p-4">
-                  <p className="text-xs text-gray-400 mb-2">IP &amp; Device Access History</p>
-                  <p className="text-[10px] text-gray-400 mb-3">
-                    Browsers cannot expose MAC addresses — device ID is the session tab identifier.
-                  </p>
-                  {loadingHistory ? (
-                    <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
-                  ) : accessHistory.length === 0 ? (
-                    <p className="text-xs text-gray-400">No access records yet.</p>
-                  ) : (
-                    <div className="overflow-x-auto -mx-1">
-                      <table className="w-full text-[11px]">
-                        <thead>
-                          <tr className="text-left text-gray-400 border-b border-gray-200">
-                            <th className="pb-2 pr-2 font-medium">When</th>
-                            <th className="pb-2 pr-2 font-medium">Event</th>
-                            <th className="pb-2 pr-2 font-medium">IP</th>
-                            <th className="pb-2 pr-2 font-medium">Device</th>
-                            <th className="pb-2 font-medium">Browser</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {accessHistory.map(row => (
-                            <tr key={row.id} className="border-b border-gray-100 last:border-0">
-                              <td className="py-2 pr-2 text-gray-600 whitespace-nowrap">
-                                {new Date(row.createdAt).toLocaleString("en-GB", {
-                                  day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-                                })}
-                              </td>
-                              <td className="py-2 pr-2 font-medium text-gray-700 capitalize">{row.event}</td>
-                              <td className="py-2 pr-2 font-mono text-gray-600">{row.ip ?? "—"}</td>
-                              <td className="py-2 pr-2 font-mono text-gray-500">{row.deviceId ?? "—"}</td>
-                              <td className="py-2 text-gray-500">{row.browser ?? "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setDetailIpOpen(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-[#F8F9FC] text-left"
+                  >
+                    <div>
+                      <span className="text-sm font-semibold text-gray-700">IP &amp; Device Access History</span>
+                      {!detailIpOpen && accessHistory.length > 0 && (
+                        <span className="ml-2 text-[10px] font-semibold text-gray-400">
+                          ({accessHistory.length} record{accessHistory.length === 1 ? "" : "s"})
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform shrink-0 ${detailIpOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {detailIpOpen && (
+                    <div className="p-4">
+                      <p className="text-[10px] text-gray-400 mb-3">
+                        Browsers cannot expose MAC addresses — device ID is the session tab identifier.
+                      </p>
+                      {loadingHistory ? (
+                        <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+                      ) : accessHistory.length === 0 ? (
+                        <p className="text-xs text-gray-400">No access records yet.</p>
+                      ) : (
+                        <div className="overflow-x-auto -mx-1 max-h-52 overflow-y-auto">
+                          <table className="w-full text-[11px]">
+                            <thead className="sticky top-0 bg-[#F8F9FC]">
+                              <tr className="text-left text-gray-400 border-b border-gray-200">
+                                <th className="pb-2 pr-2 font-medium">When</th>
+                                <th className="pb-2 pr-2 font-medium">Event</th>
+                                <th className="pb-2 pr-2 font-medium">IP</th>
+                                <th className="pb-2 pr-2 font-medium">Device</th>
+                                <th className="pb-2 font-medium">Browser</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {accessHistory.map(row => (
+                                <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                                  <td className="py-2 pr-2 text-gray-600 whitespace-nowrap">
+                                    {new Date(row.createdAt).toLocaleString("en-GB", {
+                                      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                                    })}
+                                  </td>
+                                  <td className="py-2 pr-2 font-medium text-gray-700 capitalize">{row.event}</td>
+                                  <td className="py-2 pr-2 font-mono text-gray-600">{row.ip ?? "—"}</td>
+                                  <td className="py-2 pr-2 font-mono text-gray-500">{row.deviceId ?? "—"}</td>
+                                  <td className="py-2 text-gray-500">{row.browser ?? "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1096,6 +1160,49 @@ export default function UsersPage() {
                     </div>
                   </div>
                 </div>
+
+                {editingUser && (
+                  <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setEditIpOpen(v => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-[#F8F9FC] text-left"
+                    >
+                      <span className="text-sm font-semibold text-gray-700">IP &amp; Device Access History</span>
+                      <ChevronDown size={16} className={`text-gray-400 transition-transform ${editIpOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {editIpOpen && (
+                      <div className="p-4 max-h-48 overflow-y-auto">
+                        {loadingHistory ? (
+                          <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
+                        ) : accessHistory.length === 0 ? (
+                          <p className="text-xs text-gray-400">No access records yet.</p>
+                        ) : (
+                          <table className="w-full text-[11px]">
+                            <thead>
+                              <tr className="text-left text-gray-400 border-b">
+                                <th className="pb-1 pr-2">When</th>
+                                <th className="pb-1 pr-2">IP</th>
+                                <th className="pb-1">Browser</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {accessHistory.map(row => (
+                                <tr key={row.id} className="border-b border-gray-50 last:border-0">
+                                  <td className="py-1.5 pr-2 text-gray-600 whitespace-nowrap">
+                                    {new Date(row.createdAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                  </td>
+                                  <td className="py-1.5 pr-2 font-mono">{row.ip ?? "—"}</td>
+                                  <td className="py-1.5 truncate">{row.browser ?? "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setShowModal(false); setEditingUser(null); }}

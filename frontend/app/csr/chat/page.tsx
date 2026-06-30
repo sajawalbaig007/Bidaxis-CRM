@@ -14,8 +14,18 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ChatActionRail from "@/app/components/chat/ChatActionRail";
 import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 import API from "@/lib/api";
+import { getAuthMe } from "@/lib/authMeCache";
+import { fetchChatMessages, isChatConversationsFresh } from "@/lib/chatApiCache";
 import { playChatSound } from "@/lib/chatSound";
-import { ensureChatUnreadPolling, pollChatUnread, stopChatUnreadPolling, subscribeChatUnread } from "@/lib/chatUnreadStore";
+import {
+  ensureChatUnreadPolling, getChatConversations,
+  forceStopChatUnreadPolling, pollChatUnread, subscribeChatUnread,
+} from "@/lib/chatUnreadStore";
+import {
+  forceStopChatStatusHeartbeat,
+  startChatStatusHeartbeat,
+  stopChatStatusHeartbeat,
+} from "@/lib/chatStatusHeartbeat";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface ChatUser {
@@ -391,13 +401,7 @@ export default function ChatPage() {
 
   /* ── Profile ── */
   useEffect(() => {
-    void (async () => {
-      try {
-        const r = await API.get("/auth/me");
-        const u = r.data?.user ?? null;
-        setMe(u); meRef.current = u;
-      } catch { /* ignore */ }
-    })();
+    void getAuthMe().then(u => { if (u) { setMe(u); meRef.current = u; } });
   }, []);
 
   /* ── Notification permission ── */
@@ -411,25 +415,30 @@ export default function ChatPage() {
   /* ── Conversation list via shared store — poll only while this page is open ── */
   useEffect(() => {
     ensureChatUnreadPolling();
-    void pollChatUnread().finally(() => setLoadingConvs(false));
+
+    const cached = getChatConversations();
+    if (cached.length > 0) {
+      setConversations(deduplicateConvs(cached));
+      setLoadingConvs(false);
+    }
+    if (!isChatConversationsFresh() || cached.length === 0) {
+      void pollChatUnread().finally(() => setLoadingConvs(false));
+    }
+
     const unsub = subscribeChatUnread((_total, convs) => {
       setConversations(prev => mergeConversationLists(deduplicateConvs(convs), prev));
     });
     return () => {
       unsub();
-      stopChatUnreadPolling();
+      forceStopChatUnreadPolling();
+      forceStopChatStatusHeartbeat();
     };
   }, []);
 
   /* ── Heartbeat ── */
   useEffect(() => {
-    const ping = () => void API.post("/chat/status", { online: true }).catch(() => {});
-    ping();
-    const t = setInterval(ping, 30000);
-    return () => {
-      clearInterval(t);
-      void API.post("/chat/status", { online: false }).catch(() => {});
-    };
+    startChatStatusHeartbeat();
+    return () => stopChatStatusHeartbeat();
   }, []);
 
   /* ── Load + poll messages + typing ── */
@@ -446,8 +455,9 @@ export default function ChatPage() {
       setMessages([]);
       setLoadingMsgs(true);
       try {
-        const r = await API.get(`/chat/conversations/${cid}/messages`);
-        const msgs: Message[] = r.data.messages ?? r.data ?? [];
+        const url = `/chat/conversations/${cid}/messages`;
+        const payload = await fetchChatMessages(url);
+        const msgs: Message[] = payload.messages as Message[];
         setMessages(msgs);
         lastMsgCount.current = msgs.length;
         setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
@@ -459,14 +469,15 @@ export default function ChatPage() {
 
     const stopPoll = visibleInterval(async () => {
       try {
-        const [msgRes, typingRes] = await Promise.all([
-          API.get(`/chat/conversations/${cid}/messages`),
+        const url = `/chat/conversations/${cid}/messages`;
+        const [payload, typingRes] = await Promise.all([
+          fetchChatMessages(url),
           API.get(`/chat/conversations/${cid}/typing`).catch(() => ({ data: { names: [] } })),
         ]);
 
         setTypingName((typingRes.data.names as string[])?.[0] ?? null);
 
-        const msgs: Message[] = msgRes.data.messages ?? [];
+        const msgs: Message[] = payload.messages as Message[];
         if (msgs.length !== lastMsgCount.current) {
           const hadNew = msgs.length > lastMsgCount.current;
           lastMsgCount.current = msgs.length;
@@ -486,7 +497,7 @@ export default function ChatPage() {
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
       } catch { /* ignore */ }
-    }, 3_000);
+    }, 8_000);
 
     return stopPoll;
   }, [activeConvId]);

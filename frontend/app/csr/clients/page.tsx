@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Search, Filter, Phone, Briefcase,
   Clock3, Building2, AlignLeft, RefreshCw, Eye, Plus, X,
   Pencil, User2, Mail, MapPin, StickyNote, History,
-  CheckCircle2, Trash2, Loader2,
+  CheckCircle2, Trash2, Loader2, DollarSign,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -20,6 +20,11 @@ import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
+import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
+import SubContactsCell from "@/app/components/clients/SubContactsCell";
+import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
+import { apiErrorMessage } from "@/lib/api";
+import { formatQuotedAmount, parseMoney } from "@/lib/projectFields";
 
 /* ─── Constants ─────────────────────────────────────────── */
 const EDIT_STATUSES = ["pending", "important", "interested", "Close Client", "completed"];
@@ -34,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed:        "bg-emerald-50 text-emerald-700",
 };
 const PAGE_SIZE = 30;
-const emptyAdd  = { name: "", phone: "", email: "", company: "", state: "", service: "", comments: "" };
+const emptyAdd  = { name: "", phone: "", email: "", company: "", state: "", service: "", comments: "", quotation: "", upfront: "" };
 const emptyContact = { name: "", designation: "", phone: "", email: "" };
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -92,6 +97,8 @@ export default function LeadsPage() {
   const [editService,  setEditService]  = useState("");
   const [editStatus,   setEditStatus]   = useState("");
   const [editComments, setEditComments] = useState("");
+  const [editQuotation, setEditQuotation] = useState("");
+  const [editUpfront,   setEditUpfront]   = useState("");
   const [saving,       setSaving]       = useState(false);
 
   /* ── add modal ── */
@@ -138,6 +145,7 @@ export default function LeadsPage() {
   const [newContact,      setNewContact]        = useState(emptyContact);
   const [contactSaving,   setContactSaving]     = useState(false);
   const [removingContactId, setRemovingContactId] = useState<string | null>(null);
+  const [historyLead, setHistoryLead] = useState<ClientLead | null>(null);
 
   /* ─── Derived ──────────────────────────────────────────── */
   const wonLeads = useMemo(() => leads.filter(l => l.status === "Close Client" || l.status === "completed"), [leads]);
@@ -219,6 +227,8 @@ export default function LeadsPage() {
     setEditService(viewing.interestedService);
     setEditStatus(viewing.status);
     setEditComments(viewing.comments);
+    setEditQuotation(viewing.projectBudget);
+    setEditUpfront(viewing.paidAmount);
     setIsEditing(true);
   };
 
@@ -235,6 +245,8 @@ export default function LeadsPage() {
         interestedService: editService        || undefined,
         status:            editStatus         || undefined,
         comments:          editComments       || undefined,
+        projectBudget:     editQuotation.trim() || undefined,
+        paidAmount:        editUpfront.trim()   || undefined,
       });
       const updated: ClientLead = {
         ...viewing,
@@ -246,6 +258,8 @@ export default function LeadsPage() {
         interestedService: editService,
         status:            editStatus,
         comments:          editComments,
+        projectBudget:     editQuotation.trim(),
+        paidAmount:        editUpfront.trim(),
       };
       setLeads(prev => prev.map(l => l.id === viewing.id ? updated : l));
       setViewing(updated);
@@ -268,6 +282,8 @@ export default function LeadsPage() {
         state:             addForm.state.trim()   || undefined,
         interestedService: addForm.service        || undefined,
         comments:          addForm.comments.trim() || undefined,
+        projectBudget:     addForm.quotation.trim() || undefined,
+        paidAmount:        addForm.upfront.trim()   || undefined,
       });
       const nl = res.data.lead;
       const fresh: ClientLead = {
@@ -281,6 +297,8 @@ export default function LeadsPage() {
         status: "pending",
         interestedService: addForm.service,
         comments: addForm.comments.trim(),
+        projectBudget: addForm.quotation.trim(),
+        paidAmount: addForm.upfront.trim(),
         isOldClient: false,
         createdAt: new Date().toISOString(),
         clientCode: null,
@@ -292,8 +310,8 @@ export default function LeadsPage() {
       setLeads(prev => [fresh, ...prev]);
       closeAddModal();
       toast.success("Lead added");
-    } catch {
-      setAddError("Failed to add lead. Please try again.");
+    } catch (err) {
+      setAddError(apiErrorMessage(err, "Failed to add lead. Please try again."));
     }
     setAddSaving(false);
   };
@@ -325,8 +343,8 @@ export default function LeadsPage() {
     if (!viewing || !newContact.name.trim()) return;
     setContactSaving(true);
     try {
-      const res = await API.post(`/csr/lead/${viewing.id}/contacts`, newContact);
-      const saved: SubContact = res.data.contact ?? {
+      const res = await API.post(`/csr/lead/${viewing.id}/subcontacts`, newContact);
+      const saved: SubContact = res.data.subContact ?? {
         id: String(Date.now()),
         ...newContact,
       };
@@ -343,7 +361,7 @@ export default function LeadsPage() {
     if (!viewing) return;
     setRemovingContactId(contactId);
     try {
-      await API.delete(`/csr/lead/${viewing.id}/contacts/${contactId}`);
+      await API.delete(`/csr/lead/${viewing.id}/subcontacts/${contactId}`);
       const updated: ClientLead = { ...viewing, contacts: viewing.contacts.filter(c => c.id !== contactId) };
       setLeads(prev => prev.map(l => l.id === viewing.id ? updated : l));
       setViewing(updated);
@@ -456,15 +474,15 @@ export default function LeadsPage() {
             </div>
           ) : filtered.length > 0 ? (
             <>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-hidden">
               {/* Desktop header */}
-              <div className={`hidden lg:grid gap-3 px-5 lg:px-6 py-3 min-w-[1120px] ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
-                {["Code", "Client", "Company", "Phone", "Email", "Service", "Latest Note", ""].map(h => (
+              <div className={`hidden lg:grid gap-2 px-4 lg:px-5 py-2.5 w-full ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
+                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Latest Note", ""].map(h => (
                   <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                 ))}
               </div>
 
-              <div className="divide-y divide-[#F3F3F3] min-w-[1120px]">
+              <div className="divide-y divide-[#F3F3F3] w-full">
                 {paginated.map(lead => {
                   const latestNote = getLatestNote(lead);
                   const displayName = lead.name;
@@ -533,6 +551,10 @@ export default function LeadsPage() {
                         })()}
                       </div>
 
+                      <div className="hidden lg:block min-w-0">
+                        <SubContactsCell contacts={lead.contacts} />
+                      </div>
+
                       {/* Email */}
                       <p className={`hidden lg:block text-xs lg:text-sm truncate ${lead.email ? "text-[#0F172A]" : "text-gray-300"}`}>
                         {lead.email || "—"}
@@ -572,9 +594,13 @@ export default function LeadsPage() {
                           title="Notes history">
                           <StickyNote size={13} />
                         </button>
-                        <button onClick={() => openDetail(lead)}
+                        <button
+                          onClick={() => lead.isOldClient && lead.phone && lead.phone !== "N/A"
+                            ? setHistoryLead(lead)
+                            : openDetail(lead)}
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
-                          title="View details">
+                          title={lead.isOldClient ? "Client history" : "View details"}
+                        >
                           <Eye size={13} />
                         </button>
                       </div>
@@ -712,9 +738,10 @@ export default function LeadsPage() {
                       </label>
                       <div className="relative">
                         <input
-                          type="text"
+                          type="tel"
                           value={addForm.phone}
-                          placeholder="+1 234 567 890"
+                          placeholder="Phone number"
+                          autoComplete="tel"
                           onChange={e => {
                             const value = e.target.value;
                             setAddForm(f => ({ ...f, phone: value }));
@@ -737,35 +764,38 @@ export default function LeadsPage() {
                       </div>
                     )}
 
-                    <div>
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Name <span className="text-[#B8112D]">*</span></label>
-                      <input type="text" value={addForm.name} placeholder="Full name"
-                        onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
-                        className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                      />
-                    </div>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Email</label>
-                        <input type="email" value={addForm.email} placeholder="email@co.com"
-                          onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Name <span className="text-[#B8112D]">*</span></label>
+                        <input type="text" value={addForm.name} placeholder="Client name"
+                          onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
                           className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company</label>
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company Name</label>
                         <input type="text" value={addForm.company} placeholder="Company name"
                           onChange={e => setAddForm(f => ({ ...f, company: e.target.value }))}
                           className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
-                      <input type="text" value={addForm.state} placeholder="e.g. California"
-                        onChange={e => setAddForm(f => ({ ...f, state: e.target.value }))}
-                        className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                      />
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Email Address</label>
+                        <input type="email" value={addForm.email} placeholder="Email address"
+                          autoComplete="email"
+                          onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
+                        <input type="text" value={addForm.state} placeholder="e.g. California"
+                          onChange={e => setAddForm(f => ({ ...f, state: e.target.value }))}
+                          className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -774,6 +804,54 @@ export default function LeadsPage() {
                       <Briefcase size={10} className="text-[#B8112D]" />Service Interested In
                     </label>
                     <ServicePicker value={addForm.service} onChange={v => setAddForm(f => ({ ...f, service: f.service === v ? "" : v }))} />
+                  </div>
+
+                  <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
+                    <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <DollarSign size={11} className="text-[#B8112D]" />Quotation &amp; Upfront
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Quotation</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                          <input
+                            type="text"
+                            placeholder="0.00"
+                            value={addForm.quotation.replace(/^\$/, "")}
+                            onChange={e => setAddForm(f => ({ ...f, quotation: e.target.value.replace(/[^0-9.]/g, "") }))}
+                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Upfront Amount</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                          <input
+                            type="text"
+                            placeholder="0.00"
+                            value={addForm.upfront.replace(/^\$/, "")}
+                            onChange={e => setAddForm(f => ({ ...f, upfront: e.target.value.replace(/[^0-9.]/g, "") }))}
+                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {(parseMoney(addForm.quotation) > 0 || parseMoney(addForm.upfront) > 0) && (
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <PaymentStatusCircle
+                          percent={parseMoney(addForm.quotation) > 0
+                            ? (parseMoney(addForm.upfront) / parseMoney(addForm.quotation)) * 100
+                            : 0}
+                        />
+                        <p className="text-[10px] sm:text-[11px] text-gray-500">
+                          {parseMoney(addForm.quotation) > 0
+                            ? `${Math.round((parseMoney(addForm.upfront) / parseMoney(addForm.quotation)) * 100)}% of ${formatQuotedAmount(addForm.quotation)} upfront`
+                            : `Upfront: ${formatQuotedAmount(addForm.upfront)}`}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -866,6 +944,8 @@ export default function LeadsPage() {
                           { Icon: MapPin,    label: "State",   value: viewing.state   || "Not provided"  },
                           { Icon: Briefcase, label: "Service", value: viewing.interestedService || "N/A" },
                           { Icon: Clock3,    label: "Status",  value: viewing.status                     },
+                          { Icon: DollarSign, label: "Quotation", value: formatQuotedAmount(viewing.projectBudget) },
+                          { Icon: DollarSign, label: "Upfront",   value: formatQuotedAmount(viewing.paidAmount) },
                         ].map(({ Icon, label, value }) => (
                           <div key={label} className="bg-[#F8F9FC] rounded-xl p-3">
                             <div className="flex items-center gap-1 mb-1">
@@ -876,6 +956,22 @@ export default function LeadsPage() {
                           </div>
                         ))}
                       </div>
+
+                      {(parseMoney(viewing.projectBudget) > 0 || parseMoney(viewing.paidAmount) > 0) && (
+                        <div className="flex items-center gap-3 bg-[#F8F9FC] rounded-xl p-3">
+                          <PaymentStatusCircle
+                            percent={parseMoney(viewing.projectBudget) > 0
+                              ? (parseMoney(viewing.paidAmount) / parseMoney(viewing.projectBudget)) * 100
+                              : 0}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Payment progress</p>
+                            <p className="text-[12px] sm:text-[13px] font-semibold text-[#0F172A] mt-0.5">
+                              {formatQuotedAmount(viewing.paidAmount)} of {formatQuotedAmount(viewing.projectBudget)} upfront
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Latest note */}
                       {viewing.noteHistory.length > 0 && (
@@ -995,11 +1091,20 @@ export default function LeadsPage() {
                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                           <User2 size={11} className="text-[#B8112D]" />Contact Information
                         </p>
-                        <div>
-                          <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Name</label>
-                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
-                          />
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Name</label>
+                            <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company Name</label>
+                            <input type="text" value={editCompany} onChange={e => setEditCompany(e.target.value)}
+                              placeholder="Company name"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                            />
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 sm:gap-3">
                           <div>
@@ -1017,21 +1122,12 @@ export default function LeadsPage() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                          <div>
-                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Company</label>
-                            <input type="text" value={editCompany} onChange={e => setEditCompany(e.target.value)}
-                              placeholder="Company name"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
-                            <input type="text" value={editState} onChange={e => setEditState(e.target.value)}
-                              placeholder="e.g. California"
-                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                            />
-                          </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
+                          <input type="text" value={editState} onChange={e => setEditState(e.target.value)}
+                            placeholder="e.g. California"
+                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                          />
                         </div>
                       </div>
 
@@ -1040,6 +1136,40 @@ export default function LeadsPage() {
                           <Briefcase size={10} className="text-[#B8112D]" />Service Type
                         </label>
                         <ServicePicker value={editService} onChange={v => setEditService(s => s === v ? "" : v)} />
+                      </div>
+
+                      <div className="bg-[#F8F9FC] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <DollarSign size={10} className="text-[#B8112D]" />Quotation &amp; Upfront
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Quotation</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                              <input
+                                type="text"
+                                value={editQuotation.replace(/^\$/, "")}
+                                placeholder="0.00"
+                                onChange={e => setEditQuotation(e.target.value.replace(/[^0-9.]/g, ""))}
+                                className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Upfront Amount</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                              <input
+                                type="text"
+                                value={editUpfront.replace(/^\$/, "")}
+                                placeholder="0.00"
+                                onChange={e => setEditUpfront(e.target.value.replace(/[^0-9.]/g, ""))}
+                                className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white pl-6 pr-3 text-sm outline-none focus:border-[#B8112D] transition-colors"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <div>
@@ -1090,6 +1220,14 @@ export default function LeadsPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {historyLead && historyLead.phone && historyLead.phone !== "N/A" && (
+          <ClientHistoryModal
+            phone={historyLead.phone}
+            clientName={historyLead.name}
+            onClose={() => setHistoryLead(null)}
+          />
         )}
       </main>
     </div>

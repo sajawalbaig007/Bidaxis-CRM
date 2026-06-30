@@ -19,12 +19,16 @@ import {
   Phone,
   Clock,
   Activity,
+  X,
 } from "lucide-react";
 import API from "@/lib/api";
+import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
+import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
+import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 import {
   formatNotificationStatus,
@@ -117,6 +121,17 @@ export default function TopNavbar() {
   const profileRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
+  const closeChat = () => {
+    forceStopChatUnreadPolling();
+    forceStopChatStatusHeartbeat();
+    setChatOpen(false);
+  };
+
+  useEffect(() => () => {
+    forceStopChatUnreadPolling();
+    forceStopChatStatusHeartbeat();
+  }, []);
+
   useEffect(() => {
     if (sessionStorage.getItem("csrChatOpen") === "1") {
       sessionStorage.removeItem("csrChatOpen");
@@ -131,8 +146,10 @@ export default function TopNavbar() {
       getAuthMe(),
       API.get("/csr/notifications").catch(() => null),
     ]).then(([userData, notifRes]) => {
+      const dismissed = getDismissedNotificationIds();
+      const allCalls = (notifRes?.data?.scheduledCalls ?? []) as ScheduledCall[];
       const payload: NotificationsPayload = {
-        scheduledCalls: notifRes?.data?.scheduledCalls ?? [],
+        scheduledCalls: allCalls.filter(c => !dismissed.has(c.id)),
         dailyStats:     notifRes?.data?.dailyStats ?? { total: 0, byStatus: {}, periodHours: 24 },
       };
 
@@ -188,6 +205,7 @@ export default function TopNavbar() {
   const hasNotifications = calls.length > 0 || dailyStats.total > 0;
 
   const handleClearNotifications = () => {
+    clearDismissedNotifications();
     const empty: NotificationsPayload = {
       scheduledCalls: [],
       dailyStats: { total: 0, byStatus: {}, periodHours: 24 },
@@ -195,6 +213,21 @@ export default function TopNavbar() {
     _cachedNotifications = empty;
     setNotifications(empty);
     toast.success("Notifications cleared.");
+  };
+
+  const dismissOneCall = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    dismissNotification(id);
+    setNotifications(prev => ({
+      ...prev,
+      scheduledCalls: prev.scheduledCalls.filter(c => c.id !== id),
+    }));
+    if (_cachedNotifications) {
+      _cachedNotifications = {
+        ..._cachedNotifications,
+        scheduledCalls: _cachedNotifications.scheduledCalls.filter(c => c.id !== id),
+      };
+    }
   };
 
   const goToScheduledCall = (call: ScheduledCall) => {
@@ -394,14 +427,17 @@ export default function TopNavbar() {
                         : "";
 
                       return (
-                        <button
+                        <div
                           key={c.id}
-                          type="button"
-                          onClick={() => goToScheduledCall(c)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                            isToday ? "bg-[#FFFBF5] hover:bg-[#FFF7E6]" : "hover:bg-gray-50"
+                          className={`w-full flex items-center gap-3 px-4 py-3 ${
+                            isToday ? "bg-[#FFFBF5]" : ""
                           }`}
                         >
+                          <button
+                            type="button"
+                            onClick={() => goToScheduledCall(c)}
+                            className="flex flex-1 items-center gap-3 text-left min-w-0 hover:opacity-80"
+                          >
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                             isToday ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
                           }`}>
@@ -421,7 +457,16 @@ export default function TopNavbar() {
                           }`}>
                             {label}
                           </span>
-                        </button>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={e => dismissOneCall(c.id, e)}
+                            className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#B8112D] flex items-center justify-center shrink-0"
+                            title="Dismiss"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
                       );
                     })
                   )}
@@ -517,7 +562,7 @@ export default function TopNavbar() {
       </div>
     </header>
 
-    {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+    {chatOpen && <ChatPanel onClose={closeChat} />}
     <CsrActivityReportModal open={reportOpen} onClose={() => setReportOpen(false)} />
     </>
   );

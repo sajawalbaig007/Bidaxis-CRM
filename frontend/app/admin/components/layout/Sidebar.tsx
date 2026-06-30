@@ -8,12 +8,15 @@ import toast from "react-hot-toast";
 import {
   LayoutDashboard, Users, FileText, BarChart3,
   FolderKanban, Upload, Trash2, Settings,
-  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock,
+  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X,
 } from "lucide-react";
 import API from "@/lib/api";
+import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
+import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
+import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import AdminChatPanel from "./AdminChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
@@ -43,6 +46,15 @@ type ScheduledCall = {
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+let _cachedScheduledCalls: ScheduledCall[] = [];
+let _lastNotifFetch = 0;
+const NOTIF_CACHE_TTL = 60_000;
+
+function filterDismissedCalls(all: ScheduledCall[]) {
+  const dismissed = getDismissedNotificationIds();
+  return all.filter(c => !dismissed.has(c.id));
+}
+
 function labelDate(d: string) {
   const tmr = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
   if (d === TODAY) return "Today";
@@ -58,17 +70,50 @@ export default function DashboardSidebar() {
   const [bellOpen,    setBellOpen]    = useState(false);
   const [loggingOut,  setLoggingOut]  = useState(false);
   const [chatOpen,    setChatOpen]    = useState(false);
-  const [scheduledCalls, setScheduledCalls] = useState<ScheduledCall[]>([]);
+  const [scheduledCalls, setScheduledCalls] = useState<ScheduledCall[]>(() =>
+    Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL ? filterDismissedCalls(_cachedScheduledCalls) : []
+  );
   const totalUnread   = useChatUnreadBadge();
   const profileRef    = useRef<HTMLDivElement>(null);
   const bellRef       = useRef<HTMLDivElement>(null);
 
+  const closeChat = () => {
+    forceStopChatUnreadPolling();
+    forceStopChatStatusHeartbeat();
+    setChatOpen(false);
+  };
+
+  useEffect(() => () => {
+    forceStopChatUnreadPolling();
+    forceStopChatStatusHeartbeat();
+  }, []);
+
+  const fetchNotifications = () => {
+    API.get("/admin/notifications")
+      .then(res => {
+        const all = (res.data.scheduledCalls ?? []) as ScheduledCall[];
+        _cachedScheduledCalls = all;
+        _lastNotifFetch = Date.now();
+        setScheduledCalls(filterDismissedCalls(all));
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     getAuthMe().then(u => { if (u) setUser(u); }).catch(() => {});
-    API.get("/admin/notifications")
-      .then(res => setScheduledCalls(res.data.scheduledCalls ?? []))
-      .catch(() => {});
+
+    if (Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL) {
+      setScheduledCalls(filterDismissedCalls(_cachedScheduledCalls));
+      return;
+    }
+    fetchNotifications();
   }, []);
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    if (Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL) return;
+    fetchNotifications();
+  }, [bellOpen]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -96,8 +141,16 @@ export default function DashboardSidebar() {
   const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
 
   const handleClearNotifications = () => {
+    clearDismissedNotifications();
+    _cachedScheduledCalls = [];
     setScheduledCalls([]);
     toast.success("Notifications cleared.");
+  };
+
+  const dismissOne = (id: string) => {
+    dismissNotification(id);
+    _cachedScheduledCalls = _cachedScheduledCalls.filter(c => c.id !== id);
+    setScheduledCalls(prev => prev.filter(c => c.id !== id));
   };
 
   const hasNotifications = scheduledCalls.length > 0;
@@ -254,6 +307,14 @@ export default function DashboardSidebar() {
                           }`}>
                             {label}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => dismissOne(c.id)}
+                            className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#B8112D] hover:bg-[#FFF1F3] flex items-center justify-center shrink-0"
+                            title="Dismiss"
+                          >
+                            <X size={12} />
+                          </button>
                         </div>
                       );
                     })
@@ -324,7 +385,7 @@ export default function DashboardSidebar() {
       {/* Zero-width in-flow placeholder so flex siblings still get full width */}
       <div className="w-0 shrink-0" />
 
-      {chatOpen && <AdminChatPanel onClose={() => setChatOpen(false)} />}
+      {chatOpen && <AdminChatPanel onClose={closeChat} />}
     </>
   );
 }

@@ -52,7 +52,7 @@ export function ColumnFilterInput({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         onClick={e => e.stopPropagation()}
-        className="w-full h-7 px-2 pr-6 text-[10px] rounded-lg border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-crm-text outline-none focus:border-[#B8112D] placeholder:text-gray-400"
+        className="w-full h-6 px-1.5 pr-5 text-[9px] sm:text-[10px] rounded-md border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-input text-crm-text outline-none focus:border-[#B8112D] placeholder:text-gray-400"
       />
       {value && (
         <button

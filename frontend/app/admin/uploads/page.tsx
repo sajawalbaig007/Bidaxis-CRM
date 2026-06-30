@@ -154,6 +154,9 @@ export default function UploadPage() {
   const [previewLoading,     setPreviewLoading]     = useState(false);
   const [previewLive,        setPreviewLive]        = useState(false);
   const [resultsExpanded,    setResultsExpanded]    = useState(true);
+  const [sourcesManageOpen, setSourcesManageOpen]  = useState(false);
+  const [sourceHistoryOpen, setSourceHistoryOpen]    = useState(true);
+  const [latestDistributionOpen, setLatestDistributionOpen] = useState(true);
 
   const [showCSRModal,  setShowCSRModal]  = useState(false);
   const [selectedFile,  setSelectedFile]  = useState<File | null>(null);
@@ -1536,7 +1539,11 @@ export default function UploadPage() {
 
         {/* ── SOURCE HISTORY (admin only — CSRs never see this) ── */}
         <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-sm mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => setSourceHistoryOpen(v => !v)}
+            className="w-full flex items-center justify-between gap-3 text-left"
+          >
             <div>
               <h3 className="text-base sm:text-xl font-semibold text-gray-800 flex items-center gap-2">
                 <Globe size={18} className="text-[#B8112D]" /> Source History & Analytics
@@ -1545,9 +1552,15 @@ export default function UploadPage() {
                 Track performance by data source. Hidden from all CSR views.
               </p>
             </div>
-          </div>
+            <ChevronDown
+              size={20}
+              className={`text-gray-400 shrink-0 transition-transform ${sourceHistoryOpen ? "rotate-180" : ""}`}
+            />
+          </button>
 
-          <div className="flex flex-wrap gap-2 mb-4">
+          {sourceHistoryOpen && (
+          <>
+          <div className="flex flex-wrap gap-2 mb-4 mt-4">
             <button
               onClick={() => setHistorySourceId("all")}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
@@ -1617,7 +1630,15 @@ export default function UploadPage() {
 
           {uploadSources.length > 0 && (
             <div className="border-t border-gray-100 pt-4 mt-4">
-              <p className="text-xs font-semibold text-gray-500 mb-3">Manage Sources</p>
+              <button
+                type="button"
+                onClick={() => setSourcesManageOpen(v => !v)}
+                className="w-full flex items-center justify-between mb-3 text-left"
+              >
+                <p className="text-xs font-semibold text-gray-500">Manage Sources (Sudo)</p>
+                <ChevronDown size={16} className={`text-gray-400 transition-transform ${sourcesManageOpen ? "rotate-180" : ""}`} />
+              </button>
+              {sourcesManageOpen && (
               <div className="space-y-2">
                 {uploadSources.map(src => (
                   <div key={src.id} className="bg-[#FAFAFA] rounded-xl px-3 py-2.5">
@@ -1687,17 +1708,30 @@ export default function UploadPage() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
+          )}
+          </>
           )}
         </div>
 
         {/* ── LATEST DISTRIBUTION ── */}
         <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 lg:p-6 shadow-sm mb-4 sm:mb-6">
-          <div className="mb-3 sm:mb-5">
-            <h3 className="text-base sm:text-xl font-semibold text-gray-800">Latest CSR Distribution</h3>
-            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">Latest uploaded leads distribution.</p>
-          </div>
-          {/* 2-col mobile → 2-col sm → 4-col md+ */}
+          <button
+            type="button"
+            onClick={() => setLatestDistributionOpen(v => !v)}
+            className="w-full flex items-center justify-between gap-3 text-left mb-3 sm:mb-5"
+          >
+            <div>
+              <h3 className="text-base sm:text-xl font-semibold text-gray-800">Latest CSR Distribution</h3>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">Latest uploaded leads distribution.</p>
+            </div>
+            <ChevronDown
+              size={20}
+              className={`text-gray-400 shrink-0 transition-transform ${latestDistributionOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          {latestDistributionOpen && (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             {latestDistribution.map((csr, i) => (
               <div key={i} className="bg-[#F8F9FC] border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-4">
@@ -1707,6 +1741,7 @@ export default function UploadPage() {
               </div>
             ))}
           </div>
+          )}
         </div>
 
         {/* ── UPLOAD BOXES — two columns on md+ ── */}

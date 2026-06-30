@@ -1,19 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import DashboardNavbar  from "./components/layout/Navbar";
 import DashboardSidebar from "./components/layout/Sidebar";
-import PerformanceChart, { type ClientLead } from "./components/charts/PerformanceChart";
-import OverviewChart    from "./components/charts/OverviewChart";
+import type { ClientLead } from "./components/charts/PerformanceChart";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
 import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
-import { getAdminSummary, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
+import { getAdminSummary, peekAdminSummary, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
   TrendingUp, Briefcase, Trophy, RefreshCw, BarChart3, FolderKanban,
 } from "lucide-react";
+
+const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
+  ssr: false,
+  loading: () => <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />,
+});
+
+const OverviewChart = dynamic(() => import("./components/charts/OverviewChart"), {
+  ssr: false,
+  loading: () => <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />,
+});
 
 type QuickStats = {
   totalLeads:  number;
@@ -50,10 +60,19 @@ export default function DashboardPage() {
   const [projectsEnabled, setProjectsEnabled] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
 
-  const loadOverview = async () => {
+  useEffect(() => {
+    const cached = peekAdminSummary();
+    if (cached) {
+      setSummary(cached);
+      setStats(statsFromSummary(cached));
+      setOverviewLoaded(true);
+    }
+  }, []);
+
+  const loadOverview = async (force = false) => {
     setLoadingOverview(true);
     try {
-      const s = await getAdminSummary();
+      const s = await getAdminSummary(force);
       setSummary(s);
       setStats(statsFromSummary(s));
       setOverviewLoaded(true);
@@ -86,7 +105,7 @@ export default function DashboardPage() {
 
         <div className="space-y-4 sm:space-y-5">
 
-          {!overviewLoaded && (
+          {!overviewLoaded ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="font-bold text-gray-800 text-sm sm:text-base">Dashboard ready</h2>
@@ -103,6 +122,18 @@ export default function DashboardPage() {
                 {loadingOverview
                   ? <><RefreshCw size={15} className="animate-spin" /> Loading…</>
                   : <><BarChart3 size={15} /> Load stats &amp; charts</>}
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void loadOverview(true)}
+                disabled={loadingOverview}
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm shrink-0"
+              >
+                <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
+                {loadingOverview ? "Refreshing…" : "Refresh stats"}
               </button>
             </div>
           )}
@@ -190,7 +221,7 @@ export default function DashboardPage() {
 
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
                 {overviewLoaded ? (
-                  <RecentActivity recent={summary?.recent} />
+                  <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
                 ) : (
                   <LazySectionPrompt
                     icon={<RefreshCw size={28} className="text-gray-300" />}
@@ -231,20 +262,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-
-          {overviewLoaded && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => void loadOverview()}
-                disabled={loadingOverview}
-                className="text-xs text-gray-400 hover:text-[#B8112D] flex items-center gap-1.5"
-              >
-                <RefreshCw size={12} className={loadingOverview ? "animate-spin" : ""} />
-                Refresh stats
-              </button>
-            </div>
-          )}
 
         </div>
       </main>

@@ -594,21 +594,23 @@ export default function CSRProjectsPage() {
                       </div>
                     )}
 
-                    <div>
-                      <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">
-                        Client Name <span className="text-[#B8112D]">*</span>
-                      </label>
-                      <input type="text" value={addForm.clientName} placeholder="e.g. John Smith"
-                        onChange={e => setAddForm(f => ({ ...f, clientName: e.target.value }))}
-                        className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">Company</label>
-                      <input type="text" value={addForm.clientCompany} placeholder="Company name"
-                        onChange={e => setAddForm(f => ({ ...f, clientCompany: e.target.value }))}
-                        className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                      <div>
+                        <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">
+                          Client Name <span className="text-[#B8112D]">*</span>
+                        </label>
+                        <input type="text" value={addForm.clientName} placeholder="e.g. John Smith"
+                          onChange={e => setAddForm(f => ({ ...f, clientName: e.target.value }))}
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1 sm:mb-1.5 block">Company Name</label>
+                        <input type="text" value={addForm.clientCompany} placeholder="Company name"
+                          onChange={e => setAddForm(f => ({ ...f, clientCompany: e.target.value }))}
+                          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                        />
+                      </div>
                     </div>
                   </div>
 

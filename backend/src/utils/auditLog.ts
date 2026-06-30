@@ -13,8 +13,28 @@ export type AuditAction =
   | "2fa_enabled"
   | "2fa_disabled";
 
-export async function fetchRecentAuditLogs(limit: number) {
+export async function fetchRecentAuditLogs(
+  limit: number,
+  fromDate?: string,
+  toDate?: string,
+) {
+  const where: { createdAt?: { gte?: Date; lte?: Date } } = {};
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      where.createdAt.gte = start;
+    }
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
+
   return prisma.securityAuditLog.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     take:    limit,
   });

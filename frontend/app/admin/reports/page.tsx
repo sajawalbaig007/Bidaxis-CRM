@@ -1,36 +1,24 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
-import API, { apiErrorMessage } from "@/lib/api";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
+import { fetchReports, type ReportsData } from "@/lib/reportsCache";
+import { apiErrorMessage } from "@/lib/api";
 
 import {
   PhoneCall, ShoppingCart, Clock3, FileBarChart2,
   TrendingUp, Database, AlertTriangle, ChevronDown, Users,
 } from "lucide-react";
 
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, Tooltip,
-  CartesianGrid, YAxis, Legend,
-} from "recharts";
+const ReportCharts = dynamic(() => import("./ReportCharts"), {
+  ssr: false,
+  loading: () => <div className="h-[280px] rounded-xl bg-gray-100 animate-pulse" />,
+});
 
-/* ── Types ── */
-type CSRPerformance = {
-  id: string; csrId: string; name: string; csrCode?: string | null;
-  totalLeads: number; completed: number; pending: number;
-  important: number; interested: number;
-  notCompleted: number; projectWon: number;
-};
-
-type ReportResponse = {
-  period: string;
-  totalLeads: number; completed: number; pending: number;
-  important: number; interested: number;
-  csrPerformance: CSRPerformance[];
-  timeChart: { label: string; leads: number; completed: number }[];
-};
+type ReportResponse = ReportsData;
 
 /* ── Main Page ── */
 export default function ReportsPage() {
@@ -41,6 +29,7 @@ export default function ReportsPage() {
   const [toDate,        setToDate]        = useState("");
   const [selectedCSRId, setSelectedCSRId] = useState<string>("all");
   const [dropdownOpen,  setDropdownOpen]  = useState(false);
+  const [csrPerfOpen,   setCsrPerfOpen]   = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,52 +43,70 @@ export default function ReportsPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, [dropdownOpen]);
 
-  const fetchReports = async (
+  const loadReports = useCallback(async (
     period: string = "today",
     customFrom?: string,
     customTo?: string,
+    force = false,
   ) => {
     try {
       setLoadingReport(true);
-      const url = (customFrom && customTo)
-        ? `/reports?fromDate=${customFrom}&toDate=${customTo}`
-        : `/reports?period=${period}`;
-      const res = await API.get(url);
-      setReportData(res.data);
+      const data = await fetchReports(period, customFrom, customTo, force);
+      setReportData(data);
     } catch (err) {
       console.error(err);
       toast.error(apiErrorMessage(err, "Failed to load reports."));
     } finally {
       setLoadingReport(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    void fetchReports("all");
-  }, []);
+    void loadReports("all");
+  }, [loadReports]);
 
   const csrList     = useMemo(() => reportData?.csrPerformance ?? [], [reportData]);
   const selectedCSR = csrList.find(c => c.id === selectedCSRId) ?? null;
 
   const stats = selectedCSR
     ? {
-        totalLeads:   selectedCSR.totalLeads,
-        completed:    selectedCSR.completed,
-        pending:      selectedCSR.pending,
-        important:    selectedCSR.important,
-        interested:   selectedCSR.interested,
-        notCompleted: selectedCSR.notCompleted ?? 0,
-        projectWon:   selectedCSR.projectWon   ?? 0,
+        totalLeads:     selectedCSR.totalLeads,
+        completed:      selectedCSR.completed,
+        pending:        selectedCSR.pending,
+        important:      selectedCSR.important,
+        interested:     selectedCSR.interested,
+        notCompleted:   selectedCSR.notCompleted ?? 0,
+        notInterested:  selectedCSR.notInterested ?? 0,
+        projectWon:     selectedCSR.projectWon   ?? 0,
+        inHouse:        selectedCSR.inHouse      ?? 0,
+        noOwner:        0,
+        notInService:   0,
       }
     : {
-        totalLeads:   reportData?.totalLeads  ?? 0,
-        completed:    reportData?.completed   ?? 0,
-        pending:      reportData?.pending     ?? 0,
-        important:    reportData?.important   ?? 0,
-        interested:   reportData?.interested  ?? 0,
-        notCompleted: 0,
-        projectWon:   0,
+        totalLeads:     reportData?.totalLeads     ?? 0,
+        completed:      reportData?.completed      ?? 0,
+        pending:        reportData?.pending        ?? 0,
+        important:      reportData?.important      ?? 0,
+        interested:     reportData?.interested     ?? 0,
+        notCompleted:   reportData?.notCompleted   ?? 0,
+        notInterested:  reportData?.notInterested  ?? 0,
+        projectWon:     reportData?.projectWon     ?? 0,
+        inHouse:        reportData?.inHouse        ?? 0,
+        noOwner:        reportData?.noOwner        ?? 0,
+        notInService:   reportData?.notInService   ?? 0,
       };
+
+  const statusPieData = useMemo(() => {
+    const slices = [
+      { name: "Important",          value: stats.important },
+      { name: "Close Client",       value: stats.projectWon },
+      { name: "Not Picked",         value: stats.notCompleted },
+      { name: "Not Interested",     value: stats.notInterested },
+      { name: "In House",           value: stats.inHouse },
+      { name: "Interested Clients", value: stats.interested },
+    ];
+    return slices.filter(s => s.value > 0);
+  }, [stats]);
 
   const chartData = useMemo(() => {
     if (selectedCSR) {
@@ -110,6 +117,13 @@ export default function ReportsPage() {
     }
     return csrList.map(c => ({ day: c.name, calls: c.totalLeads, completed: c.completed }));
   }, [selectedCSR, activePeriod, reportData, csrList]);
+
+  const chartPeriodLabel =
+    activePeriod === "all"    ? "All leads" :
+    activePeriod === "today"  ? "Today's breakdown by hour" :
+    activePeriod === "week"   ? "Last 7 days" :
+    activePeriod === "month"  ? "Last 30 days" :
+    fromDate && toDate        ? `${fromDate} → ${toDate}` : "All time";
 
   const dropdownLabel = selectedCSR ? selectedCSR.name : "All CSRs";
 
@@ -156,7 +170,7 @@ export default function ReportsPage() {
               onClick={() => {
                 if (!fromDate || !toDate) return;
                 setActivePeriod("all");
-                fetchReports("all", fromDate, toDate);
+                loadReports("all", fromDate, toDate, true);
               }}
               disabled={!fromDate || !toDate}
               className={`h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl text-sm font-semibold transition-all whitespace-nowrap ${
@@ -172,7 +186,7 @@ export default function ReportsPage() {
                 setFromDate("");
                 setToDate("");
                 setActivePeriod("all");
-                fetchReports("all");
+                loadReports("all", undefined, undefined, true);
               }}
               className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 whitespace-nowrap"
             >
@@ -198,7 +212,7 @@ export default function ReportsPage() {
                   setActivePeriod(key);
                   setFromDate("");
                   setToDate("");
-                  fetchReports(key);
+                  loadReports(key);
                 }}
                 className={`h-9 sm:h-10 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                   activePeriod === key && !fromDate
@@ -341,60 +355,14 @@ export default function ReportsPage() {
         {/* Stacked on mobile/tablet, side by side on xl+ */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-5 mb-4 sm:mb-6">
 
-          {/* Bar Chart */}
+          {/* Bar Chart + Area Chart — equal width */}
           <div className="xl:col-span-8 rounded-2xl sm:rounded-[24px] bg-white p-4 sm:p-5 shadow-sm border border-gray-100">
-            <div className="mb-3 sm:mb-5 flex items-start justify-between">
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#111827]">
-                  {selectedCSR ? `${selectedCSR.name}'s Performance` : "Overall Performance"}
-                </h2>
-                <p className="mt-0.5 text-xs sm:text-sm text-gray-400">
-                  {activePeriod === "all"    ? "All leads" :
-                   activePeriod === "today"  ? "Today's breakdown by hour" :
-                   activePeriod === "week"   ? "Last 7 days" :
-                   activePeriod === "month"  ? "Last 30 days" :
-                   fromDate && toDate        ? `${fromDate} → ${toDate}` : "All time"}
-                </p>
-              </div>
-            </div>
-
-            {/* Chart height scales with screen */}
-            <div className="h-[220px] sm:h-[260px] lg:h-[280px]">
-              {chartData.length === 0 || chartData.every(d => d.calls === 0) ? (
-                <div className="h-full flex flex-col items-center justify-center">
-                  <Database size={32} className="text-gray-200 mb-2 sm:mb-3 sm:w-9 sm:h-9" />
-                  <p className="font-semibold text-gray-400 text-xs sm:text-sm">No data for this period</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} barGap={4}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={28}
-                    />
-                    <Tooltip
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #eee", fontSize: "12px" }}
-                      formatter={(v, n) => [v, n === "calls" ? "Total Leads" : "Completed"]}
-                    />
-                    <Legend
-                      formatter={v => v === "calls" ? "Total Leads" : "Completed"}
-                      wrapperStyle={{ fontSize: "11px" }}
-                    />
-                    <Bar dataKey="calls"     fill="#B8112D" radius={[5, 5, 0, 0]} name="calls" />
-                    <Bar dataKey="completed" fill="#12B76A" radius={[5, 5, 0, 0]} name="completed" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            <ReportCharts
+              chartData={chartData}
+              statusPieData={statusPieData}
+              chartPeriodLabel={selectedCSR ? `${selectedCSR.name}'s performance · ${chartPeriodLabel}` : chartPeriodLabel}
+              pieSubtitle={`${selectedCSR ? selectedCSR.name : "All CSRs"} — lead status breakdown`}
+            />
           </div>
 
           {/* Quick Insights */}
@@ -450,11 +418,18 @@ export default function ReportsPage() {
 
         {/* ── CSR PERFORMANCE TABLE ── */}
         <div className="rounded-2xl sm:rounded-[24px] bg-white p-4 sm:p-5 shadow-sm border border-gray-100">
-          <h2 className="text-base sm:text-lg font-bold text-[#111827] mb-3 sm:mb-5">
-            {selectedCSR ? `${selectedCSR.name} — Detail` : "All CSRs Performance"}
-          </h2>
+          <button
+            type="button"
+            onClick={() => setCsrPerfOpen(v => !v)}
+            className="w-full flex items-center justify-between mb-3 sm:mb-5"
+          >
+            <h2 className="text-base sm:text-lg font-bold text-[#111827]">
+              {selectedCSR ? `${selectedCSR.name} — Detail` : "All CSRs Performance"}
+            </h2>
+            <ChevronDown size={18} className={`text-gray-400 transition-transform ${csrPerfOpen ? "rotate-180" : ""}`} />
+          </button>
 
-          {/* Horizontally scrollable on all sizes < desktop */}
+          {csrPerfOpen && (
           <div className="overflow-x-auto">
             <table className="w-full" style={{ minWidth: "700px" }}>
               <thead>
@@ -523,6 +498,7 @@ export default function ReportsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
 
       </main>

@@ -9,14 +9,15 @@ import {
 import TopNavbar from "../components/navigation/TopNavbar";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD } from "../components/shared/csrTableStyles";
+import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD, CSR_TABLE_CLASS, CsrColGroup, COL_9_BIN } from "../components/shared/csrTableStyles";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
 import { useBinData, binCategory, binReasonLabel } from "../hooks/useBinData";
+import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import API from "@/lib/api";
 
 const PAGE_SIZE = 30;
-type TabKey = "all" | "notpicked" | "notinterested" | "deleted";
+type TabKey = "all" | "notpicked" | "notinterested" | "deleted" | "inhouse" | "noowner" | "notinservice";
 
 export default function CSRBinPage() {
   const { leads, setLeads, loading, refetch } = useBinData();
@@ -24,32 +25,46 @@ export default function CSRBinPage() {
   const [search, setSearch] = useState("");
   const [page,   setPage]   = useState(1);
   const [tab,    setTab]    = useState<TabKey>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "warn" } | null>(null);
   const showToast = (msg: string, type: "success" | "warn" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
-
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
+  const sourceOptions = useMemo(() => {
+    const set = new Set(leads.map(l => l.source).filter(s => s && s !== "—"));
+    return [...set].sort();
+  }, [leads]);
+
+  const cat = (l: typeof leads[0]) => binCategory(l.binReason, l.status, l.binPreviousStatus);
+
   const byTab = useMemo(() => ({
-    notpicked:     leads.filter(l => binCategory(l.binReason) === "notpicked"),
-    notinterested: leads.filter(l => binCategory(l.binReason) === "notinterested"),
-    deleted:       leads.filter(l => binCategory(l.binReason) === "deleted"),
+    notpicked:     leads.filter(l => cat(l) === "notpicked"),
+    notinterested: leads.filter(l => cat(l) === "notinterested"),
+    deleted:       leads.filter(l => cat(l) === "deleted"),
+    inhouse:       leads.filter(l => cat(l) === "inhouse"),
+    noowner:       leads.filter(l => cat(l) === "noowner"),
+    notinservice:  leads.filter(l => cat(l) === "notinservice"),
   }), [leads]);
 
-  const currentList = tab === "all" ? leads : byTab[tab];
+  const currentList = tab === "all" ? leads : (byTab[tab] ?? leads);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return currentList.filter(l =>
-      !q || l.client.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q) ||
-      l.phone.includes(q) ||
-      binReasonLabel(l.binReason).toLowerCase().includes(q)
-    );
-  }, [currentList, search]);
+    return currentList.filter(l => {
+      if (statusFilter !== "all" && cat(l) !== statusFilter) return false;
+      if (sourceFilter !== "all" && l.source !== sourceFilter) return false;
+      return !q || l.client.toLowerCase().includes(q) ||
+        l.company.toLowerCase().includes(q) ||
+        l.phone.includes(q) ||
+        l.source.toLowerCase().includes(q) ||
+        binReasonLabel(l.binReason).toLowerCase().includes(q);
+    });
+  }, [currentList, search, statusFilter, sourceFilter, leads]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -79,6 +94,9 @@ export default function CSRBinPage() {
     { key: "all",           label: "All",            count: leads.length,              Icon: Trash2     },
     { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     Icon: PhoneOff   },
     { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, Icon: ThumbsDown },
+    { key: "inhouse",       label: "In House",       count: byTab.inhouse.length,       Icon: Briefcase  },
+    { key: "noowner",       label: "No Owner",       count: byTab.noowner.length,       Icon: PhoneOff   },
+    { key: "notinservice",  label: "Not In Service", count: byTab.notinservice.length,  Icon: ThumbsDown },
     { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       Icon: Star       },
   ];
 
@@ -145,7 +163,22 @@ export default function CSRBinPage() {
           <div className="p-4 sm:p-5 border-b border-[#F3F3F3]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">Bin Leads</h3>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+                  className="h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#B8112D]">
+                  <option value="all">All Status</option>
+                  <option value="notpicked">Not Picked</option>
+                  <option value="notinterested">Not Interested</option>
+                  <option value="inhouse">In House</option>
+                  <option value="noowner">No Owner</option>
+                  <option value="notinservice">Not In Service</option>
+                  <option value="deleted">Deleted</option>
+                </select>
+                <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
+                  className="h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#B8112D]">
+                  <option value="all">All Sources</option>
+                  {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
                 <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -167,11 +200,12 @@ export default function CSRBinPage() {
           </div>
 
           <div className={CSR_TABLE_WRAP}>
-            <table className="w-full" style={{ minWidth: "760px" }}>
+            <table className={CSR_TABLE_CLASS}>
+              <CsrColGroup widths={COL_9_BIN} />
               <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
-                  {["#","Client","Company","Phone","Service","Reason","Updated","Action"].map(h => (
-                    <th key={h} className="text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  {["#","Client","Company","Phone","Sub Contacts","Service","Reason","Updated","Action"].map(h => (
+                    <th key={h} className={`text-left py-3 px-2 text-[11px] sm:text-[12px] font-semibold text-gray-500 whitespace-nowrap ${h === "Sub Contacts" ? "hidden lg:table-cell" : ""}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -179,7 +213,7 @@ export default function CSRBinPage() {
                 {loading ? (
                   [1,2,3].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
-                      {[1,2,3,4,5,6,7,8].map(j => (
+                      {[1,2,3,4,5,6,7,8,9].map(j => (
                         <td key={j} className="py-4 px-2"><div className="h-3.5 bg-gray-100 rounded animate-pulse w-16"/></td>
                       ))}
                     </tr>
@@ -210,6 +244,9 @@ export default function CSRBinPage() {
                       <div className="flex items-center gap-1 bg-[#FFF7E6] text-[#B54708] px-2.5 py-1.5 rounded-xl text-[11px] font-medium w-fit whitespace-nowrap">
                         <Phone size={10}/>{lead.phone}
                       </div>
+                    </td>
+                    <td className={`hidden lg:table-cell py-4 px-2`}>
+                      <SubContactsCell contacts={lead.subContacts} />
                     </td>
                     <td className="py-4 px-2">
                       {lead.interestedService ? (
@@ -245,7 +282,7 @@ export default function CSRBinPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={8} className="py-20 text-center">
+                    <td colSpan={9} className="py-20 text-center">
                       <Trash2 size={28} className="text-gray-200 mx-auto mb-3"/>
                       <p className="text-gray-400 text-sm">{search ? "No leads match your search." : "Your bin is empty."}</p>
                     </td>

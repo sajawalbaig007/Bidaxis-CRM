@@ -12,7 +12,23 @@ import {
   Archive, ArchiveRestore,
 } from "lucide-react";
 import API from "@/lib/api";
-import { ensureChatUnreadPolling, pollChatUnread, stopChatUnreadPolling, subscribeChatUnread } from "@/lib/chatUnreadStore";
+import { getAuthMe } from "@/lib/authMeCache";
+import {
+  fetchChatMessages,
+  fetchConvMembers,
+  fetchStealthConversations,
+  invalidateChatMessages,
+  isChatConversationsFresh,
+} from "@/lib/chatApiCache";
+import {
+  ensureChatUnreadPolling, getArchivedConversations, getChatConversations,
+  forceStopChatUnreadPolling, pollArchivedConversations, pollChatUnread, subscribeChatUnread,
+} from "@/lib/chatUnreadStore";
+import {
+  forceStopChatStatusHeartbeat,
+  startChatStatusHeartbeat,
+  stopChatStatusHeartbeat,
+} from "@/lib/chatStatusHeartbeat";
 import { playChatSound } from "@/lib/chatSound";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
@@ -253,12 +269,28 @@ function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinne
 }
 
 /* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
-export default function ChatPanel({ onClose }: { onClose: () => void }) {
+export type ViewAsCsr = { id: string; name: string };
+
+export default function ChatPanel({
+  onClose,
+  viewAsCsr = null,
+  onViewAsCsrChange,
+  adminCsrOptions = [],
+}: {
+  onClose: () => void;
+  viewAsCsr?: ViewAsCsr | null;
+  onViewAsCsrChange?: (csr: ViewAsCsr | null) => void;
+  adminCsrOptions?: ViewAsCsr[];
+}) {
+  const isStealthView = Boolean(viewAsCsr);
   const [me,             setMe]             = useState<ChatUser | null>(null);
-  const [conversations,  setConversations]  = useState<Conversation[]>([]);
+  const [conversations,  setConversations]  = useState<Conversation[]>(() => {
+    const cached = getChatConversations();
+    return cached.length > 0 ? deduplicateConvs(cached) : [];
+  });
   const [activeConvId,   setActiveConvId]   = useState<string | null>(null);
   const [messages,       setMessages]       = useState<Message[]>([]);
-  const [loadingConvs,   setLoadingConvs]   = useState(true);
+  const [loadingConvs,   setLoadingConvs]   = useState(() => getChatConversations().length === 0);
   const [loadingMsgs,    setLoadingMsgs]    = useState(false);
   const [sendingMsg,     setSendingMsg]     = useState(false);
   const [msgText,        setMsgText]        = useState("");
@@ -319,9 +351,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   );
 
   useEffect(() => {
-    void (async () => {
-      try { const r = await API.get("/auth/me"); const u = r.data?.user ?? null; setMe(u); meRef.current = u; } catch {}
-    })();
+    void getAuthMe().then(u => { if (u) { setMe(u); meRef.current = u; } });
   }, []);
 
   const askNotif = async () => {
@@ -331,40 +361,68 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (isStealthView && viewAsCsr) {
+      const csrId = viewAsCsr.id;
+      const loadConvs = async (force = false) => {
+        if (cancelled) return;
+        try {
+          const convs = await fetchStealthConversations(csrId, false, force);
+          if (cancelled) return;
+          setConversations(deduplicateConvs(convs));
+        } catch { /* ignore */ }
+        finally { if (!cancelled) setLoadingConvs(false); }
+      };
+      void loadConvs(false);
+      const stopPoll = visibleInterval(() => { void loadConvs(false); }, 8_000);
+      return () => { cancelled = true; stopPoll(); };
+    }
+
     ensureChatUnreadPolling();
-    return () => stopChatUnreadPolling();
-  }, []);
 
-  useEffect(() => {
-    void pollChatUnread().then(() => setLoadingConvs(false));
-    void (async () => {
-      try { const r = await API.get("/chat/conversations?archived=1"); setArchivedConvs(deduplicateConvs(r.data.conversations ?? r.data ?? [])); } catch {}
-    })();
-  }, []);
+    if (!isChatConversationsFresh() || getChatConversations().length === 0) {
+      void pollChatUnread().finally(() => {
+        if (!cancelled) setLoadingConvs(false);
+      });
+    }
 
-  useEffect(() => {
-    return subscribeChatUnread((_total, convs) => {
-      setConversations(prev => mergeConversationLists(deduplicateConvs(convs), prev));
+    const unsub = subscribeChatUnread((_total, convs) => {
+      if (!cancelled) {
+        setConversations(prev => mergeConversationLists(deduplicateConvs(convs), prev));
+      }
     });
-  }, []);
+
+    return () => {
+      cancelled = true;
+      unsub();
+      forceStopChatUnreadPolling();
+      forceStopChatStatusHeartbeat();
+    };
+  }, [viewAsCsr, isStealthView]);
 
   useEffect(() => {
-    return visibleInterval(async () => {
+    if (!showArchived) return;
+    let cancelled = false;
+
+    const loadArchived = async () => {
       try {
-        const r = await API.get("/chat/conversations?archived=1");
-        setArchivedConvs(prev => mergeConversationLists(
-          deduplicateConvs(r.data.conversations ?? r.data ?? []),
-          prev.filter(c => c.archived),
-        ));
-      } catch {}
-    }, 60_000);
-  }, []);
+        const convs = isStealthView && viewAsCsr
+          ? await fetchStealthConversations(viewAsCsr.id, true)
+          : await pollArchivedConversations();
+        if (!cancelled) setArchivedConvs(deduplicateConvs(convs));
+      } catch { /* ignore */ }
+    };
+
+    void loadArchived();
+    return () => { cancelled = true; };
+  }, [showArchived, isStealthView, viewAsCsr]);
 
   useEffect(() => {
-    const ping = () => void API.post("/chat/status", { online: true }).catch(() => {});
-    ping(); const t = setInterval(ping, 30000);
-    return () => { clearInterval(t); void API.post("/chat/status", { online: false }).catch(() => {}); };
-  }, []);
+    if (isStealthView) return;
+    startChatStatusHeartbeat();
+    return () => stopChatStatusHeartbeat();
+  }, [isStealthView]);
 
   useEffect(() => {
     const flush = async () => {
@@ -383,52 +441,69 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!activeConvId || activeConvId.startsWith("temp-")) return;
     const cid = activeConvId;
+    const stealth = isStealthView;
+    const url = stealth && viewAsCsr
+      ? `/chat/admin/view/${viewAsCsr.id}/conversations/${cid}/messages`
+      : `/chat/conversations/${cid}/messages`;
+    let cancelled = false;
     lastMsgCount.current = 0;
     void (async () => {
       await Promise.resolve();
+      if (cancelled) return;
       setTypingName(null); setMsgSearchOpen(false); setMsgSearchText(""); setMessages([]); setLoadingMsgs(true);
       try {
-        const r = await API.get(`/chat/conversations/${cid}/messages`);
-        const msgs: Message[] = r.data.messages ?? r.data ?? [];
+        const payload = await fetchChatMessages(url);
+        if (cancelled) return;
+        const msgs: Message[] = payload.messages as Message[];
         setMessages(msgs);
-        setPinnedMessage(r.data.pinnedMessage ?? null);
+        setPinnedMessage((payload.pinnedMessage as Message | null) ?? null);
         lastMsgCount.current = msgs.length;
         setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
-        void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
-        void API.get(`/chat/conversations/${cid}/members`).then(res => {
-          setGroupMembers((res.data.members ?? []) as ChatUser[]);
-        }).catch(() => setGroupMembers([]));
+        if (!stealth) {
+          void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
+          void fetchConvMembers(cid).then(members => {
+            if (!cancelled) setGroupMembers(members as ChatUser[]);
+          }).catch(() => { if (!cancelled) setGroupMembers([]); });
+        }
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "auto" }), 60);
-      } catch { setMessages([]); setPinnedMessage(null); } finally { setLoadingMsgs(false); }
+      } catch { if (!cancelled) { setMessages([]); setPinnedMessage(null); } } finally { if (!cancelled) setLoadingMsgs(false); }
     })();
     const stopMsgPoll = visibleInterval(async () => {
+      if (cancelled) return;
       try {
-        const [msgRes, typingRes] = await Promise.all([
-          API.get(`/chat/conversations/${cid}/messages`),
-          API.get(`/chat/conversations/${cid}/typing`).catch(() => ({ data: { names: [] } })),
+        const [payload, typingRes] = await Promise.all([
+          fetchChatMessages(url),
+          stealth
+            ? Promise.resolve({ data: { names: [] as string[] } })
+            : API.get(`/chat/conversations/${cid}/typing`).catch(() => ({ data: { names: [] } })),
         ]);
+        if (cancelled) return;
         setTypingName((typingRes.data.names as string[])?.[0] ?? null);
-        const msgs: Message[] = msgRes.data.messages ?? [];
+        const msgs: Message[] = payload.messages as Message[];
         setMessages(msgs);
-        if (msgRes.data.pinnedMessage !== undefined) setPinnedMessage(msgRes.data.pinnedMessage ?? null);
+        if (payload.pinnedMessage !== undefined) {
+          setPinnedMessage((payload.pinnedMessage as Message | null) ?? null);
+        }
         if (msgs.length !== lastMsgCount.current) {
           const hadNew = msgs.length > lastMsgCount.current;
           lastMsgCount.current = msgs.length;
-          setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
-          void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
-          const newest = msgs[msgs.length - 1];
-          if (hadNew && newest && !newest.isOwn) {
-            if (soundOn) playChatSound();
-            if (notifRef.current && !document.hasFocus()) {
-              new Notification(newest.senderName, { body: newest.type !== "text" ? `Sent a ${newest.type}` : newest.text.slice(0, 80), icon: "/images/image.png" });
+          if (!stealth) {
+            setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
+            void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
+            const newest = msgs[msgs.length - 1];
+            if (hadNew && newest && !newest.isOwn) {
+              if (soundOn) playChatSound();
+              if (notifRef.current && !document.hasFocus()) {
+                new Notification(newest.senderName, { body: newest.type !== "text" ? `Sent a ${newest.type}` : newest.text.slice(0, 80), icon: "/images/image.png" });
+              }
             }
           }
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
       } catch {}
-    }, 3_000);
-    return stopMsgPoll;
-  }, [activeConvId, soundOn]);
+    }, 12_000);
+    return () => { cancelled = true; stopMsgPoll(); };
+  }, [activeConvId, soundOn, isStealthView, viewAsCsr]);
 
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -454,6 +529,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
     try {
       await API.post(`/chat/conversations/${activeConvId}/messages`, { text, ...(reply ? { replyToId: reply.id } : {}), ...(mentionIds.length ? { mentionIds } : {}) });
+      invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
     } catch {
       addToOfflineQueue({ id: opt.id, conversationId: activeConvId, text, replyToId: reply?.id, createdAt: new Date().toISOString() });
@@ -552,6 +628,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     const fd = new FormData(); fd.append("file", file); fd.append("type", type);
     try {
       await API.post(`/chat/conversations/${activeConvId}/messages`, fd, { headers: { "Content-Type": "multipart/form-data" }, onUploadProgress: (ev: { loaded: number; total?: number }) => { if (ev.total) setUploadProgress(Math.round((ev.loaded / ev.total) * 100)); } });
+      invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
     } catch { setMessages(p => p.filter(m => m.id !== opt.id)); }
     finally { setUploading(false); setUploadProgress(0); }
@@ -584,6 +661,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
     const fd = new FormData(); fd.append("file", blob, "voice.webm"); fd.append("type", "voice");
     try {
       await API.post(`/chat/conversations/${cid}/messages`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      invalidateChatMessages(`/chat/conversations/${cid}/messages`);
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
     } catch { setMessages(p => p.filter(m => m.id !== opt.id)); }
   };
@@ -730,11 +808,21 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             soundOn={soundOn}
             onSoundToggle={() => setSoundOn(v => !v)}
             showArchived={showArchived}
-            onArchiveToggle={() => setShowArchived(v => !v)}
-            onSelect={() => setSelectMode(true)}
-            onNewDm={() => { setShowDmModal(true); void fetchUsers(); }}
-            onNewGroup={() => { setShowGroupModal(true); void fetchUsers(); }}
+            onArchiveToggle={() => {
+              setShowArchived(v => {
+                const next = !v;
+                if (next) {
+                  const cached = getArchivedConversations();
+                  if (cached.length > 0) setArchivedConvs(deduplicateConvs(cached));
+                }
+                return next;
+              });
+            }}
+            onSelect={isStealthView ? undefined : () => setSelectMode(true)}
+            onNewDm={isStealthView ? undefined : () => { setShowDmModal(true); void fetchUsers(); }}
+            onNewGroup={isStealthView ? undefined : () => { setShowGroupModal(true); void fetchUsers(); }}
             onClose={onClose}
+            readOnly={isStealthView}
           />
         )}
 
@@ -757,10 +845,43 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ) : (
+              <>
               <div className="flex items-center gap-2 mb-2.5 min-w-0">
-                <h2 className="text-[15px] font-bold text-[#0F172A] truncate">Messages</h2>
-                {totalUnread > 0 && <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>}
+                <h2 className="text-[15px] font-bold text-[#0F172A] truncate">
+                  {isStealthView ? `${viewAsCsr!.name}'s Chats` : "Messages"}
+                </h2>
+                {!isStealthView && totalUnread > 0 && (
+                  <span className="bg-[#B8112D] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">{totalUnread}</span>
+                )}
               </div>
+              {adminCsrOptions.length > 0 && onViewAsCsrChange && (
+                <div className="mb-2.5">
+                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">View as CSR</label>
+                  <select
+                    value={viewAsCsr?.id ?? ""}
+                    onChange={e => {
+                      const id = e.target.value;
+                      if (!id) onViewAsCsrChange(null);
+                      else {
+                        const csr = adminCsrOptions.find(c => c.id === id);
+                        if (csr) onViewAsCsrChange(csr);
+                      }
+                    }}
+                    className="mt-1 w-full h-9 px-2.5 rounded-xl border border-gray-200 text-[12px] font-semibold bg-[#FAFAFA] outline-none focus:border-[#B8112D]"
+                  >
+                    <option value="">My chats (Admin)</option>
+                    {adminCsrOptions.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  {isStealthView && (
+                    <p className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 leading-snug">
+                      Read-only — CSR is not notified
+                    </p>
+                  )}
+                </div>
+              )}
+              </>
             )}
             <div className="relative">
               <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -900,6 +1021,10 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                     <button type="button" onClick={() => { setEditingMsg(null); setEditText(""); }} className="h-8 px-3 rounded-xl bg-gray-100 text-xs font-semibold">Cancel</button>
                     <button type="button" onClick={() => void saveEdit()} className="h-8 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold">Save</button>
                   </div>
+                </div>
+              ) : isStealthView ? (
+                <div className="px-3 py-3 bg-amber-50 border-t border-amber-100 shrink-0">
+                  <p className="text-[11px] text-amber-800 text-center font-medium">Read-only view — messages cannot be sent</p>
                 </div>
               ) : (
               <div className="px-3 py-2.5 bg-white border-t border-gray-100 shrink-0 relative">

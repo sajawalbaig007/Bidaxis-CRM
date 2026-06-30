@@ -28,6 +28,7 @@ export type DetailLead = {
 
 export type DetailLeadUpdates = Partial<{
   name: string;
+  company: string;
   phone: string;
   email: string;
   state: string;
@@ -40,6 +41,7 @@ interface LeadDetailModalProps {
   onSaved?: (id: string, updates: DetailLeadUpdates) => void;
   onNoteAdded?: (id: string, note: NoteEntry) => void;
   onSubContactAdded?: (id: string, sub: SubContact) => void;
+  onSubContactUpdated?: (id: string, sub: SubContact) => void;
   onSubContactDeleted?: (id: string, subId: string) => void;
   /** Use admin routes when opened from admin panel */
   apiPrefix?: "/csr" | "/admin";
@@ -166,9 +168,10 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
   return null;
 };
 
-export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactDeleted, apiPrefix = "/csr" }: LeadDetailModalProps) {
+export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactUpdated, onSubContactDeleted, apiPrefix = "/csr" }: LeadDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [name,  setName]  = useState(lead.name ?? "");
+  const [name, setName] = useState(lead.name ?? "");
+  const [company, setCompany] = useState(lead.company ?? lead.rawCompany ?? "");
   const [phone, setPhone] = useState(lead.phone ?? "");
   const [email, setEmail] = useState(lead.email ?? "");
   const [state, setState] = useState(lead.state ?? "");
@@ -191,9 +194,16 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const [subEmail,   setSubEmail]   = useState("");
   const [addingSub,  setAddingSub]  = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  const [editSubName,  setEditSubName]  = useState("");
+  const [editSubDesig, setEditSubDesig] = useState("");
+  const [editSubPhone, setEditSubPhone] = useState("");
+  const [editSubEmail, setEditSubEmail] = useState("");
+  const [savingSubId,  setSavingSubId]  = useState<string | null>(null);
 
   const startEdit = () => {
     setName(lead.name ?? "");
+    setCompany(lead.company ?? lead.rawCompany ?? "");
     setPhone(lead.phone ?? "");
     setEmail(lead.email ?? "");
     setState(lead.state ?? "");
@@ -203,10 +213,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const save = async () => {
     setSaving(true);
     try {
-      await API.put(`${apiPrefix}/lead/${lead.id}`, { name, phone, email, state });
-      onSaved?.(lead.id, { name, phone, email, state });
+      await API.put(`${apiPrefix}/lead/${lead.id}`, { name, company, phone, email, state });
+      onSaved?.(lead.id, { name, company, phone, email, state });
       setIsEditing(false);
     } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      if (msg) alert(msg);
       console.log(err);
     } finally {
       setSaving(false);
@@ -228,6 +240,32 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     finally { setAddingSub(false); }
   };
 
+  const startEditSub = (sub: SubContact) => {
+    setEditingSubId(sub.id);
+    setEditSubName(sub.name);
+    setEditSubDesig(sub.designation ?? "");
+    setEditSubPhone(sub.phone ?? "");
+    setEditSubEmail(sub.email ?? "");
+    setShowSubForm(false);
+  };
+
+  const saveEditSub = async () => {
+    if (!editingSubId || !editSubName.trim()) return;
+    setSavingSubId(editingSubId);
+    try {
+      const res = await API.put(`${apiPrefix}/lead/${lead.id}/subcontacts/${editingSubId}`, {
+        name: editSubName.trim(), designation: editSubDesig.trim(), phone: editSubPhone.trim(), email: editSubEmail.trim(),
+      });
+      const updated: SubContact = res.data.subContact ?? {
+        id: editingSubId, name: editSubName.trim(), designation: editSubDesig.trim(), phone: editSubPhone.trim(), email: editSubEmail.trim(),
+      };
+      setSubs(prev => prev.map(s => s.id === editingSubId ? updated : s));
+      onSubContactUpdated?.(lead.id, updated);
+      setEditingSubId(null);
+    } catch (err) { console.log(err); }
+    finally { setSavingSubId(null); }
+  };
+
   const deleteSubContact = async (subId: string) => {
     setDeletingId(subId);
     try {
@@ -244,14 +282,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
 
   const infoItems: { label: string; value: string; Icon: typeof Phone }[] = [
     { label: "Contact Person", value: lead.name, Icon: User2 },
+    { label: "Company", value: lead.company || "N/A", Icon: Building2 },
     { label: "Phone", value: lead.phone || "N/A", Icon: Phone },
     { label: "Email", value: lead.email || "N/A", Icon: Mail },
     { label: "Location", value: locationDisplay, Icon: MapPin },
   ];
 
-  if (lead.company) {
-    infoItems.push({ label: "Company", value: lead.company, Icon: Building2 });
-  }
   if (lead.interestedService) {
     infoItems.push({ label: "Interested In", value: lead.interestedService, Icon: Briefcase });
   }
@@ -329,11 +365,18 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
               </>
             ) : (
               <>
-                {/* CLIENT NAME */}
-                <div>
-                  <label className={`${labelClass} mb-2`}><User2 size={11} className="text-[#B8112D]"/>Client Name</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)}
-                    placeholder="e.g. John Smith" className={inputClass}/>
+                {/* CLIENT NAME + COMPANY */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={`${labelClass} mb-2`}><User2 size={11} className="text-[#B8112D]"/>Client Name</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)}
+                      placeholder="e.g. John Smith" className={inputClass}/>
+                  </div>
+                  <div>
+                    <label className={`${labelClass} mb-2`}><Building2 size={11} className="text-[#B8112D]"/>Company Name</label>
+                    <input type="text" value={company} onChange={e => setCompany(e.target.value)}
+                      placeholder="Company name" className={inputClass}/>
+                  </div>
                 </div>
 
                 {/* PHONE + EMAIL */}
@@ -398,12 +441,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input
-                      type="text" value={subPhone} onChange={e => setSubPhone(e.target.value)}
-                      placeholder="Phone" className={inputClass}
+                      type="tel" value={subPhone} onChange={e => setSubPhone(e.target.value)}
+                      placeholder="Phone" className={inputClass} autoComplete="tel"
                     />
                     <input
                       type="email" value={subEmail} onChange={e => setSubEmail(e.target.value)}
-                      placeholder="Email" className={inputClass}
+                      placeholder="Email" className={inputClass} autoComplete="email"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -427,27 +470,55 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                         {sub.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#0F172A] truncate">{sub.name}</p>
-                        {sub.designation && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sub.designation}</p>}
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                          {sub.phone && (
-                            <span className="flex items-center gap-1 text-[11px] text-gray-500">
-                              <Phone size={9}/>{sub.phone}
-                            </span>
-                          )}
-                          {sub.email && (
-                            <span className="flex items-center gap-1 text-[11px] text-gray-500">
-                              <Mail size={9}/>{sub.email}
-                            </span>
-                          )}
-                        </div>
+                        {editingSubId === sub.id ? (
+                          <div className="space-y-2">
+                            <input type="text" value={editSubName} onChange={e => setEditSubName(e.target.value)} placeholder="Name *" className={inputClass} />
+                            <input type="text" value={editSubDesig} onChange={e => setEditSubDesig(e.target.value)} placeholder="Designation" className={inputClass} />
+                            <div className="grid grid-cols-2 gap-2">
+                              <input type="tel" value={editSubPhone} onChange={e => setEditSubPhone(e.target.value)} placeholder="Phone" className={inputClass} autoComplete="tel" />
+                              <input type="email" value={editSubEmail} onChange={e => setEditSubEmail(e.target.value)} placeholder="Email" className={inputClass} autoComplete="email" />
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => setEditingSubId(null)} className="flex-1 h-8 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-600">Cancel</button>
+                              <button onClick={saveEditSub} disabled={!editSubName.trim() || savingSubId === sub.id} className="flex-1 h-8 rounded-lg bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50">
+                                {savingSubId === sub.id ? "Saving…" : "Save"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-[13px] font-semibold text-[#0F172A] truncate">{sub.name}</p>
+                            {sub.designation && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sub.designation}</p>}
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                              {sub.phone && (
+                                <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                                  <Phone size={9}/>{sub.phone}
+                                </span>
+                              )}
+                              {sub.email && (
+                                <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                                  <Mail size={9}/>{sub.email}
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <button
-                        onClick={() => deleteSubContact(sub.id)}
-                        disabled={deletingId === sub.id}
-                        className="w-7 h-7 rounded-lg bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-colors disabled:opacity-40 shrink-0">
-                        <Trash2 size={12}/>
-                      </button>
+                      {editingSubId !== sub.id && (
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <button
+                            onClick={() => startEditSub(sub)}
+                            className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors">
+                            <Pencil size={11}/>
+                          </button>
+                          <button
+                            onClick={() => deleteSubContact(sub.id)}
+                            disabled={deletingId === sub.id}
+                            className="w-7 h-7 rounded-lg bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-colors disabled:opacity-40">
+                            <Trash2 size={12}/>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

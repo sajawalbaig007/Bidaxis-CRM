@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import API from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import toast, { Toaster } from "react-hot-toast";
@@ -273,8 +273,38 @@ function ClientsPageContent() {
     type:    (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.rawStatus, v),
   }), []);
 
-  const { filters: leadColFilters, setFilter: setLeadColFilter, filtered: colFilteredClients } =
+  const { filters: leadColFilters, setFilter: setLeadColFilter, filtered: colFilteredClients, hasActiveFilters } =
     useColumnFilters(clients, leadColPredicates);
+
+  function clientViewBucket(c: Client): ClientView | null {
+    const s = c.rawStatus.toLowerCase();
+    const hasSchedule = !!(c.nextFollowup && c.nextFollowup.trim());
+    if (s === "important" && hasSchedule) return "schedule";
+    if (s === "important") return "important";
+    if (s === "interested") return "interested";
+    if (["close client", "completed", "closed"].includes(s)) return "closed";
+    return null;
+  }
+
+  const filteredTabCounts = useMemo(() => {
+    if (!hasActiveFilters) return tabCounts;
+    const counts = { important: 0, schedule: 0, interested: 0, closed: 0 };
+    colFilteredClients.forEach(c => {
+      const b = clientViewBucket(c);
+      if (b) counts[b]++;
+    });
+    return { ...tabCounts, ...counts };
+  }, [hasActiveFilters, colFilteredClients, tabCounts]);
+
+  const visibleTabs = useMemo(() => {
+    const all = [
+      { key: "important" as const, label: "Important", count: filteredTabCounts.important, Icon: CircleAlert },
+      { key: "schedule" as const, label: "Schedule Call", count: filteredTabCounts.schedule, Icon: CalendarDays },
+      { key: "interested" as const, label: "Interested", count: filteredTabCounts.interested, Icon: HeartHandshake },
+      { key: "closed" as const, label: "Closed", count: filteredTabCounts.closed, Icon: BadgeCheck },
+    ];
+    return hasActiveFilters ? all.filter(t => t.count > 0) : all;
+  }, [filteredTabCounts, hasActiveFilters]);
 
   const paginatedClients  = colFilteredClients;
   const filteredClients     = colFilteredClients;
@@ -302,7 +332,7 @@ function ClientsPageContent() {
     CSR: "csr", Status: "status", "Next Schedule": "schedule", Time: "time", Type: "type",
   };
 
-  const handleSaveClient = () => {
+  const handleSaveClient = async () => {
     if (!newClient.clientName || !newClient.email || !newClient.company) {
       toast.error("Please fill all required fields.");
       return;
@@ -317,8 +347,23 @@ function ClientsPageContent() {
       );
       toast.success("Client updated successfully.");
     } else {
-      setClients((prev) => [{ ...newClient, id: Date.now().toString() }, ...prev]);
-      toast.success("Client added successfully.");
+      try {
+        const res = await API.post("/admin/lead", {
+          name:    newClient.clientName.trim(),
+          email:   newClient.email.trim(),
+          phone:   newClient.contact.trim() || undefined,
+          company: newClient.company.trim(),
+          status:  "pending",
+        });
+        const created = formatAdminLead(res.data.lead);
+        setClients((prev) => [created, ...prev]);
+        toast.success("Client added successfully.");
+        refreshTabCounts();
+        setRefreshToken(t => t + 1);
+      } catch (err) {
+        toast.error(apiErrorMessage(err, "Failed to add client."));
+        return;
+      }
     }
     setShowAddModal(false);
     setIsEditing(false);
@@ -432,32 +477,7 @@ function ClientsPageContent() {
         {/* Horizontally scrollable on mobile, wraps on md+ */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-2 sm:px-3 py-2 sm:py-2.5 mb-4 sm:mb-5 overflow-x-auto">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
-            {[
-              {
-                key: "important",
-                label: "Important",
-                count: tabCounts.important,
-                Icon: CircleAlert,
-              },
-              {
-                key: "schedule",
-                label: "Schedule Call",
-                count: tabCounts.schedule,
-                Icon: CalendarDays,
-              },
-              {
-                key: "interested",
-                label: "Interested",
-                count: tabCounts.interested,
-                Icon: HeartHandshake,
-              },
-              {
-                key: "closed",
-                label: "Closed",
-                count: tabCounts.closed,
-                Icon: BadgeCheck,
-              },
-            ].map((item) => (
+            {visibleTabs.map((item) => (
               <button
                 key={item.key}
                 onClick={() => {
@@ -856,10 +876,21 @@ function ClientsPageContent() {
                 return {
                   ...c,
                   clientName: updates.name?.trim() || c.clientName,
+                  company:    updates.company?.trim() || c.company,
                   contact:    updates.phone?.trim() || c.contact,
                   email:      updates.email?.trim() || c.email,
                 };
               }));
+              setSelectedClient(prev => {
+                if (!prev || prev.id !== id) return prev;
+                return {
+                  ...prev,
+                  clientName: updates.name?.trim() || prev.clientName,
+                  company:    updates.company?.trim() || prev.company,
+                  contact:    updates.phone?.trim() || prev.contact,
+                  email:      updates.email?.trim() || prev.email,
+                };
+              });
             }}
           />
         )}
@@ -922,11 +953,41 @@ function ClientsPageContent() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
+                    Client Name <span className="text-[#B8112D]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newClient.clientName}
+                    placeholder="Client name"
+                    onChange={(e) => setNewClient({ ...newClient, clientName: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
+                    Company Name <span className="text-[#B8112D]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newClient.company}
+                    placeholder="Company name"
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        company: e.target.value,
+                        parentCompany: e.target.value,
+                      })
+                    }
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
+                  />
+                </div>
+
                 {[
-                  { label: "Client Name", key: "clientName", type: "text", placeholder: "John Smith", req: true },
-                  { label: "Email Address", key: "email", type: "email", placeholder: "john@email.com", req: true },
-                  { label: "Contact Number", key: "contact", type: "text", placeholder: "+1 234 567 890", req: false },
-                  { label: "CSR", key: "csr", type: "text", placeholder: "Customer Service Representative", req: false },
+                  { label: "Email Address", key: "email", type: "email", placeholder: "Email address", req: true },
+                  { label: "Contact Number", key: "contact", type: "tel", placeholder: "Phone number", req: false },
+                  { label: "CSR", key: "csr", type: "text", placeholder: "CSR name", req: false },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
@@ -944,28 +1005,6 @@ function ClientsPageContent() {
                     />
                   </div>
                 ))}
-
-                <div>
-                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">
-                    Company Name <span className="text-[#B8112D]">*</span>
-                  </label>
-                  <select
-                    value={newClient.company}
-                    onChange={(e) =>
-                      setNewClient({
-                        ...newClient,
-                        company: e.target.value,
-                        parentCompany: e.target.value,
-                      })
-                    }
-                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D] bg-white"
-                  >
-                    <option value="">Select Company</option>
-                    {["BEM DESIGN STUDIO", "GPS", "BEM SOLUTIONS", "PS-ESTIMATING", "DEVCON-ESTIMATING"].map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
 
                 <div>
                   <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">Status</label>

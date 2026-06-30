@@ -232,7 +232,7 @@ export default function LoginPage() {
           <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
           <div className="relative z-10 text-center w-full max-w-[260px]">
             <div className="bg-white rounded-2xl px-5 py-3 inline-flex items-center justify-center shadow-lg mb-5 md:mb-8">
-              <Image src="/images/logo.jpeg" alt="BEM Solutions" width={140} height={44} className="object-contain h-[38px] md:h-[44px] w-auto" />
+              <Image src="/images/logo.jpeg" alt="BEM Solutions" width={140} height={44} className="object-contain h-[38px] md:h-[44px] w-auto" style={{ width: "auto", height: "auto" }} />
             </div>
             <div className="relative min-h-[88px] md:min-h-[100px]">
               {LOGIN_SLIDES.map((slide, i) => (

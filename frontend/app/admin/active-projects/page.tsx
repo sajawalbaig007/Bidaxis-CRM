@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, X, Eye,
@@ -31,8 +32,22 @@ import {
   parsePayments,
   ProjectWorkbenchData,
   CSR_ASSIGN_OTHER,
+  PROJECT_PHASE_OPTIONS,
 } from "@/lib/projectFields";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+
+function phaseLabel(value: string) {
+  return PROJECT_PHASE_OPTIONS.find(o => o.value === value)?.label ?? value;
+}
+
+const ProjectOverviewCharts = dynamic(() => import("./ProjectOverviewCharts"), {
+  ssr: false,
+  loading: () => (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
+      <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
+    </div>
+  ),
+});
 
 type Project = {
   id:                string;
@@ -93,8 +108,8 @@ function projectToWorkbench(p: Project): ProjectWorkbenchData {
 }
 
 type CSROption = { id: string; name: string; csrCode: string | null };
-
 type Stats = { total: number; withBudget: number; thisMonth: number };
+
 const serviceColors: Record<string, string> = {
   "Estimating":   "bg-blue-100 text-blue-700",
   "Scheduling":   "bg-purple-100 text-purple-700",
@@ -661,6 +676,18 @@ export default function AdminProjectsPage() {
   const activeProjects = baseFiltered.filter(isProjectActive);
   const displayedProjects = projectTab === "all" ? allProjects : activeProjects;
 
+  const phasePieData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of projects) {
+      const key = p.projectPhase ?? "not_started";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([key, value]) => ({ name: phaseLabel(key), value, key }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [projects]);
+
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster
@@ -698,63 +725,9 @@ export default function AdminProjectsPage() {
           </div>
         </div>
 
-        {/* PROJECTS OVERVIEW — DONUT CHART */}
+        {/* PROJECTS OVERVIEW */}
         <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            {/* Donut */}
-            <div className="shrink-0 h-[180px] w-full sm:w-[200px]">
-              {loading ? (
-                <div className="h-full bg-gray-50 rounded-2xl animate-pulse" />
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Total Projects", value: Math.max(stats.total,     0.001) },
-                        { name: "This Month",     value: Math.max(stats.thisMonth, 0.001) },
-                        { name: "With Budget",    value: Math.max(stats.withBudget,0.001) },
-                      ]}
-                      cx="50%" cy="50%"
-                      innerRadius={52} outerRadius={80}
-                      paddingAngle={4} dataKey="value"
-                      strokeWidth={0}
-                    >
-                      <Cell fill="#B8112D" />
-                      <Cell fill="#3B82F6" />
-                      <Cell fill="#10B981" />
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: "12px" }}
-                      formatter={(_, name) => [
-                        name === "Total Projects" ? stats.total :
-                        name === "This Month"     ? stats.thisMonth :
-                        stats.withBudget,
-                        String(name),
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* Legend + numbers */}
-            <div className="flex-1 grid grid-cols-1 gap-3">
-              {[
-                { label: "Total Projects", value: stats.total,      color: "bg-[#B8112D]", text: "text-[#B8112D]" },
-                { label: "This Month",     value: stats.thisMonth,  color: "bg-blue-500",  text: "text-blue-600"  },
-                { label: "With Budget",    value: stats.withBudget, color: "bg-emerald-500",text:"text-emerald-600"},
-              ].map(s => (
-                <div key={s.label} className="flex items-center gap-3 bg-[#FAFAFA] rounded-xl px-4 py-3">
-                  <div className={`w-3 h-3 rounded-full ${s.color} shrink-0`} />
-                  <p className="flex-1 text-sm font-medium text-gray-600">{s.label}</p>
-                  {loading
-                    ? <div className="h-6 w-8 bg-gray-100 rounded animate-pulse" />
-                    : <span className={`text-xl font-bold ${s.text}`}>{s.value}</span>
-                  }
-                </div>
-              ))}
-            </div>
-          </div>
+          <ProjectOverviewCharts loading={loading} stats={stats} phasePieData={phasePieData} />
         </div>
 
         {/* SEARCH + FILTER */}

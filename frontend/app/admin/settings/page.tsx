@@ -43,6 +43,17 @@ export default function AdminSettingsPage() {
   const [showLogoutModal, setShowLogoutModal]  = useState(false);
   const [loggingOutAll,   setLoggingOutAll]    = useState(false);
   const [auditLogs,       setAuditLogs]        = useState<{ action: string; email?: string; ip?: string; createdAt: string }[]>([]);
+  const [auditFrom,       setAuditFrom]        = useState("");
+  const [auditTo,         setAuditTo]          = useState("");
+
+  const fetchAuditLogs = useCallback((from?: string, to?: string) => {
+    const qs = new URLSearchParams({ limit: "50" });
+    if (from) qs.set("fromDate", from);
+    if (to) qs.set("toDate", to);
+    API.get(`/auth/audit-logs?${qs}`)
+      .then(res => setAuditLogs(res.data.logs ?? []))
+      .catch(() => {});
+  }, []);
 
   /* ── FETCH ── */
   const fetchProfile = useCallback(async () => {
@@ -63,10 +74,8 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     const load = async () => { await fetchProfile(); };
     load();
-    API.get("/auth/audit-logs?limit=20")
-      .then((res) => setAuditLogs(res.data.logs ?? []))
-      .catch(() => {});
-  }, [fetchProfile]);
+    fetchAuditLogs();
+  }, [fetchProfile, fetchAuditLogs]);
 
   /* ── SAVE PROFILE ── */
   const handleSaveProfile = async () => {
@@ -530,7 +539,25 @@ export default function AdminSettingsPage() {
             {/* Audit log */}
             {auditLogs.length > 0 && (
               <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-6 shadow-sm">
-                <h2 className="text-base sm:text-xl font-semibold text-gray-800 mb-3">Security Activity</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                  <h2 className="text-base sm:text-xl font-semibold text-gray-800">Security Activity</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input type="date" value={auditFrom} onChange={e => setAuditFrom(e.target.value)}
+                      className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]" />
+                    <span className="text-gray-400 text-xs">→</span>
+                    <input type="date" value={auditTo} onChange={e => setAuditTo(e.target.value)}
+                      className="h-9 rounded-xl border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]" />
+                    <button type="button" onClick={() => fetchAuditLogs(auditFrom, auditTo)}
+                      disabled={!auditFrom || !auditTo}
+                      className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-40">
+                      Filter
+                    </button>
+                    <button type="button" onClick={() => { setAuditFrom(""); setAuditTo(""); fetchAuditLogs(); }}
+                      className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600">
+                      Reset
+                    </button>
+                  </div>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {auditLogs.map((log, i) => (
                     <div key={i} className="text-xs text-gray-600 flex justify-between gap-2 border-b border-gray-50 pb-1.5">

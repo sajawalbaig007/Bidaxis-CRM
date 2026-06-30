@@ -102,12 +102,22 @@ router.get("/activity-report", verifyToken, allowRoles("csr"), async (req: any, 
     const { from, to, label } = getActivityRange(period, date);
     const logs = await prisma.callLog.findMany({
       where:   { csrId, createdAt: { gte: from, lte: to } },
-      select:  { status: true },
+      select:  {
+        id: true, status: true, createdAt: true,
+        lead: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
 
     const { total, byStatus } = aggregateLogs(logs);
-    return res.json({ success: true, period, date, rangeLabel: label, total, byStatus });
+    const entries = logs.map(log => ({
+      id:        log.id,
+      status:    log.status,
+      createdAt: log.createdAt,
+      leadName:  log.lead?.name ?? "Unknown",
+    }));
+    return res.json({ success: true, period, date, rangeLabel: label, total, byStatus, entries });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch activity report" });
@@ -475,6 +485,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (phone             !== undefined) updateData.phone             = phone;
     if (email             !== undefined) updateData.email             = email;
     if (state             !== undefined) updateData.state             = state;
+
     if (req.body.ownerName        !== undefined) updateData.ownerName        = req.body.ownerName;
     if (req.body.projectScope     !== undefined) updateData.projectScope     = req.body.projectScope;
     if (req.body.projectPhase     !== undefined) updateData.projectPhase     = req.body.projectPhase;
@@ -660,26 +671,35 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId = req.user.id;
-    const { name, phone, company, interestedService, comments } = req.body;
+    const { name, phone, company, email, state, interestedService, comments, projectBudget, paidAmount } = req.body;
 
     if (!name?.trim()) {
       return res.status(400).json({ success: false, message: "Client name is required." });
     }
 
+    const trimmedPhone = phone?.trim() || null;
+    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+
     const lead = await prisma.lead.create({
       data: {
         name:              name.trim(),
-        phone:             phone?.trim()             || null,
+        phone:             trimmedPhone,
+        email:             email?.trim()?.toLowerCase() || null,
+        state:             state?.trim()             || null,
         company:           company?.trim()           || null,
         interestedService: interestedService?.trim() || null,
         comments:          comments?.trim()          || null,
+        projectBudget:     projectBudget?.trim()     || null,
+        paidAmount:        paidAmount?.trim()        || null,
         status:            "pending",
         assignedTo:        csrId,
         important:         false,
         interested:        false,
+        isOldClient:       existingLeads.length > 0,
       },
     });
 
+    invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.status(201).json({ success: true, lead });
   } catch (error) {
@@ -863,6 +883,36 @@ router.post("/lead/:id/subcontacts", verifyToken, allowRoles("csr"), async (req:
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
+  }
+});
+
+router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const leadId = req.params.id as string;
+    const subId  = req.params.subId as string;
+    const { name, designation, phone, email } = req.body as { name?: string; designation?: string; phone?: string; email?: string };
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const existing = await prisma.subContact.findFirst({ where: { id: subId, leadId } });
+    if (!existing) return res.status(404).json({ success: false, message: "Sub-contact not found" });
+
+    const subContact = await prisma.subContact.update({
+      where: { id: subId },
+      data: {
+        ...(name         !== undefined ? { name: name.trim() } : {}),
+        ...(designation  !== undefined ? { designation: designation?.trim() || null } : {}),
+        ...(phone        !== undefined ? { phone: phone?.trim() || null } : {}),
+        ...(email        !== undefined ? { email: email?.trim() || null } : {}),
+      },
+    });
+    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
+    return res.json({ success: true, subContact });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to update sub-contact" });
   }
 });
 

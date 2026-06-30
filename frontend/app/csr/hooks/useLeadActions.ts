@@ -37,7 +37,13 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
     if (res.data?.redistributed) {
       setLeads(prev => prev.filter(l => l.id !== id));
     } else {
-      setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...payload } as Lead : l)));
+      const now = new Date().toISOString();
+      setLeads(prev => prev.map(l => {
+        if (l.id !== id) return l;
+        const next = { ...l, ...payload } as Lead;
+        if ("status" in payload) next.statusUpdatedAt = now;
+        return next;
+      }));
     }
     return res.data;
   };
