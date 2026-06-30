@@ -13,7 +13,7 @@ import {
 
 const router = express.Router();
 
-router.use(verifyToken, allowRoles("admin"));
+router.use(verifyToken, allowRoles("admin", "manager"));
 
 router.post("/", uploadExcel.single("file"), uploadLeads);
 router.post("/preview", uploadExcel.single("file"), previewUpload);

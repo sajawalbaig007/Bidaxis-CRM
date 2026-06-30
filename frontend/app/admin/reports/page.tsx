@@ -3,8 +3,8 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
-import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { fetchReports, type ReportsData } from "@/lib/reportsCache";
 import { apiErrorMessage } from "@/lib/api";
 
@@ -22,6 +22,7 @@ type ReportResponse = ReportsData;
 
 /* ── Main Page ── */
 export default function ReportsPage() {
+  const StaffSidebar = useStaffSidebar();
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
   const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("all");
   const [loadingReport, setLoadingReport] = useState(false);
@@ -129,7 +130,7 @@ export default function ReportsPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
-      <DashboardSidebar />
+      <StaffSidebar />
 
       <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 mt-[64px]">
         <DashboardNavbar />

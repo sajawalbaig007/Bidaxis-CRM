@@ -2,13 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
+import { PORTAL_OPTIONS, portalLabel, type PortalRole } from "@/lib/loginRole";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
@@ -38,6 +39,15 @@ declare global {
   }
 }
 
+type PortalCredentials = { email: string; password: string };
+type CredentialsByPortal = Record<PortalRole, PortalCredentials>;
+
+const emptyPortalCredentials = (): CredentialsByPortal => ({
+  admin:   { email: "", password: "" },
+  csr:     { email: "", password: "" },
+  manager: { email: "", password: "" },
+});
+
 export default function LoginPage() {
   const [step,         setStep]         = useState<Step>("credentials");
   const [showPassword, setShowPassword] = useState(false);
@@ -55,8 +65,35 @@ export default function LoginPage() {
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRef = useRef<HTMLDivElement>(null);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [portalCreds, setPortalCreds] = useState<CredentialsByPortal>(() => emptyPortalCredentials());
+  const [loginPortal, setLoginPortal] = useState<PortalRole>("csr");
+  const [portalOpen, setPortalOpen] = useState(false);
+  const portalRef = useRef<HTMLDivElement>(null);
   const [activeSlide, setActiveSlide] = useState(0);
+
+  const formData = portalCreds[loginPortal];
+
+  const patchPortalCreds = (portal: PortalRole, patch: Partial<{ email: string; password: string }>) => {
+    setPortalCreds(prev => ({
+      ...prev,
+      [portal]: { ...prev[portal], ...patch },
+    }));
+  };
+
+  const selectLoginPortal = (next: PortalRole) => {
+    setLoginPortal(next);
+    setPortalOpen(false);
+    setShowCaptcha(false);
+    setCaptchaToken("");
+  };
+
+  useEffect(() => {
+    const fn = (e: MouseEvent) => {
+      if (portalRef.current && !portalRef.current.contains(e.target as Node)) setPortalOpen(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -106,10 +143,17 @@ export default function LoginPage() {
     window.location.href = path.startsWith("http") ? path : `${window.location.origin}${path}`;
   }
 
-  async function completeLogin(data: { role?: string; user?: { role?: string }; token?: string }) {
+  async function completeLogin(
+    data: { role?: string; user?: { role?: string }; token?: string },
+    expectedPortal: PortalRole
+  ) {
     const role = resolveLoginRole(data);
     if (!role) {
       toast.error("Could not determine your role. Contact admin.");
+      return;
+    }
+    if (role !== expectedPortal) {
+      toast.error(`This account is not a ${portalLabel(expectedPortal)}. Select the correct portal.`);
       return;
     }
     const token = data.token?.trim();
@@ -138,6 +182,7 @@ export default function LoginPage() {
         email:    formData.email.trim().toLowerCase(),
         password: formData.password,
         rememberMe,
+        loginRole: loginPortal,
         captchaToken: captchaToken || undefined,
       }, { withCredentials: true });
       const data = res.data;
@@ -146,7 +191,7 @@ export default function LoginPage() {
         setOtp(["", "", "", "", "", ""]); setStep("otp");
         toast.success(data.message ?? "OTP sent to your email");
       } else {
-        await completeLogin(data);
+        await completeLogin(data, loginPortal);
       }
     } catch (err: unknown) {
       const e = err as APIError;
@@ -156,6 +201,13 @@ export default function LoginPage() {
       } else if (data?.captchaRequired || data?.code === "CAPTCHA_REQUIRED") {
         setShowCaptcha(true);
         toast.error(data?.message ?? "Please complete security verification.");
+      } else if (data?.code === "PORTAL_ROLE_MISMATCH" || data?.code === "INVALID_LOGIN_ROLE") {
+        toast.error(data?.message ?? `Only ${portalLabel(loginPortal)} accounts can sign in here.`, { duration: 6000 });
+      } else if (
+        typeof data?.message === "string" &&
+        data.message.includes("registered as")
+      ) {
+        toast.error(data.message, { duration: 6000 });
       } else {
         toast.error(apiErrorMessage(err, "Login failed. Check email and password."));
         if (captchaEnabled) setShowCaptcha(true);
@@ -169,12 +221,20 @@ export default function LoginPage() {
     if (code.length < 6) { toast.error("Enter all 6 digits."); return; }
     setLoading(true);
     try {
-      const res = await API.post("/auth/verify-otp", { userId, otp: code, rememberMe }, { withCredentials: true });
-      await completeLogin(res.data);
+      const res = await API.post("/auth/verify-otp", {
+        userId,
+        otp: code,
+        rememberMe,
+        loginRole: loginPortal,
+      }, { withCredentials: true });
+      await completeLogin(res.data, loginPortal);
     } catch (err: unknown) {
       const e = err as APIError; const data = e?.response?.data;
       if (data?.code === "ALREADY_LOGGED_IN") {
         toast.error(data.message ?? "Already logged in on another device. Log out there first.", { duration: 6000 });
+        setStep("credentials");
+      } else if (data?.code === "PORTAL_ROLE_MISMATCH" || (typeof data?.message === "string" && data.message.includes("registered as"))) {
+        toast.error(data?.message ?? `Only ${portalLabel(loginPortal)} accounts can sign in here.`, { duration: 6000 });
         setStep("credentials");
       } else if (data?.blocked) { setIsBlocked(true); setBlockedMsg(data?.message ?? "Too many attempts."); }
       else {
@@ -278,23 +338,65 @@ export default function LoginPage() {
               <div className="mb-8">
                 <p className="text-[11px] font-bold text-[#B8112D] uppercase tracking-[0.18em] mb-2">Welcome back</p>
                 <h2 className="text-[28px] font-black text-[#0F172A] tracking-tight leading-tight">Sign In to Dashboard</h2>
-                <p className="text-gray-400 text-[13px] mt-2">Enter your credentials to continue</p>
+                <p className="text-gray-400 text-[13px] mt-2">
+                  {portalLabel(loginPortal)} portal — only {portalLabel(loginPortal).toLowerCase()} accounts can sign in here
+                </p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
+                <div ref={portalRef} className="relative">
+                  <label className="text-[12px] font-semibold text-gray-500 block mb-1.5">Sign in as</label>
+                  <button
+                    type="button"
+                    onClick={() => setPortalOpen(v => !v)}
+                    className={`${inputCls} flex items-center justify-between text-left`}
+                  >
+                    <span className="font-semibold text-crm-text">{portalLabel(loginPortal)}</span>
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform ${portalOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {portalOpen && (
+                    <div className="absolute z-20 left-0 right-0 mt-1.5 bg-crm-surface border border-crm-border rounded-xl shadow-lg p-2 space-y-0.5">
+                      {PORTAL_OPTIONS.map(opt => (
+                        <label
+                          key={opt.value}
+                          className={`flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                            loginPortal === opt.value ? "bg-[#FFF1F3]" : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="loginPortal"
+                            value={opt.value}
+                            checked={loginPortal === opt.value}
+                            onChange={() => selectLoginPortal(opt.value)}
+                            className="mt-1 accent-[#B8112D]"
+                          />
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-semibold text-crm-text">{opt.label}</span>
+                            <span className="block text-[11px] text-gray-400 mt-0.5">{opt.hint}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="text-[12px] font-semibold text-gray-500 block mb-1.5">Email Address</label>
                   <input type="email" required value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Company Email" className={inputCls} />
+                    onChange={e => patchPortalCreds(loginPortal, { email: e.target.value })}
+                    placeholder={`${portalLabel(loginPortal)} email`}
+                    className={inputCls} autoComplete={`username ${loginPortal}`} />
                 </div>
 
                 <div>
                   <label className="text-[12px] font-semibold text-gray-500 block mb-1.5">Password</label>
                   <div className="relative">
                     <input type={showPassword ? "text" : "password"} required value={formData.password}
-                      onChange={e => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="Enter your password" className={`${inputCls} pr-12`} />
+                      onChange={e => patchPortalCreds(loginPortal, { password: e.target.value })}
+                      placeholder={`${portalLabel(loginPortal)} password`}
+                      className={`${inputCls} pr-12`}
+                      autoComplete={`current-password ${loginPortal}`} />
                     <button type="button" onClick={() => setShowPassword(v => !v)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors">
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}

@@ -345,6 +345,7 @@ export default function ChatPage() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupName,      setGroupName]      = useState("");
   const [allUsers,       setAllUsers]       = useState<ChatUser[]>([]);
+  const [loadingUsers,   setLoadingUsers]   = useState(false);
   const [selectedUsers,  setSelectedUsers]  = useState<string[]>([]);
   const [userSearch,     setUserSearch]     = useState("");
   const [creatingGroup,  setCreatingGroup]  = useState(false);
@@ -682,21 +683,30 @@ export default function ChatPage() {
     }));
   };
 
-  const fetchUsers = async () => {
-    if (allUsers.length > 0) return;
+  const fetchUsers = async (force = false) => {
+    if (!force && allUsers.length > 0) return;
+    setLoadingUsers(true);
     try {
-      const r = await API.get("/users");
-      setAllUsers(parseUsers(r.data).filter(u => u.id !== meRef.current?.id));
-    } catch { setAllUsers([]); }
+      const r = await API.get("/chat/users");
+      setAllUsers(parseUsers(r.data?.users ?? r.data).filter(u => u.id !== meRef.current?.id));
+    } catch {
+      try {
+        const r = await API.get("/users");
+        setAllUsers(parseUsers(r.data).filter(u => u.id !== meRef.current?.id));
+      } catch {
+        if (force || allUsers.length === 0) setAllUsers([]);
+      }
+    } finally {
+      setLoadingUsers(false);
+    }
   };
 
-  /* ── Refresh online status every 10 s ── */
   useEffect(() => {
     if (allUsers.length === 0) return;
     const t = setInterval(async () => {
       try {
-        const r = await API.get("/users");
-        const fresh = parseUsers(r.data);
+        const r = await API.get("/chat/users");
+        const fresh = parseUsers(r.data?.users ?? r.data);
         setAllUsers(prev => prev.map(u => {
           const updated = fresh.find(f => f.id === u.id);
           return updated ? { ...u, isOnline: updated.isOnline } : u;
@@ -892,8 +902,8 @@ export default function ChatPage() {
             notifGranted={notifGranted}
             onNotif={() => void askNotif()}
             onSelect={() => setSelectMode(true)}
-            onNewDm={() => { setShowDmModal(true); void fetchUsers(); }}
-            onNewGroup={() => { setShowGroupModal(true); void fetchUsers(); }}
+            onNewDm={() => { setShowDmModal(true); void fetchUsers(true); }}
+            onNewGroup={() => { setShowGroupModal(true); void fetchUsers(true); }}
           />
         )}
 
@@ -1306,11 +1316,11 @@ export default function ChatPage() {
               <h3 className="text-lg font-bold text-[#0F172A]">Your Messages</h3>
               <p className="text-sm text-gray-400 mt-1 max-w-xs">Select a conversation or start a new one with any team member.</p>
               <div className="flex flex-wrap gap-2.5 mt-5 justify-center">
-                <button onClick={() => { setShowDmModal(true); void fetchUsers(); }}
+                <button onClick={() => { setShowDmModal(true); void fetchUsers(true); }}
                   className="h-9 px-4 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-600 hover:border-[#B8112D] hover:text-[#B8112D] flex items-center gap-2 shadow-sm transition-all">
                   <User2 size={13} />New DM
                 </button>
-                <button onClick={() => { setShowGroupModal(true); void fetchUsers(); }}
+                <button onClick={() => { setShowGroupModal(true); void fetchUsers(true); }}
                   className="h-9 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-semibold flex items-center gap-2 hover:bg-[#a30f27] shadow-sm shadow-red-200 transition-colors">
                   <Hash size={13} />Create Group
                 </button>
@@ -1477,7 +1487,9 @@ export default function ChatPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-3 pb-4">
-              {filteredUsers.length === 0 ? (
+              {loadingUsers ? (
+                <div className="py-10 text-center"><Loader2 size={22} className="text-gray-300 mx-auto mb-2 animate-spin" /><p className="text-xs text-gray-400">Loading team members…</p></div>
+              ) : filteredUsers.length === 0 ? (
                 <p className="text-center text-xs text-gray-400 py-6">No users found</p>
               ) : (() => {
                 const sorted     = [...filteredUsers].sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));

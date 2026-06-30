@@ -18,7 +18,7 @@ import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/component
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 
-type UserRole = "CSR" | "Admin";
+type UserRole = "CSR" | "Admin" | "Manager";
 
 type User = {
   id: string; name: string; email: string; password: string;
@@ -48,6 +48,7 @@ const apiBase = () => getApiBase();
 
 const roleColor = (role: UserRole) => {
   if (role === "Admin") return "bg-blue-100 text-blue-600";
+  if (role === "Manager") return "bg-violet-100 text-violet-600";
   return "bg-emerald-100 text-emerald-600";
 };
 
@@ -273,7 +274,7 @@ export default function UsersPage() {
         id:         u.id,
         name:       u.name,
         email:      u.email,
-        role:       u.role === "csr" ? "CSR" : "Admin",
+        role:       u.role === "csr" ? "CSR" : u.role === "manager" ? "Manager" : "Admin",
         csrCode:    u.csrCode    ?? null,
         cnic:       u.cnic       ?? null,
         cnicPdfUrl: u.cnicPdfUrl ?? null,
@@ -382,7 +383,8 @@ export default function UsersPage() {
       return;
     }
     try {
-      const role = form.role === "CSR" ? "csr" : "admin";
+      const role =
+        form.role === "CSR" ? "csr" : form.role === "Manager" ? "manager" : "admin";
       const url    = editingUser ? `${apiBase()}/users/${editingUser.id}` : `${apiBase()}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
       const shared = {
@@ -1055,6 +1057,7 @@ export default function UsersPage() {
                     onChange={e => setForm({ ...form, role: e.target.value as UserRole, csrCode: "" })}
                     className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] bg-white text-sm">
                     <option value="CSR">CSR (Customer Support)</option>
+                    <option value="Manager">Manager</option>
                     <option value="Admin">Admin</option>
                   </select>
                 </div>

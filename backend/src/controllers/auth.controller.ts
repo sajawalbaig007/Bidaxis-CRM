@@ -122,8 +122,27 @@ function makeOTP(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
+type PortalRole = "admin" | "csr" | "manager";
+
+function parsePortalRole(raw: unknown): PortalRole | null {
+  const r = String(raw ?? "").toLowerCase();
+  if (r === "admin" || r === "csr" || r === "manager") return r;
+  return null;
+}
+
+function portalRoleLabel(role: PortalRole): string {
+  if (role === "admin") return "Admin";
+  if (role === "manager") return "Manager";
+  return "CSR";
+}
+
+function assertPortalRoleMatch(userRole: string, loginRole: PortalRole): string | null {
+  if (userRole === loginRole) return null;
+  return `This account is registered as ${portalRoleLabel(userRole as PortalRole)}. Select "${portalRoleLabel(userRole as PortalRole)}" on the login page.`;
+}
+
 function assertAdminIp(req: Request, role: string): string | null {
-  if (role !== "admin") return null;
+  if (role !== "admin" && role !== "manager") return null;
   const allowed = getAdminAllowedIps();
   if (allowed.length === 0) return null;
   const ip = getClientIp(req);
@@ -154,6 +173,15 @@ export const register = async (req: AuthRequest, res: Response) => {
 
     if (role === "admin" && req.user?.role !== "admin") {
       return res.status(403).json({ success: false, message: "Only admins can create admin accounts." });
+    }
+
+    if (role === "manager" && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only admins can create manager accounts." });
+    }
+
+    const validRoles = ["admin", "csr", "manager"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: "Invalid role." });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -212,12 +240,22 @@ export const getCaptchaConfig = async (_req: Request, res: Response) => {
 /* ================= LOGIN — Step 1 ================= */
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email: rawEmail, password, rememberMe, captchaToken } = req.body as {
+    const { email: rawEmail, password, rememberMe, captchaToken, loginRole: rawLoginRole } = req.body as {
       email: string;
       password: string;
       rememberMe?: boolean;
       captchaToken?: string;
+      loginRole?: string;
     };
+
+    const loginRole = parsePortalRole(rawLoginRole);
+    if (!loginRole) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_LOGIN_ROLE",
+        message: "Select Admin, CSR, or Manager before signing in.",
+      });
+    }
 
     const email = (rawEmail ?? "").trim().toLowerCase();
     if (!email || !password) {
@@ -259,6 +297,23 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: "Account is deactivated" });
     }
 
+    const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
+    if (roleMismatch) {
+      await writeAuditLog({
+        action: "login_failed",
+        userId: user.id,
+        email: user.email,
+        ip,
+        userAgent: ua,
+        meta: { reason: "portal_role_mismatch", loginRole, userRole: user.role },
+      });
+      return res.status(403).json({
+        success: false,
+        code: "PORTAL_ROLE_MISMATCH",
+        message: roleMismatch,
+      });
+    }
+
     const ipError = assertAdminIp(req, user.role);
     if (ipError) {
       await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "ip" } });
@@ -293,7 +348,7 @@ export const login = async (req: Request, res: Response) => {
       otpAttempts.delete(user.id);
       otpResendCount.delete(user.id);
       const otp = makeOTP();
-      otpStore.set(user.id, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+      otpStore.set(user.id, { otp, expiresAt: Date.now() + 5 * 60 * 1000, loginRole });
 
       sendOTPEmail(user.email, otp);
 
@@ -324,7 +379,7 @@ export const login = async (req: Request, res: Response) => {
 /* ================= VERIFY OTP ================= */
 export const verifyOTP = async (req: Request, res: Response) => {
   try {
-    const { userId, otp, rememberMe } = req.body;
+    const { userId, otp, rememberMe, loginRole: rawLoginRole } = req.body;
     if (!userId || !otp) {
       return res.status(400).json({ success: false, message: "userId and OTP required." });
     }
@@ -387,6 +442,23 @@ export const verifyOTP = async (req: Request, res: Response) => {
     });
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    const loginRole = parsePortalRole(rawLoginRole) ?? parsePortalRole(stored.loginRole);
+    if (!loginRole) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_LOGIN_ROLE",
+        message: "Select Admin, CSR, or Manager before signing in.",
+      });
+    }
+    const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
+    if (roleMismatch) {
+      return res.status(403).json({
+        success: false,
+        code: "PORTAL_ROLE_MISMATCH",
+        message: roleMismatch,
+      });
     }
 
     return finishLogin(req, res, user, !!rememberMe);
