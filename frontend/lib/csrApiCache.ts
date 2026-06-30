@@ -1,6 +1,6 @@
-import API from "./api";
+import API, { getTokenUserId } from "./api";
 
-type CacheEntry<T> = { data: T; at: number };
+type CacheEntry<T> = { userId: string; data: T; at: number };
 
 function createFetcher<T>(url: string, ttlMs: number) {
   let cached: CacheEntry<T> | null = null;
@@ -8,7 +8,8 @@ function createFetcher<T>(url: string, ttlMs: number) {
 
   return {
     get(force = false): Promise<T> {
-      if (!force && cached && Date.now() - cached.at < ttlMs) {
+      const userId = getTokenUserId() ?? "";
+      if (!force && userId && cached?.userId === userId && Date.now() - cached.at < ttlMs) {
         return Promise.resolve(cached.data);
       }
       if (inflight) return inflight;
@@ -16,7 +17,7 @@ function createFetcher<T>(url: string, ttlMs: number) {
       inflight = API.get(url)
         .then(res => {
           const data = res.data as T;
-          cached = { data, at: Date.now() };
+          if (userId) cached = { userId, data, at: Date.now() };
           return data;
         })
         .finally(() => { inflight = null; });
@@ -25,6 +26,7 @@ function createFetcher<T>(url: string, ttlMs: number) {
     },
     invalidate() {
       cached = null;
+      inflight = null;
     },
   };
 }

@@ -96,8 +96,11 @@ export default function CSRPage() {
   const [paidAmount,      setPaidAmount]      = useState("");
   const [email,           setEmail]           = useState("");
 
-  /* Exclude leads hidden after a Reset — they live on their dedicated pages */
-  const mainLeads = useMemo(() => leads.filter(l => !l.hiddenOnMain), [leads]);
+  /* Leads on main dashboard — pending always visible; other statuses hidden when flagged */
+  const mainLeads = useMemo(() => leads.filter(l => {
+    if (!l.hiddenOnMain) return true;
+    return (l.status ?? "").toLowerCase() === "pending";
+  }), [leads]);
 
   const todayImportantCalls = useMemo(
     () => mainLeads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR),
@@ -667,6 +670,10 @@ export default function CSRPage() {
                           ? `No leads in "${stateFilter}".`
                           : timezoneFilter
                           ? `No leads in ${timezoneFilter} timezone.`
+                          : leads.length > 0 && mainLeads.length === 0
+                          ? "Your leads are on other pages — try Not Interested, Potential Clients, or Clients."
+                          : activeTab === "today" && stats.totalLeads > 0
+                          ? "No pending leads in Today's queue. Try another tab above."
                           : "No calls available in this category."}
                       </p>
                       {(stateFilter || timezoneFilter || phoneFilter || sourceFilter) && (

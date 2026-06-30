@@ -108,6 +108,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
           ...(selectedCSRs.length > 0 && { id: { in: selectedCSRs } }),
         },
         select: { id: true, name: true, email: true },
+        orderBy: { csrCode: "asc" },
       }),
     ]);
 
@@ -189,6 +190,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const isActiveUpload = leadType === "active";
     const parsed         = parseLeadRows(rows, csrs, initialStatuses, leadType);
     const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
+    const hideOnMain = (status: string) =>
+      isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
 
     const { fresh, toUpdate, emailUpdates, preview, existingCodeMap } =
       await classifyRows(parsed, isActiveUpload);
@@ -212,7 +215,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
             isOldClient:       true,
             assignedTo:        r.csrId,
             uploadedFileId:    uploadedFile.id,
-            hiddenOnMain:      isSpecialUpload,
+            hiddenOnMain:      hideOnMain(r.status),
           },
         })
       );
@@ -244,7 +247,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         isOldClient:       r.isOldClient,
         assignedTo:        r.csrId,
         uploadedFileId:    uploadedFile.id,
-        hiddenOnMain:      isSpecialUpload,
+        hiddenOnMain:      hideOnMain(r.status),
       }));
 
       for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {

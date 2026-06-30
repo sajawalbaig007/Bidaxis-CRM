@@ -1,4 +1,11 @@
 import { setClientAuthToken } from "./api";
+import { invalidateCsrDashboardCache } from "./csrDashboardCache";
+import { invalidateAllCsrListCaches } from "./csrApiCache";
+
+function clearCsrClientCaches() {
+  invalidateCsrDashboardCache();
+  invalidateAllCsrListCaches();
+}
 
 /** Set httpOnly session cookie on the Next.js domain (same-origin — works with /api/backend proxy). */
 export async function setFrontendSession(token: string): Promise<boolean> {
@@ -26,6 +33,7 @@ export async function setFrontendSession(token: string): Promise<boolean> {
 /** Clear httpOnly session cookie on the Next.js domain. */
 export async function clearFrontendSession(): Promise<void> {
   setClientAuthToken(null);
+  clearCsrClientCaches();
   await fetch("/api/auth/clear-session", {
     method:      "POST",
     credentials: "include",
