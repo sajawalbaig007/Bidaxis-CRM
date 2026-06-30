@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
+import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
@@ -124,6 +125,7 @@ export default function LoginPage() {
 
     invalidateAuthMeCache();
     invalidateCsrDashboardCache();
+    invalidateAllCsrListCaches();
 
     const dest = dashboardPathForRole(role);
     hardRedirect(dest);

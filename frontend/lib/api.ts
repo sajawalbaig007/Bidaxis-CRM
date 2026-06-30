@@ -15,6 +15,21 @@ export function getClientAuthToken(): string | null {
   return sessionStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
+/** Current logged-in user id from JWT (client cache scoping). */
+export function getTokenUserId(): string | null {
+  const token = getClientAuthToken();
+  if (!token) return null;
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json) as { id?: string; sub?: string };
+    return payload.id ?? payload.sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function isLocalHost(): boolean {
   if (typeof window === "undefined") return false;
   const h = window.location.hostname;

@@ -1,4 +1,4 @@
-import API from "./api";
+import API, { getTokenUserId } from "./api";
 
 export type CsrDashboardLead = {
   id: string;
@@ -15,16 +15,18 @@ export type CsrDashboardData = {
   leads: CsrDashboardLead[];
 };
 
-let cached: { data: CsrDashboardData; at: number } | null = null;
+let cached: { userId: string; data: CsrDashboardData; at: number } | null = null;
 let inflight: Promise<CsrDashboardData> | null = null;
 const TTL_MS = 28_000;
 
 export function invalidateCsrDashboardCache() {
   cached = null;
+  inflight = null;
 }
 
 export async function getCsrDashboard(force = false): Promise<CsrDashboardData> {
-  if (!force && cached && Date.now() - cached.at < TTL_MS) {
+  const userId = getTokenUserId() ?? "";
+  if (!force && userId && cached?.userId === userId && Date.now() - cached.at < TTL_MS) {
     return cached.data;
   }
   if (inflight) return inflight;
@@ -32,7 +34,7 @@ export async function getCsrDashboard(force = false): Promise<CsrDashboardData> 
   inflight = API.get("/csr/dashboard")
     .then(res => {
       const data = res.data as CsrDashboardData;
-      cached = { data, at: Date.now() };
+      if (userId) cached = { userId, data, at: Date.now() };
       return data;
     })
     .finally(() => { inflight = null; });

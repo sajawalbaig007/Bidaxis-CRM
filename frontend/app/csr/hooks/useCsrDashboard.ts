@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { getCsrDashboard, invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
 
@@ -14,6 +15,7 @@ export function useCsrDashboard() {
       setLeads((data.leads ?? []).map((lead: BackendLead) => mapBackendLead(lead)));
     } catch (err) {
       console.log(err);
+      toast.error("Could not load your leads. Please refresh the page.");
     } finally {
       setLoading(false);
     }

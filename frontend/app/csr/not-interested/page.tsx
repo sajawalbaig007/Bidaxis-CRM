@@ -115,9 +115,9 @@ export default function NotInterestedPage() {
   /* ── Derived lists ── */
   const notInterested = useMemo(() => leads.filter(l => isNotInterestedStatus(l.status)), [leads]);
   const notPicked     = useMemo(() => leads.filter(l => isNotPickedStatus(l.status)), [leads]);
-  const noOwner       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NO_OWNER && !l.hiddenOnMain).map(leadToNiLead), [dashboardLeads]);
-  const notInService  = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE && !l.hiddenOnMain).map(leadToNiLead), [dashboardLeads]);
-  const inHouse       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE && !l.hiddenOnMain).map(leadToNiLead), [dashboardLeads]);
+  const noOwner       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NO_OWNER).map(leadToNiLead), [dashboardLeads]);
+  const notInService  = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE).map(leadToNiLead), [dashboardLeads]);
+  const inHouse       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE).map(leadToNiLead), [dashboardLeads]);
 
   const isRetryTab = activeTab === "notinterested" || activeTab === "notpicked";
   const currentList = activeTab === "notinterested" ? notInterested
