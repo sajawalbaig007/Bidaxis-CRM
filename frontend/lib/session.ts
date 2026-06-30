@@ -49,12 +49,16 @@ export async function logoutSession(apiLogout: () => Promise<unknown>): Promise<
 export function resolveLoginRole(data: {
   role?: string;
   user?: { role?: string };
-}): "admin" | "csr" | null {
+}): PortalRole | null {
   const r = (data.role ?? data.user?.role ?? "").toLowerCase();
-  if (r === "admin" || r === "csr") return r;
+  if (r === "admin" || r === "csr" || r === "manager") return r;
   return null;
 }
 
-export function dashboardPathForRole(role: "admin" | "csr"): string {
-  return role === "admin" ? "/admin" : "/csr";
+export type PortalRole = "admin" | "csr" | "manager";
+
+export function dashboardPathForRole(role: PortalRole): string {
+  if (role === "admin") return "/admin";
+  if (role === "manager") return "/manager";
+  return "/csr";
 }

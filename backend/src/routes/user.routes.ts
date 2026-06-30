@@ -20,7 +20,7 @@ const router = express.Router();
 router.use(verifyToken);
 
 /* ================= GET ALL USERS — admin + csr (chat) ================= */
-router.get("/", allowRoles("admin", "csr"), async (req: AuthRequest, res) => {
+router.get("/", allowRoles("admin", "csr", "manager"), async (req: AuthRequest, res) => {
   try {
     const viewerRole = req.user!.role;
     const CACHE_KEY = `users:list:${viewerRole}`;

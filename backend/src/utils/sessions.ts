@@ -1,7 +1,7 @@
 import prisma from "../config/db";
 
 /* OTP store: userId → { otp, expiresAt } */
-export const otpStore = new Map<string, { otp: string; expiresAt: number }>();
+export const otpStore = new Map<string, { otp: string; expiresAt: number; loginRole?: string }>();
 
 /* OTP wrong attempts: userId → { count, blockedUntil? } */
 export const otpAttempts = new Map<string, { count: number; blockedUntil?: number }>();

@@ -559,7 +559,7 @@ router.post("/status", verifyToken, async (req: AuthRequest, res) => {
 });
 
 /* ═══════════════════════════════════════════════════════
-   GET /chat/users — admin + csr (for DMs)
+   GET /chat/users — admin + csr + manager (for DMs)
 ═══════════════════════════════════════════════════════ */
 router.get("/users", verifyToken, async (req: AuthRequest, res) => {
   try {
@@ -567,10 +567,11 @@ router.get("/users", verifyToken, async (req: AuthRequest, res) => {
     const users = await prisma.user.findMany({
       where: { isActive: true, id: { not: meId } },
       select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
-      orderBy: [{ role: "asc" }, { name: "asc" }],
+      orderBy: [{ name: "asc" }],
     });
     return res.json({ users });
-  } catch {
+  } catch (err) {
+    console.error("[chat] GET /users", err);
     return res.status(500).json({ message: "Failed to fetch users" });
   }
 });

@@ -5,6 +5,6 @@ import { allowRoles } from "../middleware/role.middleware";
 
 const router = Router();
 
-router.get("/", verifyToken, allowRoles("admin"), getReports);
+router.get("/", verifyToken, allowRoles("admin", "manager"), getReports);
 
 export default router;

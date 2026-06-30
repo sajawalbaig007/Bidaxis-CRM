@@ -9,7 +9,7 @@ import {
   PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle, Pencil,
 } from "lucide-react";
 
-import DashboardSidebar from "../components/layout/Sidebar";
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
 import API from "@/lib/api";
@@ -124,6 +124,7 @@ const getFileIcon = (type: string) => {
 };
 
 export default function UploadPage() {
+  const StaffSidebar = useStaffSidebar();
   const inputRef             = useRef<HTMLInputElement | null>(null);
   const inputRefImportant    = useRef<HTMLInputElement | null>(null);
   const inputRefInterested   = useRef<HTMLInputElement | null>(null);
@@ -1490,7 +1491,7 @@ export default function UploadPage() {
         </div>
       )}
 
-      <DashboardSidebar />
+      <StaffSidebar />
 
       <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />

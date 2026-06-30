@@ -108,7 +108,7 @@ router.get("/notifications", verifyToken, allowRoles("admin"), async (req, res) 
 });
 
 /* ================= GET ALL CSRS ================= */
-router.get("/csrs", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/csrs", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const CACHE_KEY = "admin:csrs";
     const cached = getCache<object>(CACHE_KEY);
@@ -1273,7 +1273,7 @@ async function statsForSource(sourceId: string) {
   };
 }
 
-router.get("/upload-sources", verifyToken, allowRoles("admin"), async (_req, res) => {
+router.get("/upload-sources", verifyToken, allowRoles("admin", "manager"), async (_req, res) => {
   try {
     const sources = await prisma.uploadSource.findMany({ orderBy: { name: "asc" } });
 
@@ -1299,7 +1299,7 @@ router.get("/upload-sources", verifyToken, allowRoles("admin"), async (_req, res
   }
 });
 
-router.post("/upload-sources", verifyToken, allowRoles("admin"), async (req, res) => {
+router.post("/upload-sources", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const name = String(req.body.name ?? "").trim();
     const sudoNameRaw = String(req.body.sudoName ?? "").trim();
@@ -1328,7 +1328,7 @@ router.post("/upload-sources", verifyToken, allowRoles("admin"), async (req, res
   }
 });
 
-router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const sourceId = String(req.params.sourceId);
     const source = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
@@ -1390,7 +1390,7 @@ router.get("/access-history/:userId", verifyToken, allowRoles("admin"), async (r
   }
 });
 
-router.patch("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.patch("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const sourceId = String(req.params.sourceId);
     const existing = await prisma.uploadSource.findUnique({ where: { id: sourceId } });
@@ -1427,7 +1427,7 @@ router.patch("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), asyn
   }
 });
 
-router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const sourceId = String(req.params.sourceId);
     const existing = await prisma.uploadSource.findUnique({ where: { id: sourceId } });

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+type AppRole = "admin" | "csr" | "manager";
+
 type TokenPayload = { role?: string; exp?: number; sid?: string };
 
-function parseToken(token: string): { role: "admin" | "csr" | null; ok: boolean } {
+function parseToken(token: string): { role: AppRole | null; ok: boolean } {
   try {
     const part = token.split(".")[1];
     if (!part) return { role: null, ok: false };
@@ -15,7 +17,7 @@ function parseToken(token: string): { role: "admin" | "csr" | null; ok: boolean 
     if (payload.exp && payload.exp * 1000 < Date.now()) return { role: null, ok: false };
 
     const role = (payload.role ?? "").toLowerCase();
-    if (role === "admin" || role === "csr") return { role, ok: true };
+    if (role === "admin" || role === "csr" || role === "manager") return { role, ok: true };
     return { role: null, ok: false };
   } catch {
     return { role: null, ok: false };
@@ -28,11 +30,20 @@ function redirectHomeClearCookie(request: NextRequest) {
   return res;
 }
 
+function homeForRole(role: AppRole) {
+  if (role === "admin") return "/admin";
+  if (role === "manager") return "/manager";
+  return "/csr";
+}
+
 export function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const { pathname } = request.nextUrl;
 
-  const protectedPath = pathname.startsWith("/admin") || pathname.startsWith("/csr");
+  const protectedPath =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/csr") ||
+    pathname.startsWith("/manager");
 
   if (!token) {
     if (protectedPath) return NextResponse.redirect(new URL("/", request.url));
@@ -43,8 +54,7 @@ export function proxy(request: NextRequest) {
 
   if (pathname === "/" || pathname === "/login") {
     if (ok && role) {
-      const dest = role === "admin" ? "/admin" : "/csr";
-      return NextResponse.redirect(new URL(dest, request.url));
+      return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
     if (!ok) return redirectHomeClearCookie(request);
     return NextResponse.next();
@@ -55,15 +65,18 @@ export function proxy(request: NextRequest) {
   if (!ok || !role) return redirectHomeClearCookie(request);
 
   if (pathname.startsWith("/admin") && role !== "admin") {
-    return NextResponse.redirect(new URL("/csr", request.url));
+    return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
   if (pathname.startsWith("/csr") && role !== "csr") {
-    return NextResponse.redirect(new URL("/admin", request.url));
+    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+  }
+  if (pathname.startsWith("/manager") && role !== "manager") {
+    return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/admin/:path*", "/csr/:path*"],
+  matcher: ["/", "/admin/:path*", "/csr/:path*", "/manager/:path*"],
 };
