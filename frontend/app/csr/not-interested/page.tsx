@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import {
   ThumbsDown, PhoneOff, Search,
   X, ArrowRightLeft, RefreshCw,
@@ -18,14 +18,16 @@ import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../cons
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_9_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
+import SubContactsCell from "@/app/components/clients/SubContactsCell";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
 import { useCsrDashboard } from "../hooks/useCsrDashboard";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import API from "@/lib/api";
+import StatusWithTimestamp from "../components/shared/StatusWithTimestamp";
 import {
   STATUS_NO_OWNER,
   STATUS_NOT_IN_SERVICE,
@@ -52,6 +54,7 @@ function leadToNiLead(l: Lead): NiLead {
     email: l.email,
     state: l.state,
     status: l.status,
+    statusUpdatedAt: l.statusUpdatedAt,
     notInterestedCount: 0,
     notPickedCount: 0,
     interestedService: l.interestedService,
@@ -406,13 +409,14 @@ export default function NotInterestedPage() {
 
           {/* Table */}
           <div className={CSR_TABLE_WRAP}>
-            <table className={CSR_TABLE_CLASS} style={{ minWidth: "1280px" }}>
-              <CsrColGroup widths={COL_8_FOLLOWUP} />
+            <table className={CSR_TABLE_CLASS}>
+              <CsrColGroup widths={COL_9_FOLLOWUP} />
               <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
                   <FilterableTh title="Client" filter={colFilters.client ?? ""} onFilter={v => { setColFilter("client", v); setPage(1); }} className={CSR_TH} placeholder="Name…" />
                   <FilterableTh title="Company" filter={colFilters.company ?? ""} onFilter={v => { setColFilter("company", v); setPage(1); }} className={CSR_TH} placeholder="Company…" />
                   <FilterableTh title="Contact" filter={colFilters.contact ?? ""} onFilter={v => { setColFilter("contact", v); setPage(1); }} className={CSR_TH} placeholder="Phone…" />
+                  <th className={`hidden lg:table-cell ${CSR_TH}`}>Sub Contacts</th>
                   <FilterableTh title="Service" filter={colFilters.service ?? ""} onFilter={v => { setColFilter("service", v); setPage(1); }} className={CSR_TH} placeholder="Service…" />
                   <th className={CSR_TH}>Note</th>
                   <th className={CSR_TH}>Tries</th>
@@ -424,7 +428,7 @@ export default function NotInterestedPage() {
                 {pageLoading ? (
                   [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
-                      {[1,2,3,4,5,6,7,8].map(j => (
+                      {[1,2,3,4,5,6,7,8,9].map(j => (
                         <td key={j} className={CSR_TD}>
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-14 sm:w-20" />
                         </td>
@@ -442,32 +446,21 @@ export default function NotInterestedPage() {
                     : activeTab === "notinterested" ? "bg-[#B8112D]" : "bg-amber-500";
 
                   return (
-                    <>
+                    <Fragment key={lead.id}>
                       <tr
-                        key={lead.id}
                         className={`border-b border-[#F7F7F7] transition-all ${isAtLimit ? "opacity-60 bg-gray-50" : "hover:bg-[#FFF8F9]"}`}
                       >
                         {/* Client */}
                         <td className={CSR_TD}>
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 text-white ${
                               isAtLimit ? "bg-gray-400" : isNearLimit ? "bg-amber-500" : "bg-[#B8112D]"
                             }`}>
                               {lead.client.charAt(0)}
                             </div>
-                            <div>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px]">{lead.client}</h4>
-                                {(() => {
-                                  const tz = getTimezoneAbbr(lead.state);
-                                  return tz ? (
-                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
-                                      {tz}
-                                    </span>
-                                  ) : null;
-                                })()}
-                              </div>
-                              <p className="text-gray-500 text-[10px] sm:text-[12px] mt-0.5">
+                            <div className="min-w-0">
+                              <h4 className="font-semibold text-[#0F172A] text-[11px] sm:text-[12px] truncate">{lead.client}</h4>
+                              <p className="text-gray-500 text-[9px] sm:text-[10px] truncate">
                                 {statusDisplayLabel(lead.status)}
                               </p>
                             </div>
@@ -476,25 +469,24 @@ export default function NotInterestedPage() {
 
                         {/* Company */}
                         <td className={CSR_TD}>
-                          <h4 className="font-medium text-[#0F172A] text-[12px] sm:text-[14px] max-w-[110px] truncate">{lead.company}</h4>
+                          <p className="font-medium text-[#0F172A] text-[11px] sm:text-[12px] truncate">{lead.company}</p>
                         </td>
 
                         {/* Contact */}
                         <td className={CSR_TD}>
-                          <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[13px] font-medium w-fit whitespace-nowrap">
-                            <Phone size={11} className="sm:w-3 sm:h-3" />{lead.phone}
-                            {(() => { const t = getTimezoneAbbrFromPhone(lead.phone); return t ? <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border ${tzBadgeClass(t)}`}>{t}</span> : null; })()}
-                          </div>
+                          <p className="text-[10px] sm:text-[11px] font-medium text-[#B8112D] truncate">{lead.phone}</p>
+                        </td>
+
+                        <td className={`hidden lg:table-cell ${CSR_TD}`}>
+                          <SubContactsCell contacts={lead.subContacts} />
                         </td>
 
                         {/* Service */}
                         <td className={CSR_TD}>
                           {lead.interestedService ? (
-                            <div className="flex items-center gap-1 sm:gap-1.5 bg-[#FFF4E5] text-[#D97706] px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[13px] font-semibold whitespace-nowrap">
-                              <Briefcase size={11} className="sm:w-3 sm:h-3" />{lead.interestedService}
-                            </div>
+                            <p className="text-[10px] sm:text-[11px] font-semibold text-[#D97706] truncate">{lead.interestedService}</p>
                           ) : (
-                            <span className="text-gray-300 text-sm">—</span>
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
 
@@ -504,86 +496,71 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Tries bar */}
-                        <td className="py-4 sm:py-5 px-2 w-[130px] sm:w-[160px]">
+                        <td className={CSR_TD}>
                           {isRetryTab ? (
-                            <>
-                              <TriesBar used={tries} limit={limit} color={barColor} />
-                              {isNearLimit && !isAtLimit && (
-                                <span className="text-[10px] font-bold text-amber-600 mt-0.5 block">⚠ Last try</span>
-                              )}
-                            </>
+                            <TriesBar used={tries} limit={limit} color={barColor} />
                           ) : (
-                            <span className="text-gray-300 text-sm">—</span>
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
 
                         {/* Status badge */}
                         <td className={CSR_TD}>
                           {isRetryTab && isAtLimit ? (
-                            <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-gray-100 text-gray-500 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap">
-                              <ArrowRightLeft size={11} className="sm:w-3 sm:h-3" />Redistributed
-                            </span>
+                            <span className="block text-[9px] sm:text-[10px] font-semibold text-gray-500 truncate">Redistributed</span>
                           ) : (
-                            <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap ${
-                              activeTab === "notinterested" ? "bg-[#FFF1F3] text-[#B8112D]"
-                              : activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]"
-                              : activeTab === "noowner" ? "bg-[#FEF3C7] text-[#B45309]"
-                              : activeTab === "notinservice" ? "bg-[#F3E8FF] text-[#7C3AED]"
-                              : "bg-[#CCFBF1] text-[#0D9488]"
-                            }`}>
-                              {statusDisplayLabel(lead.status)}
-                            </span>
+                            <StatusWithTimestamp
+                              status={lead.status}
+                              statusUpdatedAt={lead.statusUpdatedAt}
+                              badgeClassName={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-semibold w-fit ${
+                                activeTab === "notinterested" ? "bg-[#FFF1F3] text-[#B8112D]"
+                                  : activeTab === "notpicked" ? "bg-[#FFF7ED] text-[#B54708]"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}
+                            />
                           )}
                         </td>
 
                         {/* Action */}
                         <td className={CSR_TD}>
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1 min-w-0">
                             <button
                               onClick={() => setViewingLead(lead)}
                               title="View details"
-                              className="h-9 w-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
+                              className="h-7 w-7 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
                             >
-                              <Eye size={13} />
+                              <Eye size={12} />
                             </button>
-                            {isRetryTab && !isAtLimit ? (
+                            {isRetryTab && !isAtLimit && (
                               <button
                                 onClick={() => handleRetry(lead)}
-                                className="h-9 px-3 rounded-xl bg-[#F5F6FA] text-gray-700 text-[12px] font-semibold flex items-center gap-1.5 hover:bg-[#B8112D] hover:text-white transition-all whitespace-nowrap shrink-0"
+                                title="Retry"
+                                className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-700 flex items-center justify-center hover:bg-[#B8112D] hover:text-white shrink-0"
                               >
-                                <RefreshCw size={12} />Retry
+                                <RefreshCw size={11} />
                               </button>
-                            ) : isRetryTab ? (
-                              <span className="flex items-center gap-1 text-gray-400 text-[12px] shrink-0">
-                                <Users size={13} />Reassigned
-                              </span>
-                            ) : null}
+                            )}
                             {lead.followUpNotes && (
                               <button
                                 onClick={() => setExpandedRow(expandedRow === lead.id ? null : lead.id)}
                                 title="View history"
-                                className="h-9 w-9 rounded-xl bg-[#F5F6FA] text-gray-500 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 transition-all shrink-0"
+                                className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-500 flex items-center justify-center shrink-0"
                               >
-                                {expandedRow === lead.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                {expandedRow === lead.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                               </button>
                             )}
-                            <div className="relative flex-1 min-w-[140px]">
-                              <select
-                                defaultValue=""
-                                onChange={e => { handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
-                                className="appearance-none h-10 w-full rounded-xl border border-gray-200 bg-white px-3 pr-9 text-[13px] font-semibold text-[#0F172A] outline-none"
-                              >
-                                <option value="">Update Status</option>
-                                <option value="pending">Pending</option>
-                                <option value="important">Important</option>
-                                <option value="interested">Interested</option>
-                                <option value="Close Client">Close Client</option>
-                                <option value={STATUS_IN_HOUSE}>In House</option>
-                              </select>
-                              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <ChevronDown size={16} />
-                              </div>
-                            </div>
+                            <select
+                              defaultValue=""
+                              onChange={e => { handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
+                              className="appearance-none h-7 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-1 text-[9px] sm:text-[10px] font-semibold text-[#0F172A] outline-none truncate"
+                            >
+                              <option value="">Status</option>
+                              <option value="pending">Pending</option>
+                              <option value="important">Important</option>
+                              <option value="interested">Interested</option>
+                              <option value="Close Client">Close Client</option>
+                              <option value={STATUS_IN_HOUSE}>In House</option>
+                            </select>
                           </div>
                         </td>
                       </tr>
@@ -591,7 +568,7 @@ export default function NotInterestedPage() {
                       {/* ── History row ── */}
                       {expandedRow === lead.id && lead.followUpNotes && (
                         <tr key={`${lead.id}-hist`} className="bg-[#F8FAFF]">
-                          <td colSpan={8} className="px-4 sm:px-6 py-3 sm:py-4">
+                          <td colSpan={9} className="px-4 sm:px-6 py-3 sm:py-4">
                             <div className="flex items-start gap-2 sm:gap-3">
                               <div className="mt-0.5 w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                                 <History size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -659,11 +636,11 @@ export default function NotInterestedPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 }) : (
                   <tr>
-                    <td colSpan={8} className="py-16 sm:py-20 text-center">
+                    <td colSpan={9} className="py-16 sm:py-20 text-center">
                       {activeTab === "notinterested"
                         ? <ThumbsDown size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         : <PhoneOff   size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
@@ -859,6 +836,7 @@ export default function NotInterestedPage() {
             onSaved={(id, updates) => {
               const merged: Partial<NiLead> = {};
               if (updates.name          !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.company       !== undefined) merged.company = updates.company.trim() || "N/A";
               if (updates.phone         !== undefined) merged.phone  = updates.phone.trim() || "N/A";
               if (updates.email         !== undefined) merged.email  = updates.email.trim();
               if (updates.state         !== undefined) merged.state  = updates.state.trim();

@@ -16,14 +16,15 @@ import {
 interface ChatActionRailProps {
   notifGranted: boolean;
   onNotif: () => void;
-  onSelect: () => void;
-  onNewDm: () => void;
-  onNewGroup: () => void;
+  onSelect?: () => void;
+  onNewDm?: () => void;
+  onNewGroup?: () => void;
   soundOn?: boolean;
   onSoundToggle?: () => void;
   showArchived?: boolean;
   onArchiveToggle?: () => void;
   onClose?: () => void;
+  readOnly?: boolean;
 }
 
 const btn =
@@ -40,9 +41,11 @@ export default function ChatActionRail({
   showArchived,
   onArchiveToggle,
   onClose,
+  readOnly,
 }: ChatActionRailProps) {
   return (
     <nav className="w-12 shrink-0 flex flex-col items-center gap-1.5 py-3 px-1.5 border-r border-gray-100 bg-[#F5F6FA]">
+      {!readOnly && (
       <button
         type="button"
         onClick={onNotif}
@@ -51,8 +54,9 @@ export default function ChatActionRail({
       >
         {notifGranted ? <Bell size={15} /> : <BellOff size={15} />}
       </button>
+      )}
 
-      {onSoundToggle != null && (
+      {!readOnly && onSoundToggle != null && (
         <button
           type="button"
           onClick={onSoundToggle}
@@ -74,6 +78,7 @@ export default function ChatActionRail({
         </button>
       )}
 
+      {onSelect && (
       <button
         type="button"
         onClick={onSelect}
@@ -82,7 +87,9 @@ export default function ChatActionRail({
       >
         <CheckSquare size={15} />
       </button>
+      )}
 
+      {onNewDm && (
       <button
         type="button"
         onClick={onNewDm}
@@ -91,7 +98,9 @@ export default function ChatActionRail({
       >
         <User2 size={15} />
       </button>
+      )}
 
+      {onNewGroup && (
       <button
         type="button"
         onClick={onNewGroup}
@@ -100,6 +109,7 @@ export default function ChatActionRail({
       >
         <Plus size={15} />
       </button>
+      )}
 
       <div className="flex-1 min-h-2" />
 

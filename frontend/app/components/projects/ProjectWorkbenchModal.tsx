@@ -205,14 +205,14 @@ export default function ProjectWorkbenchModal({
                   onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))} />
               </div>
               <div>
+                <label className={labelCls}>Company Name</label>
+                <input className={inputCls} value={data.company} placeholder="Company name"
+                  onChange={(e) => setData((d) => ({ ...d, company: e.target.value }))} />
+              </div>
+              <div>
                 <label className={labelCls}>Owner Name</label>
                 <input className={inputCls} value={data.ownerName} placeholder="If available"
                   onChange={(e) => setData((d) => ({ ...d, ownerName: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>Company</label>
-                <input className={inputCls} value={data.company}
-                  onChange={(e) => setData((d) => ({ ...d, company: e.target.value }))} />
               </div>
               <div>
                 <label className={labelCls}>

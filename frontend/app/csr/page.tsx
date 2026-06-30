@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -17,11 +18,9 @@ import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
-import LeadStatusDonut from "./components/shared/LeadStatusDonut";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
 import ProjectWonModal from "./components/modals/ProjectWonModal";
-
 import { useCsrDashboard } from "./hooks/useCsrDashboard";
 import { useLeadActions } from "./hooks/useLeadActions";
 import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
@@ -37,9 +36,14 @@ import {
   isNotInterestedStatus,
   isNotPickedStatus,
   statusDisplayLabel,
-  statusBadgeClass,
 } from "./constants/leadStatuses";
+import StatusWithTimestamp from "./components/shared/StatusWithTimestamp";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
+
+const LeadStatusDonut = dynamic(() => import("./components/shared/LeadStatusDonut"), {
+  ssr: false,
+  loading: () => <div className="h-[180px] rounded-2xl bg-gray-100 animate-pulse" />,
+});
 
 export default function CSRPage() {
   const router = useRouter();
@@ -488,8 +492,8 @@ export default function CSRPage() {
           </div>
 
           {/* ── TABLE ── */}
-          <div className="overflow-x-auto rounded-xl sm:rounded-2xl border border-gray-100">
-            <table className={CSR_TABLE_CLASS} style={{ minWidth: "1100px" }}>
+          <div className="overflow-x-hidden rounded-xl sm:rounded-2xl border border-gray-100">
+            <table className={CSR_TABLE_CLASS}>
               <CsrColGroup widths={COL_6_DASHBOARD} />
               <thead className="bg-[#FAFAFA]">
                 <tr>
@@ -587,9 +591,10 @@ export default function CSRPage() {
                           </p>
                         </div>
                       ) : (
-                      <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${statusBadgeClass(currentLink.status)}`}>
-                        {statusDisplayLabel(currentLink.status)}
-                      </div>
+                      <StatusWithTimestamp
+                        status={currentLink.status}
+                        statusUpdatedAt={currentLink.statusUpdatedAt}
+                      />
                       )}
                     </td>
 
@@ -932,6 +937,7 @@ export default function CSRPage() {
             onSaved={(id, updates) => {
               const merged: Partial<Lead> = {};
               if (updates.name          !== undefined) merged.client = updates.name.trim()  || "Unknown";
+              if (updates.company       !== undefined) merged.company = updates.company.trim() || "N/A";
               if (updates.phone         !== undefined) merged.phone  = updates.phone.trim() || "N/A";
               if (updates.email         !== undefined) merged.email  = updates.email.trim() || "N/A";
               if (updates.state         !== undefined) merged.state  = updates.state.trim();

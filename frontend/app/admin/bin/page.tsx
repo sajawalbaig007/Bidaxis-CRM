@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Trash2, Search, RefreshCw, Phone, Briefcase,
   ThumbsDown, PhoneOff, X, Check, ArrowRightLeft, Star, User2, ChevronDown,
@@ -10,9 +11,13 @@ import toast, { Toaster } from "react-hot-toast";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+
+const BinStatsChart = dynamic(() => import("./BinStatsChart"), {
+  ssr: false,
+  loading: () => <div className="h-full bg-gray-50 rounded-2xl animate-pulse" />,
+});
 
 type BinLead = {
   id:                 string;
@@ -153,29 +158,15 @@ export default function AdminBinPage() {
 
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-6">
             <div className="h-[130px]">
-              {loading ? (
-                <div className="h-full bg-gray-50 rounded-2xl animate-pulse"/>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[
-                      { name: "Not Picked",     value: byTab.notpicked.length,     fill: "#F59E0B" },
-                      { name: "Not Interested", value: byTab.notinterested.length, fill: "#B8112D" },
-                      { name: "Deleted",        value: byTab.deleted.length,       fill: "#6366F1" },
-                      { name: "Total",          value: leads.length,               fill: "#6B7280" },
-                    ]}
-                    barSize={52}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#6B7280", fontWeight:600 }}/>
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
-                    <Tooltip contentStyle={{ borderRadius:"12px", border:"1px solid #e5e7eb", fontSize:"12px" }}/>
-                    <Bar dataKey="value" radius={[7,7,0,0]} name="Count">
-                      {["#F59E0B","#B8112D","#6366F1","#6B7280"].map((fill, i) => <Cell key={i} fill={fill}/>)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+              <BinStatsChart
+                loading={loading}
+                data={[
+                  { name: "Not Picked", value: byTab.notpicked.length },
+                  { name: "Not Interested", value: byTab.notinterested.length },
+                  { name: "Deleted", value: byTab.deleted.length },
+                  { name: "Total", value: leads.length },
+                ]}
+              />
             </div>
           </div>
 

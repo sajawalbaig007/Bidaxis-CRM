@@ -43,6 +43,7 @@ export type Lead = {
   state: string;
   hiddenOnMain: boolean;
   sourceSudoName: string;
+  statusUpdatedAt: string;
   noteCount: number;
   noteHistory: NoteEntry[];
   subContacts: SubContact[];
@@ -100,6 +101,7 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     state:        lead.state        ?? "",
     hiddenOnMain: lead.hiddenOnMain ?? false,
     sourceSudoName: lead.uploadFile?.source?.sudoName?.trim() ?? "",
+    statusUpdatedAt: lead.updatedAt ?? lead.createdAt ?? "",
     noteCount,
     noteHistory,
     subContacts: (lead.subContacts ?? []).map(s => ({

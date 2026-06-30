@@ -3,6 +3,7 @@ import multer from "multer";
 import prisma from "../config/db";
 import cloudinary from "../config/cloudinary";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
+import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidatePattern } from "../utils/cache";
 
 const router = express.Router();
@@ -91,6 +92,105 @@ function formatMessage(
   };
 }
 
+async function fetchConversationsForUser(viewUserId: string, showArchived: boolean) {
+  const memberships = await prisma.conversationMember.findMany({
+    where: { userId: viewUserId },
+    include: {
+      conversation: {
+        include: {
+          members: {
+            include: { user: { select: { id: true, name: true, isOnline: true } } },
+          },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { text: true, type: true, createdAt: true, senderId: true },
+          },
+        },
+      },
+    },
+    orderBy: { conversation: { updatedAt: "desc" } },
+  });
+
+  const filteredMemberships = memberships.filter(m =>
+    showArchived ? Boolean(m.archivedAt) : !m.archivedAt
+  );
+
+  const unreadCounts = await Promise.all(
+    filteredMemberships.map(m =>
+      prisma.message.count({
+        where: {
+          conversationId: m.conversationId,
+          senderId: { not: viewUserId },
+          ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
+        },
+      })
+    )
+  );
+
+  return filteredMemberships.map((m, idx) => {
+    const conv        = m.conversation;
+    const lastMsg     = conv.messages[0];
+    const otherMember = conv.type === "direct"
+      ? conv.members.find(mem => mem.userId !== viewUserId)
+      : null;
+
+    return {
+      id:            conv.id,
+      type:          conv.type,
+      name:          conv.type === "direct"
+                         ? (otherMember?.user?.name ?? "Unknown")
+                         : (conv.name ?? "Group"),
+      otherUserId:   otherMember?.userId ?? null,
+      lastMessage:   lastMsg
+                         ? (lastMsg.type !== "text" ? `Sent a ${lastMsg.type}` : lastMsg.text)
+                         : null,
+      lastMessageAt: lastMsg?.createdAt ?? null,
+      unreadCount:   unreadCounts[idx],
+      memberCount:   conv.members.length,
+      isOnline:      otherMember?.user?.isOnline ?? false,
+      pinnedMessageId: conv.pinnedMessageId ?? null,
+      archived:      Boolean(m.archivedAt),
+    };
+  });
+}
+
+async function fetchMessagesForUser(conversationId: string, viewUserId: string) {
+  const members = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    include: { user: { select: { id: true, name: true } } },
+  });
+
+  const raw = await prisma.message.findMany({
+    where: { conversationId },
+    include: {
+      sender: { select: { id: true, name: true } },
+      replyTo: {
+        select: {
+          id: true, text: true, type: true,
+          sender: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+  });
+
+  const messages = raw.map(m => formatMessage(m, viewUserId, members));
+
+  const conv = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { pinnedMessageId: true },
+  });
+  let pinnedMessage = null;
+  if (conv?.pinnedMessageId) {
+    const pin = raw.find(m => m.id === conv.pinnedMessageId);
+    if (pin) pinnedMessage = formatMessage(pin, viewUserId, members);
+  }
+
+  return { messages, pinnedMessage };
+}
+
 /* ═══════════════════════════════════════════════════════
    GET /chat/conversations
 ═══════════════════════════════════════════════════════ */
@@ -102,66 +202,7 @@ router.get("/conversations", verifyToken, async (req: AuthRequest, res) => {
     const cached       = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const memberships = await prisma.conversationMember.findMany({
-      where: { userId },
-      include: {
-        conversation: {
-          include: {
-            members: {
-              include: { user: { select: { id: true, name: true, isOnline: true } } },
-            },
-            messages: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              select: { text: true, type: true, createdAt: true, senderId: true },
-            },
-          },
-        },
-      },
-      orderBy: { conversation: { updatedAt: "desc" } },
-    });
-
-    const filteredMemberships = memberships.filter(m =>
-      showArchived ? Boolean(m.archivedAt) : !m.archivedAt
-    );
-
-    const unreadCounts = await Promise.all(
-      filteredMemberships.map(m =>
-        prisma.message.count({
-          where: {
-            conversationId: m.conversationId,
-            senderId: { not: userId },
-            ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
-          },
-        })
-      )
-    );
-
-    const conversations = filteredMemberships.map((m, idx) => {
-      const conv        = m.conversation;
-      const lastMsg     = conv.messages[0];
-      const otherMember = conv.type === "direct"
-        ? conv.members.find(mem => mem.userId !== userId)
-        : null;
-
-      return {
-        id:            conv.id,
-        type:          conv.type,
-        name:          conv.type === "direct"
-                         ? (otherMember?.user?.name ?? "Unknown")
-                         : (conv.name ?? "Group"),
-        otherUserId:   otherMember?.userId ?? null,
-        lastMessage:   lastMsg
-                         ? (lastMsg.type !== "text" ? `Sent a ${lastMsg.type}` : lastMsg.text)
-                         : null,
-        lastMessageAt: lastMsg?.createdAt ?? null,
-        unreadCount:   unreadCounts[idx],
-        memberCount:   conv.members.length,
-        isOnline:      otherMember?.user?.isOnline ?? false,
-        pinnedMessageId: conv.pinnedMessageId ?? null,
-        archived:      Boolean(m.archivedAt),
-      };
-    });
+    const conversations = await fetchConversationsForUser(userId, showArchived);
 
     const payload = { conversations };
     setCache(cacheKey, payload, 3_000);
@@ -292,38 +333,7 @@ router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, 
     });
     if (!member) return res.status(403).json({ message: "Not a member" });
 
-    const members = await prisma.conversationMember.findMany({
-      where: { conversationId },
-      include: { user: { select: { id: true, name: true } } },
-    });
-
-    const raw = await prisma.message.findMany({
-      where: { conversationId },
-      include: {
-        sender: { select: { id: true, name: true } },
-        replyTo: {
-          select: {
-            id: true, text: true, type: true,
-            sender: { select: { name: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 200,
-    });
-
-    const messages = raw.map(m => formatMessage(m, userId, members));
-
-    const conv = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: { pinnedMessageId: true },
-    });
-    let pinnedMessage = null;
-    if (conv?.pinnedMessageId) {
-      const pin = raw.find(m => m.id === conv.pinnedMessageId);
-      if (pin) pinnedMessage = formatMessage(pin, userId, members);
-    }
-
+    const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId);
     return res.json({ messages, pinnedMessage });
   } catch (err) {
     console.error("[chat] GET messages", err);
@@ -733,6 +743,52 @@ router.post("/conversations/:id/unarchive", verifyToken, async (req: AuthRequest
     return res.json({ success: true });
   } catch {
     return res.json({ success: true });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   Admin stealth view — read CSR chats without notifying them
+═══════════════════════════════════════════════════════ */
+router.get("/admin/view/:csrId/conversations", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const csrId        = p(req.params.csrId);
+    const showArchived = req.query.archived === "1";
+
+    const csr = await prisma.user.findFirst({
+      where:  { id: csrId, role: "csr" },
+      select: { id: true },
+    });
+    if (!csr) return res.status(404).json({ message: "CSR not found" });
+
+    const conversations = await fetchConversationsForUser(csrId, showArchived);
+    return res.json({ conversations });
+  } catch (err) {
+    console.error("[chat] admin view conversations", err);
+    return res.status(500).json({ message: "Failed to fetch CSR conversations" });
+  }
+});
+
+router.get("/admin/view/:csrId/conversations/:convId/messages", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const csrId          = p(req.params.csrId);
+    const conversationId = p(req.params.convId);
+
+    const csr = await prisma.user.findFirst({
+      where:  { id: csrId, role: "csr" },
+      select: { id: true },
+    });
+    if (!csr) return res.status(404).json({ message: "CSR not found" });
+
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId: csrId } },
+    });
+    if (!member) return res.status(403).json({ message: "CSR is not in this conversation" });
+
+    const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId);
+    return res.json({ messages, pinnedMessage });
+  } catch (err) {
+    console.error("[chat] admin view messages", err);
+    return res.status(500).json({ message: "Failed to fetch messages" });
   }
 });
 

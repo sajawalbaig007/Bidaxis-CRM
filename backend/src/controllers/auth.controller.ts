@@ -655,7 +655,9 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: "Admin only." });
     }
     const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
-    const logs = await fetchRecentAuditLogs(limit);
+    const fromDate = typeof req.query.fromDate === "string" ? req.query.fromDate : undefined;
+    const toDate   = typeof req.query.toDate   === "string" ? req.query.toDate   : undefined;
+    const logs = await fetchRecentAuditLogs(limit, fromDate, toDate);
     return res.json({ success: true, logs });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to fetch audit logs." });

@@ -13,6 +13,8 @@ import {
 } from "../utils/projectPayments";
 import { buildBinWhere, filterActiveLeads } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
+import { findDuplicateLead } from "../utils/leadDuplicateCheck";
+import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
 import { normalizePhone } from "../utils/phone";
 import {
   buildAdminClientListWhere,
@@ -157,6 +159,7 @@ router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, re
       scheduled,
       closed,
       recent,
+      recentStatusLogs,
       chartLeads,
       csrGroups,
       resolvedGroups,
@@ -178,6 +181,17 @@ router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, re
         },
         orderBy: { updatedAt: "desc" },
         take: 15,
+      }),
+      prisma.callLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          lead: { select: { name: true } },
+          csr:  { select: { name: true } },
+        },
       }),
       prisma.lead.findMany({
         where:   { createdAt: { gte: chartDaysAgo } },
@@ -244,6 +258,13 @@ router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, re
         Closed:       completed + closed,
       },
       recent,
+      recentStatusLogs: recentStatusLogs.map(log => ({
+        id:        log.id,
+        status:    log.status,
+        createdAt: log.createdAt,
+        leadName:  log.lead?.name ?? "Unknown",
+        csrName:   log.csr?.name  ?? "Unknown CSR",
+      })),
       chartLeads,
       performers,
     };
@@ -302,6 +323,59 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch clients" });
+  }
+});
+
+/* ================= CREATE LEAD (ADMIN manual add) ================= */
+
+router.post("/lead", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const { name, email, phone, company, status, csrId } = req.body as {
+      name?: string; email?: string; phone?: string; company?: string; status?: string; csrId?: string;
+    };
+
+    if (!name?.trim()) return res.status(400).json({ success: false, message: "Client name is required." });
+    if (!email?.trim()) return res.status(400).json({ success: false, message: "Email is required." });
+
+    const dup = await findDuplicateLead(phone, email);
+    if (dup) return res.status(409).json({ success: false, message: dup.message, field: dup.field });
+
+    let assignTo = adminId;
+    if (csrId) {
+      const csr = await prisma.user.findFirst({ where: { id: csrId, role: "csr", isActive: true } });
+      if (!csr) return res.status(400).json({ success: false, message: "Invalid CSR." });
+      assignTo = csr.id;
+    }
+
+    const trimmedPhone = phone?.trim() || null;
+    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+
+    const lead = await prisma.lead.create({
+      data: {
+        name:        name.trim(),
+        email:       email.trim().toLowerCase(),
+        phone:       trimmedPhone,
+        company:     company?.trim() || null,
+        status:      status || "pending",
+        assignedTo:  assignTo,
+        important:   false,
+        interested:  false,
+        isOldClient: existingLeads.length > 0,
+      },
+      include: { csr: { select: { id: true, name: true, csrCode: true } } },
+    });
+
+    flushAdminClientsCache();
+    if (assignTo !== adminId) {
+      invalidateCache(`csr:dashboard:${assignTo}`, `csr:leads:${assignTo}`);
+    }
+    return res.status(201).json({ success: true, lead });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to create lead" });
   }
 });
 
@@ -367,6 +441,15 @@ router.put("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
     if (email !== undefined) updateData.email = email;
     if (state !== undefined) updateData.state = state;
 
+    const dup = await findDuplicateLead(
+      phone !== undefined ? String(phone) : existing.phone,
+      email !== undefined ? String(email) : existing.email,
+      leadId,
+    );
+    if (dup && (phone !== undefined || email !== undefined)) {
+      return res.status(409).json({ success: false, message: dup.message, field: dup.field });
+    }
+
     const lead = await prisma.lead.update({ where: { id: leadId }, data: updateData });
 
     flushAdminClientsCache();
@@ -395,6 +478,36 @@ router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin"), async (re
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
+  }
+});
+
+router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const subId  = String(req.params.subId);
+    const { name, designation, phone, email } = req.body as { name?: string; designation?: string; phone?: string; email?: string };
+
+    const lead = await prisma.lead.findFirst({ where: { id: leadId } });
+    if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+    const existing = await prisma.subContact.findFirst({ where: { id: subId, leadId } });
+    if (!existing) return res.status(404).json({ success: false, message: "Sub-contact not found" });
+
+    const subContact = await prisma.subContact.update({
+      where: { id: subId },
+      data: {
+        ...(name        !== undefined ? { name: name.trim() } : {}),
+        ...(designation !== undefined ? { designation: designation?.trim() || null } : {}),
+        ...(phone       !== undefined ? { phone: phone?.trim() || null } : {}),
+        ...(email       !== undefined ? { email: email?.trim() || null } : {}),
+      },
+    });
+    flushAdminClientsCache();
+    invalidateCache(`csr:dashboard:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+    return res.json({ success: true, subContact });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to update sub-contact" });
   }
 });
 
@@ -1077,7 +1190,7 @@ router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
       where: buildBinWhere(csrId),
       include: {
         csr:        { select: { id: true, name: true, csrCode: true } },
-        uploadFile: { select: { companyName: true } },
+        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
       },
       orderBy: { updatedAt: "desc" },
     });

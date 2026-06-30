@@ -10,6 +10,7 @@ import {
 } from "react-hot-toast";
 
 import ThemeProvider from "./components/ThemeProvider";
+import { themeInitScript } from "./components/themeInitScript";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -50,6 +51,10 @@ export default function RootLayout({
       `}
     >
       <body className="min-h-full flex flex-col bg-crm-bg text-crm-text">
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeInitScript() }}
+        />
         <ThemeProvider>
           {children}
 

@@ -6,10 +6,18 @@ import {
   AlertCircle, Phone,
 } from "lucide-react";
 import type { ClientLead } from "../charts/PerformanceChart";
+import { formatStatusTimestamp } from "@/lib/formatStatusTimestamp";
 
 type Props = {
   leads?: ClientLead[];
   recent?: ClientLead[];
+  recentStatus?: {
+    id?: string;
+    csrName?: string;
+    leadName?: string;
+    status?: string;
+    createdAt?: string;
+  }[];
 };
 
 type ActivityItem = {
@@ -50,16 +58,21 @@ const statusToType = (s: string): ActivityItem["type"] => {
   return "update";
 };
 
-const timeAgo = (iso: string): string => {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60)    return "Just now";
-  if (diff < 3600)  return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
-  return `${Math.floor(diff / 86400)} days ago`;
-};
-
-export default function RecentActivity({ leads = [], recent }: Props) {
+export default function RecentActivity({ leads = [], recent, recentStatus }: Props) {
   const activities = useMemo<ActivityItem[]>(() => {
+    if (recentStatus?.length) {
+      return recentStatus.slice(0, 8).map((log, index) => {
+        const status = log.status ?? "updated";
+        return {
+          id:     log.id ?? `status-${index}`,
+          user:   log.csrName ?? "CSR",
+          action: `updated "${log.leadName ?? "Unknown"}" to ${status}`,
+          time:   formatStatusTimestamp(log.createdAt),
+          type:   statusToType(status),
+        };
+      });
+    }
+
     const source = recent?.length ? recent : leads;
     return [...source]
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
@@ -70,11 +83,11 @@ export default function RecentActivity({ leads = [], recent }: Props) {
           id:     l.id ?? `activity-${index}`,
           user:   l.csr?.name ?? "A CSR",
           action: `updated lead "${l.name ?? "Unknown"}" to ${status}`,
-          time:   timeAgo(l.updatedAt ?? new Date().toISOString()),
+          time:   formatStatusTimestamp(l.updatedAt),
           type:   statusToType(status),
         };
       });
-  }, [leads, recent]);
+  }, [leads, recent, recentStatus]);
 
   return (
     <div>
@@ -83,7 +96,9 @@ export default function RecentActivity({ leads = [], recent }: Props) {
       </div>
 
       <div className="space-y-3">
-        {activities.map(activity => (
+        {activities.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">No recent status updates</p>
+        ) : activities.map(activity => (
           <div key={activity.id}
             className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-all cursor-pointer">
             <div className={`${getBg(activity.type)} w-10 h-10 rounded-full flex items-center justify-center shrink-0`}>
@@ -94,7 +109,9 @@ export default function RecentActivity({ leads = [], recent }: Props) {
                 <span className="font-semibold text-gray-800">{activity.user}</span>
                 <span className="text-gray-600"> {activity.action}</span>
               </p>
-              <p className="text-xs text-gray-400 mt-0.5">{activity.time}</p>
+              {activity.time && (
+                <p className="text-[10px] text-gray-400 mt-0.5 font-mono tabular-nums">{activity.time}</p>
+              )}
             </div>
           </div>
         ))}

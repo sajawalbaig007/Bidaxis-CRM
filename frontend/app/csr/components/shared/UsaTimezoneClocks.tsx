@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Globe, X } from "lucide-react";
-import { useTheme } from "next-themes";
-
+import { useTheme } from "@/app/components/ThemeProvider";
+import { useMounted } from "@/lib/useMounted";
 const US_ZONES = [
   { tz: "America/New_York",    label: "Eastern",  abbr: "ET", city: "New York",    accent: "#3B82F6" },
   { tz: "America/Chicago",     label: "Central",  abbr: "CT", city: "Chicago",     accent: "#10B981" },
@@ -70,22 +70,38 @@ function handPoint(cx: number, cy: number, angleDeg: number, length: number) {
 }
 
 function AnalogClock({ tz, accent, dark }: { tz: string; accent: string; dark: boolean }) {
-  const [angles, setAngles] = useState(() => getHandAngles(tz));
+  const mounted = useMounted();
+  const [angles, setAngles] = useState({ hour: 0, minute: 0, second: 0 });
 
   useEffect(() => {
-    const id = setInterval(() => setAngles(getHandAngles(tz)), 1000);
+    if (!mounted) return;
+    const tick = () => setAngles(getHandAngles(tz));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [tz]);
+  }, [tz, mounted]);
 
   const cx = 32; const cy = 32; const r = 28;
-  const h = handPoint(cx, cy, angles.hour,   14);
-  const m = handPoint(cx, cy, angles.minute, 19);
-  const s = handPoint(cx, cy, angles.second, 20);
+  const h = mounted ? handPoint(cx, cy, angles.hour,   14) : null;
+  const m = mounted ? handPoint(cx, cy, angles.minute, 19) : null;
+  const s = mounted ? handPoint(cx, cy, angles.second, 20) : null;
   const faceFill = dark ? "#1e2330" : "#ffffff";
   const tickMajor = dark ? "#9CA3AF" : "#6B7280";
   const tickMinor = dark ? "#4B5563" : "#D1D5DB";
   const hourHand = dark ? "#F3F4F6" : "#111827";
   const minuteHand = dark ? "#D1D5DB" : "#374151";
+
+  if (!mounted) {
+    return (
+      <div
+        className="relative shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center"
+        style={{ boxShadow: `0 3px 10px ${accent}33`, background: `linear-gradient(145deg, ${accent}18, transparent)` }}
+        aria-hidden
+      >
+        <div className="w-[85%] h-[85%] rounded-full border-2 opacity-60" style={{ borderColor: accent }} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -116,9 +132,13 @@ function AnalogClock({ tz, accent, dark }: { tz: string; accent: string; dark: b
             />
           );
         })}
-        <line x1={cx} y1={cy} x2={h.x} y2={h.y} stroke={hourHand} strokeWidth="3" strokeLinecap="round" />
-        <line x1={cx} y1={cy} x2={m.x} y2={m.y} stroke={minuteHand} strokeWidth="2.2" strokeLinecap="round" />
-        <line x1={cx} y1={cy} x2={s.x} y2={s.y} stroke="#B8112D" strokeWidth="1.4" strokeLinecap="round" opacity="0.95" />
+        {h && m && s && (
+          <>
+            <line x1={cx} y1={cy} x2={h.x} y2={h.y} stroke={hourHand} strokeWidth="3" strokeLinecap="round" />
+            <line x1={cx} y1={cy} x2={m.x} y2={m.y} stroke={minuteHand} strokeWidth="2.2" strokeLinecap="round" />
+            <line x1={cx} y1={cy} x2={s.x} y2={s.y} stroke="#B8112D" strokeWidth="1.4" strokeLinecap="round" opacity="0.95" />
+          </>
+        )}
         <circle cx={cx} cy={cy} r={3} fill="#B8112D" />
         <circle cx={cx} cy={cy} r={1.2} fill={dark ? "#1e2330" : "#ffffff"} />
       </svg>

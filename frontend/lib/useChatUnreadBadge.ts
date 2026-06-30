@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { subscribeChatUnread } from "@/lib/chatUnreadStore";
+import { getChatUnreadTotal, subscribeChatUnread } from "@/lib/chatUnreadStore";
 
 export function useChatUnreadBadge() {
-  const [totalUnread, setTotalUnread] = useState(0);
+  const [totalUnread, setTotalUnread] = useState(() => getChatUnreadTotal());
 
   useEffect(() => subscribeChatUnread((total) => setTotalUnread(total)), []);
 
