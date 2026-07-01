@@ -371,7 +371,8 @@ export const login = async (req: Request, res: Response) => {
     }
 
     return finishLogin(req, res, dbUser, !!rememberMe);
-  } catch {
+  } catch (err) {
+    console.error("[auth/login]", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

@@ -8,7 +8,8 @@ import { getClientIp } from "../utils/requestMeta";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../utils/cache";
 import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
-import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
+import { buildProjectLeadWhere, isDisplayableProjectLead, wonClientStatusWhere } from "../utils/projectLeads";
+import { isImportantStatusWhere, isInterestedStatusWhere } from "../utils/adminClientQueries";
 import {
   normalizePaymentsInput,
   parseProjectPayments,
@@ -31,6 +32,7 @@ function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
   invalidateCache(
     `csr:dashboard:${csrId}`,
     `csr:leads:${csrId}`,
+    `csr:clients:${csrId}`,
     `csr:projects:${csrId}`,
     `csr:not-interested:${csrId}`,
     `csr:bin:${csrId}`,
@@ -705,6 +707,67 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to create lead" });
+  }
+});
+
+/* ================= CSR CLIENTS (won deals — new vs old) ================= */
+
+router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId    = req.user.id;
+    const cacheKey = `csr:clients:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const rawLeads = await prisma.lead.findMany({
+      where: {
+        assignedTo: csrId,
+        ...wonClientStatusWhere(),
+      },
+      include: {
+        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
+        notes:      { orderBy: { createdAt: "asc" } },
+        subContacts: { orderBy: { createdAt: "asc" } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const csrLeads = filterActiveLeads(rawLeads);
+
+    const phones = [...new Set(csrLeads.map(l => l.phone).filter((p): p is string => !!p))];
+    const phoneCountMap = new Map<string, number>();
+    if (phones.length > 0) {
+      const allWithPhone = await prisma.lead.findMany({
+        where:  { phone: { in: phones } },
+        select: { phone: true },
+      });
+      for (const l of allWithPhone) {
+        if (l.phone) phoneCountMap.set(l.phone, (phoneCountMap.get(l.phone) ?? 0) + 1);
+      }
+    }
+
+    const leads = csrLeads.map(lead => ({
+      ...lead,
+      isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
+    }));
+
+    const activeWhere = { assignedTo: csrId, NOT: { inBin: true } };
+    const [importantCount, interestedCount, pendingCount, totalAssigned] = await Promise.all([
+      prisma.lead.count({ where: { ...activeWhere, ...isImportantStatusWhere() } }),
+      prisma.lead.count({ where: { ...activeWhere, ...isInterestedStatusWhere() } }),
+      prisma.lead.count({ where: { ...activeWhere, status: { equals: "pending", mode: "insensitive" } } }),
+      prisma.lead.count({ where: { assignedTo: csrId, NOT: { inBin: true } } }),
+    ]);
+
+    const payload = {
+      success: true,
+      leads,
+      stats: { importantCount, interestedCount, pendingCount, totalAssigned },
+    };
+    setCache(cacheKey, payload, 30_000);
+    return res.json(payload);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch clients" });
   }
 });
 

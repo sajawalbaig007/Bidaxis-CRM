@@ -3,6 +3,16 @@ import type { Prisma } from "@prisma/client";
 /** Statuses that appear on CSR / admin Active Projects pages */
 export const PROJECT_LEAD_STATUSES = ["Close Client", "completed", "close client"];
 
+export function wonClientStatusWhere(): Prisma.LeadWhereInput {
+  return {
+    OR: [
+      { status: { equals: "Close Client", mode: "insensitive" } },
+      { status: { equals: "completed", mode: "insensitive" } },
+      { status: { equals: "closed", mode: "insensitive" } },
+    ],
+  };
+}
+
 export function buildProjectLeadWhere(csrId?: string): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {
     status: { in: [...PROJECT_LEAD_STATUSES] },

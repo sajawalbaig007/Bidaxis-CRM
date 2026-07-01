@@ -19,6 +19,8 @@ export interface BackendLead {
   comments?: string;
   state?: string;
   hiddenOnMain?: boolean;
+  important?: boolean;
+  interested?: boolean;
   updatedAt?: string;
   uploadFile?: { companyName?: string; source?: { sudoName?: string | null } };
   notes?: { id: string; text?: string; createdAt?: string; }[];
@@ -42,6 +44,8 @@ export type Lead = {
   comments: string;
   state: string;
   hiddenOnMain: boolean;
+  important: boolean;
+  interested: boolean;
   sourceSudoName: string;
   statusUpdatedAt: string;
   noteCount: number;
@@ -100,6 +104,8 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     comments:     lead.comments     ?? "",
     state:        lead.state        ?? "",
     hiddenOnMain: lead.hiddenOnMain ?? false,
+    important:    lead.important    ?? false,
+    interested:   lead.interested   ?? false,
     sourceSudoName: lead.uploadFile?.source?.sudoName?.trim() ?? "",
     statusUpdatedAt: lead.updatedAt ?? lead.createdAt ?? "",
     noteCount,
