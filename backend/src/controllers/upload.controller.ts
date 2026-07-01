@@ -265,6 +265,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       ...csrs.flatMap(c => [
         `csr:dashboard:${c.id}`,
         `csr:leads:${c.id}`,
+        `csr:clients:${c.id}`,
         `csr:projects:${c.id}`,
         `csr:not-interested:${c.id}`,
       ])

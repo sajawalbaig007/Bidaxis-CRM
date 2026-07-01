@@ -32,12 +32,21 @@ function createFetcher<T>(url: string, ttlMs: number) {
 }
 
 export const csrLeadsApi          = createFetcher<{ leads: unknown[] }>("/csr/leads", 28_000);
+export const csrClientsApi        = createFetcher<{ leads: unknown[]; stats?: ClientPipelineStats }>("/csr/clients", 28_000);
 export const csrNotInterestedApi  = createFetcher<{ leads: unknown[] }>("/csr/not-interested", 28_000);
 export const csrProjectsApi       = createFetcher<{ leads: unknown[] }>("/csr/projects", 28_000);
 export const csrBinApi            = createFetcher<{ leads: unknown[] }>("/csr/bin", 28_000);
 
+export type ClientPipelineStats = {
+  importantCount: number;
+  interestedCount: number;
+  pendingCount: number;
+  totalAssigned: number;
+};
+
 export function invalidateAllCsrListCaches() {
   csrLeadsApi.invalidate();
+  csrClientsApi.invalidate();
   csrNotInterestedApi.invalidate();
   csrProjectsApi.invalidate();
   csrBinApi.invalidate();

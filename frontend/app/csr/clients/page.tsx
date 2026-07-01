@@ -15,6 +15,7 @@ import Pagination from "../components/shared/Pagination";
 import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
+import { isWonClientStatus } from "../constants/leadStatuses";
 import { useLeadsData, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
@@ -79,7 +80,7 @@ function parsePhones(raw: string): string[] {
 
 /* ─── Page ──────────────────────────────────────────────── */
 export default function LeadsPage() {
-  const { leads, setLeads, loading, refetch } = useLeadsData();
+  const { leads, setLeads, stats, loading, refetch } = useLeadsData();
 
   /* tabs / search / pagination */
   const [activeTab, setActiveTab] = useState<"new" | "old">("new");
@@ -148,13 +149,13 @@ export default function LeadsPage() {
   const [historyLead, setHistoryLead] = useState<ClientLead | null>(null);
 
   /* ─── Derived ──────────────────────────────────────────── */
-  const wonLeads = useMemo(() => leads.filter(l => l.status === "Close Client" || l.status === "completed"), [leads]);
+  const wonLeads = useMemo(() => leads.filter(l => isWonClientStatus(l.status)), [leads]);
   const newLeads = useMemo(() => wonLeads.filter(l => !l.isOldClient), [wonLeads]);
   const oldLeads = useMemo(() => {
     const all = wonLeads.filter(l => l.isOldClient);
     const seen = new Set<string>();
     return all.filter(l => {
-      const key = l.phone?.trim() || l.name?.trim() || l.id;
+      const key = (l.phone && l.phone !== "N/A" ? l.phone.trim() : "") || l.id;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -162,10 +163,9 @@ export default function LeadsPage() {
   }, [wonLeads]);
   const baseList = activeTab === "new" ? newLeads : oldLeads;
 
-  const importantCount  = useMemo(() => leads.filter(l => l.status === "important").length,    [leads]);
-  const interestedCount = useMemo(() => leads.filter(l => l.status === "interested").length,   [leads]);
-  const pendingCount    = useMemo(() => leads.filter(l => l.status === "pending").length,      [leads]);
-
+  const importantCount  = stats.importantCount;
+  const interestedCount = stats.interestedCount;
+  const pendingCount    = stats.pendingCount;
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return !q ? baseList : baseList.filter(l =>
@@ -198,9 +198,9 @@ export default function LeadsPage() {
     },
     {
       label: "All Assigned",
-      segments: [{ label: "Total Leads", value: leads.length, color: "#1D4ED8" }],
+      segments: [{ label: "Total Leads", value: stats.totalAssigned, color: "#1D4ED8" }],
     },
-  ], [newLeads, oldLeads, importantCount, interestedCount, pendingCount, leads]);
+  ], [newLeads, oldLeads, importantCount, interestedCount, pendingCount, stats.totalAssigned]);
 
   /* ─── Note helpers ─────────────────────────────────────── */
   const getLatestNote = (lead: ClientLead): NoteEntry | null =>
@@ -300,6 +300,8 @@ export default function LeadsPage() {
         projectBudget: addForm.quotation.trim(),
         paidAmount: addForm.upfront.trim(),
         isOldClient: false,
+        important: false,
+        interested: false,
         createdAt: new Date().toISOString(),
         clientCode: null,
         contacts: [],

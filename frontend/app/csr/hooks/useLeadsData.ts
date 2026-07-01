@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { csrLeadsApi } from "@/lib/csrApiCache";
+import { csrClientsApi, type ClientPipelineStats } from "@/lib/csrApiCache";
+import toast from "react-hot-toast";
 
 export interface SubContact {
   id: string;
@@ -30,6 +31,8 @@ export type ClientLead = {
   projectBudget: string;
   paidAmount: string;
   isOldClient: boolean;
+  important: boolean;
+  interested: boolean;
   createdAt: string;
   clientCode: string | null;
   contacts: SubContact[];
@@ -45,6 +48,7 @@ type RawLead = {
   status?: string; interestedService?: string; comments?: string;
   projectBudget?: string | null; paidAmount?: string | null;
   isOldClient?: boolean; createdAt?: string; clientCode?: string | null;
+  important?: boolean; interested?: boolean;
   contacts?: RawContact[];
   subContacts?: RawContact[];
   notes?: RawNote[];
@@ -79,6 +83,8 @@ function mapClientLead(l: RawLead): ClientLead {
     projectBudget:     l.projectBudget     ?? "",
     paidAmount:        l.paidAmount        ?? "",
     isOldClient:       l.isOldClient       ?? false,
+    important:         l.important         ?? false,
+    interested:        l.interested        ?? false,
     createdAt:         l.createdAt         ?? "",
     clientCode:        l.clientCode        ?? null,
     contacts: (l.subContacts ?? l.contacts ?? []).map((c: RawContact) => ({
@@ -92,17 +98,27 @@ function mapClientLead(l: RawLead): ClientLead {
   };
 }
 
+export type { ClientPipelineStats };
+
 export function useLeadsData() {
   const [leads, setLeads] = useState<ClientLead[]>([]);
+  const [stats, setStats] = useState<ClientPipelineStats>({
+    importantCount: 0,
+    interestedCount: 0,
+    pendingCount: 0,
+    totalAssigned: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   const refetch = useCallback(async (force = false) => {
     try {
       setLoading(true);
-      const res = await csrLeadsApi.get(force);
+      const res = await csrClientsApi.get(force);
       setLeads((res.leads as RawLead[] ?? []).map((l) => mapClientLead(l)));
+      if (res.stats) setStats(res.stats);
     } catch (err) {
       console.log(err);
+      toast.error("Could not load clients. Please refresh.");
     } finally {
       setLoading(false);
     }
@@ -110,5 +126,5 @@ export function useLeadsData() {
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
 
-  return { leads, setLeads, loading, refetch };
+  return { leads, setLeads, stats, loading, refetch };
 }

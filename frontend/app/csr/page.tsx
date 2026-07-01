@@ -28,7 +28,8 @@ import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone, leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
-import { isImportantOnly, isScheduledCall } from "./utils/potentialClientBuckets";
+import { isImportantOnly, isScheduledCall, isInterestedLead } from "./utils/potentialClientBuckets";
+import { isWonClientStatus } from "./constants/leadStatuses";
 import {
   STATUS_NO_OWNER,
   STATUS_NOT_IN_SERVICE,
@@ -103,7 +104,7 @@ export default function CSRPage() {
   }), [leads]);
 
   const todayImportantCalls = useMemo(
-    () => mainLeads.filter(l => l.status === "important" && l.nextSchedule === TODAY_STR),
+    () => mainLeads.filter(l => isScheduledCall(l) && l.nextSchedule === TODAY_STR),
     [mainLeads]
   );
 
@@ -112,8 +113,8 @@ export default function CSRPage() {
     pendingCount:       mainLeads.filter(i => i.status === "pending").length,
     importantOnlyCount: mainLeads.filter(i => isImportantOnly(i)).length,
     scheduledCount:     mainLeads.filter(i => isScheduledCall(i)).length,
-    interestedCount:    mainLeads.filter(i => i.status === "interested").length,
-    projectWonCount:    mainLeads.filter(i => i.status === "Close Client").length,
+    interestedCount:    mainLeads.filter(i => isInterestedLead(i)).length,
+    projectWonCount:    mainLeads.filter(i => isWonClientStatus(i.status)).length,
     notInterestedCount: mainLeads.filter(i => isNotInterestedStatus(i.status)).length,
     notPickedCount:     mainLeads.filter(i => isNotPickedStatus(i.status)).length,
     noOwnerCount:       mainLeads.filter(i => i.status === STATUS_NO_OWNER).length,
@@ -142,8 +143,8 @@ export default function CSRPage() {
         : activeTab === "inhouse"       ? item.status === STATUS_IN_HOUSE
         : activeTab === "important"     ? isImportantOnly(item)
         : activeTab === "schedule"      ? isScheduledCall(item)
-        : activeTab === "interested"    ? item.status === "interested"
-        : activeTab === "projectwon"    ? item.status === "Close Client"
+        : activeTab === "interested"    ? isInterestedLead(item)
+        : activeTab === "projectwon"    ? isWonClientStatus(item.status)
         : true;
       const matchesState = stateFilter
         ? stateMatches(item.state, stateFilter) ||

@@ -25,9 +25,11 @@ import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 import { Lead, getPriority } from "../types/lead";
+import { isInterestedLeadStatus, isWonClientStatus } from "../constants/leadStatuses";
 import {
   isImportantOnly,
   isScheduledCall,
+  isInterestedLead,
   matchesPotentialTab,
   type PotentialTab,
 } from "../utils/potentialClientBuckets";
@@ -80,13 +82,13 @@ export default function ImportantCallsPage() {
   const stats = useMemo(() => ({
     importantOnlyCount: leads.filter(l => isImportantOnly(l)).length,
     scheduledCount:     leads.filter(l => isScheduledCall(l)).length,
-    interestedCount:    leads.filter(l => l.status === "interested").length,
-    projectWonCount:    leads.filter(l => l.status === "Close Client").length,
+    interestedCount:    leads.filter(l => isInterestedLead(l)).length,
+    projectWonCount:    leads.filter(l => isWonClientStatus(l.status)).length,
     callsTodayCount:    leads.filter(l => isScheduledCall(l) && l.nextSchedule === TODAY_STR).length,
   }), [leads]);
 
   const interestedWithService = useMemo(
-    () => leads.filter(l => l.status === "interested" && l.interestedService).length,
+    () => leads.filter(l => isInterestedLead(l) && l.interestedService).length,
     [leads],
   );
 

@@ -5,35 +5,61 @@ export const STATUS_NO_OWNER = "no owner available";
 export const STATUS_NOT_IN_SERVICE = "not in service";
 export const STATUS_IN_HOUSE = "in house";
 
+export function normStatus(s?: string | null): string {
+  return (s ?? "").trim().toLowerCase();
+}
+
+export type LeadStatusFlags = {
+  status?: string | null;
+  important?: boolean;
+  interested?: boolean;
+};
+
+/** Matches admin/DB: status or boolean flag */
+export function isImportantLead(lead: LeadStatusFlags): boolean {
+  return !!lead.important || normStatus(lead.status) === "important";
+}
+
+export function isInterestedLeadStatus(lead: LeadStatusFlags): boolean {
+  return !!lead.interested || normStatus(lead.status) === "interested";
+}
+
+export function isWonClientStatus(s?: string | null): boolean {
+  const n = normStatus(s);
+  return n === "close client" || n === "completed" || n === "closed";
+}
+
 export function isNotPickedStatus(s: string) {
   return s === STATUS_NOT_PICKED || s === STATUS_NOT_COMPLETED;
 }
 
 export function isNotInterestedStatus(s: string) {
-  return s === STATUS_NOT_INTERESTED || s === "completed";
+  return s === STATUS_NOT_INTERESTED || normStatus(s) === "completed";
 }
 
 export function statusDisplayLabel(s: string): string {
+  const n = normStatus(s);
   if (isNotInterestedStatus(s)) return "Not Interested";
   if (isNotPickedStatus(s)) return "Not Picked";
-  if (s === STATUS_NO_OWNER) return "No Owner Available";
-  if (s === STATUS_NOT_IN_SERVICE) return "Not In Service";
-  if (s === STATUS_IN_HOUSE) return "In House";
-  if (s === "important") return "Important";
-  if (s === "interested") return "Interested";
-  if (s === "Close Client") return "Close Client";
-  if (s === "pending") return "Pending";
+  if (n === normStatus(STATUS_NO_OWNER)) return "No Owner Available";
+  if (n === normStatus(STATUS_NOT_IN_SERVICE)) return "Not In Service";
+  if (n === normStatus(STATUS_IN_HOUSE)) return "In House";
+  if (n === "important") return "Important";
+  if (n === "interested") return "Interested";
+  if (isWonClientStatus(s)) return "Close Client";
+  if (n === "pending") return "Pending";
   return s;
 }
 
 export function statusBadgeClass(s: string): string {
+  const n = normStatus(s);
   if (isNotPickedStatus(s)) return "bg-[#FFF7E6] text-[#B54708]";
   if (isNotInterestedStatus(s)) return "bg-[#F1F5F9] text-[#475569]";
-  if (s === STATUS_NO_OWNER) return "bg-[#FEF3C7] text-[#B45309]";
-  if (s === STATUS_NOT_IN_SERVICE) return "bg-[#F3E8FF] text-[#7C3AED]";
-  if (s === STATUS_IN_HOUSE) return "bg-[#CCFBF1] text-[#0D9488]";
-  if (s === "important") return "bg-[#FFF1F3] text-[#B8112D]";
-  if (s === "interested") return "bg-[#FFF4E5] text-[#D97706]";
-  if (s === "Close Client") return "bg-[#ECFDF5] text-[#065F46]";
+  if (n === normStatus(STATUS_NO_OWNER)) return "bg-[#FEF3C7] text-[#B45309]";
+  if (n === normStatus(STATUS_NOT_IN_SERVICE)) return "bg-[#F3E8FF] text-[#7C3AED]";
+  if (n === normStatus(STATUS_IN_HOUSE)) return "bg-[#CCFBF1] text-[#0D9488]";
+  if (n === "important") return "bg-[#FFF1F3] text-[#B8112D]";
+  if (n === "interested") return "bg-[#FFF4E5] text-[#D97706]";
+  if (isWonClientStatus(s)) return "bg-[#ECFDF5] text-[#065F46]";
   return "bg-[#F4F4F5] text-[#52525B]";
 }
