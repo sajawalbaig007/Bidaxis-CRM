@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5000;
 /* ═══════════════════════════════════════════════
    AUTO OFFLINE CRON — every 5s with circuit breaker
    If DB is unreachable, backs off for 60s to avoid
-   flooding the connection pool.
+   flooding the connection pools
 ═══════════════════════════════════════════════ */
 let _offlineFailStreak = 0;
 let _offlinePaused = false;
