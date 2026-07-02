@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { getCsrDashboard, invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
+import { apiErrorMessage } from "@/lib/api";
 
 export function useCsrDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -15,7 +16,7 @@ export function useCsrDashboard() {
       setLeads((data.leads ?? []).map((lead: BackendLead) => mapBackendLead(lead)));
     } catch (err) {
       console.log(err);
-      toast.error("Could not load your leads. Please refresh the page.");
+      toast.error(apiErrorMessage(err, "Could not load your leads. Please refresh the page."));
     } finally {
       setLoading(false);
     }
