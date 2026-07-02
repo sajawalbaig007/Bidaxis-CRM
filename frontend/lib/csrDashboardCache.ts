@@ -31,7 +31,7 @@ export async function getCsrDashboard(force = false): Promise<CsrDashboardData> 
   }
   if (inflight) return inflight;
 
-  inflight = API.get("/csr/dashboard")
+  inflight = API.get("/csr/dashboard", { timeout: 120_000 })
     .then(res => {
       const data = res.data as CsrDashboardData;
       if (userId) cached = { userId, data, at: Date.now() };

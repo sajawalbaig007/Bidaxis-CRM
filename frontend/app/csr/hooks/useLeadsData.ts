@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrClientsApi, type ClientPipelineStats } from "@/lib/csrApiCache";
 import toast from "react-hot-toast";
+import { apiErrorMessage } from "@/lib/api";
 
 export interface SubContact {
   id: string;
@@ -118,7 +119,7 @@ export function useLeadsData() {
       if (res.stats) setStats(res.stats);
     } catch (err) {
       console.log(err);
-      toast.error("Could not load clients. Please refresh.");
+      toast.error(apiErrorMessage(err, "Could not load clients. Please refresh."));
     } finally {
       setLoading(false);
     }

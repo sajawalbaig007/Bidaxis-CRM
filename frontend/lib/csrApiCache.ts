@@ -2,7 +2,7 @@ import API, { getTokenUserId } from "./api";
 
 type CacheEntry<T> = { userId: string; data: T; at: number };
 
-function createFetcher<T>(url: string, ttlMs: number) {
+function createFetcher<T>(url: string, ttlMs: number, timeoutMs = 30_000) {
   let cached: CacheEntry<T> | null = null;
   let inflight: Promise<T> | null = null;
 
@@ -14,7 +14,7 @@ function createFetcher<T>(url: string, ttlMs: number) {
       }
       if (inflight) return inflight;
 
-      inflight = API.get(url)
+      inflight = API.get(url, { timeout: timeoutMs })
         .then(res => {
           const data = res.data as T;
           if (userId) cached = { userId, data, at: Date.now() };

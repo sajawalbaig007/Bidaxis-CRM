@@ -24,6 +24,7 @@ import {
   resolveDeleteBinReason,
 } from "../utils/binLeads";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
+import { CSR_DASHBOARD_LEAD_SELECT } from "../utils/csrLeadSelect";
 
 const router = express.Router();
 
@@ -188,15 +189,14 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     const rawLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
-      include: {
-        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
-        notes:      { orderBy: { createdAt: "asc" }, select: { id: true, text: true, createdAt: true } },
-        // subContacts omitted — fetched on demand via GET /csr/lead/:id
-      },
+      select:  CSR_DASHBOARD_LEAD_SELECT,
       orderBy: { createdAt: "desc" },
     });
 
-    const leads = filterActiveLeads(rawLeads);
+    const leads = filterActiveLeads(rawLeads).map(({ _count, ...lead }) => ({
+      ...lead,
+      noteCount: _count.notes,
+    }));
 
     const payload = { success: true, totalLeads: leads.length, leads };
     setCache(cacheKey, payload, 30_000);
@@ -345,7 +345,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     await prisma.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+    invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.json({ success: true });
   } catch {
@@ -366,7 +366,7 @@ router.post("/lead/:id/notes", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     const note = await prisma.leadNote.create({ data: { text: text.trim(), leadId } });
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
+    invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.json({ success: true, note });
   } catch {

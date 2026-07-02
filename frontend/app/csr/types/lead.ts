@@ -24,6 +24,7 @@ export interface BackendLead {
   updatedAt?: string;
   uploadFile?: { companyName?: string; source?: { sudoName?: string | null } };
   notes?: { id: string; text?: string; createdAt?: string; }[];
+  noteCount?: number;
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
 }
@@ -56,7 +57,9 @@ export type Lead = {
 export const mapBackendLead = (lead: BackendLead): Lead => {
   const rawNotes = lead.notes ?? [];
   const fullNotes = rawNotes.filter(n => n.text?.trim());
-  const noteCount = fullNotes.length > 0 ? fullNotes.length : rawNotes.length;
+  const noteCount = fullNotes.length > 0
+    ? fullNotes.length
+    : (lead.noteCount ?? rawNotes.length);
 
   const legacyNotes: NoteEntry[] = [];
   if (fullNotes.length === 0 && lead.comments?.trim()) {
