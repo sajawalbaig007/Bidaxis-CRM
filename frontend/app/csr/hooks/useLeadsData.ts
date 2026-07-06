@@ -63,11 +63,13 @@ export function mapClientLead(l: RawLead): ClientLead {
   }
 
   const noteHistory: NoteEntry[] = fullNotes.length > 0
-    ? fullNotes.map((n: RawNote) => ({
-        id:        n.id        ?? String(Math.random()),
-        text:      n.text!.trim(),
-        createdAt: n.createdAt ?? new Date().toISOString(),
-      }))
+    ? fullNotes
+        .map((n: RawNote) => ({
+          id:        n.id        ?? String(Math.random()),
+          text:      n.text!.trim(),
+          createdAt: n.createdAt ?? new Date().toISOString(),
+        }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     : legacyNote;
 
   return {
