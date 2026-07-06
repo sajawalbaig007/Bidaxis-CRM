@@ -6,15 +6,11 @@ import {
   scheduledCallWhere,
 } from "./adminClientQueries";
 import { wonClientStatusWhere } from "./projectLeads";
-import { NOT_INTERESTED_LIMIT, NOT_PICKED_LIMIT } from "./binLeads";
+import { NOT_INTERESTED_LIMIT, NOT_PICKED_LIMIT, activeCsrLeadWhere, mainPipelineWhere, pendingLeadWhere } from "./binLeads";
 import { CSR_DASHBOARD_LEAD_SELECT } from "./csrLeadSelect";
 
 const STATUS_NI = "Not Interested";
 const STATUS_NP = ["not picked", "not completed"] as const;
-
-function activeAssigned(csrId: string): Prisma.LeadWhereInput {
-  return { assignedTo: csrId, NOT: { inBin: true } };
-}
 
 export type CsrTabKey =
   | "today"
@@ -30,12 +26,12 @@ export type CsrTabKey =
   | "inhouse";
 
 export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWhereInput {
-  const base = activeAssigned(csrId);
+  const base = activeCsrLeadWhere(csrId);
 
   switch (tab) {
     case "today":
     case "pending":
-      return { ...base, status: { equals: "pending", mode: "insensitive" } };
+      return pendingLeadWhere(csrId);
     case "important":
       return { ...base, ...importantOnlyWhere() };
     case "schedule":
@@ -46,15 +42,13 @@ export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWher
       return { ...base, ...wonClientStatusWhere() };
     case "notinterested":
       return {
-        assignedTo: csrId,
-        NOT: { inBin: true },
+        ...activeCsrLeadWhere(csrId),
         status: { equals: STATUS_NI, mode: "insensitive" },
         notInterestedCount: { lt: NOT_INTERESTED_LIMIT },
       };
     case "notpicked":
       return {
-        assignedTo: csrId,
-        NOT: { inBin: true },
+        ...activeCsrLeadWhere(csrId),
         status: { in: [...STATUS_NP], mode: "insensitive" },
         notPickedCount: { lt: NOT_PICKED_LIMIT },
       };
@@ -70,7 +64,7 @@ export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWher
 }
 
 export async function getCsrLeadStats(csrId: string) {
-  const base = activeAssigned(csrId);
+  const base = activeCsrLeadWhere(csrId);
 
   const [
     pendingCount,
@@ -84,8 +78,9 @@ export async function getCsrLeadStats(csrId: string) {
     notInServiceCount,
     inHouseCount,
     totalAssigned,
+    mainPipelineCount,
   ] = await Promise.all([
-    prisma.lead.count({ where: { ...base, status: { equals: "pending", mode: "insensitive" } } }),
+    prisma.lead.count({ where: pendingLeadWhere(csrId) }),
     prisma.lead.count({ where: { ...base, ...importantOnlyWhere() } }),
     prisma.lead.count({ where: { ...base, ...scheduledCallWhere() } }),
     prisma.lead.count({ where: { ...base, ...isInterestedStatusWhere() } }),
@@ -95,7 +90,8 @@ export async function getCsrLeadStats(csrId: string) {
     prisma.lead.count({ where: buildCsrTabWhere(csrId, "noowner") }),
     prisma.lead.count({ where: buildCsrTabWhere(csrId, "notinservice") }),
     prisma.lead.count({ where: buildCsrTabWhere(csrId, "inhouse") }),
-    prisma.lead.count({ where: { assignedTo: csrId, NOT: { inBin: true } } }),
+    prisma.lead.count({ where: base }),
+    prisma.lead.count({ where: mainPipelineWhere(csrId) }),
   ]);
 
   return {
@@ -110,7 +106,8 @@ export async function getCsrLeadStats(csrId: string) {
     notInServiceCount,
     inHouseCount,
     totalAssigned,
-    totalLeads: totalAssigned,
+    mainPipelineCount,
+    totalLeads: mainPipelineCount,
   };
 }
 
@@ -178,8 +175,7 @@ export async function fetchCsrTabLeads(opts: {
 /** Potential clients — important / schedule / interested only */
 export async function fetchPotentialLeads(csrId: string) {
   const where: Prisma.LeadWhereInput = {
-    assignedTo: csrId,
-    NOT: { inBin: true },
+    ...activeCsrLeadWhere(csrId),
     OR: [
       importantOnlyWhere(),
       scheduledCallWhere(),

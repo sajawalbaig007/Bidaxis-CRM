@@ -30,9 +30,32 @@ export function resolveDeleteBinReason(status: string | null | undefined): BinRe
   return "deleted-other";
 }
 
-/** Match leads not in bin — includes legacy docs where inBin was never set */
+/** Match leads not in bin — includes legacy MongoDB docs where inBin was never persisted */
 export function notInBinFilter(): Prisma.LeadWhereInput {
-  return { NOT: { inBin: true } };
+  return { inBin: { not: true } };
+}
+
+/** Active leads for a CSR (not in bin) — same rules as legacy filterActiveLeads for inBin */
+export function activeCsrLeadWhere(csrId: string): Prisma.LeadWhereInput {
+  return {
+    assignedTo: csrId,
+    ...notInBinFilter(),
+  };
+}
+
+/** Main dashboard pipeline — matches old frontend mainLeads (!hiddenOnMain) */
+export function mainPipelineWhere(csrId: string): Prisma.LeadWhereInput {
+  return {
+    ...activeCsrLeadWhere(csrId),
+    hiddenOnMain: false,
+  };
+}
+
+export function pendingLeadWhere(csrId: string): Prisma.LeadWhereInput {
+  return {
+    ...mainPipelineWhere(csrId),
+    status: { equals: "pending", mode: "insensitive" },
+  };
 }
 
 /** Filter in memory when MongoDB docs lack persisted inBin (Prisma default is false). */

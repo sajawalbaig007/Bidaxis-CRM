@@ -22,6 +22,8 @@ import {
   filterActiveLeads,
   isBinLead,
   resolveDeleteBinReason,
+  activeCsrLeadWhere,
+  pendingLeadWhere,
 } from "../utils/binLeads";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
 import { CSR_DASHBOARD_LEAD_SELECT } from "../utils/csrLeadSelect";
@@ -267,8 +269,7 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     const stats = await getCsrLeadStats(csrId);
     const rawLeads = await prisma.lead.findMany({
       where: {
-        assignedTo: csrId,
-        NOT: { inBin: true },
+        ...activeCsrLeadWhere(csrId),
         status: {
           in: ["no owner available", "not in service", "in house"],
           mode: "insensitive",
@@ -848,12 +849,12 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
       isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
     }));
 
-    const activeWhere = { assignedTo: csrId, NOT: { inBin: true } };
+    const activeWhere = activeCsrLeadWhere(csrId);
     const [importantCount, interestedCount, pendingCount, totalAssigned] = await Promise.all([
       prisma.lead.count({ where: { ...activeWhere, ...isImportantStatusWhere() } }),
       prisma.lead.count({ where: { ...activeWhere, ...isInterestedStatusWhere() } }),
-      prisma.lead.count({ where: { ...activeWhere, status: { equals: "pending", mode: "insensitive" } } }),
-      prisma.lead.count({ where: { assignedTo: csrId, NOT: { inBin: true } } }),
+      prisma.lead.count({ where: pendingLeadWhere(csrId) }),
+      prisma.lead.count({ where: activeWhere }),
     ]);
 
     const payload = {
