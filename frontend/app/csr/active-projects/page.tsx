@@ -81,6 +81,20 @@ const emptyForm = {
 };
 const PAGE_SIZE = 30;
 
+function projectDeadlineDate(deadline: string): string | null {
+  if (!deadline || deadline === "N/A") return null;
+  return deadline.split("T")[0];
+}
+
+function matchesDeadlineRange(deadline: string, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  const d = projectDeadlineDate(deadline);
+  if (!d) return false;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
 function DeadlineStatus({ deadline }: { deadline: string }) {
   if (!deadline) return null;
   const past = isDeadlinePast(deadline);
@@ -96,7 +110,8 @@ function DeadlineStatus({ deadline }: { deadline: string }) {
 export default function CSRProjectsPage() {
   const { projects, setProjects, loading } = useProjectsData();
 
-  const [selectedDate, setSelectedDate] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo,   setDateTo]   = useState("");
   const [search,       setSearch]       = useState("");
   const [page,         setPage]         = useState(1);
 
@@ -138,12 +153,12 @@ export default function CSRProjectsPage() {
   const filteredProjects = useMemo(() => {
     const q = search.toLowerCase();
     return projects.filter(p => {
-      const matchesDate   = selectedDate ? p.deadline === selectedDate : true;
+      const matchesDate   = matchesDeadlineRange(p.deadline, dateFrom, dateTo);
       const matchesSearch = !q || (p.projectTitle ?? "").toLowerCase().includes(q) ||
         (p.client ?? "").toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q);
       return matchesDate && matchesSearch;
     });
-  }, [selectedDate, search, projects]);
+  }, [dateFrom, dateTo, search, projects]);
 
   const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -357,19 +372,32 @@ export default function CSRProjectsPage() {
                 className="w-full h-11 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 sm:pl-11 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-1.5 sm:gap-2 text-[#B8112D] font-semibold text-xs sm:text-sm">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[#B8112D] font-semibold text-xs sm:text-sm shrink-0">
                 <Filter size={13} className="sm:w-4 sm:h-4" />Filter by Deadline
               </div>
-              <input
-                type="date" value={selectedDate}
-                onChange={e => { setSelectedDate(e.target.value); setPage(1); }}
-                className="h-10 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-xs sm:text-sm outline-none focus:border-[#B8112D]"
-              />
-              {selectedDate && (
-                <button onClick={() => setSelectedDate("")}
-                  className="h-10 sm:h-[50px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm text-gray-500 hover:text-[#B8112D] transition-all">
-                  Clear
+              <div className="flex items-center gap-2 flex-1 sm:max-w-md">
+                <CalendarDays size={15} className="text-gray-400 shrink-0" />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                  className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+                />
+                <span className="text-xs text-gray-400 shrink-0">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                  className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+                />
+              </div>
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                  className="h-10 sm:h-[50px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm text-gray-500 hover:text-[#B8112D] transition-all"
+                >
+                  Clear dates
                 </button>
               )}
             </div>
