@@ -10,8 +10,9 @@ import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import {
   clearPendingDuplicatesForPhone,
+  clearPendingDuplicatesForCompany,
   hasPriorWonClient,
-  healPendingDuplicatesForCsr,
+  healPipelineLeaksForCsr,
   isPendingPipelineStatus,
   syncWonClientOldFlags,
 } from "../utils/leadClientPromotion";
@@ -205,7 +206,11 @@ router.get("/stats", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId    = req.user.id;
     const cacheKey = `csr:stats:${csrId}`;
-    const cached   = getCache<object>(cacheKey);
+
+    const removed = await healPipelineLeaksForCsr(csrId);
+    if (removed > 0) invalidateCsrLeadCaches(csrId);
+
+    const cached = removed === 0 ? getCache<object>(cacheKey) : null;
     if (cached) return res.json(cached);
 
     const stats = await getCsrLeadStats(csrId);
@@ -235,14 +240,15 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
       return res.status(400).json({ success: false, message: "Invalid tab." });
     }
 
-    const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
-    const cached   = getCache<object>(cacheKey);
-    if (cached) return res.json(cached);
-
+    let removed = 0;
     if (tab === "pending" || tab === "today") {
-      const removed = await healPendingDuplicatesForCsr(csrId);
+      removed = await healPipelineLeaksForCsr(csrId);
       if (removed > 0) invalidateCsrLeadCaches(csrId);
     }
+
+    const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
+    const cached   = removed === 0 ? getCache<object>(cacheKey) : null;
+    if (cached) return res.json(cached);
 
     const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to });
     const payload = { success: true, ...result };
@@ -387,7 +393,10 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
     }
 
     const trimmedPhone = phone?.trim() || null;
-    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+
+    const isOldClient = trimmedPhone || company?.trim()
+      ? await hasPriorWonClient(trimmedPhone, company?.trim() ?? null)
+      : false;
 
     const lead = await prisma.lead.create({
       data: {
@@ -404,10 +413,17 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         assignedTo:        csrId,
         important:         false,
         interested:        false,
-        isOldClient:       existingLeads.length > 0,
+        isOldClient,
         hiddenOnMain:      true,
       },
     });
+
+    if (trimmedPhone) {
+      await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
+    }
+    if (company?.trim()) {
+      await clearPendingDuplicatesForCompany(company.trim(), csrId, lead.id);
+    }
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
@@ -428,7 +444,7 @@ router.get("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       where:   { id: leadId, assignedTo: csrId },
       include: {
         uploadFile:  { select: { companyName: true } },
-        notes:       { orderBy: { createdAt: "asc" } },
+        notes:       { orderBy: { createdAt: "desc" } },
         subContacts: { orderBy: { createdAt: "asc" } },
       },
     });
@@ -754,10 +770,14 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     if (
       status !== undefined &&
-      (status === "Close Client" || status === "completed") &&
-      lead.phone
+      (status === "Close Client" || status === "completed")
     ) {
-      await clearPendingDuplicatesForPhone(lead.phone, csrId, leadId);
+      if (lead.phone) {
+        await clearPendingDuplicatesForPhone(lead.phone, csrId, leadId);
+      }
+      if (lead.company) {
+        await clearPendingDuplicatesForCompany(lead.company, csrId, leadId);
+      }
     }
 
     if (status !== undefined && status !== lead.status) {
@@ -820,6 +840,9 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         });
 
         await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
+        if (companyTrim) {
+          await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
+        }
         invalidateCsrLeadCaches(csrId);
         flushAdminClientsCache();
         return res.status(200).json({ success: true, lead, promoted: true });
@@ -853,6 +876,9 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
     if (asWonClient && trimmedPhone) {
       await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
     }
+    if (asWonClient && companyTrim) {
+      await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
+    }
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
@@ -869,11 +895,14 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
   try {
     const csrId    = req.user.id;
     const cacheKey = `csr:clients:${csrId}`;
+    await healPipelineLeaksForCsr(csrId);
+    invalidateCache(cacheKey, `csr:stats:${csrId}`);
+    invalidatePattern(`csr:tab:${csrId}:`);
+
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    await healPendingDuplicatesForCsr(csrId);
-    await syncWonClientOldFlags(csrId);
+    await healPipelineLeaksForCsr(csrId);
 
     const rawLeads = await prisma.lead.findMany({
       where: {
@@ -882,7 +911,7 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
       },
       include: {
         uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
-        notes:      { orderBy: { createdAt: "asc" } },
+        notes:      { orderBy: { createdAt: "desc" } },
         subContacts: { orderBy: { createdAt: "asc" } },
       },
       orderBy: { createdAt: "desc" },

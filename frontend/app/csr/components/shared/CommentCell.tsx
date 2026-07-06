@@ -56,7 +56,8 @@ export default function CommentCell({
 
   /* ── Notes to display in popup ── */
   const displayNotes = (localNotes !== null ? localNotes : (noteHistory ?? []))
-    .filter(n => n.text?.trim());
+    .filter(n => n.text?.trim())
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const latestNote   = displayNotes[0];
   const latestPreview = latestNote?.text?.trim()
     ? (latestNote.text.length > 48 ? `${latestNote.text.slice(0, 48)}…` : latestNote.text)
@@ -119,12 +120,12 @@ export default function CommentCell({
   const loadNotesIfNeeded = async () => {
     if (localNotes !== null || fetchStartedRef.current) return;
 
-    const hasText = (noteHistory ?? []).some(n => n.text?.trim());
-    const needsFetch =
-      !hasText &&
-      ((noteCount ?? 0) > 0 || (noteHistory?.length ?? 0) > 0 || !!comment?.trim());
+    const loadedCount = (noteHistory ?? []).filter(n => n.text?.trim()).length;
+    const shouldFetch =
+      (noteCount ?? 0) > loadedCount ||
+      loadedCount === 0;
 
-    if (!needsFetch) return;
+    if (!shouldFetch && !comment?.trim()) return;
 
     fetchStartedRef.current = true;
     setNotesLoading(true);

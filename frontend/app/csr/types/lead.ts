@@ -77,11 +77,13 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
   }
 
   const noteHistory: NoteEntry[] = fullNotes.length > 0
-    ? fullNotes.map(n => ({
-        id: n.id!,
-        text: n.text!.trim(),
-        createdAt: n.createdAt ?? new Date().toISOString(),
-      }))
+    ? fullNotes
+        .map(n => ({
+          id: n.id!,
+          text: n.text!.trim(),
+          createdAt: n.createdAt ?? new Date().toISOString(),
+        }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     : lead.latestNote?.text?.trim()
       ? [{
           id:        lead.latestNote.id,
