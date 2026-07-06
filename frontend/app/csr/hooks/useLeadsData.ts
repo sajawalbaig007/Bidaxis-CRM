@@ -55,7 +55,7 @@ type RawLead = {
   notes?: RawNote[];
 };
 
-function mapClientLead(l: RawLead): ClientLead {
+export function mapClientLead(l: RawLead): ClientLead {
   const fullNotes = (l.notes ?? []).filter(n => n.text?.trim());
   const legacyNote: NoteEntry[] = [];
   if (fullNotes.length === 0 && l.comments?.trim()) {

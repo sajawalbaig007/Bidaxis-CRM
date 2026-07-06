@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
-import DashboardSidebar from "../components/layout/Sidebar";
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
@@ -37,6 +37,7 @@ type CSR = { id: string; name: string; csrCode: string | null };
 type TabKey = "all" | "notpicked" | "notinterested" | "deleted";
 
 export default function AdminBinPage() {
+  const StaffSidebar = useStaffSidebar();
   const [leads,      setLeads]      = useState<BinLead[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
@@ -140,7 +141,7 @@ export default function AdminBinPage() {
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster position="top-right" />
-      <DashboardSidebar />
+      <StaffSidebar />
 
       <div className="flex-1 min-w-0 flex flex-col">
         <DashboardNavbar />

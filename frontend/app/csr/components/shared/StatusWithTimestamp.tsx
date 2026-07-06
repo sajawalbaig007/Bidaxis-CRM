@@ -9,6 +9,7 @@ type Props = {
   className?: string;
   badgeClassName?: string;
   label?: string;
+  showTimestamp?: boolean;
 };
 
 export default function StatusWithTimestamp({
@@ -17,8 +18,9 @@ export default function StatusWithTimestamp({
   className = "",
   badgeClassName = "",
   label,
+  showTimestamp = false,
 }: Props) {
-  const ts = formatStatusTimestamp(statusUpdatedAt);
+  const ts = showTimestamp ? formatStatusTimestamp(statusUpdatedAt) : null;
   return (
     <div className={className}>
       <div className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-sm font-semibold w-fit whitespace-nowrap ${badgeClassName || statusBadgeClass(status)}`}>

@@ -23,9 +23,9 @@ import {
 import {
   ensureChatUnreadPolling, getArchivedConversations, getChatConversations,
   forceStopChatUnreadPolling, pollArchivedConversations, pollChatUnread, subscribeChatUnread,
+  markConversationRead,
 } from "@/lib/chatUnreadStore";
 import {
-  forceStopChatStatusHeartbeat,
   startChatStatusHeartbeat,
   stopChatStatusHeartbeat,
 } from "@/lib/chatStatusHeartbeat";
@@ -398,7 +398,6 @@ export default function ChatPanel({
       cancelled = true;
       unsub();
       forceStopChatUnreadPolling();
-      forceStopChatStatusHeartbeat();
     };
   }, [viewAsCsr, isStealthView]);
 
@@ -461,6 +460,7 @@ export default function ChatPanel({
         lastMsgCount.current = msgs.length;
         setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
         if (!stealth) {
+          markConversationRead(cid);
           void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
           void fetchConvMembers(cid).then(members => {
             if (!cancelled) setGroupMembers(members as ChatUser[]);
@@ -490,6 +490,7 @@ export default function ChatPanel({
           lastMsgCount.current = msgs.length;
           if (!stealth) {
             setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
+            markConversationRead(cid);
             void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
             const newest = msgs[msgs.length - 1];
             if (hadNew && newest && !newest.isOwn) {
@@ -700,7 +701,7 @@ export default function ChatPanel({
           return up ? { ...u, isOnline: up.isOnline } : u;
         }));
       } catch { /* ignore */ }
-    }, 10000);
+    }, 30_000);
     return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allUsers.length === 0 ? 0 : 1]);

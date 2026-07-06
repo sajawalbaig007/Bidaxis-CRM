@@ -1,0 +1,201 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import toast from "react-hot-toast";
+
+import { apiErrorMessage } from "@/lib/api";
+
+import {
+  fetchCsrStatsCached,
+  fetchCsrTabLeadsCached,
+  fetchAllCsrTabLeadsCached,
+  fetchPotentialLeadsCached,
+} from "@/lib/csrTabApiCache";
+
+import { BackendLead, Lead, mapBackendLead } from "../types/lead";
+
+
+
+export type CsrStats = {
+
+  pendingCount: number;
+
+  importantOnlyCount: number;
+
+  scheduledCount: number;
+
+  interestedCount: number;
+
+  projectWonCount: number;
+
+  notInterestedCount: number;
+
+  notPickedCount: number;
+
+  noOwnerCount: number;
+
+  notInServiceCount: number;
+
+  inHouseCount: number;
+
+  totalAssigned: number;
+
+  totalLeads: number;
+
+};
+
+
+
+export type CsrTabKey =
+
+  | "today" | "pending" | "important" | "schedule" | "interested" | "projectwon"
+
+  | "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse";
+
+
+
+function monthStart(ym: string): string {
+
+  return ym.length === 7 ? `${ym}-01` : ym;
+
+}
+
+
+
+function monthEnd(ym: string): string {
+
+  if (ym.length !== 7) return ym;
+
+  const [y, m] = ym.split("-").map(Number);
+
+  const last = new Date(y, m, 0).getDate();
+
+  return `${ym}-${String(last).padStart(2, "0")}`;
+
+}
+
+
+
+export function useCsrStats() {
+
+  const [stats, setStats] = useState<CsrStats | null>(null);
+
+  const [loading, setLoading] = useState(true);
+
+
+
+  const refetch = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
+
+    try {
+
+      if (!opts?.silent) setLoading(true);
+
+      const res = await fetchCsrStatsCached(opts?.force);
+
+      setStats(res.stats as CsrStats);
+
+    } catch (err) {
+
+      if (!opts?.silent) toast.error(apiErrorMessage(err, "Could not load stats."));
+
+    } finally {
+
+      if (!opts?.silent) setLoading(false);
+
+    }
+
+  }, []);
+
+
+
+  useEffect(() => { void refetch(); }, [refetch]);
+
+
+
+  return { stats, setStats, loading, refetch };
+
+}
+
+
+
+export function useCsrTabLeads(
+  tab: CsrTabKey,
+  page: number,
+  from?: string,
+  to?: string,
+  fetchAll = false,
+) {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const reqGen = useRef(0);
+
+  const refetch = useCallback(async (force = false) => {
+    const gen = ++reqGen.current;
+    try {
+      setLoading(true);
+      const fromDate = from ? monthStart(from) : undefined;
+      const toDate   = to ? monthEnd(to) : undefined;
+      const data = fetchAll
+        ? await fetchAllCsrTabLeadsCached(tab, fromDate, toDate, force)
+        : await fetchCsrTabLeadsCached(tab, page, fromDate, toDate, force);
+      if (gen !== reqGen.current) return;
+      setLeads((data.leads as BackendLead[] ?? []).map(mapBackendLead));
+      setTotal(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 1);
+    } catch (err) {
+      if (gen !== reqGen.current) return;
+      toast.error(apiErrorMessage(err, "Could not load leads. Please refresh."));
+      setLeads([]);
+    } finally {
+      if (gen === reqGen.current) setLoading(false);
+    }
+  }, [tab, page, from, to, fetchAll]);
+
+  useEffect(() => { void refetch(); }, [refetch]);
+
+  return { leads, setLeads, total, totalPages, loading, refetch };
+}
+
+
+
+export function usePotentialLeads() {
+
+  const [leads, setLeads] = useState<Lead[]>([]);
+
+  const [loading, setLoading] = useState(true);
+
+
+
+  const refetch = useCallback(async (force = false) => {
+
+    try {
+
+      setLoading(true);
+
+      const res = await fetchPotentialLeadsCached(force);
+
+      setLeads((res.leads as BackendLead[] ?? []).map(mapBackendLead));
+
+    } catch (err) {
+
+      toast.error(apiErrorMessage(err, "Could not load potential clients."));
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }, []);
+
+
+
+  useEffect(() => { void refetch(); }, [refetch]);
+
+
+
+  return { leads, setLeads, loading, refetch };
+
+}
+

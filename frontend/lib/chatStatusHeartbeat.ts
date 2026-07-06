@@ -3,7 +3,8 @@ import API from "@/lib/api";
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let heartbeatOwners = 0;
 let lastPingAt = 0;
-const PING_TTL_MS = 25_000;
+const PING_TTL_MS = 75_000;
+const HEARTBEAT_MS = 90_000;
 
 function pingOnline(force = false) {
   if (!force && Date.now() - lastPingAt < PING_TTL_MS) return;
@@ -14,13 +15,10 @@ function pingOnline(force = false) {
 export function startChatStatusHeartbeat(): void {
   if (typeof window === "undefined") return;
   heartbeatOwners += 1;
-  if (heartbeatTimer) {
-    pingOnline();
-    return;
-  }
+  if (heartbeatTimer) return;
 
   pingOnline(true);
-  heartbeatTimer = setInterval(() => pingOnline(), 30_000);
+  heartbeatTimer = setInterval(() => pingOnline(), HEARTBEAT_MS);
 }
 
 export function stopChatStatusHeartbeat(): void {

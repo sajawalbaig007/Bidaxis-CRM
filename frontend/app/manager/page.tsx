@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function ManagerHomePage() {
-  redirect("/manager/reports");
-}
+export { default } from "@/app/admin/page";

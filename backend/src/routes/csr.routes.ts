@@ -5,7 +5,7 @@ import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
 import { getClientIp } from "../utils/requestMeta";
-import { getCache, setCache, invalidateCache, flushAdminClientsCache } from "../utils/cache";
+import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
 import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { buildProjectLeadWhere, isDisplayableProjectLead, wonClientStatusWhere } from "../utils/projectLeads";
@@ -25,6 +25,13 @@ import {
 } from "../utils/binLeads";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
 import { CSR_DASHBOARD_LEAD_SELECT } from "../utils/csrLeadSelect";
+import {
+  fetchCsrTabLeads,
+  fetchPotentialLeads,
+  getCsrLeadStats,
+  mapDashboardLead,
+  type CsrTabKey,
+} from "../utils/csrDashboardQueries";
 
 const router = express.Router();
 
@@ -32,6 +39,8 @@ function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
   flushAdminClientsCache();
   invalidateCache(
     `csr:dashboard:${csrId}`,
+    `csr:stats:${csrId}`,
+    `csr:potential:${csrId}`,
     `csr:leads:${csrId}`,
     `csr:clients:${csrId}`,
     `csr:projects:${csrId}`,
@@ -40,6 +49,7 @@ function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
     "admin:bin",
     ...extra,
   );
+  invalidatePattern(`csr:tab:${csrId}:`);
 }
 
 async function logStatusChange(csrId: string, leadId: string, status: string) {
@@ -180,26 +190,105 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
 
 /* ================= CSR DASHBOARD ================= */
 
+/* ================= CSR DASHBOARD (legacy — stats only; use /tab-leads for lists) ================= */
+
+router.get("/stats", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId    = req.user.id;
+    const cacheKey = `csr:stats:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const stats = await getCsrLeadStats(csrId);
+    const payload = { success: true, stats };
+    setCache(cacheKey, payload, 30_000);
+    return res.json(payload);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch stats" });
+  }
+});
+
+router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId  = req.user.id;
+    const tab    = String(req.query.tab ?? "pending") as CsrTabKey;
+    const page   = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(500, Math.max(10, Number(req.query.pageSize) || 30));
+    const from   = typeof req.query.from === "string" ? req.query.from : undefined;
+    const to     = typeof req.query.to === "string" ? req.query.to : undefined;
+
+    const validTabs: CsrTabKey[] = [
+      "today", "pending", "important", "schedule", "interested", "projectwon",
+      "notinterested", "notpicked", "noowner", "notinservice", "inhouse",
+    ];
+    if (!validTabs.includes(tab)) {
+      return res.status(400).json({ success: false, message: "Invalid tab." });
+    }
+
+    const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to });
+    const payload = { success: true, ...result };
+    setCache(cacheKey, payload, 20_000);
+    return res.json(payload);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch tab leads" });
+  }
+});
+
+router.get("/potential-leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const csrId    = req.user.id;
+    const cacheKey = `csr:potential:${csrId}`;
+    const cached   = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const leads = await fetchPotentialLeads(csrId);
+    const payload = { success: true, leads };
+    setCache(cacheKey, payload, 30_000);
+    return res.json(payload);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch potential leads" });
+  }
+});
+
 router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
-    const csrId   = req.user.id;
+    const csrId    = req.user.id;
     const cacheKey = `csr:dashboard:${csrId}`;
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
+    const stats = await getCsrLeadStats(csrId);
     const rawLeads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId },
-      select:  CSR_DASHBOARD_LEAD_SELECT,
-      orderBy: { createdAt: "desc" },
+      where: {
+        assignedTo: csrId,
+        NOT: { inBin: true },
+        status: {
+          in: ["no owner available", "not in service", "in house"],
+          mode: "insensitive",
+        },
+      },
+      select: {
+        ...CSR_DASHBOARD_LEAD_SELECT,
+        notes: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, text: true, createdAt: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
     });
 
-    const leads = filterActiveLeads(rawLeads).map(({ _count, ...lead }) => ({
-      ...lead,
-      noteCount: _count.notes,
-    }));
+    const leads = filterActiveLeads(rawLeads).map(mapDashboardLead);
 
-    const payload = { success: true, totalLeads: leads.length, leads };
-    setCache(cacheKey, payload, 30_000);
+    const payload = { success: true, totalLeads: stats.totalAssigned, stats, leads };
+    setCache(cacheKey, payload, 45_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -218,7 +307,11 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
 
     const rawLeads = await prisma.lead.findMany({
       where: buildActiveRetryWhere(csrId),
-      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      include: {
+        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
+        notes: { orderBy: { createdAt: "desc" }, take: 20 },
+        subContacts: { orderBy: { createdAt: "asc" } },
+      },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -299,10 +392,11 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         important:         false,
         interested:        false,
         isOldClient:       existingLeads.length > 0,
+        hiddenOnMain:      true,
       },
     });
 
-    invalidateCache(`csr:dashboard:${csrId}`, `csr:projects:${csrId}`, `csr:leads:${csrId}`);
+    invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.status(201).json({ success: true, lead });
   } catch (error) {
@@ -682,6 +776,9 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const trimmedPhone = phone?.trim() || null;
     const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
 
+    const isReturning = existingLeads.length > 0;
+    const asWonClient = !!req.body.asWonClient || isReturning;
+
     const lead = await prisma.lead.create({
       data: {
         name:              name.trim(),
@@ -693,11 +790,12 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         comments:          comments?.trim()          || null,
         projectBudget:     projectBudget?.trim()     || null,
         paidAmount:        paidAmount?.trim()        || null,
-        status:            "pending",
+        status:            asWonClient ? "Close Client" : "pending",
         assignedTo:        csrId,
         important:         false,
         interested:        false,
-        isOldClient:       existingLeads.length > 0,
+        isOldClient:       isReturning,
+        hiddenOnMain:      asWonClient,
       },
     });
 

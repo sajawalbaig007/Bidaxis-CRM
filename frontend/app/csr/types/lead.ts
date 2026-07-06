@@ -25,6 +25,7 @@ export interface BackendLead {
   uploadFile?: { companyName?: string; source?: { sudoName?: string | null } };
   notes?: { id: string; text?: string; createdAt?: string; }[];
   noteCount?: number;
+  latestNote?: { id: string; text: string; createdAt: string } | null;
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
 }
@@ -48,6 +49,7 @@ export type Lead = {
   important: boolean;
   interested: boolean;
   sourceSudoName: string;
+  ourCompanyName: string;
   statusUpdatedAt: string;
   noteCount: number;
   noteHistory: NoteEntry[];
@@ -57,9 +59,6 @@ export type Lead = {
 export const mapBackendLead = (lead: BackendLead): Lead => {
   const rawNotes = lead.notes ?? [];
   const fullNotes = rawNotes.filter(n => n.text?.trim());
-  const noteCount = fullNotes.length > 0
-    ? fullNotes.length
-    : (lead.noteCount ?? rawNotes.length);
 
   const legacyNotes: NoteEntry[] = [];
   if (fullNotes.length === 0 && lead.comments?.trim()) {
@@ -83,13 +82,24 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
         text: n.text!.trim(),
         createdAt: n.createdAt ?? new Date().toISOString(),
       }))
-    : legacyNotes;
+    : lead.latestNote?.text?.trim()
+      ? [{
+          id:        lead.latestNote.id,
+          text:      lead.latestNote.text.trim(),
+          createdAt: lead.latestNote.createdAt,
+        }]
+      : legacyNotes;
+
+  const noteCount = fullNotes.length > 0
+    ? fullNotes.length
+    : (lead.noteCount ?? (lead.latestNote ? 1 : rawNotes.length));
 
   return {
     id:               lead.id,
     client:           lead.name                              ?? "Unknown",
-    company:          lead.uploadFile?.companyName ?? lead.company ?? "N/A",
-    rawCompany:       lead.company                            ?? "",
+    company:          lead.company                           ?? "N/A",
+    rawCompany:       lead.company                           ?? "",
+    ourCompanyName:   lead.uploadFile?.companyName           ?? "",
     phone:            lead.phone                             ?? "N/A",
     email:            lead.email                             ?? "N/A",
     status:           lead.status                            ?? "pending",

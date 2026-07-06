@@ -42,7 +42,7 @@ export type AdminDashboardSummary = {
 
 let cached: { data: AdminDashboardSummary; at: number } | null = null;
 let inflight: Promise<AdminDashboardSummary> | null = null;
-const TTL_MS = 90_000;
+const TTL_MS = 120_000;
 const STORAGE_KEY = "crm_admin_summary_v1";
 
 function readStorage(): { data: AdminDashboardSummary; at: number } | null {

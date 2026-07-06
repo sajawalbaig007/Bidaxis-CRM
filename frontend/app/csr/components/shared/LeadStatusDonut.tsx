@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip } from "recharts";
-import { getStatusChartData } from "../../constants/statusChart";
+import { getStatusChartData, getStatusChartDataFromStats } from "../../constants/statusChart";
 import { Lead } from "../../types/lead";
+import type { CsrStats } from "../../hooks/useCsrTabPage";
 import ChartPieSide from "./ChartPieSide";
 import { useMounted } from "@/lib/useMounted";
 
@@ -12,12 +13,16 @@ const DONUT_INNER = 72;
 const DONUT_OUTER = 104;
 
 interface LeadStatusDonutProps {
-  leads: Lead[];
+  leads?: Lead[];
+  stats?: CsrStats | null;
   loading?: boolean;
 }
 
-export default function LeadStatusDonut({ leads, loading }: LeadStatusDonutProps) {
-  const data  = useMemo(() => getStatusChartData(leads), [leads]);
+export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDonutProps) {
+  const data  = useMemo(() => {
+    if (stats) return getStatusChartDataFromStats(stats);
+    return getStatusChartData(leads ?? []);
+  }, [leads, stats]);
   const total = useMemo(() => data.reduce((sum, slice) => sum + slice.value, 0), [data]);
   const mounted = useMounted();
 

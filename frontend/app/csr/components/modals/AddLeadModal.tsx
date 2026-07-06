@@ -114,8 +114,8 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
               />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Company Name</label>
-              <input type="text" value={form.company} placeholder="Company name"
+              <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Client Company</label>
+              <input type="text" value={form.company} placeholder="Client's company"
                 onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
                 className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
               />

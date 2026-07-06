@@ -109,6 +109,14 @@ model Lead {
   @@index([assignedTo, status])
   @@index([company, status])
   @@index([status, assignedTo])
+  @@index([inBin])
+  @@index([important])
+  @@index([interested])
+  @@index([inBin, assignedTo])
+  @@index([inBin, status])
+  @@index([inBin, assignedTo, status])
+  @@index([nextSchedule])
+  @@index([hiddenOnMain])
 }
 
 model LeadNote {

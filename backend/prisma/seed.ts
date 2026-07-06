@@ -29,6 +29,17 @@ async function main() {
     },
   });
 
+  await prisma.user.upsert({
+    where:  { email: "manager@gmail.com" },
+    update: {},
+    create: {
+      name:     "Manager User",
+      email:    "manager@gmail.com",
+      password: hashedPassword,
+      role:     Role.manager,
+    },
+  });
+
   console.log("Seed complete");
 }
 

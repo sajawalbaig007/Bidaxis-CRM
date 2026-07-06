@@ -57,7 +57,24 @@ export default function CommentCell({
   /* ── Notes to display in popup ── */
   const displayNotes = (localNotes !== null ? localNotes : (noteHistory ?? []))
     .filter(n => n.text?.trim());
-  const sorted       = [...displayNotes].reverse();
+  const latestNote   = displayNotes[0];
+  const latestPreview = latestNote?.text?.trim()
+    ? (latestNote.text.length > 48 ? `${latestNote.text.slice(0, 48)}…` : latestNote.text)
+    : comment?.trim()
+      ? (comment.length > 48 ? `${comment.slice(0, 48)}…` : comment)
+      : null;
+
+  /* Sync parent note updates (status change / optimistic add) */
+  useEffect(() => {
+    if (!noteHistory?.length) return;
+    setLocalNotes(prev => {
+      if (prev === null) return null;
+      const ids = new Set(prev.map(n => n.id));
+      const incoming = noteHistory.filter(n => !ids.has(n.id));
+      if (!incoming.length) return prev;
+      return [...incoming, ...prev];
+    });
+  }, [noteHistory]);
 
   /* Close on outside click */
   useEffect(() => {
@@ -137,13 +154,15 @@ export default function CommentCell({
   const handleAdd = async () => {
     const text = draft.trim();
     if (!text) return;
+    const tempNote: NoteEntry = { id: `tmp-${Date.now()}`, text, createdAt: new Date().toISOString() };
+    setLocalNotes(prev => [tempNote, ...(prev ?? [])]);
+    setDraft("");
     setSaving(true);
     try {
       let result: unknown;
       if (onAddNote)    result = await onAddNote(id, text);
       else if (onSave)  await onSave(id, text);
 
-      /* Try to extract the created note from the result for local state */
       let newNote: NoteEntry | null = null;
       if (result && typeof result === "object" && "id" in (result as object)) {
         newNote = result as NoteEntry;
@@ -151,8 +170,12 @@ export default function CommentCell({
       if (!newNote) {
         newNote = { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
       }
-      setLocalNotes(prev => prev !== null ? [...prev, newNote!] : [newNote!]);
-      setDraft("");
+      setLocalNotes(prev => prev !== null
+        ? [newNote!, ...prev.filter(n => n.id !== tempNote.id)]
+        : [newNote!]
+      );
+    } catch {
+      setLocalNotes(prev => prev !== null ? prev.filter(n => n.id !== tempNote.id) : null);
     } finally { setSaving(false); }
   };
 
@@ -219,14 +242,14 @@ export default function CommentCell({
           </div>
         )}
 
-        {!notesLoading && sorted.length === 0 && !comment && (
+        {!notesLoading && displayNotes.length === 0 && !comment && (
           <div className="py-8 text-center">
             <StickyNote size={24} className="text-gray-200 mx-auto mb-2" />
             <p className="text-[12px] text-gray-400">No notes yet</p>
           </div>
         )}
 
-        {!notesLoading && sorted.map(note => (
+        {!notesLoading && displayNotes.map(note => (
           <div key={note.id} className="px-4 py-3 group">
             {editId === note.id ? (
               <div className="space-y-2">
@@ -309,18 +332,28 @@ export default function CommentCell({
   );
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0 max-w-[200px]">
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className={`flex items-center gap-1.5 h-8 px-3 rounded-xl border text-[12px] font-semibold transition-all ${
+        className={`flex flex-col items-start gap-0.5 w-full min-w-[88px] h-auto min-h-8 px-3 py-1.5 rounded-xl border text-left text-[12px] font-semibold transition-all ${
           count > 0
-            ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-            : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            ? "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-200"
+            : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:bg-gray-800 dark:border-gray-700"
         }`}
       >
-        <StickyNote size={13} />
-        {count > 0 ? <span>{count} note{count !== 1 ? "s" : ""}</span> : <span>Note</span>}
+        <span className="flex items-center gap-1.5">
+          <StickyNote size={13} className="shrink-0" />
+          {count > 0 ? <span>{count} note{count !== 1 ? "s" : ""}</span> : <span>Note</span>}
+        </span>
+        {latestPreview && (
+          <span className="text-[10px] font-normal text-gray-600 dark:text-gray-400 line-clamp-2 w-full leading-snug">
+            {latestPreview}
+            {latestNote?.createdAt && (
+              <span className="block text-[9px] text-gray-400 mt-0.5">{fmtTime(latestNote.createdAt)}</span>
+            )}
+          </span>
+        )}
       </button>
 
       {typeof document !== "undefined" && popup && createPortal(popup, document.body)}

@@ -28,6 +28,7 @@ import {
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
+import { buildAdminClientSummaryPayload } from "../utils/adminSummaryStats";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -57,7 +58,7 @@ router.get("/dashboard", verifyToken, allowRoles("admin"), (req, res) => {
 });
 
 /* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
-router.get("/notifications", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/notifications", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
@@ -140,136 +141,14 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager"), async (req, res
 });
 
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
-router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, res) => {
+router.get("/clients/summary", verifyToken, allowRoles("admin", "manager"), async (_req, res) => {
   try {
     const CACHE_KEY = "admin:clients:summary";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
-    const chartDaysAgo = new Date();
-    chartDaysAgo.setDate(chartDaysAgo.getDate() - 45);
-
-    const [
-      totalLeads,
-      pending,
-      interested,
-      projectWon,
-      completed,
-      importantOnly,
-      scheduled,
-      closed,
-      recent,
-      recentStatusLogs,
-      chartLeads,
-      csrGroups,
-      resolvedGroups,
-      onlineCSRs,
-      totalOnline,
-    ] = await Promise.all([
-      prisma.lead.count(),
-      prisma.lead.count({ where: { status: "pending" } }),
-      prisma.lead.count({ where: isInterestedStatusWhere() }),
-      prisma.lead.count({ where: { status: { in: ["Close Client", "close client"] } } }),
-      prisma.lead.count({ where: { status: { in: ["completed", "closed"] } } }),
-      prisma.lead.count({ where: importantOnlyWhere() }),
-      prisma.lead.count({ where: scheduledCallWhere() }),
-      prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
-      prisma.lead.findMany({
-        select: {
-          id: true, name: true, status: true, updatedAt: true,
-          csr: { select: { name: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 15,
-      }),
-      prisma.callLog.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          lead: { select: { name: true } },
-          csr:  { select: { name: true } },
-        },
-      }),
-      prisma.lead.findMany({
-        where:   { createdAt: { gte: chartDaysAgo } },
-        select:  { createdAt: true },
-      }),
-      prisma.lead.groupBy({ by: ["assignedTo"], _count: { _all: true } }),
-      prisma.lead.groupBy({
-        by:    ["assignedTo"],
-        where: { status: { in: ["Close Client", "close client", "interested", "important"] } },
-        _count: { _all: true },
-      }),
-      prisma.user.count({ where: { role: "csr", isOnline: true } }),
-      prisma.user.count({ where: { isOnline: true } }),
-    ]);
-
-    const csrIds = [...new Set([
-      ...csrGroups.map(g => g.assignedTo),
-      ...resolvedGroups.map(g => g.assignedTo),
-    ])].filter((id): id is string => typeof id === "string" && id.length > 0);
-    const csrUsers = csrIds.length
-      ? await prisma.user.findMany({ where: { id: { in: csrIds } }, select: { id: true, name: true } })
-      : [];
-    const csrNameById = new Map(csrUsers.map(u => [u.id, u.name]));
-
-    const totalMap     = new Map(csrGroups.map(g => [g.assignedTo, g._count._all]));
-    const resolvedMap  = new Map(resolvedGroups.map(g => [g.assignedTo, g._count._all]));
-    const performers = [...totalMap.entries()]
-      .filter(([id]) => typeof id === "string" && id.length > 0)
-      .map(([id, total]) => {
-        const resolved = resolvedMap.get(id) ?? 0;
-        const name = csrNameById.get(id) ?? "Unassigned";
-        return { name, resolved, total, rate: total > 0 ? Math.round((resolved / total) * 100) : 0 };
-      })
-      .sort((a, b) => b.resolved - a.resolved)
-      .slice(0, 5);
-
-    const payload = {
-      success: true,
-      stats: {
-        totalLeads,
-        pending,
-        important: importantOnly + scheduled,
-        importantOnly,
-        scheduled,
-        interested,
-        projectWon,
-        completed,
-        closed,
-        onlineCSRs,
-        totalOnline,
-      },
-      tabCounts: {
-        all:        totalLeads,
-        important:  importantOnly,
-        schedule:   scheduled,
-        interested,
-        closed,
-      },
-      distribution: {
-        Pending:      pending,
-        Important:    importantOnly + scheduled,
-        Interested:   interested,
-        "Close Client": projectWon,
-        Closed:       completed + closed,
-      },
-      recent,
-      recentStatusLogs: recentStatusLogs.map(log => ({
-        id:        log.id,
-        status:    log.status,
-        createdAt: log.createdAt,
-        leadName:  log.lead?.name ?? "Unknown",
-        csrName:   log.csr?.name  ?? "Unknown CSR",
-      })),
-      chartLeads,
-      performers,
-    };
-
-    setCache(CACHE_KEY, payload, 120_000);
+    const payload = await buildAdminClientSummaryPayload();
+    setCache(CACHE_KEY, payload, 180_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -278,7 +157,7 @@ router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, re
 });
 
 /* ================= GET CLIENTS / LEADS (paginated — admin leads page) ================= */
-router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/clients", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const view = (String(req.query.view || "all") as AdminClientView);
     const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
@@ -328,7 +207,7 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
 
 /* ================= CREATE LEAD (ADMIN manual add) ================= */
 
-router.post("/lead", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/lead", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const adminId = req.user?.id;
     if (!adminId) return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -380,7 +259,7 @@ router.post("/lead", verifyToken, allowRoles("admin"), async (req: AuthRequest, 
 });
 
 /* ================= GET SINGLE LEAD (ADMIN) ================= */
-router.get("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const lead = await prisma.lead.findFirst({
@@ -401,7 +280,7 @@ router.get("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
 });
 
 /* ================= DELETE LEAD / PROJECT (ADMIN) ================= */
-router.delete("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const lead = await prisma.lead.findFirst({
@@ -427,7 +306,7 @@ router.delete("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) =>
 });
 
 /* ================= UPDATE LEAD DETAILS (ADMIN) ================= */
-router.put("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { name, phone, email, state } = req.body;
@@ -460,7 +339,7 @@ router.put("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
   }
 });
 
-router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin"), async (req, res) => {
+router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { name, designation, phone, email } = req.body as { name: string; designation?: string; phone?: string; email?: string };
@@ -481,7 +360,7 @@ router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin"), async (re
   }
 });
 
-router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const subId  = String(req.params.subId);
@@ -511,7 +390,7 @@ router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), asy
   }
 });
 
-router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const subId  = String(req.params.subId);
@@ -530,7 +409,7 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), 
 });
 
 /* ================= UPDATE LEAD NOTE ================= */
-router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res) => {
+router.patch("/lead/:id/note", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const { comments } = req.body;
     await prisma.lead.update({
@@ -545,7 +424,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res
 });
 
 /* ================= ADMIN TIMESTAMPED NOTES (shared with CSR) ================= */
-router.post("/lead/:id/notes", verifyToken, allowRoles("admin"), async (req, res) => {
+router.post("/lead/:id/notes", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { text } = req.body as { text: string };
@@ -563,7 +442,7 @@ router.post("/lead/:id/notes", verifyToken, allowRoles("admin"), async (req, res
   }
 });
 
-router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { noteId } = req.params as { noteId: string };
@@ -581,7 +460,7 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (r
   }
 });
 
-router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { noteId } = req.params as { noteId: string };
@@ -676,15 +555,38 @@ router.get(
 
       const leads = await prisma.lead.findMany({
         where: { assignedTo: csr.id },
-        include: {
-          uploadFile: {
-            select: {
-              companyName: true,
-            },
-          },
+        select: {
+          id: true,
+          name: true,
+          company: true,
+          phone: true,
+          email: true,
+          state: true,
+          status: true,
+          important: true,
+          interested: true,
+          comments: true,
+          nextSchedule: true,
+          nextTime: true,
+          timezone: true,
+          interestedService: true,
+          projectTitle: true,
+          projectCode: true,
+          projectBudget: true,
+          projectDeadline: true,
+          clientCode: true,
+          isOldClient: true,
+          createdAt: true,
+          updatedAt: true,
+          uploadFile: { select: { companyName: true } },
           callLogs: {
-            orderBy: {
-              createdAt: "desc",
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              status: true,
+              notes: true,
+              duration: true,
+              createdAt: true,
             },
           },
         },
@@ -736,7 +638,7 @@ router.get(
 );
 
 /* ================= ALL ACTIVE PROJECT LEADS (all CSRs) ================= */
-router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/projects", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
     const from  = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
@@ -820,7 +722,7 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
 });
 
 /* ================= LOOKUP CLIENT BY PHONE (ADMIN) ================= */
-router.get("/lookup-by-phone", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/lookup-by-phone", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const phone = (req.query.phone as string)?.trim();
     if (!phone || normalizePhone(phone).length < 7) {
@@ -835,7 +737,7 @@ router.get("/lookup-by-phone", verifyToken, allowRoles("admin"), async (req, res
 });
 
 /* ================= ADD PROJECT (ADMIN) ================= */
-router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/project", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const { name, projectTitle, interestedService, projectDeadline } = body;
@@ -912,7 +814,7 @@ router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthReques
 });
 
 /* ================= UPDATE PROJECT (ADMIN) ================= */
-router.put("/project/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/project/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const updateData: Record<string, unknown> = {};
@@ -1178,7 +1080,7 @@ router.post(
 
 /* ================= ADMIN BIN (all not-picked + not-interested leads) ================= */
 
-router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/bin", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
     const cacheKey = csrId ? `admin:bin:${csrId}` : "admin:bin";
@@ -1206,7 +1108,7 @@ router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
 
 /* ================= REASSIGN LEAD TO SPECIFIC CSR (ADMIN) ================= */
 
-router.put("/lead/:id/reassign", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id/reassign", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { csrId } = req.body;

@@ -3,6 +3,32 @@ import { usePathname } from "next/navigation";
 import API from "@/lib/api";
 import { visibleInterval } from "@/lib/visibleInterval";
 
+function playNotifyTone() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.35);
+  } catch { /* ignore */ }
+}
+
+function fmtLocalTime(iso?: string): string {
+  try {
+    return new Date(iso ?? Date.now()).toLocaleString(undefined, {
+      month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit", hour12: true,
+    });
+  } catch {
+    return "";
+  }
+}
+
 export function useChatNotifications() {
   const pathname = usePathname();
   const prevUnreadRef = useRef<Record<string, number>>({});
@@ -18,22 +44,25 @@ export function useChatNotifications() {
   }, []);
 
   useEffect(() => {
-    if (pathname?.includes("/chat")) return;
-
     let isFirst = true;
     const poll = async () => {
       try {
         const r = await API.get("/chat/conversations");
-        const convs: { id: string; name: string; unreadCount: number; lastMessage?: string }[] =
-          r.data.conversations ?? r.data ?? [];
+        const convs: {
+          id: string; name: string; unreadCount: number;
+          lastMessage?: string; updatedAt?: string;
+        }[] = r.data.conversations ?? r.data ?? [];
 
         if (!isFirst && notifOk.current) {
           convs.forEach(c => {
             const prev = prevUnreadRef.current[c.id] ?? 0;
             if ((c.unreadCount ?? 0) > prev) {
-              new Notification("New message", {
-                body: `${c.name}: ${c.lastMessage ?? "You have a new message"}`,
+              playNotifyTone();
+              const when = fmtLocalTime(c.updatedAt);
+              new Notification("New chat message", {
+                body: `${c.name}: ${c.lastMessage ?? "You have a new message"}${when ? ` · ${when}` : ""}`,
                 icon: "/images/image.png",
+                tag: `chat-${c.id}`,
               });
             }
           });
@@ -43,7 +72,7 @@ export function useChatNotifications() {
       } catch {}
     };
     void poll();
-    return visibleInterval(poll, 30_000);
+    return visibleInterval(poll, pathname?.includes("/chat") ? 30_000 : 90_000);
   }, [pathname]);
 }
 
