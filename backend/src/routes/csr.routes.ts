@@ -11,7 +11,9 @@ import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLo
 import {
   clearPendingDuplicatesForPhone,
   hasPriorWonClient,
+  healPendingDuplicatesForCsr,
   isPendingPipelineStatus,
+  syncWonClientOldFlags,
 } from "../utils/leadClientPromotion";
 import { buildProjectLeadWhere, isDisplayableProjectLead, wonClientStatusWhere } from "../utils/projectLeads";
 import { isImportantStatusWhere, isInterestedStatusWhere } from "../utils/adminClientQueries";
@@ -236,6 +238,11 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
     const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
+
+    if (tab === "pending" || tab === "today") {
+      const removed = await healPendingDuplicatesForCsr(csrId);
+      if (removed > 0) invalidateCsrLeadCaches(csrId);
+    }
 
     const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to });
     const payload = { success: true, ...result };
@@ -777,12 +784,11 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
     }
 
     const trimmedPhone = phone?.trim() || null;
-    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
-
-    const isReturning = existingLeads.length > 0;
-    const asWonClient = !!req.body.asWonClient || isReturning;
+    const companyTrim  = company?.trim() || null;
+    const asWonClient  = !!req.body.asWonClient || req.body.status === "Close Client";
 
     if (asWonClient && trimmedPhone) {
+      const existingLeads = await findLeadsByPhone(trimmedPhone);
       const pendingDup = existingLeads.find(
         l =>
           l.assignedTo === csrId &&
@@ -791,6 +797,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
       );
 
       if (pendingDup) {
+        const isOldClient = await hasPriorWonClient(trimmedPhone, companyTrim, pendingDup.id);
         const lead = await prisma.lead.update({
           where: { id: pendingDup.id },
           data: {
@@ -798,7 +805,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
             phone:             trimmedPhone,
             email:             email?.trim()?.toLowerCase() || null,
             state:             state?.trim()             || null,
-            company:           company?.trim()           || null,
+            company:           companyTrim               || null,
             interestedService: interestedService?.trim() || null,
             comments:          comments?.trim()          || null,
             projectBudget:     projectBudget?.trim()     || null,
@@ -807,7 +814,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
             assignedTo:        csrId,
             important:         false,
             interested:        false,
-            isOldClient:       isReturning,
+            isOldClient,
             hiddenOnMain:      true,
           },
         });
@@ -818,6 +825,10 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         return res.status(200).json({ success: true, lead, promoted: true });
       }
     }
+
+    const isOldClient = asWonClient
+      ? await hasPriorWonClient(trimmedPhone, companyTrim)
+      : false;
 
     const lead = await prisma.lead.create({
       data: {
@@ -834,7 +845,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         assignedTo:        csrId,
         important:         false,
         interested:        false,
-        isOldClient:       isReturning,
+        isOldClient,
         hiddenOnMain:      asWonClient,
       },
     });
@@ -861,6 +872,9 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
+    await healPendingDuplicatesForCsr(csrId);
+    await syncWonClientOldFlags(csrId);
+
     const rawLeads = await prisma.lead.findMany({
       where: {
         assignedTo: csrId,
@@ -875,21 +889,9 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
     });
     const csrLeads = filterActiveLeads(rawLeads);
 
-    const phones = [...new Set(csrLeads.map(l => l.phone).filter((p): p is string => !!p))];
-    const phoneCountMap = new Map<string, number>();
-    if (phones.length > 0) {
-      const allWithPhone = await prisma.lead.findMany({
-        where:  { phone: { in: phones } },
-        select: { phone: true },
-      });
-      for (const l of allWithPhone) {
-        if (l.phone) phoneCountMap.set(l.phone, (phoneCountMap.get(l.phone) ?? 0) + 1);
-      }
-    }
-
     const leads = csrLeads.map(lead => ({
       ...lead,
-      isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
+      isOldClient: lead.isOldClient,
     }));
 
     const activeWhere = activeCsrLeadWhere(csrId);
@@ -929,22 +931,9 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
     });
     const csrLeads = filterActiveLeads(rawLeads);
 
-    const phones = [...new Set(csrLeads.map(l => l.phone).filter((p): p is string => !!p))];
-
-    const phoneCountMap = new Map<string, number>();
-    if (phones.length > 0) {
-      const allWithPhone = await prisma.lead.findMany({
-        where:  { phone: { in: phones } },
-        select: { phone: true },
-      });
-      for (const l of allWithPhone) {
-        if (l.phone) phoneCountMap.set(l.phone, (phoneCountMap.get(l.phone) ?? 0) + 1);
-      }
-    }
-
     const leads = csrLeads.map(lead => ({
       ...lead,
-      isOldClient: lead.isOldClient || !!(lead.phone && (phoneCountMap.get(lead.phone) ?? 0) > 1),
+      isOldClient: lead.isOldClient,
     }));
 
     const payload = { success: true, leads };

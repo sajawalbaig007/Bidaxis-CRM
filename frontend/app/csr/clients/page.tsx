@@ -286,6 +286,7 @@ export default function LeadsPage() {
         comments:          addForm.comments.trim() || undefined,
         projectBudget:     addForm.quotation.trim() || undefined,
         paidAmount:        addForm.upfront.trim()   || undefined,
+        asWonClient:       true,
       });
       const nl = res.data.lead;
       const promoted = !!res.data.promoted;
@@ -305,17 +306,11 @@ export default function LeadsPage() {
         createdAt: new Date().toISOString(),
       });
 
-      const phoneDigits = (fresh.phone ?? "").replace(/\D/g, "");
       setLeads(prev => {
         if (promoted) {
           return prev.map(l => l.id === fresh.id ? fresh : l);
         }
-        const promotedOthers = phoneDigits.length >= 7
-          ? prev.map(l =>
-              l.phone.replace(/\D/g, "") === phoneDigits ? { ...l, isOldClient: true } : l,
-            )
-          : prev;
-        return [fresh, ...promotedOthers];
+        return [fresh, ...prev];
       });
 
       invalidateAllCsrListCaches();
