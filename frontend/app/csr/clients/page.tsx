@@ -288,6 +288,7 @@ export default function LeadsPage() {
         paidAmount:        addForm.upfront.trim()   || undefined,
       });
       const nl = res.data.lead;
+      const promoted = !!res.data.promoted;
       const fresh = mapClientLead(nl ?? {
         id: String(Date.now()),
         name: addForm.name.trim(),
@@ -306,18 +307,23 @@ export default function LeadsPage() {
 
       const phoneDigits = (fresh.phone ?? "").replace(/\D/g, "");
       setLeads(prev => {
-        const promoted = phoneDigits.length >= 7
+        if (promoted) {
+          return prev.map(l => l.id === fresh.id ? fresh : l);
+        }
+        const promotedOthers = phoneDigits.length >= 7
           ? prev.map(l =>
               l.phone.replace(/\D/g, "") === phoneDigits ? { ...l, isOldClient: true } : l,
             )
           : prev;
-        return [fresh, ...promoted];
+        return [fresh, ...promotedOthers];
       });
 
       invalidateAllCsrListCaches();
       closeAddModal();
       toast.success(
-        fresh.isOldClient
+        promoted
+          ? "Returning client moved to Old Clients — removed from pending"
+          : fresh.isOldClient
           ? "Returning client added — moved to Old Clients"
           : "Lead added",
       );
