@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API, { apiErrorMessage } from "@/lib/api";
+import { getAdminTabCounts } from "@/lib/adminSummaryCache";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import toast, { Toaster } from "react-hot-toast";
@@ -192,8 +193,8 @@ function ClientsPageContent() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    API.get("/admin/clients/summary")
-      .then(res => { if (res.data?.tabCounts) setTabCounts(res.data.tabCounts); })
+    void getAdminTabCounts()
+      .then(tc => setTabCounts(tc))
       .catch(() => {});
     API.get("/admin/csrs")
       .then(res => setCsrOptions((res.data.csrs ?? []).map((c: { name: string }) => c.name)))
@@ -257,8 +258,8 @@ function ClientsPageContent() {
   ]);
 
   const refreshTabCounts = () => {
-    API.get("/admin/clients/summary")
-      .then(res => { if (res.data?.tabCounts) setTabCounts(res.data.tabCounts); })
+    void getAdminTabCounts(true)
+      .then(tc => setTabCounts(tc))
       .catch(() => {});
   };
 

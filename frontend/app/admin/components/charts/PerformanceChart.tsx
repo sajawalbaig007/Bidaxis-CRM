@@ -6,7 +6,6 @@ import {
   CartesianGrid, Tooltip, XAxis, YAxis,
 } from "recharts";
 
-/* ─── TYPES ─── */
 export type ClientLead = {
   id?: string;
   name?: string;
@@ -16,11 +15,14 @@ export type ClientLead = {
   csr?: { name?: string };
 };
 
-type Props = { leads: ClientLead[]; range?: string };
-
 type DataPoint = { label: string; calls: number };
-  
-/* ─── FUNCTIONS ─── */
+
+type Props = {
+  leads?: ClientLead[];
+  series?: DataPoint[];
+  range?: string;
+};
+
 function groupLeads(leads: ClientLead[], range: string): DataPoint[] {
   const now   = new Date();
   const buckets: Record<string, number> = {};
@@ -59,8 +61,11 @@ function groupLeads(leads: ClientLead[], range: string): DataPoint[] {
   return Object.entries(buckets).map(([label, calls]) => ({ label, calls }));
 }
 
-export default function PerformanceChart({ leads, range = "week" }: Props) {
-  const data = useMemo(() => groupLeads(leads, range), [leads, range]);
+export default function PerformanceChart({ leads = [], series, range = "week" }: Props) {
+  const data = useMemo(() => {
+    if (series && series.length > 0) return series;
+    return groupLeads(leads, range);
+  }, [series, leads, range]);
 
   return (
     <div className="h-[320px]">
