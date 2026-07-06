@@ -8,6 +8,11 @@ import { getClientIp } from "../utils/requestMeta";
 import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
 import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
+import {
+  clearPendingDuplicatesForPhone,
+  hasPriorWonClient,
+  isPendingPipelineStatus,
+} from "../utils/leadClientPromotion";
 import { buildProjectLeadWhere, isDisplayableProjectLead, wonClientStatusWhere } from "../utils/projectLeads";
 import { isImportantStatusWhere, isInterestedStatusWhere } from "../utils/adminClientQueries";
 import {
@@ -711,19 +716,8 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
       /* ── AUTO isOldClient when Close Client ── */
       if (status === "Close Client" || status === "completed") {
-        const company = lead.company?.trim().toLowerCase();
-        if (company) {
-          const previousWin = await prisma.lead.findFirst({
-            where: {
-              id:      { not: leadId },
-              company: { equals: lead.company ?? "", mode: "insensitive" },
-              status:  { in: ["Close Client", "completed"] },
-            },
-          });
-          updateData.isOldClient = !!previousWin;
-        } else {
-          updateData.isOldClient = false;
-        }
+        updateData.hiddenOnMain = true;
+        updateData.isOldClient = await hasPriorWonClient(lead.phone, lead.company, leadId);
 
         /* ── AUTO clientCode: {csrCode}-{padded_seq} ── */
         if (!lead.clientCode) {
@@ -750,6 +744,14 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       where: { id: leadId },
       data:  updateData,
     });
+
+    if (
+      status !== undefined &&
+      (status === "Close Client" || status === "completed") &&
+      lead.phone
+    ) {
+      await clearPendingDuplicatesForPhone(lead.phone, csrId, leadId);
+    }
 
     if (status !== undefined && status !== lead.status) {
       await logStatusChange(csrId, leadId, status);
@@ -780,6 +782,43 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const isReturning = existingLeads.length > 0;
     const asWonClient = !!req.body.asWonClient || isReturning;
 
+    if (asWonClient && trimmedPhone) {
+      const pendingDup = existingLeads.find(
+        l =>
+          l.assignedTo === csrId &&
+          isPendingPipelineStatus(l.status) &&
+          !l.inBin,
+      );
+
+      if (pendingDup) {
+        const lead = await prisma.lead.update({
+          where: { id: pendingDup.id },
+          data: {
+            name:              name.trim(),
+            phone:             trimmedPhone,
+            email:             email?.trim()?.toLowerCase() || null,
+            state:             state?.trim()             || null,
+            company:           company?.trim()           || null,
+            interestedService: interestedService?.trim() || null,
+            comments:          comments?.trim()          || null,
+            projectBudget:     projectBudget?.trim()     || null,
+            paidAmount:        paidAmount?.trim()        || null,
+            status:            "Close Client",
+            assignedTo:        csrId,
+            important:         false,
+            interested:        false,
+            isOldClient:       isReturning,
+            hiddenOnMain:      true,
+          },
+        });
+
+        await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
+        invalidateCsrLeadCaches(csrId);
+        flushAdminClientsCache();
+        return res.status(200).json({ success: true, lead, promoted: true });
+      }
+    }
+
     const lead = await prisma.lead.create({
       data: {
         name:              name.trim(),
@@ -799,6 +838,10 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         hiddenOnMain:      asWonClient,
       },
     });
+
+    if (asWonClient && trimmedPhone) {
+      await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
+    }
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();

@@ -1,5 +1,6 @@
 import XLSX from "xlsx";
 import prisma from "../config/db";
+import { isPendingPipelineStatus, isWonClientUploadStatus } from "./leadClientPromotion";
 
 const CHUNK_LOOKUP = 500;
 
@@ -144,12 +145,16 @@ export function parseLeadRows(
   return parsed;
 }
 
+export type PromoteRow = { row: ParsedLeadRow; existingId: string };
+
 export async function classifyRows(
   parsed: ParsedLeadRow[],
-  isActiveUpload: boolean
+  isActiveUpload: boolean,
+  promoteWonClients = false,
 ): Promise<{
   fresh: ParsedLeadRow[];
   toUpdate: ParsedLeadRow[];
+  toPromote: PromoteRow[];
   emailUpdates: { id: string; email: string }[];
   preview: RowPreview[];
   existingCodeMap?: Map<string, string>;
@@ -194,7 +199,7 @@ export async function classifyRows(
       }
     }
 
-    return { fresh, toUpdate, emailUpdates: [], preview, existingCodeMap };
+    return { fresh, toUpdate, toPromote: [], emailUpdates: [], preview, existingCodeMap };
   }
 
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
@@ -202,7 +207,10 @@ export async function classifyRows(
 
   const [existingByPhone, existingByEmail] = await Promise.all([
     chunkedLookup(phones, CHUNK_LOOKUP, chunk =>
-      prisma.lead.findMany({ where: { phone: { in: chunk } }, select: { phone: true, id: true, email: true } })
+      prisma.lead.findMany({
+        where: { phone: { in: chunk } },
+        select: { phone: true, id: true, email: true, status: true, inBin: true },
+      })
     ),
     chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
       prisma.lead.findMany({ where: { email: { in: chunk } }, select: { email: true } })
@@ -214,6 +222,7 @@ export async function classifyRows(
   const dupEmails   = new Set(existingByEmail.map(l => l.email ?? ""));
 
   const emailUpdates: { id: string; email: string }[] = [];
+  const toPromote: PromoteRow[] = [];
   const fresh: ParsedLeadRow[] = [];
 
   for (const r of parsed) {
@@ -226,6 +235,17 @@ export async function classifyRows(
     }
     if (r.phone && dupPhones.has(r.phone)) {
       const existing = dupPhoneMap.get(r.phone);
+      if (
+        promoteWonClients &&
+        existing &&
+        !existing.inBin &&
+        isPendingPipelineStatus(existing.status) &&
+        isWonClientUploadStatus(r.status)
+      ) {
+        toPromote.push({ row: r, existingId: existing.id });
+        preview.push(toPreview(r, "updated", "Moved from call-data to clients — pending removed"));
+        continue;
+      }
       if (existing && !existing.email && hasValidEmail) {
         emailUpdates.push({ id: existing.id, email: r.email });
       }
@@ -240,5 +260,5 @@ export async function classifyRows(
     preview.push(toPreview(r, "new", "New contact — will be added"));
   }
 
-  return { fresh, toUpdate: [], emailUpdates, preview };
+  return { fresh, toUpdate: [], toPromote, emailUpdates, preview };
 }

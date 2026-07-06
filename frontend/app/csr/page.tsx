@@ -105,8 +105,10 @@ export default function CSRPage() {
   };
 
   const visibleLeads = useMemo(() => leads.filter(l => {
+    const status = (l.status ?? "").toLowerCase();
+    if (status === "close client" || status === "completed" || status === "closed") return false;
     if (!l.hiddenOnMain) return true;
-    return (l.status ?? "").toLowerCase() === "pending";
+    return status === "pending";
   }), [leads]);
 
   const tabFiltered = useMemo(() => {
