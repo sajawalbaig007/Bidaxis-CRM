@@ -1,4 +1,5 @@
 import express from "express";
+import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
@@ -28,7 +29,7 @@ import {
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
-import { buildAdminClientSummaryPayload } from "../utils/adminSummaryStats";
+import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -62,12 +63,15 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager"), async 
   try {
     const today = new Date().toISOString().split("T")[0];
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+    const cacheKey = `admin:notifications:${csrId ?? "all"}:${today}`;
+    const cached = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
 
     const rawScheduled = await prisma.lead.findMany({
       where: {
         ...(csrId ? { assignedTo: csrId } : {}),
         status: "important",
-        nextSchedule: { not: null },
+        nextSchedule: { gte: today, not: null },
         nextTime: { not: null },
       },
       select: {
@@ -88,7 +92,6 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager"), async 
     const scheduledLeads = filterActiveLeads(rawScheduled);
 
     const scheduledCalls = scheduledLeads
-      .filter((l) => (l.nextSchedule ?? "") >= today)
       .slice(0, 30)
       .map((l) => ({
         id: l.id,
@@ -101,7 +104,9 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager"), async 
         csrId: l.csr?.id ?? "",
       }));
 
-    return res.json({ success: true, scheduledCalls });
+    const payload = { success: true, scheduledCalls };
+    setCache(cacheKey, payload, 60_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch notifications" });
@@ -137,6 +142,22 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager"), async (req, res
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
+  }
+});
+
+/* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
+router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager"), async (_req, res) => {
+  try {
+    const CACHE_KEY = "admin:clients:tab-counts";
+    const cached = getCache<object>(CACHE_KEY);
+    if (cached) return res.json(cached);
+
+    const payload = await buildAdminTabCountsPayload();
+    setCache(CACHE_KEY, payload, 60_000);
+    return res.json(payload);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch tab counts" });
   }
 });
 
@@ -643,15 +664,36 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager"), async (req,
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
     const from  = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
     const to    = typeof req.query.to   === "string" ? req.query.to.trim()   : undefined;
-    const lite  = req.query.lite === "1" || req.query.lite === "true";
-    const limit = Math.min(50, Math.max(0, parseInt(String(req.query.limit ?? "0"), 10) || 0));
+    const lite  = req.query.lite !== "0" && req.query.lite !== "false";
+    const page  = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
 
-    const where = buildProjectLeadWhere(csrId);
+    const cacheKey = `admin:projects:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}`;
+    const cached = getCache<object>(cacheKey);
+    if (cached) return res.json(cached);
+
+    const where: Prisma.LeadWhereInput = { ...buildProjectLeadWhere(csrId) };
+
+    if (search) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { projectTitle: { contains: search, mode: "insensitive" } },
+            { company: { contains: search, mode: "insensitive" } },
+            { interestedService: { contains: search, mode: "insensitive" } },
+          ],
+        },
+      ];
+    }
 
     const include = lite
       ? {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
           uploadFile: { select: { companyName: true } },
+          notes: { orderBy: { createdAt: "desc" as const }, take: 5 },
         }
       : {
           csr: {
@@ -667,18 +709,21 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager"), async (req,
               companyName: true,
             },
           },
-          notes: { orderBy: { createdAt: "asc" as const } },
+          notes: { orderBy: { createdAt: "asc" as const }, take: 20 },
         };
 
-    const rawLeads = await prisma.lead.findMany({
-      where,
-      include,
-      orderBy: { updatedAt: "desc" },
-      ...(lite && limit > 0 ? { take: Math.max(limit * 3, limit) } : {}),
-    });
+    const [rawLeads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        include,
+        orderBy: { updatedAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.lead.count({ where }),
+    ]);
 
     let leads = rawLeads.filter(isDisplayableProjectLead);
-    if (lite && limit > 0) leads = leads.slice(0, limit);
 
     if (from || to) {
       leads = leads.filter((l) => {
@@ -692,26 +737,29 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager"), async (req,
     }
 
     const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [withBudget, thisMonth] = await Promise.all([
+      prisma.lead.count({ where: { ...where, projectBudget: { not: null } } }),
+      prisma.lead.count({ where: { ...where, updatedAt: { gte: monthStart } } }),
+    ]);
 
     const stats = {
-      total: lite
-        ? await prisma.lead.count({ where })
-        : leads.length,
-      withBudget: leads.filter((l) => l.projectBudget).length,
-      thisMonth: leads.filter((l) => {
-        const d = new Date(l.updatedAt);
-        return (
-          d.getMonth() === now.getMonth() &&
-          d.getFullYear() === now.getFullYear()
-        );
-      }).length,
+      total,
+      withBudget,
+      thisMonth,
     };
 
-    return res.json({
+    const payload = {
       success: true,
       leads,
       stats,
-    });
+      total,
+      page,
+      limit,
+    };
+    setCache(cacheKey, payload, 45_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({
@@ -1083,21 +1131,30 @@ router.post(
 router.get("/bin", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
-    const cacheKey = csrId ? `admin:bin:${csrId}` : "admin:bin";
+    const page  = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+    const cacheKey = `admin:bin:${csrId ?? "all"}:${page}:${limit}`;
 
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const leads = await prisma.lead.findMany({
-      where: buildBinWhere(csrId),
-      include: {
-        csr:        { select: { id: true, name: true, csrCode: true } },
-        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+    const where = buildBinWhere(csrId);
 
-    const payload = { success: true, leads };
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        include: {
+          csr:        { select: { id: true, name: true, csrCode: true } },
+          uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
+        },
+        orderBy: { updatedAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.lead.count({ where }),
+    ]);
+
+    const payload = { success: true, leads, total, page, limit };
     setCache(cacheKey, payload, 30_000);
     return res.json(payload);
   } catch (error) {
@@ -1154,47 +1211,87 @@ router.put("/lead/:id/reassign", verifyToken, allowRoles("admin", "manager"), as
 
 /* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */
 
-async function statsForSource(sourceId: string) {
+async function statsForAllSources(sourceIds: string[]) {
+  const empty = {
+    statsMap: new Map<string, ReturnType<typeof countLeadStatuses>>(),
+    uploadsBySource: new Map<string, { id: string; sourceId: string | null; fileName: string; totalLeads: number; companyName: string | null; createdAt: Date }[]>(),
+  };
+  if (sourceIds.length === 0) return empty;
+
   const uploads = await prisma.uploadFile.findMany({
-    where:   { sourceId },
-    select:  { id: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
+    where:   { sourceId: { in: sourceIds } },
+    select:  { id: true, sourceId: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
     orderBy: { createdAt: "desc" },
   });
 
+  const fileToSource = new Map(uploads.map(u => [u.id, u.sourceId]));
   const fileIds = uploads.map(u => u.id);
+
   const leads = fileIds.length
     ? await prisma.lead.findMany({
         where:   { uploadedFileId: { in: fileIds } },
-        select:  { status: true },
+        select:  { status: true, uploadedFileId: true },
       })
     : [];
 
+  const leadsBySource = new Map<string, { status: string | null }[]>();
+  for (const lead of leads) {
+    const sid = lead.uploadedFileId ? fileToSource.get(lead.uploadedFileId) : undefined;
+    if (!sid) continue;
+    if (!leadsBySource.has(sid)) leadsBySource.set(sid, []);
+    leadsBySource.get(sid)!.push({ status: lead.status });
+  }
+
+  const statsMap = new Map<string, ReturnType<typeof countLeadStatuses>>();
+  for (const sid of sourceIds) {
+    statsMap.set(sid, countLeadStatuses(leadsBySource.get(sid) ?? []));
+  }
+
+  const uploadsBySource = new Map<string, typeof uploads>();
+  for (const u of uploads) {
+    if (!u.sourceId) continue;
+    if (!uploadsBySource.has(u.sourceId)) uploadsBySource.set(u.sourceId, []);
+    uploadsBySource.get(u.sourceId)!.push(u);
+  }
+
+  return { statsMap, uploadsBySource };
+}
+
+async function statsForSource(sourceId: string) {
+  const { statsMap, uploadsBySource } = await statsForAllSources([sourceId]);
   return {
-    stats:   countLeadStatuses(leads),
-    uploads,
+    stats: statsMap.get(sourceId) ?? countLeadStatuses([]),
+    uploads: uploadsBySource.get(sourceId) ?? [],
   };
 }
 
 router.get("/upload-sources", verifyToken, allowRoles("admin", "manager"), async (_req, res) => {
   try {
+    const CACHE_KEY = "admin:upload-sources";
+    const cached = getCache<object>(CACHE_KEY);
+    if (cached) return res.json(cached);
+
     const sources = await prisma.uploadSource.findMany({ orderBy: { name: "asc" } });
+    const sourceIds = sources.map(s => s.id);
+    const { statsMap, uploadsBySource } = await statsForAllSources(sourceIds);
 
-    const enriched = await Promise.all(
-      sources.map(async (src) => {
-        const { stats, uploads } = await statsForSource(src.id);
-        return {
-          id:          src.id,
-          name:        src.name,
-          sudoName:    src.sudoName,
-          createdAt:   src.createdAt,
-          uploadCount: uploads.length,
-          lastUpload:  uploads[0]?.createdAt ?? null,
-          stats,
-        };
-      })
-    );
+    const enriched = sources.map((src) => {
+      const uploads = uploadsBySource.get(src.id) ?? [];
+      const stats = statsMap.get(src.id) ?? countLeadStatuses([]);
+      return {
+        id:          src.id,
+        name:        src.name,
+        sudoName:    src.sudoName,
+        createdAt:   src.createdAt,
+        uploadCount: uploads.length,
+        lastUpload:  uploads[0]?.createdAt ?? null,
+        stats,
+      };
+    });
 
-    return res.json({ success: true, sources: enriched });
+    const payload = { success: true, sources: enriched };
+    setCache(CACHE_KEY, payload, 120_000);
+    return res.json(payload);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch upload sources" });

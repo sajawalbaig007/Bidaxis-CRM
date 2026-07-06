@@ -627,10 +627,15 @@ export default function AdminProjectsPage() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const params: Record<string, string> = {};
+      const params: Record<string, string> = {
+        lite: "1",
+        page: String(page),
+        limit: "50",
+      };
       if (filterCSR !== "all") params.csrId = filterCSR;
       if (dateFrom) params.from = dateFrom;
       if (dateTo) params.to = dateTo;
+      if (search.trim()) params.search = search.trim();
       const res = await API.get("/admin/projects", { params });
       setProjects(res.data.leads ?? []);
       setStats(res.data.stats   ?? { total: 0, withBudget: 0, thisMonth: 0 });
@@ -639,7 +644,7 @@ export default function AdminProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterCSR, dateFrom, dateTo]);
+  }, [filterCSR, dateFrom, dateTo, page, search]);
 
   useEffect(() => {
     API.get("/admin/csrs")
@@ -649,7 +654,7 @@ export default function AdminProjectsPage() {
 //
   useEffect(() => {
     void fetchProjects();
-  }, [filterCSR, fetchProjects]);
+  }, [filterCSR, dateFrom, dateTo, page, search, fetchProjects]);
 
   const csrList: [string, string][] = allCsrs.length > 0
     ? allCsrs.map((c): [string, string] => [c.id, c.name])

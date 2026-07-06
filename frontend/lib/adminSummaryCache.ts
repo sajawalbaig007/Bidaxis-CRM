@@ -1,5 +1,13 @@
 import API from "./api";
 
+export type ChartSeriesPoint = { label: string; calls: number };
+export type ChartSeries = {
+  today?: ChartSeriesPoint[];
+  week?: ChartSeriesPoint[];
+  month?: ChartSeriesPoint[];
+  year?: ChartSeriesPoint[];
+};
+
 export type AdminDashboardSummary = {
   stats?: {
     totalLeads?: number;
@@ -36,13 +44,26 @@ export type AdminDashboardSummary = {
     status?: string;
     createdAt?: string;
   }[];
+  /** @deprecated use chartSeries */
   chartLeads?: { createdAt: string }[];
+  chartSeries?: ChartSeries;
   performers?: { name: string; resolved: number; total: number; rate: number }[];
 };
 
+export type AdminTabCounts = {
+  all: number;
+  important: number;
+  schedule: number;
+  interested: number;
+  closed: number;
+};
+
 let cached: { data: AdminDashboardSummary; at: number } | null = null;
+let tabCountsCached: { data: AdminTabCounts; at: number } | null = null;
 let inflight: Promise<AdminDashboardSummary> | null = null;
+let tabCountsInflight: Promise<AdminTabCounts> | null = null;
 const TTL_MS = 120_000;
+const TAB_COUNTS_TTL_MS = 60_000;
 const STORAGE_KEY = "crm_admin_summary_v1";
 
 function readStorage(): { data: AdminDashboardSummary; at: number } | null {
@@ -82,7 +103,6 @@ function hydrateFromStorage() {
   if (stored) cached = stored;
 }
 
-/** Last loaded summary (memory or session) — no API call. */
 export function peekAdminSummary(): AdminDashboardSummary | null {
   hydrateFromStorage();
   return cached?.data ?? null;
@@ -90,6 +110,7 @@ export function peekAdminSummary(): AdminDashboardSummary | null {
 
 export function invalidateAdminSummaryCache() {
   cached = null;
+  tabCountsCached = null;
   clearStorage();
 }
 
@@ -105,10 +126,34 @@ export async function getAdminSummary(force = false): Promise<AdminDashboardSumm
       const data = res.data as AdminDashboardSummary;
       const entry = { data, at: Date.now() };
       cached = entry;
+      if (data.tabCounts) {
+        tabCountsCached = {
+          data: data.tabCounts as AdminTabCounts,
+          at: Date.now(),
+        };
+      }
       writeStorage(entry);
       return data;
     })
     .finally(() => { inflight = null; });
 
   return inflight;
+}
+
+/** Lightweight tab counts — avoids full summary on leads page. */
+export async function getAdminTabCounts(force = false): Promise<AdminTabCounts> {
+  if (!force && tabCountsCached && Date.now() - tabCountsCached.at < TAB_COUNTS_TTL_MS) {
+    return tabCountsCached.data;
+  }
+  if (tabCountsInflight) return tabCountsInflight;
+
+  tabCountsInflight = API.get("/admin/clients/tab-counts")
+    .then(res => {
+      const data = res.data.tabCounts as AdminTabCounts;
+      tabCountsCached = { data, at: Date.now() };
+      return data;
+    })
+    .finally(() => { tabCountsInflight = null; });
+
+  return tabCountsInflight;
 }

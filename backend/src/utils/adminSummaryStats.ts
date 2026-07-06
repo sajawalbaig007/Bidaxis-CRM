@@ -9,9 +9,87 @@ import {
 const CHART_DAYS = 45;
 const CHART_BATCH = 5000;
 
-/** Same `{ createdAt }[]` payload as one findMany — cursor-batched for large datasets. */
-export async function fetchChartLeadDates(since: Date): Promise<{ createdAt: Date }[]> {
-  const out: { createdAt: Date }[] = [];
+export type ChartSeriesPoint = { label: string; calls: number };
+export type ChartSeries = {
+  today: ChartSeriesPoint[];
+  week: ChartSeriesPoint[];
+  month: ChartSeriesPoint[];
+  year: ChartSeriesPoint[];
+};
+
+function fmtWeekDay(d: Date): string {
+  return d.toLocaleDateString("en-US", { weekday: "short" });
+}
+
+function fmtMonthShort(d: Date): string {
+  return d.toLocaleString("default", { month: "short" });
+}
+
+function initChartBuckets(): {
+  today: Record<string, number>;
+  week: Record<string, number>;
+  month: Record<string, number>;
+  year: Record<string, number>;
+} {
+  const now = new Date();
+  const today: Record<string, number> = {};
+  const week: Record<string, number> = {};
+  const month: Record<string, number> = {};
+  const year: Record<string, number> = {};
+
+  for (let h = 0; h < 24; h += 3) today[h + ":00"] = 0;
+
+  for (let d = 6; d >= 0; d--) {
+    const dt = new Date(now);
+    dt.setDate(dt.getDate() - d);
+    week[fmtWeekDay(dt)] = 0;
+  }
+
+  for (let d = 29; d >= 0; d -= 5) {
+    const dt = new Date(now);
+    dt.setDate(dt.getDate() - d);
+    month[fmtWeekDay(dt)] = 0;
+  }
+
+  for (let m = 11; m >= 0; m--) {
+    const dt = new Date(now);
+    dt.setMonth(dt.getMonth() - m);
+    year[fmtMonthShort(dt)] = 0;
+  }
+
+  return { today, week, month, year };
+}
+
+function bumpChartBuckets(buckets: ReturnType<typeof initChartBuckets>, createdAt: Date) {
+  const h = createdAt.getHours();
+  const hourKey = Math.floor(h / 3) * 3 + ":00";
+  if (hourKey in buckets.today) buckets.today[hourKey]++;
+
+  const weekKey = fmtWeekDay(createdAt);
+  if (weekKey in buckets.week) buckets.week[weekKey]++;
+
+  const monthKey = fmtWeekDay(createdAt);
+  if (monthKey in buckets.month) buckets.month[monthKey]++;
+
+  const yearKey = fmtMonthShort(createdAt);
+  if (yearKey in buckets.year) buckets.year[yearKey]++;
+}
+
+function bucketsToSeries(buckets: ReturnType<typeof initChartBuckets>): ChartSeries {
+  const toPoints = (map: Record<string, number>): ChartSeriesPoint[] =>
+    Object.entries(map).map(([label, calls]) => ({ label, calls }));
+
+  return {
+    today: toPoints(buckets.today),
+    week:  toPoints(buckets.week),
+    month: toPoints(buckets.month),
+    year:  toPoints(buckets.year),
+  };
+}
+
+/** Cursor-batched — aggregates on server, returns small chart series (not raw rows). */
+export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
+  const buckets = initChartBuckets();
   let cursor: string | undefined;
 
   for (;;) {
@@ -23,12 +101,27 @@ export async function fetchChartLeadDates(since: Date): Promise<{ createdAt: Dat
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
 
-    for (const row of batch) out.push({ createdAt: row.createdAt });
+    for (const row of batch) bumpChartBuckets(buckets, row.createdAt);
     if (batch.length < CHART_BATCH) break;
     cursor = batch[batch.length - 1]!.id;
   }
 
-  return out;
+  return bucketsToSeries(buckets);
+}
+
+export async function buildAdminTabCountsPayload() {
+  const [all, important, schedule, interested, closed] = await Promise.all([
+    prisma.lead.count(),
+    prisma.lead.count({ where: importantOnlyWhere() }),
+    prisma.lead.count({ where: scheduledCallWhere() }),
+    prisma.lead.count({ where: isInterestedStatusWhere() }),
+    prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
+  ]);
+
+  return {
+    success: true,
+    tabCounts: { all, important, schedule, interested, closed },
+  };
 }
 
 export async function buildAdminClientSummaryPayload() {
@@ -46,7 +139,7 @@ export async function buildAdminClientSummaryPayload() {
     closed,
     recent,
     recentStatusLogs,
-    chartLeads,
+    chartSeries,
     csrGroups,
     resolvedGroups,
     onlineCSRs,
@@ -82,7 +175,7 @@ export async function buildAdminClientSummaryPayload() {
         csr: { select: { name: true } },
       },
     }),
-    fetchChartLeadDates(chartDaysAgo),
+    fetchChartSeries(chartDaysAgo),
     prisma.lead.groupBy({ by: ["assignedTo"], _count: { _all: true } }),
     prisma.lead.groupBy({
       by: ["assignedTo"],
@@ -146,14 +239,14 @@ export async function buildAdminClientSummaryPayload() {
       Closed: completed + closed,
     },
     recent,
-    recentStatusLogs: recentStatusLogs.map(log => ({
+    recentStatus: recentStatusLogs.map(log => ({
       id: log.id,
       status: log.status,
       createdAt: log.createdAt,
       leadName: log.lead?.name ?? "Unknown",
       csrName: log.csr?.name ?? "Unknown CSR",
     })),
-    chartLeads,
+    chartSeries,
     performers,
   };
 }

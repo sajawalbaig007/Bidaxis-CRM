@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   LayoutDashboard, Users, FileText, BarChart3,
@@ -20,6 +19,7 @@ import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import AdminChatPanel from "./AdminChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import StaffMobileNav from "@/app/components/staff/StaffMobileNav";
 
 const navItems = [
   { title: "Dashboard",       href: "/admin",                 icon: LayoutDashboard },
@@ -64,8 +64,6 @@ function labelDate(d: string) {
 }
 
 export default function DashboardSidebar() {
-  const pathname = usePathname();
-
   const [user,        setUser]        = useState<UserInfo | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [bellOpen,    setBellOpen]    = useState(false);
@@ -180,29 +178,8 @@ export default function DashboardSidebar() {
             </div>
           </Link>
 
-          {/* Nav */}
-          <div className="flex-1 min-w-0">
-            <nav
-              className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto"
-              style={{ scrollbarWidth: "none" }}
-            >
-              {navItems.map(({ title, href, icon: Icon }) => {
-                const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href} href={href} prefetch={false}
-                    className={`h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
-                      active
-                        ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                        : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
-                    }`}
-                  >
-                    <Icon size={15} className="shrink-0" />
-                    <span className="hidden lg:inline">{title}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+          <div className="flex-1 min-w-0 flex justify-center">
+            <StaffMobileNav items={navItems} baseHref="/admin" />
           </div>
 
           <ThemeToggle />

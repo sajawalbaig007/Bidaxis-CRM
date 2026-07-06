@@ -31,6 +31,6 @@ export function invalidatePattern(prefix: string): void {
 
 /** Clear admin leads list + summary caches after any lead mutation */
 export function flushAdminClientsCache(): void {
-  invalidateCache("admin:clients:summary");
+  invalidateCache("admin:clients:summary", "admin:clients:tab-counts");
   invalidatePattern("admin:clients:list:");
 }

@@ -3,10 +3,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import DashboardNavbar  from "./components/layout/Navbar";
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import StaffPageShell from "@/app/components/staff/StaffPageShell";
 import { useStaffBase } from "@/app/hooks/useStaffBase";
-import type { ClientLead } from "./components/charts/PerformanceChart";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
 import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
@@ -54,7 +52,6 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const StaffSidebar = useStaffSidebar();
   const staffBase = useStaffBase();
   const [selectedRange, setSelectedRange] = useState("week");
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
@@ -86,10 +83,12 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const chartLeads: ClientLead[] = useMemo(
-    () => (summary?.chartLeads ?? []).map(c => ({ createdAt: c.createdAt })),
-    [summary?.chartLeads],
-  );
+  const chartSeries = useMemo(() => {
+    const s = summary?.chartSeries;
+    if (!s) return undefined;
+    const key = selectedRange as keyof NonNullable<typeof s>;
+    return s[key];
+  }, [summary?.chartSeries, selectedRange]);
 
   const tiles = useMemo(() => [
     { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%", href: `${staffBase}/leads` },
@@ -103,13 +102,8 @@ export default function DashboardPage() {
   ], [stats, staffBase]);
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
-      <StaffSidebar />
-
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
-        <DashboardNavbar />
-
-        <div className="space-y-4 sm:space-y-5">
+    <StaffPageShell>
+        <div className="space-y-4 sm:space-y-5 mt-2 sm:mt-4">
 
           {!overviewLoaded ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -202,7 +196,7 @@ export default function DashboardPage() {
                   )}
                 </div>
                 {overviewLoaded ? (
-                  <PerformanceChart leads={chartLeads} range={selectedRange} />
+                  <PerformanceChart series={chartSeries} range={selectedRange} />
                 ) : (
                   <LazySectionPrompt
                     icon={<BarChart3 size={28} className="text-gray-300" />}
@@ -270,8 +264,7 @@ export default function DashboardPage() {
           </div>
 
         </div>
-      </main>
-    </div>
+    </StaffPageShell>
   );
 }
 

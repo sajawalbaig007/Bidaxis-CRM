@@ -24,6 +24,7 @@ type ReportResponse = ReportsData;
 export default function ReportsPage() {
   const StaffSidebar = useStaffSidebar();
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
+  const [reportsLoaded, setReportsLoaded]  = useState(false);
   const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("week");
   const [loadingReport, setLoadingReport] = useState(false);
   const [fromDate,      setFromDate]      = useState("");
@@ -54,6 +55,7 @@ export default function ReportsPage() {
       setLoadingReport(true);
       const data = await fetchReports(period, customFrom, customTo, force);
       setReportData(data);
+      setReportsLoaded(true);
     } catch (err) {
       console.error(err);
       toast.error(apiErrorMessage(err, "Failed to load reports."));
@@ -61,10 +63,6 @@ export default function ReportsPage() {
       setLoadingReport(false);
     }
   }, []);
-
-  useEffect(() => {
-    void loadReports("week");
-  }, [loadReports]);
 
   const csrList     = useMemo(() => reportData?.csrPerformance ?? [], [reportData]);
   const selectedCSR = csrList.find(c => c.id === selectedCSRId) ?? null;
@@ -196,6 +194,25 @@ export default function ReportsPage() {
           </div>
         </div>
 
+        {!reportsLoaded ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Reports ready</h2>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                Analytics load on demand — page opens instantly.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadReports("week")}
+              disabled={loadingReport}
+              className="h-10 sm:h-11 px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold hover:bg-[#a30f27] disabled:opacity-60"
+            >
+              {loadingReport ? "Loading…" : "Load reports"}
+            </button>
+          </div>
+        ) : null}
+
         {/* ── PERIOD + CSR FILTER BAR ── */}
         <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 shadow-sm mb-4 sm:mb-6">
           <div className="px-3 sm:px-4 py-3 overflow-x-auto">
@@ -297,6 +314,8 @@ export default function ReportsPage() {
         </div>
 
         {/* ── SUMMARY DONUT CHART ── */}
+        {reportsLoaded ? (
+        <>
         <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
@@ -501,6 +520,8 @@ export default function ReportsPage() {
           </div>
           )}
         </div>
+        </>
+        ) : null}
 
       </main>
     </div>
