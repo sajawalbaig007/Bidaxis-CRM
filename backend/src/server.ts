@@ -1,3 +1,4 @@
+import http from "http";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -8,6 +9,7 @@ import { clearActiveSession } from "./utils/sessions";
 import app          from "./app";
 import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
+import { initChatSocket } from "./chat/chatSocket";
 
 const PORT = process.env.PORT || 5000;
 
@@ -295,6 +297,9 @@ void deactivateInactiveUsers();
 getJwtSecret();
 
 /* ── START ── */
-app.listen(PORT, () => {
+const server = http.createServer(app);
+initChatSocket(server);
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

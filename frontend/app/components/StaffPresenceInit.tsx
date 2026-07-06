@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect } from "react";
+import { connectChatSocket, disconnectChatSocket } from "@/lib/chatSocket";
 import { startChatStatusHeartbeat, stopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { primeChatSound } from "@/lib/chatSound";
 
-/** Keeps chat presence online while user is on any staff dashboard (admin / manager / csr). */
+/** WebSocket + presence while user is on any staff dashboard (admin / manager / csr). */
 export default function StaffPresenceInit() {
   useEffect(() => {
     primeChatSound();
+    connectChatSocket();
     startChatStatusHeartbeat();
-    return () => stopChatStatusHeartbeat();
+    return () => {
+      stopChatStatusHeartbeat();
+      disconnectChatSocket();
+    };
   }, []);
 
   return null;

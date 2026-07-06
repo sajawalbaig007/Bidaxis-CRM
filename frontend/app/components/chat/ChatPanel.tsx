@@ -23,8 +23,14 @@ import {
 import {
   ensureChatUnreadPolling, getArchivedConversations, getChatConversations,
   forceStopChatUnreadPolling, pollArchivedConversations, pollChatUnread, subscribeChatUnread,
-  markConversationRead,
+  markConversationRead, setChatWatchingConversation,
 } from "@/lib/chatUnreadStore";
+import {
+  sendTyping,
+  setWatchingConversation,
+  subscribeChatSocket,
+  type ChatSocketEvent,
+} from "@/lib/chatSocket";
 import {
   startChatStatusHeartbeat,
   stopChatStatusHeartbeat,
@@ -439,13 +445,24 @@ export default function ChatPanel({
   }, []);
 
   useEffect(() => {
-    if (!activeConvId || activeConvId.startsWith("temp-")) return;
+    if (!activeConvId || activeConvId.startsWith("temp-")) {
+      setWatchingConversation(null);
+      setChatWatchingConversation(null);
+      return;
+    }
     const cid = activeConvId;
     const stealth = isStealthView;
     const url = stealth && viewAsCsr
       ? `/chat/admin/view/${viewAsCsr.id}/conversations/${cid}/messages`
       : `/chat/conversations/${cid}/messages`;
     let cancelled = false;
+    let typingClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+    if (!stealth) {
+      setWatchingConversation(cid);
+      setChatWatchingConversation(cid);
+    }
+
     lastMsgCount.current = 0;
     void (async () => {
       await Promise.resolve();
@@ -469,42 +486,81 @@ export default function ChatPanel({
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "auto" }), 60);
       } catch { if (!cancelled) { setMessages([]); setPinnedMessage(null); } } finally { if (!cancelled) setLoadingMsgs(false); }
     })();
-    const stopMsgPoll = visibleInterval(async () => {
-      if (cancelled) return;
-      try {
-        const [payload, typingRes] = await Promise.all([
-          fetchChatMessages(url),
-          stealth
-            ? Promise.resolve({ data: { names: [] as string[] } })
-            : API.get(`/chat/conversations/${cid}/typing`).catch(() => ({ data: { names: [] } })),
-        ]);
-        if (cancelled) return;
-        setTypingName((typingRes.data.names as string[])?.[0] ?? null);
-        const msgs: Message[] = payload.messages as Message[];
-        setMessages(msgs);
-        if (payload.pinnedMessage !== undefined) {
-          setPinnedMessage((payload.pinnedMessage as Message | null) ?? null);
-        }
-        if (msgs.length !== lastMsgCount.current) {
-          const hadNew = msgs.length > lastMsgCount.current;
-          lastMsgCount.current = msgs.length;
-          if (!stealth) {
-            setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
-            markConversationRead(cid);
-            void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
-            const newest = msgs[msgs.length - 1];
-            if (hadNew && newest && !newest.isOwn) {
-              if (soundOn) playChatSound();
-              if (notifRef.current && !document.hasFocus()) {
-                new Notification(newest.senderName, { body: newest.type !== "text" ? `Sent a ${newest.type}` : newest.text.slice(0, 80), icon: "/images/image.png" });
-              }
-            }
+
+    const onSocket = (event: ChatSocketEvent) => {
+      if (cancelled || stealth) return;
+
+      if (event.type === "message:new" && event.conversationId === cid) {
+        const msg = event.message as unknown as Message;
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev;
+          const withoutOpt = prev.filter(m => !m.id.startsWith("opt-") || m.text !== msg.text);
+          return [...withoutOpt, msg];
+        });
+        lastMsgCount.current += 1;
+        setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0, lastMessage: msg.type !== "text" ? `Sent a ${msg.type}` : msg.text, lastMessageAt: msg.createdAt } : c));
+        markConversationRead(cid);
+        void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
+        if (!msg.isOwn) {
+          if (soundOn) playChatSound();
+          if (notifRef.current && !document.hasFocus()) {
+            new Notification(msg.senderName, {
+              body: msg.type !== "text" ? `Sent a ${msg.type}` : msg.text.slice(0, 80),
+              icon: "/images/image.png",
+            });
           }
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
         }
-      } catch {}
-    }, 12_000);
-    return () => { cancelled = true; stopMsgPoll(); };
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
+        return;
+      }
+
+      if (event.type === "message:edit" && event.conversationId === cid) {
+        const updated = event.message as unknown as Message;
+        setMessages(p => p.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        return;
+      }
+
+      if (event.type === "message:delete" && event.conversationId === cid) {
+        setMessages(p => p.filter(m => m.id !== event.messageId));
+        return;
+      }
+
+      if (event.type === "message:reaction" && event.conversationId === cid) {
+        setMessages(p => p.map(m => m.id === event.messageId ? { ...m, reactions: event.reactions } : m));
+        return;
+      }
+
+      if (event.type === "message:pinned" && event.conversationId === cid) {
+        setPinnedMessage((event.pinnedMessage as unknown as Message | null) ?? null);
+        return;
+      }
+
+      if (event.type === "typing" && event.conversationId === cid) {
+        setTypingName(event.name);
+        if (typingClearTimer) clearTimeout(typingClearTimer);
+        typingClearTimer = setTimeout(() => setTypingName(null), 4_000);
+        return;
+      }
+
+      if (event.type === "read" && event.conversationId === cid) {
+        setMessages(p => p.map(m => {
+          if (!m.isOwn) return m;
+          return { ...m, status: "read" as MsgStatus };
+        }));
+      }
+    };
+
+    const unsub = subscribeChatSocket(onSocket);
+
+    return () => {
+      cancelled = true;
+      unsub();
+      if (typingClearTimer) clearTimeout(typingClearTimer);
+      if (!stealth) {
+        setWatchingConversation(null);
+        setChatWatchingConversation(null);
+      }
+    };
   }, [activeConvId, soundOn, isStealthView, viewAsCsr]);
 
   useEffect(() => () => {
@@ -530,9 +586,10 @@ export default function ChatPanel({
     setConversations(p => p.map(c => c.id === activeConvId ? { ...c, lastMessage: text, lastMessageAt: new Date().toISOString() } : c));
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
     try {
-      await API.post(`/chat/conversations/${activeConvId}/messages`, { text, ...(reply ? { replyToId: reply.id } : {}), ...(mentionIds.length ? { mentionIds } : {}) });
+      const r = await API.post(`/chat/conversations/${activeConvId}/messages`, { text, ...(reply ? { replyToId: reply.id } : {}), ...(mentionIds.length ? { mentionIds } : {}) });
+      const saved = r.data.message as Message | undefined;
       invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
-      setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
+      setMessages(p => p.map(m => m.id === opt.id ? (saved ? { ...saved, status: "sent" } : { ...m, status: "sent" }) : m));
     } catch {
       addToOfflineQueue({ id: opt.id, conversationId: activeConvId, text, replyToId: reply?.id, createdAt: new Date().toISOString() });
       setMessages(p => p.map(m => m.id === opt.id ? { ...m, status: "sent" } : m));
@@ -599,7 +656,7 @@ export default function ChatPanel({
     } else setMentionQuery(null);
     if (activeConvId && val.trim()) {
       if (typingDebRef.current) clearTimeout(typingDebRef.current);
-      typingDebRef.current = setTimeout(() => { void API.post(`/chat/conversations/${activeConvId}/typing`).catch(() => {}); }, 400);
+      typingDebRef.current = setTimeout(() => { sendTyping(activeConvId); }, 400);
     }
   };
 
@@ -692,17 +749,10 @@ export default function ChatPanel({
   };
   useEffect(() => {
     if (allUsers.length === 0) return;
-    const t = setInterval(async () => {
-      try {
-        const r = await API.get("/chat/users");
-        const fresh = parseUsers(r.data?.users ?? r.data);
-        setAllUsers(prev => prev.map(u => {
-          const up = fresh.find(f => f.id === u.id);
-          return up ? { ...u, isOnline: up.isOnline } : u;
-        }));
-      } catch { /* ignore */ }
-    }, 30_000);
-    return () => clearInterval(t);
+    return subscribeChatSocket((event) => {
+      if (event.type !== "presence") return;
+      setAllUsers(prev => prev.map(u => u.id === event.userId ? { ...u, isOnline: event.isOnline } : u));
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allUsers.length === 0 ? 0 : 1]);
 

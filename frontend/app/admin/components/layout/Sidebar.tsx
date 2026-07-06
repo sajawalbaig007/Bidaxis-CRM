@@ -17,6 +17,7 @@ import { getAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
+import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import AdminChatPanel from "./AdminChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
@@ -126,6 +127,7 @@ export default function DashboardSidebar() {
     setLoggingOut(true);
     try {
       forceStopChatStatusHeartbeat();
+      forceDisconnectChatSocket();
       await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
       window.location.href = "/";

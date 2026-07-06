@@ -1,20 +1,28 @@
 import API from "@/lib/api";
+import { playChatSound, primeChatSound } from "@/lib/chatSound";
+import { isChatSocketConnected, sendPresence } from "@/lib/chatSocket";
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let heartbeatOwners = 0;
 let lastPingAt = 0;
-/** Must stay below server auto-offline threshold (15s in server.ts) */
 const PING_TTL_MS = 8_000;
 const HEARTBEAT_MS = 10_000;
 
 function pingOnline(force = false) {
   if (!force && Date.now() - lastPingAt < PING_TTL_MS) return;
   lastPingAt = Date.now();
-  void API.post("/chat/status", { online: true }).catch(() => {});
+  if (isChatSocketConnected()) {
+    sendPresence(true);
+  } else {
+    void API.post("/chat/status", { online: true }).catch(() => {});
+  }
 }
 
 function pingOffline() {
   lastPingAt = 0;
+  if (isChatSocketConnected()) {
+    sendPresence(false);
+  }
   void API.post("/chat/status", { online: false }).catch(() => {});
 }
 
