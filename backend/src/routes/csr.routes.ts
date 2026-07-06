@@ -13,8 +13,8 @@ import {
   clearPendingDuplicatesForCompany,
   hasPriorWonClient,
   healPipelineLeaksForCsr,
+  reconcileClientOldFlagsForCsr,
   isPendingPipelineStatus,
-  syncWonClientOldFlags,
 } from "../utils/leadClientPromotion";
 import { buildProjectLeadWhere, isDisplayableProjectLead, wonClientStatusWhere } from "../utils/projectLeads";
 import { isImportantStatusWhere, isInterestedStatusWhere } from "../utils/adminClientQueries";
@@ -425,6 +425,8 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       await clearPendingDuplicatesForCompany(company.trim(), csrId, lead.id);
     }
 
+    await reconcileClientOldFlagsForCsr(csrId);
+
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.status(201).json({ success: true, lead });
@@ -778,6 +780,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       if (lead.company) {
         await clearPendingDuplicatesForCompany(lead.company, csrId, leadId);
       }
+      await reconcileClientOldFlagsForCsr(csrId);
     }
 
     if (status !== undefined && status !== lead.status) {
@@ -843,6 +846,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         if (companyTrim) {
           await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
         }
+        await reconcileClientOldFlagsForCsr(csrId);
         invalidateCsrLeadCaches(csrId);
         flushAdminClientsCache();
         return res.status(200).json({ success: true, lead, promoted: true });
@@ -879,6 +883,8 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
     if (asWonClient && companyTrim) {
       await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
     }
+
+    await reconcileClientOldFlagsForCsr(csrId);
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();

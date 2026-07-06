@@ -16,7 +16,7 @@ import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../compone
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { isWonClientStatus } from "../constants/leadStatuses";
-import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead } from "../hooks/useLeadsData";
+import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead, clientIdentityKey, splitWonClientsByIdentity } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -152,17 +152,14 @@ export default function LeadsPage() {
 
   /* ─── Derived ──────────────────────────────────────────── */
   const wonLeads = useMemo(() => leads.filter(l => isWonClientStatus(l.status)), [leads]);
-  const newLeads = useMemo(() => wonLeads.filter(l => !l.isOldClient), [wonLeads]);
-  const oldLeads = useMemo(() => {
-    const all = wonLeads.filter(l => l.isOldClient);
-    const seen = new Set<string>();
-    return all.filter(l => {
-      const key = (l.phone && l.phone !== "N/A" ? l.phone.trim() : "") || l.id;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [wonLeads]);
+  const { newLeads, oldLeads, repeatKeys } = useMemo(
+    () => splitWonClientsByIdentity(wonLeads),
+    [wonLeads],
+  );
+  const isRepeatClient = useCallback(
+    (lead: ClientLead) => repeatKeys.has(clientIdentityKey(lead)),
+    [repeatKeys],
+  );
   const baseList = activeTab === "new" ? newLeads : oldLeads;
 
   const importantCount  = stats.importantCount;
@@ -288,39 +285,15 @@ export default function LeadsPage() {
         paidAmount:        addForm.upfront.trim()   || undefined,
         asWonClient:       true,
       });
-      const nl = res.data.lead;
       const promoted = !!res.data.promoted;
-      const fresh = mapClientLead(nl ?? {
-        id: String(Date.now()),
-        name: addForm.name.trim(),
-        company: addForm.company.trim(),
-        phone: addForm.phone.trim(),
-        email: addForm.email.trim(),
-        state: addForm.state.trim(),
-        interestedService: addForm.service,
-        comments: addForm.comments.trim(),
-        projectBudget: addForm.quotation.trim(),
-        paidAmount: addForm.upfront.trim(),
-        isOldClient: returningClient,
-        status: returningClient ? "Close Client" : "pending",
-        createdAt: new Date().toISOString(),
-      });
-
-      setLeads(prev => {
-        if (promoted) {
-          return prev.map(l => l.id === fresh.id ? fresh : l);
-        }
-        return [fresh, ...prev];
-      });
 
       invalidateAllCsrListCaches();
       closeAddModal();
+      await refetch(true);
       toast.success(
-        promoted
-          ? "Returning client moved to Old Clients — removed from pending"
-          : fresh.isOldClient
+        promoted || returningClient
           ? "Returning client added — moved to Old Clients"
-          : "Lead added",
+          : "Client added to New Clients",
       );
     } catch (err) {
       setAddError(apiErrorMessage(err, "Failed to add lead. Please try again."));
@@ -511,7 +484,8 @@ export default function LeadsPage() {
                 {paginated.map(lead => {
                   const latestNote = getLatestNote(lead);
                   const displayName = lead.name;
-                  const displaySub  = lead.isOldClient && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
+                  const repeat = isRepeatClient(lead);
+                  const displaySub  = repeat && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
                   return (
                     <div
                       key={lead.id}
@@ -527,7 +501,7 @@ export default function LeadsPage() {
 
                       {/* Client */}
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${lead.isOldClient ? "bg-amber-500" : "bg-[#15803D]"}`}>
+                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${repeat ? "bg-amber-500" : "bg-[#15803D]"}`}>
                           {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -552,8 +526,8 @@ export default function LeadsPage() {
                           {displaySub && (
                             <p className="text-[10px] text-gray-400 truncate mt-0.5">{displaySub}</p>
                           )}
-                          <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${lead.isOldClient ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
-                            {lead.isOldClient ? "Old Client" : "New Client"}
+                          <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${repeat ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                            {repeat ? "Old Client" : "New Client"}
                           </span>
                         </div>
                       </div>
@@ -623,11 +597,11 @@ export default function LeadsPage() {
                           <StickyNote size={13} />
                         </button>
                         <button
-                          onClick={() => lead.isOldClient && lead.phone && lead.phone !== "N/A"
+                          onClick={() => lead.phone && lead.phone !== "N/A"
                             ? setHistoryLead(lead)
                             : openDetail(lead)}
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
-                          title={lead.isOldClient ? "Client history" : "View details"}
+                          title={repeat ? "All projects history" : "Client history"}
                         >
                           <Eye size={13} />
                         </button>
@@ -926,7 +900,7 @@ export default function LeadsPage() {
                   <X size={13} />
                 </button>
                 <div className="flex items-center gap-2.5 pr-10">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-bold text-white text-base sm:text-lg shrink-0 ${viewing.isOldClient ? "bg-amber-500/40" : "bg-white/20"}`}>
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-bold text-white text-base sm:text-lg shrink-0 ${viewing && isRepeatClient(viewing) ? "bg-amber-500/40" : "bg-white/20"}`}>
                     {viewing.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
@@ -942,8 +916,8 @@ export default function LeadsPage() {
                       {viewing.clientCode}
                     </span>
                   )}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${viewing.isOldClient ? "bg-amber-400/25 text-amber-100" : "bg-green-500/25 text-green-100"}`}>
-                    {viewing.isOldClient ? "Old Client" : "New Client"}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${viewing && isRepeatClient(viewing) ? "bg-amber-400/25 text-amber-100" : "bg-green-500/25 text-green-100"}`}>
+                    {viewing && isRepeatClient(viewing) ? "Old Client" : "New Client"}
                   </span>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[viewing.status] ? "bg-white/15 text-white" : "bg-white/10 text-white/70"}`}>
                     {viewing.status}

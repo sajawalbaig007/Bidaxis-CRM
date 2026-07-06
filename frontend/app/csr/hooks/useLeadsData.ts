@@ -92,6 +92,49 @@ function buildClientNoteHistory(l: RawClientLead): NoteEntry[] {
   return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+/** Group key for same client across multiple won projects (phone, then company). */
+export function clientIdentityKey(l: Pick<ClientLead, "id" | "phone" | "rawCompany">): string {
+  const digits = (l.phone ?? "").replace(/\D/g, "");
+  if (digits.length >= 7) return `phone:${digits}`;
+  const co = l.rawCompany?.trim().toLowerCase();
+  if (co) return `company:${co}`;
+  return `id:${l.id}`;
+}
+
+/** One row per client: 1 project → New tab; 2+ → Old tab (latest project shown). */
+export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
+  newLeads: ClientLead[];
+  oldLeads: ClientLead[];
+  repeatKeys: Set<string>;
+} {
+  const groups = new Map<string, ClientLead[]>();
+  for (const l of wonLeads) {
+    const k = clientIdentityKey(l);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(l);
+  }
+
+  const newLeads: ClientLead[] = [];
+  const oldLeads: ClientLead[] = [];
+  const repeatKeys = new Set<string>();
+  const byDate = (a: ClientLead, b: ClientLead) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+  for (const [key, group] of groups) {
+    group.sort(byDate);
+    if (group.length >= 2) {
+      repeatKeys.add(key);
+      oldLeads.push(group[0]!);
+    } else {
+      newLeads.push(group[0]!);
+    }
+  }
+
+  newLeads.sort(byDate);
+  oldLeads.sort(byDate);
+  return { newLeads, oldLeads, repeatKeys };
+}
+
 export function mapClientLead(l: RawClientLead): ClientLead {
   const noteHistory = buildClientNoteHistory(l);
 
