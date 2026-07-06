@@ -3,6 +3,7 @@ import { findLeadsByPhone } from "./leadPhoneLookup";
 import { deleteLeadsCascade } from "./deleteLeadsCascade";
 import { wonClientStatusWhere } from "./projectLeads";
 import { notInBinFilter } from "./binLeads";
+import { normalizePhone } from "./phone";
 
 export function isPendingPipelineStatus(status: string | null | undefined): boolean {
   return (status ?? "").toLowerCase() === "pending";
@@ -42,7 +43,7 @@ export async function hasPriorWonClient(
 ): Promise<boolean> {
   if (phone?.trim()) {
     const related = await findLeadsByPhone(phone);
-    if (related.some(l => l.id !== excludeLeadId && isWonProjectLead(l))) {
+    if (related.some(l => l.id !== excludeLeadId && isWonClientStatus(l.status))) {
       return true;
     }
   }
@@ -57,14 +58,6 @@ export async function hasPriorWonClient(
           { status: { equals: "Close Client", mode: "insensitive" } },
           { status: { equals: "completed", mode: "insensitive" } },
         ],
-        AND: {
-          OR: [
-            { projectTitle: { not: null } },
-            { clientCode: { not: null } },
-            { projectBudget: { not: null } },
-            { projectDeadline: { not: null } },
-          ],
-        },
       },
     });
     if (previousWin) return true;
@@ -168,8 +161,21 @@ export async function healPendingDuplicatesForCsr(csrId: string): Promise<number
   return removed;
 }
 
-/** Keep isOldClient aligned with real repeat business (prior won project), not duplicate rows. */
-export async function syncWonClientOldFlags(csrId: string): Promise<void> {
+/** Group won leads by phone (or company) for new vs old client tabs. */
+export function clientIdentityKey(lead: {
+  id: string;
+  phone?: string | null;
+  company?: string | null;
+}): string {
+  const digits = normalizePhone(lead.phone ?? "");
+  if (digits.length >= 7) return `phone:${digits}`;
+  const co = lead.company?.trim().toLowerCase();
+  if (co) return `company:${co}`;
+  return `id:${lead.id}`;
+}
+
+/** 2+ won deals = old client; mark all rows in that group isOldClient=true. */
+export async function reconcileClientOldFlagsForCsr(csrId: string): Promise<void> {
   const wonLeads = await prisma.lead.findMany({
     where: {
       assignedTo: csrId,
@@ -179,17 +185,23 @@ export async function syncWonClientOldFlags(csrId: string): Promise<void> {
     select: { id: true, phone: true, company: true, isOldClient: true },
   });
 
-  await Promise.all(
-    wonLeads.map(async lead => {
-      const shouldBeOld = await hasPriorWonClient(lead.phone, lead.company, lead.id);
-      if (lead.isOldClient !== shouldBeOld) {
-        await prisma.lead.update({
-          where: { id: lead.id },
-          data:  { isOldClient: shouldBeOld },
-        });
-      }
-    }),
-  );
+  const groups = new Map<string, typeof wonLeads>();
+  for (const lead of wonLeads) {
+    const key = clientIdentityKey(lead);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(lead);
+  }
+
+  for (const group of groups.values()) {
+    const shouldBeOld = group.length >= 2;
+    const ids = group.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
+    if (ids.length > 0) {
+      await prisma.lead.updateMany({
+        where: { id: { in: ids } },
+        data:  { isOldClient: shouldBeOld },
+      });
+    }
+  }
 }
 
 /** Won clients must never appear on call-data; run before list/stats queries. */
@@ -203,7 +215,7 @@ export async function healPipelineLeaksForCsr(csrId: string): Promise<number> {
     data: { hiddenOnMain: true },
   });
 
-  await syncWonClientOldFlags(csrId);
+  await reconcileClientOldFlagsForCsr(csrId);
   return healPendingDuplicatesForCsr(csrId);
 }
 

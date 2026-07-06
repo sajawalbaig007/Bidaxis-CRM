@@ -30,6 +30,15 @@ interface ClientHistoryModalProps {
   lookupPath?: string;
 }
 
+function fmtDate(iso?: string | null) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
 export default function ClientHistoryModal({
   phone,
   clientName,
@@ -124,13 +133,21 @@ export default function ClientHistoryModal({
                     <History size={12} /> Project History
                   </h3>
                   <div className="space-y-2">
-                    {projects.map(p => (
+                    {projects.map((p, idx) => (
                       <div key={p.id} className="bg-[#FAFAFA] rounded-2xl p-3 border border-gray-100">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[#0F172A] truncate">{p.title}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400">#{projects.length - idx}</span>
+                              <p className="text-sm font-semibold text-[#0F172A] truncate">{p.title}</p>
+                            </div>
                             {p.clientCode && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{p.clientCode}</p>}
                             {p.service && <p className="text-[11px] text-gray-500 mt-1">{p.service}</p>}
+                            {(p.closedAt || p.deadline) && (
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                {p.closedAt ? `Closed ${fmtDate(p.closedAt)}` : `Deadline ${fmtDate(p.deadline)}`}
+                              </p>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-sm font-bold text-green-600">${p.paidAmount.toLocaleString()}</p>

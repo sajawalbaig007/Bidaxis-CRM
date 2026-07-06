@@ -23,14 +23,21 @@ export async function findLeadsByPhone(phone: string) {
   return candidates.filter(l => l.phone && phonesMatch(l.phone, trimmed));
 }
 
-function paidTotal(lead: { paidAmount?: string | null; projectPayments?: string | null }) {
+function paidTotal(lead: {
+  paidAmount?: string | null;
+  projectPayments?: string | null;
+  projectBudget?: string | null;
+}) {
   if (lead.projectPayments) {
     try {
-      return paidTotalFromEntries(parseProjectPayments(lead.projectPayments));
+      const fromPayments = paidTotalFromEntries(parseProjectPayments(lead.projectPayments));
+      if (fromPayments > 0) return fromPayments;
     } catch { /* fall through */ }
   }
-  const n = parseFloat(String(lead.paidAmount ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  const paid = parseFloat(String(lead.paidAmount ?? "").replace(/[^0-9.-]/g, ""));
+  if (Number.isFinite(paid) && paid > 0) return paid;
+  const budget = parseFloat(String(lead.projectBudget ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(budget) ? budget : 0;
 }
 
 function isWonStatus(status: string | null | undefined) {
@@ -62,8 +69,13 @@ export function buildPhoneLookupResponse(matches: Awaited<ReturnType<typeof find
       status: l.status,
       paidAmount: paidTotal(l),
       deadline: l.projectDeadline,
-      closedAt: l.updatedAt,
-    }));
+      closedAt: l.updatedAt ?? l.createdAt,
+    }))
+    .sort((a, b) => {
+      const ta = a.closedAt ? new Date(a.closedAt).getTime() : 0;
+      const tb = b.closedAt ? new Date(b.closedAt).getTime() : 0;
+      return tb - ta;
+    });
 
   const totalBusiness = projects.reduce((sum, p) => sum + p.paidAmount, 0);
 
