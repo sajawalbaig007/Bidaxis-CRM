@@ -1,8 +1,13 @@
 "use client";
 
-import { useChatNotifications } from "@/app/hooks/useChatNotifications";
+import { useEffect } from "react";
+import { initChatRealtime } from "@/lib/chatUnreadStore";
 
+/** Starts WebSocket-driven chat notifications on all staff dashboards. */
 export default function StaffChatNotifier() {
-  useChatNotifications();
+  useEffect(() => {
+    initChatRealtime();
+  }, []);
+
   return null;
 }

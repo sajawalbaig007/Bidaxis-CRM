@@ -29,6 +29,7 @@ import ChatPanel from "@/app/components/chat/ChatPanel";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
+import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import { requestNotificationPermission } from "../../hooks/useChatNotifications";
 import {
   formatNotificationStatus,
@@ -179,6 +180,7 @@ export default function TopNavbar() {
 
     try {
       forceStopChatStatusHeartbeat();
+      forceDisconnectChatSocket();
       await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
       window.location.href = "/";

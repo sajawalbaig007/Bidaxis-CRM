@@ -7,6 +7,12 @@ import {
   peekArchivedConversations,
   peekChatConversations,
 } from "./chatApiCache";
+import {
+  isChatSocketConnected,
+  subscribeChatSocket,
+  subscribeChatSocketConnection,
+  type ChatSocketEvent,
+} from "./chatSocket";
 
 type Listener = (total: number, convs: ChatConversation[]) => void;
 
@@ -24,17 +30,96 @@ let prevById: Record<string, number> = {};
 let notifOk = false;
 let isFirstPoll = true;
 let visibilityBound = false;
+let realtimeBound = false;
+let watchingConvId: string | null = null;
 
-const POLL_PANEL_VISIBLE_MS = 30_000;
-const POLL_PANEL_HIDDEN_MS  = 90_000;
+const POLL_FALLBACK_MS = 60_000;
 
 function notify() {
   listeners.forEach(fn => fn(totalUnread, lastConvs));
 }
 
+function requestNotifPermissionOnce() {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission === "granted") notifOk = true;
+  else if (Notification.permission === "default") {
+    Notification.requestPermission().then(p => { notifOk = p === "granted"; });
+  }
+}
+
+function showNotif(convName: string, body: string) {
+  if (!notifOk || typeof Notification === "undefined") return;
+  new Notification("New chat message", {
+    body: `${convName}: ${body}`,
+    icon: "/images/image.png",
+    tag:  `chat-${convName}`,
+  });
+}
+
+function handleConversationUpdate(ev: Extract<ChatSocketEvent, { type: "conversation:update" }>) {
+  const { conversationId, lastMessage, lastMessageAt, senderName, incrementUnread } = ev;
+  const isWatching = watchingConvId === conversationId;
+
+  let found = false;
+  lastConvs = lastConvs.map(c => {
+    if (c.id !== conversationId) return c;
+    found = true;
+    const unreadCount = incrementUnread && !isWatching
+      ? (c.unreadCount ?? 0) + 1
+      : isWatching ? 0 : (c.unreadCount ?? 0);
+    return {
+      ...c,
+      lastMessage,
+      lastMessageAt,
+      unreadCount,
+    };
+  });
+
+  if (!found && incrementUnread) {
+    lastConvs = [{
+      id:            conversationId,
+      type:          "direct",
+      name:          senderName,
+      lastMessage,
+      lastMessageAt,
+      unreadCount:   isWatching ? 0 : 1,
+    }, ...lastConvs];
+  }
+
+  const prev = prevById[conversationId] ?? 0;
+  const cur = lastConvs.find(c => c.id === conversationId)?.unreadCount ?? 0;
+
+  if (incrementUnread && !isWatching && cur > prev) {
+    const conv = lastConvs.find(c => c.id === conversationId);
+    playChatSound();
+    showNotif(conv?.name ?? senderName, lastMessage);
+  }
+
+  totalUnread = lastConvs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
+  prevTotal = totalUnread;
+  prevById = Object.fromEntries(lastConvs.map(c => [c.id, c.unreadCount ?? 0]));
+  notify();
+}
+
+function onSocketEvent(event: ChatSocketEvent) {
+  if (event.type === "conversation:update") {
+    handleConversationUpdate(event);
+  }
+}
+
+function bindRealtime() {
+  if (realtimeBound || typeof window === "undefined") return;
+  realtimeBound = true;
+  primeChatSound();
+  requestNotifPermissionOnce();
+  subscribeChatSocket(onSocketEvent);
+  subscribeChatSocketConnection(() => syncPolling());
+}
+
 function pollIntervalMs(): number | null {
-  if (typeof document === "undefined" || panelOpenCount <= 0) return null;
-  return document.hidden ? POLL_PANEL_HIDDEN_MS : POLL_PANEL_VISIBLE_MS;
+  if (typeof document === "undefined") return null;
+  if (isChatSocketConnected()) return null;
+  return POLL_FALLBACK_MS;
 }
 
 function clearPollTimer() {
@@ -44,7 +129,7 @@ function clearPollTimer() {
 
 function onVisibilityChange() {
   syncPolling();
-  if (!document.hidden && panelOpenCount > 0) void pollChatUnread();
+  if (!document.hidden) void pollChatUnread(true);
 }
 
 function bindVisibility() {
@@ -61,24 +146,14 @@ function unbindVisibility() {
 
 function syncPolling() {
   if (typeof document === "undefined") return;
-
   clearPollTimer();
   const ms = pollIntervalMs();
   if (ms == null) {
     unbindVisibility();
     return;
   }
-
   bindVisibility();
-  pollTimer = setInterval(() => void pollChatUnread(), ms);
-}
-
-function requestNotifPermissionOnce() {
-  if (typeof Notification === "undefined") return;
-  if (Notification.permission === "granted") notifOk = true;
-  else if (Notification.permission === "default") {
-    Notification.requestPermission().then(p => { notifOk = p === "granted"; });
-  }
+  pollTimer = setInterval(() => void pollChatUnread(true), ms);
 }
 
 export function getChatUnreadTotal() {
@@ -97,7 +172,10 @@ export function hasChatCache() {
   return getChatConversations().length > 0;
 }
 
-/** Immediately clear unread badge when user opens/reads a conversation */
+export function setChatWatchingConversation(conversationId: string | null) {
+  watchingConvId = conversationId;
+}
+
 export function markConversationRead(conversationId: string) {
   if (!conversationId || conversationId.startsWith("temp-")) return;
   lastConvs = lastConvs.map(c =>
@@ -109,7 +187,6 @@ export function markConversationRead(conversationId: string) {
   notify();
 }
 
-/** Badge + panel UI — cache only, no network when panel is closed. */
 export function subscribeChatUnread(fn: Listener): () => void {
   listeners.add(fn);
   fn(totalUnread, lastConvs);
@@ -117,28 +194,22 @@ export function subscribeChatUnread(fn: Listener): () => void {
 }
 
 export async function pollChatUnread(force = false): Promise<number> {
-  if (panelOpenCount <= 0) return totalUnread;
   if (inflight) return inflight;
 
   const gen = pollGeneration;
   inflight = (async () => {
     try {
       const convs = await fetchChatConversations(force);
-      if (gen !== pollGeneration || panelOpenCount <= 0) return totalUnread;
+      if (gen !== pollGeneration) return totalUnread;
       const total = convs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
 
-      if (!isFirstPoll) {
+      if (!isFirstPoll && !isChatSocketConnected()) {
         let hasNewUnread = false;
         convs.forEach(c => {
           const prev = prevById[c.id] ?? 0;
           if ((c.unreadCount ?? 0) > prev) {
             hasNewUnread = true;
-            if (notifOk && typeof Notification !== "undefined") {
-              new Notification("New message", {
-                body: `${c.name}: ${c.lastMessage ?? "You have a new message"}`,
-                icon: "/images/image.png",
-              });
-            }
+            showNotif(c.name, c.lastMessage ?? "You have a new message");
           }
         });
         if (hasNewUnread || total > prevTotal) playChatSound();
@@ -187,28 +258,43 @@ function hydrateFromPeek() {
   notify();
 }
 
-/** Start interval polling while chat panel is open. Does not fetch immediately. */
+/** Global realtime listeners — call once on staff layout mount. */
+export function initChatRealtime(): void {
+  bindRealtime();
+  void pollChatUnread(true);
+  syncPolling();
+}
+
 export function ensureChatUnreadPolling(): void {
   if (typeof window === "undefined") return;
-  primeChatSound();
-  requestNotifPermissionOnce();
+  bindRealtime();
   panelOpenCount += 1;
   hydrateFromPeek();
   notify();
   syncPolling();
 }
 
-/** Decrement panel ref-count and stop polling when last panel closes. */
 export function stopChatUnreadPolling(): void {
   panelOpenCount = Math.max(0, panelOpenCount - 1);
   syncPolling();
 }
 
-/** Hard stop — use when chat panel unmounts to avoid leaked timers. */
 export function forceStopChatUnreadPolling(): void {
   panelOpenCount = 0;
   pollGeneration += 1;
   inflight = null;
   archivedInflight = null;
   syncPolling();
+}
+
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission === "granted") {
+    notifOk = true;
+    return true;
+  }
+  if (Notification.permission === "denied") return false;
+  const p = await Notification.requestPermission();
+  notifOk = p === "granted";
+  return notifOk;
 }

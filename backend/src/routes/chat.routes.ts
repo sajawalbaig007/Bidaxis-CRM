@@ -5,6 +5,21 @@ import cloudinary from "../config/cloudinary";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidatePattern } from "../utils/cache";
+import {
+  EDIT_WINDOW_MS,
+  formatMessage,
+  parseReactions,
+} from "../chat/chatMessageFormat";
+import {
+  emitConversationRead,
+  emitMessageDelete,
+  emitMessageEdit,
+  emitMessageReaction,
+  emitNewMessage,
+  emitPinnedMessage,
+  emitPresence,
+  emitTyping,
+} from "../chat/chatSocket";
 
 const router = express.Router();
 
@@ -22,74 +37,12 @@ function p(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
-type ReactionsMap = Record<string, string[]>;
-
-function parseReactions(raw: unknown): ReactionsMap {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  return raw as ReactionsMap;
-}
-
-const EDIT_WINDOW_MS = 10 * 60 * 1000;
-
-function msgStatus(
-  senderId: string,
-  userId: string,
-  createdAt: Date,
-  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
-): { status: string; readBy: string[] } {
-  const others = members.filter(m => m.userId !== userId);
-  if (senderId === userId) {
-    const readBy = others
-      .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
-      .map(m => m.user.name);
-    const allRead = others.length > 0 && readBy.length === others.length;
-    return { status: allRead ? "read" : "delivered", readBy };
-  }
-  const me = members.find(m => m.userId === userId);
-  const read = me?.lastReadAt && me.lastReadAt >= createdAt;
-  return { status: read ? "read" : "delivered", readBy: [] };
-}
-
-function formatMessage(
-  m: {
-    id: string; senderId: string; text: string; type: string;
-    fileUrl: string | null; fileName: string | null; fileSize: number | null;
-    fileMimeType: string | null; createdAt: Date; editedAt: Date | null;
-    mentions: string[]; reactions: unknown;
-    sender: { id: string; name: string };
-    replyTo: {
-      id: string; text: string; type: string;
-      sender: { name: string };
-    } | null;
-  },
-  userId: string,
-  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
-) {
-  const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
-  return {
-    id:           m.id,
-    senderId:     m.senderId,
-    senderName:   m.sender.name,
-    text:         m.text,
-    type:         m.type,
-    fileUrl:      m.fileUrl,
-    fileName:     m.fileName,
-    fileSize:     m.fileSize,
-    fileMimeType: m.fileMimeType,
-    createdAt:    m.createdAt,
-    editedAt:     m.editedAt,
-    mentions:     m.mentions ?? [],
-    reactions:    parseReactions(m.reactions),
-    readBy,
-    isOwn:        m.senderId === userId,
-    status,
-    replyTo:      m.replyTo ? {
-      id:         m.replyTo.id,
-      text:       m.replyTo.text,
-      senderName: m.replyTo.sender.name,
-      type:       m.replyTo.type,
-    } : null,
-  };
+async function getConversationMemberIds(conversationId: string): Promise<string[]> {
+  const rows = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    select: { userId: true },
+  });
+  return rows.map(r => r.userId);
 }
 
 async function fetchConversationsForUser(viewUserId: string, showArchived: boolean) {
@@ -442,6 +395,8 @@ router.post(
         include: { user: { select: { id: true, name: true } } },
       });
 
+      emitNewMessage(conversationId, userId, message, members);
+
       return res.json({
         message: formatMessage(message, userId, members),
       });
@@ -472,6 +427,8 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
     }
 
     await prisma.message.delete({ where: { id: msgId } });
+    const memberIds = await getConversationMemberIds(msg.conversationId);
+    emitMessageDelete(msg.conversationId, msgId, memberIds);
     return res.json({ success: true });
   } catch {
     return res.json({ success: true });
@@ -486,10 +443,14 @@ router.post("/conversations/:id/read", verifyToken, async (req: AuthRequest, res
     const userId         = req.user!.id;
     const conversationId = p(req.params.id);
 
+    const readAt = new Date();
     await prisma.conversationMember.updateMany({
       where: { conversationId, userId },
-      data:  { lastReadAt: new Date() },
+      data:  { lastReadAt: readAt },
     });
+
+    const memberIds = await getConversationMemberIds(conversationId);
+    emitConversationRead(conversationId, userId, readAt.toISOString(), memberIds);
 
     return res.json({ success: true });
   } catch {
@@ -510,6 +471,8 @@ router.post("/conversations/:id/typing", verifyToken, async (req: AuthRequest, r
 
     if (!typingMap.has(convId)) typingMap.set(convId, new Map());
     typingMap.get(convId)!.set(userId, { name, expiresAt: Date.now() + 4000 });
+
+    emitTyping(convId, userId, name);
 
     return res.json({ success: true });
   } catch {
@@ -551,6 +514,8 @@ router.post("/status", verifyToken, async (req: AuthRequest, res) => {
       where: { id: userId },
       data:  { isOnline: online, lastActive: new Date() },
     });
+
+    emitPresence(userId, online);
 
     return res.json({ success: true });
   } catch {
@@ -639,6 +604,7 @@ router.patch("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
     });
 
     invalidatePattern("chat:convs:");
+    emitMessageEdit(msg.conversationId, updated, members);
     return res.json({ message: formatMessage(updated, userId, members) });
   } catch {
     return res.status(500).json({ message: "Failed to edit message" });
@@ -677,6 +643,9 @@ router.post("/messages/:id/reactions", verifyToken, async (req: AuthRequest, res
       data:  { reactions },
     });
 
+    const memberIds = await getConversationMemberIds(msg.conversationId);
+    emitMessageReaction(msg.conversationId, msgId, reactions, memberIds);
+
     return res.json({ reactions });
   } catch {
     return res.status(500).json({ message: "Failed to update reaction" });
@@ -708,6 +677,25 @@ router.post("/conversations/:id/pin", verifyToken, async (req: AuthRequest, res)
     });
 
     invalidatePattern("chat:convs:");
+
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    let pinnedMessage = null;
+    if (messageId) {
+      const pin = await prisma.message.findFirst({
+        where: { id: messageId, conversationId },
+        include: {
+          sender: { select: { id: true, name: true } },
+          replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
+        },
+      });
+      if (pin) pinnedMessage = formatMessage(pin, userId, members);
+    }
+    const memberIds = members.map(m => m.userId);
+    emitPinnedMessage(conversationId, pinnedMessage, memberIds);
+
     return res.json({ success: true, pinnedMessageId: messageId });
   } catch {
     return res.status(500).json({ message: "Failed to pin message" });

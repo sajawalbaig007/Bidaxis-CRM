@@ -1,0 +1,73 @@
+export type ReactionsMap = Record<string, string[]>;
+
+export const EDIT_WINDOW_MS = 10 * 60 * 1000;
+
+export function parseReactions(raw: unknown): ReactionsMap {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return raw as ReactionsMap;
+}
+
+export function msgStatus(
+  senderId: string,
+  userId: string,
+  createdAt: Date,
+  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
+): { status: string; readBy: string[] } {
+  const others = members.filter(m => m.userId !== userId);
+  if (senderId === userId) {
+    const readBy = others
+      .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
+      .map(m => m.user.name);
+    const allRead = others.length > 0 && readBy.length === others.length;
+    return { status: allRead ? "read" : "delivered", readBy };
+  }
+  const me = members.find(m => m.userId === userId);
+  const read = me?.lastReadAt && me.lastReadAt >= createdAt;
+  return { status: read ? "read" : "delivered", readBy: [] };
+}
+
+export function formatMessage(
+  m: {
+    id: string; senderId: string; text: string; type: string;
+    fileUrl: string | null; fileName: string | null; fileSize: number | null;
+    fileMimeType: string | null; createdAt: Date; editedAt: Date | null;
+    mentions: string[]; reactions: unknown;
+    sender: { id: string; name: string };
+    replyTo: {
+      id: string; text: string; type: string;
+      sender: { name: string };
+    } | null;
+  },
+  userId: string,
+  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
+) {
+  const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
+  return {
+    id:           m.id,
+    senderId:     m.senderId,
+    senderName:   m.sender.name,
+    text:         m.text,
+    type:         m.type,
+    fileUrl:      m.fileUrl,
+    fileName:     m.fileName,
+    fileSize:     m.fileSize,
+    fileMimeType: m.fileMimeType,
+    createdAt:    m.createdAt,
+    editedAt:     m.editedAt,
+    mentions:     m.mentions ?? [],
+    reactions:    parseReactions(m.reactions),
+    readBy,
+    isOwn:        m.senderId === userId,
+    status,
+    replyTo:      m.replyTo ? {
+      id:         m.replyTo.id,
+      text:       m.replyTo.text,
+      senderName: m.replyTo.sender.name,
+      type:       m.replyTo.type,
+    } : null,
+  };
+}
+
+export function messagePreviewText(type: string, text: string): string {
+  return type !== "text" ? `Sent a ${type}` : text;
+}
