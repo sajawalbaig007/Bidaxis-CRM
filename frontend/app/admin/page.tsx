@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import StaffPageShell from "@/app/components/staff/StaffPageShell";
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { useStaffBase } from "@/app/hooks/useStaffBase";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
@@ -52,6 +52,7 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const StaffSidebar = useStaffSidebar();
   const staffBase = useStaffBase();
   const [selectedRange, setSelectedRange] = useState("week");
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
@@ -59,15 +60,6 @@ export default function DashboardPage() {
   const [overviewLoaded, setOverviewLoaded] = useState(false);
   const [projectsEnabled, setProjectsEnabled] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
-
-  useEffect(() => {
-    const cached = peekAdminSummary();
-    if (cached) {
-      setSummary(cached);
-      setStats(statsFromSummary(cached));
-      setOverviewLoaded(true);
-    }
-  }, []);
 
   const loadOverview = useCallback(async (force = false) => {
     setLoadingOverview(true);
@@ -82,6 +74,17 @@ export default function DashboardPage() {
       setLoadingOverview(false);
     }
   }, []);
+
+  useEffect(() => {
+    const cached = peekAdminSummary();
+    if (cached) {
+      setSummary(cached);
+      setStats(statsFromSummary(cached));
+      setOverviewLoaded(true);
+    } else {
+      void loadOverview(false);
+    }
+  }, [loadOverview]);
 
   const chartSeries = useMemo(() => {
     const s = summary?.chartSeries;
@@ -102,41 +105,23 @@ export default function DashboardPage() {
   ], [stats, staffBase]);
 
   return (
-    <StaffPageShell>
-        <div className="space-y-4 sm:space-y-5 mt-2 sm:mt-4">
+    <div className="flex min-h-screen bg-[#F0F2F8]">
+      <StaffSidebar />
 
-          {!overviewLoaded ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 className="font-bold text-gray-800 text-sm sm:text-base">Dashboard ready</h2>
-                <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                  Stats and charts load only when you click — page opens instantly.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void loadOverview()}
-                disabled={loadingOverview}
-                className="h-10 sm:h-11 px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:opacity-60 shrink-0"
-              >
-                {loadingOverview
-                  ? <><RefreshCw size={15} className="animate-spin" /> Loading…</>
-                  : <><BarChart3 size={15} /> Load stats &amp; charts</>}
-              </button>
-            </div>
-          ) : (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => void loadOverview(true)}
-                disabled={loadingOverview}
-                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm shrink-0"
-              >
-                <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
-                {loadingOverview ? "Refreshing…" : "Refresh stats"}
-              </button>
-            </div>
-          )}
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
+        <div className="space-y-4 sm:space-y-5">
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void loadOverview(true)}
+              disabled={loadingOverview}
+              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm shrink-0"
+            >
+              <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
+              {loadingOverview ? "Refreshing…" : "Refresh stats"}
+            </button>
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5 sm:gap-3">
             {tiles.map(tile => {
@@ -191,19 +176,14 @@ export default function DashboardPage() {
                     <h3 className="font-bold text-gray-800 text-sm sm:text-base">Performance Overview</h3>
                     <p className="text-xs sm:text-sm text-gray-400 mt-0.5">Track CSR performance and activity trends</p>
                   </div>
-                  {overviewLoaded && (
+                  {(overviewLoaded || loadingOverview) && (
                     <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
                   )}
                 </div>
-                {overviewLoaded ? (
+                {overviewLoaded || loadingOverview ? (
                   <PerformanceChart series={chartSeries} range={selectedRange} />
                 ) : (
-                  <LazySectionPrompt
-                    icon={<BarChart3 size={28} className="text-gray-300" />}
-                    label="Load stats & charts to view performance"
-                    onLoad={() => void loadOverview()}
-                    loading={loadingOverview}
-                  />
+                  <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />
                 )}
               </div>
 
@@ -220,51 +200,35 @@ export default function DashboardPage() {
               </div>
 
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {overviewLoaded ? (
+                {overviewLoaded || loadingOverview ? (
                   <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
                 ) : (
-                  <LazySectionPrompt
-                    icon={<RefreshCw size={28} className="text-gray-300" />}
-                    label="Load stats to see recent activity"
-                    onLoad={() => void loadOverview()}
-                    loading={loadingOverview}
-                  />
+                  <div className="h-[180px] rounded-xl bg-gray-100 animate-pulse" />
                 )}
               </div>
             </div>
 
             <div className="lg:col-span-4 space-y-3 sm:space-y-4">
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {overviewLoaded ? (
+                {overviewLoaded || loadingOverview ? (
                   <OverviewChart distribution={summary?.distribution} />
                 ) : (
-                  <LazySectionPrompt
-                    icon={<BarChart3 size={28} className="text-gray-300" />}
-                    label="Load stats for status overview"
-                    onLoad={() => void loadOverview()}
-                    loading={loadingOverview}
-                    compact
-                  />
+                  <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />
                 )}
               </div>
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {overviewLoaded ? (
+                {overviewLoaded || loadingOverview ? (
                   <TopPerformers performers={summary?.performers} />
                 ) : (
-                  <LazySectionPrompt
-                    icon={<Trophy size={28} className="text-gray-300" />}
-                    label="Load stats for top performers"
-                    onLoad={() => void loadOverview()}
-                    loading={loadingOverview}
-                    compact
-                  />
+                  <div className="h-[160px] rounded-xl bg-gray-100 animate-pulse" />
                 )}
               </div>
             </div>
           </div>
 
         </div>
-    </StaffPageShell>
+      </main>
+    </div>
   );
 }
 
