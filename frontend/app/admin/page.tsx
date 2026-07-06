@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import DashboardNavbar  from "./components/layout/Navbar";
-import DashboardSidebar from "./components/layout/Sidebar";
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { useStaffBase } from "@/app/hooks/useStaffBase";
 import type { ClientLead } from "./components/charts/PerformanceChart";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
@@ -53,6 +54,8 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const StaffSidebar = useStaffSidebar();
+  const staffBase = useStaffBase();
   const [selectedRange, setSelectedRange] = useState("week");
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [stats, setStats] = useState<QuickStats | null>(null);
@@ -86,19 +89,19 @@ export default function DashboardPage() {
   const chartLeads: ClientLead[] = (summary?.chartLeads ?? []).map(c => ({ createdAt: c.createdAt }));
 
   const tiles = [
-    { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%", href: "/admin/leads" },
-    { label: "Completed",    value: stats?.closed ?? stats?.completed ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%", href: "/admin/leads?tab=closed" },
-    { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%", href: "/admin/leads" },
-    { label: "Important",    value: stats?.important   ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <Star         size={15}/>, bar: "40%", href: "/admin/leads?tab=important" },
-    { label: "Interested",   value: stats?.interested  ?? 0, from: "from-[#2563EB]", to: "to-[#1D4ED8]",  icon: <TrendingUp   size={15}/>, bar: "60%", href: "/admin/leads?tab=interested" },
-    { label: "Close Client", value: stats?.projectWon  ?? 0, from: "from-[#7C3AED]", to: "to-[#6D28D9]",  icon: <Trophy       size={15}/>, bar: "30%", href: "/admin/leads?tab=closed" },
+    { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%", href: `${staffBase}/leads` },
+    { label: "Completed",    value: stats?.closed ?? stats?.completed ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%", href: `${staffBase}/leads?tab=closed` },
+    { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%", href: `${staffBase}/leads` },
+    { label: "Important",    value: stats?.important   ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <Star         size={15}/>, bar: "40%", href: `${staffBase}/leads?tab=important` },
+    { label: "Interested",   value: stats?.interested  ?? 0, from: "from-[#2563EB]", to: "to-[#1D4ED8]",  icon: <TrendingUp   size={15}/>, bar: "60%", href: `${staffBase}/leads?tab=interested` },
+    { label: "Close Client", value: stats?.projectWon  ?? 0, from: "from-[#7C3AED]", to: "to-[#6D28D9]",  icon: <Trophy       size={15}/>, bar: "30%", href: `${staffBase}/leads?tab=closed` },
     { label: "Online CSRs",  value: stats?.onlineCSRs  ?? 0, from: "from-[#0891B2]", to: "to-[#0E7490]",  icon: <Briefcase    size={15}/>, bar: "55%" },
     { label: "Users Online", value: stats?.totalOnline ?? 0, from: "from-[#4F46E5]", to: "to-[#4338CA]",  icon: <Users        size={15}/>, bar: "65%" },
   ];
 
   return (
     <div className="flex min-h-screen bg-[#F0F2F8]">
-      <DashboardSidebar />
+      <StaffSidebar />
 
       <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />

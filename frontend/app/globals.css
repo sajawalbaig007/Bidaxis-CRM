@@ -325,6 +325,16 @@ html.dark .crm-table-card > div.border-b {
   border-color: var(--crm-border);
 }
 
+html.dark select,
+html.dark select option {
+  background-color: var(--crm-input);
+  color: var(--crm-text);
+}
+
+html.dark select.border-gray-200 {
+  border-color: var(--crm-border) !important;
+}
+
 /* CSR + login hardening */
 body.crm-secure-view {
   -webkit-user-select: none;

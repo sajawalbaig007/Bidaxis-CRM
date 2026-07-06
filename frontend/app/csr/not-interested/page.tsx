@@ -14,7 +14,9 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import ImportantCallModal from "../components/modals/ImportantCallModal";
 import InterestedModal from "../components/modals/InterestedModal";
-import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
+import ClientNameCell from "../components/shared/ClientNameCell";
+import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import { ourCompany } from "../utils/leadFieldLabels";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
@@ -36,7 +38,6 @@ import {
   isNotPickedStatus,
   statusDisplayLabel,
 } from "../constants/leadStatuses";
-import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import type { Lead } from "../types/lead";
 
 const NOT_INTERESTED_LIMIT = 3;
@@ -47,21 +48,9 @@ type FollowUpTab = "notinterested" | "notpicked" | "noowner" | "notinservice" | 
 
 function leadToNiLead(l: Lead): NiLead {
   return {
-    id: l.id,
-    client: l.client,
-    company: l.company,
-    phone: l.phone,
-    email: l.email,
-    state: l.state,
-    status: l.status,
-    statusUpdatedAt: l.statusUpdatedAt,
+    ...l,
     notInterestedCount: 0,
     notPickedCount: 0,
-    interestedService: l.interestedService,
-    followUpNotes: l.followUpNotes,
-    comments: l.comments,
-    noteHistory: l.noteHistory,
-    subContacts: l.subContacts,
   };
 }
 
@@ -141,19 +130,8 @@ export default function NotInterestedPage() {
     );
   }, [currentList, search]);
 
-  const columnPredicates = useMemo(() => ({
-    client:  (l: NiLead, v: string) => textColumnMatch(l.client, v),
-    company: (l: NiLead, v: string) => textColumnMatch(l.company, v),
-    contact: (l: NiLead, v: string) => textColumnMatch(l.phone, v),
-    service: (l: NiLead, v: string) => textColumnMatch(l.interestedService, v),
-    status:  (l: NiLead, v: string) => textColumnMatch(statusDisplayLabel(l.status), v),
-  }), []);
-
-  const { filters: colFilters, setFilter: setColFilter, filtered } =
-    useColumnFilters(searchFiltered, columnPredicates);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE));
+  const paginated  = searchFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   /* ── Chart rows ── */
   const chartRows = useMemo<StackedBarRow[]>(() => {
@@ -286,7 +264,13 @@ export default function NotInterestedPage() {
       ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
       : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
     setLeads(prev => prev.map(l =>
-      l.id === id ? { ...l, noteHistory: [...(l.noteHistory ?? []), note] } : l
+      l.id === id
+        ? {
+            ...l,
+            noteCount: (l.noteCount ?? 0) + 1,
+            noteHistory: [note, ...(l.noteHistory ?? [])],
+          }
+        : l
     ));
   };
 
@@ -401,7 +385,7 @@ export default function NotInterestedPage() {
                 <div className={`text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap ${
                   activeTab === "notinterested" ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
                 }`}>
-                  {filtered.length} Leads
+                  {searchFiltered.length} Leads
                 </div>
               </div>
             </div>
@@ -413,14 +397,14 @@ export default function NotInterestedPage() {
               <CsrColGroup widths={COL_9_FOLLOWUP} />
               <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
-                  <FilterableTh title="Client" filter={colFilters.client ?? ""} onFilter={v => { setColFilter("client", v); setPage(1); }} className={CSR_TH} placeholder="Name…" />
-                  <FilterableTh title="Company" filter={colFilters.company ?? ""} onFilter={v => { setColFilter("company", v); setPage(1); }} className={CSR_TH} placeholder="Company…" />
-                  <FilterableTh title="Contact" filter={colFilters.contact ?? ""} onFilter={v => { setColFilter("contact", v); setPage(1); }} className={CSR_TH} placeholder="Phone…" />
+                  <th className={CSR_TH}>Client Name</th>
+                  <th className={CSR_TH}>Our Company</th>
+                  <th className={CSR_TH}>Phone</th>
                   <th className={`hidden lg:table-cell ${CSR_TH}`}>Sub Contacts</th>
-                  <FilterableTh title="Service" filter={colFilters.service ?? ""} onFilter={v => { setColFilter("service", v); setPage(1); }} className={CSR_TH} placeholder="Service…" />
-                  <th className={CSR_TH}>Note</th>
+                  <th className={CSR_TH}>Service</th>
+                  <th className={CSR_TH}>Notes</th>
                   <th className={CSR_TH}>Tries</th>
-                  <FilterableTh title="Status" filter={colFilters.status ?? ""} onFilter={v => { setColFilter("status", v); setPage(1); }} className={CSR_TH} placeholder="Status…" />
+                  <th className={CSR_TH}>Status</th>
                   <th className={CSR_TH}>Action</th>
                 </tr>
               </thead>
@@ -435,7 +419,7 @@ export default function NotInterestedPage() {
                       ))}
                     </tr>
                   ))
-                ) : filtered.length > 0 ? paginated.map(lead => {
+                ) : searchFiltered.length > 0 ? paginated.map(lead => {
                   const tries       = isRetryTab ? (lead[countKey as keyof NiLead] as number) : 0;
                   const isNearLimit = isRetryTab && tries >= limit - 1;
                   const isAtLimit   = isRetryTab && tries >= limit;
@@ -452,29 +436,23 @@ export default function NotInterestedPage() {
                       >
                         {/* Client */}
                         <td className={CSR_TD}>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 text-white ${
-                              isAtLimit ? "bg-gray-400" : isNearLimit ? "bg-amber-500" : "bg-[#B8112D]"
-                            }`}>
-                              {lead.client.charAt(0)}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-semibold text-[#0F172A] text-[11px] sm:text-[12px] truncate">{lead.client}</h4>
-                              <p className="text-gray-500 text-[9px] sm:text-[10px] truncate">
-                                {statusDisplayLabel(lead.status)}
-                              </p>
-                            </div>
-                          </div>
+                          <ClientNameCell
+                            lead={lead}
+                            subtitle={statusDisplayLabel(lead.status)}
+                            hideOurCompany
+                          />
                         </td>
 
-                        {/* Company */}
+                        {/* Our Company */}
                         <td className={CSR_TD}>
-                          <p className="font-medium text-[#0F172A] text-[11px] sm:text-[12px] truncate">{lead.company}</p>
+                          <span className="text-[11px] sm:text-[12px] font-medium text-[#0F172A] dark:text-crm-text truncate block">
+                            {ourCompany(lead)}
+                          </span>
                         </td>
 
-                        {/* Contact */}
+                        {/* Phone — number + area-code TZ */}
                         <td className={CSR_TD}>
-                          <p className="text-[10px] sm:text-[11px] font-medium text-[#B8112D] truncate">{lead.phone}</p>
+                          <PhoneWithTzCell phone={lead.phone} variant="pill" className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[12px]" />
                         </td>
 
                         <td className={`hidden lg:table-cell ${CSR_TD}`}>
@@ -492,7 +470,7 @@ export default function NotInterestedPage() {
 
                         {/* Sticky Note */}
                         <td className={CSR_TD}>
-                          <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
+                          <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                         </td>
 
                         {/* Tries bar */}
@@ -662,7 +640,7 @@ export default function NotInterestedPage() {
             <Pagination
               page={page}
               totalPages={totalPages}
-              total={filtered.length}
+              total={searchFiltered.length}
               pageSize={PAGE_SIZE}
               onPage={setPage}
             />
@@ -824,8 +802,9 @@ export default function NotInterestedPage() {
               id:                viewingLead.id,
               name:              viewingLead.client,
               company:           viewingLead.company !== "N/A" ? viewingLead.company : undefined,
+              rawCompany:        viewingLead.rawCompany || viewingLead.company,
               phone:             viewingLead.phone   !== "N/A" ? viewingLead.phone   : undefined,
-              email:             viewingLead.email,
+              email:             viewingLead.email   !== "N/A" ? viewingLead.email   : undefined,
               state:             viewingLead.state   || undefined,
               status:            viewingLead.status,
               interestedService: viewingLead.interestedService,

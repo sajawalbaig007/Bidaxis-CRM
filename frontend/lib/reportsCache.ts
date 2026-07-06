@@ -36,7 +36,7 @@ type CacheEntry = { data: ReportsData; at: number };
 const cache = new Map<string, CacheEntry>();
 let inflight: Promise<ReportsData> | null = null;
 let inflightKey = "";
-const TTL_MS = 120_000;
+const TTL_MS = 300_000;
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
   return `${period}|${fromDate ?? ""}|${toDate ?? ""}`;

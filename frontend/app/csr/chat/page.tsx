@@ -20,9 +20,9 @@ import { playChatSound } from "@/lib/chatSound";
 import {
   ensureChatUnreadPolling, getChatConversations,
   forceStopChatUnreadPolling, pollChatUnread, subscribeChatUnread,
+  markConversationRead,
 } from "@/lib/chatUnreadStore";
 import {
-  forceStopChatStatusHeartbeat,
   startChatStatusHeartbeat,
   stopChatStatusHeartbeat,
 } from "@/lib/chatStatusHeartbeat";
@@ -432,7 +432,6 @@ export default function ChatPage() {
     return () => {
       unsub();
       forceStopChatUnreadPolling();
-      forceStopChatStatusHeartbeat();
     };
   }, []);
 
@@ -462,6 +461,7 @@ export default function ChatPage() {
         setMessages(msgs);
         lastMsgCount.current = msgs.length;
         setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
+        markConversationRead(cid);
         void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "auto" }), 60);
       } catch { setMessages([]); }
@@ -484,6 +484,7 @@ export default function ChatPage() {
           lastMsgCount.current = msgs.length;
           setMessages(msgs);
           setConversations(p => p.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
+          markConversationRead(cid);
           void API.post(`/chat/conversations/${cid}/read`).catch(() => {});
           const newest = msgs[msgs.length - 1];
           if (hadNew && newest && !newest.isOwn) {

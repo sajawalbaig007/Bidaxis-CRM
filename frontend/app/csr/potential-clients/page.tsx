@@ -10,12 +10,15 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_6_POTENTIAL, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
-import SubContactsCell from "@/app/components/clients/SubContactsCell";
+import MonthRangeFilter from "../components/shared/MonthRangeFilter";
+import ClientNameCell from "../components/shared/ClientNameCell";
+import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
 
-import { useCsrDashboard } from "../hooks/useCsrDashboard";
+import { useCsrStats, usePotentialLeads } from "../hooks/useCsrTabPage";
 import { useLeadActions } from "../hooks/useLeadActions";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import { useQueryTab } from "../hooks/useQueryTab";
@@ -23,7 +26,6 @@ import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import API from "@/lib/api";
 import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
-import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 import { Lead, getPriority } from "../types/lead";
 import { isInterestedLeadStatus, isWonClientStatus } from "../constants/leadStatuses";
 import {
@@ -47,14 +49,24 @@ function parsePhones(raw: string): string[] {
   return matches.map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
 }
 
+function leadCurrentMoveStatus(lead: Lead): string {
+  if (isInterestedLead(lead)) return "interested";
+  if (isScheduledCall(lead)) return "schedule call";
+  if (isImportantOnly(lead)) return "important";
+  return (lead.status ?? "").toLowerCase();
+}
+
 export default function ImportantCallsPage() {
-  const { leads, setLeads, loading, refetch } = useCsrDashboard();
-  const { saveComment, updateLead, addNote } = useLeadActions(setLeads);
+  const { stats: serverStats, refetch: refetchStats } = useCsrStats();
+  const { leads, setLeads, loading, refetch } = usePotentialLeads();
+  const { updateLead, addNote } = useLeadActions(setLeads);
 
   const [activeTab, setActiveTab] = useState("important");
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDate,  setFilterDate]  = useState("");
+  const [monthFrom, setMonthFrom] = useState("");
+  const [monthTo, setMonthTo] = useState("");
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead,   setEditingLead]   = useState<Lead | null>(null);
@@ -80,12 +92,12 @@ export default function ImportantCallsPage() {
 
   /* ── Derived ── */
   const stats = useMemo(() => ({
-    importantOnlyCount: leads.filter(l => isImportantOnly(l)).length,
-    scheduledCount:     leads.filter(l => isScheduledCall(l)).length,
-    interestedCount:    leads.filter(l => isInterestedLead(l)).length,
-    projectWonCount:    leads.filter(l => isWonClientStatus(l.status)).length,
+    importantOnlyCount: serverStats?.importantOnlyCount ?? leads.filter(l => isImportantOnly(l)).length,
+    scheduledCount:     serverStats?.scheduledCount     ?? leads.filter(l => isScheduledCall(l)).length,
+    interestedCount:    serverStats?.interestedCount    ?? leads.filter(l => isInterestedLead(l)).length,
+    projectWonCount:    serverStats?.projectWonCount    ?? leads.filter(l => isWonClientStatus(l.status)).length,
     callsTodayCount:    leads.filter(l => isScheduledCall(l) && l.nextSchedule === TODAY_STR).length,
-  }), [leads]);
+  }), [leads, serverStats]);
 
   const interestedWithService = useMemo(
     () => leads.filter(l => isInterestedLead(l) && l.interestedService).length,
@@ -122,20 +134,30 @@ export default function ImportantCallsPage() {
   ], [stats, interestedWithService]);
 
   const filteredCalls = useMemo(() => {
-    return leads.filter(lead => {
-      const matchesTab    = matchesPotentialTab(lead, activeTab as PotentialTab);
-      const matchesSearch = matchesLeadSearch(searchQuery, {
-        name: lead.client,
-        company: lead.company,
-        phone: lead.phone,
-        email: lead.email,
-        service: lead.interestedService,
-        state: lead.state,
-      });
-      const matchesDate   = activeTab !== "schedule" || !filterDate || lead.nextSchedule === filterDate;
-      return matchesTab && matchesSearch && matchesDate;
-    });
-  }, [leads, activeTab, searchQuery, filterDate]);
+    const inMonth = (iso: string) => {
+      if (!monthFrom && !monthTo) return true;
+      const d = iso.slice(0, 7);
+      if (monthFrom && d < monthFrom) return false;
+      if (monthTo && d > monthTo) return false;
+      return true;
+    };
+    return leads
+      .filter(lead => {
+        const matchesTab    = matchesPotentialTab(lead, activeTab as PotentialTab);
+        const matchesSearch = matchesLeadSearch(searchQuery, {
+          name: lead.client,
+          company: clientCompany(lead),
+          phone: lead.phone,
+          email: lead.email,
+          service: lead.interestedService,
+          state: lead.state,
+        });
+        const matchesDate   = activeTab !== "schedule" || !filterDate || lead.nextSchedule === filterDate;
+        const matchesMonth  = inMonth(lead.statusUpdatedAt || "");
+        return matchesTab && matchesSearch && matchesDate && matchesMonth;
+      })
+      .sort((a, b) => (b.statusUpdatedAt || "").localeCompare(a.statusUpdatedAt || ""));
+  }, [leads, activeTab, searchQuery, filterDate, monthFrom, monthTo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
   const paginated  = filteredCalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -162,6 +184,9 @@ export default function ImportantCallsPage() {
     if (!scheduleDate || !scheduleTime || !editingLead) return;
     try {
       await updateLead(editingLead.id, { status: "important", nextSchedule: scheduleDate, nextTime: scheduleTime, timezone: selectedTimezone, email });
+      setLeads(prev => prev.filter(l => l.id !== editingLead.id));
+      void refetchStats();
+      void refetch();
       closeEditModal();
     } catch (err) { console.log(err); }
   };
@@ -186,27 +211,60 @@ export default function ImportantCallsPage() {
 
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
 
+  const movePipelineStatus = async (id: string, status: string) => {
+    if (!status) return;
+    const lead = leads.find(l => l.id === id);
+    if (!lead) return;
+    try {
+      if (status === "schedule call") {
+        openEditModal(lead);
+        setEditAction("reschedule");
+        return;
+      }
+      if (status === "interested") {
+        await updateLead(id, { status: "interested", interestedService: lead.interestedService || "General" });
+      } else if (status === "important") {
+        await updateLead(id, { status: "important", nextSchedule: "", nextTime: "" });
+      } else {
+        await updateLead(id, { status });
+      }
+      setLeads(prev => prev.filter(l => l.id !== id));
+      void refetchStats();
+      void refetch();
+      closeEditModal();
+    } catch (err) { console.log(err); }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
       <TopNavbar />
       <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-5 lg:p-6">
 
         {/* ── HEADER ── */}
         <div className="mt-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-[28px] lg:text-[34px] font-bold text-[#0F172A] leading-tight">
+            <h1 className="text-2xl sm:text-[28px] lg:text-[34px] font-bold text-[#0F172A] dark:text-gray-100 leading-tight">
               Potential Clients
             </h1>
-            <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-              Manage important, scheduled, and interested clients.
+            <p className="text-gray-500 dark:text-gray-400 mt-1 sm:mt-2 text-xs sm:text-sm">
+              Manage important, scheduled, and interested clients — latest activity first.
             </p>
           </div>
-          <button
-            onClick={() => setShowAddLead(true)}
-            className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] w-full sm:w-auto shrink-0"
-          >
-            <Plus size={16} /> Add Lead
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <MonthRangeFilter
+              from={monthFrom}
+              to={monthTo}
+              onFromChange={v => { setMonthFrom(v); setPage(1); }}
+              onToChange={v => { setMonthTo(v); setPage(1); }}
+              onClear={() => { setMonthFrom(""); setMonthTo(""); setPage(1); }}
+            />
+            <button
+              onClick={() => setShowAddLead(true)}
+              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] w-full sm:w-auto shrink-0"
+            >
+              <Plus size={16} /> Add Lead
+            </button>
+          </div>
         </div>
 
         {/* ── VERTICAL BAR CHART ── */}
@@ -272,15 +330,14 @@ export default function ImportantCallsPage() {
 
             <div className={CSR_TABLE_WRAP}>
               <table className={CSR_TABLE_CLASS}>
-                <CsrColGroup widths={COL_7_IMPORTANT_SUB} />
+                <CsrColGroup widths={COL_6_POTENTIAL} />
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
-                    <th className={CSR_TH}>Client</th>
-                    <th className={CSR_TH}>Company</th>
-                    <th className={CSR_TH}>Contact</th>
-                    <th className={CSR_TH}>Sub Contacts</th>
-                    <th className={CSR_TH}>Note</th>
+                    <th className={CSR_TH}>Client Name</th>
+                    <th className={CSR_TH}>Phone</th>
+                    <th className={CSR_TH}>Notes</th>
                     <th className={CSR_TH}>Status</th>
+                    <th className={CSR_TH}>Our Company</th>
                     <th className={CSR_TH}>Action</th>
                   </tr>
                 </thead>
@@ -288,7 +345,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6,7].map(j => (
+                        {[1,2,3,4,5,6].map(j => (
                           <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
@@ -298,32 +355,19 @@ export default function ImportantCallsPage() {
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       <td className={CSR_TD}>
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
-                            {lead.client.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.client}</h4>
-                            <p className="text-gray-400 text-[10px] sm:text-[11px] mt-0.5 truncate">Important Lead</p>
-                          </div>
-                        </div>
+                        <ClientNameCell lead={lead} subtitle="Important Lead" />
                       </td>
                       <td className={CSR_TD}>
-                        <p className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.company}</p>
+                        <PhoneWithTzCell phone={lead.phone} variant="pill" />
                       </td>
                       <td className={CSR_TD}>
-                        <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium max-w-full min-w-0">
-                          <span className="truncate">{lead.phone}</span>
-                        </div>
-                      </td>
-                      <td className={CSR_TD}>
-                        <SubContactsCell contacts={lead.subContacts} />
-                      </td>
-                      <td className={CSR_TD}>
-                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
                         <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">Important</span>
+                      </td>
+                      <td className={CSR_TD}>
+                        <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
                       </td>
                       <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -338,7 +382,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={7} className="py-16 sm:py-20 text-center">
+                      <td colSpan={6} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         <p className="text-gray-400 text-xs sm:text-sm">No important clients found.</p>
                       </td>
@@ -393,7 +437,7 @@ export default function ImportantCallsPage() {
                 <CsrColGroup widths={COL_9_SCHEDULE} />
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client","Company","Contact","Sub Contacts","Next Schedule","Time & Timezone","Note","Status","Action"].map(h => (
+                    {["Client Name","Phone","Next Schedule","Time & Timezone","Notes","Status","Our Company","Action"].map(h => (
                       <th key={h} className={CSR_TH}>{h}</th>
                     ))}
                   </tr>
@@ -412,50 +456,19 @@ export default function ImportantCallsPage() {
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       <td className={CSR_TD}>
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
-                            {lead.client.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.client}</h4>
-                              {(() => {
-                                const tz = getTimezoneAbbr(lead.state);
-                                return tz ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>
-                                    {tz}
-                                  </span>
-                                ) : null;
-                              })()}
-                            </div>
-                            <p className="text-gray-500 text-[11px] sm:text-[12px] mt-0.5">Important Lead</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className={CSR_TD}>
-                        <h4 className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.company}</h4>
+                        <ClientNameCell lead={lead} subtitle="Scheduled Call" />
                       </td>
                       <td className={CSR_TD}>
                         {(() => {
                           const phones = parsePhones(lead.phone);
-                          const tz = getTimezoneAbbrFromPhone(phones[0]);
-                          if (phones.length <= 1) return (
-                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
-                              {lead.phone}
-                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                            </div>
-                          );
                           return (
-                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
-                              <span className="max-w-[100px] truncate">{phones[0]}</span>
-                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                              <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
-                            </div>
+                            <PhoneWithTzCell
+                              phone={phones[0] ?? lead.phone}
+                              extraCount={phones.length > 1 ? phones.length - 1 : 0}
+                              variant="pill"
+                            />
                           );
                         })()}
-                      </td>
-                      <td className={CSR_TD}>
-                        <SubContactsCell contacts={lead.subContacts} />
                       </td>
                       <td className={CSR_TD}>
                         {lead.nextSchedule ? (
@@ -486,6 +499,9 @@ export default function ImportantCallsPage() {
                         }`}>
                           {getPriority(lead.status)}
                         </div>
+                      </td>
+                      <td className={CSR_TD}>
+                        <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
                       </td>
                       <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -573,13 +589,12 @@ export default function ImportantCallsPage() {
                 <CsrColGroup widths={COL_8_INTERESTED_SUB} />
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
-                    <th className={CSR_TH}>Client</th>
-                    <th className={CSR_TH}>Company</th>
-                    <th className={CSR_TH}>Contact</th>
-                    <th className={CSR_TH}>Sub Contacts</th>
+                    <th className={CSR_TH}>Client Name</th>
+                    <th className={CSR_TH}>Phone</th>
                     <th className={CSR_TH}>Interested In</th>
-                    <th className={CSR_TH}>Note</th>
+                    <th className={CSR_TH}>Notes</th>
                     <th className={CSR_TH}>Status</th>
+                    <th className={CSR_TH}>Our Company</th>
                     <th className={CSR_TH}>Action</th>
                   </tr>
                 </thead>
@@ -597,48 +612,20 @@ export default function ImportantCallsPage() {
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       <td className={CSR_TD}>
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
-                            {lead.client.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1 flex-wrap min-w-0">
-                              <h4 className="font-semibold text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.client}</h4>
-                              {(() => {
-                                const tz = getTimezoneAbbr(lead.state);
-                                return tz ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>
-                                ) : null;
-                              })()}
-                            </div>
-                            <p className="text-gray-400 text-[10px] sm:text-[11px] mt-0.5 truncate">Interested Lead</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className={CSR_TD}>
-                        <p className="font-medium text-[#0F172A] text-[13px] sm:text-[14px] truncate">{lead.company}</p>
+                        <ClientNameCell lead={lead} subtitle="Interested Lead" />
                       </td>
                       <td className={CSR_TD}>
                         {(() => {
                           const phones = parsePhones(lead.phone);
-                          const tz = getTimezoneAbbrFromPhone(phones[0]);
-                          if (phones.length <= 1) return (
-                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full">
-                              <span className="truncate">{lead.phone}</span>
-                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                            </div>
-                          );
                           return (
-                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap">
-                              <span className="truncate">{phones[0]}</span>
-                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                              <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">+{phones.length - 1}</span>
-                            </div>
+                            <PhoneWithTzCell
+                              phone={phones[0] ?? lead.phone}
+                              extraCount={phones.length > 1 ? phones.length - 1 : 0}
+                              variant="pill"
+                              className="px-2 sm:px-3 py-1 sm:py-1.5"
+                            />
                           );
                         })()}
-                      </td>
-                      <td className={CSR_TD}>
-                        <SubContactsCell contacts={lead.subContacts} />
                       </td>
                       <td className={CSR_TD}>
                         {lead.interestedService ? (
@@ -649,12 +636,15 @@ export default function ImportantCallsPage() {
                         ) : <span className="text-gray-300 text-xs">—</span>}
                       </td>
                       <td className={CSR_TD}>
-                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
                         <div className="bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 rounded-xl text-[11px] font-semibold w-fit whitespace-nowrap">
                           Interested
                         </div>
+                      </td>
+                      <td className={CSR_TD}>
+                        <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
                       </td>
                       <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -705,11 +695,16 @@ export default function ImportantCallsPage() {
         {showEditModal && editingLead && (
           <EditClientModal
             client={editingLead.client}
+            clientCompany={clientCompany(editingLead)}
+            ourCompany={ourCompany(editingLead)}
+            phone={editingLead.phone}
             company={editingLead.company}
             email={email} onEmailChange={setEmail}
             editAction={editAction}
             onSelectAction={setEditAction}
             onClose={closeEditModal}
+            onMoveTo={s => void movePipelineStatus(editingLead.id, s)}
+            currentMoveStatus={leadCurrentMoveStatus(editingLead)}
             scheduleDate={scheduleDate}    onScheduleDateChange={setScheduleDate}
             scheduleTime={scheduleTime}    onScheduleTimeChange={setScheduleTime}
             timezone={selectedTimezone}    onTimezoneChange={setSelectedTimezone}
@@ -739,7 +734,6 @@ export default function ImportantCallsPage() {
               state:   viewingLead.state   || undefined,
               status:  viewingLead.status,
               interestedService: viewingLead.interestedService,
-              followUpNotes:     viewingLead.followUpNotes,
               nextSchedule:      viewingLead.nextSchedule || undefined,
               nextTime:          viewingLead.nextTime     || undefined,
               timezone:          viewingLead.timezone     || undefined,
@@ -773,7 +767,7 @@ export default function ImportantCallsPage() {
         <AddLeadModal
           open={showAddLead}
           onClose={() => setShowAddLead(false)}
-          onAdded={() => { void refetch(true); }}
+          onAdded={() => { void refetch(); void refetchStats(); invalidateAllCsrListCaches(); }}
         />
       </main>
     </div>

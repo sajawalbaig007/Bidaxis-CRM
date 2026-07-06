@@ -24,7 +24,7 @@ type ReportResponse = ReportsData;
 export default function ReportsPage() {
   const StaffSidebar = useStaffSidebar();
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
-  const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("all");
+  const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("week");
   const [loadingReport, setLoadingReport] = useState(false);
   const [fromDate,      setFromDate]      = useState("");
   const [toDate,        setToDate]        = useState("");
@@ -45,7 +45,7 @@ export default function ReportsPage() {
   }, [dropdownOpen]);
 
   const loadReports = useCallback(async (
-    period: string = "today",
+    period: string = "week",
     customFrom?: string,
     customTo?: string,
     force = false,
@@ -63,7 +63,7 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    void loadReports("all");
+    void loadReports("week");
   }, [loadReports]);
 
   const csrList     = useMemo(() => reportData?.csrPerformance ?? [], [reportData]);

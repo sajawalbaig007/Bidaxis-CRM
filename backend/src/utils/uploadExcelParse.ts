@@ -83,9 +83,18 @@ export function parseLeadRows(
   const isActiveUpload = leadType === "active";
   const headerKeys = data.length > 0 ? Object.keys(data[0]) : [];
   const col = {
-    clientDetail: resolveColumnKey(headerKeys, ["name","client","customer","contact person"], ["code"]),
+    clientDetail: resolveColumnKey(headerKeys, [
+      "client name", "contact name", "customer name", "person name",
+      "name", "client", "customer", "contact person",
+    ], ["code", "company"]),
+    clientCompany: resolveColumnKey(headerKeys, [
+      "client company", "customer company", "company name", "business name",
+      "company", "business", "organization",
+    ], ["our", "code", "client name"]),
+    ourCompany: resolveColumnKey(headerKeys, [
+      "our company", "source company", "sudo", "ps estimating", "our co",
+    ], []),
     phone:        resolveColumnKey(headerKeys, ["phone","mobile","cell","telephone","number","contact"], ["person","name","detail"]),
-    company:      resolveColumnKey(headerKeys, ["company","business","organization"]),
     state:        resolveColumnKey(headerKeys, ["location","address","state","province","city","prov","region"]),
     service:      resolveColumnKey(headerKeys, ["interested in","interested","service","interest","services","scope"], ["status"]),
     projectTitle: resolveColumnKey(headerKeys, ["project detail","project title","project name","project"], ["code","client"]),
@@ -110,7 +119,8 @@ export function parseLeadRows(
       if (phoneLine) phone = phoneLine.replace(/[^\d\+\-]/g, "");
     }
 
-    let company = readCell(row, col.company);
+    let company = readCell(row, col.clientCompany);
+    if (!company && !col.clientCompany) company = readCell(row, resolveColumnKey(headerKeys, ["company"], ["our"]));
     if (!company && isActiveUpload) company = name;
 
     parsed.push({

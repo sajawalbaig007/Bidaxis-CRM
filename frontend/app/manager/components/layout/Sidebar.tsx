@@ -5,8 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
-import { BarChart3, Upload, LogOut, MessageSquare } from "lucide-react";
+import {
+  LayoutDashboard, FileText, BarChart3,
+  FolderKanban, Upload, Trash2,
+  LogOut, ChevronDown, MessageSquare, Bell, X,
+} from "lucide-react";
 import API from "@/lib/api";
+import { dismissNotification, getDismissedNotificationIds } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
@@ -15,21 +20,54 @@ import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
+const BASE = "/manager";
+
 const navItems = [
-  { title: "Reports", href: "/manager/reports", icon: BarChart3 },
-  { title: "Uploads", href: "/manager/uploads", icon: Upload },
+  { title: "Dashboard",  href: `${BASE}`,                 icon: LayoutDashboard },
+  { title: "Leads",      href: `${BASE}/leads`,           icon: FileText        },
+  { title: "Reports",    href: `${BASE}/reports`,         icon: BarChart3       },
+  { title: "Project DB", href: `${BASE}/active-projects`, icon: FolderKanban    },
+  { title: "Uploads",    href: `${BASE}/uploads`,         icon: Upload          },
+  { title: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
 ];
 
 type UserInfo = { name: string; email: string; role: string };
+
+type ScheduledCall = {
+  id: string;
+  client: string;
+  date: string;
+  time: string;
+  timezone: string;
+  csrName: string;
+  csrCode: string;
+  csrId: string;
+};
+
+const TODAY = new Date().toISOString().split("T")[0];
+
+let _cachedScheduledCalls: ScheduledCall[] = [];
+let _lastNotifFetch = 0;
+const NOTIF_CACHE_TTL = 60_000;
+
+function filterDismissedCalls(all: ScheduledCall[]) {
+  const dismissed = getDismissedNotificationIds();
+  return all.filter(c => !dismissed.has(c.id));
+}
 
 export default function ManagerSidebar() {
   const pathname = usePathname();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [scheduledCalls, setScheduledCalls] = useState<ScheduledCall[]>(() =>
+    Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL ? filterDismissedCalls(_cachedScheduledCalls) : [],
+  );
   const totalUnread = useChatUnreadBadge();
   const profileRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   const closeChat = () => {
     forceStopChatUnreadPolling();
@@ -42,13 +80,36 @@ export default function ManagerSidebar() {
     forceStopChatStatusHeartbeat();
   }, []);
 
+  const fetchNotifications = () => {
+    API.get("/admin/notifications")
+      .then(res => {
+        const all = (res.data.scheduledCalls ?? []) as ScheduledCall[];
+        _cachedScheduledCalls = all;
+        _lastNotifFetch = Date.now();
+        setScheduledCalls(filterDismissedCalls(all));
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     getAuthMe().then(u => { if (u) setUser(u); }).catch(() => {});
+    if (Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL) {
+      setScheduledCalls(filterDismissedCalls(_cachedScheduledCalls));
+      return;
+    }
+    fetchNotifications();
   }, []);
+
+  useEffect(() => {
+    if (!bellOpen) return;
+    if (Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL) return;
+    fetchNotifications();
+  }, [bellOpen]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
     };
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
@@ -71,46 +132,39 @@ export default function ManagerSidebar() {
     ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "MG";
 
+  const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
+
+  const dismissOne = (id: string) => {
+    dismissNotification(id);
+    _cachedScheduledCalls = _cachedScheduledCalls.filter(c => c.id !== id);
+    setScheduledCalls(prev => prev.filter(c => c.id !== id));
+  };
+
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
-          <Link href="/manager/reports" prefetch={false} className="flex items-center gap-3 shrink-0">
+          <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
             <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
-              <Image
-                src="/images/image.png"
-                alt="logo"
-                width={44}
-                height={44}
-                className="object-cover w-full h-full rounded-[10px] bg-white"
-              />
+              <Image src="/images/image.png" alt="logo" width={44} height={44} className="object-cover w-full h-full rounded-[10px] bg-white" />
             </div>
             <div className="hidden sm:block">
-              <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
-                CRM Dashboard
-              </h2>
-              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-                Manager Panel
-              </p>
+              <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">CRM Dashboard</h2>
+              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">Manager Panel</p>
             </div>
           </Link>
 
           <div className="flex-1 min-w-0">
-            <nav
-              className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto"
-              style={{ scrollbarWidth: "none" }}
-            >
+            <nav className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
               {navItems.map(({ title, href, icon: Icon }) => {
-                const active = pathname.startsWith(href);
+                const active = href === BASE ? pathname === BASE : pathname.startsWith(href);
                 return (
                   <Link
                     key={href}
                     href={href}
                     prefetch={false}
                     className={`h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
-                      active
-                        ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                        : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
+                      active ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20" : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
                     }`}
                   >
                     <Icon size={15} className="shrink-0" />
@@ -125,11 +179,9 @@ export default function ManagerSidebar() {
 
           <button
             type="button"
-            onClick={() => setChatOpen(v => !v)}
+            onClick={() => { setChatOpen(v => !v); setBellOpen(false); }}
             className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
-              chatOpen
-                ? "bg-[#B8112D] text-white shadow-md"
-                : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+              chatOpen ? "bg-[#B8112D] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
             }`}
             title="Messages"
           >
@@ -141,25 +193,65 @@ export default function ManagerSidebar() {
             )}
           </button>
 
-          <div ref={profileRef} className="relative shrink-0">
+          <div ref={bellRef} className="relative shrink-0">
             <button
               type="button"
-              onClick={() => setProfileOpen(v => !v)}
-              className="w-9 h-9 rounded-full bg-[#B8112D] text-white text-[11px] font-bold flex items-center justify-center"
+              onClick={() => { setBellOpen(v => !v); setProfileOpen(false); }}
+              className="relative w-9 h-9 rounded-[13px] flex items-center justify-center text-crm-text-muted hover:text-[#B8112D] hover:bg-crm-nav-pill transition-colors"
+              title="Scheduled meetings"
             >
-              {initials}
+              <Bell size={17} />
+              {scheduledCalls.length > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                  {scheduledCalls.length > 9 ? "9+" : scheduledCalls.length}
+                </span>
+              )}
+            </button>
+            {bellOpen && (
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
+                  <span className="text-[13px] font-bold text-[#0F172A]">Meetings</span>
+                  {todayCalls.length > 0 && (
+                    <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">{todayCalls.length} today</span>
+                  )}
+                </div>
+                <div className="max-h-[360px] overflow-y-auto">
+                  {scheduledCalls.length === 0 ? (
+                    <p className="py-8 text-center text-gray-400 text-[13px]">No scheduled meetings</p>
+                  ) : (
+                    scheduledCalls.map(c => (
+                      <div key={c.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold truncate">{c.client}</p>
+                          <p className="text-[11px] text-gray-500">{c.time}</p>
+                        </div>
+                        <button type="button" onClick={() => dismissOne(c.id)} className="text-gray-300 hover:text-[#B8112D]">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div ref={profileRef} className="relative shrink-0">
+            <button type="button" onClick={() => { setProfileOpen(v => !v); setBellOpen(false); }} className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10">
+              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs">{initials}</div>
+              <ChevronDown size={13} className="hidden sm:block text-crm-text-faint" />
             </button>
             {profileOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 p-4">
-                <p className="font-bold text-sm text-crm-text truncate">{user?.name ?? "Manager"}</p>
-                <p className="text-xs text-gray-400 truncate mt-0.5">{user?.email}</p>
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border shadow-2xl z-50 p-3">
+                <p className="font-bold text-sm truncate">{user?.name ?? "Manager"}</p>
+                <p className="text-xs text-gray-400 truncate">{user?.email}</p>
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
                   disabled={loggingOut}
-                  className="mt-4 w-full h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#fce8ec] disabled:opacity-60"
+                  className="mt-3 w-full h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-2"
                 >
-                  <LogOut size={15} />
+                  <LogOut size={13} />
                   {loggingOut ? "Logging out…" : "Logout"}
                 </button>
               </div>
@@ -167,6 +259,8 @@ export default function ManagerSidebar() {
           </div>
         </div>
       </header>
+
+      <div className="w-0 shrink-0" />
 
       {chatOpen && <ChatPanel onClose={closeChat} />}
     </>

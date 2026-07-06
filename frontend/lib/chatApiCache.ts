@@ -140,3 +140,12 @@ export function invalidateChatCaches() {
   membersStore.clear();
   inflight.clear();
 }
+
+/** Zero unread for one conversation in the local cache (badge sync) */
+export function patchConversationUnread(convId: string, unreadCount = 0) {
+  const hit = convStore.get("active");
+  if (!hit) return;
+  const convs = hit.data as ChatConversation[];
+  const patched = convs.map(c => (c.id === convId ? { ...c, unreadCount } : c));
+  write(convStore, "active", patched);
+}

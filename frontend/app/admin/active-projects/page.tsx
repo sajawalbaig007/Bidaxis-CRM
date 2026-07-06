@@ -10,7 +10,7 @@ import {
   Plus,
 } from "lucide-react";
 
-import DashboardSidebar from "../components/layout/Sidebar";
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
@@ -424,6 +424,7 @@ function projectAssigneeLabel(p: Project): string {
 }
 
 export default function AdminProjectsPage() {
+  const StaffSidebar = useStaffSidebar();
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [stats,     setStats]     = useState<Stats>({ total: 0, withBudget: 0, thisMonth: 0 });
   const [loading,   setLoading]   = useState(true);
@@ -694,7 +695,7 @@ export default function AdminProjectsPage() {
         position="top-right"
         toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }}
       />
-      <DashboardSidebar />
+      <StaffSidebar />
 
       {/* ─── MAIN ─── */}
       <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">

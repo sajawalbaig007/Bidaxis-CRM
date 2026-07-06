@@ -142,7 +142,7 @@ function getDateRange(period: string): { gte: Date; lte: Date } {
 
   }
 
-  return { gte: new Date(0), lte: now };
+  return { gte: new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()), lte: now };
 
 }
 

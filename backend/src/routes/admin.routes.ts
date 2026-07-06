@@ -57,7 +57,7 @@ router.get("/dashboard", verifyToken, allowRoles("admin"), (req, res) => {
 });
 
 /* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
-router.get("/notifications", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/notifications", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
@@ -140,7 +140,7 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager"), async (req, res
 });
 
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
-router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, res) => {
+router.get("/clients/summary", verifyToken, allowRoles("admin", "manager"), async (_req, res) => {
   try {
     const CACHE_KEY = "admin:clients:summary";
     const cached = getCache<object>(CACHE_KEY);
@@ -278,7 +278,7 @@ router.get("/clients/summary", verifyToken, allowRoles("admin"), async (_req, re
 });
 
 /* ================= GET CLIENTS / LEADS (paginated — admin leads page) ================= */
-router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/clients", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const view = (String(req.query.view || "all") as AdminClientView);
     const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
@@ -328,7 +328,7 @@ router.get("/clients", verifyToken, allowRoles("admin"), async (req, res) => {
 
 /* ================= CREATE LEAD (ADMIN manual add) ================= */
 
-router.post("/lead", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/lead", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const adminId = req.user?.id;
     if (!adminId) return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -380,7 +380,7 @@ router.post("/lead", verifyToken, allowRoles("admin"), async (req: AuthRequest, 
 });
 
 /* ================= GET SINGLE LEAD (ADMIN) ================= */
-router.get("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const lead = await prisma.lead.findFirst({
@@ -401,7 +401,7 @@ router.get("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
 });
 
 /* ================= DELETE LEAD / PROJECT (ADMIN) ================= */
-router.delete("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const lead = await prisma.lead.findFirst({
@@ -427,7 +427,7 @@ router.delete("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) =>
 });
 
 /* ================= UPDATE LEAD DETAILS (ADMIN) ================= */
-router.put("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { name, phone, email, state } = req.body;
@@ -460,7 +460,7 @@ router.put("/lead/:id", verifyToken, allowRoles("admin"), async (req, res) => {
   }
 });
 
-router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin"), async (req, res) => {
+router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { name, designation, phone, email } = req.body as { name: string; designation?: string; phone?: string; email?: string };
@@ -481,7 +481,7 @@ router.post("/lead/:id/subcontacts", verifyToken, allowRoles("admin"), async (re
   }
 });
 
-router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const subId  = String(req.params.subId);
@@ -511,7 +511,7 @@ router.put("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), asy
   }
 });
 
-router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const subId  = String(req.params.subId);
@@ -530,7 +530,7 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("admin"), 
 });
 
 /* ================= UPDATE LEAD NOTE ================= */
-router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res) => {
+router.patch("/lead/:id/note", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const { comments } = req.body;
     await prisma.lead.update({
@@ -545,7 +545,7 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("admin"), async (req, res
 });
 
 /* ================= ADMIN TIMESTAMPED NOTES (shared with CSR) ================= */
-router.post("/lead/:id/notes", verifyToken, allowRoles("admin"), async (req, res) => {
+router.post("/lead/:id/notes", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { text } = req.body as { text: string };
@@ -563,7 +563,7 @@ router.post("/lead/:id/notes", verifyToken, allowRoles("admin"), async (req, res
   }
 });
 
-router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { noteId } = req.params as { noteId: string };
@@ -581,7 +581,7 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (r
   }
 });
 
-router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin"), async (req, res) => {
+router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { noteId } = req.params as { noteId: string };
@@ -736,7 +736,7 @@ router.get(
 );
 
 /* ================= ALL ACTIVE PROJECT LEADS (all CSRs) ================= */
-router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/projects", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
     const from  = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
@@ -820,7 +820,7 @@ router.get("/projects", verifyToken, allowRoles("admin"), async (req, res) => {
 });
 
 /* ================= LOOKUP CLIENT BY PHONE (ADMIN) ================= */
-router.get("/lookup-by-phone", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/lookup-by-phone", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const phone = (req.query.phone as string)?.trim();
     if (!phone || normalizePhone(phone).length < 7) {
@@ -835,7 +835,7 @@ router.get("/lookup-by-phone", verifyToken, allowRoles("admin"), async (req, res
 });
 
 /* ================= ADD PROJECT (ADMIN) ================= */
-router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.post("/project", verifyToken, allowRoles("admin", "manager"), async (req: AuthRequest, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const { name, projectTitle, interestedService, projectDeadline } = body;
@@ -912,7 +912,7 @@ router.post("/project", verifyToken, allowRoles("admin"), async (req: AuthReques
 });
 
 /* ================= UPDATE PROJECT (ADMIN) ================= */
-router.put("/project/:id", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/project/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const updateData: Record<string, unknown> = {};
@@ -1178,7 +1178,7 @@ router.post(
 
 /* ================= ADMIN BIN (all not-picked + not-interested leads) ================= */
 
-router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
+router.get("/bin", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
     const cacheKey = csrId ? `admin:bin:${csrId}` : "admin:bin";
@@ -1206,7 +1206,7 @@ router.get("/bin", verifyToken, allowRoles("admin"), async (req, res) => {
 
 /* ================= REASSIGN LEAD TO SPECIFIC CSR (ADMIN) ================= */
 
-router.put("/lead/:id/reassign", verifyToken, allowRoles("admin"), async (req, res) => {
+router.put("/lead/:id/reassign", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
     const { csrId } = req.body;

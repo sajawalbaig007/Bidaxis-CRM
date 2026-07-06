@@ -51,7 +51,9 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
       <button
         onClick={() => setOpen(v => !v)}
         className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors min-w-[160px] sm:min-w-[200px] ${
-          value ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]" : "border-gray-200 bg-[#FAFAFA] text-gray-600 hover:border-gray-300"
+          value
+            ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+            : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"
         }`}
       >
         <MapPin size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
@@ -66,10 +68,10 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
       </button>
 
       {open && (
-        <div className="absolute top-11 sm:top-12 right-0 z-50 w-[260px] sm:w-[290px] bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+        <div className="absolute top-11 sm:top-12 right-0 z-[120] w-[260px] sm:w-[290px] bg-white dark:bg-crm-surface rounded-xl sm:rounded-2xl shadow-2xl border border-gray-100 dark:border-crm-border overflow-hidden">
 
           {/* Country tabs */}
-          <div className="flex gap-1 p-2 border-b border-gray-100 bg-[#FAFAFB]">
+          <div className="flex gap-1 p-2 border-b border-gray-100 dark:border-crm-border bg-[#FAFAFB] dark:bg-crm-surface-raised">
             {countryTabs.map(tab => (
               <button key={tab.key}
                 onClick={() => { setCountry(tab.key); setSearch(""); }}

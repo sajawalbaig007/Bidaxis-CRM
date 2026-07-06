@@ -3,6 +3,7 @@ import type { ChatConversation } from "./chatConversations";
 import {
   fetchArchivedConversations,
   fetchChatConversations,
+  patchConversationUnread,
   peekArchivedConversations,
   peekChatConversations,
 } from "./chatApiCache";
@@ -24,8 +25,8 @@ let notifOk = false;
 let isFirstPoll = true;
 let visibilityBound = false;
 
-const POLL_PANEL_VISIBLE_MS = 15_000;
-const POLL_PANEL_HIDDEN_MS  = 45_000;
+const POLL_PANEL_VISIBLE_MS = 30_000;
+const POLL_PANEL_HIDDEN_MS  = 90_000;
 
 function notify() {
   listeners.forEach(fn => fn(totalUnread, lastConvs));
@@ -94,6 +95,18 @@ export function getArchivedConversations() {
 
 export function hasChatCache() {
   return getChatConversations().length > 0;
+}
+
+/** Immediately clear unread badge when user opens/reads a conversation */
+export function markConversationRead(conversationId: string) {
+  if (!conversationId || conversationId.startsWith("temp-")) return;
+  lastConvs = lastConvs.map(c =>
+    c.id === conversationId ? { ...c, unreadCount: 0 } : c
+  );
+  totalUnread = lastConvs.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
+  prevById[conversationId] = 0;
+  patchConversationUnread(conversationId, 0);
+  notify();
 }
 
 /** Badge + panel UI — cache only, no network when panel is closed. */

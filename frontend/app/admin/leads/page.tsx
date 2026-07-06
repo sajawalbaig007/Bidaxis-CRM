@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 /* ─── COMPONENTS ─── */
+import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { useStaffBase } from "@/app/hooks/useStaffBase";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
@@ -92,6 +94,8 @@ export default function ClientsPage() {
 function ClientsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const StaffSidebar = useStaffSidebar();
+  const staffBase = useStaffBase();
   const urlTab = searchParams.get("tab");
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -381,7 +385,7 @@ function ClientsPageContent() {
   if (initialLoad) {
     return (
       <div className="flex min-h-screen bg-[#F5F6FA]">
-        <DashboardSidebar />
+        <StaffSidebar />
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
           <DashboardNavbar />
           <div className="flex items-center justify-center h-[60vh]">
@@ -398,7 +402,7 @@ function ClientsPageContent() {
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster position="top-right" reverseOrder={false} />
-      <DashboardSidebar />
+      <StaffSidebar />
 
       {/* ─── MAIN CONTENT ─── */}
       {/* mt-[72px] for mobile/tablet navbar, lg:mt-0 when sidebar is shown */}
@@ -483,7 +487,7 @@ function ClientsPageContent() {
                 onClick={() => {
                   setView(item.key as ClientView);
                   setPage(1);
-                  router.replace(`/admin/leads?tab=${item.key}`);
+                  router.replace(`${staffBase}/leads?tab=${item.key}`);
                 }}
                 className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
                   effectiveView === item.key

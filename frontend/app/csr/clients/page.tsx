@@ -16,10 +16,12 @@ import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../compone
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { isWonClientStatus } from "../constants/leadStatuses";
-import { useLeadsData, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
+import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
-import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../constants/timezoneAbbr";
+import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
+import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
 import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
@@ -286,32 +288,39 @@ export default function LeadsPage() {
         paidAmount:        addForm.upfront.trim()   || undefined,
       });
       const nl = res.data.lead;
-      const fresh: ClientLead = {
-        id: String(nl?.id ?? Date.now()),
+      const fresh = mapClientLead(nl ?? {
+        id: String(Date.now()),
         name: addForm.name.trim(),
-        company: addForm.company.trim() || "N/A",
-        rawCompany: addForm.company.trim(),
-        phone: addForm.phone.trim() || "N/A",
+        company: addForm.company.trim(),
+        phone: addForm.phone.trim(),
         email: addForm.email.trim(),
         state: addForm.state.trim(),
-        status: "pending",
         interestedService: addForm.service,
         comments: addForm.comments.trim(),
         projectBudget: addForm.quotation.trim(),
         paidAmount: addForm.upfront.trim(),
-        isOldClient: false,
-        important: false,
-        interested: false,
+        isOldClient: returningClient,
+        status: returningClient ? "Close Client" : "pending",
         createdAt: new Date().toISOString(),
-        clientCode: null,
-        contacts: [],
-        noteHistory: addForm.comments.trim()
-          ? [{ id: "init", text: addForm.comments.trim(), createdAt: new Date().toISOString() }]
-          : [],
-      };
-      setLeads(prev => [fresh, ...prev]);
+      });
+
+      const phoneDigits = (fresh.phone ?? "").replace(/\D/g, "");
+      setLeads(prev => {
+        const promoted = phoneDigits.length >= 7
+          ? prev.map(l =>
+              l.phone.replace(/\D/g, "") === phoneDigits ? { ...l, isOldClient: true } : l,
+            )
+          : prev;
+        return [fresh, ...promoted];
+      });
+
+      invalidateAllCsrListCaches();
       closeAddModal();
-      toast.success("Lead added");
+      toast.success(
+        fresh.isOldClient
+          ? "Returning client added — moved to Old Clients"
+          : "Lead added",
+      );
     } catch (err) {
       setAddError(apiErrorMessage(err, "Failed to add lead. Please try again."));
     }
@@ -514,6 +523,17 @@ export default function LeadsPage() {
                               <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{lead.clientCode}</span>
                             )}
                             <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{displayName}</p>
+                            {(() => {
+                              const tz = getCompanyTimezoneAbbr(lead);
+                              return tz ? (
+                                <span
+                                  title={`Company location · ${lead.state || "state"}`}
+                                  className={`inline-flex px-1.5 py-0.5 rounded-md text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}
+                                >
+                                  {tz}
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
                           {displaySub && (
                             <p className="text-[10px] text-gray-400 truncate mt-0.5">{displaySub}</p>
@@ -527,28 +547,20 @@ export default function LeadsPage() {
                       {/* Company */}
                       <p className="hidden lg:block text-xs lg:text-sm text-[#0F172A] truncate">{lead.company}</p>
 
-                      {/* Phone */}
+                      {/* Phone — number + area-code TZ */}
                       <div className="hidden lg:flex items-center gap-1.5 min-w-0">
                         {(() => {
                           const phones = parsePhones(lead.phone);
                           if (phones.length === 0) {
                             return <span className="text-gray-300 text-xs">—</span>;
                           }
-                          const tz = getTimezoneAbbrFromPhone(phones[0]);
-                          if (phones.length <= 1) {
-                            return (
-                              <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 py-1 rounded-xl text-xs lg:text-sm font-medium whitespace-nowrap max-w-full">
-                                <span className="truncate">{phones[0]}</span>
-                                {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                              </div>
-                            );
-                          }
                           return (
-                            <div className="inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2 py-1 rounded-xl text-xs lg:text-sm font-medium whitespace-nowrap max-w-full">
-                              <span className="max-w-[90px] truncate">{phones[0]}</span>
-                              {tz && <span className={`inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(tz)}`}>{tz}</span>}
-                              <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">+{phones.length - 1}</span>
-                            </div>
+                            <PhoneWithTzCell
+                              phone={phones[0]}
+                              extraCount={phones.length > 1 ? phones.length - 1 : 0}
+                              variant="pill"
+                              className="px-2 py-1 text-xs lg:text-sm"
+                            />
                           );
                         })()}
                       </div>

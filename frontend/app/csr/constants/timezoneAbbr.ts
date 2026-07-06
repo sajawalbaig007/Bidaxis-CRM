@@ -161,9 +161,30 @@ export function getTimezoneAbbrFromPhone(phone: string): string | null {
   return AREA_CODE_TZ[areaCode] ?? null;
 }
 
-/** Resolve timezone badge for a lead — state first, then phone area code */
-export function getLeadTimezoneAbbr(lead: { state?: string | null; phone?: string }): string | null {
-  return getTimezoneAbbr(lead.state) ?? (lead.phone ? getTimezoneAbbrFromPhone(lead.phone) : null);
+/** Company / client location timezone — from state (or stored IANA timezone), not phone */
+export function getCompanyTimezoneAbbr(lead: {
+  state?: string | null;
+  timezone?: string | null;
+}): string | null {
+  const fromState = getTimezoneAbbr(lead.state);
+  if (fromState) return fromState;
+  if (!lead.timezone) return null;
+  const tz = lead.timezone.toLowerCase();
+  if (tz.includes("new_york") || tz.includes("detroit") || tz.includes("indiana") || tz.includes("kentucky")) return "ET";
+  if (tz.includes("chicago") || tz.includes("menominee")) return "CT";
+  if (tz.includes("denver") || tz.includes("boise") || tz.includes("phoenix")) return tz.includes("phoenix") ? "MST" : "MT";
+  if (tz.includes("los_angeles") || tz.includes("anchorage")) return tz.includes("anchorage") ? "AKT" : "PT";
+  if (tz.includes("honolulu")) return "HST";
+  return null;
+}
+
+/** @deprecated use getCompanyTimezoneAbbr — kept for existing imports */
+export function getLeadTimezoneAbbr(lead: {
+  state?: string | null;
+  timezone?: string | null;
+  phone?: string;
+}): string | null {
+  return getCompanyTimezoneAbbr(lead);
 }
 
 /** Map lead timezone to one of the 4 standard US zones (ET, CT, MT, PT) */
@@ -174,8 +195,10 @@ export function normalizeStandardTimezone(abbr: string | null): string | null {
   return null; /* AK, HI, etc. — not in standard 4 */
 }
 
+/** Map lead timezone to one of the 4 standard US zones (ET, CT, MT, PT) — phone area code only */
 export function getLeadStandardTimezone(lead: { state?: string | null; phone?: string }): string | null {
-  return normalizeStandardTimezone(getLeadTimezoneAbbr(lead));
+  if (!lead.phone) return null;
+  return normalizeStandardTimezone(getTimezoneAbbrFromPhone(lead.phone));
 }
 
 export function leadMatchesTimezoneFilter(

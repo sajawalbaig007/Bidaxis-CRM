@@ -52,10 +52,12 @@ export function proxy(request: NextRequest) {
 
   const { role, ok } = parseToken(token);
 
-  if (pathname === "/" || pathname === "/login") {
+  if (pathname === "/" || pathname.startsWith("/login")) {
     if (ok && role) {
       return NextResponse.redirect(new URL(homeForRole(role), request.url));
     }
+    if (!ok && pathname.startsWith("/login")) return redirectHomeClearCookie(request);
+    if (!ok && pathname === "/") return NextResponse.next();
     if (!ok) return redirectHomeClearCookie(request);
     return NextResponse.next();
   }
@@ -78,5 +80,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/admin/:path*", "/csr/:path*", "/manager/:path*"],
+  matcher: ["/", "/login/:path*", "/admin/:path*", "/csr/:path*", "/manager/:path*"],
 };

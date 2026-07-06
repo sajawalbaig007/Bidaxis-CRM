@@ -6,7 +6,7 @@ import API from "./api";
 import { visibleInterval } from "./visibleInterval";
 
 const STORAGE_KEY = "crm_login_attempt_ack";
-const POLL_MS = 12_000;
+const POLL_MS = 30_000;
 
 export function useSessionNotifier() {
   const notifiedRef = useRef(0);
