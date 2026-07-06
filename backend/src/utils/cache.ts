@@ -29,6 +29,15 @@ export function invalidatePattern(prefix: string): void {
   }
 }
 
+/** Throttle expensive pipeline heal — max once per CSR per 2 minutes */
+export function shouldSkipThrottledHeal(csrId: string, ttlMs = 120_000): boolean {
+  return getCache(`csr:heal-lock:${csrId}`) !== null;
+}
+
+export function markThrottledHeal(csrId: string, ttlMs = 120_000): void {
+  setCache(`csr:heal-lock:${csrId}`, true, ttlMs);
+}
+
 /** Clear admin leads list + summary caches after any lead mutation */
 export function flushAdminClientsCache(): void {
   invalidateCache("admin:clients:summary", "admin:clients:tab-counts");

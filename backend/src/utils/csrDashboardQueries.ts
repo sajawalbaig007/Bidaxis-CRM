@@ -2,12 +2,16 @@ import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import {
   importantOnlyWhere,
+  isImportantStatusWhere,
   isInterestedStatusWhere,
   scheduledCallWhere,
 } from "./adminClientQueries";
 import { wonClientStatusWhere } from "./projectLeads";
 import { NOT_INTERESTED_LIMIT, NOT_PICKED_LIMIT, activeCsrLeadWhere, mainPipelineWhere, pendingLeadWhere } from "./binLeads";
 import { CSR_DASHBOARD_LEAD_SELECT } from "./csrLeadSelect";
+import {
+  isPotentialClientLead,
+} from "./potentialClientBuckets";
 
 const STATUS_NI = "Not Interested";
 const STATUS_NP = ["not picked", "not completed"] as const;
@@ -174,20 +178,16 @@ export async function fetchCsrTabLeads(opts: {
 
 /** Potential clients — important / schedule / interested only */
 export async function fetchPotentialLeads(csrId: string) {
-  const where: Prisma.LeadWhereInput = {
-    ...activeCsrLeadWhere(csrId),
-    OR: [
-      importantOnlyWhere(),
-      scheduledCallWhere(),
-      isInterestedStatusWhere(),
-    ],
-  };
-
   const rawLeads = await prisma.lead.findMany({
-    where,
+    where: {
+      ...activeCsrLeadWhere(csrId),
+      OR: [isImportantStatusWhere(), isInterestedStatusWhere()],
+    },
     select: LEAD_LIST_SELECT,
     orderBy: { updatedAt: "desc" },
   });
 
-  return rawLeads.map(mapDashboardLead);
+  return rawLeads
+    .filter(isPotentialClientLead)
+    .map(mapDashboardLead);
 }

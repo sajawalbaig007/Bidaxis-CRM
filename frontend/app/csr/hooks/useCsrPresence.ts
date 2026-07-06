@@ -32,7 +32,7 @@ export function useCsrPresence() {
     };
 
     sendHeartbeat();
-    const stopInterval = visibleInterval(sendHeartbeat, 10_000);
+    const stopInterval = visibleInterval(sendHeartbeat, 30_000);
     window.addEventListener("beforeunload", markOffline);
 
     return () => {

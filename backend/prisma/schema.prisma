@@ -156,6 +156,10 @@ model CallLog {
 
   lead Lead @relation(fields: [leadId], references: [id])
   csr  User @relation("CSRCallLogs", fields: [csrId], references: [id])
+
+  @@index([csrId, createdAt])
+  @@index([leadId])
+  @@index([createdAt])
 }
 
 model UploadSource {
