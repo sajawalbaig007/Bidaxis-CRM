@@ -121,6 +121,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
     invalidateAuthMeCache();
     invalidateCsrDashboardCache();
     invalidateAllCsrListCaches();
+    void API.post("/chat/status", { online: true }).catch(() => {});
     hardRedirect(dashboardPathForRole(role));
   }
 

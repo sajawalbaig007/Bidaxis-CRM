@@ -79,13 +79,11 @@ export default function DashboardSidebar() {
 
   const closeChat = () => {
     forceStopChatUnreadPolling();
-    forceStopChatStatusHeartbeat();
     setChatOpen(false);
   };
 
   useEffect(() => () => {
     forceStopChatUnreadPolling();
-    forceStopChatStatusHeartbeat();
   }, []);
 
   const fetchNotifications = () => {
@@ -127,6 +125,7 @@ export default function DashboardSidebar() {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
+      forceStopChatStatusHeartbeat();
       await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
       window.location.href = "/";

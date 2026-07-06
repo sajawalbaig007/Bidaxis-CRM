@@ -3,8 +3,9 @@ import API from "@/lib/api";
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let heartbeatOwners = 0;
 let lastPingAt = 0;
-const PING_TTL_MS = 75_000;
-const HEARTBEAT_MS = 90_000;
+/** Must stay below server auto-offline threshold (15s in server.ts) */
+const PING_TTL_MS = 8_000;
+const HEARTBEAT_MS = 10_000;
 
 function pingOnline(force = false) {
   if (!force && Date.now() - lastPingAt < PING_TTL_MS) return;
@@ -12,10 +13,18 @@ function pingOnline(force = false) {
   void API.post("/chat/status", { online: true }).catch(() => {});
 }
 
+function pingOffline() {
+  lastPingAt = 0;
+  void API.post("/chat/status", { online: false }).catch(() => {});
+}
+
 export function startChatStatusHeartbeat(): void {
   if (typeof window === "undefined") return;
   heartbeatOwners += 1;
-  if (heartbeatTimer) return;
+  if (heartbeatTimer) {
+    pingOnline(true);
+    return;
+  }
 
   pingOnline(true);
   heartbeatTimer = setInterval(() => pingOnline(), HEARTBEAT_MS);
@@ -27,15 +36,15 @@ export function stopChatStatusHeartbeat(): void {
 
   clearInterval(heartbeatTimer);
   heartbeatTimer = null;
-  void API.post("/chat/status", { online: false }).catch(() => {});
+  pingOffline();
 }
 
-/** Hard stop — route change or panel force-close. */
+/** Hard stop — logout or leaving staff app shell. */
 export function forceStopChatStatusHeartbeat(): void {
   heartbeatOwners = 0;
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
-  void API.post("/chat/status", { online: false }).catch(() => {});
+  pingOffline();
 }

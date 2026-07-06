@@ -1,4 +1,4 @@
-import { playChatSound } from "@/lib/chatSound";
+import { playChatSound, primeChatSound } from "@/lib/chatSound";
 import type { ChatConversation } from "./chatConversations";
 import {
   fetchArchivedConversations,
@@ -129,20 +129,18 @@ export async function pollChatUnread(force = false): Promise<number> {
 
       if (!isFirstPoll) {
         let hasNewUnread = false;
-        if (notifOk && typeof Notification !== "undefined") {
-          convs.forEach(c => {
-            const prev = prevById[c.id] ?? 0;
-            if ((c.unreadCount ?? 0) > prev) {
-              hasNewUnread = true;
+        convs.forEach(c => {
+          const prev = prevById[c.id] ?? 0;
+          if ((c.unreadCount ?? 0) > prev) {
+            hasNewUnread = true;
+            if (notifOk && typeof Notification !== "undefined") {
               new Notification("New message", {
                 body: `${c.name}: ${c.lastMessage ?? "You have a new message"}`,
                 icon: "/images/image.png",
               });
             }
-          });
-        } else {
-          hasNewUnread = convs.some(c => (c.unreadCount ?? 0) > (prevById[c.id] ?? 0));
-        }
+          }
+        });
         if (hasNewUnread || total > prevTotal) playChatSound();
       }
 
@@ -192,6 +190,7 @@ function hydrateFromPeek() {
 /** Start interval polling while chat panel is open. Does not fetch immediately. */
 export function ensureChatUnreadPolling(): void {
   if (typeof window === "undefined") return;
+  primeChatSound();
   requestNotifPermissionOnce();
   panelOpenCount += 1;
   hydrateFromPeek();

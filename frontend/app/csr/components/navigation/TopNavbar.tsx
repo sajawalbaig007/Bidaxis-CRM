@@ -123,13 +123,11 @@ export default function TopNavbar() {
 
   const closeChat = () => {
     forceStopChatUnreadPolling();
-    forceStopChatStatusHeartbeat();
     setChatOpen(false);
   };
 
   useEffect(() => () => {
     forceStopChatUnreadPolling();
-    forceStopChatStatusHeartbeat();
   }, []);
 
   useEffect(() => {
@@ -180,6 +178,7 @@ export default function TopNavbar() {
     setLoggingOut(true);
 
     try {
+      forceStopChatStatusHeartbeat();
       await logoutSession(() => API.post("/auth/logout", {}));
       toast.success("Logged out successfully.");
       window.location.href = "/";
