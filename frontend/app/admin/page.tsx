@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import DashboardNavbar  from "./components/layout/Navbar";
@@ -72,7 +72,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const loadOverview = async (force = false) => {
+  const loadOverview = useCallback(async (force = false) => {
     setLoadingOverview(true);
     try {
       const s = await getAdminSummary(force);
@@ -84,11 +84,14 @@ export default function DashboardPage() {
     } finally {
       setLoadingOverview(false);
     }
-  };
+  }, []);
 
-  const chartLeads: ClientLead[] = (summary?.chartLeads ?? []).map(c => ({ createdAt: c.createdAt }));
+  const chartLeads: ClientLead[] = useMemo(
+    () => (summary?.chartLeads ?? []).map(c => ({ createdAt: c.createdAt })),
+    [summary?.chartLeads],
+  );
 
-  const tiles = [
+  const tiles = useMemo(() => [
     { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%", href: `${staffBase}/leads` },
     { label: "Completed",    value: stats?.closed ?? stats?.completed ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%", href: `${staffBase}/leads?tab=closed` },
     { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%", href: `${staffBase}/leads` },
@@ -97,7 +100,7 @@ export default function DashboardPage() {
     { label: "Close Client", value: stats?.projectWon  ?? 0, from: "from-[#7C3AED]", to: "to-[#6D28D9]",  icon: <Trophy       size={15}/>, bar: "30%", href: `${staffBase}/leads?tab=closed` },
     { label: "Online CSRs",  value: stats?.onlineCSRs  ?? 0, from: "from-[#0891B2]", to: "to-[#0E7490]",  icon: <Briefcase    size={15}/>, bar: "55%" },
     { label: "Users Online", value: stats?.totalOnline ?? 0, from: "from-[#4F46E5]", to: "to-[#4338CA]",  icon: <Users        size={15}/>, bar: "65%" },
-  ];
+  ], [stats, staffBase]);
 
   return (
     <div className="flex min-h-screen bg-[#F0F2F8]">

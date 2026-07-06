@@ -26,7 +26,7 @@ import EmailField from "../components/shared/EmailField";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
-import { useCsrDashboard } from "../hooks/useCsrDashboard";
+import { useCsrMiscStatusLeads } from "../hooks/useCsrMiscStatusLeads";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import API from "@/lib/api";
 import StatusWithTimestamp from "../components/shared/StatusWithTimestamp";
@@ -56,7 +56,7 @@ function leadToNiLead(l: Lead): NiLead {
 
 export default function NotInterestedPage() {
   const { leads, setLeads, loading, refetch } = useNotInterested();
-  const { leads: dashboardLeads, loading: dashLoading } = useCsrDashboard();
+  const { leads: dashboardLeads, loading: dashLoading } = useCsrMiscStatusLeads();
 
   const [activeTab, setActiveTab] = useState<FollowUpTab>("notinterested");
   const [search,    setSearch]    = useState("");

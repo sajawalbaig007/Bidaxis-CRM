@@ -264,12 +264,15 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    /* Lightweight: stats + non-pending leads only (pending via /tab-leads) */
     const stats = await getCsrLeadStats(csrId);
     const rawLeads = await prisma.lead.findMany({
       where: {
         assignedTo: csrId,
-        NOT: { inBin: true, status: { equals: "pending", mode: "insensitive" } },
+        NOT: { inBin: true },
+        status: {
+          in: ["no owner available", "not in service", "in house"],
+          mode: "insensitive",
+        },
       },
       select: {
         ...CSR_DASHBOARD_LEAD_SELECT,
@@ -280,13 +283,12 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
         },
       },
       orderBy: { updatedAt: "desc" },
-      take: 2000,
     });
 
     const leads = filterActiveLeads(rawLeads).map(mapDashboardLead);
 
     const payload = { success: true, totalLeads: stats.totalAssigned, stats, leads };
-    setCache(cacheKey, payload, 30_000);
+    setCache(cacheKey, payload, 45_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
