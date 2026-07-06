@@ -1,6 +1,8 @@
 import prisma from "../config/db";
 import { findLeadsByPhone } from "./leadPhoneLookup";
 import { deleteLeadsCascade } from "./deleteLeadsCascade";
+import { wonClientStatusWhere } from "./projectLeads";
+import { notInBinFilter } from "./binLeads";
 
 export function isPendingPipelineStatus(status: string | null | undefined): boolean {
   return (status ?? "").toLowerCase() === "pending";
@@ -61,4 +63,47 @@ export async function hasPriorWonClient(
   }
 
   return false;
+}
+
+/** Drop stale pending call-data rows when the same phone already has a won client. */
+export async function healPendingDuplicatesForCsr(csrId: string): Promise<number> {
+  const wonLeads = await prisma.lead.findMany({
+    where: {
+      assignedTo: csrId,
+      ...wonClientStatusWhere(),
+      ...notInBinFilter(),
+    },
+    select: { id: true, phone: true },
+  });
+
+  let removed = 0;
+  for (const lead of wonLeads) {
+    if (!lead.phone?.trim()) continue;
+    removed += await clearPendingDuplicatesForPhone(lead.phone, csrId, lead.id);
+  }
+  return removed;
+}
+
+/** Keep isOldClient aligned with real repeat business (prior won deal), not duplicate call-data rows. */
+export async function syncWonClientOldFlags(csrId: string): Promise<void> {
+  const wonLeads = await prisma.lead.findMany({
+    where: {
+      assignedTo: csrId,
+      ...wonClientStatusWhere(),
+      ...notInBinFilter(),
+    },
+    select: { id: true, phone: true, company: true, isOldClient: true },
+  });
+
+  await Promise.all(
+    wonLeads.map(async lead => {
+      const shouldBeOld = await hasPriorWonClient(lead.phone, lead.company, lead.id);
+      if (lead.isOldClient !== shouldBeOld) {
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data:  { isOldClient: shouldBeOld },
+        });
+      }
+    }),
+  );
 }

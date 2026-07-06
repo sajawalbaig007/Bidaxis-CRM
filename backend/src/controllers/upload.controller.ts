@@ -8,7 +8,7 @@ import {
   classifyRows,
 } from "../utils/uploadExcelParse";
 import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
-import { isWonClientUploadStatus } from "../utils/leadClientPromotion";
+import { isWonClientUploadStatus, clearPendingDuplicatesForPhone } from "../utils/leadClientPromotion";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 
@@ -287,6 +287,17 @@ export const uploadLeads = async (req: Request, res: Response) => {
 
       for (const r of fresh) {
         distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
+      }
+
+      if (promoteWonClients) {
+        const created = await prisma.lead.findMany({
+          where: { uploadedFileId: uploadedFile.id },
+          select: { id: true, phone: true, assignedTo: true, status: true },
+        });
+        for (const lead of created) {
+          if (!lead.phone?.trim() || !isWonClientUploadStatus(lead.status)) continue;
+          await clearPendingDuplicatesForPhone(lead.phone, lead.assignedTo, lead.id);
+        }
       }
     }
 

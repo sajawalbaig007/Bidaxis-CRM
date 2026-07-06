@@ -1,5 +1,6 @@
 import XLSX from "xlsx";
 import prisma from "../config/db";
+import { findLeadsByPhone } from "./leadPhoneLookup";
 import { isPendingPipelineStatus, isWonClientUploadStatus } from "./leadClientPromotion";
 
 const CHUNK_LOOKUP = 500;
@@ -233,24 +234,33 @@ export async function classifyRows(
       preview.push(toPreview(r, "empty", "Empty row — skipped"));
       continue;
     }
-    if (r.phone && dupPhones.has(r.phone)) {
-      const existing = dupPhoneMap.get(r.phone);
-      if (
-        promoteWonClients &&
-        existing &&
-        !existing.inBin &&
-        isPendingPipelineStatus(existing.status) &&
-        isWonClientUploadStatus(r.status)
-      ) {
-        toPromote.push({ row: r, existingId: existing.id });
+    if (r.phone && hasValidPhone) {
+      const exactExisting = dupPhoneMap.get(r.phone);
+      let pendingMatch = exactExisting &&
+        !exactExisting.inBin &&
+        isPendingPipelineStatus(exactExisting.status)
+        ? exactExisting
+        : undefined;
+
+      if (promoteWonClients && isWonClientUploadStatus(r.status) && !pendingMatch) {
+        const fuzzy = await findLeadsByPhone(r.phone);
+        const fuzzyPending = fuzzy.find(l => !l.inBin && isPendingPipelineStatus(l.status));
+        if (fuzzyPending) pendingMatch = fuzzyPending;
+      }
+
+      if (promoteWonClients && pendingMatch && isWonClientUploadStatus(r.status)) {
+        toPromote.push({ row: r, existingId: pendingMatch.id });
         preview.push(toPreview(r, "updated", "Moved from call-data to clients — pending removed"));
         continue;
       }
-      if (existing && !existing.email && hasValidEmail) {
-        emailUpdates.push({ id: existing.id, email: r.email });
+
+      if (exactExisting || dupPhones.has(r.phone)) {
+        if (exactExisting && !exactExisting.email && hasValidEmail) {
+          emailUpdates.push({ id: exactExisting.id, email: r.email });
+        }
+        preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
+        continue;
       }
-      preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
-      continue;
     }
     if (r.email && dupEmails.has(r.email)) {
       preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
