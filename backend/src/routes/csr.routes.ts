@@ -902,8 +902,6 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    await healPipelineLeaksForCsr(csrId);
-
     const rawLeads = await prisma.lead.findMany({
       where: {
         assignedTo: csrId,

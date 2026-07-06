@@ -42,35 +42,58 @@ export type ClientLead = {
 
 type RawContact = { id?: string; name?: string; designation?: string; phone?: string; email?: string; };
 type RawNote   = { id?: string; text?: string; createdAt?: string; };
-type RawLead = {
+export type RawClientLead = {
   id: string;
   name?: string; company?: string; phone?: string; email?: string; state?: string;
   uploadFile?: { companyName?: string };
   status?: string; interestedService?: string; comments?: string;
+  followUpNotes?: string | null;
   projectBudget?: string | null; paidAmount?: string | null;
-  isOldClient?: boolean; createdAt?: string; clientCode?: string | null;
+  isOldClient?: boolean; createdAt?: string; updatedAt?: string; clientCode?: string | null;
   important?: boolean; interested?: boolean;
   contacts?: RawContact[];
   subContacts?: RawContact[];
   notes?: RawNote[];
 };
 
-export function mapClientLead(l: RawLead): ClientLead {
-  const fullNotes = (l.notes ?? []).filter(n => n.text?.trim());
-  const legacyNote: NoteEntry[] = [];
-  if (fullNotes.length === 0 && l.comments?.trim()) {
-    legacyNote.push({ id: "legacy-comments", text: l.comments.trim(), createdAt: l.createdAt ?? new Date().toISOString() });
+function buildClientNoteHistory(l: RawClientLead): NoteEntry[] {
+  const fromTable = (l.notes ?? [])
+    .filter(n => n.text?.trim())
+    .map((n: RawNote) => ({
+      id:        n.id ?? String(Math.random()),
+      text:      n.text!.trim(),
+      createdAt: n.createdAt ?? new Date().toISOString(),
+    }));
+
+  const legacy: NoteEntry[] = [];
+  if (l.comments?.trim()) {
+    legacy.push({
+      id: "legacy-comments",
+      text: l.comments.trim(),
+      createdAt: l.createdAt ?? new Date().toISOString(),
+    });
+  }
+  if (l.followUpNotes?.trim()) {
+    legacy.push({
+      id: "legacy-followup",
+      text: l.followUpNotes.trim(),
+      createdAt: l.updatedAt ?? l.createdAt ?? new Date().toISOString(),
+    });
   }
 
-  const noteHistory: NoteEntry[] = fullNotes.length > 0
-    ? fullNotes
-        .map((n: RawNote) => ({
-          id:        n.id        ?? String(Math.random()),
-          text:      n.text!.trim(),
-          createdAt: n.createdAt ?? new Date().toISOString(),
-        }))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    : legacyNote;
+  const seen = new Set<string>();
+  const merged = [...fromTable, ...legacy].filter(n => {
+    const key = `${n.text}|${n.createdAt}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export function mapClientLead(l: RawClientLead): ClientLead {
+  const noteHistory = buildClientNoteHistory(l);
 
   return {
     id:                l.id,
@@ -117,7 +140,7 @@ export function useLeadsData() {
     try {
       setLoading(true);
       const res = await csrClientsApi.get(force);
-      setLeads((res.leads as RawLead[] ?? []).map((l) => mapClientLead(l)));
+      setLeads((res.leads as RawClientLead[] ?? []).map((l) => mapClientLead(l)));
       if (res.stats) setStats(res.stats);
     } catch (err) {
       console.log(err);
