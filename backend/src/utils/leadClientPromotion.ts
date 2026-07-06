@@ -73,6 +73,32 @@ export async function hasPriorWonClient(
   return false;
 }
 
+async function migrateNotesBeforeDelete(
+  pendingDupes: Array<{ id: string; comments?: string | null; followUpNotes?: string | null }>,
+  keepLeadId: string,
+): Promise<void> {
+  if (pendingDupes.length === 0) return;
+
+  await prisma.leadNote.updateMany({
+    where: { leadId: { in: pendingDupes.map(l => l.id) } },
+    data:  { leadId: keepLeadId },
+  });
+
+  const keepLead = await prisma.lead.findUnique({
+    where:  { id: keepLeadId },
+    select: { comments: true, followUpNotes: true },
+  });
+
+  for (const dup of pendingDupes) {
+    if (dup.comments?.trim() && !keepLead?.comments?.trim()) {
+      await prisma.lead.update({ where: { id: keepLeadId }, data: { comments: dup.comments } });
+    }
+    if (dup.followUpNotes?.trim() && !keepLead?.followUpNotes?.trim()) {
+      await prisma.lead.update({ where: { id: keepLeadId }, data: { followUpNotes: dup.followUpNotes } });
+    }
+  }
+}
+
 /** Remove duplicate pending call-data rows once the client is won / moved to clients. */
 export async function clearPendingDuplicatesForPhone(
   phone: string | null | undefined,
@@ -91,6 +117,7 @@ export async function clearPendingDuplicatesForPhone(
   );
 
   if (pendingDupes.length === 0) return 0;
+  await migrateNotesBeforeDelete(pendingDupes, keepLeadId);
   return deleteLeadsCascade(pendingDupes.map(l => l.id));
 }
 
@@ -110,10 +137,11 @@ export async function clearPendingDuplicatesForCompany(
       status:     { equals: "pending", mode: "insensitive" },
       ...notInBinFilter(),
     },
-    select: { id: true },
+    select: { id: true, comments: true, followUpNotes: true },
   });
 
   if (pendingDupes.length === 0) return 0;
+  await migrateNotesBeforeDelete(pendingDupes, keepLeadId);
   return deleteLeadsCascade(pendingDupes.map(l => l.id));
 }
 

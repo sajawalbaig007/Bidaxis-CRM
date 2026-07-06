@@ -16,7 +16,7 @@ import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../compone
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { isWonClientStatus } from "../constants/leadStatuses";
-import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry } from "../hooks/useLeadsData";
+import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -329,22 +329,35 @@ export default function LeadsPage() {
   };
 
   /* ─── Notes ────────────────────────────────────────────── */
+  const openNoteHistory = async (leadId: string) => {
+    setNoteLeadId(leadId);
+    setNoteNewText("");
+    try {
+      const res = await API.get(`/csr/lead/${leadId}`);
+      const raw = res.data.lead;
+      if (!raw) return;
+      const mapped = mapClientLead(raw as RawClientLead);
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, noteHistory: mapped.noteHistory } : l));
+    } catch {
+      /* keep preloaded notes */
+    }
+  };
+
   const addNote = async () => {
     if (!noteNewText.trim() || !noteLeadId) return;
     setNoteSaving(true);
     try {
-      const newEntry: NoteEntry = {
-        id: String(Date.now()),
-        text: noteNewText.trim(),
-        createdAt: new Date().toISOString(),
-      };
-      await API.patch(`/csr/lead/${noteLeadId}/note`, { comments: noteNewText.trim() });
+      const res = await API.post(`/csr/lead/${noteLeadId}/notes`, { text: noteNewText.trim() });
+      const saved: NoteEntry = res.data.note
+        ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
+        : { id: String(Date.now()), text: noteNewText.trim(), createdAt: new Date().toISOString() };
       setLeads(prev => prev.map(l =>
         l.id === noteLeadId
-          ? { ...l, comments: noteNewText.trim(), noteHistory: [newEntry, ...l.noteHistory] }
+          ? { ...l, noteHistory: [saved, ...l.noteHistory.filter(n => n.id !== saved.id)] }
           : l
       ));
       setNoteNewText("");
+      invalidateAllCsrListCaches();
       toast.success("Note added");
     } catch { toast.error("Failed to save note"); }
     setNoteSaving(false);
@@ -584,7 +597,7 @@ export default function LeadsPage() {
                       <div className="hidden lg:block">
                         {latestNote ? (
                           <button
-                            onClick={() => { setNoteLeadId(lead.id); setNoteNewText(""); }}
+                            onClick={() => void openNoteHistory(lead.id)}
                             className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-left hover:bg-amber-100 transition-colors w-full max-w-[200px] group"
                           >
                             <p className="text-[10px] text-amber-900 leading-snug line-clamp-2 whitespace-pre-wrap">{latestNote.text}</p>
@@ -594,7 +607,7 @@ export default function LeadsPage() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => { setNoteLeadId(lead.id); setNoteNewText(""); }}
+                            onClick={() => void openNoteHistory(lead.id)}
                             className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-2 text-left hover:bg-gray-100 transition-colors w-full max-w-[200px]"
                           >
                             <p className="text-[10px] text-gray-400 italic">No notes yet</p>
@@ -604,7 +617,7 @@ export default function LeadsPage() {
 
                       {/* Actions */}
                       <div className="flex justify-end lg:justify-center gap-1.5">
-                        <button onClick={() => { setNoteLeadId(lead.id); setNoteNewText(""); }}
+                        <button onClick={() => void openNoteHistory(lead.id)}
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
                           title="Notes history">
                           <StickyNote size={13} />
