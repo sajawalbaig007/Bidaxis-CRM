@@ -5,7 +5,7 @@ import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
 import { getClientIp } from "../utils/requestMeta";
-import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
+import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
 import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import {
@@ -27,14 +27,14 @@ import {
   NOT_INTERESTED_LIMIT,
   NOT_PICKED_LIMIT,
   buildActiveRetryWhere,
+  buildBinWhere,
   filterActiveLeads,
-  isBinLead,
   resolveDeleteBinReason,
   activeCsrLeadWhere,
   pendingLeadWhere,
 } from "../utils/binLeads";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
-import { CSR_DASHBOARD_LEAD_SELECT } from "../utils/csrLeadSelect";
+import { CSR_CLIENT_LIST_SELECT, CSR_DASHBOARD_LEAD_SELECT, CSR_LIST_NOTES_SELECT } from "../utils/csrLeadSelect";
 import {
   fetchCsrTabLeads,
   fetchPotentialLeads,
@@ -68,6 +68,14 @@ async function logStatusChange(csrId: string, leadId: string, status: string) {
   } catch (error) {
     console.log("Failed to log status change", error);
   }
+}
+
+/** Expensive won/pending dedupe — at most once per CSR every 2 minutes */
+async function maybeHealPipelineLeaks(csrId: string): Promise<number> {
+  if (shouldSkipThrottledHeal(csrId)) return 0;
+  const removed = await healPipelineLeaksForCsr(csrId);
+  markThrottledHeal(csrId);
+  return removed;
 }
 
 function getActivityRange(period: string, dateStr: string) {
@@ -207,7 +215,7 @@ router.get("/stats", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const csrId    = req.user.id;
     const cacheKey = `csr:stats:${csrId}`;
 
-    const removed = await healPipelineLeaksForCsr(csrId);
+    const removed = await maybeHealPipelineLeaks(csrId);
     if (removed > 0) invalidateCsrLeadCaches(csrId);
 
     const cached = removed === 0 ? getCache<object>(cacheKey) : null;
@@ -242,7 +250,7 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
 
     let removed = 0;
     if (tab === "pending" || tab === "today") {
-      removed = await healPipelineLeaksForCsr(csrId);
+      removed = await maybeHealPipelineLeaks(csrId);
       if (removed > 0) invalidateCsrLeadCaches(csrId);
     }
 
@@ -326,10 +334,13 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
 
     const rawLeads = await prisma.lead.findMany({
       where: buildActiveRetryWhere(csrId),
-      include: {
-        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
-        notes: { orderBy: { createdAt: "desc" }, take: 20 },
-        subContacts: { orderBy: { createdAt: "asc" } },
+      select: {
+        ...CSR_DASHBOARD_LEAD_SELECT,
+        notes: {
+          orderBy: { createdAt: "desc" as const },
+          take: 5,
+          select: { id: true, text: true, createdAt: true },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });
@@ -901,28 +912,19 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
   try {
     const csrId    = req.user.id;
     const cacheKey = `csr:clients:${csrId}`;
-    await healPipelineLeaksForCsr(csrId);
-    invalidateCache(cacheKey, `csr:stats:${csrId}`);
-    invalidatePattern(`csr:tab:${csrId}:`);
-
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const rawLeads = await prisma.lead.findMany({
       where: {
-        assignedTo: csrId,
+        ...activeCsrLeadWhere(csrId),
         ...wonClientStatusWhere(),
       },
-      include: {
-        uploadFile: { select: CSR_UPLOAD_FILE_SELECT },
-        notes:      { orderBy: { createdAt: "desc" } },
-        subContacts: { orderBy: { createdAt: "asc" } },
-      },
+      select: CSR_CLIENT_LIST_SELECT,
       orderBy: { createdAt: "desc" },
     });
-    const csrLeads = filterActiveLeads(rawLeads);
 
-    const leads = csrLeads.map(lead => ({
+    const leads = rawLeads.map(lead => ({
       ...lead,
       isOldClient: lead.isOldClient,
     }));
@@ -940,7 +942,7 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
       leads,
       stats: { importantCount, interestedCount, pendingCount, totalAssigned },
     };
-    setCache(cacheKey, payload, 30_000);
+    setCache(cacheKey, payload, 45_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -989,7 +991,18 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     const rawLeads = await prisma.lead.findMany({
       where: buildProjectLeadWhere(csrId),
-      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      select: {
+        ...CSR_DASHBOARD_LEAD_SELECT,
+        projectTitle: true,
+        projectCode: true,
+        projectDeadline: true,
+        projectBudget: true,
+        projectNotes: true,
+        clientCode: true,
+        isOldClient: true,
+        projectPayments: true,
+        notes: CSR_LIST_NOTES_SELECT,
+      },
       orderBy: { updatedAt: "desc" },
     });
 
@@ -1073,12 +1086,17 @@ router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
     if (cached) return res.json(cached);
 
     const rawLeads = await prisma.lead.findMany({
-      where:   { assignedTo: csrId },
-      include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
+      where: buildBinWhere(csrId),
+      select: {
+        ...CSR_DASHBOARD_LEAD_SELECT,
+        binReason: true,
+        binPreviousStatus: true,
+        notes: CSR_LIST_NOTES_SELECT,
+      },
       orderBy: { updatedAt: "desc" },
     });
 
-    const leads = rawLeads.filter(isBinLead);
+    const leads = rawLeads;
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);
@@ -1184,10 +1202,18 @@ router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) 
         : (existing?.hiddenAt ?? hiddenAt ?? new Date().toISOString()),
     });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data:  { isOnline: true, lastActive: new Date() },
-    });
+    const now = Date.now();
+    const lastWrite = (existing as { lastDbWrite?: number } | undefined)?.lastDbWrite ?? 0;
+    const shouldWriteDb = tabVisible && now - lastWrite >= 30_000;
+
+    if (shouldWriteDb) {
+      await prisma.user.update({
+        where: { id: userId },
+        data:  { isOnline: true, lastActive: new Date() },
+      });
+      const entry = userBrowserMap.get(userId)!;
+      (entry as { lastDbWrite?: number }).lastDbWrite = now;
+    }
 
     void recordHeartbeatAccess({
       userId,

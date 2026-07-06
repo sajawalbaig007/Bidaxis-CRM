@@ -32,7 +32,7 @@ export function resolveDeleteBinReason(status: string | null | undefined): BinRe
 
 /** Match leads not in bin — includes legacy MongoDB docs where inBin was never persisted */
 export function notInBinFilter(): Prisma.LeadWhereInput {
-  return { inBin: { not: true } };
+  return { NOT: { inBin: true } };
 }
 
 /** Active leads for a CSR (not in bin) — same rules as legacy filterActiveLeads for inBin */

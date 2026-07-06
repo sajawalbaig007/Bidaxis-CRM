@@ -2,9 +2,10 @@ import rateLimit from "express-rate-limit";
 import { PrismaRateLimitStore } from "../utils/rateLimitStore";
 
 const isProd = process.env.NODE_ENV === "production";
+const usePrismaRateStore = process.env.RATE_LIMIT_STORE === "prisma";
 
-const loginStore = isProd ? new PrismaRateLimitStore("rl:login:") : undefined;
-const apiStore   = isProd ? new PrismaRateLimitStore("rl:api:")   : undefined;
+const loginStore = isProd && usePrismaRateStore ? new PrismaRateLimitStore("rl:login:") : undefined;
+const apiStore   = isProd && usePrismaRateStore ? new PrismaRateLimitStore("rl:api:")   : undefined;
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
