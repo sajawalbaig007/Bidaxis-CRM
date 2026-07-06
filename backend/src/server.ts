@@ -24,7 +24,7 @@ let _offlinePaused     = false;
 setInterval(async () => {
   if (_offlinePaused) return;
   try {
-    const threshold = new Date(Date.now() - 15_000);
+    const threshold = new Date(Date.now() - 25_000);
     await prisma.user.updateMany({
       where: { lastActive: { lt: threshold }, isOnline: true },
       data:  { isOnline: false },

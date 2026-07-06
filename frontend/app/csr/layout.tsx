@@ -1,5 +1,6 @@
 import CsrPresenceInit from "./components/CsrPresenceInit";
-import CsrChatNotifier from "./components/CsrChatNotifier";
+import StaffPresenceInit from "../components/StaffPresenceInit";
+import StaffChatNotifier from "../components/StaffChatNotifier";
 import DevToolsGuard from "../components/DevToolsGuard";
 import ChatLayoutCleanup from "../components/chat/ChatLayoutCleanup";
 
@@ -7,8 +8,9 @@ export default function CsrLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <DevToolsGuard allowSelection />
+      <StaffPresenceInit />
       <CsrPresenceInit />
-      <CsrChatNotifier />
+      <StaffChatNotifier />
       <ChatLayoutCleanup />
       {children}
     </>

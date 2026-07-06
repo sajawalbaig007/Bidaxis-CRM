@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import API, { getApiBase, getClientAuthToken } from "@/lib/api";
+import { visibleInterval } from "@/lib/visibleInterval";
 
 export function useCsrPresence() {
   useEffect(() => {
@@ -31,9 +32,11 @@ export function useCsrPresence() {
     };
 
     sendHeartbeat();
+    const stopInterval = visibleInterval(sendHeartbeat, 10_000);
     window.addEventListener("beforeunload", markOffline);
 
     return () => {
+      stopInterval();
       window.removeEventListener("beforeunload", markOffline);
     };
   }, []);
