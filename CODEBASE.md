@@ -2,7 +2,7 @@
 
 > **Project:** CRM Dashboard for BEM Solutions  
 > **Repository:** `CRM/` (monorepo: `backend/` + `frontend/`)  
-> **Last updated:** June 2026
+> **Last updated:** July 2026
 
 ---
 
@@ -22,63 +22,71 @@
 12. [Uploads & Data Import](#12-uploads--data-import)
 13. [Chat System](#13-chat-system)
 14. [Background Jobs (Cron)](#14-background-jobs-cron)
-15. [Caching](#15-caching)
+15. [Caching & Performance](#15-caching--performance)
 16. [External Services](#16-external-services)
 17. [Environment Variables](#17-environment-variables)
 18. [Local Development](#18-local-development)
 19. [Deployment Notes](#19-deployment-notes)
+20. [Quick Reference](#20-quick-reference)
 
 ---
 
 ## 1. Overview
 
-This is a **full-stack Customer Relationship Management (CRM)** system used internally by BEM Solutions. It manages:
+This is a **full-stack Customer Relationship Management (CRM)** system built for **BEM Solutions**. It powers daily sales/CSR operations:
 
-- **Lead assignment** to CSRs (Customer Service Representatives)
-- **Daily call workflows** (pending, not picked, not interested, important, interested, etc.)
-- **Active projects** (won clients with phases, deadlines, payments)
-- **Admin bulk Excel uploads** with CSR distribution
-- **Internal chat** between admin and CSRs
-- **Reports**, audit logs, and security controls
+- **Lead assignment** to CSRs with status workflows (pending, not picked, not interested, important, interested, etc.)
+- **Potential clients** pipeline (important / scheduled / interested)
+- **Client directory** (new vs returning / old clients)
+- **Active projects** (won deals with phases, deadlines, payments)
+- **Admin bulk Excel uploads** with CSR round-robin distribution
+- **Internal real-time chat** (WebSocket + REST fallback)
+- **Reports**, audit logs, access history, and layered security controls
 
 ### User Roles
 
 | Role | Route prefix | Purpose |
 |------|--------------|---------|
-| `admin` | `/admin/*` | Full system control: users, uploads, all leads, reports, bin, projects |
-| `csr` | `/csr/*` | Own assigned leads, status updates, clients, projects, chat |
+| `admin` | `/admin/*` | Full control: users, settings, stealth CSR chat, shuffle, CSR purge, access history |
+| `manager` | `/manager/*` | Leads, reports, projects, uploads, bin — **reuses admin pages** (no Users / Settings) |
+| `csr` | `/csr/*` | Own assigned leads, status updates, clients, projects, bin, chat |
+
+Login requires selecting the correct **portal** (Admin / Manager / CSR). Backend enforces `loginRole` must match account role.
 
 ### Seed Accounts (`backend/prisma/seed.ts`)
 
-| Email | Password | Role |
-|-------|----------|------|
-| `admin@gmail.com` | `123456` | admin |
-| `csr@gmail.com` | `123456` | csr (code: CSR001) |
+| Email | Password | Role | Notes |
+|-------|----------|------|-------|
+| `admin@gmail.com` | `123456` | admin | |
+| `manager@gmail.com` | `123456` | manager | |
+| `csr@gmail.com` | `123456` | csr | `csrCode`: CSR001 |
 
 ---
 
 ## 2. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Browser (Next.js 16)                      │
-│  /admin/*  |  /csr/*  |  / (login)  |  proxy.ts (route guard)   │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              │  /api/auth/set-session       │  httpOnly cookie
-              │  /api/backend/[...path]      │  reverse proxy
-              └──────────────┬──────────────┘
-                             │
-┌────────────────────────────▼────────────────────────────────────┐
-│                   Express 5 API (port 5000)                        │
-│  /api/auth | /api/admin | /api/csr | /api/uploads | /api/chat    │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-         ┌───────────────────┼───────────────────┐
-         ▼                   ▼                   ▼
-    MongoDB            Cloudinary          Gmail SMTP
-   (Prisma ORM)      (files, reports)    (2FA OTP, alerts)
+┌──────────────────────────────────────────────────────────────────────┐
+│                     Browser (Next.js 16 App Router)                   │
+│  /  → portal picker   |   /login/{admin|manager|csr}               │
+│  /admin/*  |  /manager/*  |  /csr/*  |  proxy.ts (route guard)      │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+              ┌─────────────────┴─────────────────┐
+              │  POST /api/auth/set-session        │  httpOnly JWT cookie
+              │  /api/backend/[...path]            │  reverse proxy → Express
+              └─────────────────┬─────────────────┘
+                                │
+┌───────────────────────────────▼──────────────────────────────────────┐
+│              Express 5 API (port 5000) + WebSocket /ws/chat           │
+│  /api/auth | /api/admin | /api/csr | /api/users | /api/uploads      │
+│  /api/reports | /api/report-uploads | /api/chat                     │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+         ┌──────────────────────┼──────────────────────┐
+         ▼                      ▼                      ▼
+    MongoDB               Cloudinary              Gmail SMTP
+   (Prisma ORM)         (files, reports)       (2FA OTP, alerts)
          │
     Cloudflare Turnstile (login CAPTCHA)
     Have I Been Pwned (password breach check)
@@ -86,12 +94,18 @@ This is a **full-stack Customer Relationship Management (CRM)** system used inte
 
 ### Request Flow (Development)
 
-1. Browser calls `/api/backend/csr/dashboard` (same-origin proxy)
-2. Next.js `app/api/backend/[...path]/route.ts` forwards to `http://127.0.0.1:5000/api/csr/dashboard`
-3. Cookie `token` + optional `Authorization: Bearer` header sent to backend
-4. `verifyToken` middleware validates JWT + session binding
+1. Browser calls `/api/backend/csr/stats` (same-origin Next.js proxy)
+2. `frontend/app/api/backend/[...path]/route.ts` forwards to `http://127.0.0.1:5000/api/csr/stats`
+3. Cookie `token` + optional `Authorization: Bearer` + `X-Client-Mac` header sent to backend
+4. `verifyToken` validates JWT, session binding, active account, network access policy
 5. `allowRoles("csr")` checks role
-6. Handler returns JSON
+6. Handler returns JSON (often from in-memory cache)
+
+### Production Topology
+
+- **Frontend:** Vercel (`dashboard.bemsolutions.io`)
+- **Backend:** Render / Node host (`node dist/server.js`)
+- **Database:** MongoDB Atlas (or compatible)
 
 ---
 
@@ -106,9 +120,11 @@ This is a **full-stack Customer Relationship Management (CRM)** system used inte
 | ORM | Prisma 6.19 → **MongoDB** |
 | Auth | JWT + httpOnly cookies, bcryptjs |
 | Security | helmet, cors, express-rate-limit, login lockout |
-| Files | multer (memory), xlsx (Excel parse), Cloudinary |
+| Realtime | `ws` WebSocket (`/ws/chat`) |
+| Files | multer (memory), xlsx (Excel), Cloudinary |
 | Email | Nodemailer (Gmail SMTP) |
 | Dev | ts-node-dev |
+| Prod start | `node dist/server.js` (compiled `dist/` is committed) |
 
 ### Frontend (`frontend/`)
 
@@ -117,7 +133,8 @@ This is a **full-stack Customer Relationship Management (CRM)** system used inte
 | Framework | Next.js 16.2 (App Router), React 19 |
 | Styling | Tailwind CSS v4, CSS variables (light/dark) |
 | HTTP | Axios (`lib/api.ts`) |
-| Charts | Recharts |
+| Realtime | WebSocket client (`lib/chatSocket.ts`) |
+| Charts | Recharts (lazy-loaded on Reports) |
 | Themes | next-themes |
 | Icons | lucide-react, react-icons |
 | PDF | jspdf + jspdf-autotable |
@@ -129,33 +146,40 @@ This is a **full-stack Customer Relationship Management (CRM)** system used inte
 
 ```
 CRM/
-├── CODEBASE.md                 ← this file
+├── CODEBASE.md
 ├── backend/
 │   ├── prisma/
-│   │   ├── schema.prisma       # MongoDB models
-│   │   └── seed.ts             # Default users
+│   │   ├── schema.prisma
+│   │   └── seed.ts
+│   ├── dist/                    # Compiled JS (used by npm start)
 │   └── src/
-│       ├── server.ts           # Entry + cron jobs
-│       ├── app.ts              # Express setup, route mounting
-│       ├── config/             # db, env, cloudinary, security
-│       ├── controllers/        # auth, user, upload, report (5 files)
-│       ├── middleware/         # auth, role, rateLimit, upload, adminIp
-│       ├── routes/             # 8 route modules (most logic inline)
-│       └── utils/              # ~25 domain helpers
+│       ├── server.ts            # HTTP + WS + cron jobs
+│       ├── app.ts               # Express middleware + route mount
+│       ├── chat/
+│       │   ├── chatSocket.ts    # WebSocket server
+│       │   └── chatMessageFormat.ts
+│       ├── config/              # db, env, cloudinary, security
+│       ├── controllers/         # auth, user, upload, report (5 files)
+│       ├── middleware/          # auth, role, rateLimit, upload, adminIp
+│       ├── routes/              # 8 route modules (heavy inline logic)
+│       └── utils/               # ~30 domain helpers
 └── frontend/
-    ├── proxy.ts                # Route guard (replaces middleware.ts)
+    ├── proxy.ts                 # Route guard logic (+ config.matcher)
     ├── app/
-    │   ├── page.tsx            # Login
-    │   ├── layout.tsx          # Root layout, ThemeProvider
-    │   ├── globals.css         # Design tokens + dark mode bridge
+    │   ├── page.tsx             # Portal picker (Admin / Manager / CSR)
+    │   ├── login/[portal]/      # Per-portal login
+    │   ├── layout.tsx           # Root: fonts, theme, toast
     │   ├── api/
-    │   │   ├── auth/           # set-session, clear-session
-    │   │   └── backend/      # Reverse proxy to Express
-    │   ├── admin/              # Admin pages + components
-    │   ├── csr/                # CSR pages + hooks + constants
-    │   └── components/         # Shared UI (chat, projects, theme, tables)
-    └── lib/                    # api, session, caches, chat utilities
+    │   │   ├── auth/            # set-session, clear-session
+    │   │   └── backend/         # Reverse proxy to Express
+    │   ├── admin/               # Admin pages + components
+    │   ├── manager/             # Re-exports admin pages + own sidebar
+    │   ├── csr/                 # CSR pages, hooks, constants, components
+    │   └── components/          # Shared: chat, auth, projects, staff, tables
+    └── lib/                     # api, session, caches, chat, device identity
 ```
+
+> **Note:** `proxy.ts` exports `proxy()` and `config.matcher`. Ensure a root `middleware.ts` re-exports it if your Next.js version requires that wiring for route protection to run.
 
 ---
 
@@ -163,77 +187,70 @@ CRM/
 
 **Provider:** MongoDB (`DATABASE_URL`)  
 **IDs:** `cuid()` mapped to `_id` via `@map("_id")`  
-**Statuses on Lead:** string-based (not Prisma enums) for flexibility
+**Lead statuses:** plain strings (not Prisma enums) for workflow flexibility
 
 ### Models
 
 #### `User`
-Core auth and profile entity.
 
-| Field | Type | Notes |
-|-------|------|-------|
-| `role` | `admin` \| `csr` | Enum |
-| `csrCode` | String? | e.g. CSR001 — used in client codes |
-| `cnic`, `cnicPdfUrl` | String? | Identity docs (Cloudinary) |
-| `profilePic` | String? | Cloudinary URL |
-| `isActive` | Boolean | Deactivated after 90d inactivity (CSR) |
-| `isOnline`, `lastActive` | Boolean, DateTime? | Presence heartbeat |
-| `twoFAEnabled` | Boolean | Email OTP on login |
-| `tokenVersion` | Int | Incremented to invalidate all sessions |
-| `activeSessionId` | String? | Single active session binding |
+| Field | Notes |
+|-------|-------|
+| `role` | `admin` \| `csr` \| `manager` |
+| `csrCode` | e.g. CSR001 — used in `clientCode` generation |
+| `cnic`, `cnicPdfUrl` | Identity docs (Cloudinary) |
+| `profilePic` | Cloudinary URL |
+| `isActive` | `false` after 90-day CSR inactivity (cron) |
+| `isOnline`, `lastActive` | Presence via heartbeat |
+| `twoFAEnabled` | Email OTP on login |
+| `tokenVersion` | Incremented on password change / logout-all |
+| `activeSessionId` | Single active session binding (`sid` in JWT) |
+| `allowedIps[]` | Max 5 in-house approved IPs |
+| `allowedMacAddress` | In-house device ID (via `X-Client-Mac` header) |
+| `temporaryAccessIp/Mac/Until` | Temporary outside access (9–10 hours, auto-expires) |
 
-**Relations:** leads (assigned), callLogs, reports, chat memberships/messages, auditLogs, accessHistory
+**Indexes:** `role`, `isActive`, `lastActive`, `[role,isActive]`, `temporaryAccessUntil`
 
 #### `Lead` (central entity)
+
 | Field | Notes |
 |-------|-------|
 | `status` | Default `"pending"` — see [Lead Statuses](#lead-statuses) |
 | `assignedTo` | FK → User (CSR) |
 | `important`, `interested` | Boolean flags synced with status |
 | `nextSchedule`, `nextTime`, `timezone` | Scheduled important calls |
-| `followUpNotes` | Multi-line try history (Not Interested / Not Picked) |
-| `interestedService` | Service type when interested |
+| `followUpNotes` | Multi-line try history (NI / NP) |
+| `interestedService` | Service when interested |
 | `projectTitle`, `projectCode`, `projectDeadline`, etc. | Active project fields |
 | `projectPhase` | `not_started`, takeoff/pricing/QA phases |
 | `projectPayments` | JSON string of payment entries |
-| `clientCode` | Auto-generated on Close Client: `{csrCode}-{seq}` |
-| `isOldClient` | Auto-set if company had prior won project |
+| `clientCode` | Auto on Close Client: `{csrCode}-01`, etc. |
+| `isOldClient` | Auto if company had prior won project |
 | `notInterestedCount`, `notPickedCount` | Retry counters (limits: 3 / 7) |
-| `inBin`, `binReason`, `binPreviousStatus` | Soft-delete / bin system |
-| `hiddenOnMain` | Hides from CSR main dashboard (special uploads) |
+| `inBin`, `binReason`, `binPreviousStatus` | Bin / soft-delete |
+| `hiddenOnMain` | Hides from CSR main pipeline |
 | `uploadedFileId` | FK → UploadFile |
+| `shuffleAttempts` | Lead shuffle cron counter |
 
-**Indexes:** `assignedTo`, `status`, `phone`, `email`, `company`, `createdAt`, `updatedAt`, composites
+**Indexes:** `assignedTo`, `status`, `phone`, `email`, `company`, `createdAt`, `updatedAt`, `important`, `interested`, `inBin`, `nextSchedule`, `hiddenOnMain`, and multiple composites for tab/bin queries.
 
-#### `LeadNote`
-Timestamped notes per lead (`leadId`, `text`, `createdAt`).
+#### Other Models
 
-#### `SubContact`
-Additional contacts on a lead (name, designation, phone, email).
-
-#### `CallLog`
-CSR status change history (`leadId`, `csrId`, `status`, `createdAt`).
-
-#### `UploadSource`
-Admin-only source tracking with optional `sudoName` (shown to CSRs on leads).
-
-#### `UploadFile`
-Excel upload metadata: `fileName`, `cloudinaryUrl`, `totalLeads`, `uploadCategory`, `sourceId`.
-
-**Upload categories:** `call-data`, `new-client`, `old-client`, `interested`, `important`, `active-projects`
-
-#### `Report`
-Generated or uploaded reports (`reportName`, `reportUrl`, `reportType`, `generatedBy`).
-
-#### `Conversation`, `ConversationMember`, `Message`
-Internal chat: direct + group, file messages, reactions (JSON), replies, mentions, pin, archive.
-
-#### Security / Infra Models
-- `SecurityAuditLog` — login, logout, 2FA, account events
-- `AccessHistory` — per-user login device/IP history
-- `LoginLockout` — failed attempt tracking per key
-- `LoginAttemptAlert` — concurrent login attempt notifications
-- `RateLimitEntry` — Prisma-backed rate limit store (production)
+| Model | Purpose |
+|-------|---------|
+| `LeadNote` | Timestamped notes per lead |
+| `SubContact` | Extra contacts on a lead |
+| `CallLog` | CSR status change history |
+| `UploadSource` | Admin source label + `sudoName` (shown to CSRs) |
+| `UploadFile` | Excel upload metadata + Cloudinary URL |
+| `Report` | Generated or uploaded reports |
+| `Conversation` | Chat thread (direct / group) |
+| `ConversationMember` | Membership, `lastReadAt`, `archivedAt` |
+| `Message` | Text/file/voice; reactions JSON; replies; mentions |
+| `SecurityAuditLog` | Auth & security events |
+| `AccessHistory` | Login/logout/heartbeat per user |
+| `LoginLockout` | Failed login tracking |
+| `LoginAttemptAlert` | Concurrent login attempt notifications |
+| `RateLimitEntry` | Optional Prisma rate-limit store |
 
 ### Entity Relationship (simplified)
 
@@ -250,66 +267,84 @@ Conversation ──< Message >── User (sender)
 
 ## 6. Backend
 
-### Entry Point: `src/server.ts`
+### Entry: `src/server.ts`
 
-1. Loads `.env`, validates env
-2. Starts Express on `PORT` (default **5000**)
-3. Runs background jobs (see [§14](#14-background-jobs-cron))
+1. Loads `.env`, `validateEnv()`
+2. Creates HTTP server, attaches Express app
+3. Initializes WebSocket chat (`initChatSocket` on `/ws/chat`)
+4. Runs background cron jobs (see [§14](#14-background-jobs-cron))
 
-### App Setup: `src/app.ts`
+### App: `src/app.ts`
 
 | Middleware | Purpose |
 |------------|---------|
 | `helmet` | CSP (prod), HSTS, security headers |
-| `cors` | Allowlist: localhost, bemsolutions.io, Vercel, `FRONTEND_URL` |
+| `cors` | localhost, bemsolutions.io, Vercel, `FRONTEND_URL` |
 | `express.json` | 1 MB limit |
 | `cookieParser` | JWT cookie |
-| `apiLimiter` | 300 req/min on `/api` (Prisma store in prod) |
+| `apiLimiter` | 300 req/min on `/api` (in-memory by default) |
 
 ### Route Mounting
 
-| Prefix | File | Default auth |
-|--------|------|--------------|
-| `/api/auth` | `auth.routes.ts` | Mixed |
-| `/api/admin` | `admin.routes.ts` | Admin + IP allowlist |
-| `/api/csr` | `csr.routes.ts` | CSR |
-| `/api/users` | `user.routes.ts` | Authenticated |
-| `/api/uploads` | `upload.routes.ts` | Admin (via controller) |
-| `/api/reports` | `report.routes.ts` | Admin |
-| `/api/report-uploads` | `reportUpload.routes.ts` | Admin |
-| `/api/chat` | `chat.routes.ts` | Authenticated |
+| Prefix | File | Notes |
+|--------|------|-------|
+| `/api/auth` | `auth.routes.ts` | Login, 2FA, profile |
+| `/api/admin` | `admin.routes.ts` | `enforceAdminIpAllowlist` on all routes |
+| `/api/csr` | `csr.routes.ts` | ~1,200 lines — most CSR business logic |
+| `/api/users` | `user.routes.ts` | User CRUD + network policy |
+| `/api/uploads` | `upload.routes.ts` | Excel import |
+| `/api/reports` | `report.routes.ts` | Performance reports |
+| `/api/report-uploads` | `reportUpload.routes.ts` | Manual report files |
+| `/api/chat` | `chat.routes.ts` | Chat REST + admin stealth view |
 
 ### Controllers (`src/controllers/`)
 
 | File | Responsibility |
 |------|----------------|
-| `auth.controller.ts` | Login, logout, register, 2FA OTP, profile, password, audit logs |
-| `user.controller.ts` | updateUser, deleteUser, adminSetUserPassword |
-| `upload.controller.ts` | Excel import, preview, history, delete, patch source |
-| `report.controller.ts` | getReports |
-| `reportUpload.controller.ts` | Manual report upload/delete to Cloudinary |
+| `auth.controller.ts` | Login, 2FA, register, profile, password, audit logs, network policy on login |
+| `user.controller.ts` | User CRUD, network policy fields, admin password reset |
+| `upload.controller.ts` | Excel parse, chunked insert (1000), batched updates (30), CSR distribution |
+| `report.controller.ts` | Period reports + internal 90s/300s cache |
+| `reportUpload.controller.ts` | Report file upload/delete |
 
-> **Note:** Most admin/CSR/chat business logic lives **inline in route files** (~900–1300 lines each), not in controllers.
+> Most admin/CSR lead logic lives **inline in route files**, not controllers.
+
+### Middleware (`src/middleware/`)
+
+| File | Purpose |
+|------|---------|
+| `auth.middleware.ts` | JWT verify, session binding, network access, `lastActive` touch |
+| `role.middleware.ts` | `allowRoles(...)` |
+| `rateLimit.middleware.ts` | Login 15/15min; API 300/min; Prisma store only if `RATE_LIMIT_STORE=prisma` |
+| `adminIp.middleware.ts` | `ADMIN_ALLOWED_IPS` gate on `/api/admin/*` |
+| `upload.middleware.ts` | Multer: images 5MB, Excel 15MB, PDF 10MB |
 
 ### Key Utils (`src/utils/`)
 
 | File | Purpose |
 |------|---------|
-| `binLeads.ts` | Bin filters, limits (NI=3, NP=7), `buildBinWhere` |
-| `projectLeads.ts` | Project lead queries, display filters |
-| `projectPayments.ts` | Payment parsing, totals |
-| `uploadExcelParse.ts` | Excel row parsing |
-| `uploadSourceStats.ts` | Source analytics |
-| `purgeCsrLeads.ts` | CSR lead purge |
+| `cache.ts` | In-memory TTL cache, pattern invalidation, throttled heal lock |
+| `binLeads.ts` | Bin rules (NI=3, NP=7), `buildBinWhere`, pipeline where-clauses |
+| `csrDashboardQueries.ts` | CSR tab stats, paginated tab leads, potential leads |
+| `csrLeadSelect.ts` | Lean Prisma `select` shapes (max 5 notes on client list) |
+| `adminClientQueries.ts` | Admin list filters (important/schedule/interested/closed) |
+| `adminSummaryStats.ts` | Admin dashboard tab counts + chart series |
+| `potentialClientBuckets.ts` | Important / interested / scheduled bucket rules |
+| `leadClientPromotion.ts` | Won-client promotion, pending dedupe, `healPipelineLeaksForCsr` |
+| `leadPhoneLookup.ts` | Returning client phone search |
+| `leadDuplicateCheck.ts` | Phone/email duplicate detection |
+| `projectLeads.ts` | Active/won project filters |
+| `projectPayments.ts` | Payment JSON parse/totals |
+| `networkAccess.ts` | Per-user IP/MAC allowlist + temporary access |
+| `uploadExcelParse.ts` | xlsx row parsing + classification |
+| `uploadCategory.ts` | Upload category enum |
 | `deleteLeadsCascade.ts` | Cascade delete + cache invalidation |
-| `sessions.ts` | OTP store, active session, touch |
+| `purgeCsrLeads.ts` | Bulk purge CSR leads |
+| `sessions.ts` | OTP store, `activeSessionId`, login alerts, browser tab map |
+| `loginLockout.ts` | 8 fails → 30min block; CAPTCHA after 3 |
 | `auditLog.ts` | Security audit writes |
-| `loginLockout.ts` | Brute-force protection |
-| `captcha.ts` | Cloudflare Turnstile verify |
-| `passwordBreach.ts` | HIBP k-anonymity check |
-| `cache.ts` | In-memory TTL cache |
-| `leadPhoneLookup.ts` | Returning client phone lookup |
-| `adminClientQueries.ts` | Admin leads list/summary queries |
+| `accessHistory.ts` | Login/logout/heartbeat history (throttled) |
+| `rateLimitStore.ts` | Prisma-backed express-rate-limit store |
 
 ---
 
@@ -321,199 +356,226 @@ All endpoints prefixed with `/api`. Auth: `verifyToken` unless noted.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/captcha-config` | Public | Turnstile site key + enabled flag |
-| POST | `/login` | Public | Login (rate limited, CAPTCHA after failures) |
-| POST | `/verify-otp` | Public | 2FA OTP verification |
+| GET | `/captcha-config` | Public | Turnstile site key |
+| POST | `/login` | Public | Login (+ portal role, network policy, CAPTCHA) |
+| POST | `/verify-otp` | Public | 2FA OTP |
 | POST | `/resend-otp` | Public | Resend OTP |
-| POST | `/register` | Admin | Create new user |
-| POST | `/logout` | Auth | Logout current session |
-| GET | `/me` | Auth | Current user profile |
-| GET | `/session-status` | Auth | Session validity check |
-| POST | `/session-alert/ack` | Auth | Acknowledge login attempt alert |
-| POST | `/logout-all` | Auth | Invalidate all devices |
-| GET | `/audit-logs` | Admin | Security audit log list |
-| PUT | `/profile` | Auth | Update name, email, etc. |
-| PUT | `/change-password` | Auth | Change own password |
+| POST | `/register` | Admin | Create user |
+| POST | `/logout` | Auth | Logout |
+| GET | `/me` | Auth | Current user |
+| GET | `/session-status` | Auth | Login-attempt alert status |
+| POST | `/session-alert/ack` | Auth | Dismiss alert |
+| POST | `/logout-all` | Admin/Manager | Invalidate all sessions |
+| GET | `/audit-logs` | Admin | Security audit log |
+| PUT | `/profile` | Auth | Update profile |
+| PUT | `/change-password` | Auth | Change password |
 | PUT | `/toggle-2fa` | Auth | Enable/disable 2FA |
 
 ### Admin — `/api/admin`
 
-Protected by `verifyToken` + `allowRoles("admin")` + `enforceAdminIpAllowlist`.
+Protected by `verifyToken` + role + `enforceAdminIpAllowlist`.  
+Many routes allow **`admin` and `manager`**; admin-only routes noted.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/dashboard` | Legacy dashboard stub |
-| GET | `/notifications` | Scheduled important calls (all CSRs) |
-| GET | `/csrs` | Active CSR list (cached) |
-| GET | `/clients/summary` | Dashboard stats + chart data |
-| GET | `/clients` | Paginated leads list (tabs, filters) |
-| GET | `/lead/:id` | Single lead detail |
-| PUT | `/lead/:id` | Update lead |
-| DELETE | `/lead/:id` | Delete lead (cascade) |
-| PUT | `/lead/:id/reassign` | Reassign to another CSR |
-| POST | `/lead/:id/notes` | Add note |
-| PUT/PATCH/DELETE | `/lead/:id/notes/:noteId` | Edit/delete notes |
-| POST/DELETE | `/lead/:id/subcontacts` | Sub-contact CRUD |
-| GET | `/projects` | Active projects list |
-| POST | `/project` | Create project lead |
-| PUT | `/project/:id` | Update project |
-| DELETE | `/project/:id` | Delete project lead |
-| GET | `/lookup-by-phone` | Phone-based client lookup |
-| GET | `/bin` | Bin leads (`buildBinWhere`, cached) |
-| POST | `/shuffle` | Manual lead shuffle trigger |
-| GET/POST/PATCH/DELETE | `/upload-sources` | Upload source CRUD |
-| GET | `/upload-sources/:sourceId` | Source detail + stats |
-| GET | `/access-history/:userId` | User login history |
-| POST | `/migrate-legacy-notes` | One-time notes migration |
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| GET | `/dashboard` | admin | Legacy stub |
+| GET | `/notifications` | admin, manager | Scheduled important calls |
+| GET | `/csrs` | admin, manager | Active CSR list |
+| GET | `/clients/tab-counts` | admin, manager | Tab badge counts |
+| GET | `/clients/summary` | admin, manager | Dashboard stats + charts |
+| GET | `/clients` | admin, manager | Paginated leads (`view`, filters) |
+| GET/PUT/DELETE | `/lead/:id` | admin, manager | Lead CRUD |
+| PUT | `/lead/:id/reassign` | admin, manager | Reassign to CSR |
+| POST/PUT/DELETE | `/lead/:id/notes[/:noteId]` | admin, manager | Notes CRUD |
+| POST/PUT/DELETE | `/lead/:id/subcontacts[/:subId]` | admin, manager | Sub-contacts |
+| GET | `/projects` | admin, manager | Paginated active projects |
+| POST/PUT | `/project`, `/project/:id` | admin, manager | Project CRUD |
+| GET | `/lookup-by-phone` | admin, manager | Phone lookup |
+| GET | `/bin` | admin, manager | Bin leads (`buildBinWhere`) |
+| PUT | `/csr-status/:id` | admin | Activate/deactivate CSR |
+| GET | `/csr-history/:csrId` | admin | CSR history |
+| DELETE | `/csr-leads/:csrId` | admin | Purge all CSR leads |
+| GET | `/shuffle-status` | admin | Shuffle preview |
+| POST | `/run-shuffle` | admin | Manual shuffle |
+| GET/POST/PATCH/DELETE | `/upload-sources[/:id]` | admin, manager | Upload sources |
+| GET | `/access-history/:userId` | admin | User access history |
+| POST | `/migrate-legacy-notes` | admin | One-time migration |
 
 ### CSR — `/api/csr`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/dashboard` | CSR main leads (cached ~28s) |
+| GET | `/stats` | Tab counts (cached; throttled pipeline heal) |
+| GET | `/tab-leads` | Paginated leads by tab (`today`, `pending`, `important`, etc.) |
+| GET | `/potential-leads` | Important / schedule / interested bucket |
+| GET | `/dashboard` | Legacy full dashboard payload (cached) |
+| GET | `/clients` | Won clients (new vs old; cache-first, lean notes) |
 | GET | `/leads` | Client directory leads |
-| GET | `/not-interested` | NI + NP retry leads (cached) |
-| GET | `/bin` | CSR bin leads (cached) |
-| GET | `/projects` | Active projects (cached) |
-| GET | `/notifications` | Scheduled calls + 24h activity stats |
-| GET | `/activity-report` | CSR activity by date range |
-| GET | `/lead/:id` | Lead detail |
-| PUT | `/lead/:id` | Update lead + status logic (NI/NP limits) |
-| POST | `/lead` | Manual lead create |
-| PUT | `/lead/:id/assign` | Manual assign after limit reached |
+| GET | `/not-interested` | NI / NP retry leads |
+| GET | `/bin` | Bin leads (`buildBinWhere` DB query) |
+| GET | `/projects` | Active projects |
+| GET | `/notifications` | Scheduled calls + 24h stats |
+| GET | `/activity-report` | Activity by date range |
+| GET/POST/PUT | `/lead`, `/lead/:id` | Lead CRUD + status workflow |
+| PUT | `/lead/:id/assign` | CSR-to-CSR assign |
 | GET | `/lookup-by-phone` | Returning client lookup |
-| GET | `/csrs` | Other active CSRs (for reassignment) |
-| POST | `/heartbeat` | Presence ping (`isOnline`, `lastActive`) |
-| POST | `/offline` | Mark offline (beacon on tab close) |
-| POST/PUT/DELETE | `/lead/:id/notes` | Notes CRUD |
-| POST/DELETE | `/lead/:id/subcontacts` | Sub-contacts |
+| GET | `/csrs` | Peer CSR list |
+| POST | `/project` | Create project lead |
+| POST | `/heartbeat` | Presence (DB write throttled to 30s) |
+| POST | `/offline` | Mark offline (beacon) |
+| POST/PUT/DELETE | `/lead/:id/notes`, `/subcontacts` | Notes & sub-contacts |
 
 ### Uploads — `/api/uploads`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/` | Upload Excel → parse → distribute to CSRs |
-| POST | `/preview` | Dry-run preview (duplicates, counts) |
-| GET | `/latest` | Latest upload metadata |
-| GET | `/history` | Upload history |
-| PATCH | `/:id/source` | Assign/change upload source |
-| DELETE | `/:id` | Delete upload + cascade leads |
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| POST | `/` | admin, manager | Excel upload → distribute |
+| POST | `/preview` | admin, manager | Dry-run preview |
+| GET | `/latest`, `/history` | admin, manager | Upload metadata |
+| PATCH | `/:id/source` | admin, manager | Change source |
+| DELETE | `/:id` | admin, manager | Delete upload + cascade |
 
-### Reports — `/api/reports` & `/api/report-uploads`
+### Reports
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/reports/` | List reports |
-| POST | `/report-uploads/` | Upload report file to Cloudinary |
-| DELETE | `/report-uploads/:id` | Delete report |
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| GET | `/reports/` | admin, manager | CSR performance report |
+| POST | `/report-uploads/` | admin | Upload report file |
+| DELETE | `/report-uploads/:id` | admin | Delete report |
 
 ### Chat — `/api/chat`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/conversations` | List conversations (optional `?archived=1`) |
-| POST | `/conversations` | Create direct or group |
-| DELETE | `/conversations/:id` | Delete conversation |
-| GET | `/conversations/:id/messages` | Messages + pinned message |
-| POST | `/conversations/:id/messages` | Send text/file (up to 200 MB) |
-| PATCH | `/messages/:id` | Edit message |
-| DELETE | `/messages/:id` | Delete message |
-| POST | `/messages/:id/reactions` | Add/remove reaction |
+| GET | `/conversations` | List (`?archived=1`) |
+| POST | `/conversations` | Create direct/group |
+| DELETE | `/conversations/:id` | Delete/leave |
+| GET/POST | `/conversations/:id/messages` | Fetch/send (files up to 200 MB) |
+| PATCH/DELETE | `/messages/:id` | Edit (10 min) / delete |
+| POST | `/messages/:id/reactions` | Toggle reaction |
 | POST | `/conversations/:id/read` | Mark read |
-| POST/GET | `/conversations/:id/typing` | Typing indicators (in-memory) |
+| POST/GET | `/conversations/:id/typing` | Typing (in-memory + WS) |
 | POST | `/conversations/:id/pin` | Pin message |
-| POST | `/conversations/:id/archive` | Archive |
-| POST | `/conversations/:id/unarchive` | Unarchive |
-| POST | `/status` | Online/offline status |
-| GET | `/users` | Chat user directory |
+| POST | `/conversations/:id/archive` \| `/unarchive` | Per-user archive |
+| POST | `/status` | Online/offline heartbeat |
+| GET | `/users` | Chat directory |
 | GET | `/conversations/:id/members` | Group members |
+| GET | `/admin/view/:csrId/conversations` | Admin stealth CSR chat list |
+| GET | `/admin/view/:csrId/.../messages` | Admin read CSR messages |
 
 ### Users — `/api/users`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | Admin/CSR | User list |
+| Method | Path | Roles | Description |
+|--------|------|-------|-------------|
+| GET | `/` | admin, csr, manager | User list (CNIC masked for non-admin) |
 | POST | `/upload-pic` | Auth | Profile picture |
-| POST | `/upload-cnic` | Admin | CNIC PDF upload |
-| PUT | `/:id` | Admin | Update user |
-| PUT | `/:id/password` | Admin | Set user password |
-| DELETE | `/:id` | Admin | Delete user |
+| POST | `/upload-cnic` | admin | CNIC PDF |
+| PUT | `/:id` | admin | Update user + network policy |
+| PUT | `/:id/password` | admin | Reset password |
+| DELETE | `/:id` | admin | Delete user + chat cascade |
 
 ---
 
 ## 8. Frontend
 
-### Routing
+### Routes
 
 | Path | Page | Role |
 |------|------|------|
-| `/` | Login | Public |
+| `/` | Portal picker | Public |
+| `/login/admin` \| `/login/manager` \| `/login/csr` | Login + 2FA | Public |
 | `/admin` | Dashboard | Admin |
-| `/admin/users` | User management | Admin |
+| `/admin/users` | User management + IP/MAC policy | Admin only |
 | `/admin/leads` | All leads | Admin |
-| `/admin/reports` | CSR performance reports | Admin |
+| `/admin/reports` | CSR performance | Admin |
 | `/admin/active-projects` | Project DB | Admin |
 | `/admin/uploads` | Excel uploads | Admin |
 | `/admin/bin` | Bin (all CSRs) | Admin |
-| `/admin/settings` | Admin profile / 2FA | Admin |
-| `/csr` | Call Data (main dashboard) | CSR |
-| `/csr/potential-clients` | Important / scheduled / interested | CSR |
-| `/csr/not-interested` | NI, NP, No Owner, Not In Svc, In House | CSR |
+| `/admin/settings` | Profile, 2FA, audit logs | Admin only |
+| `/manager` | Dashboard (re-export) | Manager |
+| `/manager/leads` … `/manager/bin` | Same admin pages | Manager |
+| `/csr` | Call Data main dashboard | CSR |
+| `/csr/potential-clients` | Important / schedule / interested | CSR |
+| `/csr/not-interested` | NI, NP, misc statuses | CSR |
 | `/csr/clients` | Client directory | CSR |
 | `/csr/active-projects` | CSR projects | CSR |
 | `/csr/bin` | CSR bin | CSR |
 | `/csr/chat` | Full-page chat | CSR |
+| `/csr/settings` | CSR 2FA settings | CSR |
+
+### Layouts
+
+| Layout | Initializes |
+|--------|-------------|
+| `app/layout.tsx` | Fonts, `ThemeProvider`, toast |
+| `app/admin/layout.tsx` | `StaffPresenceInit`, `StaffChatNotifier`, `ChatLayoutCleanup` |
+| `app/manager/layout.tsx` | Same as admin |
+| `app/csr/layout.tsx` | Above + `DevToolsGuard`, `CsrPresenceInit` |
 
 ### Route Protection: `frontend/proxy.ts`
 
-- Validates JWT `exp` + `sid` from httpOnly cookie
-- Redirects unauthenticated users from `/admin`/`/csr` → `/`
-- Redirects logged-in users from `/` → role dashboard
-- Cross-role redirect (admin ↔ csr)
-- Invalid/expired token → clear cookie, redirect home
+- Parses JWT from httpOnly `token` cookie (`role`, `exp`, `sid`)
+- Protects `/admin`, `/manager`, `/csr`
+- Redirects unauthenticated → `/`
+- Redirects authenticated at `/` or `/login/*` → role home
+- Cross-role redirects to correct portal
 
 ### API Client: `lib/api.ts`
 
-- Axios with `withCredentials: true`, 30s timeout
-- Browser (localhost): base URL `/api/backend` (Next.js proxy)
-- Production: `NEXT_PUBLIC_API_URL` or `/api/backend`
-- Dual auth: httpOnly `token` cookie + `sessionStorage` mirror (`crm_api_token`) for Bearer header
-- **401 on `/admin` or `/csr`:** clear session → redirect to login
+- Axios, `withCredentials: true`, 30s timeout
+- Dev: base URL `/api/backend` (Next.js proxy)
+- Prod: `NEXT_PUBLIC_API_URL` or `/api/backend`
+- Sends `Authorization: Bearer` from `sessionStorage` + `X-Client-Mac` from `deviceIdentity.ts`
+- **401** on `/admin` or `/csr` → clear session → redirect `/`
 
 ### Session: `lib/session.ts`
 
-- `setFrontendSession(token)` → POST `/api/auth/set-session` + sessionStorage mirror
-- `clearFrontendSession()` / `logoutSession()`
-- `dashboardPathForRole()` → `/admin` or `/csr`
+1. Login → backend JWT
+2. `setFrontendSession(token)` → httpOnly cookie + `sessionStorage` mirror
+3. `dashboardPathForRole()` → `/admin`, `/manager`, or `/csr`
 
-### Caching (`lib/`)
+### CSR Data Architecture
 
-| Module | Endpoint | TTL |
-|--------|----------|-----|
-| `authMeCache.ts` | `/auth/me` | 60s |
-| `adminSummaryCache.ts` | `/admin/clients/summary` | 90s |
-| `csrDashboardCache.ts` | `/csr/dashboard` | 28s |
-| `csrApiCache.ts` | leads, bin, projects, NI | 28s each |
+Main dashboard (`/csr`) uses **`useCsrTabPage`** hooks:
 
-### Key Frontend Patterns
+| Hook / API | Source |
+|------------|--------|
+| `useCsrStats` | `GET /csr/stats` via `csrTabApiCache` |
+| `useCsrTabLeads` | `GET /csr/tab-leads` (paginated per tab) |
+| `usePotentialLeads` | `GET /csr/potential-leads` |
 
-- Almost all pages are **`"use client"`** (no React Query/Redux)
-- **CSR table system:** `csrTableStyles.tsx` — fixed columns, shared thead classes
-- **Column filters:** `components/table/columnFilters.tsx` — `useColumnFilters`, `FilterableTh`
-- **Project workbench:** `ProjectWorkbenchModal.tsx` — shared admin/CSR project editor
-- **Theme:** `next-themes` + CSS variables in `globals.css` (dark mode bridge for legacy classes)
-- **Chat polling:** Only while chat panel/page is open (`ensureChatUnreadPolling` / `stopChatUnreadPolling`)
+Other CSR pages use dedicated hooks + `csrApiCache`:
 
-### Lead Statuses (CSR constants: `csr/constants/leadStatuses.ts`)
+- `useLeadsData` → `/csr/clients`
+- `useProjectsData` → `/csr/projects`
+- `useBinData` → `/csr/bin`
+- `useNotInterested` → `/csr/not-interested`
 
-| Status string | Display | Notes |
-|---------------|---------|-------|
-| `pending` | Pending | Default, today's calls |
-| `not picked` / `not completed` | Not Picked | Limit: 7 tries |
-| `Not Interested` / `completed` | Not Interested | Limit: 3 tries |
-| `no owner available` | No Owner Available | Follow-up tab |
-| `not in service` | Not In Service | Follow-up tab |
-| `in house` | In House | Follow-up tab |
+Legacy `useCsrDashboard` (`/csr/dashboard`) exists but main page no longer uses it.
+
+### Admin / Manager Shared Pages
+
+Manager routes **re-export** admin page components. `useStaffBase()` / `useStaffSidebar()` switch paths between `/admin` and `/manager`. Manager sidebar omits Users and Settings.
+
+### Key UI Patterns
+
+- **CSR tables:** `csrTableStyles.tsx` — shared column layout
+- **Column filters:** `components/table/columnFilters.tsx`
+- **Project editor:** `ProjectWorkbenchModal.tsx` — admin + CSR
+- **Client history:** `ClientHistoryModal.tsx` — old client services & revenue
+- **Theme:** `next-themes` + `globals.css` CSS variables
+- **Staff shell:** `StaffPageShell.tsx`, `StaffMobileNav.tsx`
+
+### Lead Statuses (`csr/constants/leadStatuses.ts`)
+
+| Status | Display | Notes |
+|--------|---------|-------|
+| `pending` | Pending | Default |
+| `not picked` / `not completed` | Not Picked | Limit: 7 |
+| `Not Interested` / `completed` | Not Interested | Limit: 3 |
+| `no owner available` | No Owner | Misc tab |
+| `not in service` | Not In Service | Misc tab |
+| `in house` | In House | Misc tab |
 | `important` | Important | + schedule fields |
 | `interested` | Interested | + `interestedService` |
 | `Close Client` | Close Client | Becomes active project |
@@ -524,24 +586,28 @@ Protected by `verifyToken` + `allowRoles("admin")` + `enforceAdminIpAllowlist`.
 
 ### Login Flow
 
-1. `POST /api/auth/login` with email, password, optional Turnstile token, remember-me
-2. Login lockout check → CAPTCHA if needed → bcrypt verify
-3. Optional HIBP password breach check
-4. If 2FA enabled → OTP emailed → `POST /api/auth/verify-otp`
-5. JWT issued with: `id`, `role`, `tv` (tokenVersion), `sid` (activeSessionId)
-6. Frontend: `setFrontendSession(token)` → httpOnly cookie (7 days) + sessionStorage
-7. Hard redirect to `/admin` or `/csr`
+1. User picks portal → `/login/{admin|manager|csr}`
+2. `POST /api/auth/login` with email, password, `loginRole`, optional Turnstile
+3. Lockout check → CAPTCHA if needed → bcrypt verify
+4. **Network access policy** evaluated (IP + `X-Client-Mac`)
+5. Optional HIBP breach check
+6. If 2FA → OTP email → `POST /api/auth/verify-otp`
+7. JWT: `{ id, role, tv, sid }`
+8. `setFrontendSession(token)` → httpOnly cookie (7 days) + sessionStorage
+9. `POST /chat/status { online: true }` → redirect to dashboard
 
 ### Session Binding
 
-- **One active session per user** (`activeSessionId` in DB must match JWT `sid`)
-- `tokenVersion` incremented on password change / logout-all → invalidates old tokens
-- `verifyToken` middleware rejects missing `sid`, version mismatch, deactivated account
+- **One active session** per user (`activeSessionId` must match JWT `sid`)
+- `tokenVersion` incremented on password change / logout-all
+- `verifyToken` rejects: missing `sid`, version mismatch, deactivated account, failed network policy
 
-### JWT Cookie
+### Per-User Network Access (`utils/networkAccess.ts`)
 
-Set via `app/api/auth/set-session/route.ts`:
-- `httpOnly: true`, `sameSite: lax`, `secure` in production, `path: /`, `maxAge: 7 days`
+- **In-house:** up to 5 `allowedIps` + one `allowedMacAddress`
+- **Temporary outside:** `temporaryAccessIp/Mac` with `temporaryAccessUntil` (9 or 10 hours)
+- Frontend sends persistent device ID as `X-Client-Mac` (`lib/deviceIdentity.ts`)
+- Enforced on login, OTP verify, and every authenticated request
 
 ---
 
@@ -552,28 +618,29 @@ Set via `app/api/auth/set-session/route.ts`:
 | Control | Implementation |
 |---------|----------------|
 | Password hashing | bcryptjs (10 rounds) |
-| JWT secret | Min 32 chars required in production |
-| Rate limiting | Login: 15/15min; API: 300/min |
-| Login lockout | Prisma-backed after failed attempts |
-| CAPTCHA | Cloudflare Turnstile after lockout threshold |
-| Password breach | Have I Been Pwned (k-anonymity API) |
-| Admin IP allowlist | `ADMIN_ALLOWED_IPS` env (comma-separated) |
-| Helmet | CSP, HSTS in production |
-| CORS | Strict origin allowlist |
-| Audit logs | `SecurityAuditLog` for auth events |
-| Access history | Per-login IP, user-agent, device |
+| JWT secret | Min 32 chars in production |
+| Rate limiting | Login 15/15min; API 300/min (in-memory default) |
+| Login lockout | Prisma `LoginLockout` — 8 fails / 30min |
+| CAPTCHA | Cloudflare Turnstile after 3 fails |
+| Password breach | Have I Been Pwned k-anonymity |
+| Admin IP allowlist | `ADMIN_ALLOWED_IPS` on login + `/api/admin/*` |
+| Per-user network policy | IP/MAC allowlist + temporary access |
+| Portal role gate | Login role must match account role |
+| Helmet + CORS | CSP (prod), HSTS, origin allowlist |
+| Audit logs | `SecurityAuditLog` |
+| Access history | IP, user-agent, device per login/heartbeat |
 | CSR auto-deactivate | 90 days without `lastActive` |
-| File upload limits | Images 5MB, Excel 15MB, PDF 10MB, reports vary |
-| Body size | 1 MB JSON limit |
+| File upload limits | Images 5MB, Excel 15MB, PDF 10MB |
+| CNIC masking | Non-admins see masked CNIC |
 
 ### Frontend
 
 | Control | Implementation |
 |---------|----------------|
-| Route guard | `proxy.ts` — role + expiry check |
-| DevTools guard | `DevToolsGuard.tsx` — blocks shortcuts (strict on login) |
-| Session invalidation | Axios 401 interceptor → logout redirect |
-| CNIC masking | Backend masks CNIC in responses |
+| Route guard | `proxy.ts` |
+| DevTools guard | `DevToolsGuard.tsx` on CSR layout |
+| Session invalidation | Axios 401 interceptor |
+| Device identity | `localStorage` device ID for MAC header |
 
 ---
 
@@ -581,43 +648,42 @@ Set via `app/api/auth/set-session/route.ts`:
 
 ### CSR Main Dashboard (`/csr`)
 
-- Shows leads where `hiddenOnMain = false`
-- Tabs: Today, Pending, Not Picked, Not Interested, No Owner, Not In Svc, In House, Important, Schedule, Interested, Close Client
-- Status update via dropdown → modals for Important, Interested, Close Client, etc.
-- Filters: state, timezone, phone code, upload source (sudo name)
+- Uses `/csr/stats` + `/csr/tab-leads` (paginated, DB-level filters)
+- Tabs: Today, Pending, Important, Schedule, Interested, Project Won, etc.
+- Client-side filters: state, timezone, phone code, upload source
+- Status changes open modals (Important, Interested, Project Won, etc.)
+
+### Potential Clients (`/csr/potential-clients`)
+
+- `fetchPotentialLeads`: broad DB query (important OR interested), then in-memory bucket filter via `potentialClientBuckets.ts`
+- Buckets: important-only, scheduled call, interested
 
 ### Not Interested / Not Picked Limits
 
-When CSR sets status to **Not Interested**:
-- `notInterestedCount++`
-- Append line to `followUpNotes`
-- If count ≥ **3** → `inBin: true`, `binReason: limit-not-interested` → needs manual CSR reassignment
-
-When CSR sets **not picked**:
-- `notPickedCount++`
-- If count ≥ **7** → bin with `limit-not-picked`
+- **Not Interested:** `notInterestedCount++` → at **3** → `inBin: true`, `binReason: limit-not-interested`
+- **Not picked:** `notPickedCount++` → at **7** → bin with `limit-not-picked`
+- Bin leads need manual CSR reassignment
 
 ### Bin System (`utils/binLeads.ts`)
 
-A lead is in bin if:
-- `inBin === true`, OR
-- Not Picked count ≥ 7, OR
-- Not Interested count ≥ 3
-
-Admin bin uses `buildBinWhere()` for efficient DB query (not full table scan).
+Lead is in bin if `inBin === true` OR NP count ≥ 7 OR NI count ≥ 3.  
+`buildBinWhere(csrId)` powers efficient DB queries (no full-table scan).
 
 ### Close Client → Project
 
-- Status `Close Client` triggers auto `clientCode` (`{csrCode}-01`, etc.)
-- `isOldClient` auto-detected from prior won leads with same company
+- Status `Close Client` → auto `clientCode` (`{csrCode}-01`, …)
+- `isOldClient` from prior won leads with same company
 - Appears in Active Projects with phases, deadlines, payments
+
+### Pipeline Heal
+
+`healPipelineLeaksForCsr` dedupes won/pending conflicts — throttled to once per CSR per 2 minutes via `shouldSkipThrottledHeal`.
 
 ### Lead Shuffle (Cron)
 
-- Runs every **2 days** at midnight
-- Reassigns `not completed` leads to **other** CSRs (round-robin)
-- Max **3 shuffle attempts** → lead deleted
-- Report saved to Cloudinary
+- Midnight, then every **2 days**
+- Reassigns `not completed` leads to other CSRs (round-robin)
+- Max **3 shuffle attempts** → lead deleted; report saved to Cloudinary
 
 ---
 
@@ -625,80 +691,136 @@ Admin bin uses `buildBinWhere()` for efficient DB query (not full table scan).
 
 ### Admin Upload Flow (`/admin/uploads`)
 
-1. Select file → modal wizard:
-   - **Category** (call-data, important, interested, active-projects, etc.)
-   - **Reset mode** (keep / reset call data — snapshots before delete)
-   - **Company** name
-   - **Source** (optional — admin name + sudo name for CSR; can **Skip**)
-   - **CSR selection** + preview
-2. `POST /api/uploads` with FormData
-3. Excel parsed → duplicates detected by phone/email
-4. Leads distributed round-robin to selected CSRs
-5. File archived to Cloudinary
+1. Wizard: category, reset mode, company, source (optional), CSR selection, preview
+2. `POST /api/uploads` — Excel parsed, duplicates by phone/email
+3. Leads distributed round-robin to selected CSRs
+4. File archived to Cloudinary
+
+### Upload Categories
+
+`call-data`, `new-client`, `old-client`, `interested`, `important`, `active-projects`
 
 ### Upload Source
 
-- `UploadSource.name` — admin-only label
-- `UploadSource.sudoName` — shown to CSRs as `sourceSudoName` on leads
-- Optional on upload; can assign later from upload history
+- `name` — admin-only label
+- `sudoName` — shown to CSRs as lead source
 
 ---
 
 ## 13. Chat System
 
-### Architecture
+### Architecture (WebSocket-first)
 
-- **Polling-based** (no WebSockets)
-- Polling **only when chat is open** (ChatPanel mount or `/csr/chat` page)
-- Global store: `lib/chatUnreadStore.ts` — deduped requests, 4s visible / 15s hidden interval
+```
+StaffPresenceInit → connectWebSocket() + startChatStatusHeartbeat()
+StaffChatNotifier → initChatRealtime() → chatUnreadStore
+ChatPanel / TopNavbar / AdminChatPanel → UI
+```
+
+- **WebSocket:** `ws://host/ws/chat` (JWT `token` query param)
+- **REST fallback:** polling when WS disconnected
+- **Global unread:** `chatUnreadStore.ts` — WS `conversation:update` + 60s HTTP fallback
+
+### WebSocket Events (`chat/chatSocket.ts`)
+
+Client: `ping`, `presence`, `watch`, `typing`  
+Server: `message:new`, `message:edit`, `message:delete`, `message:reaction`, `message:pinned`, `conversation:update`, `read`, `presence`, `typing`
 
 ### Features
 
 - Direct + group conversations
-- Text, image, file, voice messages (Cloudinary)
-- Reactions, replies, mentions, pin, archive
-- Typing indicators (in-memory `typingMap` on backend)
-- Read receipts via `lastReadAt` on `ConversationMember`
-- Offline message queue (`chatOfflineQueue.ts`)
-- Sound ping (`chatSound.ts`) + browser notifications
+- Text, image, file, voice (Cloudinary, up to 200 MB)
+- Reactions, replies, mentions, pin, per-user archive
+- Read receipts via `lastReadAt`
+- Offline queue: `chatOfflineQueue.ts` (localStorage)
+- Sound + browser notifications: `chatSound.ts`
+- **Admin stealth mode:** `AdminChatPanel` → view CSR conversations read-only
 
-### Chat Panel
+### Entry Points
 
-- Admin: `AdminChatPanel` (re-exports `ChatPanel`) from sidebar message icon
-- CSR: `ChatPanel` from `TopNavbar` or full `/csr/chat` page
+| Portal | Chat UI |
+|--------|---------|
+| Admin | `AdminChatPanel` in sidebar (stealth CSR view) |
+| Manager | `ChatPanel` in sidebar |
+| CSR | `ChatPanel` in `TopNavbar` or `/csr/chat` page |
 
 ---
 
 ## 14. Background Jobs (Cron)
 
-| Job | Schedule | File | Purpose |
-|-----|----------|------|---------|
-| Auto-offline | Every 5s | `server.ts` | `isOnline: false` if `lastActive` > 15s ago |
-| Daily report | 3:30 AM daily | `server.ts` | Yesterday's leads → JSON on Cloudinary → `Report` |
-| Lead shuffle | Midnight, every 2 days | `server.ts` | Reassign not-completed leads |
-| CSR deactivation | Every 24h + on start | `server.ts` | Deactivate CSRs inactive 90+ days |
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| Auto-offline | Every **60s** | `isOnline: false` if `lastActive` > **90s** ago; circuit breaker on DB failures |
+| Daily report | **3:30 AM** daily | Yesterday's leads → JSON → Cloudinary → `Report` |
+| Lead shuffle | Midnight, every **2 days** | Reassign not-completed leads |
+| CSR deactivation | Every **24h** + on startup | Deactivate CSRs inactive 90+ days |
+
+Manual shuffle: `POST /api/admin/run-shuffle`
 
 ---
 
-## 15. Caching
+## 15. Caching & Performance
 
-**Backend:** In-memory TTL cache (`utils/cache.ts`)
+### Backend Cache (`utils/cache.ts`)
 
-| Key pattern | Used for |
-|-------------|----------|
-| `admin:clients:summary` | Admin dashboard |
-| `admin:clients:list:*` | Admin leads tabs |
-| `admin:csrs` | CSR dropdown |
-| `admin:bin` / `admin:bin:{csrId}` | Admin bin |
-| `csr:dashboard:{id}` | CSR main page |
-| `csr:leads:{id}` | Client directory |
-| `csr:bin:{id}` | CSR bin |
-| `csr:not-interested:{id}` | NI page |
-| `csr:projects:{id}` | Projects |
+In-process `Map` with TTL (not Redis — per-process only).
 
-Invalidated on lead mutations via `invalidateCsrLeadCaches`, `flushAdminClientsCache`, `invalidateAllLeadCaches`.
+| Key pattern | TTL | Used for |
+|-------------|-----|----------|
+| `admin:clients:summary` | 180s | Admin dashboard |
+| `admin:clients:tab-counts` | 60s | Tab badges |
+| `admin:clients:list:*` | 60s | Paginated leads |
+| `admin:bin:*` | 30s | Admin bin |
+| `admin:projects:*` | 45s | Projects |
+| `csr:stats:*` | 30s | CSR tab counts |
+| `csr:tab:*` | 20s | Paginated tab leads |
+| `csr:clients:*` | 45s | Won clients |
+| `csr:bin:*` | 30s | CSR bin |
+| `csr:heal-lock:*` | 120s | Throttle pipeline heal |
+| Report controller | 90s / 300s | Reports endpoint |
 
-**Frontend:** Module-level caches in `lib/` (see §8).
+Invalidated on mutations via `invalidateCsrLeadCaches`, `flushAdminClientsCache`, etc.
+
+### Backend Performance Patterns
+
+1. **Lean Prisma selects** — `CSR_DASHBOARD_LEAD_SELECT`, max 5 notes on client list
+2. **DB pagination** — `/csr/tab-leads`, admin `/clients` (not full in-memory slice)
+3. **`buildBinWhere`** — bin queries at DB level
+4. **Cache-first reads** — clients, bin, projects skip heal on GET
+5. **Throttled heartbeat DB writes** — CSR heartbeat writes at most every 30s
+6. **Throttled pipeline heal** — max once per CSR per 2 min
+7. **Bulk upload batching** — 1000-row inserts, 30-row updates
+8. **Optional Prisma rate-limit store** — only when `RATE_LIMIT_STORE=prisma`
+9. **Compound indexes** on `Lead` for tab/bin/assigned queries
+10. **WebSocket push** — chat without constant HTTP polling
+
+### Frontend Cache (`lib/`)
+
+| Module | TTL | Endpoints |
+|--------|-----|-----------|
+| `authMeCache` | 60s | `/auth/me` |
+| `adminSummaryCache` | 60–120s | summary, tab-counts (+ sessionStorage) |
+| `csrTabApiCache` | 45s | stats, tab-leads, potential-leads |
+| `csrApiCache` | 28s | clients, leads, bin, projects, NI |
+| `reportsCache` | 300s | `/reports` |
+| `chatApiCache` | 12–120s | conversations, messages, members |
+
+### Polling / Heartbeat Intervals
+
+| Interval | Location | Purpose |
+|----------|----------|---------|
+| 30s | `useCsrPresence.ts` | CSR `/heartbeat` (pauses when tab hidden) |
+| 30s | `chatStatusHeartbeat.ts` | `/chat/status` or WS presence |
+| 60s | `chatUnreadStore.ts` | Conversation poll when WS down |
+| 10s | `chatSocket.ts` | WebSocket ping |
+
+`visibleInterval.ts` pauses timers when browser tab is hidden.
+
+### Render / Budget Hosting Notes
+
+- Run `npx tsc` after src changes — production uses committed `dist/`
+- Do **not** set `RATE_LIMIT_STORE=prisma` unless you need multi-instance rate limiting (adds DB load)
+- Keep heartbeat/cron intervals at current values (60s offline, 30s presence) on $25 plans
 
 ---
 
@@ -706,11 +828,11 @@ Invalidated on lead mutations via `invalidateCsrLeadCaches`, `flushAdminClientsC
 
 | Service | Purpose | Config |
 |---------|---------|--------|
-| **MongoDB** | Primary database | `DATABASE_URL` |
-| **Cloudinary** | Uploads, reports, profiles, CNIC, chat files | `CLOUDINARY_*` |
-| **Gmail SMTP** | 2FA OTP, login alerts | `SMTP_USER`, `SMTP_PASS` |
-| **Cloudflare Turnstile** | Login CAPTCHA | `TURNSTILE_SECRET_KEY` |
-| **Have I Been Pwned** | Password breach check | (public API) |
+| MongoDB | Primary database | `DATABASE_URL` |
+| Cloudinary | Uploads, reports, profiles, CNIC, chat files | `CLOUDINARY_*` |
+| Gmail SMTP | 2FA OTP, login alerts | `SMTP_USER`, `SMTP_PASS` |
+| Cloudflare Turnstile | Login CAPTCHA | `TURNSTILE_SECRET_KEY` |
+| Have I Been Pwned | Password breach check | Public API |
 
 ---
 
@@ -722,25 +844,25 @@ Invalidated on lead mutations via `invalidateCsrLeadCaches`, `flushAdminClientsC
 |----------|-----------------|-------------|
 | `PORT` | No | Default 5000 |
 | `DATABASE_URL` | Yes | MongoDB connection string |
-| `JWT_SECRET` | Yes (≥32 chars) | JWT signing secret |
-| `FRONTEND_URL` | Yes | CORS + cookie origin |
+| `JWT_SECRET` | Yes (≥32 chars) | JWT signing |
+| `FRONTEND_URL` | Yes | CORS + cookies |
 | `NODE_ENV` | No | `production` enables strict checks |
-| `SMTP_USER` / `SMTP_PASS` | Recommended | Email for 2FA |
-| `ADMIN_ALLOWED_IPS` | Optional | Comma-separated admin IP allowlist |
-| `TURNSTILE_SECRET_KEY` | Optional | Cloudflare Turnstile |
+| `SMTP_USER` / `SMTP_PASS` | Recommended | 2FA email |
+| `ADMIN_ALLOWED_IPS` | Optional | Comma-separated admin IPs |
+| `TURNSTILE_SECRET_KEY` | Optional | Turnstile |
+| `RATE_LIMIT_STORE` | Optional | Set `prisma` for distributed rate limit (default: in-memory) |
 | `SESSION_DEFAULT_HOURS` | Optional | Default 12 |
 | `SESSION_REMEMBER_HOURS` | Optional | Default 168 (7 days) |
-| `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary |
-| `CLOUDINARY_API_KEY` | Yes | Cloudinary |
-| `CLOUDINARY_API_SECRET` | Yes | Cloudinary |
+| `CLOUDINARY_*` | Yes | Cloudinary credentials |
 
 ### Frontend
 
 | Variable | Description |
 |----------|-------------|
 | `BACKEND_URL` | Server-side proxy target (default `http://127.0.0.1:5000`) |
-| `NEXT_PUBLIC_API_URL` | Direct API URL in production (optional) |
-| `NEXT_PUBLIC_BACKEND_URL` | Alternative backend root |
+| `NEXT_PUBLIC_API_URL` | Direct API URL (optional) |
+| `NEXT_PUBLIC_WS_URL` | WebSocket URL (optional; defaults derived from API) |
+| `NEXT_DIST_DIR` | Optional custom Next.js dist dir |
 
 ---
 
@@ -750,7 +872,7 @@ Invalidated on lead mutations via `invalidateCsrLeadCaches`, `flushAdminClientsC
 # Terminal 1 — Backend
 cd backend
 npm install
-# Create .env with DATABASE_URL, JWT_SECRET, etc.
+# Create .env: DATABASE_URL, JWT_SECRET, FRONTEND_URL, CLOUDINARY_*
 npx prisma generate
 npx prisma db push
 npm run dev          # http://localhost:5000
@@ -758,42 +880,62 @@ npm run dev          # http://localhost:5000
 # Terminal 2 — Frontend
 cd frontend
 npm install
-# Set BACKEND_URL=http://127.0.0.1:5000 in .env.local
+# .env.local: BACKEND_URL=http://127.0.0.1:5000
 npm run dev          # http://localhost:3000
 ```
 
-Login: `admin@gmail.com` / `123456` or `csr@gmail.com` / `123456`
+**Login:** `admin@gmail.com` / `manager@gmail.com` / `csr@gmail.com` — password `123456`
+
+**After backend src changes for production parity:**
+```bash
+cd backend && npx tsc
+```
 
 ---
 
 ## 19. Deployment Notes
 
-- **Frontend:** Typically Vercel (`dashboard.bemsolutions.io`)
-- **Backend:** Separate Node host (e.g. Render) on port 5000
-- **Frontend env:** `BACKEND_URL` → backend origin; proxy forwards `/api/backend/*`
-- **Backend env:** `FRONTEND_URL` must match deployed frontend for CORS/cookies
-- **Build:** `backend`: `prisma generate && prisma db push && tsc && seed`
-- **Build:** `frontend`: `next build && next start`
+| Component | Typical host | Start command |
+|-----------|--------------|---------------|
+| Frontend | Vercel | `next build && next start` |
+| Backend | Render ($25 plan) | `npm start` → `node dist/server.js` |
+
+**Backend build** (`package.json`): `prisma generate && prisma db push && tsc && seed`
+
+**Checklist:**
+- `FRONTEND_URL` on backend must match deployed frontend origin
+- `BACKEND_URL` on frontend must point to backend
+- Rebuild `dist/` before pushing backend changes
+- Run `npx prisma db push` when schema changes (network access fields, indexes)
+- WebSocket must be reachable at `/ws/chat` on same host (or set `NEXT_PUBLIC_WS_URL`)
 
 ---
 
-## Quick Reference — Important Files
+## 20. Quick Reference
 
 | Concern | File |
 |---------|------|
 | DB schema | `backend/prisma/schema.prisma` |
 | Server + cron | `backend/src/server.ts` |
 | Express app | `backend/src/app.ts` |
+| WebSocket chat | `backend/src/chat/chatSocket.ts` |
 | Auth middleware | `backend/src/middleware/auth.middleware.ts` |
+| Network access | `backend/src/utils/networkAccess.ts` |
 | Bin logic | `backend/src/utils/binLeads.ts` |
+| CSR tab queries | `backend/src/utils/csrDashboardQueries.ts` |
 | Upload parser | `backend/src/controllers/upload.controller.ts` |
-| Login page | `frontend/app/page.tsx` |
+| Portal picker | `frontend/app/page.tsx` |
+| Login form | `frontend/app/components/auth/LoginPortalForm.tsx` |
 | API client | `frontend/lib/api.ts` |
+| Device ID header | `frontend/lib/deviceIdentity.ts` |
 | Route guard | `frontend/proxy.ts` |
 | Backend proxy | `frontend/app/api/backend/[...path]/route.ts` |
 | CSR main page | `frontend/app/csr/page.tsx` |
+| CSR tab hooks | `frontend/app/csr/hooks/useCsrTabPage.ts` |
+| Admin users + IP policy | `frontend/app/admin/users/page.tsx` |
 | Admin uploads | `frontend/app/admin/uploads/page.tsx` |
 | Chat panel | `frontend/app/components/chat/ChatPanel.tsx` |
+| Manager sidebar | `frontend/app/manager/components/layout/Sidebar.tsx` |
 | Lead statuses | `frontend/app/csr/constants/leadStatuses.ts` |
 
 ---
