@@ -8,6 +8,8 @@ exports.parseLeadRows = parseLeadRows;
 exports.classifyRows = classifyRows;
 const xlsx_1 = __importDefault(require("xlsx"));
 const db_1 = __importDefault(require("../config/db"));
+const leadPhoneLookup_1 = require("./leadPhoneLookup");
+const leadClientPromotion_1 = require("./leadClientPromotion");
 const CHUNK_LOOKUP = 500;
 function resolveColumnKey(keys, possibleKeys, excludeKeys = []) {
     return keys.find(k => {
@@ -46,9 +48,18 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
     const isActiveUpload = leadType === "active";
     const headerKeys = data.length > 0 ? Object.keys(data[0]) : [];
     const col = {
-        clientDetail: resolveColumnKey(headerKeys, ["name", "client", "customer", "contact person"], ["code"]),
+        clientDetail: resolveColumnKey(headerKeys, [
+            "client name", "contact name", "customer name", "person name",
+            "name", "client", "customer", "contact person",
+        ], ["code", "company"]),
+        clientCompany: resolveColumnKey(headerKeys, [
+            "client company", "customer company", "company name", "business name",
+            "company", "business", "organization",
+        ], ["our", "code", "client name"]),
+        ourCompany: resolveColumnKey(headerKeys, [
+            "our company", "source company", "sudo", "ps estimating", "our co",
+        ], []),
         phone: resolveColumnKey(headerKeys, ["phone", "mobile", "cell", "telephone", "number", "contact"], ["person", "name", "detail"]),
-        company: resolveColumnKey(headerKeys, ["company", "business", "organization"]),
         state: resolveColumnKey(headerKeys, ["location", "address", "state", "province", "city", "prov", "region"]),
         service: resolveColumnKey(headerKeys, ["interested in", "interested", "service", "interest", "services", "scope"], ["status"]),
         projectTitle: resolveColumnKey(headerKeys, ["project detail", "project title", "project name", "project"], ["code", "client"]),
@@ -69,7 +80,9 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             if (phoneLine)
                 phone = phoneLine.replace(/[^\d\+\-]/g, "");
         }
-        let company = readCell(row, col.company);
+        let company = readCell(row, col.clientCompany);
+        if (!company && !col.clientCompany)
+            company = readCell(row, resolveColumnKey(headerKeys, ["company"], ["our"]));
         if (!company && isActiveUpload)
             company = name;
         parsed.push({
@@ -91,7 +104,7 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
     }
     return parsed;
 }
-async function classifyRows(parsed, isActiveUpload) {
+async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
     const preview = [];
     const toPreview = (r, status, reason) => ({
         row: r.rowIndex,
@@ -128,18 +141,22 @@ async function classifyRows(parsed, isActiveUpload) {
                 preview.push(toPreview(r, "new", "New contact — will be added"));
             }
         }
-        return { fresh, toUpdate, emailUpdates: [], preview, existingCodeMap };
+        return { fresh, toUpdate, toPromote: [], emailUpdates: [], preview, existingCodeMap };
     }
     const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
     const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
     const [existingByPhone, existingByEmail] = await Promise.all([
-        chunkedLookup(phones, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({ where: { phone: { in: chunk } }, select: { phone: true, id: true, email: true } })),
+        chunkedLookup(phones, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({
+            where: { phone: { in: chunk } },
+            select: { phone: true, id: true, email: true, status: true, inBin: true },
+        })),
         chunkedLookup(emails, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({ where: { email: { in: chunk } }, select: { email: true } })),
     ]);
     const dupPhoneMap = new Map(existingByPhone.map(l => [l.phone ?? "", l]));
     const dupPhones = new Set(dupPhoneMap.keys());
     const dupEmails = new Set(existingByEmail.map(l => l.email ?? ""));
     const emailUpdates = [];
+    const toPromote = [];
     const fresh = [];
     for (const r of parsed) {
         const hasValidPhone = r.phone.length >= 7;
@@ -148,13 +165,31 @@ async function classifyRows(parsed, isActiveUpload) {
             preview.push(toPreview(r, "empty", "Empty row — skipped"));
             continue;
         }
-        if (r.phone && dupPhones.has(r.phone)) {
-            const existing = dupPhoneMap.get(r.phone);
-            if (existing && !existing.email && hasValidEmail) {
-                emailUpdates.push({ id: existing.id, email: r.email });
+        if (r.phone && hasValidPhone) {
+            const exactExisting = dupPhoneMap.get(r.phone);
+            let pendingMatch = exactExisting &&
+                !exactExisting.inBin &&
+                (0, leadClientPromotion_1.isPendingPipelineStatus)(exactExisting.status)
+                ? exactExisting
+                : undefined;
+            if (promoteWonClients && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status) && !pendingMatch) {
+                const fuzzy = await (0, leadPhoneLookup_1.findLeadsByPhone)(r.phone);
+                const fuzzyPending = fuzzy.find(l => !l.inBin && (0, leadClientPromotion_1.isPendingPipelineStatus)(l.status));
+                if (fuzzyPending)
+                    pendingMatch = fuzzyPending;
             }
-            preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
-            continue;
+            if (promoteWonClients && pendingMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
+                toPromote.push({ row: r, existingId: pendingMatch.id });
+                preview.push(toPreview(r, "updated", "Moved from call-data to clients — pending removed"));
+                continue;
+            }
+            if (exactExisting || dupPhones.has(r.phone)) {
+                if (exactExisting && !exactExisting.email && hasValidEmail) {
+                    emailUpdates.push({ id: exactExisting.id, email: r.email });
+                }
+                preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
+                continue;
+            }
         }
         if (r.email && dupEmails.has(r.email)) {
             preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
@@ -163,5 +198,5 @@ async function classifyRows(parsed, isActiveUpload) {
         fresh.push(r);
         preview.push(toPreview(r, "new", "New contact — will be added"));
     }
-    return { fresh, toUpdate: [], emailUpdates, preview };
+    return { fresh, toUpdate: [], toPromote, emailUpdates, preview };
 }

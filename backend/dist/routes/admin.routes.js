@@ -13,8 +13,14 @@ const uploadSourceStats_1 = require("../utils/uploadSourceStats");
 const projectLeads_1 = require("../utils/projectLeads");
 const projectPayments_1 = require("../utils/projectPayments");
 const binLeads_1 = require("../utils/binLeads");
+const leadPhoneLookup_1 = require("../utils/leadPhoneLookup");
+const leadDuplicateCheck_1 = require("../utils/leadDuplicateCheck");
+const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
+const phone_1 = require("../utils/phone");
 const adminClientQueries_1 = require("../utils/adminClientQueries");
 const adminIp_middleware_1 = require("../middleware/adminIp.middleware");
+const deleteLeadsCascade_1 = require("../utils/deleteLeadsCascade");
+const adminSummaryStats_1 = require("../utils/adminSummaryStats");
 const router = express_1.default.Router();
 router.use(adminIp_middleware_1.enforceAdminIpAllowlist);
 function applyProjectPayload(updateData, body) {
@@ -22,7 +28,7 @@ function applyProjectPayload(updateData, body) {
         "name", "company", "phone", "email", "state", "ownerName",
         "projectCode", "projectTitle", "projectScope", "interestedService",
         "projectBudget", "projectDeadline", "projectNotes", "projectPhase",
-        "takeoffDeadline", "pricingDeadline", "qaDeadline",
+        "takeoffDeadline", "pricingDeadline", "qaDeadline", "projectSource",
     ];
     for (const key of scalars) {
         if (body[key] !== undefined)
@@ -42,15 +48,19 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
     res.json({ success: true, message: "Welcome Admin" });
 });
 /* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
-router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const today = new Date().toISOString().split("T")[0];
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
+        const cacheKey = `admin:notifications:${csrId ?? "all"}:${today}`;
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached)
+            return res.json(cached);
         const rawScheduled = await db_1.default.lead.findMany({
             where: {
                 ...(csrId ? { assignedTo: csrId } : {}),
                 status: "important",
-                nextSchedule: { not: null },
+                nextSchedule: { gte: today, not: null },
                 nextTime: { not: null },
             },
             select: {
@@ -69,7 +79,6 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
         });
         const scheduledLeads = (0, binLeads_1.filterActiveLeads)(rawScheduled);
         const scheduledCalls = scheduledLeads
-            .filter((l) => (l.nextSchedule ?? "") >= today)
             .slice(0, 30)
             .map((l) => ({
             id: l.id,
@@ -81,7 +90,9 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
             csrCode: l.csr?.csrCode ?? "",
             csrId: l.csr?.id ?? "",
         }));
-        return res.json({ success: true, scheduledCalls });
+        const payload = { success: true, scheduledCalls };
+        (0, cache_1.setCache)(cacheKey, payload, 60000);
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
@@ -89,7 +100,7 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
     }
 });
 /* ================= GET ALL CSRS ================= */
-router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const CACHE_KEY = "admin:csrs";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
@@ -119,94 +130,31 @@ router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRo
         return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
     }
 });
+/* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
+router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
+    try {
+        const CACHE_KEY = "admin:clients:tab-counts";
+        const cached = (0, cache_1.getCache)(CACHE_KEY);
+        if (cached)
+            return res.json(cached);
+        const payload = await (0, adminSummaryStats_1.buildAdminTabCountsPayload)();
+        (0, cache_1.setCache)(CACHE_KEY, payload, 60000);
+        return res.json(payload);
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch tab counts" });
+    }
+});
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
-router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (_req, res) => {
+router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
     try {
         const CACHE_KEY = "admin:clients:summary";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
-        const yearAgo = new Date();
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        const [totalLeads, pending, interested, projectWon, completed, importantOnly, scheduled, closed, recent, chartLeads, csrGroups, resolvedGroups,] = await Promise.all([
-            db_1.default.lead.count(),
-            db_1.default.lead.count({ where: { status: "pending" } }),
-            db_1.default.lead.count({ where: (0, adminClientQueries_1.isInterestedStatusWhere)() }),
-            db_1.default.lead.count({ where: { status: { in: ["Close Client", "close client"] } } }),
-            db_1.default.lead.count({ where: { status: { in: ["completed", "closed"] } } }),
-            db_1.default.lead.count({ where: (0, adminClientQueries_1.importantOnlyWhere)() }),
-            db_1.default.lead.count({ where: (0, adminClientQueries_1.scheduledCallWhere)() }),
-            db_1.default.lead.count({ where: (0, adminClientQueries_1.buildAdminClientViewWhere)("closed") }),
-            db_1.default.lead.findMany({
-                select: {
-                    id: true, name: true, status: true, updatedAt: true,
-                    csr: { select: { name: true } },
-                },
-                orderBy: { updatedAt: "desc" },
-                take: 15,
-            }),
-            db_1.default.lead.findMany({
-                where: { createdAt: { gte: yearAgo } },
-                select: { createdAt: true },
-            }),
-            db_1.default.lead.groupBy({ by: ["assignedTo"], _count: { _all: true } }),
-            db_1.default.lead.groupBy({
-                by: ["assignedTo"],
-                where: { status: { in: ["Close Client", "close client", "interested", "important"] } },
-                _count: { _all: true },
-            }),
-        ]);
-        const csrIds = [...new Set([
-                ...csrGroups.map(g => g.assignedTo),
-                ...resolvedGroups.map(g => g.assignedTo),
-            ])].filter((id) => typeof id === "string" && id.length > 0);
-        const csrUsers = csrIds.length
-            ? await db_1.default.user.findMany({ where: { id: { in: csrIds } }, select: { id: true, name: true } })
-            : [];
-        const csrNameById = new Map(csrUsers.map(u => [u.id, u.name]));
-        const totalMap = new Map(csrGroups.map(g => [g.assignedTo, g._count._all]));
-        const resolvedMap = new Map(resolvedGroups.map(g => [g.assignedTo, g._count._all]));
-        const performers = [...totalMap.entries()]
-            .filter(([id]) => typeof id === "string" && id.length > 0)
-            .map(([id, total]) => {
-            const resolved = resolvedMap.get(id) ?? 0;
-            const name = csrNameById.get(id) ?? "Unassigned";
-            return { name, resolved, total, rate: total > 0 ? Math.round((resolved / total) * 100) : 0 };
-        })
-            .sort((a, b) => b.resolved - a.resolved)
-            .slice(0, 5);
-        const payload = {
-            success: true,
-            stats: {
-                totalLeads,
-                pending,
-                important: importantOnly + scheduled,
-                importantOnly,
-                scheduled,
-                interested,
-                projectWon,
-                completed,
-                closed,
-            },
-            tabCounts: {
-                all: totalLeads,
-                important: importantOnly,
-                schedule: scheduled,
-                interested,
-                closed,
-            },
-            distribution: {
-                Pending: pending,
-                Important: importantOnly + scheduled,
-                Interested: interested,
-                "Close Client": projectWon,
-                Closed: completed + closed,
-            },
-            recent,
-            chartLeads,
-            performers,
-        };
-        (0, cache_1.setCache)(CACHE_KEY, payload, 120000);
+        const payload = await (0, adminSummaryStats_1.buildAdminClientSummaryPayload)();
+        (0, cache_1.setCache)(CACHE_KEY, payload, 180000);
         return res.json(payload);
     }
     catch (error) {
@@ -215,7 +163,7 @@ router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middlewar
     }
 });
 /* ================= GET CLIENTS / LEADS (paginated — admin leads page) ================= */
-router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const view = String(req.query.view || "all");
         const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
@@ -259,8 +207,56 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         return res.status(500).json({ success: false, message: "Failed to fetch clients" });
     }
 });
+/* ================= CREATE LEAD (ADMIN manual add) ================= */
+router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const adminId = req.user?.id;
+        if (!adminId)
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const { name, email, phone, company, status, csrId } = req.body;
+        if (!name?.trim())
+            return res.status(400).json({ success: false, message: "Client name is required." });
+        if (!email?.trim())
+            return res.status(400).json({ success: false, message: "Email is required." });
+        const dup = await (0, leadDuplicateCheck_1.findDuplicateLead)(phone, email);
+        if (dup)
+            return res.status(409).json({ success: false, message: dup.message, field: dup.field });
+        let assignTo = adminId;
+        if (csrId) {
+            const csr = await db_1.default.user.findFirst({ where: { id: csrId, role: "csr", isActive: true } });
+            if (!csr)
+                return res.status(400).json({ success: false, message: "Invalid CSR." });
+            assignTo = csr.id;
+        }
+        const trimmedPhone = phone?.trim() || null;
+        const existingLeads = trimmedPhone ? await (0, leadPhoneLookup_1.findLeadsByPhone)(trimmedPhone) : [];
+        const lead = await db_1.default.lead.create({
+            data: {
+                name: name.trim(),
+                email: email.trim().toLowerCase(),
+                phone: trimmedPhone,
+                company: company?.trim() || null,
+                status: status || "pending",
+                assignedTo: assignTo,
+                important: false,
+                interested: false,
+                isOldClient: existingLeads.length > 0,
+            },
+            include: { csr: { select: { id: true, name: true, csrCode: true } } },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        if (assignTo !== adminId) {
+            (0, cache_1.invalidateCache)(`csr:dashboard:${assignTo}`, `csr:leads:${assignTo}`);
+        }
+        return res.status(201).json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to create lead" });
+    }
+});
 /* ================= GET SINGLE LEAD (ADMIN) ================= */
-router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const lead = await db_1.default.lead.findFirst({
@@ -281,8 +277,32 @@ router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         return res.status(500).json({ success: false, message: "Failed to fetch lead" });
     }
 });
+/* ================= DELETE LEAD / PROJECT (ADMIN) ================= */
+router.delete("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const lead = await db_1.default.lead.findFirst({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, name: true },
+        });
+        if (!lead) {
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        }
+        const deleted = await (0, deleteLeadsCascade_1.deleteLeadsCascade)([leadId]);
+        await (0, deleteLeadsCascade_1.invalidateAllLeadCaches)(lead.assignedTo ? [lead.assignedTo] : undefined);
+        return res.json({
+            success: true,
+            message: `"${lead.name ?? "Record"}" deleted permanently`,
+            deleted,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to delete lead" });
+    }
+});
 /* ================= UPDATE LEAD DETAILS (ADMIN) ================= */
-router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { name, phone, email, state } = req.body;
@@ -298,6 +318,10 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.email = email;
         if (state !== undefined)
             updateData.state = state;
+        const dup = await (0, leadDuplicateCheck_1.findDuplicateLead)(phone !== undefined ? String(phone) : existing.phone, email !== undefined ? String(email) : existing.email, leadId);
+        if (dup && (phone !== undefined || email !== undefined)) {
+            return res.status(409).json({ success: false, message: dup.message, field: dup.field });
+        }
         const lead = await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, lead });
@@ -307,7 +331,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         return res.status(500).json({ success: false, message: "Failed to update lead" });
     }
 });
-router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { name, designation, phone, email } = req.body;
@@ -328,7 +352,36 @@ router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_mid
         return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
     }
 });
-router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.put("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const subId = String(req.params.subId);
+        const { name, designation, phone, email } = req.body;
+        const lead = await db_1.default.lead.findFirst({ where: { id: leadId } });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        const existing = await db_1.default.subContact.findFirst({ where: { id: subId, leadId } });
+        if (!existing)
+            return res.status(404).json({ success: false, message: "Sub-contact not found" });
+        const subContact = await db_1.default.subContact.update({
+            where: { id: subId },
+            data: {
+                ...(name !== undefined ? { name: name.trim() } : {}),
+                ...(designation !== undefined ? { designation: designation?.trim() || null } : {}),
+                ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
+                ...(email !== undefined ? { email: email?.trim() || null } : {}),
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidateCache)(`csr:dashboard:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+        return res.json({ success: true, subContact });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to update sub-contact" });
+    }
+});
+router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const subId = String(req.params.subId);
@@ -346,7 +399,7 @@ router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0,
     }
 });
 /* ================= UPDATE LEAD NOTE ================= */
-router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const { comments } = req.body;
         await db_1.default.lead.update({
@@ -361,7 +414,7 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
     }
 });
 /* ================= ADMIN TIMESTAMPED NOTES (shared with CSR) ================= */
-router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { text } = req.body;
@@ -379,7 +432,7 @@ router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to add note" });
     }
 });
-router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { noteId } = req.params;
@@ -397,7 +450,7 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
         return res.status(500).json({ success: false, message: "Failed to update note" });
     }
 });
-router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { noteId } = req.params;
@@ -474,15 +527,38 @@ router.get("/csr-history/:csrId", auth_middleware_1.verifyToken, (0, role_middle
         }
         const leads = await db_1.default.lead.findMany({
             where: { assignedTo: csr.id },
-            include: {
-                uploadFile: {
-                    select: {
-                        companyName: true,
-                    },
-                },
+            select: {
+                id: true,
+                name: true,
+                company: true,
+                phone: true,
+                email: true,
+                state: true,
+                status: true,
+                important: true,
+                interested: true,
+                comments: true,
+                nextSchedule: true,
+                nextTime: true,
+                timezone: true,
+                interestedService: true,
+                projectTitle: true,
+                projectCode: true,
+                projectBudget: true,
+                projectDeadline: true,
+                clientCode: true,
+                isOldClient: true,
+                createdAt: true,
+                updatedAt: true,
+                uploadFile: { select: { companyName: true } },
                 callLogs: {
-                    orderBy: {
-                        createdAt: "desc",
+                    orderBy: { createdAt: "desc" },
+                    select: {
+                        id: true,
+                        status: true,
+                        notes: true,
+                        duration: true,
+                        createdAt: true,
                     },
                 },
             },
@@ -516,14 +592,40 @@ router.get("/csr-history/:csrId", auth_middleware_1.verifyToken, (0, role_middle
     }
 });
 /* ================= ALL ACTIVE PROJECT LEADS (all CSRs) ================= */
-router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
         const from = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
         const to = typeof req.query.to === "string" ? req.query.to.trim() : undefined;
-        const rawLeads = await db_1.default.lead.findMany({
-            where: (0, projectLeads_1.buildProjectLeadWhere)(csrId),
-            include: {
+        const lite = req.query.lite !== "0" && req.query.lite !== "false";
+        const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+        const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+        const cacheKey = `admin:projects:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}`;
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached)
+            return res.json(cached);
+        const where = { ...(0, projectLeads_1.buildProjectLeadWhere)(csrId) };
+        if (search) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                {
+                    OR: [
+                        { name: { contains: search, mode: "insensitive" } },
+                        { projectTitle: { contains: search, mode: "insensitive" } },
+                        { company: { contains: search, mode: "insensitive" } },
+                        { interestedService: { contains: search, mode: "insensitive" } },
+                    ],
+                },
+            ];
+        }
+        const include = lite
+            ? {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                uploadFile: { select: { companyName: true } },
+                notes: { orderBy: { createdAt: "desc" }, take: 5 },
+            }
+            : {
                 csr: {
                     select: {
                         id: true,
@@ -537,10 +639,18 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                         companyName: true,
                     },
                 },
-                notes: { orderBy: { createdAt: "asc" } },
-            },
-            orderBy: { updatedAt: "desc" },
-        });
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+            };
+        const [rawLeads, total] = await Promise.all([
+            db_1.default.lead.findMany({
+                where,
+                include,
+                orderBy: { updatedAt: "desc" },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            db_1.default.lead.count({ where }),
+        ]);
         let leads = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
         if (from || to) {
             leads = leads.filter((l) => {
@@ -555,20 +665,26 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             });
         }
         const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const [withBudget, thisMonth] = await Promise.all([
+            db_1.default.lead.count({ where: { ...where, projectBudget: { not: null } } }),
+            db_1.default.lead.count({ where: { ...where, updatedAt: { gte: monthStart } } }),
+        ]);
         const stats = {
-            total: leads.length,
-            withBudget: leads.filter((l) => l.projectBudget).length,
-            thisMonth: leads.filter((l) => {
-                const d = new Date(l.updatedAt);
-                return (d.getMonth() === now.getMonth() &&
-                    d.getFullYear() === now.getFullYear());
-            }).length,
+            total,
+            withBudget,
+            thisMonth,
         };
-        return res.json({
+        const payload = {
             success: true,
             leads,
             stats,
-        });
+            total,
+            page,
+            limit,
+        };
+        (0, cache_1.setCache)(cacheKey, payload, 45000);
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
@@ -578,8 +694,94 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         });
     }
 });
+/* ================= LOOKUP CLIENT BY PHONE (ADMIN) ================= */
+router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const phone = req.query.phone?.trim();
+        if (!phone || (0, phone_1.normalizePhone)(phone).length < 7) {
+            return res.json({ success: true, found: false });
+        }
+        const matches = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
+        return res.json((0, leadPhoneLookup_1.buildPhoneLookupResponse)(matches));
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to lookup client" });
+    }
+});
+/* ================= ADD PROJECT (ADMIN) ================= */
+router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const body = req.body;
+        const { name, projectTitle, interestedService, projectDeadline } = body;
+        if (!name || !projectTitle || !interestedService || !projectDeadline) {
+            return res.status(400).json({
+                success: false,
+                message: "name, projectTitle, interestedService and projectDeadline are required.",
+            });
+        }
+        const adminId = req.user?.id;
+        if (!adminId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const CSR_OTHER = "__other__";
+        const rawCsrId = body.csrId ? String(body.csrId).trim() : "";
+        const sourceText = typeof body.projectSource === "string" ? body.projectSource.trim() : "";
+        let assignTo = adminId;
+        let source = null;
+        if (rawCsrId && rawCsrId !== CSR_OTHER) {
+            const csr = await db_1.default.user.findFirst({
+                where: { id: rawCsrId, role: "csr", isActive: true },
+                select: { id: true },
+            });
+            if (!csr) {
+                return res.status(400).json({ success: false, message: "Invalid or inactive CSR." });
+            }
+            assignTo = csr.id;
+        }
+        else if (rawCsrId === CSR_OTHER) {
+            if (!sourceText) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please enter the external resource name for Other.",
+                });
+            }
+            source = sourceText;
+        }
+        else if (sourceText) {
+            source = sourceText;
+        }
+        const createData = {};
+        applyProjectPayload(createData, body);
+        createData.assignedTo = assignTo;
+        createData.projectSource = source;
+        createData.status = body.status ?? "Close Client";
+        createData.important = false;
+        createData.interested = false;
+        const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : null;
+        if (trimmedPhone)
+            createData.phone = trimmedPhone;
+        const existingLeads = trimmedPhone ? await (0, leadPhoneLookup_1.findLeadsByPhone)(trimmedPhone) : [];
+        createData.isOldClient = existingLeads.length > 0;
+        const lead = await db_1.default.lead.create({
+            data: createData,
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        if (assignTo !== adminId) {
+            (0, cache_1.invalidateCache)(`csr:dashboard:${assignTo}`, `csr:projects:${assignTo}`, `csr:leads:${assignTo}`);
+        }
+        return res.status(201).json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to create project" });
+    }
+});
 /* ================= UPDATE PROJECT (ADMIN) ================= */
-router.put("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.put("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const updateData = {};
@@ -799,19 +1001,32 @@ router.post("/run-shuffle", auth_middleware_1.verifyToken, (0, role_middleware_1
     }
 });
 /* ================= ADMIN BIN (all not-picked + not-interested leads) ================= */
-router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
-        const rawLeads = await db_1.default.lead.findMany({
-            where: csrId ? { assignedTo: csrId } : {},
-            include: {
-                csr: { select: { id: true, name: true, csrCode: true } },
-                uploadFile: { select: { companyName: true } },
-            },
-            orderBy: { updatedAt: "desc" },
-        });
-        const leads = rawLeads.filter(binLeads_1.isBinLead);
-        return res.json({ success: true, leads });
+        const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+        const cacheKey = `admin:bin:${csrId ?? "all"}:${page}:${limit}`;
+        const cached = (0, cache_1.getCache)(cacheKey);
+        if (cached)
+            return res.json(cached);
+        const where = (0, binLeads_1.buildBinWhere)(csrId);
+        const [leads, total] = await Promise.all([
+            db_1.default.lead.findMany({
+                where,
+                include: {
+                    csr: { select: { id: true, name: true, csrCode: true } },
+                    uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT },
+                },
+                orderBy: { updatedAt: "desc" },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            db_1.default.lead.count({ where }),
+        ]);
+        const payload = { success: true, leads, total, page, limit };
+        (0, cache_1.setCache)(cacheKey, payload, 30000);
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
@@ -819,7 +1034,7 @@ router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRol
     }
 });
 /* ================= REASSIGN LEAD TO SPECIFIC CSR (ADMIN) ================= */
-router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { csrId } = req.body;
@@ -842,7 +1057,8 @@ router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middlew
             },
         });
         (0, cache_1.flushAdminClientsCache)();
-        (0, cache_1.invalidateCache)("admin:bin", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, `csr:bin:${csrId}`, `csr:dashboard:${prevCsrId}`, `csr:leads:${prevCsrId}`, `csr:not-interested:${prevCsrId}`, `csr:bin:${prevCsrId}`);
+        (0, cache_1.invalidatePattern)("admin:bin");
+        (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:not-interested:${csrId}`, `csr:bin:${csrId}`, `csr:dashboard:${prevCsrId}`, `csr:leads:${prevCsrId}`, `csr:not-interested:${prevCsrId}`, `csr:bin:${prevCsrId}`);
         return res.json({ success: true, lead, message: `Lead reassigned to ${targetCsr.name}` });
     }
     catch (error) {
@@ -851,29 +1067,68 @@ router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middlew
     }
 });
 /* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */
-async function statsForSource(sourceId) {
+async function statsForAllSources(sourceIds) {
+    const empty = {
+        statsMap: new Map(),
+        uploadsBySource: new Map(),
+    };
+    if (sourceIds.length === 0)
+        return empty;
     const uploads = await db_1.default.uploadFile.findMany({
-        where: { sourceId },
-        select: { id: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
+        where: { sourceId: { in: sourceIds } },
+        select: { id: true, sourceId: true, fileName: true, totalLeads: true, companyName: true, createdAt: true },
         orderBy: { createdAt: "desc" },
     });
+    const fileToSource = new Map(uploads.map(u => [u.id, u.sourceId]));
     const fileIds = uploads.map(u => u.id);
     const leads = fileIds.length
         ? await db_1.default.lead.findMany({
             where: { uploadedFileId: { in: fileIds } },
-            select: { status: true },
+            select: { status: true, uploadedFileId: true },
         })
         : [];
+    const leadsBySource = new Map();
+    for (const lead of leads) {
+        const sid = lead.uploadedFileId ? fileToSource.get(lead.uploadedFileId) : undefined;
+        if (!sid)
+            continue;
+        if (!leadsBySource.has(sid))
+            leadsBySource.set(sid, []);
+        leadsBySource.get(sid).push({ status: lead.status });
+    }
+    const statsMap = new Map();
+    for (const sid of sourceIds) {
+        statsMap.set(sid, (0, uploadSourceStats_1.countLeadStatuses)(leadsBySource.get(sid) ?? []));
+    }
+    const uploadsBySource = new Map();
+    for (const u of uploads) {
+        if (!u.sourceId)
+            continue;
+        if (!uploadsBySource.has(u.sourceId))
+            uploadsBySource.set(u.sourceId, []);
+        uploadsBySource.get(u.sourceId).push(u);
+    }
+    return { statsMap, uploadsBySource };
+}
+async function statsForSource(sourceId) {
+    const { statsMap, uploadsBySource } = await statsForAllSources([sourceId]);
     return {
-        stats: (0, uploadSourceStats_1.countLeadStatuses)(leads),
-        uploads,
+        stats: statsMap.get(sourceId) ?? (0, uploadSourceStats_1.countLeadStatuses)([]),
+        uploads: uploadsBySource.get(sourceId) ?? [],
     };
 }
-router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (_req, res) => {
+router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
     try {
+        const CACHE_KEY = "admin:upload-sources";
+        const cached = (0, cache_1.getCache)(CACHE_KEY);
+        if (cached)
+            return res.json(cached);
         const sources = await db_1.default.uploadSource.findMany({ orderBy: { name: "asc" } });
-        const enriched = await Promise.all(sources.map(async (src) => {
-            const { stats, uploads } = await statsForSource(src.id);
+        const sourceIds = sources.map(s => s.id);
+        const { statsMap, uploadsBySource } = await statsForAllSources(sourceIds);
+        const enriched = sources.map((src) => {
+            const uploads = uploadsBySource.get(src.id) ?? [];
+            const stats = statsMap.get(src.id) ?? (0, uploadSourceStats_1.countLeadStatuses)([]);
             return {
                 id: src.id,
                 name: src.name,
@@ -883,15 +1138,17 @@ router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware
                 lastUpload: uploads[0]?.createdAt ?? null,
                 stats,
             };
-        }));
-        return res.json({ success: true, sources: enriched });
+        });
+        const payload = { success: true, sources: enriched };
+        (0, cache_1.setCache)(CACHE_KEY, payload, 120000);
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to fetch upload sources" });
     }
 });
-router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const name = String(req.body.name ?? "").trim();
         const sudoNameRaw = String(req.body.sudoName ?? "").trim();
@@ -918,7 +1175,7 @@ router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to create upload source" });
     }
 });
-router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const sourceId = String(req.params.sourceId);
         const source = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });
@@ -977,7 +1234,7 @@ router.get("/access-history/:userId", auth_middleware_1.verifyToken, (0, role_mi
         return res.status(500).json({ success: false, message: "Failed to fetch access history" });
     }
 });
-router.patch("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.patch("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const sourceId = String(req.params.sourceId);
         const existing = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });
@@ -1009,7 +1266,7 @@ router.patch("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, rol
         return res.status(500).json({ success: false, message: "Failed to update upload source" });
     }
 });
-router.delete("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.delete("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const sourceId = String(req.params.sourceId);
         const existing = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });

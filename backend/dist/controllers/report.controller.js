@@ -5,7 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getReports = void 0;
 const db_1 = __importDefault(require("../config/db"));
-/* ── Date range helper ── */
+const reportLeads_1 = require("../utils/reportLeads");
+const reportCache = new Map();
+const CACHE_TTL_MS = 90000;
+const ALL_PERIOD_CACHE_TTL_MS = 300000;
 function getDateRange(period) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -24,18 +27,85 @@ function getDateRange(period) {
         start.setDate(today.getDate() - 29);
         return { gte: start, lte: now };
     }
-    return { gte: new Date(0), lte: now };
+    return { gte: new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()), lte: now };
 }
-/* ── Time-series chart builder ── */
+function activityInRange(gte, lte) {
+    return {
+        OR: [
+            { updatedAt: { gte, lte } },
+            { createdAt: { gte, lte } },
+        ],
+    };
+}
+function buildPeriodWhere(period, fromDate, toDate) {
+    if (fromDate && toDate) {
+        const start = new Date(fromDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        return activityInRange(start, end);
+    }
+    if (period !== "all") {
+        const range = getDateRange(period);
+        return activityInRange(range.gte, range.lte);
+    }
+    return {};
+}
+function isCompletedOutcome(status) {
+    return status === "completed" || status === "not interested" || status === "close client";
+}
+function emptyCsrEntry(csrId, csrName, csrCode) {
+    return {
+        id: csrId,
+        csrId,
+        name: csrName,
+        csrCode,
+        totalLeads: 0,
+        completed: 0,
+        pending: 0,
+        important: 0,
+        interested: 0,
+        notCompleted: 0,
+        notInterested: 0,
+        projectWon: 0,
+        inHouse: 0,
+        noOwner: 0,
+        notInService: 0,
+    };
+}
+function bumpCounts(target, lead) {
+    const s = (lead.status ?? "").toLowerCase();
+    target.totalLeads++;
+    if (s === "pending")
+        target.pending++;
+    if (s === "important" || lead.important)
+        target.important++;
+    if (s === "interested" || lead.interested)
+        target.interested++;
+    if (s === "not picked" || s === "not completed")
+        target.notCompleted++;
+    if (s === "not interested")
+        target.notInterested++;
+    if (s === "completed")
+        target.completed++;
+    if (s === "close client")
+        target.projectWon++;
+    if (s === "in house")
+        target.inHouse++;
+    if (s === "no owner available")
+        target.noOwner++;
+    if (s === "not in service")
+        target.notInService++;
+}
 function buildTimeChart(leads, period) {
     if (period === "today") {
         const buckets = {};
         for (let h = 0; h < 24; h++)
             buckets[h] = { leads: 0, completed: 0 };
         leads.forEach(l => {
-            const h = new Date(l.createdAt).getHours();
+            const h = new Date(l.activityAt).getHours();
             buckets[h].leads++;
-            if (l.status?.toLowerCase() === "completed")
+            if (isCompletedOutcome((l.status ?? "").toLowerCase()))
                 buckets[h].completed++;
         });
         return Object.entries(buckets)
@@ -56,11 +126,11 @@ function buildTimeChart(leads, period) {
             buckets[key] = { leads: 0, completed: 0 };
         }
         leads.forEach(l => {
-            const d = new Date(l.createdAt);
+            const d = new Date(l.activityAt);
             const key = `${d.getMonth() + 1}/${d.getDate()}`;
             if (buckets[key]) {
                 buckets[key].leads++;
-                if (l.status?.toLowerCase() === "completed")
+                if (isCompletedOutcome((l.status ?? "").toLowerCase()))
                     buckets[key].completed++;
             }
         });
@@ -76,12 +146,12 @@ function buildTimeChart(leads, period) {
         for (let w = 4; w >= 0; w--)
             buckets[String(w)] = { leads: 0, completed: 0 };
         leads.forEach(l => {
-            const diffDays = Math.floor((Date.now() - new Date(l.createdAt).getTime()) / 86400000);
+            const diffDays = Math.floor((Date.now() - new Date(l.activityAt).getTime()) / 86400000);
             const weekIdx = Math.min(Math.floor(diffDays / 7), 4);
             const key = String(weekIdx);
             if (buckets[key]) {
                 buckets[key].leads++;
-                if (l.status?.toLowerCase() === "completed")
+                if (isCompletedOutcome((l.status ?? "").toLowerCase()))
                     buckets[key].completed++;
             }
         });
@@ -93,87 +163,72 @@ function buildTimeChart(leads, period) {
     }
     return [];
 }
+function cacheKey(period, fromDate, toDate) {
+    return `${period}|${fromDate ?? ""}|${toDate ?? ""}`;
+}
 const getReports = async (req, res) => {
     try {
-        const period = req.query.period || "all";
+        const period = req.query.period || "week";
         const fromDate = req.query.fromDate;
         const toDate = req.query.toDate;
-        let whereClause = {};
-        if (fromDate && toDate) {
-            const start = new Date(fromDate);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(toDate);
-            end.setHours(23, 59, 59, 999);
-            whereClause = { createdAt: { gte: start, lte: end } };
+        const key = cacheKey(period, fromDate, toDate);
+        const hit = reportCache.get(key);
+        const ttl = period === "all" && !fromDate ? ALL_PERIOD_CACHE_TTL_MS : CACHE_TTL_MS;
+        if (hit && Date.now() - hit.at < ttl) {
+            return res.json(hit.data);
         }
-        else if (period !== "all") {
-            const range = getDateRange(period);
-            whereClause = { createdAt: { gte: range.gte, lte: range.lte } };
-        }
-        const leads = await db_1.default.lead.findMany({
-            where: whereClause,
-            include: { csr: true },
-        });
-        /* ── OVERALL STATS ── */
-        const totalLeads = leads.length;
-        const completed = leads.filter(l => l.status?.toLowerCase() === "completed").length;
-        const pending = leads.filter(l => l.status?.toLowerCase() === "pending").length;
-        const important = leads.filter(l => l.status?.toLowerCase() === "important").length;
-        const interested = leads.filter(l => l.status?.toLowerCase() === "interested").length;
-        const notCompleted = leads.filter(l => l.status?.toLowerCase() === "not completed").length;
-        const projectWon = leads.filter(l => l.status?.toLowerCase() === "Close Client").length;
-        /* ── CSR PERFORMANCE — all statuses ── */
+        const whereClause = buildPeriodWhere(period, fromDate, toDate);
+        const needsTimeChart = !fromDate && (period === "today" || period === "week" || period === "month");
+        const [leads, reports] = await Promise.all([
+            (0, reportLeads_1.fetchReportLeads)(whereClause),
+            db_1.default.report.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+        ]);
+        const totals = emptyCsrEntry("all", "all", null);
         const csrMap = new Map();
-        leads.forEach(lead => {
+        const timeRows = needsTimeChart ? [] : [];
+        for (const lead of leads) {
+            bumpCounts(totals, lead);
             const csrId = lead.assignedTo ?? "unknown";
             const csrName = lead.csr?.name ?? "Unknown";
             if (!csrMap.has(csrId)) {
-                csrMap.set(csrId, {
-                    id: csrId, csrId, name: csrName,
-                    totalLeads: 0, completed: 0, pending: 0,
-                    important: 0, interested: 0, notCompleted: 0, projectWon: 0,
+                csrMap.set(csrId, emptyCsrEntry(csrId, csrName, lead.csr?.csrCode ?? null));
+            }
+            bumpCounts(csrMap.get(csrId), lead);
+            if (needsTimeChart) {
+                timeRows.push({
+                    activityAt: lead.updatedAt > lead.createdAt ? lead.updatedAt : lead.createdAt,
+                    status: lead.status,
+                    important: lead.important,
+                    interested: lead.interested,
                 });
             }
-            const e = csrMap.get(csrId);
-            e.totalLeads++;
-            const s = (lead.status ?? "").toLowerCase();
-            if (s === "completed")
-                e.completed++;
-            if (s === "pending")
-                e.pending++;
-            if (s === "important")
-                e.important++;
-            if (s === "interested")
-                e.interested++;
-            if (s === "not completed")
-                e.notCompleted++;
-            if (s === "Close Client")
-                e.projectWon++;
-        });
-        const csrPerformance = Array.from(csrMap.values())
-            .sort((a, b) => b.totalLeads - a.totalLeads); // highest leads first
-        /* ── TIME CHART ── */
-        const timeChart = buildTimeChart(leads.map(l => ({ createdAt: l.createdAt, status: l.status })), period);
-        const reports = await db_1.default.report.findMany({
-            orderBy: { createdAt: "desc" },
-        });
-        return res.json({
+        }
+        const csrPerformance = Array.from(csrMap.values()).sort((a, b) => b.totalLeads - a.totalLeads);
+        const completed = leads.filter(l => isCompletedOutcome((l.status ?? "").toLowerCase())).length;
+        const payload = {
+            success: true,
             period,
-            totalLeads,
+            totalLeads: totals.totalLeads,
             completed,
-            pending,
-            important,
-            interested,
-            notCompleted,
-            projectWon,
+            pending: totals.pending,
+            important: totals.important,
+            interested: totals.interested,
+            notCompleted: totals.notCompleted,
+            notInterested: totals.notInterested,
+            projectWon: totals.projectWon,
+            inHouse: totals.inHouse,
+            noOwner: totals.noOwner,
+            notInService: totals.notInService,
             csrPerformance,
-            timeChart,
+            timeChart: needsTimeChart ? buildTimeChart(timeRows, period) : [],
             reports,
-        });
+        };
+        reportCache.set(key, { at: Date.now(), data: payload });
+        return res.json(payload);
     }
     catch (error) {
         console.log(error);
-        return res.status(500).json({ message: "Failed to fetch reports" });
+        return res.status(500).json({ success: false, message: "Failed to fetch reports" });
     }
 };
 exports.getReports = getReports;

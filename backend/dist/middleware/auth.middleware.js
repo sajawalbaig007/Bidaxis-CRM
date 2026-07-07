@@ -8,6 +8,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const db_1 = __importDefault(require("../config/db"));
 const security_1 = require("../config/security");
 const sessions_1 = require("../utils/sessions");
+const networkAccess_1 = require("../utils/networkAccess");
 const JWT_SECRET = (0, security_1.getJwtSecret)();
 const verifyToken = async (req, res, next) => {
     try {
@@ -26,7 +27,17 @@ const verifyToken = async (req, res, next) => {
         }
         const user = await db_1.default.user.findUnique({
             where: { id: decoded.id },
-            select: { activeSessionId: true, tokenVersion: true, isActive: true, role: true },
+            select: {
+                activeSessionId: true,
+                tokenVersion: true,
+                isActive: true,
+                role: true,
+                allowedIps: true,
+                allowedMacAddress: true,
+                temporaryAccessIp: true,
+                temporaryAccessMac: true,
+                temporaryAccessUntil: true,
+            },
         });
         if (!user?.isActive) {
             return res.status(403).json({ success: false, message: "Account is deactivated" });
@@ -45,6 +56,14 @@ const verifyToken = async (req, res, next) => {
                 success: false,
                 code: "SESSION_INVALID",
                 message: "Session expired. Please log in again.",
+            });
+        }
+        const networkError = (0, networkAccess_1.evaluateNetworkAccess)(user, req);
+        if (networkError) {
+            return res.status(403).json({
+                success: false,
+                code: "NETWORK_POLICY_DENIED",
+                message: networkError,
             });
         }
         void (0, sessions_1.touchActiveSession)(decoded.id);

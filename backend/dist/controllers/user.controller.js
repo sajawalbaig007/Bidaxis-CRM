@@ -3,10 +3,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.updateUser = exports.getUsers = void 0;
+exports.deleteUser = exports.adminSetUserPassword = exports.updateUser = exports.getUsers = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const cache_1 = require("../utils/cache");
 const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
+const hash_1 = require("../utils/hash");
+const security_1 = require("../config/security");
+const passwordBreach_1 = require("../utils/passwordBreach");
+const auditLog_1 = require("../utils/auditLog");
+const requestMeta_1 = require("../utils/requestMeta");
+const sessions_1 = require("../utils/sessions");
+const networkAccess_1 = require("../utils/networkAccess");
+function parseTemporaryHours(raw) {
+    if (raw === undefined || raw === null || raw === "")
+        return null;
+    const n = Number(raw);
+    if (n === 9 || n === 10)
+        return n;
+    return null;
+}
 const getUsers = async (req, res) => {
     try {
         const users = await db_1.default.user.findMany();
@@ -20,7 +35,7 @@ exports.getUsers = getUsers;
 const updateUser = async (req, res) => {
     try {
         const id = req.params.id;
-        const { name, email, role, isActive, csrCode, cnic, profilePic } = req.body;
+        const { name, email, role, isActive, csrCode, cnic, cnicPdfUrl, profilePic, allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours, } = req.body;
         const data = {};
         if (name !== undefined)
             data.name = name;
@@ -34,15 +49,35 @@ const updateUser = async (req, res) => {
             data.csrCode = csrCode || null;
         if (cnic !== undefined)
             data.cnic = cnic || null;
+        if (cnicPdfUrl !== undefined)
+            data.cnicPdfUrl = cnicPdfUrl || null;
         if (profilePic !== undefined)
             data.profilePic = profilePic || null;
+        if (allowedIps !== undefined)
+            data.allowedIps = (0, networkAccess_1.sanitizeIpList)(allowedIps);
+        if (allowedMacAddress !== undefined)
+            data.allowedMacAddress = allowedMacAddress?.trim() || null;
+        if (temporaryAccessIp !== undefined)
+            data.temporaryAccessIp = temporaryAccessIp?.trim() || null;
+        if (temporaryAccessMac !== undefined)
+            data.temporaryAccessMac = temporaryAccessMac?.trim() || null;
+        if (temporaryAccessHours !== undefined || temporaryAccessIp !== undefined || temporaryAccessMac !== undefined) {
+            const h = parseTemporaryHours(temporaryAccessHours);
+            data.temporaryAccessUntil =
+                h && (temporaryAccessIp?.trim() || temporaryAccessMac?.trim())
+                    ? new Date(Date.now() + h * 60 * 60 * 1000)
+                    : null;
+        }
         if (Object.keys(data).length === 0) {
             return res.status(400).json({ message: "No fields to update" });
         }
         const user = await db_1.default.user.update({
             where: { id },
             data,
-            select: { id: true, name: true, email: true, role: true, csrCode: true, isActive: true },
+            select: {
+                id: true, name: true, email: true, role: true, csrCode: true, cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true,
+                allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+            },
         });
         (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
         return res.json(user);
@@ -52,6 +87,47 @@ const updateUser = async (req, res) => {
     }
 };
 exports.updateUser = updateUser;
+const adminSetUserPassword = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const { newPassword } = req.body;
+        if (!newPassword) {
+            return res.status(400).json({ success: false, message: "New password is required." });
+        }
+        const pwdError = (0, security_1.validatePassword)(newPassword);
+        if (pwdError) {
+            return res.status(400).json({ success: false, message: pwdError });
+        }
+        const breachError = await (0, passwordBreach_1.assertPasswordNotBreached)(newPassword);
+        if (breachError) {
+            return res.status(400).json({ success: false, message: breachError });
+        }
+        const target = await db_1.default.user.findUnique({ where: { id }, select: { id: true, email: true } });
+        if (!target) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+        const hashed = await (0, hash_1.hashPassword)(newPassword);
+        await db_1.default.user.update({
+            where: { id },
+            data: { password: hashed, tokenVersion: { increment: 1 } },
+        });
+        await (0, sessions_1.clearActiveSession)(id);
+        await (0, auditLog_1.writeAuditLog)({
+            action: "admin_password_reset",
+            userId: id,
+            email: target.email,
+            ip: (0, requestMeta_1.getClientIp)(req),
+            userAgent: (0, requestMeta_1.getUserAgent)(req),
+            meta: { resetBy: req.user?.id },
+        });
+        (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
+        return res.json({ success: true, message: "Password updated. User must sign in again." });
+    }
+    catch {
+        return res.status(500).json({ success: false, message: "Failed to update password." });
+    }
+};
+exports.adminSetUserPassword = adminSetUserPassword;
 const deleteUser = async (req, res) => {
     try {
         const id = req.params.id;

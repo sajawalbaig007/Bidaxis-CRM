@@ -813,9 +813,10 @@ export default function UsersPage() {
 
         {/* DETAIL MODAL */}
         {detailUser && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="bg-white w-full rounded-3xl p-6 max-w-lg max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center gap-3 mb-5">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+            <div className="bg-white w-full rounded-3xl max-w-lg max-h-[90vh] flex flex-col overflow-hidden my-4">
+              <div className="p-6 pb-4 shrink-0">
+                <div className="flex items-center gap-3">
                 <div className={`relative w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold ${roleColor(detailUser.role)}`}>
                   {detailUser.name.charAt(0).toUpperCase()}
                   <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${detailUser.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
@@ -824,9 +825,10 @@ export default function UsersPage() {
                   <h2 className="text-lg font-semibold text-gray-800">{detailUser.name}</h2>
                   <p className="text-sm text-gray-400">{detailUser.role}</p>
                 </div>
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0 space-y-3">
                 {[
                   { label:"Email",          value: detailUser.email  },
                   { label:"Role",           value: detailUser.role   },
@@ -985,19 +987,22 @@ export default function UsersPage() {
                 </div>
               </div>
 
+              <div className="p-6 pt-4 shrink-0 border-t border-gray-100">
               <button onClick={() => setDetailUser(null)}
-                className="w-full mt-5 bg-[#B8112D] text-white py-3 rounded-2xl font-medium">
+                className="w-full bg-[#B8112D] text-white py-3 rounded-2xl font-medium">
                 Close
               </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* CHANGE PASSWORD MODAL */}
         {pwUser && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="bg-white dark:bg-crm-surface w-full rounded-3xl p-6 max-w-md border border-gray-100 dark:border-crm-border-subtle">
-              <div className="flex items-center gap-3 mb-5">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+            <div className="bg-white dark:bg-crm-surface w-full rounded-3xl max-w-md max-h-[90vh] flex flex-col overflow-hidden border border-gray-100 dark:border-crm-border-subtle my-4">
+              <div className="p-6 pb-4 shrink-0">
+                <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-300 flex items-center justify-center">
                   <KeyRound size={18}/>
                 </div>
@@ -1005,8 +1010,10 @@ export default function UsersPage() {
                   <h2 className="text-lg font-semibold text-gray-800 dark:text-crm-text">Change Password</h2>
                   <p className="text-xs text-gray-400 dark:text-crm-text-muted">{pwUser.name} · {pwUser.email}</p>
                 </div>
+                </div>
               </div>
 
+              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
               <div className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-500 dark:text-crm-text-muted block mb-2">New Password</label>
@@ -1038,8 +1045,9 @@ export default function UsersPage() {
                   User will be signed out on all devices and must log in with the new password.
                 </p>
               </div>
+              </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="p-6 pt-4 shrink-0 border-t border-gray-100 dark:border-crm-border-subtle flex gap-3">
                 <button type="button" onClick={closePasswordModal}
                   className="flex-1 py-3 rounded-2xl bg-gray-100 dark:bg-crm-muted text-gray-600 dark:text-crm-text-secondary font-medium text-sm">
                   Cancel
@@ -1055,11 +1063,14 @@ export default function UsersPage() {
 
         {/* CREATE / EDIT MODAL */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="bg-white w-full rounded-3xl p-6 max-w-md">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+            <div className="bg-white w-full rounded-3xl max-w-md max-h-[90vh] flex flex-col overflow-hidden my-4">
+              <div className="p-6 pb-0 shrink-0">
+              <h2 className="text-xl font-semibold text-gray-800">
                 {editingUser ? "Edit User" : "Create User"}
               </h2>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
               <div className="space-y-4">
                 {[
                   { label:"Full Name",     key:"name",  type:"text",  placeholder:"Enter full name", req: true },
@@ -1332,7 +1343,8 @@ export default function UsersPage() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-3 mt-6">
+              </div>
+              <div className="p-6 pt-4 shrink-0 border-t border-gray-100 flex gap-3">
                 <button onClick={() => { setShowModal(false); setEditingUser(null); }}
                   className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-2xl hover:bg-gray-50 transition-all text-sm">
                   Cancel

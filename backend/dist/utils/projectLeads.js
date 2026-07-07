@@ -1,10 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PROJECT_LEAD_STATUSES = void 0;
+exports.wonClientStatusWhere = wonClientStatusWhere;
 exports.buildProjectLeadWhere = buildProjectLeadWhere;
 exports.isDisplayableProjectLead = isDisplayableProjectLead;
 /** Statuses that appear on CSR / admin Active Projects pages */
 exports.PROJECT_LEAD_STATUSES = ["Close Client", "completed", "close client"];
+function wonClientStatusWhere() {
+    return {
+        OR: [
+            { status: { equals: "Close Client", mode: "insensitive" } },
+            { status: { equals: "completed", mode: "insensitive" } },
+            { status: { equals: "closed", mode: "insensitive" } },
+        ],
+    };
+}
 function buildProjectLeadWhere(csrId) {
     const where = {
         status: { in: [...exports.PROJECT_LEAD_STATUSES] },
