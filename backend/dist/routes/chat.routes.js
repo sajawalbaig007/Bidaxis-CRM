@@ -8,7 +8,10 @@ const multer_1 = __importDefault(require("multer"));
 const db_1 = __importDefault(require("../config/db"));
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const role_middleware_1 = require("../middleware/role.middleware");
 const cache_1 = require("../utils/cache");
+const chatMessageFormat_1 = require("../chat/chatMessageFormat");
+const chatSocket_1 = require("../chat/chatSocket");
 const router = express_1.default.Router();
 /* ── multer: 200 MB in-memory ── */
 const chatUpload = (0, multer_1.default)({
@@ -21,51 +24,96 @@ const typingMap = new Map();
 function p(val) {
     return Array.isArray(val) ? val[0] : val;
 }
-function parseReactions(raw) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw))
-        return {};
-    return raw;
+async function getConversationMemberIds(conversationId) {
+    const rows = await db_1.default.conversationMember.findMany({
+        where: { conversationId },
+        select: { userId: true },
+    });
+    return rows.map(r => r.userId);
 }
-const EDIT_WINDOW_MS = 10 * 60 * 1000;
-function msgStatus(senderId, userId, createdAt, members) {
-    const others = members.filter(m => m.userId !== userId);
-    if (senderId === userId) {
-        const readBy = others
-            .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
-            .map(m => m.user.name);
-        const allRead = others.length > 0 && readBy.length === others.length;
-        return { status: allRead ? "read" : "delivered", readBy };
+async function fetchConversationsForUser(viewUserId, showArchived) {
+    const memberships = await db_1.default.conversationMember.findMany({
+        where: { userId: viewUserId },
+        include: {
+            conversation: {
+                include: {
+                    members: {
+                        include: { user: { select: { id: true, name: true, isOnline: true } } },
+                    },
+                    messages: {
+                        orderBy: { createdAt: "desc" },
+                        take: 1,
+                        select: { text: true, type: true, createdAt: true, senderId: true },
+                    },
+                },
+            },
+        },
+        orderBy: { conversation: { updatedAt: "desc" } },
+    });
+    const filteredMemberships = memberships.filter(m => showArchived ? Boolean(m.archivedAt) : !m.archivedAt);
+    const unreadCounts = await Promise.all(filteredMemberships.map(m => db_1.default.message.count({
+        where: {
+            conversationId: m.conversationId,
+            senderId: { not: viewUserId },
+            ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
+        },
+    })));
+    return filteredMemberships.map((m, idx) => {
+        const conv = m.conversation;
+        const lastMsg = conv.messages[0];
+        const otherMember = conv.type === "direct"
+            ? conv.members.find(mem => mem.userId !== viewUserId)
+            : null;
+        return {
+            id: conv.id,
+            type: conv.type,
+            name: conv.type === "direct"
+                ? (otherMember?.user?.name ?? "Unknown")
+                : (conv.name ?? "Group"),
+            otherUserId: otherMember?.userId ?? null,
+            lastMessage: lastMsg
+                ? (lastMsg.type !== "text" ? `Sent a ${lastMsg.type}` : lastMsg.text)
+                : null,
+            lastMessageAt: lastMsg?.createdAt ?? null,
+            unreadCount: unreadCounts[idx],
+            memberCount: conv.members.length,
+            isOnline: otherMember?.user?.isOnline ?? false,
+            pinnedMessageId: conv.pinnedMessageId ?? null,
+            archived: Boolean(m.archivedAt),
+        };
+    });
+}
+async function fetchMessagesForUser(conversationId, viewUserId) {
+    const members = await db_1.default.conversationMember.findMany({
+        where: { conversationId },
+        include: { user: { select: { id: true, name: true } } },
+    });
+    const raw = await db_1.default.message.findMany({
+        where: { conversationId },
+        include: {
+            sender: { select: { id: true, name: true } },
+            replyTo: {
+                select: {
+                    id: true, text: true, type: true,
+                    sender: { select: { name: true } },
+                },
+            },
+        },
+        orderBy: { createdAt: "asc" },
+        take: 200,
+    });
+    const messages = raw.map(m => (0, chatMessageFormat_1.formatMessage)(m, viewUserId, members));
+    const conv = await db_1.default.conversation.findUnique({
+        where: { id: conversationId },
+        select: { pinnedMessageId: true },
+    });
+    let pinnedMessage = null;
+    if (conv?.pinnedMessageId) {
+        const pin = raw.find(m => m.id === conv.pinnedMessageId);
+        if (pin)
+            pinnedMessage = (0, chatMessageFormat_1.formatMessage)(pin, viewUserId, members);
     }
-    const me = members.find(m => m.userId === userId);
-    const read = me?.lastReadAt && me.lastReadAt >= createdAt;
-    return { status: read ? "read" : "delivered", readBy: [] };
-}
-function formatMessage(m, userId, members) {
-    const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
-    return {
-        id: m.id,
-        senderId: m.senderId,
-        senderName: m.sender.name,
-        text: m.text,
-        type: m.type,
-        fileUrl: m.fileUrl,
-        fileName: m.fileName,
-        fileSize: m.fileSize,
-        fileMimeType: m.fileMimeType,
-        createdAt: m.createdAt,
-        editedAt: m.editedAt,
-        mentions: m.mentions ?? [],
-        reactions: parseReactions(m.reactions),
-        readBy,
-        isOwn: m.senderId === userId,
-        status,
-        replyTo: m.replyTo ? {
-            id: m.replyTo.id,
-            text: m.replyTo.text,
-            senderName: m.replyTo.sender.name,
-            type: m.replyTo.type,
-        } : null,
-    };
+    return { messages, pinnedMessage };
 }
 /* ═══════════════════════════════════════════════════════
    GET /chat/conversations
@@ -78,56 +126,7 @@ router.get("/conversations", auth_middleware_1.verifyToken, async (req, res) => 
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const memberships = await db_1.default.conversationMember.findMany({
-            where: { userId },
-            include: {
-                conversation: {
-                    include: {
-                        members: {
-                            include: { user: { select: { id: true, name: true, isOnline: true } } },
-                        },
-                        messages: {
-                            orderBy: { createdAt: "desc" },
-                            take: 1,
-                            select: { text: true, type: true, createdAt: true, senderId: true },
-                        },
-                    },
-                },
-            },
-            orderBy: { conversation: { updatedAt: "desc" } },
-        });
-        const filteredMemberships = memberships.filter(m => showArchived ? Boolean(m.archivedAt) : !m.archivedAt);
-        const unreadCounts = await Promise.all(filteredMemberships.map(m => db_1.default.message.count({
-            where: {
-                conversationId: m.conversationId,
-                senderId: { not: userId },
-                ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
-            },
-        })));
-        const conversations = filteredMemberships.map((m, idx) => {
-            const conv = m.conversation;
-            const lastMsg = conv.messages[0];
-            const otherMember = conv.type === "direct"
-                ? conv.members.find(mem => mem.userId !== userId)
-                : null;
-            return {
-                id: conv.id,
-                type: conv.type,
-                name: conv.type === "direct"
-                    ? (otherMember?.user?.name ?? "Unknown")
-                    : (conv.name ?? "Group"),
-                otherUserId: otherMember?.userId ?? null,
-                lastMessage: lastMsg
-                    ? (lastMsg.type !== "text" ? `Sent a ${lastMsg.type}` : lastMsg.text)
-                    : null,
-                lastMessageAt: lastMsg?.createdAt ?? null,
-                unreadCount: unreadCounts[idx],
-                memberCount: conv.members.length,
-                isOnline: otherMember?.user?.isOnline ?? false,
-                pinnedMessageId: conv.pinnedMessageId ?? null,
-                archived: Boolean(m.archivedAt),
-            };
-        });
+        const conversations = await fetchConversationsForUser(userId, showArchived);
         const payload = { conversations };
         (0, cache_1.setCache)(cacheKey, payload, 3000);
         return res.json(payload);
@@ -245,35 +244,7 @@ router.get("/conversations/:id/messages", auth_middleware_1.verifyToken, async (
         });
         if (!member)
             return res.status(403).json({ message: "Not a member" });
-        const members = await db_1.default.conversationMember.findMany({
-            where: { conversationId },
-            include: { user: { select: { id: true, name: true } } },
-        });
-        const raw = await db_1.default.message.findMany({
-            where: { conversationId },
-            include: {
-                sender: { select: { id: true, name: true } },
-                replyTo: {
-                    select: {
-                        id: true, text: true, type: true,
-                        sender: { select: { name: true } },
-                    },
-                },
-            },
-            orderBy: { createdAt: "asc" },
-            take: 200,
-        });
-        const messages = raw.map(m => formatMessage(m, userId, members));
-        const conv = await db_1.default.conversation.findUnique({
-            where: { id: conversationId },
-            select: { pinnedMessageId: true },
-        });
-        let pinnedMessage = null;
-        if (conv?.pinnedMessageId) {
-            const pin = raw.find(m => m.id === conv.pinnedMessageId);
-            if (pin)
-                pinnedMessage = formatMessage(pin, userId, members);
-        }
+        const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId);
         return res.json({ messages, pinnedMessage });
     }
     catch (err) {
@@ -370,8 +341,9 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
             where: { conversationId },
             include: { user: { select: { id: true, name: true } } },
         });
+        (0, chatSocket_1.emitNewMessage)(conversationId, userId, message, members);
         return res.json({
-            message: formatMessage(message, userId, members),
+            message: (0, chatMessageFormat_1.formatMessage)(message, userId, members),
         });
     }
     catch (err) {
@@ -396,6 +368,8 @@ router.delete("/messages/:id", auth_middleware_1.verifyToken, async (req, res) =
             return res.status(403).json({ message: "Cannot delete this message" });
         }
         await db_1.default.message.delete({ where: { id: msgId } });
+        const memberIds = await getConversationMemberIds(msg.conversationId);
+        (0, chatSocket_1.emitMessageDelete)(msg.conversationId, msgId, memberIds);
         return res.json({ success: true });
     }
     catch {
@@ -409,10 +383,13 @@ router.post("/conversations/:id/read", auth_middleware_1.verifyToken, async (req
     try {
         const userId = req.user.id;
         const conversationId = p(req.params.id);
+        const readAt = new Date();
         await db_1.default.conversationMember.updateMany({
             where: { conversationId, userId },
-            data: { lastReadAt: new Date() },
+            data: { lastReadAt: readAt },
         });
+        const memberIds = await getConversationMemberIds(conversationId);
+        (0, chatSocket_1.emitConversationRead)(conversationId, userId, readAt.toISOString(), memberIds);
         return res.json({ success: true });
     }
     catch {
@@ -431,6 +408,7 @@ router.post("/conversations/:id/typing", auth_middleware_1.verifyToken, async (r
         if (!typingMap.has(convId))
             typingMap.set(convId, new Map());
         typingMap.get(convId).set(userId, { name, expiresAt: Date.now() + 4000 });
+        (0, chatSocket_1.emitTyping)(convId, userId, name);
         return res.json({ success: true });
     }
     catch {
@@ -470,6 +448,7 @@ router.post("/status", auth_middleware_1.verifyToken, async (req, res) => {
             where: { id: userId },
             data: { isOnline: online, lastActive: new Date() },
         });
+        (0, chatSocket_1.emitPresence)(userId, online);
         return res.json({ success: true });
     }
     catch {
@@ -477,7 +456,7 @@ router.post("/status", auth_middleware_1.verifyToken, async (req, res) => {
     }
 });
 /* ═══════════════════════════════════════════════════════
-   GET /chat/users — admin + csr (for DMs)
+   GET /chat/users — admin + csr + manager (for DMs)
 ═══════════════════════════════════════════════════════ */
 router.get("/users", auth_middleware_1.verifyToken, async (req, res) => {
     try {
@@ -485,11 +464,12 @@ router.get("/users", auth_middleware_1.verifyToken, async (req, res) => {
         const users = await db_1.default.user.findMany({
             where: { isActive: true, id: { not: meId } },
             select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
-            orderBy: [{ role: "asc" }, { name: "asc" }],
+            orderBy: [{ name: "asc" }],
         });
         return res.json({ users });
     }
-    catch {
+    catch (err) {
+        console.error("[chat] GET /users", err);
         return res.status(500).json({ message: "Failed to fetch users" });
     }
 });
@@ -537,7 +517,7 @@ router.patch("/messages/:id", auth_middleware_1.verifyToken, async (req, res) =>
         if (!msg || msg.senderId !== userId || msg.type !== "text") {
             return res.status(403).json({ message: "Cannot edit this message" });
         }
-        if (Date.now() - msg.createdAt.getTime() > EDIT_WINDOW_MS) {
+        if (Date.now() - msg.createdAt.getTime() > chatMessageFormat_1.EDIT_WINDOW_MS) {
             return res.status(400).json({ message: "Edit window expired (10 minutes)" });
         }
         const updated = await db_1.default.message.update({
@@ -553,7 +533,8 @@ router.patch("/messages/:id", auth_middleware_1.verifyToken, async (req, res) =>
             include: { user: { select: { id: true, name: true } } },
         });
         (0, cache_1.invalidatePattern)("chat:convs:");
-        return res.json({ message: formatMessage(updated, userId, members) });
+        (0, chatSocket_1.emitMessageEdit)(msg.conversationId, updated, members);
+        return res.json({ message: (0, chatMessageFormat_1.formatMessage)(updated, userId, members) });
     }
     catch {
         return res.status(500).json({ message: "Failed to edit message" });
@@ -577,7 +558,7 @@ router.post("/messages/:id/reactions", auth_middleware_1.verifyToken, async (req
         });
         if (!member)
             return res.status(403).json({ message: "Not a member" });
-        const reactions = parseReactions(msg.reactions);
+        const reactions = (0, chatMessageFormat_1.parseReactions)(msg.reactions);
         const list = reactions[emoji] ?? [];
         if (list.includes(userId)) {
             reactions[emoji] = list.filter(id => id !== userId);
@@ -591,6 +572,8 @@ router.post("/messages/:id/reactions", auth_middleware_1.verifyToken, async (req
             where: { id: msgId },
             data: { reactions },
         });
+        const memberIds = await getConversationMemberIds(msg.conversationId);
+        (0, chatSocket_1.emitMessageReaction)(msg.conversationId, msgId, reactions, memberIds);
         return res.json({ reactions });
     }
     catch {
@@ -620,6 +603,24 @@ router.post("/conversations/:id/pin", auth_middleware_1.verifyToken, async (req,
             data: { pinnedMessageId: messageId },
         });
         (0, cache_1.invalidatePattern)("chat:convs:");
+        const members = await db_1.default.conversationMember.findMany({
+            where: { conversationId },
+            include: { user: { select: { id: true, name: true } } },
+        });
+        let pinnedMessage = null;
+        if (messageId) {
+            const pin = await db_1.default.message.findFirst({
+                where: { id: messageId, conversationId },
+                include: {
+                    sender: { select: { id: true, name: true } },
+                    replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
+                },
+            });
+            if (pin)
+                pinnedMessage = (0, chatMessageFormat_1.formatMessage)(pin, userId, members);
+        }
+        const memberIds = members.map(m => m.userId);
+        (0, chatSocket_1.emitPinnedMessage)(conversationId, pinnedMessage, memberIds);
         return res.json({ success: true, pinnedMessageId: messageId });
     }
     catch {
@@ -657,6 +658,50 @@ router.post("/conversations/:id/unarchive", auth_middleware_1.verifyToken, async
     }
     catch {
         return res.json({ success: true });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   Admin stealth view — read CSR chats without notifying them
+═══════════════════════════════════════════════════════ */
+router.get("/admin/view/:csrId/conversations", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const csrId = p(req.params.csrId);
+        const showArchived = req.query.archived === "1";
+        const csr = await db_1.default.user.findFirst({
+            where: { id: csrId, role: "csr" },
+            select: { id: true },
+        });
+        if (!csr)
+            return res.status(404).json({ message: "CSR not found" });
+        const conversations = await fetchConversationsForUser(csrId, showArchived);
+        return res.json({ conversations });
+    }
+    catch (err) {
+        console.error("[chat] admin view conversations", err);
+        return res.status(500).json({ message: "Failed to fetch CSR conversations" });
+    }
+});
+router.get("/admin/view/:csrId/conversations/:convId/messages", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const csrId = p(req.params.csrId);
+        const conversationId = p(req.params.convId);
+        const csr = await db_1.default.user.findFirst({
+            where: { id: csrId, role: "csr" },
+            select: { id: true },
+        });
+        if (!csr)
+            return res.status(404).json({ message: "CSR not found" });
+        const member = await db_1.default.conversationMember.findUnique({
+            where: { conversationId_userId: { conversationId, userId: csrId } },
+        });
+        if (!member)
+            return res.status(403).json({ message: "CSR is not in this conversation" });
+        const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId);
+        return res.json({ messages, pinnedMessage });
+    }
+    catch (err) {
+        console.error("[chat] admin view messages", err);
+        return res.status(500).json({ message: "Failed to fetch messages" });
     }
 });
 exports.default = router;

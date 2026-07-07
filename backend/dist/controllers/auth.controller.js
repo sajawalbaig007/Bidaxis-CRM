@@ -13,6 +13,7 @@ const cache_1 = require("../utils/cache");
 const security_1 = require("../config/security");
 const env_1 = require("../config/env");
 const requestMeta_1 = require("../utils/requestMeta");
+const networkAccess_1 = require("../utils/networkAccess");
 const auditLog_1 = require("../utils/auditLog");
 const accessHistory_1 = require("../utils/accessHistory");
 const loginLockout_1 = require("../utils/loginLockout");
@@ -28,22 +29,16 @@ function setCookieToken(res, token, rememberMe) {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? "none" : "lax",
+        path: "/",
         maxAge: hours * 60 * 60 * 1000,
     });
 }
 function userPayload(u) {
     return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
-async function blockIfAlreadyLoggedIn(userId, res) {
-    if (!(await (0, sessions_1.hasActiveSession)(userId)))
-        return false;
-    await (0, sessions_1.recordLoginAttempt)(userId);
-    res.status(409).json({
-        success: false,
-        code: "ALREADY_LOGGED_IN",
-        message: "Already logged in on another device. Please log out there first.",
-    });
-    return true;
+async function blockIfAlreadyLoggedIn(_userId, _res) {
+    /* Allow new login — registerActiveSession replaces the previous session. */
+    return false;
 }
 async function issueSessionToken(res, user, rememberMe) {
     const sid = crypto_1.default.randomBytes(16).toString("hex");
@@ -56,7 +51,7 @@ async function issueSessionToken(res, user, rememberMe) {
 }
 async function finishLogin(req, res, user, rememberMe) {
     await (0, loginLockout_1.clearLoginFailures)(user.email, (0, requestMeta_1.getClientIp)(req));
-    await issueSessionToken(res, user, rememberMe);
+    const token = await issueSessionToken(res, user, rememberMe);
     const ip = (0, requestMeta_1.getClientIp)(req);
     const ua = (0, requestMeta_1.getUserAgent)(req);
     await (0, auditLog_1.writeAuditLog)({
@@ -80,13 +75,32 @@ async function finishLogin(req, res, user, rememberMe) {
         requires2FA: false,
         role: user.role,
         user: userPayload(user),
+        token,
     });
 }
 function makeOTP() {
     return crypto_1.default.randomInt(100000, 1000000).toString();
 }
+function parsePortalRole(raw) {
+    const r = String(raw ?? "").toLowerCase();
+    if (r === "admin" || r === "csr" || r === "manager")
+        return r;
+    return null;
+}
+function portalRoleLabel(role) {
+    if (role === "admin")
+        return "Admin";
+    if (role === "manager")
+        return "Manager";
+    return "CSR";
+}
+function assertPortalRoleMatch(userRole, loginRole) {
+    if (userRole === loginRole)
+        return null;
+    return `This account is registered as ${portalRoleLabel(userRole)}. Select "${portalRoleLabel(userRole)}" on the login page.`;
+}
 function assertAdminIp(req, role) {
-    if (role !== "admin")
+    if (role !== "admin" && role !== "manager")
         return null;
     const allowed = (0, env_1.getAdminAllowedIps)();
     if (allowed.length === 0)
@@ -97,10 +111,18 @@ function assertAdminIp(req, role) {
     }
     return null;
 }
+function parseTemporaryHours(raw) {
+    if (raw === undefined || raw === null || raw === "")
+        return null;
+    const n = Number(raw);
+    if (n === 9 || n === 10)
+        return n;
+    return null;
+}
 /* ================= REGISTER ================= */
 const register = async (req, res) => {
     try {
-        const { name, email, password, role, csrCode, cnic, profilePic } = req.body;
+        const { name, email, password, role, csrCode, cnic, cnicPdfUrl, profilePic, allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours, } = req.body;
         if (role === "csr" && !csrCode?.trim()) {
             return res.status(400).json({ success: false, message: "CSR Code is required for CSR accounts." });
         }
@@ -115,6 +137,13 @@ const register = async (req, res) => {
         if (role === "admin" && req.user?.role !== "admin") {
             return res.status(403).json({ success: false, message: "Only admins can create admin accounts." });
         }
+        if (role === "manager" && req.user?.role !== "admin") {
+            return res.status(403).json({ success: false, message: "Only admins can create manager accounts." });
+        }
+        const validRoles = ["admin", "csr", "manager"];
+        if (!validRoles.includes(role)) {
+            return res.status(400).json({ success: false, message: "Invalid role." });
+        }
         const existing = await db_1.default.user.findUnique({ where: { email } });
         if (existing) {
             return res.status(400).json({ success: false, message: "User already exists" });
@@ -126,9 +155,44 @@ const register = async (req, res) => {
             }
         }
         const hashed = await (0, hash_1.hashPassword)(password);
+        const cleanedIps = (0, networkAccess_1.sanitizeIpList)(allowedIps);
+        const tempHours = parseTemporaryHours(temporaryAccessHours);
+        const tempAccessUntil = tempHours && (temporaryAccessIp || temporaryAccessMac)
+            ? new Date(Date.now() + tempHours * 60 * 60 * 1000)
+            : null;
+        const userData = {
+            name,
+            email,
+            password: hashed,
+            role,
+            csrCode: role === "csr" ? csrCode.trim() : null,
+            cnic: cnic?.trim() || null,
+            cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
+            profilePic: profilePic || null,
+            allowedIps: cleanedIps,
+            allowedMacAddress: typeof allowedMacAddress === "string" && allowedMacAddress.trim() ? allowedMacAddress.trim() : null,
+            temporaryAccessIp: typeof temporaryAccessIp === "string" && temporaryAccessIp.trim() ? temporaryAccessIp.trim() : null,
+            temporaryAccessMac: typeof temporaryAccessMac === "string" && temporaryAccessMac.trim() ? temporaryAccessMac.trim() : null,
+            temporaryAccessUntil: tempAccessUntil,
+        };
         const user = await db_1.default.user.create({
-            data: { name, email, password: hashed, role, csrCode: role === "csr" ? csrCode.trim() : null, cnic: cnic?.trim() || null, profilePic: profilePic || null },
-            select: { id: true, name: true, email: true, role: true, csrCode: true, cnic: true, profilePic: true, createdAt: true },
+            data: userData,
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                csrCode: true,
+                cnic: true,
+                cnicPdfUrl: true,
+                profilePic: true,
+                allowedIps: true,
+                allowedMacAddress: true,
+                temporaryAccessIp: true,
+                temporaryAccessMac: true,
+                temporaryAccessUntil: true,
+                createdAt: true,
+            },
         });
         (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
         return res.status(201).json({ success: true, user });
@@ -150,7 +214,19 @@ exports.getCaptchaConfig = getCaptchaConfig;
 /* ================= LOGIN — Step 1 ================= */
 const login = async (req, res) => {
     try {
-        const { email, password, rememberMe, captchaToken } = req.body;
+        const { email: rawEmail, password, rememberMe, captchaToken, loginRole: rawLoginRole } = req.body;
+        const loginRole = parsePortalRole(rawLoginRole);
+        if (!loginRole) {
+            return res.status(400).json({
+                success: false,
+                code: "INVALID_LOGIN_ROLE",
+                message: "Select Admin, CSR, or Manager before signing in.",
+            });
+        }
+        const email = (rawEmail ?? "").trim().toLowerCase();
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: "Email and password are required." });
+        }
         const ip = (0, requestMeta_1.getClientIp)(req);
         const ua = (0, requestMeta_1.getUserAgent)(req);
         const block = await (0, loginLockout_1.isLoginBlocked)(email ?? "", ip);
@@ -158,7 +234,7 @@ const login = async (req, res) => {
             await (0, auditLog_1.writeAuditLog)({ action: "login_blocked", email, ip, userAgent: ua });
             return res.status(429).json({ success: false, blocked: true, message: block.message });
         }
-        if (await (0, loginLockout_1.requiresCaptcha)(email ?? "", ip)) {
+        if ((0, env_1.isCaptchaConfigured)() && await (0, loginLockout_1.requiresCaptcha)(email, ip)) {
             const ok = await (0, captcha_1.verifyCaptchaToken)(captchaToken);
             if (!ok) {
                 return res.status(400).json({
@@ -168,7 +244,12 @@ const login = async (req, res) => {
                 });
             }
         }
-        const user = await db_1.default.user.findUnique({ where: { email } });
+        let user = await db_1.default.user.findUnique({ where: { email } });
+        if (!user) {
+            user = await db_1.default.user.findFirst({
+                where: { email: { equals: email, mode: "insensitive" } },
+            });
+        }
         if (!user) {
             await (0, loginLockout_1.recordFailedLogin)(email ?? "", ip);
             await (0, auditLog_1.writeAuditLog)({ action: "login_failed", email, ip, userAgent: ua, meta: { reason: "user_not_found" } });
@@ -177,10 +258,31 @@ const login = async (req, res) => {
         if (!user.isActive) {
             return res.status(403).json({ success: false, message: "Account is deactivated" });
         }
+        const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
+        if (roleMismatch) {
+            await (0, auditLog_1.writeAuditLog)({
+                action: "login_failed",
+                userId: user.id,
+                email: user.email,
+                ip,
+                userAgent: ua,
+                meta: { reason: "portal_role_mismatch", loginRole, userRole: user.role },
+            });
+            return res.status(403).json({
+                success: false,
+                code: "PORTAL_ROLE_MISMATCH",
+                message: roleMismatch,
+            });
+        }
         const ipError = assertAdminIp(req, user.role);
         if (ipError) {
             await (0, auditLog_1.writeAuditLog)({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "ip" } });
             return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: ipError });
+        }
+        const networkError = (0, networkAccess_1.evaluateNetworkAccess)(user, req);
+        if (networkError) {
+            await (0, auditLog_1.writeAuditLog)({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "network_policy" } });
+            return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
         }
         const isMatch = await (0, hash_1.comparePassword)(password, user.password);
         if (!isMatch) {
@@ -193,7 +295,7 @@ const login = async (req, res) => {
                 captchaRequired: needCaptcha && (0, env_1.isCaptchaConfigured)(),
             });
         }
-        if (user.twoFAEnabled) {
+        if (user.twoFAEnabled && (0, env_1.isSmtpConfigured)()) {
             if (await blockIfAlreadyLoggedIn(user.id, res))
                 return;
             const existing = sessions_1.otpAttempts.get(user.id);
@@ -208,7 +310,7 @@ const login = async (req, res) => {
             sessions_1.otpAttempts.delete(user.id);
             sessions_1.otpResendCount.delete(user.id);
             const otp = makeOTP();
-            sessions_1.otpStore.set(user.id, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+            sessions_1.otpStore.set(user.id, { otp, expiresAt: Date.now() + 5 * 60 * 1000, loginRole });
             (0, securityEmail_1.sendOTPEmail)(user.email, otp);
             return res.json({
                 success: true,
@@ -228,7 +330,8 @@ const login = async (req, res) => {
         }
         return finishLogin(req, res, dbUser, !!rememberMe);
     }
-    catch {
+    catch (err) {
+        console.error("[auth/login]", err);
         return res.status(500).json({ success: false, message: "Server error" });
     }
 };
@@ -236,7 +339,7 @@ exports.login = login;
 /* ================= VERIFY OTP ================= */
 const verifyOTP = async (req, res) => {
     try {
-        const { userId, otp, rememberMe } = req.body;
+        const { userId, otp, rememberMe, loginRole: rawLoginRole } = req.body;
         if (!userId || !otp) {
             return res.status(400).json({ success: false, message: "userId and OTP required." });
         }
@@ -287,10 +390,33 @@ const verifyOTP = async (req, res) => {
             return;
         const user = await db_1.default.user.findUnique({
             where: { id: userId },
-            select: { id: true, name: true, email: true, role: true, tokenVersion: true },
+            select: {
+                id: true, name: true, email: true, role: true, tokenVersion: true,
+                allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+            },
         });
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found." });
+        }
+        const loginRole = parsePortalRole(rawLoginRole) ?? parsePortalRole(stored.loginRole);
+        if (!loginRole) {
+            return res.status(400).json({
+                success: false,
+                code: "INVALID_LOGIN_ROLE",
+                message: "Select Admin, CSR, or Manager before signing in.",
+            });
+        }
+        const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
+        if (roleMismatch) {
+            return res.status(403).json({
+                success: false,
+                code: "PORTAL_ROLE_MISMATCH",
+                message: roleMismatch,
+            });
+        }
+        const networkError = (0, networkAccess_1.evaluateNetworkAccess)(user, req);
+        if (networkError) {
+            return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
         }
         return finishLogin(req, res, user, !!rememberMe);
     }
@@ -560,7 +686,9 @@ const getAuditLogs = async (req, res) => {
             return res.status(403).json({ success: false, message: "Admin only." });
         }
         const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
-        const logs = await (0, auditLog_1.fetchRecentAuditLogs)(limit);
+        const fromDate = typeof req.query.fromDate === "string" ? req.query.fromDate : undefined;
+        const toDate = typeof req.query.toDate === "string" ? req.query.toDate : undefined;
+        const logs = await (0, auditLog_1.fetchRecentAuditLogs)(limit, fromDate, toDate);
         return res.json({ success: true, logs });
     }
     catch {

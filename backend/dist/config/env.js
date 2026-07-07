@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.isSmtpConfigured = isSmtpConfigured;
 exports.validateEnv = validateEnv;
 exports.getAdminAllowedIps = getAdminAllowedIps;
 exports.isCaptchaConfigured = isCaptchaConfigured;
@@ -8,9 +9,10 @@ const REQUIRED_PROD = [
     "JWT_SECRET",
     "DATABASE_URL",
     "FRONTEND_URL",
-    "SMTP_USER",
-    "SMTP_PASS",
 ];
+function isSmtpConfigured() {
+    return !!(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
+}
 function validateEnv() {
     const isProd = process.env.NODE_ENV === "production";
     if (!isProd)
@@ -22,6 +24,9 @@ function validateEnv() {
     const jwt = process.env.JWT_SECRET?.trim() ?? "";
     if (jwt.length < 32) {
         throw new Error("[Security] JWT_SECRET must be at least 32 characters in production.");
+    }
+    if (!isSmtpConfigured()) {
+        console.warn("[Security] SMTP_USER / SMTP_PASS not set — OTP and login alert emails will be skipped.");
     }
 }
 function getAdminAllowedIps() {

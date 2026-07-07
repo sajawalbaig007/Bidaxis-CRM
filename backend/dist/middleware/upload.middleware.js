@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadReportFile = exports.uploadExcel = void 0;
+exports.uploadPdf = exports.uploadReportFile = exports.uploadExcel = void 0;
 const multer_1 = __importDefault(require("multer"));
 const storage = multer_1.default.memoryStorage();
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -70,4 +70,23 @@ const uploadReportFile = (0, multer_1.default)({
     fileFilter: reportFilter,
 });
 exports.uploadReportFile = uploadReportFile;
+function pdfFilter(_req, file, cb) {
+    const name = file.originalname?.toLowerCase() ?? "";
+    if (name.includes("..") || /\.(exe|bat|cmd|sh|php|js|html)$/i.test(name)) {
+        cb(new Error("Invalid file name."));
+        return;
+    }
+    const okType = file.mimetype === "application/pdf";
+    const okExt = name.endsWith(".pdf");
+    if (okType || okExt)
+        cb(null, true);
+    else
+        cb(new Error("Only PDF files are allowed."));
+}
+const uploadPdf = (0, multer_1.default)({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+    fileFilter: pdfFilter,
+});
+exports.uploadPdf = uploadPdf;
 exports.default = uploadImage;

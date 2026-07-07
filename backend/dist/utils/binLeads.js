@@ -4,6 +4,9 @@ exports.NOT_PICKED_LIMIT = exports.NOT_INTERESTED_LIMIT = void 0;
 exports.binReasonLabel = binReasonLabel;
 exports.resolveDeleteBinReason = resolveDeleteBinReason;
 exports.notInBinFilter = notInBinFilter;
+exports.activeCsrLeadWhere = activeCsrLeadWhere;
+exports.mainPipelineWhere = mainPipelineWhere;
+exports.pendingLeadWhere = pendingLeadWhere;
 exports.filterActiveLeads = filterActiveLeads;
 exports.buildActiveRetryWhere = buildActiveRetryWhere;
 exports.buildBinWhere = buildBinWhere;
@@ -30,9 +33,29 @@ function resolveDeleteBinReason(status) {
         return "deleted-pending";
     return "deleted-other";
 }
-/** Match leads not in bin — includes legacy docs where inBin was never set */
+/** Match leads not in bin — includes legacy MongoDB docs where inBin was never persisted */
 function notInBinFilter() {
     return { NOT: { inBin: true } };
+}
+/** Active leads for a CSR (not in bin) — same rules as legacy filterActiveLeads for inBin */
+function activeCsrLeadWhere(csrId) {
+    return {
+        assignedTo: csrId,
+        ...notInBinFilter(),
+    };
+}
+/** Main dashboard pipeline — matches old frontend mainLeads (!hiddenOnMain) */
+function mainPipelineWhere(csrId) {
+    return {
+        ...activeCsrLeadWhere(csrId),
+        hiddenOnMain: false,
+    };
+}
+function pendingLeadWhere(csrId) {
+    return {
+        ...mainPipelineWhere(csrId),
+        status: { equals: "pending", mode: "insensitive" },
+    };
 }
 /** Filter in memory when MongoDB docs lack persisted inBin (Prisma default is false). */
 function filterActiveLeads(leads) {

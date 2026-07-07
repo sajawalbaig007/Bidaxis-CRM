@@ -21,12 +21,14 @@ const env_1 = require("./config/env");
 dotenv_1.default.config();
 (0, env_1.validateEnv)();
 const app = (0, express_1.default)();
+app.set("trust proxy", 1);
 const isProd = process.env.NODE_ENV === "production";
 const allowedOrigins = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "https://crm-blond-theta.vercel.app",
     "https://dashboard.bemsolutions.io",
-    process.env.FRONTEND_URL,
+    process.env.FRONTEND_URL?.replace(/\/$/, ""),
 ].filter(Boolean);
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -44,12 +46,15 @@ app.use((0, helmet_1.default)({
 }));
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        }
-        else {
-            callback(new Error("Not allowed by CORS"));
-        }
+        if (!origin)
+            return callback(null, true);
+        if (allowedOrigins.includes(origin))
+            return callback(null, true);
+        if (/^https:\/\/([a-z0-9-]+\.)?bemsolutions\.io$/i.test(origin))
+            return callback(null, true);
+        if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin))
+            return callback(null, true);
+        callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
     maxAge: 86400,

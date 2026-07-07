@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runWeeklyShuffle = runWeeklyShuffle;
+const http_1 = __importDefault(require("http"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const security_1 = require("./config/security");
@@ -13,12 +14,13 @@ const sessions_1 = require("./utils/sessions");
 const app_1 = __importDefault(require("./app"));
 const db_1 = __importDefault(require("./config/db"));
 const cloudinary_1 = __importDefault(require("./config/cloudinary"));
+const chatSocket_1 = require("./chat/chatSocket");
 const PORT = process.env.PORT || 5000;
 (0, env_1.validateEnv)();
 /* ═══════════════════════════════════════════════
    AUTO OFFLINE CRON — every 5s with circuit breaker
    If DB is unreachable, backs off for 60s to avoid
-   flooding the connection pools
+   flooding the connection pool.
 ═══════════════════════════════════════════════ */
 let _offlineFailStreak = 0;
 let _offlinePaused = false;
@@ -26,7 +28,7 @@ setInterval(async () => {
     if (_offlinePaused)
         return;
     try {
-        const threshold = new Date(Date.now() - 15000);
+        const threshold = new Date(Date.now() - 90000);
         await db_1.default.user.updateMany({
             where: { lastActive: { lt: threshold }, isOnline: true },
             data: { isOnline: false },
@@ -47,7 +49,7 @@ setInterval(async () => {
             setTimeout(() => { _offlinePaused = false; _offlineFailStreak = 0; }, 60000);
         }
     }
-}, 5000);
+}, 60000);
 /* ═══════════════════════════════════════════════
    AUTO DAILY REPORT — 3:30 AM
 ═══════════════════════════════════════════════ */
@@ -231,6 +233,7 @@ function scheduleWeeklyShuffle() {
 //
 scheduleAutoReport();
 scheduleWeeklyShuffle();
+//
 /* ── Deactivate inactive CSR accounts (90 days) ── */
 async function deactivateInactiveUsers() {
     try {
@@ -271,6 +274,8 @@ setInterval(() => { void deactivateInactiveUsers(); }, 24 * 60 * 60 * 1000);
 void deactivateInactiveUsers();
 (0, security_1.getJwtSecret)();
 /* ── START ── */
-app_1.default.listen(PORT, () => {
+const server = http_1.default.createServer(app_1.default);
+(0, chatSocket_1.initChatSocket)(server);
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

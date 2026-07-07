@@ -4,6 +4,8 @@ exports.getCache = getCache;
 exports.setCache = setCache;
 exports.invalidateCache = invalidateCache;
 exports.invalidatePattern = invalidatePattern;
+exports.shouldSkipThrottledHeal = shouldSkipThrottledHeal;
+exports.markThrottledHeal = markThrottledHeal;
 exports.flushAdminClientsCache = flushAdminClientsCache;
 const store = new Map();
 function getCache(key) {
@@ -28,8 +30,15 @@ function invalidatePattern(prefix) {
             store.delete(key);
     }
 }
+/** Throttle expensive pipeline heal — max once per CSR per 2 minutes */
+function shouldSkipThrottledHeal(csrId, ttlMs = 120000) {
+    return getCache(`csr:heal-lock:${csrId}`) !== null;
+}
+function markThrottledHeal(csrId, ttlMs = 120000) {
+    setCache(`csr:heal-lock:${csrId}`, true, ttlMs);
+}
 /** Clear admin leads list + summary caches after any lead mutation */
 function flushAdminClientsCache() {
-    invalidateCache("admin:clients:summary");
+    invalidateCache("admin:clients:summary", "admin:clients:tab-counts");
     invalidatePattern("admin:clients:list:");
 }
