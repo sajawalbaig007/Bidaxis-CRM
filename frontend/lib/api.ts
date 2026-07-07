@@ -1,5 +1,6 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { getClientDeviceMacLikeId } from "./deviceIdentity";
 
 const TOKEN_STORAGE_KEY = "crm_api_token";
 
@@ -80,6 +81,10 @@ API.interceptors.request.use((config) => {
   const token = getClientAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const device = getClientDeviceMacLikeId();
+  if (device) {
+    config.headers["X-Client-Mac"] = device;
   }
   return config;
 });

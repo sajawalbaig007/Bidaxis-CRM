@@ -32,6 +32,11 @@ model User {
   tokenVersion Int       @default(0)
   activeSessionId String?
   lastLoginAt  DateTime?
+  allowedIps   String[]  @default([])
+  allowedMacAddress String?
+  temporaryAccessIp  String?
+  temporaryAccessMac String?
+  temporaryAccessUntil DateTime?
 
   auditLogs      SecurityAuditLog[]
   accessHistory  AccessHistory[]
@@ -46,6 +51,7 @@ model User {
   @@index([isActive])
   @@index([lastActive])
   @@index([role, isActive])
+  @@index([temporaryAccessUntil])
 }
 
 model Lead {

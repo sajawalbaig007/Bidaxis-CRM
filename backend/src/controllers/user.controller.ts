@@ -9,6 +9,14 @@ import { assertPasswordNotBreached } from "../utils/passwordBreach";
 import { writeAuditLog } from "../utils/auditLog";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { clearActiveSession } from "../utils/sessions";
+import { sanitizeIpList } from "../utils/networkAccess";
+
+function parseTemporaryHours(raw: unknown): 9 | 10 | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = Number(raw);
+  if (n === 9 || n === 10) return n;
+  return null;
+}
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -22,7 +30,10 @@ export const getUsers = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { name, email, role, isActive, csrCode, cnic, cnicPdfUrl, profilePic } = req.body;
+    const {
+      name, email, role, isActive, csrCode, cnic, cnicPdfUrl, profilePic,
+      allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
+    } = req.body;
 
     const data: Record<string, unknown> = {};
     if (name       !== undefined) data.name       = name;
@@ -33,6 +44,17 @@ export const updateUser = async (req: Request, res: Response) => {
     if (cnic       !== undefined) data.cnic       = cnic       || null;
     if (cnicPdfUrl !== undefined) data.cnicPdfUrl = cnicPdfUrl || null;
     if (profilePic !== undefined) data.profilePic = profilePic || null;
+    if (allowedIps !== undefined) data.allowedIps = sanitizeIpList(allowedIps);
+    if (allowedMacAddress !== undefined) data.allowedMacAddress = allowedMacAddress?.trim() || null;
+    if (temporaryAccessIp !== undefined) data.temporaryAccessIp = temporaryAccessIp?.trim() || null;
+    if (temporaryAccessMac !== undefined) data.temporaryAccessMac = temporaryAccessMac?.trim() || null;
+    if (temporaryAccessHours !== undefined || temporaryAccessIp !== undefined || temporaryAccessMac !== undefined) {
+      const h = parseTemporaryHours(temporaryAccessHours);
+      data.temporaryAccessUntil =
+        h && (temporaryAccessIp?.trim() || temporaryAccessMac?.trim())
+          ? new Date(Date.now() + h * 60 * 60 * 1000)
+          : null;
+    }
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ message: "No fields to update" });
@@ -41,7 +63,10 @@ export const updateUser = async (req: Request, res: Response) => {
     const user = await prisma.user.update({
       where:  { id },
       data,
-      select: { id: true, name: true, email: true, role: true, csrCode: true, cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true },
+      select: {
+        id: true, name: true, email: true, role: true, csrCode: true, cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true,
+        allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+      },
     });
     invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
     return res.json(user);
