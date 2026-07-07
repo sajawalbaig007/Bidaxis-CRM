@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/db";
 import { getJwtSecret } from "../config/security";
 import { touchActiveSession } from "../utils/sessions";
+import { evaluateNetworkAccess } from "../utils/networkAccess";
 
 export interface AuthRequest extends Request {
   user?: { id: string; role: string; iat?: number; tv?: number; sid?: string };
@@ -38,7 +39,17 @@ export const verifyToken = async (
 
     const user = await prisma.user.findUnique({
       where:  { id: decoded.id },
-      select: { activeSessionId: true, tokenVersion: true, isActive: true, role: true },
+      select: {
+        activeSessionId: true,
+        tokenVersion: true,
+        isActive: true,
+        role: true,
+        allowedIps: true,
+        allowedMacAddress: true,
+        temporaryAccessIp: true,
+        temporaryAccessMac: true,
+        temporaryAccessUntil: true,
+      },
     });
 
     if (!user?.isActive) {
@@ -62,6 +73,15 @@ export const verifyToken = async (
         success: false,
         code:    "SESSION_INVALID",
         message: "Session expired. Please log in again.",
+      });
+    }
+
+    const networkError = evaluateNetworkAccess(user, req);
+    if (networkError) {
+      return res.status(403).json({
+        success: false,
+        code: "NETWORK_POLICY_DENIED",
+        message: networkError,
       });
     }
 

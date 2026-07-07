@@ -33,6 +33,11 @@ type User = {
   openedAt:    string | null;
   tabVisible:  boolean | null;
   hiddenAt:    string | null;
+  allowedIps: string[];
+  allowedMacAddress: string | null;
+  temporaryAccessIp: string | null;
+  temporaryAccessMac: string | null;
+  temporaryAccessUntil: string | null;
 };
 
 type AccessHistoryRow = {
@@ -247,6 +252,7 @@ export default function UsersPage() {
 
   const [form, setForm] = useState({
     name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "",
+    allowedIps: [""], allowedMacAddress: "", temporaryAccessIp: "", temporaryAccessMac: "", temporaryAccessHours: "9",
   });
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingCnic, setUploadingCnic] = useState(false);
@@ -270,6 +276,11 @@ export default function UsersPage() {
         isActive?: boolean; isOnline?: boolean; lastActive?: string;
         browser?: string; tabId?: string; openedAt?: string;
         tabVisible?: boolean; hiddenAt?: string;
+        allowedIps?: string[];
+        allowedMacAddress?: string | null;
+        temporaryAccessIp?: string | null;
+        temporaryAccessMac?: string | null;
+        temporaryAccessUntil?: string | null;
       }) => ({
         id:         u.id,
         name:       u.name,
@@ -288,6 +299,11 @@ export default function UsersPage() {
         openedAt:   u.openedAt   ?? null,
         tabVisible: u.tabVisible ?? null,
         hiddenAt:   u.hiddenAt   ?? null,
+        allowedIps: Array.isArray(u.allowedIps) && u.allowedIps.length > 0 ? u.allowedIps : [""],
+        allowedMacAddress: u.allowedMacAddress ?? null,
+        temporaryAccessIp: u.temporaryAccessIp ?? null,
+        temporaryAccessMac: u.temporaryAccessMac ?? null,
+        temporaryAccessUntil: u.temporaryAccessUntil ?? null,
       }));
 
       setUsers(formatted);
@@ -393,6 +409,11 @@ export default function UsersPage() {
         cnic:       form.cnic.trim() || null,
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic  || null,
+        allowedIps: form.allowedIps.map(v => v.trim()).filter(Boolean).slice(0, 5),
+        allowedMacAddress: form.allowedMacAddress.trim() || null,
+        temporaryAccessIp: form.temporaryAccessIp.trim() || null,
+        temporaryAccessMac: form.temporaryAccessMac.trim() || null,
+        temporaryAccessHours: Number(form.temporaryAccessHours || "9"),
       };
       const body = editingUser ? shared : { ...shared, password: form.password };
 
@@ -407,7 +428,7 @@ export default function UsersPage() {
       toast.success(editingUser ? "User updated." : "User created.");
       fetchUsers();
       setShowModal(false); setEditingUser(null);
-      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "" });
+      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "", allowedIps: [""], allowedMacAddress: "", temporaryAccessIp: "", temporaryAccessMac: "", temporaryAccessHours: "9" });
       setShowPassword(false);
     } catch {
       toast.error("Something went wrong.");
@@ -598,7 +619,7 @@ export default function UsersPage() {
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
           </div>
-          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"", cnic:"", cnicPdfUrl:"", profilePic:"" }); setShowModal(true); }}
+          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"", cnic:"", cnicPdfUrl:"", profilePic:"", allowedIps:[""], allowedMacAddress:"", temporaryAccessIp:"", temporaryAccessMac:"", temporaryAccessHours:"9" }); setShowModal(true); }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
@@ -706,7 +727,7 @@ export default function UsersPage() {
                         </ActionTip>
                         <ActionTip
                           label="Edit User"
-                          onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); }}
+                          onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "", allowedIps: u.allowedIps?.length ? u.allowedIps : [""], allowedMacAddress: u.allowedMacAddress ?? "", temporaryAccessIp: u.temporaryAccessIp ?? "", temporaryAccessMac: u.temporaryAccessMac ?? "", temporaryAccessHours: "9" }); setShowModal(true); }}
                           className={actionBtnStyles.edit}
                         >
                           <Pencil size={16}/>
@@ -751,7 +772,7 @@ export default function UsersPage() {
                           <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
                             {[
                               { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
-                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "" }); setShowModal(true); setOpenMenu(null); }},
+                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "", allowedIps: u.allowedIps?.length ? u.allowedIps : [""], allowedMacAddress: u.allowedMacAddress ?? "", temporaryAccessIp: u.temporaryAccessIp ?? "", temporaryAccessMac: u.temporaryAccessMac ?? "", temporaryAccessHours: "9" }); setShowModal(true); setOpenMenu(null); }},
                               { label:"Change Password", action:() => { openPasswordModal(u); setOpenMenu(null); }},
                               { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
                             ].map(({ label, action }) => (
@@ -855,6 +876,22 @@ export default function UsersPage() {
                     )}
                   </div>
                 )}
+
+                <div className="bg-[#F8F9FC] rounded-2xl p-4">
+                  <p className="text-xs text-gray-400 mb-1">Access Policy</p>
+                  <p className="text-xs text-gray-600">
+                    In-house IPs: {detailUser.allowedIps.filter(Boolean).length > 0 ? detailUser.allowedIps.filter(Boolean).join(", ") : "Any"}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    In-house MAC/Device: {detailUser.allowedMacAddress || "Any"}
+                  </p>
+                  {(detailUser.temporaryAccessIp || detailUser.temporaryAccessMac) && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      Temporary: {detailUser.temporaryAccessIp || "Any IP"} / {detailUser.temporaryAccessMac || "Any MAC"}{" "}
+                      {detailUser.temporaryAccessUntil ? `(expires ${new Date(detailUser.temporaryAccessUntil).toLocaleString()})` : ""}
+                    </p>
+                  )}
+                </div>
 
                 <div className="bg-[#F8F9FC] rounded-2xl p-4">
                   <p className="text-xs text-gray-400 mb-1">Password</p>
@@ -1162,6 +1199,94 @@ export default function UsersPage() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                <div className="border border-gray-100 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">In-house Access Policy</p>
+                      <p className="text-[11px] text-gray-400">Max 5 approved IPs + 1 device MAC/ID</p>
+                    </div>
+                    {form.allowedIps.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, allowedIps: [...f.allowedIps, ""] }))}
+                        className="w-7 h-7 rounded-lg bg-[#B8112D] text-white flex items-center justify-center"
+                        title="Add IP field"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {form.allowedIps.map((ip, idx) => (
+                      <div key={`ip-${idx}`} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={ip}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setForm(f => ({
+                              ...f,
+                              allowedIps: f.allowedIps.map((v, i) => (i === idx ? value : v)),
+                            }));
+                          }}
+                          placeholder={`Approved IP ${idx + 1}`}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#B8112D]"
+                        />
+                        {form.allowedIps.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, allowedIps: f.allowedIps.filter((_, i) => i !== idx) }))}
+                            className="text-xs font-semibold text-red-500"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={form.allowedMacAddress}
+                    onChange={e => setForm({ ...form, allowedMacAddress: e.target.value })}
+                    placeholder="In-house MAC / device ID"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#B8112D] mt-3"
+                  />
+                </div>
+
+                <div className="border border-amber-200 bg-amber-50 rounded-2xl p-4">
+                  <p className="text-sm font-semibold text-amber-800">Temporary Outside Access</p>
+                  <p className="text-[11px] text-amber-700 mb-2">Auto expires after selected duration.</p>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={form.temporaryAccessIp}
+                      onChange={e => setForm({ ...form, temporaryAccessIp: e.target.value })}
+                      placeholder="Temporary IP"
+                      className="w-full border border-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500 bg-white"
+                    />
+                    <input
+                      type="text"
+                      value={form.temporaryAccessMac}
+                      onChange={e => setForm({ ...form, temporaryAccessMac: e.target.value })}
+                      placeholder="Temporary MAC / device ID"
+                      className="w-full border border-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500 bg-white"
+                    />
+                    <select
+                      value={form.temporaryAccessHours}
+                      onChange={e => setForm({ ...form, temporaryAccessHours: e.target.value })}
+                      className="w-full border border-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500 bg-white"
+                    >
+                      <option value="9">9 hours</option>
+                      <option value="10">10 hours</option>
+                    </select>
+                  </div>
+                  {editingUser?.temporaryAccessUntil && (
+                    <p className="text-[11px] text-amber-700 mt-2">
+                      Current expiry: {new Date(editingUser.temporaryAccessUntil).toLocaleString()}
+                    </p>
+                  )}
                 </div>
 
                 {editingUser && (

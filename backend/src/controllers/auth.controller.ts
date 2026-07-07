@@ -10,6 +10,7 @@ import { getCache, setCache, invalidateCache } from "../utils/cache";
 import { getJwtSecret, validatePassword } from "../config/security";
 import { getSessionHours, getAdminAllowedIps, isCaptchaConfigured, isSmtpConfigured } from "../config/env";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
+import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
 import {
@@ -152,10 +153,20 @@ function assertAdminIp(req: Request, role: string): string | null {
   return null;
 }
 
+function parseTemporaryHours(raw: unknown): 9 | 10 | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = Number(raw);
+  if (n === 9 || n === 10) return n;
+  return null;
+}
+
 /* ================= REGISTER ================= */
 export const register = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, email, password, role, csrCode, cnic, cnicPdfUrl, profilePic } = req.body;
+    const {
+      name, email, password, role, csrCode, cnic, cnicPdfUrl, profilePic,
+      allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
+    } = req.body;
 
     if (role === "csr" && !csrCode?.trim()) {
       return res.status(400).json({ success: false, message: "CSR Code is required for CSR accounts." });
@@ -197,6 +208,13 @@ export const register = async (req: AuthRequest, res: Response) => {
     }
 
     const hashed = await hashPassword(password);
+    const cleanedIps = sanitizeIpList(allowedIps);
+    const tempHours = parseTemporaryHours(temporaryAccessHours);
+    const tempAccessUntil =
+      tempHours && (temporaryAccessIp || temporaryAccessMac)
+        ? new Date(Date.now() + tempHours * 60 * 60 * 1000)
+        : null;
+
     const userData: Prisma.UserCreateInput = {
       name,
       email,
@@ -206,6 +224,11 @@ export const register = async (req: AuthRequest, res: Response) => {
       cnic: cnic?.trim() || null,
       cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
       profilePic: profilePic || null,
+      allowedIps: cleanedIps,
+      allowedMacAddress: typeof allowedMacAddress === "string" && allowedMacAddress.trim() ? allowedMacAddress.trim() : null,
+      temporaryAccessIp: typeof temporaryAccessIp === "string" && temporaryAccessIp.trim() ? temporaryAccessIp.trim() : null,
+      temporaryAccessMac: typeof temporaryAccessMac === "string" && temporaryAccessMac.trim() ? temporaryAccessMac.trim() : null,
+      temporaryAccessUntil: tempAccessUntil,
     };
     const user = await prisma.user.create({
       data: userData,
@@ -218,6 +241,11 @@ export const register = async (req: AuthRequest, res: Response) => {
         cnic: true,
         cnicPdfUrl: true,
         profilePic: true,
+        allowedIps: true,
+        allowedMacAddress: true,
+        temporaryAccessIp: true,
+        temporaryAccessMac: true,
+        temporaryAccessUntil: true,
         createdAt: true,
       },
     });
@@ -318,6 +346,12 @@ export const login = async (req: Request, res: Response) => {
     if (ipError) {
       await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "ip" } });
       return res.status(403).json({ success: false, code: "IP_NOT_ALLOWED", message: ipError });
+    }
+
+    const networkError = evaluateNetworkAccess(user, req);
+    if (networkError) {
+      await writeAuditLog({ action: "login_blocked", userId: user.id, email: user.email, ip, userAgent: ua, meta: { reason: "network_policy" } });
+      return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
     }
 
     const isMatch = await comparePassword(password, user.password);
@@ -439,7 +473,10 @@ export const verifyOTP = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where:  { id: userId },
-      select: { id: true, name: true, email: true, role: true, tokenVersion: true },
+      select: {
+        id: true, name: true, email: true, role: true, tokenVersion: true,
+        allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+      },
     });
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
@@ -460,6 +497,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
         code: "PORTAL_ROLE_MISMATCH",
         message: roleMismatch,
       });
+    }
+
+    const networkError = evaluateNetworkAccess(user, req);
+    if (networkError) {
+      return res.status(403).json({ success: false, code: "NETWORK_POLICY_DENIED", message: networkError });
     }
 
     return finishLogin(req, res, user, !!rememberMe);
