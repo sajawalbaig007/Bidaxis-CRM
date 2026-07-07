@@ -1063,15 +1063,17 @@ export default function UsersPage() {
 
         {/* CREATE / EDIT MODAL */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
-            <div className="bg-white w-full rounded-3xl max-w-md max-h-[90vh] flex flex-col overflow-hidden my-4">
-              <div className="p-6 pb-0 shrink-0">
-              <h2 className="text-xl font-semibold text-gray-800">
-                {editingUser ? "Edit User" : "Create User"}
-              </h2>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+              <div className="px-4 sm:px-6 pt-5 pb-3 shrink-0 border-b border-gray-100">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
+                  {editingUser ? "Edit User" : "Create User"}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Scroll down for access policy &amp; more fields</p>
               </div>
-              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-              <div className="space-y-4">
+
+              <div className="flex-1 overflow-y-auto overscroll-y-contain min-h-0 px-4 sm:px-6 py-4">
+              <div className="space-y-4 pb-2">
                 {[
                   { label:"Full Name",     key:"name",  type:"text",  placeholder:"Enter full name", req: true },
                   { label:"Email Address", key:"email", type:"email", placeholder:"Enter email",      req: true },
@@ -1189,8 +1191,8 @@ export default function UsersPage() {
                 {/* Profile Picture */}
                 <div>
                   <label className="text-sm text-gray-500 block mb-2">Profile Picture <span className="text-xs text-gray-400">(optional)</span></label>
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-200 shrink-0 bg-gray-50 flex items-center justify-center">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-200 shrink-0 bg-gray-50 flex items-center justify-center mx-auto sm:mx-0">
                       {form.profilePic
                         ? <img src={form.profilePic} alt="Preview" className="w-full h-full object-cover" />
                         : <User2 size={22} className="text-gray-300" />
@@ -1231,7 +1233,7 @@ export default function UsersPage() {
                   </div>
                   <div className="space-y-2">
                     {form.allowedIps.map((ip, idx) => (
-                      <div key={`ip-${idx}`} className="flex items-center gap-2">
+                      <div key={`ip-${idx}`} className="flex items-center gap-2 min-w-0">
                         <input
                           type="text"
                           value={ip}
@@ -1243,13 +1245,13 @@ export default function UsersPage() {
                             }));
                           }}
                           placeholder={`Approved IP ${idx + 1}`}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#B8112D]"
+                          className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#B8112D]"
                         />
                         {form.allowedIps.length > 1 && (
                           <button
                             type="button"
                             onClick={() => setForm(f => ({ ...f, allowedIps: f.allowedIps.filter((_, i) => i !== idx) }))}
-                            className="text-xs font-semibold text-red-500"
+                            className="text-xs font-semibold text-red-500 shrink-0 px-1"
                           >
                             Remove
                           </button>
@@ -1311,13 +1313,14 @@ export default function UsersPage() {
                       <ChevronDown size={16} className={`text-gray-400 transition-transform ${editIpOpen ? "rotate-180" : ""}`} />
                     </button>
                     {editIpOpen && (
-                      <div className="p-4 max-h-48 overflow-y-auto">
+                      <div className="p-4 max-h-40 overflow-y-auto overscroll-y-contain">
                         {loadingHistory ? (
                           <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
                         ) : accessHistory.length === 0 ? (
                           <p className="text-xs text-gray-400">No access records yet.</p>
                         ) : (
-                          <table className="w-full text-[11px]">
+                          <div className="overflow-x-auto -mx-1">
+                          <table className="w-full text-[11px] min-w-[280px]">
                             <thead>
                               <tr className="text-left text-gray-400 border-b">
                                 <th className="pb-1 pr-2">When</th>
@@ -1337,6 +1340,7 @@ export default function UsersPage() {
                               ))}
                             </tbody>
                           </table>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1344,8 +1348,9 @@ export default function UsersPage() {
                 )}
               </div>
               </div>
-              <div className="p-6 pt-4 shrink-0 border-t border-gray-100 flex gap-3">
-                <button onClick={() => { setShowModal(false); setEditingUser(null); }}
+
+              <div className="px-4 sm:px-6 py-4 shrink-0 border-t border-gray-100 bg-white flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+                <button onClick={() => { setShowModal(false); setEditingUser(null); setEditIpOpen(false); }}
                   className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-2xl hover:bg-gray-50 transition-all text-sm">
                   Cancel
                 </button>
