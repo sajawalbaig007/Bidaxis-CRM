@@ -16,6 +16,7 @@ import {
   reconcileClientOldFlagsForCsr,
   isPendingPipelineStatus,
 } from "../utils/leadClientPromotion";
+import { ensureLeadNoteFromText } from "../utils/leadNotes";
 import { buildProjectLeadWhere, isDisplayableProjectLead, wonClientStatusWhere } from "../utils/projectLeads";
 import { isImportantStatusWhere, isInterestedStatusWhere } from "../utils/adminClientQueries";
 import {
@@ -481,6 +482,9 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
     await prisma.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
+    if (comments?.trim()) {
+      await ensureLeadNoteFromText(leadId, comments);
+    }
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.json({ success: true });
@@ -781,6 +785,10 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       data:  updateData,
     });
 
+    if (comments !== undefined && comments?.trim()) {
+      await ensureLeadNoteFromText(leadId, comments);
+    }
+
     if (
       status !== undefined &&
       (status === "Close Client" || status === "completed")
@@ -858,6 +866,9 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
           await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
         }
         await reconcileClientOldFlagsForCsr(csrId);
+        if (comments?.trim()) {
+          await ensureLeadNoteFromText(lead.id, comments);
+        }
         invalidateCsrLeadCaches(csrId);
         flushAdminClientsCache();
         return res.status(200).json({ success: true, lead, promoted: true });
@@ -896,6 +907,10 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
     }
 
     await reconcileClientOldFlagsForCsr(csrId);
+
+    if (comments?.trim()) {
+      await ensureLeadNoteFromText(lead.id, comments);
+    }
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();

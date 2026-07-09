@@ -1,4 +1,5 @@
 import { NoteEntry, SubContact } from "../hooks/useLeadsData";
+import { buildNoteHistory } from "../utils/noteHistory";
 
 export interface BackendLead {
   id: string;
@@ -57,44 +58,7 @@ export type Lead = {
 };
 
 export const mapBackendLead = (lead: BackendLead): Lead => {
-  const rawNotes = lead.notes ?? [];
-  const fullNotes = rawNotes.filter(n => n.text?.trim());
-
-  const legacyNotes: NoteEntry[] = [];
-  if (fullNotes.length === 0 && lead.comments?.trim()) {
-    legacyNotes.push({
-      id: "legacy-comments",
-      text: lead.comments.trim(),
-      createdAt: lead.createdAt ?? new Date().toISOString(),
-    });
-  }
-  if (fullNotes.length === 0 && lead.followUpNotes?.trim()) {
-    legacyNotes.push({
-      id: "legacy-followup",
-      text: lead.followUpNotes.trim(),
-      createdAt: lead.updatedAt ?? lead.createdAt ?? new Date().toISOString(),
-    });
-  }
-
-  const noteHistory: NoteEntry[] = fullNotes.length > 0
-    ? fullNotes
-        .map(n => ({
-          id: n.id!,
-          text: n.text!.trim(),
-          createdAt: n.createdAt ?? new Date().toISOString(),
-        }))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    : lead.latestNote?.text?.trim()
-      ? [{
-          id:        lead.latestNote.id,
-          text:      lead.latestNote.text.trim(),
-          createdAt: lead.latestNote.createdAt,
-        }]
-      : legacyNotes;
-
-  const noteCount = fullNotes.length > 0
-    ? fullNotes.length
-    : (lead.noteCount ?? (lead.latestNote ? 1 : rawNotes.length));
+  const { noteHistory, noteCount } = buildNoteHistory(lead);
 
   return {
     id:               lead.id,

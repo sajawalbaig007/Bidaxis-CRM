@@ -4,6 +4,7 @@ import { deleteLeadsCascade } from "./deleteLeadsCascade";
 import { wonClientStatusWhere } from "./projectLeads";
 import { notInBinFilter } from "./binLeads";
 import { normalizePhone } from "./phone";
+import { ensureLeadNoteFromText } from "./leadNotes";
 
 export function isPendingPipelineStatus(status: string | null | undefined): boolean {
   return (status ?? "").toLowerCase() === "pending";
@@ -83,8 +84,14 @@ async function migrateNotesBeforeDelete(
   });
 
   for (const dup of pendingDupes) {
+    if (dup.comments?.trim()) {
+      await ensureLeadNoteFromText(keepLeadId, dup.comments);
+    }
     if (dup.comments?.trim() && !keepLead?.comments?.trim()) {
       await prisma.lead.update({ where: { id: keepLeadId }, data: { comments: dup.comments } });
+    }
+    if (dup.followUpNotes?.trim()) {
+      await ensureLeadNoteFromText(keepLeadId, dup.followUpNotes);
     }
     if (dup.followUpNotes?.trim() && !keepLead?.followUpNotes?.trim()) {
       await prisma.lead.update({ where: { id: keepLeadId }, data: { followUpNotes: dup.followUpNotes } });

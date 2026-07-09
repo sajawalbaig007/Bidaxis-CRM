@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { csrClientsApi, type ClientPipelineStats } from "@/lib/csrApiCache";
 import toast from "react-hot-toast";
 import { apiErrorMessage } from "@/lib/api";
+import { buildNoteHistory } from "../utils/noteHistory";
 
 export interface SubContact {
   id: string;
@@ -57,39 +58,7 @@ export type RawClientLead = {
 };
 
 function buildClientNoteHistory(l: RawClientLead): NoteEntry[] {
-  const fromTable = (l.notes ?? [])
-    .filter(n => n.text?.trim())
-    .map((n: RawNote) => ({
-      id:        n.id ?? String(Math.random()),
-      text:      n.text!.trim(),
-      createdAt: n.createdAt ?? new Date().toISOString(),
-    }));
-
-  const legacy: NoteEntry[] = [];
-  if (l.comments?.trim()) {
-    legacy.push({
-      id: "legacy-comments",
-      text: l.comments.trim(),
-      createdAt: l.createdAt ?? new Date().toISOString(),
-    });
-  }
-  if (l.followUpNotes?.trim()) {
-    legacy.push({
-      id: "legacy-followup",
-      text: l.followUpNotes.trim(),
-      createdAt: l.updatedAt ?? l.createdAt ?? new Date().toISOString(),
-    });
-  }
-
-  const seen = new Set<string>();
-  const merged = [...fromTable, ...legacy].filter(n => {
-    const key = `${n.text}|${n.createdAt}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return buildNoteHistory(l).noteHistory;
 }
 
 /** Group key for same client across multiple won projects (phone, then company). */

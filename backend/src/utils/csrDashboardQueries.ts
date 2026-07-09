@@ -115,13 +115,24 @@ export async function getCsrLeadStats(csrId: string) {
   };
 }
 
-export function mapDashboardLead<T extends { _count: { notes: number }; notes?: { id: string; text: string; createdAt: Date }[] }>(
-  lead: T,
-) {
-  const { _count, notes, ...rest } = lead as T & { notes?: { id: string; text: string; createdAt: Date }[] };
-  const latest = notes?.[0];
+export function mapDashboardLead<T extends {
+  _count: { notes: number };
+  notes?: { id: string; text: string; createdAt: Date }[];
+  comments?: string | null;
+  followUpNotes?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}>(lead: T) {
+  const { _count, notes, comments, followUpNotes, createdAt, updatedAt, ...rest } = lead;
+  const tableNotes = notes ?? [];
+  const latest = tableNotes[0];
   return {
     ...rest,
+    comments,
+    followUpNotes,
+    createdAt,
+    updatedAt,
+    notes: tableNotes,
     noteCount: _count.notes,
     latestNote: latest
       ? { id: latest.id, text: latest.text, createdAt: latest.createdAt }
@@ -133,7 +144,7 @@ const LEAD_LIST_SELECT = {
   ...CSR_DASHBOARD_LEAD_SELECT,
   notes: {
     orderBy: { createdAt: "desc" as const },
-    take: 1,
+    take: 10,
     select: { id: true, text: true, createdAt: true },
   },
 };
