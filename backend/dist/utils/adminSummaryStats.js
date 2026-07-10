@@ -9,83 +9,88 @@ exports.buildAdminClientSummaryPayload = buildAdminClientSummaryPayload;
 const db_1 = __importDefault(require("../config/db"));
 const binLeads_1 = require("./binLeads");
 const adminClientQueries_1 = require("./adminClientQueries");
+const businessCalendar_1 = require("./businessCalendar");
 const CHART_DAYS = 45;
 const CHART_BATCH = 5000;
-function fmtWeekDay(d) {
-    return d.toLocaleDateString("en-US", { weekday: "short" });
-}
-function fmtMonthShort(d) {
-    return d.toLocaleString("default", { month: "short" });
-}
-function fmtShortDate(d) {
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-function initChartBuckets() {
-    const now = new Date();
-    const today = {};
+function initChartBuckets(now = new Date()) {
+    const currentBizYmd = (0, businessCalendar_1.currentBusinessYmd)(now);
+    const today = (0, businessCalendar_1.initBusinessHourBuckets)();
     const week = {};
     const month = {};
     const year = {};
-    const monthStarts = [];
-    for (let h = 0; h < 24; h += 3)
-        today[h + ":00"] = 0;
+    const weekKeys = [];
+    const monthKeys = [];
+    const yearKeys = [];
     for (let d = 6; d >= 0; d--) {
-        const dt = new Date(now);
-        dt.setDate(dt.getDate() - d);
-        week[fmtWeekDay(dt)] = 0;
+        const ymd = (0, businessCalendar_1.addDaysToYmd)(currentBizYmd, -d);
+        weekKeys.push(ymd);
+        week[ymd] = 0;
     }
     for (let d = 28; d >= 0; d -= 7) {
-        const dt = new Date(now);
-        dt.setHours(0, 0, 0, 0);
-        dt.setDate(dt.getDate() - d);
-        monthStarts.push(new Date(dt));
-        month[fmtShortDate(dt)] = 0;
+        const ymd = (0, businessCalendar_1.addDaysToYmd)(currentBizYmd, -d);
+        monthKeys.push(ymd);
+        month[ymd] = 0;
     }
-    for (let m = 11; m >= 0; m--) {
-        const dt = new Date(now);
-        dt.setMonth(dt.getMonth() - m);
-        year[fmtMonthShort(dt)] = 0;
+    const seenMonths = new Set();
+    for (let d = 364; d >= 0; d -= 28) {
+        const ymd = (0, businessCalendar_1.addDaysToYmd)(currentBizYmd, -d);
+        const monthLabel = (0, businessCalendar_1.fmtMonthShortFromYmd)(ymd);
+        if (seenMonths.has(monthLabel))
+            continue;
+        seenMonths.add(monthLabel);
+        yearKeys.push(ymd);
+        year[ymd] = 0;
     }
-    return { today, week, month, year, monthStarts };
+    return { today, week, month, year, weekKeys, monthKeys, yearKeys, currentBizYmd };
 }
-function bumpChartBuckets(buckets, createdAt) {
-    const h = createdAt.getHours();
-    const hourKey = Math.floor(h / 3) * 3 + ":00";
-    if (hourKey in buckets.today)
-        buckets.today[hourKey]++;
-    const weekKey = fmtWeekDay(createdAt);
-    if (weekKey in buckets.week)
-        buckets.week[weekKey]++;
-    const monthKey = pickMonthBucketKey(createdAt, buckets.monthStarts);
+function pickMonthBucketKey(bizYmd, monthKeys) {
+    if (monthKeys.length === 0)
+        return null;
+    let chosen = monthKeys[0];
+    for (const key of monthKeys) {
+        if (key <= bizYmd)
+            chosen = key;
+    }
+    return chosen;
+}
+function pickYearBucketKey(bizYmd, yearKeys) {
+    if (yearKeys.length === 0)
+        return null;
+    const month = (0, businessCalendar_1.fmtMonthShortFromYmd)(bizYmd);
+    return yearKeys.find(k => (0, businessCalendar_1.fmtMonthShortFromYmd)(k) === month) ?? null;
+}
+function bumpChartBuckets(buckets, createdAt, now) {
+    const bizYmd = (0, businessCalendar_1.getBusinessYmd)(createdAt);
+    if ((0, businessCalendar_1.isSameBusinessDay)(createdAt, now)) {
+        const hourKey = (0, businessCalendar_1.businessHourBucketKey)(createdAt);
+        if (hourKey in buckets.today)
+            buckets.today[hourKey]++;
+    }
+    if (bizYmd in buckets.week)
+        buckets.week[bizYmd]++;
+    const monthKey = pickMonthBucketKey(bizYmd, buckets.monthKeys);
     if (monthKey && monthKey in buckets.month)
         buckets.month[monthKey]++;
-    const yearKey = fmtMonthShort(createdAt);
-    if (yearKey in buckets.year)
+    const yearKey = pickYearBucketKey(bizYmd, buckets.yearKeys);
+    if (yearKey && yearKey in buckets.year)
         buckets.year[yearKey]++;
 }
-function pickMonthBucketKey(d, starts) {
-    if (starts.length === 0)
-        return null;
-    const t = d.getTime();
-    let chosen = starts[0];
-    for (const start of starts) {
-        if (start.getTime() <= t)
-            chosen = start;
-    }
-    return fmtShortDate(chosen);
-}
 function bucketsToSeries(buckets) {
-    const toPoints = (map) => Object.entries(map).map(([label, calls]) => ({ label, calls }));
+    const toPoints = (map, labels) => Object.keys(map).map(key => ({ label: labels[key] ?? key, calls: map[key] ?? 0 }));
+    const weekLabels = Object.fromEntries(buckets.weekKeys.map(k => [k, (0, businessCalendar_1.fmtWeekDayFromYmd)(k)]));
+    const monthLabels = Object.fromEntries(buckets.monthKeys.map(k => [k, (0, businessCalendar_1.fmtShortDateFromYmd)(k)]));
+    const yearLabels = Object.fromEntries(buckets.yearKeys.map(k => [k, (0, businessCalendar_1.fmtMonthShortFromYmd)(k)]));
     return {
-        today: toPoints(buckets.today),
-        week: toPoints(buckets.week),
-        month: toPoints(buckets.month),
-        year: toPoints(buckets.year),
+        today: Object.entries(buckets.today).map(([label, calls]) => ({ label, calls })),
+        week: toPoints(buckets.week, weekLabels),
+        month: toPoints(buckets.month, monthLabels),
+        year: toPoints(buckets.year, yearLabels),
     };
 }
-/** CSR call activity — batched CallLog reads (not lead createdAt). */
+/** CSR call activity — batched CallLog reads; business day resets 4:00 AM */
 async function fetchChartSeries(since) {
-    const buckets = initChartBuckets();
+    const now = new Date();
+    const buckets = initChartBuckets(now);
     let cursor;
     for (;;) {
         const batch = await db_1.default.callLog.findMany({
@@ -96,7 +101,7 @@ async function fetchChartSeries(since) {
             ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
         });
         for (const row of batch)
-            bumpChartBuckets(buckets, row.createdAt);
+            bumpChartBuckets(buckets, row.createdAt, now);
         if (batch.length < CHART_BATCH)
             break;
         cursor = batch[batch.length - 1].id;
@@ -148,8 +153,7 @@ async function buildAdminTabCountsPayload() {
     };
 }
 async function buildAdminClientSummaryPayload() {
-    const chartDaysAgo = new Date();
-    chartDaysAgo.setDate(chartDaysAgo.getDate() - CHART_DAYS);
+    const chartSince = (0, businessCalendar_1.businessChartSinceUtc)(CHART_DAYS);
     const activeWhere = (0, binLeads_1.notInBinFilter)();
     const [totalLeads, pending, interested, projectWon, completed, importantOnly, scheduled, closedTab, other, inBin, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
         db_1.default.lead.count(),
@@ -185,7 +189,7 @@ async function buildAdminClientSummaryPayload() {
                 csr: { select: { name: true } },
             },
         }),
-        fetchChartSeries(chartDaysAgo),
+        fetchChartSeries(chartSince),
         db_1.default.lead.groupBy({
             by: ["assignedTo"],
             where: { assignedTo: { not: "" } },
@@ -272,6 +276,11 @@ async function buildAdminClientSummaryPayload() {
             csrName: log.csr?.name ?? "Unknown CSR",
         })),
         chartSeries,
+        businessDay: {
+            timezone: process.env.BUSINESS_TIMEZONE?.trim() || "Asia/Karachi",
+            startHour: Number(process.env.BUSINESS_DAY_START_HOUR ?? 4),
+            currentBusinessDate: (0, businessCalendar_1.currentBusinessYmd)(),
+        },
         performers,
     };
 }

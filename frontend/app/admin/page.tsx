@@ -176,7 +176,9 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-3 mb-3 sm:mb-5">
                   <div>
                     <h3 className="font-bold text-gray-800 text-sm sm:text-base">Performance Overview</h3>
-                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5">CSR call activity from status logs</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                      CSR call activity · business day resets 4:00 AM (PKT)
+                    </p>
                   </div>
                   {(overviewLoaded || loadingOverview) && (
                     <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
@@ -264,12 +266,12 @@ function LazySectionPrompt({
 
 const DateRangePicker = ({ selected, onChange }: { selected: string; onChange: (r: string) => void }) => (
   <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 shrink-0">
-    {["Today", "Week", "Month", "Year"].map(r => (
+    {["Today (4AM+)", "Week", "Month", "Year"].map(r => (
       <button
         key={r}
-        onClick={() => onChange(r.toLowerCase())}
+        onClick={() => onChange(r.toLowerCase().replace(" (4am+)", ""))}
         className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold transition-all whitespace-nowrap ${
-          selected === r.toLowerCase()
+          (r.startsWith("Today") ? selected === "today" : selected === r.toLowerCase())
             ? "bg-[#B8112D] text-white shadow-sm"
             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
         }`}

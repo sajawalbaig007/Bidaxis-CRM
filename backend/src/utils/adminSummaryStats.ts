@@ -8,7 +8,18 @@ import {
   isInterestedStatusWhere,
   scheduledCallWhere,
 } from "./adminClientQueries";
-import { wonClientStatusWhere } from "./projectLeads";
+import {
+  addDaysToYmd,
+  businessChartSinceUtc,
+  businessHourBucketKey,
+  currentBusinessYmd,
+  fmtMonthShortFromYmd,
+  fmtShortDateFromYmd,
+  fmtWeekDayFromYmd,
+  getBusinessYmd,
+  initBusinessHourBuckets,
+  isSameBusinessDay,
+} from "./businessCalendar";
 
 const CHART_DAYS = 45;
 const CHART_BATCH = 5000;
@@ -21,100 +32,112 @@ export type ChartSeries = {
   year: ChartSeriesPoint[];
 };
 
-function fmtWeekDay(d: Date): string {
-  return d.toLocaleDateString("en-US", { weekday: "short" });
-}
-
-function fmtMonthShort(d: Date): string {
-  return d.toLocaleString("default", { month: "short" });
-}
-
-function fmtShortDate(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function initChartBuckets(): {
+function initChartBuckets(now = new Date()): {
   today: Record<string, number>;
   week: Record<string, number>;
   month: Record<string, number>;
   year: Record<string, number>;
-  monthStarts: Date[];
+  weekKeys: string[];
+  monthKeys: string[];
+  yearKeys: string[];
+  currentBizYmd: string;
 } {
-  const now = new Date();
-  const today: Record<string, number> = {};
+  const currentBizYmd = currentBusinessYmd(now);
+  const today = initBusinessHourBuckets();
   const week: Record<string, number> = {};
   const month: Record<string, number> = {};
   const year: Record<string, number> = {};
-  const monthStarts: Date[] = [];
-
-  for (let h = 0; h < 24; h += 3) today[h + ":00"] = 0;
+  const weekKeys: string[] = [];
+  const monthKeys: string[] = [];
+  const yearKeys: string[] = [];
 
   for (let d = 6; d >= 0; d--) {
-    const dt = new Date(now);
-    dt.setDate(dt.getDate() - d);
-    week[fmtWeekDay(dt)] = 0;
+    const ymd = addDaysToYmd(currentBizYmd, -d);
+    weekKeys.push(ymd);
+    week[ymd] = 0;
   }
 
   for (let d = 28; d >= 0; d -= 7) {
-    const dt = new Date(now);
-    dt.setHours(0, 0, 0, 0);
-    dt.setDate(dt.getDate() - d);
-    monthStarts.push(new Date(dt));
-    month[fmtShortDate(dt)] = 0;
+    const ymd = addDaysToYmd(currentBizYmd, -d);
+    monthKeys.push(ymd);
+    month[ymd] = 0;
   }
 
-  for (let m = 11; m >= 0; m--) {
-    const dt = new Date(now);
-    dt.setMonth(dt.getMonth() - m);
-    year[fmtMonthShort(dt)] = 0;
+  const seenMonths = new Set<string>();
+  for (let d = 364; d >= 0; d -= 28) {
+    const ymd = addDaysToYmd(currentBizYmd, -d);
+    const monthLabel = fmtMonthShortFromYmd(ymd);
+    if (seenMonths.has(monthLabel)) continue;
+    seenMonths.add(monthLabel);
+    yearKeys.push(ymd);
+    year[ymd] = 0;
   }
 
-  return { today, week, month, year, monthStarts };
+  return { today, week, month, year, weekKeys, monthKeys, yearKeys, currentBizYmd };
+}
+
+function pickMonthBucketKey(bizYmd: string, monthKeys: string[]): string | null {
+  if (monthKeys.length === 0) return null;
+  let chosen = monthKeys[0]!;
+  for (const key of monthKeys) {
+    if (key <= bizYmd) chosen = key;
+  }
+  return chosen;
+}
+
+function pickYearBucketKey(bizYmd: string, yearKeys: string[]): string | null {
+  if (yearKeys.length === 0) return null;
+  const month = fmtMonthShortFromYmd(bizYmd);
+  return yearKeys.find(k => fmtMonthShortFromYmd(k) === month) ?? null;
 }
 
 function bumpChartBuckets(
   buckets: ReturnType<typeof initChartBuckets>,
   createdAt: Date,
+  now: Date,
 ) {
-  const h = createdAt.getHours();
-  const hourKey = Math.floor(h / 3) * 3 + ":00";
-  if (hourKey in buckets.today) buckets.today[hourKey]++;
+  const bizYmd = getBusinessYmd(createdAt);
 
-  const weekKey = fmtWeekDay(createdAt);
-  if (weekKey in buckets.week) buckets.week[weekKey]++;
+  if (isSameBusinessDay(createdAt, now)) {
+    const hourKey = businessHourBucketKey(createdAt);
+    if (hourKey in buckets.today) buckets.today[hourKey]++;
+  }
 
-  const monthKey = pickMonthBucketKey(createdAt, buckets.monthStarts);
+  if (bizYmd in buckets.week) buckets.week[bizYmd]++;
+
+  const monthKey = pickMonthBucketKey(bizYmd, buckets.monthKeys);
   if (monthKey && monthKey in buckets.month) buckets.month[monthKey]++;
 
-  const yearKey = fmtMonthShort(createdAt);
-  if (yearKey in buckets.year) buckets.year[yearKey]++;
-}
-
-function pickMonthBucketKey(d: Date, starts: Date[]): string | null {
-  if (starts.length === 0) return null;
-  const t = d.getTime();
-  let chosen = starts[0]!;
-  for (const start of starts) {
-    if (start.getTime() <= t) chosen = start;
-  }
-  return fmtShortDate(chosen);
+  const yearKey = pickYearBucketKey(bizYmd, buckets.yearKeys);
+  if (yearKey && yearKey in buckets.year) buckets.year[yearKey]++;
 }
 
 function bucketsToSeries(buckets: ReturnType<typeof initChartBuckets>): ChartSeries {
-  const toPoints = (map: Record<string, number>): ChartSeriesPoint[] =>
-    Object.entries(map).map(([label, calls]) => ({ label, calls }));
+  const toPoints = (map: Record<string, number>, labels: Record<string, string>): ChartSeriesPoint[] =>
+    Object.keys(map).map(key => ({ label: labels[key] ?? key, calls: map[key] ?? 0 }));
+
+  const weekLabels = Object.fromEntries(
+    buckets.weekKeys.map(k => [k, fmtWeekDayFromYmd(k)]),
+  );
+  const monthLabels = Object.fromEntries(
+    buckets.monthKeys.map(k => [k, fmtShortDateFromYmd(k)]),
+  );
+  const yearLabels = Object.fromEntries(
+    buckets.yearKeys.map(k => [k, fmtMonthShortFromYmd(k)]),
+  );
 
   return {
-    today: toPoints(buckets.today),
-    week:  toPoints(buckets.week),
-    month: toPoints(buckets.month),
-    year:  toPoints(buckets.year),
+    today: Object.entries(buckets.today).map(([label, calls]) => ({ label, calls })),
+    week:  toPoints(buckets.week, weekLabels),
+    month: toPoints(buckets.month, monthLabels),
+    year:  toPoints(buckets.year, yearLabels),
   };
 }
 
-/** CSR call activity — batched CallLog reads (not lead createdAt). */
+/** CSR call activity — batched CallLog reads; business day resets 4:00 AM */
 export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
-  const buckets = initChartBuckets();
+  const now = new Date();
+  const buckets = initChartBuckets(now);
   let cursor: string | undefined;
 
   for (;;) {
@@ -126,7 +149,7 @@ export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
 
-    for (const row of batch) bumpChartBuckets(buckets, row.createdAt);
+    for (const row of batch) bumpChartBuckets(buckets, row.createdAt, now);
     if (batch.length < CHART_BATCH) break;
     cursor = batch[batch.length - 1]!.id;
   }
@@ -186,8 +209,7 @@ export async function buildAdminTabCountsPayload() {
 }
 
 export async function buildAdminClientSummaryPayload() {
-  const chartDaysAgo = new Date();
-  chartDaysAgo.setDate(chartDaysAgo.getDate() - CHART_DAYS);
+  const chartSince = businessChartSinceUtc(CHART_DAYS);
 
   const activeWhere = notInBinFilter();
 
@@ -243,7 +265,7 @@ export async function buildAdminClientSummaryPayload() {
         csr: { select: { name: true } },
       },
     }),
-    fetchChartSeries(chartDaysAgo),
+    fetchChartSeries(chartSince),
     prisma.lead.groupBy({
       by: ["assignedTo"],
       where: { assignedTo: { not: "" } },
@@ -336,6 +358,11 @@ export async function buildAdminClientSummaryPayload() {
       csrName: log.csr?.name ?? "Unknown CSR",
     })),
     chartSeries,
+    businessDay: {
+      timezone: process.env.BUSINESS_TIMEZONE?.trim() || "Asia/Karachi",
+      startHour: Number(process.env.BUSINESS_DAY_START_HOUR ?? 4),
+      currentBusinessDate: currentBusinessYmd(),
+    },
     performers,
   };
 }
