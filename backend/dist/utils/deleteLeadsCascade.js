@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteLeadsCascade = deleteLeadsCascade;
 exports.invalidateAllLeadCaches = invalidateAllLeadCaches;
 const db_1 = __importDefault(require("../config/db"));
-const cache_1 = require("./cache");
+const csrCache_1 = require("./csrCache");
 /** Remove leads and all child records (notes, sub-contacts, call logs) */
 async function deleteLeadsCascade(leadIds) {
     if (leadIds.length === 0)
@@ -24,11 +24,6 @@ async function invalidateAllLeadCaches(csrIds) {
     const ids = csrIds?.length
         ? csrIds
         : (await db_1.default.user.findMany({ where: { role: "csr" }, select: { id: true } })).map(c => c.id);
-    (0, cache_1.flushAdminClientsCache)();
-    (0, cache_1.invalidateCache)("admin:csrs", ...ids.flatMap(csrId => [
-        `csr:dashboard:${csrId}`,
-        `csr:leads:${csrId}`,
-        `csr:projects:${csrId}`,
-        `csr:not-interested:${csrId}`,
-    ]));
+    for (const csrId of ids)
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
 }

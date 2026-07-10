@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { getCsrDashboard, invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
+import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
 import { apiErrorMessage } from "@/lib/api";
 
@@ -23,6 +24,7 @@ export function useCsrDashboard() {
   }, []);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, loading, refetch };
 }

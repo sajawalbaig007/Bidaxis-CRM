@@ -12,6 +12,7 @@ import {
 } from "@/lib/csrTabApiCache";
 
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
+import { useOnCsrDataReset } from "./useOnCsrDataReset";
 
 
 
@@ -108,8 +109,7 @@ export function useCsrStats() {
 
 
   useEffect(() => { void refetch(); }, [refetch]);
-
-
+  useOnCsrDataReset(() => { void refetch({ force: true }); });
 
   return { stats, setStats, loading, refetch };
 
@@ -160,6 +160,7 @@ export function useCsrTabLeads(
     : `${tab}|${page}|${from ?? ""}|${to ?? ""}`;
 
   useEffect(() => { void refetch(); }, [refetchKey, refetch]);
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, total, totalPages, loading, refetch };
 }
@@ -199,8 +200,7 @@ export function usePotentialLeads() {
 
 
   useEffect(() => { void refetch(); }, [refetch]);
-
-
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, loading, refetch };
 

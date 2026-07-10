@@ -1,5 +1,5 @@
 import prisma from "../config/db";
-import { invalidateCache, flushAdminClientsCache } from "./cache";
+import { invalidateCsrLeadCaches } from "./csrCache";
 
 /** Remove leads and all child records (notes, sub-contacts, call logs) */
 export async function deleteLeadsCascade(leadIds: string[]): Promise<number> {
@@ -21,14 +21,5 @@ export async function invalidateAllLeadCaches(csrIds?: string[]): Promise<void> 
     ? csrIds
     : (await prisma.user.findMany({ where: { role: "csr" }, select: { id: true } })).map(c => c.id);
 
-  flushAdminClientsCache();
-  invalidateCache(
-    "admin:csrs",
-    ...ids.flatMap(csrId => [
-      `csr:dashboard:${csrId}`,
-      `csr:leads:${csrId}`,
-      `csr:projects:${csrId}`,
-      `csr:not-interested:${csrId}`,
-    ])
-  );
+  for (const csrId of ids) invalidateCsrLeadCaches(csrId);
 }

@@ -12,6 +12,7 @@ exports.emitMessageReaction = emitMessageReaction;
 exports.emitConversationRead = emitConversationRead;
 exports.emitPinnedMessage = emitPinnedMessage;
 exports.emitPresence = emitPresence;
+exports.notifyCsrDataReset = notifyCsrDataReset;
 exports.isChatSocketReady = isChatSocketReady;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const ws_1 = require("ws");
@@ -236,6 +237,10 @@ function emitPinnedMessage(conversationId, pinnedMessage, memberIds) {
 }
 function emitPresence(userId, isOnline) {
     broadcastPresence(userId, isOnline);
+}
+/** Tell a CSR browser to drop cached lists after admin reset. */
+function notifyCsrDataReset(csrId) {
+    sendToUser(csrId, { type: "csr-data-reset" });
 }
 function isChatSocketReady() {
     return wss !== null;

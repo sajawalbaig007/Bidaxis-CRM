@@ -169,7 +169,7 @@ const uploadLeads = async (req, res) => {
         const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
         const hideOnMain = (status) => isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
         const promoteWonClients = isSpecialUpload && initialStatuses.every(leadClientPromotion_1.isWonClientUploadStatus);
-        const { fresh, toUpdate, toPromote, emailUpdates, preview, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, promoteWonClients);
+        const { fresh, toUpdate, toPromote, toRefresh, emailUpdates, preview, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, promoteWonClients);
         const distributionMap = {};
         if (isActiveUpload && toUpdate.length > 0 && existingCodeMap) {
             await runBatched(toUpdate, BATCH_UPDATE, r => db_1.default.lead.update({
@@ -223,6 +223,32 @@ const uploadLeads = async (req, res) => {
                 distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
             }
         }
+        if (!isActiveUpload && toRefresh.length > 0) {
+            await runBatched(toRefresh, BATCH_UPDATE, ({ row, existingId }) => db_1.default.lead.update({
+                where: { id: existingId },
+                data: {
+                    name: row.name,
+                    company: row.company || null,
+                    phone: row.phone || null,
+                    email: row.email || null,
+                    state: row.state || null,
+                    interestedService: row.interestedService || null,
+                    clientCode: row.clientCode || null,
+                    projectTitle: row.projectTitle,
+                    projectBudget: row.projectBudget,
+                    status: row.status,
+                    important: (row.status ?? "").toLowerCase() === "important",
+                    interested: (row.status ?? "").toLowerCase() === "interested",
+                    isOldClient: row.isOldClient,
+                    assignedTo: row.csrId,
+                    uploadedFileId: uploadedFile.id,
+                    hiddenOnMain: hideOnMain(row.status),
+                },
+            }));
+            for (const { row } of toRefresh) {
+                distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
+            }
+        }
         if (fresh.length > 0) {
             const insertRows = fresh.map(r => ({
                 name: r.name,
@@ -261,6 +287,9 @@ const uploadLeads = async (req, res) => {
             }
         }
         (0, cache_1.flushAdminClientsCache)();
+        for (const csr of csrs) {
+            await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csr.id);
+        }
         (0, cache_1.invalidateCache)("admin:csrs", ...csrs.flatMap(c => [
             `csr:dashboard:${c.id}`,
             `csr:leads:${c.id}`,
@@ -269,7 +298,7 @@ const uploadLeads = async (req, res) => {
             `csr:not-interested:${c.id}`,
         ]));
         const distribution = Object.entries(distributionMap).map(([name, leads]) => ({ name, leads }));
-        const addedCount = fresh.length + (isActiveUpload ? toUpdate.length : 0) + toPromote.length;
+        const addedCount = fresh.length + (isActiveUpload ? toUpdate.length : 0) + toPromote.length + toRefresh.length;
         await db_1.default.uploadFile.update({
             where: { id: uploadedFile.id },
             data: { totalLeads: addedCount },

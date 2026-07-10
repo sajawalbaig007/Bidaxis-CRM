@@ -8,7 +8,10 @@ const db_1 = __importDefault(require("../config/db"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const cache_1 = require("../utils/cache");
+const chatSocket_1 = require("../chat/chatSocket");
+const csrCache_1 = require("../utils/csrCache");
 const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
+const csrResetPages_1 = require("../utils/csrResetPages");
 const uploadSourceStats_1 = require("../utils/uploadSourceStats");
 const projectLeads_1 = require("../utils/projectLeads");
 const projectPayments_1 = require("../utils/projectPayments");
@@ -863,30 +866,61 @@ router.get("/shuffle-status", auth_middleware_1.verifyToken, (0, role_middleware
     }
 });
 /* ================= RESET A SINGLE CSR'S LEADS ================= */
+router.get("/csr-reset-pages", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), (_req, res) => {
+    return res.json({ success: true, groups: csrResetPages_1.CSR_RESET_GROUPS });
+});
+async function runCsrLeadReset(csrId, pagesInput) {
+    const csr = await db_1.default.user.findUnique({
+        where: { id: csrId },
+        select: { id: true, name: true, role: true },
+    });
+    if (!csr) {
+        return { status: 404, body: { success: false, message: "CSR not found" } };
+    }
+    if (csr.role !== "csr") {
+        return { status: 400, body: { success: false, message: "User is not a CSR" } };
+    }
+    const scopes = (0, csrResetPages_1.normalizeCsrResetScopes)(pagesInput);
+    const purged = await (0, purgeCsrLeads_1.purgeCsrLeads)(csrId, scopes);
+    (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
+    (0, chatSocket_1.notifyCsrDataReset)(csrId);
+    const remaining = await db_1.default.lead.count({ where: { assignedTo: csrId } });
+    const warning = purged.leadsDeleted === 0 && remaining > 0
+        ? "No leads matched the selected pages. CSR data was not changed."
+        : undefined;
+    return {
+        status: 200,
+        body: {
+            success: true,
+            message: warning ?? `Reset complete for ${csr.name}`,
+            warning,
+            deleted: purged.leadsDeleted,
+            remaining,
+            purged,
+            csrName: csr.name,
+            pages: purged.pages,
+            scopes: purged.pages,
+        },
+    };
+}
+router.post("/csr-leads/:csrId/reset", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const csrId = String(req.params.csrId);
+        const pages = Array.isArray(req.body?.pages) ? req.body.pages.map(String) : undefined;
+        const result = await runCsrLeadReset(csrId, pages);
+        return res.status(result.status).json(result.body);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to reset CSR data";
+        console.log("[csr-reset]", error);
+        return res.status(500).json({ success: false, message });
+    }
+});
 router.delete("/csr-leads/:csrId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
     try {
         const csrId = String(req.params.csrId);
-        const csr = await db_1.default.user.findUnique({
-            where: { id: csrId },
-            select: { id: true, name: true, role: true },
-        });
-        if (!csr) {
-            return res.status(404).json({ success: false, message: "CSR not found" });
-        }
-        if (csr.role !== "csr") {
-            return res.status(400).json({ success: false, message: "User is not a CSR" });
-        }
-        /* Permanently purge all lead data for this CSR from DB */
-        const purged = await (0, purgeCsrLeads_1.purgeCsrLeads)(csrId);
-        (0, cache_1.flushAdminClientsCache)();
-        (0, cache_1.invalidateCache)("admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
-        return res.json({
-            success: true,
-            message: `Removed all data for ${csr.name} from database`,
-            deleted: purged.leadsDeleted,
-            purged,
-            csrName: csr.name,
-        });
+        const result = await runCsrLeadReset(csrId);
+        return res.status(result.status).json(result.body);
     }
     catch (error) {
         console.log(error);

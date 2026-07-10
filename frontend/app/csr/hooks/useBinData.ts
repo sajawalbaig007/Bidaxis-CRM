@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrBinApi } from "@/lib/csrApiCache";
+import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import type { SubContact } from "./useLeadsData";
 
 export type BinLead = {
@@ -79,6 +80,7 @@ export function useBinData() {
   }, []);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, loading, refetch };
 }

@@ -11,6 +11,7 @@ const sessions_1 = require("../utils/sessions");
 const accessHistory_1 = require("../utils/accessHistory");
 const requestMeta_1 = require("../utils/requestMeta");
 const cache_1 = require("../utils/cache");
+const csrCache_1 = require("../utils/csrCache");
 const phone_1 = require("../utils/phone");
 const leadPhoneLookup_1 = require("../utils/leadPhoneLookup");
 const leadClientPromotion_1 = require("../utils/leadClientPromotion");
@@ -22,11 +23,6 @@ const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const csrLeadSelect_1 = require("../utils/csrLeadSelect");
 const csrDashboardQueries_1 = require("../utils/csrDashboardQueries");
 const router = express_1.default.Router();
-function invalidateCsrLeadCaches(csrId, ...extra) {
-    (0, cache_1.flushAdminClientsCache)();
-    (0, cache_1.invalidateCache)(`csr:dashboard:${csrId}`, `csr:stats:${csrId}`, `csr:potential:${csrId}`, `csr:leads:${csrId}`, `csr:clients:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, `csr:bin:${csrId}`, "admin:bin", ...extra);
-    (0, cache_1.invalidatePattern)(`csr:tab:${csrId}:`);
-}
 async function logStatusChange(csrId, leadId, status) {
     try {
         await db_1.default.callLog.create({ data: { leadId, csrId, status } });
@@ -166,7 +162,7 @@ router.get("/stats", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
         const cacheKey = `csr:stats:${csrId}`;
         const removed = await maybeHealPipelineLeaks(csrId);
         if (removed > 0)
-            invalidateCsrLeadCaches(csrId);
+            (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         const cached = removed === 0 ? (0, cache_1.getCache)(cacheKey) : null;
         if (cached)
             return res.json(cached);
@@ -199,7 +195,7 @@ router.get("/tab-leads", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         if (tab === "pending" || tab === "today") {
             removed = await maybeHealPipelineLeaks(csrId);
             if (removed > 0)
-                invalidateCsrLeadCaches(csrId);
+                (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         }
         const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
         const cached = removed === 0 ? (0, cache_1.getCache)(cacheKey) : null;
@@ -358,7 +354,7 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)(company.trim(), csrId, lead.id);
         }
         await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
-        invalidateCsrLeadCaches(csrId);
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });
     }
@@ -399,7 +395,7 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
         await db_1.default.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
-        invalidateCsrLeadCaches(csrId);
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true });
     }
@@ -419,7 +415,7 @@ router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middlewar
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
         const note = await db_1.default.leadNote.create({ data: { text: text.trim(), leadId } });
-        invalidateCsrLeadCaches(csrId);
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note });
     }
@@ -490,7 +486,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                     status: "pending",
                 },
             });
-            invalidateCsrLeadCaches(csrId);
+            (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
             return res.json({ success: true, lead: updated, movedToBin: true });
         }
         if (inBin === false) {
@@ -508,7 +504,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                     notInterestedCount: 0,
                 },
             });
-            invalidateCsrLeadCaches(csrId);
+            (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
             return res.json({ success: true, lead: updated, restored: true });
         }
         /* Build base update object */
@@ -583,7 +579,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 }
                 await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
                 await logStatusChange(csrId, leadId, status);
-                invalidateCsrLeadCaches(csrId);
+                (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
                 if (newCount >= binLeads_1.NOT_INTERESTED_LIMIT) {
                     const otherCsrs = await db_1.default.user.findMany({
                         where: { id: { not: csrId }, role: "csr", isActive: true },
@@ -619,7 +615,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 }
                 await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
                 await logStatusChange(csrId, leadId, status);
-                invalidateCsrLeadCaches(csrId);
+                (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
                 if (newCount >= binLeads_1.NOT_PICKED_LIMIT) {
                     const otherCsrs = await db_1.default.user.findMany({
                         where: { id: { not: csrId }, role: "csr", isActive: true },
@@ -700,7 +696,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         if (status !== undefined && status !== lead.status) {
             await logStatusChange(csrId, leadId, status);
         }
-        invalidateCsrLeadCaches(csrId);
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         return res.json({ success: true, lead: updatedLead });
     }
     catch (error) {
@@ -751,7 +747,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
                     await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)(companyTrim, csrId, lead.id);
                 }
                 await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
-                invalidateCsrLeadCaches(csrId);
+                (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
                 (0, cache_1.flushAdminClientsCache)();
                 return res.status(200).json({ success: true, lead, promoted: true });
             }
@@ -785,7 +781,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
             await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)(companyTrim, csrId, lead.id);
         }
         await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
-        invalidateCsrLeadCaches(csrId);
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });
     }
@@ -802,6 +798,7 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
+        await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
         const rawLeads = await db_1.default.lead.findMany({
             where: {
                 ...(0, binLeads_1.activeCsrLeadWhere)(csrId),
@@ -941,7 +938,7 @@ router.put("/lead/:id/assign", auth_middleware_1.verifyToken, (0, role_middlewar
                 binPreviousStatus: null,
             },
         });
-        invalidateCsrLeadCaches(csrId, `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`, `csr:bin:${targetCsrId}`);
+        (0, csrCache_1.invalidateCsrLeadCaches)(csrId, `csr:dashboard:${targetCsrId}`, `csr:leads:${targetCsrId}`, `csr:bin:${targetCsrId}`);
         return res.json({ success: true, message: `Lead assigned to ${targetCsr.name}` });
     }
     catch (error) {
