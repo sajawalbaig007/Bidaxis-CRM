@@ -22,6 +22,8 @@ const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const phone_1 = require("../utils/phone");
 const adminClientQueries_1 = require("../utils/adminClientQueries");
 const adminIp_middleware_1 = require("../middleware/adminIp.middleware");
+const csrSessionTracking_1 = require("../utils/csrSessionTracking");
+const estTime_1 = require("../utils/estTime");
 const deleteLeadsCascade_1 = require("../utils/deleteLeadsCascade");
 const adminSummaryStats_1 = require("../utils/adminSummaryStats");
 const router = express_1.default.Router();
@@ -1240,6 +1242,47 @@ router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to fetch source details" });
+    }
+});
+/* ================= CSR LOGIN / ACTIVITY REPORT (EST) ================= */
+router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const csrId = typeof req.query.csrId === "string" && req.query.csrId !== "all"
+            ? req.query.csrId
+            : undefined;
+        let from;
+        let to;
+        const fromStr = typeof req.query.from === "string" ? req.query.from : "";
+        const toStr = typeof req.query.to === "string" ? req.query.to : "";
+        if (fromStr) {
+            const b = (0, estTime_1.estDayBoundsUtc)(fromStr);
+            if (b)
+                from = b.start;
+        }
+        if (toStr) {
+            const b = (0, estTime_1.estDayBoundsUtc)(toStr);
+            if (b)
+                to = b.end;
+        }
+        if (!from && !to) {
+            const toYmd = (0, estTime_1.estDateYmd)();
+            const fromYmd = (0, estTime_1.addEstDays)(toYmd, -6);
+            from = (0, estTime_1.estDayBoundsUtc)(fromYmd).start;
+            to = (0, estTime_1.estDayBoundsUtc)(toYmd).end;
+        }
+        const report = await (0, csrSessionTracking_1.buildCsrSessionReport)({ from, to, csrId });
+        return res.json({
+            success: true,
+            timezone: "America/New_York",
+            timezoneLabel: "Eastern Time (EST/EDT)",
+            from: from?.toISOString() ?? null,
+            to: to?.toISOString() ?? null,
+            ...report,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch CSR activity report" });
     }
 });
 /* ================= ACCESS HISTORY (IP / device) ================= */
