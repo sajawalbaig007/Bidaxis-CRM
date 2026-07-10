@@ -13,6 +13,7 @@ exports.emitConversationRead = emitConversationRead;
 exports.emitPinnedMessage = emitPinnedMessage;
 exports.emitPresence = emitPresence;
 exports.notifyCsrDataReset = notifyCsrDataReset;
+exports.notifyAdminSummaryStale = notifyAdminSummaryStale;
 exports.isChatSocketReady = isChatSocketReady;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const ws_1 = require("ws");
@@ -241,6 +242,14 @@ function emitPresence(userId, isOnline) {
 /** Tell a CSR browser to drop cached lists after admin reset. */
 function notifyCsrDataReset(csrId) {
     sendToUser(csrId, { type: "csr-data-reset" });
+}
+/** Tell admin/manager browsers to refresh dashboard summary counts. */
+function notifyAdminSummaryStale() {
+    for (const [ws, meta] of clients) {
+        if (meta.role === "admin" || meta.role === "manager") {
+            send(ws, { type: "admin-summary-stale" });
+        }
+    }
 }
 function isChatSocketReady() {
     return wss !== null;

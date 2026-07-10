@@ -15,13 +15,12 @@ const app_1 = __importDefault(require("./app"));
 const db_1 = __importDefault(require("./config/db"));
 const cloudinary_1 = __importDefault(require("./config/cloudinary"));
 const chatSocket_1 = require("./chat/chatSocket");
-const csrSessionTracking_1 = require("./utils/csrSessionTracking");
 const PORT = process.env.PORT || 5000;
 (0, env_1.validateEnv)();
 /* ═══════════════════════════════════════════════
-   AUTO OFFLINE CRON — every 60s with circuit breaker
-   If DB is unreachable, backs off for 60s to avoid
-   flooding the connection pool.
+   AUTO OFFLINE CRON — every 60s (Users page presence)
+   Marks isOnline=false after ~90s without heartbeat.
+   Does NOT close CSR work sessions (Reports keep tracking).
 ═══════════════════════════════════════════════ */
 let _offlineFailStreak = 0;
 let _offlinePaused = false;
@@ -30,21 +29,10 @@ setInterval(async () => {
         return;
     try {
         const threshold = new Date(Date.now() - 90000);
-        const staleCsrs = await db_1.default.user.findMany({
-            where: {
-                lastActive: { lt: threshold },
-                isOnline: true,
-                role: "csr",
-            },
-            select: { id: true },
-        });
         await db_1.default.user.updateMany({
             where: { lastActive: { lt: threshold }, isOnline: true },
             data: { isOnline: false },
         });
-        for (const u of staleCsrs) {
-            void (0, csrSessionTracking_1.closeCsrWorkSession)(u.id, "auto_offline");
-        }
         if (_offlineFailStreak > 0) {
             console.log("[Auto-offline] DB reconnected ✓");
             _offlineFailStreak = 0;

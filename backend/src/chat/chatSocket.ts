@@ -289,6 +289,15 @@ export function notifyCsrDataReset(csrId: string): void {
   sendToUser(csrId, { type: "csr-data-reset" });
 }
 
+/** Tell admin/manager browsers to refresh dashboard summary counts. */
+export function notifyAdminSummaryStale(): void {
+  for (const [ws, meta] of clients) {
+    if (meta.role === "admin" || meta.role === "manager") {
+      send(ws, { type: "admin-summary-stale" });
+    }
+  }
+}
+
 export function isChatSocketReady(): boolean {
   return wss !== null;
 }

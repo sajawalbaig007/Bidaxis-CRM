@@ -4,11 +4,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getReports = void 0;
+exports.flushReportCache = flushReportCache;
 const db_1 = __importDefault(require("../config/db"));
 const reportLeads_1 = require("../utils/reportLeads");
 const reportCache = new Map();
 const CACHE_TTL_MS = 90000;
 const ALL_PERIOD_CACHE_TTL_MS = 300000;
+function flushReportCache() {
+    reportCache.clear();
+}
 function getDateRange(period) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

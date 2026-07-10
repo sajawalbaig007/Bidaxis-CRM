@@ -1,4 +1,5 @@
 import API from "./api";
+import { invalidateReportsCache } from "./reportsCache";
 
 export type ChartSeriesPoint = { label: string; calls: number };
 export type ChartSeries = {
@@ -113,6 +114,37 @@ export function invalidateAdminSummaryCache() {
   cached = null;
   tabCountsCached = null;
   clearStorage();
+}
+
+const STALE_BROADCAST_KEY = "crm_admin_summary_stale";
+
+/** Clear cached dashboard stats and notify all admin tabs to refetch. */
+export function broadcastAdminSummaryStale() {
+  invalidateAdminSummaryCache();
+  invalidateReportsCache();
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("crm:admin-summary-stale"));
+  try {
+    localStorage.setItem(STALE_BROADCAST_KEY, String(Date.now()));
+  } catch {
+    /* quota */
+  }
+}
+
+export function subscribeAdminSummaryStale(onStale: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const onCustom = () => onStale();
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === STALE_BROADCAST_KEY) onStale();
+  };
+
+  window.addEventListener("crm:admin-summary-stale", onCustom);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("crm:admin-summary-stale", onCustom);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 export async function getAdminSummary(force = false): Promise<AdminDashboardSummary> {
