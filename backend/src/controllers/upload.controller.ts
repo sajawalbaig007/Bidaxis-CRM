@@ -207,7 +207,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
 
     const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, existingCodeMap } =
-      await classifyRows(parsed, isActiveUpload, promoteWonClients);
+      await classifyRows(parsed, isActiveUpload, uploadCategory, promoteWonClients);
 
     const distributionMap: Record<string, number> = {};
 
@@ -343,7 +343,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
       }
 
-      if (promoteWonClients) {
+      if (promoteWonClients || uploadCategory === "new-client" || uploadCategory === "old-client") {
         const created = await prisma.lead.findMany({
           where: { uploadedFileId: uploadedFile.id },
           select: { id: true, phone: true, assignedTo: true, status: true },
@@ -491,7 +491,7 @@ export const previewUpload = async (req: Request, res: Response) => {
     const parsed = parseLeadRows(rows, csrs, initialStatuses, leadType);
     const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
-    const { preview } = await classifyRows(parsed, leadType === "active", promoteWonClients);
+    const { preview } = await classifyRows(parsed, leadType === "active", resolveUploadCategory(leadType, initialStatuses), promoteWonClients);
 
     const summary = {
       new:       preview.filter(p => p.status === "new").length,

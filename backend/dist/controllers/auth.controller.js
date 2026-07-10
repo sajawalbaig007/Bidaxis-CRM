@@ -16,6 +16,7 @@ const requestMeta_1 = require("../utils/requestMeta");
 const networkAccess_1 = require("../utils/networkAccess");
 const auditLog_1 = require("../utils/auditLog");
 const accessHistory_1 = require("../utils/accessHistory");
+const csrSessionTracking_1 = require("../utils/csrSessionTracking");
 const loginLockout_1 = require("../utils/loginLockout");
 const captcha_1 = require("../utils/captcha");
 const passwordBreach_1 = require("../utils/passwordBreach");
@@ -69,6 +70,9 @@ async function finishLogin(req, res, user, rememberMe) {
         userAgent: ua,
         event: "login",
     });
+    if (user.role === "csr") {
+        void (0, csrSessionTracking_1.openCsrWorkSession)({ userId: user.id, ip, userAgent: ua });
+    }
     (0, securityEmail_1.sendLoginAlertEmail)({ to: user.email, name: user.name, ip, userAgent: ua });
     return res.json({
         success: true,
@@ -478,6 +482,7 @@ const logout = async (req, res) => {
                     await (0, sessions_1.clearActiveSession)(decoded.id);
                     await (0, auditLog_1.writeAuditLog)({ action: "logout", userId: decoded.id, ip, userAgent: ua });
                     await (0, accessHistory_1.recordAccessHistory)({ userId: decoded.id, ip, userAgent: ua, event: "logout" });
+                    void (0, csrSessionTracking_1.closeCsrWorkSession)(decoded.id, "logout");
                 }
             }
             catch { /* ignore */ }

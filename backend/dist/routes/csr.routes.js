@@ -9,6 +9,7 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const sessions_1 = require("../utils/sessions");
 const accessHistory_1 = require("../utils/accessHistory");
+const csrSessionTracking_1 = require("../utils/csrSessionTracking");
 const requestMeta_1 = require("../utils/requestMeta");
 const cache_1 = require("../utils/cache");
 const csrCache_1 = require("../utils/csrCache");
@@ -1091,6 +1092,7 @@ router.post("/heartbeat", auth_middleware_1.verifyToken, (0, role_middleware_1.a
             userAgent: userAgent,
             deviceId: tabId,
         });
+        void (0, csrSessionTracking_1.tickCsrWorkSession)({ userId, tabVisible, deviceId: tabId });
         return res.json({ success: true });
     }
     catch (error) {
@@ -1106,6 +1108,7 @@ router.post("/offline", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             where: { id: req.user.id },
             data: { isOnline: false },
         });
+        void (0, csrSessionTracking_1.closeCsrWorkSession)(req.user.id, "offline");
         return res.json({ success: true });
     }
     catch (error) {

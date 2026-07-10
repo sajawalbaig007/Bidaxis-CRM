@@ -179,7 +179,7 @@ const uploadLeads = async (req, res) => {
         const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
         const hideOnMain = (status) => isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
         const promoteWonClients = isSpecialUpload && initialStatuses.every(leadClientPromotion_1.isWonClientUploadStatus);
-        const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, promoteWonClients);
+        const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, uploadCategory, promoteWonClients);
         const distributionMap = {};
         const leadFieldsFromRow = (r, opts) => ({
             name: r.name,
@@ -293,7 +293,7 @@ const uploadLeads = async (req, res) => {
             for (const r of fresh) {
                 distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
             }
-            if (promoteWonClients) {
+            if (promoteWonClients || uploadCategory === "new-client" || uploadCategory === "old-client") {
                 const created = await db_1.default.lead.findMany({
                     where: { uploadedFileId: uploadedFile.id },
                     select: { id: true, phone: true, assignedTo: true, status: true },
@@ -423,7 +423,7 @@ const previewUpload = async (req, res) => {
         const parsed = (0, uploadExcelParse_1.parseLeadRows)(rows, csrs, initialStatuses, leadType);
         const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
         const promoteWonClients = isSpecialUpload && initialStatuses.every(leadClientPromotion_1.isWonClientUploadStatus);
-        const { preview } = await (0, uploadExcelParse_1.classifyRows)(parsed, leadType === "active", promoteWonClients);
+        const { preview } = await (0, uploadExcelParse_1.classifyRows)(parsed, leadType === "active", (0, uploadCategory_1.resolveUploadCategory)(leadType, initialStatuses), promoteWonClients);
         const summary = {
             new: preview.filter(p => p.status === "new").length,
             duplicate: preview.filter(p => p.status === "duplicate").length,

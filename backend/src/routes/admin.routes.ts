@@ -30,6 +30,8 @@ import {
   type AdminClientView,
 } from "../utils/adminClientQueries";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
+import { buildCsrSessionReport } from "../utils/csrSessionTracking";
+import { estDayBoundsUtc, estDateYmd, addEstDays } from "../utils/estTime";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
@@ -1410,6 +1412,54 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manage
     return res.status(500).json({ success: false, message: "Failed to fetch source details" });
   }
 });
+
+/* ================= CSR LOGIN / ACTIVITY REPORT (EST) ================= */
+router.get(
+  "/csr-session-report",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (req, res) => {
+    try {
+      const csrId = typeof req.query.csrId === "string" && req.query.csrId !== "all"
+        ? req.query.csrId
+        : undefined;
+
+      let from: Date | undefined;
+      let to: Date | undefined;
+      const fromStr = typeof req.query.from === "string" ? req.query.from : "";
+      const toStr = typeof req.query.to === "string" ? req.query.to : "";
+
+      if (fromStr) {
+        const b = estDayBoundsUtc(fromStr);
+        if (b) from = b.start;
+      }
+      if (toStr) {
+        const b = estDayBoundsUtc(toStr);
+        if (b) to = b.end;
+      }
+
+      if (!from && !to) {
+        const toYmd = estDateYmd();
+        const fromYmd = addEstDays(toYmd, -6);
+        from = estDayBoundsUtc(fromYmd)!.start;
+        to = estDayBoundsUtc(toYmd)!.end;
+      }
+
+      const report = await buildCsrSessionReport({ from, to, csrId });
+      return res.json({
+        success: true,
+        timezone: "America/New_York",
+        timezoneLabel: "Eastern Time (EST/EDT)",
+        from: from?.toISOString() ?? null,
+        to: to?.toISOString() ?? null,
+        ...report,
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to fetch CSR activity report" });
+    }
+  },
+);
 
 /* ================= ACCESS HISTORY (IP / device) ================= */
 router.get("/access-history/:userId", verifyToken, allowRoles("admin"), async (req, res) => {

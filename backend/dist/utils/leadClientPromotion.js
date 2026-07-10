@@ -12,6 +12,7 @@ exports.clearPendingDuplicatesForPhone = clearPendingDuplicatesForPhone;
 exports.clearPendingDuplicatesForCompany = clearPendingDuplicatesForCompany;
 exports.healPendingDuplicatesForCsr = healPendingDuplicatesForCsr;
 exports.clientIdentityKey = clientIdentityKey;
+exports.uploadCategoryOldFlag = uploadCategoryOldFlag;
 exports.reconcileClientOldFlagsForCsr = reconcileClientOldFlagsForCsr;
 exports.healPipelineLeaksForCsr = healPipelineLeaksForCsr;
 exports.sortNotesNewestFirst = sortNotesNewestFirst;
@@ -159,7 +160,17 @@ function clientIdentityKey(lead) {
         return `company:${co}`;
     return `id:${lead.id}`;
 }
-/** 2+ won deals = old client; explicit old upload also counts. */
+/** Upload category locks new vs old client tab — never overridden by auto-reconcile. */
+function uploadCategoryOldFlag(category) {
+    if (category === "new-client" || category === "interested" || category === "call-data") {
+        return false;
+    }
+    if (category === "old-client" || category === "important" || category === "active-projects") {
+        return true;
+    }
+    return undefined;
+}
+/** 2+ won deals = old client; explicit upload category + isOldClient also count. */
 async function reconcileClientOldFlagsForCsr(csrId) {
     const wonLeads = await db_1.default.lead.findMany({
         where: {
@@ -183,10 +194,22 @@ async function reconcileClientOldFlagsForCsr(csrId) {
         groups.get(key).push(lead);
     }
     for (const group of groups.values()) {
+        for (const lead of group) {
+            const locked = uploadCategoryOldFlag(lead.uploadFile?.uploadCategory);
+            if (locked !== undefined && lead.isOldClient !== locked) {
+                await db_1.default.lead.update({
+                    where: { id: lead.id },
+                    data: { isOldClient: locked },
+                });
+            }
+        }
+        const unlocked = group.filter(l => uploadCategoryOldFlag(l.uploadFile?.uploadCategory) === undefined);
+        if (unlocked.length === 0)
+            continue;
         const shouldBeOld = group.some(l => l.isOldClient) ||
             group.some(l => l.uploadFile?.uploadCategory === "old-client") ||
             group.length >= 2;
-        const ids = group.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
+        const ids = unlocked.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
         if (ids.length > 0) {
             await db_1.default.lead.updateMany({
                 where: { id: { in: ids } },

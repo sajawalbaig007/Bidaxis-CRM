@@ -18,6 +18,11 @@ const ReportCharts = dynamic(() => import("./ReportCharts"), {
   loading: () => <div className="h-[280px] rounded-xl bg-gray-100 animate-pulse" />,
 });
 
+const CsrActivityReport = dynamic(() => import("./CsrActivityReport"), {
+  ssr: false,
+  loading: () => <div className="h-48 rounded-xl bg-gray-100 animate-pulse" />,
+});
+
 type ReportResponse = ReportsData;
 
 /* ── Main Page ── */
@@ -415,6 +420,10 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <CsrActivityReport />
         </div>
 
         {/* ── CSR PERFORMANCE TABLE ── */}

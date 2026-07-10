@@ -114,7 +114,9 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
 function isCallDataStatus(status) {
     return (status ?? "").toLowerCase() === "pending";
 }
-async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
+async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data", promoteWonClientsArg = false) {
+    /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
+    const promoteWonClients = typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
     const preview = [];
     const toPreview = (r, status, reason) => ({
         row: r.rowIndex,

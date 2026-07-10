@@ -6,6 +6,7 @@ import {
   isWonClientStatus,
   isWonClientUploadStatus,
 } from "./leadClientPromotion";
+import type { UploadCategory } from "./uploadCategory";
 
 const CHUNK_LOOKUP = 500;
 
@@ -178,7 +179,8 @@ function isCallDataStatus(status: string | null | undefined): boolean {
 export async function classifyRows(
   parsed: ParsedLeadRow[],
   isActiveUpload: boolean,
-  promoteWonClients = false,
+  _uploadCategory: UploadCategory | boolean = "call-data",
+  promoteWonClientsArg = false,
 ): Promise<{
   fresh: ParsedLeadRow[];
   toUpdate: ParsedLeadRow[];
@@ -189,6 +191,10 @@ export async function classifyRows(
   preview: RowPreview[];
   existingCodeMap?: Map<string, string>;
 }> {
+  /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
+  const promoteWonClients =
+    typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
+
   const preview: RowPreview[] = [];
   const toPreview = (r: ParsedLeadRow, status: RowPreview["status"], reason: string): RowPreview => ({
     row: r.rowIndex,
