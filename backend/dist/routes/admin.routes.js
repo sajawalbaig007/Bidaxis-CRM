@@ -8,6 +8,8 @@ const db_1 = __importDefault(require("../config/db"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const role_middleware_1 = require("../middleware/role.middleware");
 const cache_1 = require("../utils/cache");
+const chatSocket_1 = require("../chat/chatSocket");
+const csrCache_1 = require("../utils/csrCache");
 const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
 const csrResetPages_1 = require("../utils/csrResetPages");
 const uploadSourceStats_1 = require("../utils/uploadSourceStats");
@@ -880,14 +882,20 @@ async function runCsrLeadReset(csrId, pagesInput) {
     }
     const scopes = (0, csrResetPages_1.normalizeCsrResetScopes)(pagesInput);
     const purged = await (0, purgeCsrLeads_1.purgeCsrLeads)(csrId, scopes);
-    (0, cache_1.flushAdminClientsCache)();
-    (0, cache_1.invalidateCache)("admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`, `csr:clients:${csrId}`, `csr:potential:${csrId}`, `csr:bin:${csrId}`, "admin:bin");
+    (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
+    (0, chatSocket_1.notifyCsrDataReset)(csrId);
+    const remaining = await db_1.default.lead.count({ where: { assignedTo: csrId } });
+    const warning = purged.leadsDeleted === 0 && remaining > 0
+        ? "No leads matched the selected pages. CSR data was not changed."
+        : undefined;
     return {
         status: 200,
         body: {
             success: true,
-            message: `Reset complete for ${csr.name}`,
+            message: warning ?? `Reset complete for ${csr.name}`,
+            warning,
             deleted: purged.leadsDeleted,
+            remaining,
             purged,
             csrName: csr.name,
             pages: purged.pages,

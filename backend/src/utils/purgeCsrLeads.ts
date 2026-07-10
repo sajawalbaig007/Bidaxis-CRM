@@ -53,15 +53,13 @@ export async function purgeCsrLeads(
   let subContactsDeleted = 0;
   let callLogsDeleted = 0;
   let batches = 0;
-  let cursor: string | undefined;
 
+  // Always fetch the next batch from the start — cursor pagination breaks after deletes.
   for (;;) {
     const batch = await prisma.lead.findMany({
       where,
       select: { id: true },
-      orderBy: { id: "asc" },
       take: BATCH_SIZE,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
 
     if (batch.length === 0) break;
@@ -75,7 +73,6 @@ export async function purgeCsrLeads(
     callLogsDeleted += deleted.callLogsDeleted;
     batches += 1;
 
-    cursor = batch[batch.length - 1]!.id;
     if (batch.length < BATCH_SIZE) break;
   }
 

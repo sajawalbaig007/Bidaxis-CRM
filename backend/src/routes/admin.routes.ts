@@ -4,6 +4,8 @@ import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
+import { notifyCsrDataReset } from "../chat/chatSocket";
+import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { CSR_RESET_GROUPS, normalizeCsrResetScopes } from "../utils/csrResetPages";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
@@ -981,25 +983,23 @@ async function runCsrLeadReset(csrId: string, pagesInput?: string[]) {
   const scopes = normalizeCsrResetScopes(pagesInput);
   const purged = await purgeCsrLeads(csrId, scopes);
 
-  flushAdminClientsCache();
-  invalidateCache(
-    "admin:csrs",
-    `csr:dashboard:${csrId}`,
-    `csr:leads:${csrId}`,
-    `csr:projects:${csrId}`,
-    `csr:not-interested:${csrId}`,
-    `csr:clients:${csrId}`,
-    `csr:potential:${csrId}`,
-    `csr:bin:${csrId}`,
-    "admin:bin",
-  );
+  invalidateCsrLeadCaches(csrId);
+  notifyCsrDataReset(csrId);
+
+  const remaining = await prisma.lead.count({ where: { assignedTo: csrId } });
+  const warning =
+    purged.leadsDeleted === 0 && remaining > 0
+      ? "No leads matched the selected pages. CSR data was not changed."
+      : undefined;
 
   return {
     status: 200 as const,
     body: {
       success: true,
-      message: `Reset complete for ${csr.name}`,
+      message: warning ?? `Reset complete for ${csr.name}`,
+      warning,
       deleted: purged.leadsDeleted,
+      remaining,
       purged,
       csrName: csr.name,
       pages: purged.pages,

@@ -284,6 +284,11 @@ export function emitPresence(userId: string, isOnline: boolean) {
   broadcastPresence(userId, isOnline);
 }
 
+/** Tell a CSR browser to drop cached lists after admin reset. */
+export function notifyCsrDataReset(csrId: string): void {
+  sendToUser(csrId, { type: "csr-data-reset" });
+}
+
 export function isChatSocketReady(): boolean {
   return wss !== null;
 }

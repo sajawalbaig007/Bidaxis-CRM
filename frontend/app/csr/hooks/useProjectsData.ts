@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrProjectsApi } from "@/lib/csrApiCache";
+import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import { parsePayments, paidTotal, paymentPercent } from "@/lib/projectFields";
 import type { ProjectPayment } from "@/lib/projectFields";
 import { NoteEntry } from "./useLeadsData";
@@ -194,6 +195,7 @@ export function useProjectsData() {
   }, []);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { projects, setProjects, loading, refetch };
 }
