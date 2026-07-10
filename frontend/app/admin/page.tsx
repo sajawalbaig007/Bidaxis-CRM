@@ -16,7 +16,7 @@ import {
 
 const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
   ssr: false,
-  loading: () => <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-[240px] sm:h-[280px] rounded-xl bg-gray-100 animate-pulse" />,
 });
 
 const OverviewChart = dynamic(() => import("./components/charts/OverviewChart"), {
@@ -116,130 +116,141 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-[#F0F2F8]">
       <StaffSidebar />
 
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
-        <div className="space-y-4 sm:space-y-5">
+      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
 
-          <div className="flex justify-end">
+          {/* 1 — Header */}
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+                Dashboard
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
+                Pipeline overview · CSR activity · live presence
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => void loadOverview(true)}
               disabled={loadingOverview}
-              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm shrink-0"
+              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
             >
               <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
               {loadingOverview ? "Refreshing…" : "Refresh stats"}
             </button>
-          </div>
+          </header>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5 sm:gap-3">
-            {tiles.map(tile => {
-              const inner = (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/70 text-[10px] font-bold uppercase tracking-widest leading-tight">
-                      {tile.label}
-                    </span>
-                    <span className="w-7 h-7 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-                      {tile.icon}
-                    </span>
+          {/* 2 — Stat tiles: 2 → 4 → 4 (2 rows), never cramped 8-across */}
+          <section aria-label="Quick stats">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+              {tiles.map(tile => {
+                const inner = (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-white/75 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-snug line-clamp-2">
+                        {tile.label}
+                      </span>
+                      <span className="w-6 h-6 sm:w-7 sm:h-7 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
+                        {tile.icon}
+                      </span>
+                    </div>
+                    {loadingOverview ? (
+                      <div className="h-7 sm:h-8 w-12 sm:w-14 bg-white/25 rounded-lg animate-pulse" />
+                    ) : (
+                      <span className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
+                        {overviewLoaded ? tile.value.toLocaleString() : "—"}
+                      </span>
+                    )}
+                    <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden mt-auto">
+                      <div className="h-full bg-white/60 rounded-full" style={{ width: tile.bar }} />
+                    </div>
+                  </>
+                );
+                const cls = `bg-gradient-to-br ${tile.from} ${tile.to} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md flex flex-col gap-2 sm:gap-2.5 min-h-[96px] sm:min-h-[108px]`;
+                return tile.href ? (
+                  <button
+                    key={tile.label}
+                    type="button"
+                    onClick={() => router.push(tile.href!)}
+                    className={`${cls} text-left hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer`}
+                  >
+                    {inner}
+                  </button>
+                ) : (
+                  <div key={tile.label} className={cls}>
+                    {inner}
                   </div>
-                  {loadingOverview ? (
-                    <div className="h-8 w-14 bg-white/25 rounded-xl animate-pulse" />
-                  ) : (
-                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">
-                      {overviewLoaded ? tile.value.toLocaleString() : "—"}
-                    </span>
-                  )}
-                  <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-white/60 rounded-full" style={{ width: tile.bar }} />
-                  </div>
-                </>
-              );
-              return tile.href ? (
-                <button
-                  key={tile.label}
-                  type="button"
-                  onClick={() => router.push(tile.href!)}
-                  className={`bg-gradient-to-br ${tile.from} ${tile.to} rounded-2xl p-3 sm:p-4 text-white shadow-lg flex flex-col gap-2.5 text-left hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer`}
-                >
-                  {inner}
-                </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 3 — Charts: performance + distribution */}
+          <section
+            aria-label="Charts"
+            className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 md:gap-5"
+          >
+            <div className="xl:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3 sm:mb-4">
+                <div className="min-w-0">
+                  <h2 className="font-bold text-gray-800 text-sm sm:text-base">Performance Overview</h2>
+                  <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+                    CSR call activity · day resets 4:00 AM (PKT)
+                  </p>
+                </div>
+                {(overviewLoaded || loadingOverview) && (
+                  <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
+                )}
+              </div>
+              {overviewLoaded || loadingOverview ? (
+                <PerformanceChart series={chartSeries} range={selectedRange} />
               ) : (
-                <div
-                  key={tile.label}
-                  className={`bg-gradient-to-br ${tile.from} ${tile.to} rounded-2xl p-3 sm:p-4 text-white shadow-lg flex flex-col gap-2.5`}
-                >
-                  {inner}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-5 items-start">
-
-            <div className="lg:col-span-8 space-y-3 sm:space-y-4">
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-3 mb-3 sm:mb-5">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm sm:text-base">Performance Overview</h3>
-                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                      CSR call activity · business day resets 4:00 AM (PKT)
-                    </p>
-                  </div>
-                  {(overviewLoaded || loadingOverview) && (
-                    <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
-                  )}
-                </div>
-                {overviewLoaded || loadingOverview ? (
-                  <PerformanceChart series={chartSeries} range={selectedRange} />
-                ) : (
-                  <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />
-                )}
-              </div>
-
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {projectsEnabled ? (
-                  <ActiveProjectsWidget enabled />
-                ) : (
-                  <LazySectionPrompt
-                    icon={<FolderKanban size={28} className="text-gray-300" />}
-                    label="Click to load Project DB preview"
-                    onLoad={() => setProjectsEnabled(true)}
-                  />
-                )}
-              </div>
+                <div className="h-[240px] sm:h-[280px] rounded-xl bg-gray-100 animate-pulse" />
+              )}
             </div>
 
-            <div className="lg:col-span-4">
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 h-full">
-                {overviewLoaded || loadingOverview ? (
-                  <OverviewChart distribution={summary?.distribution} />
-                ) : (
-                  <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />
-                )}
-              </div>
+            <div className="xl:col-span-4 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+              {overviewLoaded || loadingOverview ? (
+                <OverviewChart distribution={summary?.distribution} />
+              ) : (
+                <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />
+              )}
             </div>
+          </section>
 
-            <div className="lg:col-span-8">
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {overviewLoaded || loadingOverview ? (
-                  <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
-                ) : (
-                  <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />
-                )}
-              </div>
+          {/* 4 — Activity + performers */}
+          <section
+            aria-label="Activity"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 md:gap-5"
+          >
+            <div className="lg:col-span-7 xl:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+              {overviewLoaded || loadingOverview ? (
+                <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
+              ) : (
+                <div className="h-[240px] rounded-xl bg-gray-100 animate-pulse" />
+              )}
             </div>
+            <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+              {overviewLoaded || loadingOverview ? (
+                <TopPerformers performers={summary?.performers} />
+              ) : (
+                <div className="h-[240px] rounded-xl bg-gray-100 animate-pulse" />
+              )}
+            </div>
+          </section>
 
-            <div className="lg:col-span-4">
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {overviewLoaded || loadingOverview ? (
-                  <TopPerformers performers={summary?.performers} />
-                ) : (
-                  <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />
-                )}
-              </div>
-            </div>
-          </div>
+          {/* 5 — Project DB */}
+          <section aria-label="Projects" className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+            {projectsEnabled ? (
+              <ActiveProjectsWidget enabled />
+            ) : (
+              <LazySectionPrompt
+                icon={<FolderKanban size={28} className="text-gray-300" />}
+                label="Click to load Project DB preview"
+                onLoad={() => setProjectsEnabled(true)}
+              />
+            )}
+          </section>
 
         </div>
       </main>
@@ -252,22 +263,18 @@ function LazySectionPrompt({
   label,
   onLoad,
   loading = false,
-  compact = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onLoad: () => void;
   loading?: boolean;
-  compact?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onLoad}
       disabled={loading}
-      className={`w-full flex flex-col items-center justify-center text-center rounded-xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 hover:bg-[#FFF6F7] transition-colors disabled:opacity-60 ${
-        compact ? "py-10" : "py-14 sm:py-16"
-      }`}
+      className="w-full flex flex-col items-center justify-center text-center rounded-xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 hover:bg-[#FFF6F7] transition-colors disabled:opacity-60 py-12 sm:py-14"
     >
       {icon}
       <p className="text-sm text-gray-500 mt-3 font-medium">{loading ? "Loading…" : label}</p>
@@ -276,10 +283,11 @@ function LazySectionPrompt({
 }
 
 const DateRangePicker = ({ selected, onChange }: { selected: string; onChange: (r: string) => void }) => (
-  <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 shrink-0">
+  <div className="flex gap-1.5 overflow-x-auto max-w-full pb-0.5 shrink-0 -mx-0.5 px-0.5">
     {["Today (4AM+)", "Week", "Month", "Year"].map(r => (
       <button
         key={r}
+        type="button"
         onClick={() => onChange(r.toLowerCase().replace(" (4am+)", ""))}
         className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold transition-all whitespace-nowrap ${
           (r.startsWith("Today") ? selected === "today" : selected === r.toLowerCase())

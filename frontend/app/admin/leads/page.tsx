@@ -117,6 +117,7 @@ function ClientsPageContent() {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   
   /* ── Reassign to CSR ── */
@@ -375,12 +376,22 @@ function ClientsPageContent() {
     setNewClient(emptyClient);
   };
 
-  const handleDeleteClient = () => {
-    if (!clientToDelete) return;
-    setClients((prev) => prev.filter((c) => c.id !== clientToDelete));
-    toast.success("Client deleted successfully.");
-    setShowDeleteModal(false);
-    setClientToDelete(null);
+  const handleDeleteClient = async () => {
+    if (!clientToDelete || deleting) return;
+    setDeleting(true);
+    try {
+      await API.delete(`/admin/lead/${clientToDelete}`);
+      setClients((prev) => prev.filter((c) => c.id !== clientToDelete));
+      toast.success("Client deleted successfully.");
+      refreshTabCounts();
+      setRefreshToken(t => t + 1);
+      setShowDeleteModal(false);
+      setClientToDelete(null);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to delete client."));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (initialLoad) {
@@ -918,18 +929,21 @@ function ClientsPageContent() {
               <div className="flex items-center justify-end gap-2 sm:gap-3 mt-4 sm:mt-6">
                 <button
                   onClick={() => {
+                    if (deleting) return;
                     setShowDeleteModal(false);
                     setClientToDelete(null);
                   }}
-                  className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all"
+                  disabled={deleting}
+                  className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-all disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleDeleteClient}
-                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-red-600 text-white text-sm hover:bg-red-700 transition-all"
+                  onClick={() => void handleDeleteClient()}
+                  disabled={deleting}
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-red-600 text-white text-sm hover:bg-red-700 transition-all disabled:opacity-60"
                 >
-                  Delete Client
+                  {deleting ? "Deleting…" : "Delete Client"}
                 </button>
               </div>
             </div>
