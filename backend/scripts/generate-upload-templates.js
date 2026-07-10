@@ -16,6 +16,7 @@ const BASE_HEADERS = [
   "Email",
   "State",
   "Interested Service",
+  "Notes",
 ];
 
 const BASE_SAMPLES = [
@@ -26,6 +27,7 @@ const BASE_SAMPLES = [
     Email: "john@jcair.com",
     State: "Texas",
     "Interested Service": "HVAC Estimating",
+    Notes: "Client asked for quote by Friday",
   },
   {
     "Client Name": "Maria Garcia",
@@ -34,6 +36,7 @@ const BASE_SAMPLES = [
     Email: "maria@sunrise.com",
     State: "Austin, TX",
     "Interested Service": "Construction Takeoff",
+    Notes: "Follow up next week — interested in residential",
   },
   {
     "Client Name": "Robert Chen",
@@ -42,6 +45,7 @@ const BASE_SAMPLES = [
     Email: "rchen@metroelectric.com",
     State: "Houston, TX",
     "Interested Service": "Electrical Estimating",
+    Notes: "Previous client — wants new commercial bid",
   },
 ];
 
@@ -88,7 +92,7 @@ const TEMPLATES = [
       "Step 1 in modal: Call Data (daily call list)",
       "Leads go to CSR Call Data / Today Links as pending",
       "Required per row: Client Name OR Phone (7+ digits)",
-      "Optional: Client Company, Email, State, Interested Service",
+      "Optional: Client Company, Email, State, Interested Service, Notes",
       "Delete sample rows and add your own data before upload",
     ],
   },
@@ -129,7 +133,7 @@ const TEMPLATES = [
       "Upload box: Interested Clients",
       "Status after upload: interested (new client pipeline)",
       "Required per row: Client Name OR Phone",
-      "Optional: Client Company, Email, State, Interested Service",
+      "Optional: Client Company, Email, State, Interested Service, Notes",
       "Delete sample rows before upload",
     ],
   },
@@ -142,7 +146,7 @@ const TEMPLATES = [
       "Upload box: Previous Important Clients",
       "Status after upload: important (old / known clients)",
       "Required per row: Client Name OR Phone",
-      "Optional: Client Company, Email, State, Interested Service",
+      "Optional: Client Company, Email, State, Interested Service, Notes",
       "Delete sample rows before upload",
     ],
   },

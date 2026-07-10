@@ -9,6 +9,7 @@ import {
 } from "../utils/uploadExcelParse";
 import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
 import { isWonClientUploadStatus, clearPendingDuplicatesForPhone } from "../utils/leadClientPromotion";
+import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 
@@ -213,6 +214,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
             interestedService: r.interestedService || null,
             projectTitle:      r.projectTitle      || null,
             projectBudget:     r.projectBudget,
+            comments:          r.comments            || null,
             status:            r.status            || "Close Client",
             isOldClient:       true,
             assignedTo:        r.csrId,
@@ -246,6 +248,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
             clientCode:        row.clientCode        || null,
             projectTitle:      row.projectTitle,
             projectBudget:     row.projectBudget,
+            comments:          row.comments            || null,
             status:            row.status,
             important:         false,
             interested:        false,
@@ -272,6 +275,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         clientCode:        r.clientCode        || null,
         projectTitle:      r.projectTitle,
         projectBudget:     r.projectBudget,
+        comments:          r.comments            || null,
         status:            r.status,
         important:         (r.status ?? "").toLowerCase() === "important",
         interested:        (r.status ?? "").toLowerCase() === "interested",
@@ -320,6 +324,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
       where: { id: uploadedFile.id },
       data:  { totalLeads: addedCount },
     });
+
+    await seedLeadNotesFromCommentsForFile(uploadedFile.id);
 
     return res.json({
       success:       true,
