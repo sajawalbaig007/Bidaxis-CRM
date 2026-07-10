@@ -44,44 +44,37 @@ export default function TopPerformers({ leads = [], performers: performersProp }
       .slice(0, 5);
   }, [leads, performersProp]);
 
-  const maxResolved = performers[0]?.resolved ?? 1;
-
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-gray-800 text-sm">Top Performers</h3>
-        <Trophy size={16} className="text-amber-500" />
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold text-gray-800">Top Performers</h3>
+        <Trophy size={18} className="text-amber-500"/>
       </div>
 
-      <div className="space-y-2.5 flex-1">
-        {performers.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-6">No data yet</p>
-        ) : performers.map((p, i) => (
-          <div key={p.name} className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0 ${rankStyle(i)}`}>
-                {i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-medium text-xs text-gray-800 truncate">{p.name}</p>
-                  <p className="text-xs font-bold text-green-600 shrink-0">{formatRate(p.rate)}</p>
+      <div className="space-y-3">
+        {performers.length === 0
+          ? <p className="text-sm text-gray-400 text-center py-4">No data yet</p>
+          : performers.map((p, i) => (
+            <div key={p.name} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-xl transition-all">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${rankStyle(i)}`}>
+                  {i + 1}
                 </div>
-                <p className="text-[10px] text-gray-400">{p.resolved} resolved · {p.total.toLocaleString()} total</p>
+                <div className="min-w-0">
+                  <p className="font-medium text-sm text-gray-800 truncate">{p.name}</p>
+                  <p className="text-xs text-gray-400">{p.resolved} resolved · {p.total.toLocaleString()} total</p>
+                </div>
               </div>
-              {p.rate >= 50
-                ? <TrendingUp size={12} className="text-green-500 shrink-0" />
-                : <Star size={12} className="text-gray-300 shrink-0" />
-              }
+              <div className="flex items-center gap-2 text-right shrink-0">
+                <p className="text-sm font-semibold text-green-600">{formatRate(p.rate)}</p>
+                {p.rate >= 50
+                  ? <TrendingUp size={14} className="text-green-500"/>
+                  : <Star       size={14} className="text-gray-400"/>
+                }
+              </div>
             </div>
-            <div className="ml-8 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#B8112D] to-[#D97706] rounded-full transition-all"
-                style={{ width: `${Math.max(4, (p.resolved / maxResolved) * 100)}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          ))
+        }
       </div>
     </div>
   );
