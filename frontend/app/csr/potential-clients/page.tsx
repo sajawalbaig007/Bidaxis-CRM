@@ -464,7 +464,7 @@ export default function ImportantCallsPage() {
                           return (
                             <PhoneWithTzCell
                               phone={phones[0] ?? lead.phone}
-                              extraCount={phones.length > 1 ? phones.length - 1 : 0}
+                              allPhones={phones}
                               variant="pill"
                             />
                           );
@@ -620,7 +620,7 @@ export default function ImportantCallsPage() {
                           return (
                             <PhoneWithTzCell
                               phone={phones[0] ?? lead.phone}
-                              extraCount={phones.length > 1 ? phones.length - 1 : 0}
+                              allPhones={phones}
                               variant="pill"
                               className="px-2 sm:px-3 py-1 sm:py-1.5"
                             />

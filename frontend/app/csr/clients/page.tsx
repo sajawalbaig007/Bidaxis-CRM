@@ -545,7 +545,7 @@ export default function LeadsPage() {
                           return (
                             <PhoneWithTzCell
                               phone={phones[0]}
-                              extraCount={phones.length > 1 ? phones.length - 1 : 0}
+                              allPhones={phones}
                               variant="pill"
                               className="px-2 py-1 text-xs lg:text-sm"
                             />
