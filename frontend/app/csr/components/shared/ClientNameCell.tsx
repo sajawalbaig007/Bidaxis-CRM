@@ -3,7 +3,9 @@
 import { Eye } from "lucide-react";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { clientCompany, ourCompany } from "../../utils/leadFieldLabels";
+import { parseEmails } from "../../utils/parseEmails";
 import type { Lead } from "../../types/lead";
+import EmailWithExtraCell from "./EmailWithExtraCell";
 
 interface ClientNameCellProps {
   lead: Lead;
@@ -20,7 +22,7 @@ export default function ClientNameCell({
 }: ClientNameCellProps) {
   const tz = getCompanyTimezoneAbbr(lead);
   const co = clientCompany(lead);
-  const email = lead.email !== "N/A" ? lead.email : "";
+  const emails = parseEmails(lead.email !== "N/A" ? lead.email : "");
 
   return (
     <div className="flex items-start gap-2 sm:gap-3 min-w-0">
@@ -59,22 +61,29 @@ export default function ClientNameCell({
         {subtitle && (
           <p className="text-[10px] text-gray-400 mt-0.5 truncate">{subtitle}</p>
         )}
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 items-center">
           {co !== "—" && (
             <p className="text-[10px] sm:text-[11px] text-gray-500 truncate max-w-[140px] sm:max-w-[200px]">
               <span className="text-gray-400">Co:</span> {co}
             </p>
           )}
-          {email && (
-            <p className="text-[10px] sm:text-[11px] text-gray-500 truncate max-w-[140px] sm:max-w-[200px]">
-              <span className="text-gray-400">Email:</span> {email}
-            </p>
+          {emails.length > 0 && (
+            <div className="flex items-center gap-1 min-w-0 max-w-[220px]">
+              <span className="text-[10px] sm:text-[11px] text-gray-400 shrink-0">Email:</span>
+              <EmailWithExtraCell
+                email={emails[0]}
+                allEmails={emails}
+                variant="plain"
+                className="text-[10px] sm:text-[11px] text-gray-500"
+                emptyLabel=""
+              />
+            </div>
           )}
-          {!email && lead.state && (
+          {emails.length === 0 && lead.state && (
             <p className="text-[10px] sm:text-[11px] text-gray-400 truncate">{lead.state}</p>
           )}
         </div>
-        { !hideOurCompany && ourCompany(lead) !== "—" && (
+        {!hideOurCompany && ourCompany(lead) !== "—" && (
           <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 truncate mt-0.5 max-w-[200px]">
             Our co: {ourCompany(lead)}
           </p>
