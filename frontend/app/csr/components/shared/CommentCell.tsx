@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { StickyNote, Plus, Pencil, Trash2, Check, X, Clock, Loader2 } from "lucide-react";
 import { NoteEntry } from "../../hooks/useLeadsData";
 import API from "@/lib/api";
+import { buildNoteHistory } from "../../utils/noteHistory";
 
 interface CommentCellProps {
   id: string;
@@ -48,22 +49,24 @@ export default function CommentCell({
   const btnRef   = useRef<HTMLButtonElement>(null);
   const fetchStartedRef = useRef(false);
 
-  /* ── Count badge ──
-     Priority: localNotes (fetched) > noteHistory (pre-loaded) > noteCount prop */
-  const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
-  const displayCount   = localNotes !== null ? localNotes.length : preloadedCount;
-  const count          = displayCount + (comment ? 1 : 0);
-
   /* ── Notes to display in popup ── */
   const displayNotes = (localNotes !== null ? localNotes : (noteHistory ?? []))
     .filter(n => n.text?.trim())
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const legacyComment = comment?.trim() && !displayNotes.some(n => n.text === comment.trim())
+    ? comment.trim()
+    : null;
   const latestNote   = displayNotes[0];
   const latestPreview = latestNote?.text?.trim()
     ? (latestNote.text.length > 48 ? `${latestNote.text.slice(0, 48)}…` : latestNote.text)
-    : comment?.trim()
-      ? (comment.length > 48 ? `${comment.slice(0, 48)}…` : comment)
+    : legacyComment
+      ? (legacyComment.length > 48 ? `${legacyComment.slice(0, 48)}…` : legacyComment)
       : null;
+
+  /* ── Count badge ── */
+  const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
+  const displayCount   = localNotes !== null ? localNotes.length : preloadedCount;
+  const count          = displayCount + (legacyComment ? 1 : 0);
 
   /* Sync parent note updates (status change / optimistic add) */
   useEffect(() => {
@@ -131,12 +134,20 @@ export default function CommentCell({
     setNotesLoading(true);
     try {
       const res = await API.get(`/${apiRole}/lead/${id}`);
-      const fetched: NoteEntry[] = (res.data.lead?.notes ?? []).map(
+      const raw = res.data.lead;
+      const fetched: NoteEntry[] = (raw?.notes ?? []).map(
         (n: { id: string; text: string; createdAt: string }) => ({
           id: n.id, text: n.text, createdAt: n.createdAt,
         })
       );
-      setLocalNotes(fetched);
+      const { noteHistory } = buildNoteHistory({
+        notes: fetched,
+        comments: raw?.comments,
+        followUpNotes: raw?.followUpNotes,
+        createdAt: raw?.createdAt,
+        updatedAt: raw?.updatedAt,
+      });
+      setLocalNotes(noteHistory);
     } catch {
       setLocalNotes([]);
     } finally {
@@ -229,10 +240,10 @@ export default function CommentCell({
 
       {/* Notes list */}
       <div className="max-h-65 overflow-y-auto divide-y divide-gray-50">
-        {/* Legacy comment (admin mode) */}
-        {comment && (
+        {/* Legacy comment (only if not already in note history) */}
+        {legacyComment && (
           <div className="px-4 py-3">
-            <p className="text-[12px] text-gray-800 leading-snug whitespace-pre-wrap">{comment}</p>
+            <p className="text-[12px] text-gray-800 leading-snug whitespace-pre-wrap">{legacyComment}</p>
           </div>
         )}
 
@@ -243,7 +254,7 @@ export default function CommentCell({
           </div>
         )}
 
-        {!notesLoading && displayNotes.length === 0 && !comment && (
+        {!notesLoading && displayNotes.length === 0 && !legacyComment && (
           <div className="py-8 text-center">
             <StickyNote size={24} className="text-gray-200 mx-auto mb-2" />
             <p className="text-[12px] text-gray-400">No notes yet</p>
