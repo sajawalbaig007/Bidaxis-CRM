@@ -9,6 +9,7 @@ import {
 export type ClientLead = {
   id?: string;
   name?: string;
+  company?: string;
   status?: string;
   createdAt?: string;
   updatedAt?: string;
