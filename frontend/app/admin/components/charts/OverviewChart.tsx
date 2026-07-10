@@ -8,10 +8,10 @@ type Props = {
   leads?: ClientLead[];
   distribution?: Record<string, number>;
 };
-/* ─── TYPES ─── */
+
 type Slice = { name: string; value: number; color: string };
 
-const COLORS = ["#B8112D", "#F97316", "#14B8A6", "#6366F1", "#10B981"];
+const COLORS = ["#B8112D", "#F97316", "#14B8A6", "#6366F1", "#10B981", "#8B5CF6", "#EC4899", "#64748B"];
 
 export default function OverviewChart({ leads = [], distribution }: Props) {
   const data = useMemo<Slice[]>(() => {
@@ -37,41 +37,63 @@ export default function OverviewChart({ leads = [], distribution }: Props) {
       .map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
   }, [leads, distribution]);
 
+  const total = data.reduce((s, d) => s + d.value, 0);
+
   return (
-    <div className="flex flex-col h-full">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800">Lead Overview</h2>
-        <p className="text-sm text-gray-400 mt-1">Pipeline status breakdown</p>
+    <div className="flex flex-col h-full min-h-[200px]">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-gray-800">Lead Overview</h2>
+        <p className="text-xs text-gray-400">Pipeline breakdown · {total.toLocaleString()} total</p>
       </div>
 
-      <div className="flex justify-center mt-2">
-        <div className="w-[210px] h-[210px]">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 flex-1 min-h-0">
+        <div className="relative shrink-0 w-[140px] h-[140px] sm:w-[150px] sm:h-[150px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Tooltip
-                formatter={(value, name) => [`${value} Leads`, name]}
-                contentStyle={{ borderRadius:"14px", border:"1px solid #eee", boxShadow:"0 10px 30px rgba(0,0,0,0.08)" }}
+                formatter={(value, name) => [`${Number(value).toLocaleString()} leads`, name]}
+                contentStyle={{ borderRadius: "12px", border: "1px solid #eee", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}
               />
-              <Pie data={data} cx="50%" cy="50%" innerRadius={58} outerRadius={82} paddingAngle={4} dataKey="value">
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={42}
+                outerRadius={68}
+                paddingAngle={3}
+                dataKey="value"
+              >
                 {data.map((item, i) => (
-                  <Cell key={i} fill={item.color} stroke="transparent"/>
+                  <Cell key={i} fill={item.color} stroke="transparent" />
                 ))}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="space-y-2 mt-auto">
-        {data.map((item, i) => (
-          <div key={i} className="flex items-center justify-between bg-[#F8F9FC] rounded-xl px-4 py-3 border border-transparent hover:border-gray-200 transition-all">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}/>
-              <p className="text-sm text-gray-600">{item.name}</p>
-            </div>
-            <h3 className="font-semibold text-gray-800 text-sm">{item.value}</h3>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-lg font-extrabold text-gray-800 leading-none">
+              {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total}
+            </span>
+            <span className="text-[10px] text-gray-400 font-medium mt-0.5">leads</span>
           </div>
-        ))}
+        </div>
+
+        <div className="flex-1 w-full min-w-0 grid grid-cols-2 gap-x-3 gap-y-1.5 content-start">
+          {data.map((item, i) => {
+            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <div key={i} className="flex items-center gap-2 min-w-0 py-1">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-600 truncate leading-tight">{item.name}</p>
+                  <p className="text-xs font-bold text-gray-800 tabular-nums">
+                    {item.value.toLocaleString()}
+                    <span className="text-[10px] font-normal text-gray-400 ml-1">{pct}%</span>
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
