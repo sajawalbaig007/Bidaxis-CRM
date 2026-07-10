@@ -139,8 +139,9 @@ export function parseLeadRows(
       state: readCell(row, col.state),
       interestedService: readCell(row, col.service),
       clientCode: readCell(row, col.clientCode) || null,
-      projectTitle: isActiveUpload ? (readCell(row, col.projectTitle) || "") : null,
-      projectBudget: isActiveUpload ? (readCell(row, col.projectBudget) || null) : null,
+      /* Project Detail / Quotation: Active Projects + New/Old Clients pages */
+      projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
+      projectBudget: readCell(row, col.projectBudget) || null,
       comments: readCell(row, col.comments) || null,
       csrId: csr.id,
       csrName: csr.name,

@@ -65,8 +65,9 @@ export default function CSRPage() {
 
   const tabKey = (activeTab === "today" ? "pending" : activeTab) as CsrTabKey;
   const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats();
-  const { leads, setLeads, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
-    useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, hasTableFilters);
+  /* Always load full tab dataset so CSR sees every assigned lead (not just first page) */
+  const { leads, setLeads, total: tabTotal, loading: tabLoading, refetch: refetchTab } =
+    useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, true);
   const loading = statsLoading || tabLoading;
   const refetch = () => { void refetchStats(); void refetchTab(true); };
 
@@ -86,6 +87,7 @@ export default function CSRPage() {
   const [showInterestedModal,  setShowInterestedModal]  = useState(false);
   const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
   const [selectedServices,     setSelectedServices]     = useState<string[]>([]);
+  const [serviceSubtypes,      setServiceSubtypes]      = useState<Record<string, string>>({});
 
   const [showProjectWonModal, setShowProjectWonModal] = useState(false);
   const [selectedProjectLead, setSelectedProjectLead] = useState<Lead | null>(null);
@@ -148,13 +150,10 @@ export default function CSRPage() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [visibleLeads]);
 
-  const paginated = hasTableFilters
-    ? tabFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    : tabFiltered;
+  const paginated = tabFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const displayTotalPages = hasTableFilters
-    ? Math.max(1, Math.ceil(tabFiltered.length / PAGE_SIZE))
-    : serverTotalPages;
+  const displayTotalPages = Math.max(1, Math.ceil(tabFiltered.length / PAGE_SIZE));
+  const displayTotal = hasTableFilters ? tabFiltered.length : (tabTotal || tabFiltered.length);
 
   useEffect(() => {
     if (page > displayTotalPages) setPage(displayTotalPages);
@@ -184,7 +183,7 @@ export default function CSRPage() {
       setShowImportantModal(true); return;
     }
     if (status === "interested") {
-      setSelectedInterestedId(id); setSelectedServices([]); setShowInterestedModal(true); return;
+      setSelectedInterestedId(id); setSelectedServices([]); setServiceSubtypes({}); setShowInterestedModal(true); return;
     }
     if (status === "Close Client") {
       setSelectedProjectLead(lead);
@@ -240,14 +239,20 @@ export default function CSRPage() {
   const saveInterestedCall = async () => {
     if (selectedServices.length === 0 || !selectedInterestedId) return;
     try {
+      const interestedService = selectedServices
+        .map(s => {
+          const sub = (serviceSubtypes[s] ?? "").trim();
+          return sub ? `${s}-${sub}` : s;
+        })
+        .join(", ");
       await updateLead(selectedInterestedId, {
         status: "interested",
-        interestedService: selectedServices.join(", "),
+        interestedService,
       });
       leaveTab(selectedInterestedId);
       toast.success("Moved to Interested.");
     } catch (err) { console.log(err); }
-    setShowInterestedModal(false); setSelectedServices([]); setSelectedInterestedId(null);
+    setShowInterestedModal(false); setSelectedServices([]); setServiceSubtypes({}); setSelectedInterestedId(null);
   };
 
   const saveProjectWon = async () => {
@@ -576,7 +581,7 @@ export default function CSRPage() {
           {/* PAGINATION */}
           <div className="flex items-center justify-between px-1 pt-4 mt-2 border-t border-gray-100">
             <p className="text-xs text-gray-400">
-              {tabFiltered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, tabFiltered.length)}`} of {tabFiltered.length}
+              {tabFiltered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, tabFiltered.length)}`} of {displayTotal}
             </p>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -605,7 +610,9 @@ export default function CSRPage() {
           <InterestedModal
             services={selectedServices}
             onServicesChange={setSelectedServices}
-            onClose={() => { setShowInterestedModal(false); setSelectedServices([]); }}
+            serviceSubtypes={serviceSubtypes}
+            onServiceSubtypesChange={setServiceSubtypes}
+            onClose={() => { setShowInterestedModal(false); setSelectedServices([]); setServiceSubtypes({}); }}
             onSave={saveInterestedCall}
           />
         )}

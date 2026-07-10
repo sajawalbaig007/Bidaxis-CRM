@@ -237,7 +237,8 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
     const csrId  = req.user.id;
     const tab    = String(req.query.tab ?? "pending") as CsrTabKey;
     const page   = Math.max(1, Number(req.query.page) || 1);
-    const pageSize = Math.min(500, Math.max(10, Number(req.query.pageSize) || 30));
+    /* Allow large pageSize so CSR can load full assigned dataset (no artificial 500 cap) */
+    const pageSize = Math.min(10_000, Math.max(10, Number(req.query.pageSize) || 30));
     const from   = typeof req.query.from === "string" ? req.query.from : undefined;
     const to     = typeof req.query.to === "string" ? req.query.to : undefined;
 

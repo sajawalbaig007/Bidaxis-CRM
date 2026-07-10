@@ -4,29 +4,61 @@ import ServicePicker from "../shared/ServicePicker";
 interface InterestedModalProps {
   service?: string;
   onServiceChange?: (v: string) => void;
+  /** Optional subtype for single-select mode → saved as Service-subtype */
+  serviceSubtype?: string;
+  onServiceSubtypeChange?: (v: string) => void;
   services?: string[];
   onServicesChange?: (v: string[]) => void;
+  /** Per-service subtype text → saved as Estimating-HVAC, IT-Networking */
+  serviceSubtypes?: Record<string, string>;
+  onServiceSubtypesChange?: (v: Record<string, string>) => void;
   onClose: () => void;
   onSave: () => void;
 }
 
+function formatPreview(services: string[], subtypes: Record<string, string>) {
+  return services
+    .map(s => {
+      const sub = (subtypes[s] ?? "").trim();
+      return sub ? `${s}-${sub}` : s;
+    })
+    .join(", ");
+}
+
 export default function InterestedModal({
   service = "", onServiceChange,
+  serviceSubtype = "", onServiceSubtypeChange,
   services = [], onServicesChange,
+  serviceSubtypes = {}, onServiceSubtypesChange,
   onClose, onSave,
 }: InterestedModalProps) {
   const multi = !!onServicesChange;
   const selected = multi ? services : (service ? [service] : []);
   const canSave = selected.length > 0;
 
+  const setSubtype = (svc: string, text: string) => {
+    if (multi && onServiceSubtypesChange) {
+      onServiceSubtypesChange({ ...serviceSubtypes, [svc]: text });
+    } else {
+      onServiceSubtypeChange?.(text);
+    }
+  };
+
+  const subtypeOf = (svc: string) =>
+    multi ? (serviceSubtypes[svc] ?? "") : serviceSubtype;
+
+  const preview = multi
+    ? formatPreview(selected, serviceSubtypes)
+    : formatPreview(selected, service ? { [service]: serviceSubtype } : {});
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white dark:bg-gray-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] p-5 sm:p-6 shadow-2xl">
+      <div className="bg-white dark:bg-gray-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] p-5 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-0">
           <div>
             <h2 className="text-xl sm:text-[26px] font-bold text-[#0F172A] dark:text-gray-100">Client Interested In</h2>
             <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-1 sm:mt-2">
-              Select one or more services (notes go in the Notes column).
+              Select service(s), then optionally type a subtype (shows as IT-Networking).
             </p>
           </div>
           <button onClick={onClose}
@@ -38,15 +70,38 @@ export default function InterestedModal({
           {multi ? (
             <ServicePicker multi values={services} onValuesChange={onServicesChange} />
           ) : (
-            <ServicePicker value={service} onChange={onServiceChange} />
+            <ServicePicker value={service} onChange={v => {
+              onServiceChange?.(v);
+              onServiceSubtypeChange?.("");
+            }} />
+          )}
+
+          {selected.length > 0 && (
+            <div className="space-y-2.5">
+              <p className="text-[11px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Subtype <span className="normal-case font-normal text-gray-400">(optional — e.g. HVAC, Networking)</span>
+              </p>
+              {selected.map(svc => (
+                <div key={svc} className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-[#B8112D]">{svc}</label>
+                  <input
+                    type="text"
+                    value={subtypeOf(svc)}
+                    onChange={e => setSubtype(svc, e.target.value)}
+                    placeholder={`e.g. ${svc === "IT" ? "Networking" : svc === "Estimating" ? "HVAC" : "detail"}`}
+                    className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-[#FAFAFA] dark:bg-gray-800 text-sm text-[#0F172A] dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B8112D]/30 focus:border-[#B8112D]"
+                  />
+                </div>
+              ))}
+            </div>
           )}
 
           {canSave && (
             <div className="p-3 sm:p-4 bg-[#FFF4E5] dark:bg-amber-950/30 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3">
               <Briefcase size={15} className="text-[#D97706] shrink-0 sm:w-[18px] sm:h-[18px]" />
-              <div>
-                <p className="text-[11px] sm:text-[12px] font-medium text-gray-500 dark:text-gray-400">Selected</p>
-                <p className="text-[13px] sm:text-[15px] font-bold text-[#D97706]">{selected.join(", ")}</p>
+              <div className="min-w-0">
+                <p className="text-[11px] sm:text-[12px] font-medium text-gray-500 dark:text-gray-400">Will show as</p>
+                <p className="text-[13px] sm:text-[15px] font-bold text-[#D97706] truncate">{preview}</p>
               </div>
             </div>
           )}

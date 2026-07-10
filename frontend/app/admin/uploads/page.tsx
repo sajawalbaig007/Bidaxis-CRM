@@ -7,6 +7,7 @@ import {
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, ChevronUp, RefreshCw, RotateCcw,
   PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle, Pencil,
+  Download,
 } from "lucide-react";
 
 import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
@@ -112,6 +113,33 @@ const STATUS_STYLE: Record<RowResult["status"], { bg: string; text: string; labe
   updated:   { bg: "bg-blue-100",   text: "text-blue-700",   label: "Updated" },
   empty:     { bg: "bg-gray-100",   text: "text-gray-500",   label: "Skipped" },
 };
+
+/** Excel templates Admin should fill before each upload box */
+const UPLOAD_TEMPLATES = {
+  callData:   { href: "/upload-templates/CRM-Call-Data-Template.xlsx",           label: "Call Data",       cols: "Name, Company, Phone, Email, State" },
+  newClient:  { href: "/upload-templates/CRM-New-Clients-Template.xlsx",         label: "New Clients",     cols: "+ Code, Project, Quotation, Service, Notes" },
+  oldClient:  { href: "/upload-templates/CRM-Old-Clients-Template.xlsx",         label: "Old Clients",     cols: "+ Code, Project, Quotation, Service, Notes" },
+  important:  { href: "/upload-templates/CRM-Important-Clients-Template.xlsx",   label: "Important",       cols: "Name, Company, Phone, Email, State, Notes" },
+  interested: { href: "/upload-templates/CRM-Interested-Clients-Template.xlsx",  label: "Interested",      cols: "+ Interested Service, Notes" },
+  active:     { href: "/upload-templates/CRM-Active-Projects-Template.xlsx",     label: "Active Projects", cols: "+ Code, Project Detail, Quotation, Notes" },
+} as const;
+
+function TemplateDownloadLink({
+  href, label, cols, className = "",
+}: { href: string; label: string; cols?: string; className?: string }) {
+  return (
+    <a
+      href={href}
+      download
+      onClick={e => e.stopPropagation()}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors hover:bg-white ${className}`}
+      title={cols ? `Columns: ${cols}` : undefined}
+    >
+      <Download size={12} className="shrink-0" />
+      {label}
+    </a>
+  );
+}
 
 const getFileIcon = (type: string) => {
   if (type.includes("sheet") || type.includes("excel") || type.includes("csv"))
@@ -781,6 +809,13 @@ export default function UploadPage() {
                     })}
                   </div>
 
+                  {selectedPane === "pending" && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#0B84F3]/20 bg-[#EAF5FF]/60 px-3 py-2.5">
+                      <span className="text-[10px] sm:text-xs text-gray-500 font-medium">Format for Call Data (no Notes):</span>
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.callData} className="border-[#0B84F3]/30 text-[#0B84F3] bg-white" />
+                    </div>
+                  )}
+
                   {selectedPane === "lead" && (
                     <div className="border border-[#7A3FFD]/20 bg-[#FDFBFF] rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 sm:space-y-3">
                       <p className="text-xs sm:text-sm font-semibold text-[#7A3FFD]">Upload as which client type?</p>
@@ -804,6 +839,14 @@ export default function UploadPage() {
                             </button>
                           );
                         })}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span className="text-[10px] text-gray-400 font-medium">Download format:</span>
+                        {selectedLeadType === "new" ? (
+                          <TemplateDownloadLink {...UPLOAD_TEMPLATES.newClient} className="border-green-300 text-green-700 bg-white" />
+                        ) : (
+                          <TemplateDownloadLink {...UPLOAD_TEMPLATES.oldClient} className="border-amber-300 text-amber-700 bg-white" />
+                        )}
                       </div>
                     </div>
                   )}
@@ -1765,7 +1808,7 @@ export default function UploadPage() {
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-gray-800">Upload New Leads</h3>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Upload lead sheets — select company and CSRs. Leads are distributed equally.
+                  Call Data (today) or Clients (New / Old). Download the matching template first.
                 </p>
                 <button className="mt-4 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
                   Browse Files
@@ -1773,6 +1816,12 @@ export default function UploadPage() {
               </div>
               <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openCSRModal(e.target.files)} />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-[10px] text-gray-400 font-medium w-full text-center sm:w-auto sm:mr-1">Download format:</span>
+              <TemplateDownloadLink {...UPLOAD_TEMPLATES.callData} className="border-[#0B84F3]/30 text-[#0B84F3] bg-[#EAF5FF]" />
+              <TemplateDownloadLink {...UPLOAD_TEMPLATES.newClient} className="border-green-300 text-green-700 bg-green-50" />
+              <TemplateDownloadLink {...UPLOAD_TEMPLATES.oldClient} className="border-amber-300 text-amber-700 bg-amber-50" />
             </div>
           </div>
 
@@ -1793,7 +1842,7 @@ export default function UploadPage() {
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-gray-800">Previous Important Clients</h3>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Previously known important clients — added as old clients with <span className="font-semibold text-amber-600">Important</span> status.
+                  Known / VIP clients + Notes — status <span className="font-semibold text-amber-600">Important</span>.
                 </p>
                 <button className="mt-4 bg-amber-500 hover:bg-amber-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
                   Browse Files
@@ -1802,8 +1851,10 @@ export default function UploadPage() {
               <input ref={inputRefImportant} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openImportantModal(e.target.files)} />
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <TemplateDownloadLink {...UPLOAD_TEMPLATES.important} className="border-amber-300 text-amber-700 bg-amber-50" />
+            </div>
           </div>
-         
 
           {/* Interested clients uploads */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
@@ -1822,7 +1873,7 @@ export default function UploadPage() {
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-gray-800">Interested Clients</h3>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Upload clients who showed interest — added as new clients with <span className="font-semibold text-emerald-600">Interested</span> status.
+                  Interested Service + Notes — status <span className="font-semibold text-emerald-600">Interested</span>.
                 </p>
                 <button className="mt-4 bg-emerald-500 hover:bg-emerald-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
                   Browse Files
@@ -1830,6 +1881,9 @@ export default function UploadPage() {
               </div>
               <input ref={inputRefInterested} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openInterestedModal(e.target.files)} />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <TemplateDownloadLink {...UPLOAD_TEMPLATES.interested} className="border-emerald-300 text-emerald-700 bg-emerald-50" />
             </div>
           </div>
 
@@ -1850,7 +1904,7 @@ export default function UploadPage() {
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-gray-800">Active Projects</h3>
                 <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Upload clients with ongoing projects — added as old clients with <span className="font-semibold text-indigo-600">Active</span> status.
+                  Client Code + Project Detail + Quotation — ongoing projects.
                 </p>
                 <button className="mt-4 bg-indigo-500 hover:bg-indigo-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
                   Browse Files
@@ -1859,8 +1913,11 @@ export default function UploadPage() {
               <input ref={inputRefActive} type="file" hidden accept=".xlsx,.xls,.csv"
                 onChange={e => openActiveModal(e.target.files)} />
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <TemplateDownloadLink {...UPLOAD_TEMPLATES.active} className="border-indigo-300 text-indigo-700 bg-indigo-50" />
+            </div>
           </div>
-         
+
         </div>
 
         {/* ── FILES LISTs ── */}
