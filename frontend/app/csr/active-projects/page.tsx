@@ -17,7 +17,9 @@ import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells"
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import CommentCell from "../components/shared/CommentCell";
 import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
+import ClientSortControls from "../components/shared/ClientSortControls";
 import { parseEmails } from "../utils/parseEmails";
+import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/clientListSort";
 import {
   ClientDetailCell,
   FulfillmentCell,
@@ -116,6 +118,8 @@ export default function CSRProjectsPage() {
   const [dateTo,   setDateTo]   = useState("");
   const [search,       setSearch]       = useState("");
   const [page,         setPage]         = useState(1);
+  const [sortBy,       setSortBy]       = useState<ClientListSortBy>("clientCode");
+  const [sortDir,      setSortDir]      = useState<SortDir>("asc");
 
   const [viewingProject,  setViewingProject]  = useState<Project | null>(null);
   const [workbenchSaving, setWorkbenchSaving] = useState(false);
@@ -153,14 +157,21 @@ export default function CSRProjectsPage() {
 
   /* ── Derived ── */
   const filteredProjects = useMemo(() => {
-    const q = search.toLowerCase();
-    return projects.filter(p => {
+    const q = search.toLowerCase().trim();
+    const list = projects.filter(p => {
       const matchesDate   = matchesDeadlineRange(p.deadline, dateFrom, dateTo);
+      const code = (p.clientCode || p.projectCode || "").toLowerCase();
       const matchesSearch = !q || (p.projectTitle ?? "").toLowerCase().includes(q) ||
-        (p.client ?? "").toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q);
+        (p.client ?? "").toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q) ||
+        code.includes(q);
       return matchesDate && matchesSearch;
     });
-  }, [dateFrom, dateTo, search, projects]);
+    return sortClientRows(
+      list.map(p => ({ ...p, clientCode: p.clientCode || p.projectCode || null })),
+      sortBy,
+      sortDir,
+    );
+  }, [dateFrom, dateTo, search, projects, sortBy, sortDir]);
 
   const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -364,14 +375,22 @@ export default function CSRProjectsPage() {
         {/* ── FILTERS ── */}
         <div className="bg-white rounded-2xl sm:rounded-[28px] shadow-sm p-4 sm:p-5 mt-4 sm:mt-7 border border-white">
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 sm:gap-4">
-            <div className="relative w-full xl:max-w-[380px]">
-              <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[18px] sm:h-[18px]" />
-              <input
-                type="text"
-                placeholder="Search by project title or client..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full h-11 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 sm:pl-11 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center w-full xl:w-auto">
+              <div className="relative w-full xl:max-w-[320px]">
+                <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[18px] sm:h-[18px]" />
+                <input
+                  type="text"
+                  placeholder="Search name, code, project..."
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  className="w-full h-11 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 sm:pl-11 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+                />
+              </div>
+              <ClientSortControls
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSortBy={v => { setSortBy(v); setPage(1); }}
+                onSortDir={v => { setSortDir(v); setPage(1); }}
               />
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">

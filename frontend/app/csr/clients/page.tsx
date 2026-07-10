@@ -22,7 +22,9 @@ import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
+import ClientSortControls from "../components/shared/ClientSortControls";
 import { parseEmails } from "../utils/parseEmails";
+import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/clientListSort";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
 import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
@@ -90,6 +92,8 @@ export default function LeadsPage() {
   const [activeTab, setActiveTab] = useState<"new" | "old">("new");
   const [search,    setSearch]    = useState("");
   const [page,      setPage]      = useState(1);
+  const [sortBy,    setSortBy]    = useState<ClientListSortBy>("clientCode");
+  const [sortDir,   setSortDir]   = useState<SortDir>("asc");
 
   /* ── detail / edit modal ── */
   const [viewing,      setViewing]      = useState<ClientLead | null>(null);
@@ -168,15 +172,17 @@ export default function LeadsPage() {
   const interestedCount = stats.interestedCount;
   const pendingCount    = stats.pendingCount;
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return !q ? baseList : baseList.filter(l =>
+    const q = search.toLowerCase().trim();
+    const list = !q ? baseList : baseList.filter(l =>
       l.name.toLowerCase().includes(q) ||
       l.company.toLowerCase().includes(q) ||
+      (l.clientCode ?? "").toLowerCase().includes(q) ||
       parsePhones(l.phone).some(p => p.includes(q)) ||
       parseEmails(l.email).some(e => e.toLowerCase().includes(q)) ||
       l.email.toLowerCase().includes(q)
     );
-  }, [baseList, search]);
+    return sortClientRows(list, sortBy, sortDir);
+  }, [baseList, search, sortBy, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -438,16 +444,22 @@ export default function LeadsPage() {
                   {activeTab === "new" ? "First-time clients — won deals." : "Returning clients — repeat business."}
                 </p>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="relative flex-1 min-w-[150px] sm:w-[260px]">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+                <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                   <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="text" placeholder="Name, company, phone or email..."
+                    type="text" placeholder="Name, code, phone, email..."
                     value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }}
                     className="w-full h-10 sm:h-[44px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-9 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D] transition-colors"
                   />
                 </div>
+                <ClientSortControls
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSortBy={v => { setSortBy(v); setPage(1); }}
+                  onSortDir={v => { setSortDir(v); setPage(1); }}
+                />
                 <button onClick={() => void refetch()}
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                   title="Refresh">
