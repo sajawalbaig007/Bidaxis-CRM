@@ -33,14 +33,12 @@ async function purgeCsrLeads(csrId, scopesInput) {
     let subContactsDeleted = 0;
     let callLogsDeleted = 0;
     let batches = 0;
-    let cursor;
+    // Always fetch the next batch from the start — cursor pagination breaks after deletes.
     for (;;) {
         const batch = await db_1.default.lead.findMany({
             where,
             select: { id: true },
-            orderBy: { id: "asc" },
             take: BATCH_SIZE,
-            ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
         });
         if (batch.length === 0)
             break;
@@ -51,7 +49,6 @@ async function purgeCsrLeads(csrId, scopesInput) {
         subContactsDeleted += deleted.subContactsDeleted;
         callLogsDeleted += deleted.callLogsDeleted;
         batches += 1;
-        cursor = batch[batch.length - 1].id;
         if (batch.length < BATCH_SIZE)
             break;
     }

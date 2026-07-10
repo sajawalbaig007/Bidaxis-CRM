@@ -529,6 +529,10 @@ export default function UsersPage() {
         toast.error(data.message || "Reset failed.", { id: tid });
         return;
       }
+      if (data.warning) {
+        toast.error(data.warning, { id: tid, duration: 8000 });
+        return;
+      }
       const labels = (data.scopes as string[] | undefined ?? data.pages as string[] | undefined)
         ?.slice(0, 4)
         .map(scopeLabel)

@@ -5,7 +5,8 @@ import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
 import { getClientIp } from "../utils/requestMeta";
-import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
+import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
+import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import {
@@ -44,23 +45,6 @@ import {
 } from "../utils/csrDashboardQueries";
 
 const router = express.Router();
-
-function invalidateCsrLeadCaches(csrId: string, ...extra: string[]) {
-  flushAdminClientsCache();
-  invalidateCache(
-    `csr:dashboard:${csrId}`,
-    `csr:stats:${csrId}`,
-    `csr:potential:${csrId}`,
-    `csr:leads:${csrId}`,
-    `csr:clients:${csrId}`,
-    `csr:projects:${csrId}`,
-    `csr:not-interested:${csrId}`,
-    `csr:bin:${csrId}`,
-    "admin:bin",
-    ...extra,
-  );
-  invalidatePattern(`csr:tab:${csrId}:`);
-}
 
 async function logStatusChange(csrId: string, leadId: string, status: string) {
   try {

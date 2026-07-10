@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrClientsApi, type ClientPipelineStats } from "@/lib/csrApiCache";
+import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import toast from "react-hot-toast";
 import { apiErrorMessage } from "@/lib/api";
 
@@ -194,6 +195,7 @@ export function useLeadsData() {
   }, []);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, stats, loading, refetch };
 }
