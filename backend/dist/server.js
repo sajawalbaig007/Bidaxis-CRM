@@ -18,7 +18,7 @@ const chatSocket_1 = require("./chat/chatSocket");
 const PORT = process.env.PORT || 5000;
 (0, env_1.validateEnv)();
 /* ═══════════════════════════════════════════════
-   AUTO OFFLINE CRON — every 5s with circuit breaker
+   AUTO OFFLINE CRON — every 60s with circuit breaker
    If DB is unreachable, backs off for 60s to avoid
    flooding the connection pool.
 ═══════════════════════════════════════════════ */

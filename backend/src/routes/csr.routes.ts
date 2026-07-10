@@ -200,15 +200,12 @@ router.get("/stats", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const csrId    = req.user.id;
     const cacheKey = `csr:stats:${csrId}`;
 
-    const removed = await maybeHealPipelineLeaks(csrId);
-    if (removed > 0) invalidateCsrLeadCaches(csrId);
-
-    const cached = removed === 0 ? getCache<object>(cacheKey) : null;
+    const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const stats = await getCsrLeadStats(csrId);
     const payload = { success: true, stats };
-    setCache(cacheKey, payload, 30_000);
+    setCache(cacheKey, payload, 45_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);

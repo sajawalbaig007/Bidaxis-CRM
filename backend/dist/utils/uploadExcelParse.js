@@ -66,6 +66,10 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
         projectBudget: resolveColumnKey(headerKeys, ["quotation", "quote", "budget"]),
         email: resolveColumnKey(headerKeys, ["email", "mail", "e-mail"]),
         clientCode: resolveColumnKey(headerKeys, ["client code", "clientcode", "project code", "client_code"]),
+        comments: resolveColumnKey(headerKeys, [
+            "notes", "note", "comments", "comment", "remarks", "remark",
+            "conversation", "discussion", "talk", "history", "follow up", "followup",
+        ], ["project"]),
     };
     const parsed = [];
     for (let i = 0; i < data.length; i++) {
@@ -96,6 +100,7 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             clientCode: readCell(row, col.clientCode) || null,
             projectTitle: isActiveUpload ? (readCell(row, col.projectTitle) || "") : null,
             projectBudget: isActiveUpload ? (readCell(row, col.projectBudget) || null) : null,
+            comments: readCell(row, col.comments) || null,
             csrId: csr.id,
             csrName: csr.name,
             status: initialStatuses[i % initialStatuses.length],

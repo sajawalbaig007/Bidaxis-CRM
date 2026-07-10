@@ -23,7 +23,8 @@ export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDon
     if (stats) return getStatusChartDataFromStats(stats);
     return getStatusChartData(leads ?? []);
   }, [leads, stats]);
-  const total = useMemo(() => data.reduce((sum, slice) => sum + slice.value, 0), [data]);
+  const sliceTotal = useMemo(() => data.reduce((sum, slice) => sum + slice.value, 0), [data]);
+  const total = stats?.totalAssigned ?? sliceTotal;
   const mounted = useMounted();
 
   return (
@@ -82,7 +83,7 @@ export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDon
 
           <div className="flex-1 min-w-0 flex flex-col gap-3 sm:gap-4 lg:px-6 lg:border-x lg:border-gray-100">
             {data.map(slice => {
-              const pct = Math.round((slice.value / total) * 100);
+              const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
               return (
                 <div key={slice.name}>
                   <div className="flex items-center justify-between mb-1.5">
