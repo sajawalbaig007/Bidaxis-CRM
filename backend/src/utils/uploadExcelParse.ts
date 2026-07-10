@@ -1,6 +1,11 @@
 import XLSX from "xlsx";
 import prisma from "../config/db";
 import { findLeadsByPhone } from "./leadPhoneLookup";
+import {
+  isPendingPipelineStatus,
+  isWonClientStatus,
+  isWonClientUploadStatus,
+} from "./leadClientPromotion";
 import type { UploadCategory } from "./uploadCategory";
 
 const CHUNK_LOOKUP = 500;
@@ -139,8 +144,9 @@ export function parseLeadRows(
       state: readCell(row, col.state),
       interestedService: readCell(row, col.service),
       clientCode: readCell(row, col.clientCode) || null,
-      projectTitle: isActiveUpload ? (readCell(row, col.projectTitle) || "") : null,
-      projectBudget: isActiveUpload ? (readCell(row, col.projectBudget) || null) : null,
+      /* Project Detail / Quotation: Active Projects + New/Old Clients pages */
+      projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
+      projectBudget: readCell(row, col.projectBudget) || null,
       comments: readCell(row, col.comments) || null,
       csrId: csr.id,
       csrName: csr.name,
@@ -153,7 +159,8 @@ export function parseLeadRows(
 }
 
 export type PromoteRow = { row: ParsedLeadRow; existingId: string };
-export type UpsertRow = { row: ParsedLeadRow; existingId: string };
+export type RefreshRow = { row: ParsedLeadRow; existingId: string };
+export type RestoreRow = { row: ParsedLeadRow; existingId: string };
 
 type ExistingLeadMatch = {
   id: string;
@@ -164,26 +171,30 @@ type ExistingLeadMatch = {
   assignedTo: string;
 };
 
-function pickUpsertId(matches: ExistingLeadMatch[], row: ParsedLeadRow): string | undefined {
-  const active = matches.filter(m => !m.inBin);
-  if (active.length === 0) return undefined;
-  const sameCsr = active.filter(m => m.assignedTo === row.csrId);
-  return (sameCsr[0] ?? active[0])?.id;
+/** Call-data stays pending-only; every other upload category forces the lead onto that page. */
+function isCallDataStatus(status: string | null | undefined): boolean {
+  return (status ?? "").toLowerCase() === "pending";
 }
 
 export async function classifyRows(
   parsed: ParsedLeadRow[],
   isActiveUpload: boolean,
-  _uploadCategory: UploadCategory,
-  _promoteWonClients = false,
+  _uploadCategory: UploadCategory | boolean = "call-data",
+  promoteWonClientsArg = false,
 ): Promise<{
   fresh: ParsedLeadRow[];
   toUpdate: ParsedLeadRow[];
-  toUpsert: UpsertRow[];
+  toPromote: PromoteRow[];
+  toRefresh: RefreshRow[];
+  toRestore: RestoreRow[];
   emailUpdates: { id: string; email: string }[];
   preview: RowPreview[];
   existingCodeMap?: Map<string, string>;
 }> {
+  /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
+  const promoteWonClients =
+    typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
+
   const preview: RowPreview[] = [];
   const toPreview = (r: ParsedLeadRow, status: RowPreview["status"], reason: string): RowPreview => ({
     row: r.rowIndex,
@@ -202,29 +213,34 @@ export async function classifyRows(
     const existingLeads = uniqueCodes.length
       ? await prisma.lead.findMany({
           where: { clientCode: { in: uniqueCodes } },
-          select: { id: true, clientCode: true },
+          select: { id: true, clientCode: true, inBin: true },
         })
       : [];
     const existingCodeMap = new Map(existingLeads.map(l => [l.clientCode!, l.id]));
+    const binByCode = new Map(existingLeads.filter(l => l.inBin).map(l => [l.clientCode!, l.id]));
 
     const fresh: ParsedLeadRow[] = [];
     const toUpdate: ParsedLeadRow[] = [];
+    const toRestore: RestoreRow[] = [];
 
     for (const r of parsed) {
       if (!r.name) {
         preview.push(toPreview(r, "empty", "Missing client name"));
         continue;
       }
-      if (r.clientCode && existingCodeMap.has(r.clientCode)) {
+      if (r.clientCode && binByCode.has(r.clientCode)) {
+        toRestore.push({ row: r, existingId: binByCode.get(r.clientCode)! });
+        preview.push(toPreview(r, "updated", "Restored from Bin → Active Projects"));
+      } else if (r.clientCode && existingCodeMap.has(r.clientCode)) {
         toUpdate.push(r);
-        preview.push(toPreview(r, "updated", "Existing client — will refresh data"));
+        preview.push(toPreview(r, "updated", "Existing project — will refresh on Active Projects"));
       } else {
         fresh.push(r);
-        preview.push(toPreview(r, "new", "New contact — will be added"));
+        preview.push(toPreview(r, "new", "New project — will be added to Active Projects"));
       }
     }
 
-    return { fresh, toUpdate, toUpsert: [], emailUpdates: [], preview, existingCodeMap };
+    return { fresh, toUpdate, toPromote: [], toRefresh: [], toRestore, emailUpdates: [], preview, existingCodeMap };
   }
 
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
@@ -270,8 +286,19 @@ export async function classifyRows(
   }
 
   const emailUpdates: { id: string; email: string }[] = [];
-  const toUpsert: UpsertRow[] = [];
+  const toPromote: PromoteRow[] = [];
+  const toRefresh: RefreshRow[] = [];
+  const toRestore: RestoreRow[] = [];
   const fresh: ParsedLeadRow[] = [];
+
+  const pageLabel = (status: string) => {
+    const s = (status ?? "").toLowerCase();
+    if (s === "pending") return "Call Data";
+    if (s === "important") return "Important";
+    if (s === "interested") return "Interested";
+    if (isWonClientStatus(s)) return "Clients";
+    return status || "target page";
+  };
 
   for (const r of parsed) {
     const hasValidPhone = r.phone.length >= 7;
@@ -282,31 +309,68 @@ export async function classifyRows(
       continue;
     }
 
-    let existingId: string | undefined;
-
     if (r.phone && hasValidPhone) {
       const matches = await phoneMatches(r.phone);
-      existingId = pickUpsertId(matches, r);
-      const exactExisting = dupPhoneMap.get(r.phone);
-      if (exactExisting && !exactExisting.inBin && !exactExisting.email && hasValidEmail) {
-        emailUpdates.push({ id: exactExisting.id, email: r.email });
+      const activeMatches = matches.filter(m => !m.inBin);
+      const binMatches = matches.filter(m => m.inBin);
+      const callDataUpload = isCallDataStatus(r.status);
+
+      /* Bin-only match → restore onto the upload target page */
+      if (binMatches.length > 0 && activeMatches.length === 0) {
+        toRestore.push({ row: r, existingId: binMatches[0]!.id });
+        preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+        continue;
       }
+
+      let pendingMatch = activeMatches.find(m => isPendingPipelineStatus(m.status));
+
+      if (promoteWonClients && pendingMatch && isWonClientUploadStatus(r.status)) {
+        toPromote.push({ row: r, existingId: pendingMatch.id });
+        preview.push(toPreview(r, "updated", "Moved from Call Data → Clients"));
+        continue;
+      }
+
+      /* Non–call-data uploads always land on their target page (refresh existing) */
+      if (!callDataUpload && activeMatches.length > 0) {
+        const wonMatch = activeMatches.find(m => isWonClientStatus(m.status));
+        const target = wonMatch ?? activeMatches[0]!;
+        toRefresh.push({ row: r, existingId: target.id });
+        preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+        continue;
+      }
+
+      /* Call-data: never overwrite existing active leads */
+      if (callDataUpload && activeMatches.length > 0) {
+        const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0]!;
+        if (!exactExisting.email && hasValidEmail) {
+          emailUpdates.push({ id: exactExisting.id, email: r.email });
+        }
+        preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
+        continue;
+      }
+
+      /* Call-data + bin only already handled; active empty → fresh below */
     }
 
-    if (!existingId && r.email && dupEmails.has(r.email.toLowerCase())) {
+    if (r.email && dupEmails.has(r.email.toLowerCase())) {
       const emailHit = dupEmails.get(r.email.toLowerCase())!;
-      if (!emailHit.inBin) existingId = emailHit.id;
-    }
-
-    if (existingId) {
-      toUpsert.push({ row: r, existingId });
-      preview.push(toPreview(r, "updated", "Routed to selected upload destination"));
+      if (emailHit.inBin) {
+        toRestore.push({ row: r, existingId: emailHit.id });
+        preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+        continue;
+      }
+      if (!isCallDataStatus(r.status)) {
+        toRefresh.push({ row: r, existingId: emailHit.id });
+        preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+        continue;
+      }
+      preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
       continue;
     }
 
     fresh.push(r);
-    preview.push(toPreview(r, "new", "New contact — will be added"));
+    preview.push(toPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`));
   }
 
-  return { fresh, toUpdate: [], toUpsert, emailUpdates, preview };
+  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview };
 }

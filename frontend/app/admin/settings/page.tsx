@@ -10,8 +10,9 @@ import {
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
-import API from "@/lib/api";
+import API, { getApiBase } from "@/lib/api";
 import { logoutSession } from "@/lib/session";
+import { setAuthMeCache, invalidateAuthMeCache } from "@/lib/authMeCache";
 
 function Skeleton({ w = "w-32", h = "h-5" }: { w?: string; h?: string }) {
   return <div className={`${h} ${w} bg-gray-100 rounded-lg animate-pulse`} />;
@@ -20,6 +21,7 @@ function Skeleton({ w = "w-32", h = "h-5" }: { w?: string; h?: string }) {
 type AdminProfile = {
   id: string; name: string; email: string;
   role: string; twoFAEnabled: boolean; createdAt: string;
+  profilePic?: string | null; cnic?: string | null;
 };
 
 const ADMIN_2FA_EMAIL = "mohsin.bemsolutions@gmail.com";
@@ -28,7 +30,8 @@ export default function AdminSettingsPage() {
   const [profile,         setProfile]         = useState<AdminProfile | null>(null);
   const [loadingProfile,  setLoadingProfile]   = useState(true);
   const [saving,          setSaving]           = useState(false);
-  const [form,            setForm]             = useState({ name: "", email: "" });
+  const [form,            setForm]             = useState({ name: "", email: "", cnic: "" });
+  const [uploadingPic,    setUploadingPic]     = useState(false);
 
   const [pwForm,          setPwForm]           = useState({ current: "", next: "", confirm: "" });
   const [showCurrentPw,   setShowCurrentPw]    = useState(false);
@@ -62,7 +65,8 @@ export default function AdminSettingsPage() {
       const res  = await API.get("/auth/me");
       const data: AdminProfile = res.data.user ?? res.data;
       setProfile(data);
-      setForm({ name: data.name ?? "", email: data.email ?? "" });
+      setForm({ name: data.name ?? "", email: data.email ?? "", cnic: data.cnic ?? "" });
+      setProfileImage(data.profilePic ?? null);
       setTwoFactor(data.twoFAEnabled ?? false);
     } catch {
       console.log("Profile fetch failed");
@@ -83,7 +87,15 @@ export default function AdminSettingsPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { toast.error("Invalid email."); return; }
     setSaving(true);
     try {
-      await API.put("/auth/profile", { name: form.name, email: form.email });
+      const res = await API.put("/auth/profile", {
+        name: form.name,
+        email: form.email,
+        profilePic: profileImage,
+        cnic: form.cnic.trim() || null,
+      });
+      const updated = res.data?.user;
+      if (updated) setAuthMeCache(updated);
+      else invalidateAuthMeCache();
       toast.success("Profile updated.");
       fetchProfile();
     } catch { toast.error("Failed to update profile."); }
@@ -143,11 +155,45 @@ export default function AdminSettingsPage() {
   };
 
   /* ── PROFILE IMAGE ── */
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setProfileImage(URL.createObjectURL(file));
-    toast.success("Profile photo updated.");
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+    setUploadingPic(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${getApiBase()}/users/upload-pic`, {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        toast.error(data.message || "Image upload failed.");
+        return;
+      }
+      setProfileImage(data.url);
+      /* Persist immediately so header updates without waiting for Save */
+      const saveRes = await API.put("/auth/profile", {
+        name: form.name || profile?.name,
+        email: form.email || profile?.email,
+        profilePic: data.url,
+        cnic: form.cnic.trim() || null,
+      });
+      const updated = saveRes.data?.user;
+      if (updated) setAuthMeCache(updated);
+      else invalidateAuthMeCache();
+      toast.success("Profile photo updated.");
+    } catch {
+      toast.error("Upload failed.");
+    } finally {
+      setUploadingPic(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const initial    = profile?.name?.charAt(0)?.toUpperCase() ?? "A";
@@ -305,7 +351,8 @@ export default function AdminSettingsPage() {
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute bottom-0 right-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#B8112D] text-white flex items-center justify-center shadow-lg hover:bg-[#a30f27] transition-all"
+                    disabled={uploadingPic}
+                    className="absolute bottom-0 right-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#B8112D] text-white flex items-center justify-center shadow-lg hover:bg-[#a30f27] transition-all disabled:opacity-60"
                   >
                     <Camera size={14} className="sm:w-4 sm:h-4" />
                   </button>
@@ -349,6 +396,16 @@ export default function AdminSettingsPage() {
                     onChange={e => setForm({ ...form, email: e.target.value })}
                     placeholder="Enter email"
                     className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#B8112D] text-sm transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs sm:text-sm text-gray-500 mb-1.5 sm:mb-2 block">CNIC</label>
+                  <input
+                    type="text"
+                    value={form.cnic}
+                    onChange={e => setForm({ ...form, cnic: e.target.value })}
+                    placeholder="xxxxx-xxxxxxx-x"
+                    className="w-full border border-gray-200 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 outline-none focus:border-[#B8112D] text-sm transition-all font-mono"
                   />
                 </div>
                 <button

@@ -86,6 +86,7 @@ export default function NotInterestedPage() {
   const [scheduleTime,        setScheduleTime]        = useState("");
   const [selectedTimezone,    setSelectedTimezone]    = useState("America/New_York");
   const [selectedService,     setSelectedService]     = useState("");
+  const [serviceSubtype,      setServiceSubtype]      = useState("");
   const [projectTitle,        setProjectTitle]        = useState("");
   const [projectDeadline,     setProjectDeadline]     = useState("");
   const [projectBudget,       setProjectBudget]       = useState("");
@@ -214,7 +215,7 @@ export default function NotInterestedPage() {
       setSelectedTimezone("America/New_York"); setShowImportantModal(true); return;
     }
     if (status === "interested") {
-      setStatusLead(lead); setSelectedService(""); setShowInterestedModal(true); return;
+      setStatusLead(lead); setSelectedService(""); setServiceSubtype(""); setShowInterestedModal(true); return;
     }
     if (status === "Close Client") {
       setStatusLead(lead); setProjectTitle(lead.client); setProjectDeadline("");
@@ -241,9 +242,13 @@ export default function NotInterestedPage() {
 
   const saveInterested = async () => {
     if (!statusLead || !selectedService) return;
-    await API.put(`/csr/lead/${statusLead.id}`, { status: "interested", interestedService: selectedService });
+    const sub = serviceSubtype.trim();
+    const interestedService = sub ? `${selectedService}-${sub}` : selectedService;
+    await API.put(`/csr/lead/${statusLead.id}`, { status: "interested", interestedService });
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowInterestedModal(false);
+    setSelectedService("");
+    setServiceSubtype("");
     showToast("Marked as Interested.");
   };
 
@@ -662,7 +667,8 @@ export default function NotInterestedPage() {
         {showInterestedModal && (
           <InterestedModal
             service={selectedService} onServiceChange={setSelectedService}
-            onClose={() => { setShowInterestedModal(false); setSelectedService(""); }}
+            serviceSubtype={serviceSubtype} onServiceSubtypeChange={setServiceSubtype}
+            onClose={() => { setShowInterestedModal(false); setSelectedService(""); setServiceSubtype(""); }}
             onSave={saveInterested}
           />
         )}

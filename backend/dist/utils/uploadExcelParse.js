@@ -9,6 +9,7 @@ exports.classifyRows = classifyRows;
 const xlsx_1 = __importDefault(require("xlsx"));
 const db_1 = __importDefault(require("../config/db"));
 const leadPhoneLookup_1 = require("./leadPhoneLookup");
+const leadClientPromotion_1 = require("./leadClientPromotion");
 const CHUNK_LOOKUP = 500;
 function resolveColumnKey(keys, possibleKeys, excludeKeys = []) {
     return keys.find(k => {
@@ -97,8 +98,9 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             state: readCell(row, col.state),
             interestedService: readCell(row, col.service),
             clientCode: readCell(row, col.clientCode) || null,
-            projectTitle: isActiveUpload ? (readCell(row, col.projectTitle) || "") : null,
-            projectBudget: isActiveUpload ? (readCell(row, col.projectBudget) || null) : null,
+            /* Project Detail / Quotation: Active Projects + New/Old Clients pages */
+            projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
+            projectBudget: readCell(row, col.projectBudget) || null,
             comments: readCell(row, col.comments) || null,
             csrId: csr.id,
             csrName: csr.name,
@@ -108,14 +110,13 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
     }
     return parsed;
 }
-function pickUpsertId(matches, row) {
-    const active = matches.filter(m => !m.inBin);
-    if (active.length === 0)
-        return undefined;
-    const sameCsr = active.filter(m => m.assignedTo === row.csrId);
-    return (sameCsr[0] ?? active[0])?.id;
+/** Call-data stays pending-only; every other upload category forces the lead onto that page. */
+function isCallDataStatus(status) {
+    return (status ?? "").toLowerCase() === "pending";
 }
-async function classifyRows(parsed, isActiveUpload, _uploadCategory, _promoteWonClients = false) {
+async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data", promoteWonClientsArg = false) {
+    /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
+    const promoteWonClients = typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
     const preview = [];
     const toPreview = (r, status, reason) => ({
         row: r.rowIndex,
@@ -132,27 +133,33 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory, _promoteWon
         const existingLeads = uniqueCodes.length
             ? await db_1.default.lead.findMany({
                 where: { clientCode: { in: uniqueCodes } },
-                select: { id: true, clientCode: true },
+                select: { id: true, clientCode: true, inBin: true },
             })
             : [];
         const existingCodeMap = new Map(existingLeads.map(l => [l.clientCode, l.id]));
+        const binByCode = new Map(existingLeads.filter(l => l.inBin).map(l => [l.clientCode, l.id]));
         const fresh = [];
         const toUpdate = [];
+        const toRestore = [];
         for (const r of parsed) {
             if (!r.name) {
                 preview.push(toPreview(r, "empty", "Missing client name"));
                 continue;
             }
-            if (r.clientCode && existingCodeMap.has(r.clientCode)) {
+            if (r.clientCode && binByCode.has(r.clientCode)) {
+                toRestore.push({ row: r, existingId: binByCode.get(r.clientCode) });
+                preview.push(toPreview(r, "updated", "Restored from Bin → Active Projects"));
+            }
+            else if (r.clientCode && existingCodeMap.has(r.clientCode)) {
                 toUpdate.push(r);
-                preview.push(toPreview(r, "updated", "Existing client — will refresh data"));
+                preview.push(toPreview(r, "updated", "Existing project — will refresh on Active Projects"));
             }
             else {
                 fresh.push(r);
-                preview.push(toPreview(r, "new", "New contact — will be added"));
+                preview.push(toPreview(r, "new", "New project — will be added to Active Projects"));
             }
         }
-        return { fresh, toUpdate, toUpsert: [], emailUpdates: [], preview, existingCodeMap };
+        return { fresh, toUpdate, toPromote: [], toRefresh: [], toRestore, emailUpdates: [], preview, existingCodeMap };
     }
     const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
     const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
@@ -188,8 +195,22 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory, _promoteWon
         return rows;
     }
     const emailUpdates = [];
-    const toUpsert = [];
+    const toPromote = [];
+    const toRefresh = [];
+    const toRestore = [];
     const fresh = [];
+    const pageLabel = (status) => {
+        const s = (status ?? "").toLowerCase();
+        if (s === "pending")
+            return "Call Data";
+        if (s === "important")
+            return "Important";
+        if (s === "interested")
+            return "Interested";
+        if ((0, leadClientPromotion_1.isWonClientStatus)(s))
+            return "Clients";
+        return status || "target page";
+    };
     for (const r of parsed) {
         const hasValidPhone = r.phone.length >= 7;
         const hasValidEmail = r.email.includes("@");
@@ -197,27 +218,59 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory, _promoteWon
             preview.push(toPreview(r, "empty", "Empty row — skipped"));
             continue;
         }
-        let existingId;
         if (r.phone && hasValidPhone) {
             const matches = await phoneMatches(r.phone);
-            existingId = pickUpsertId(matches, r);
-            const exactExisting = dupPhoneMap.get(r.phone);
-            if (exactExisting && !exactExisting.inBin && !exactExisting.email && hasValidEmail) {
-                emailUpdates.push({ id: exactExisting.id, email: r.email });
+            const activeMatches = matches.filter(m => !m.inBin);
+            const binMatches = matches.filter(m => m.inBin);
+            const callDataUpload = isCallDataStatus(r.status);
+            /* Bin-only match → restore onto the upload target page */
+            if (binMatches.length > 0 && activeMatches.length === 0) {
+                toRestore.push({ row: r, existingId: binMatches[0].id });
+                preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+                continue;
             }
+            let pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
+            if (promoteWonClients && pendingMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
+                toPromote.push({ row: r, existingId: pendingMatch.id });
+                preview.push(toPreview(r, "updated", "Moved from Call Data → Clients"));
+                continue;
+            }
+            /* Non–call-data uploads always land on their target page (refresh existing) */
+            if (!callDataUpload && activeMatches.length > 0) {
+                const wonMatch = activeMatches.find(m => (0, leadClientPromotion_1.isWonClientStatus)(m.status));
+                const target = wonMatch ?? activeMatches[0];
+                toRefresh.push({ row: r, existingId: target.id });
+                preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+                continue;
+            }
+            /* Call-data: never overwrite existing active leads */
+            if (callDataUpload && activeMatches.length > 0) {
+                const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0];
+                if (!exactExisting.email && hasValidEmail) {
+                    emailUpdates.push({ id: exactExisting.id, email: r.email });
+                }
+                preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
+                continue;
+            }
+            /* Call-data + bin only already handled; active empty → fresh below */
         }
-        if (!existingId && r.email && dupEmails.has(r.email.toLowerCase())) {
+        if (r.email && dupEmails.has(r.email.toLowerCase())) {
             const emailHit = dupEmails.get(r.email.toLowerCase());
-            if (!emailHit.inBin)
-                existingId = emailHit.id;
-        }
-        if (existingId) {
-            toUpsert.push({ row: r, existingId });
-            preview.push(toPreview(r, "updated", "Routed to selected upload destination"));
+            if (emailHit.inBin) {
+                toRestore.push({ row: r, existingId: emailHit.id });
+                preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+                continue;
+            }
+            if (!isCallDataStatus(r.status)) {
+                toRefresh.push({ row: r, existingId: emailHit.id });
+                preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+                continue;
+            }
+            preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
             continue;
         }
         fresh.push(r);
-        preview.push(toPreview(r, "new", "New contact — will be added"));
+        preview.push(toPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`));
     }
-    return { fresh, toUpdate: [], toUpsert, emailUpdates, preview };
+    return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview };
 }

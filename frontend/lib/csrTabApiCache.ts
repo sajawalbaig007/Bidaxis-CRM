@@ -92,7 +92,7 @@ export async function fetchCsrTabLeadsCached(
   }, force);
 }
 
-/** Load every page for a tab — used when table filters need full dataset */
+/** Load every page for a tab — full CSR dataset (no hidden pages) */
 export async function fetchAllCsrTabLeadsCached(
   tab: string,
   from?: string,
@@ -101,19 +101,24 @@ export async function fetchAllCsrTabLeadsCached(
 ): Promise<CsrTabLeadsPayload> {
   const key = `csr:tab-all:${tab}:${from ?? ""}:${to ?? ""}`;
   return cached(key, TAB_TTL_MS, async () => {
-    const pageSize = 200;
+    const pageSize = 2000;
     const first = await fetchCsrTabLeadsCached(tab, 1, from, to, force, pageSize);
-    if ((first.totalPages ?? 1) <= 1) return first;
+    const total = first.total ?? first.leads.length;
+    const totalPages = Math.max(1, first.totalPages ?? 1);
+    if (totalPages <= 1) {
+      return { success: true, leads: first.leads, total, totalPages: 1 };
+    }
     const rest = await Promise.all(
-      Array.from({ length: (first.totalPages ?? 1) - 1 }, (_, i) =>
+      Array.from({ length: totalPages - 1 }, (_, i) =>
         fetchCsrTabLeadsCached(tab, i + 2, from, to, force, pageSize),
       ),
     );
+    const leads = [first.leads, ...rest.map(r => r.leads)].flat();
     return {
       success: true,
-      leads: [first.leads, ...rest.map(r => r.leads)].flat(),
-      total: first.total,
-      totalPages: 1,
+      leads,
+      total: total || leads.length,
+      totalPages: Math.max(1, Math.ceil((total || leads.length) / 30)),
     };
   }, force);
 }

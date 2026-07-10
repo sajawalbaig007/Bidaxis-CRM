@@ -75,6 +75,9 @@ export default function LeadStatusDonut({ leads, stats, loading }: LeadStatusDon
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-3xl sm:text-4xl font-bold text-[#0F172A]">{total}</span>
               <span className="text-[11px] sm:text-xs text-gray-500 mt-1">Total Leads</span>
+              {stats?.totalAssigned != null && stats.totalAssigned !== total && (
+                <span className="text-[10px] text-gray-400 mt-0.5">{stats.totalAssigned} assigned</span>
+              )}
             </div>
           </div>
 

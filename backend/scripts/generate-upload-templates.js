@@ -1,5 +1,6 @@
 /**
  * Generates Excel upload templates for the admin Uploads page.
+ * Each category has columns that match what Admin should fill.
  * Run: node scripts/generate-upload-templates.js
  */
 const XLSX = require("xlsx");
@@ -9,170 +10,16 @@ const path = require("path");
 const outDir = path.join(__dirname, "../../frontend/public/upload-templates");
 fs.mkdirSync(outDir, { recursive: true });
 
-const BASE_HEADERS = [
-  "Client Name",
-  "Client Company",
-  "Phone",
-  "Email",
-  "State",
-  "Interested Service",
-  "Notes",
-];
-
-const BASE_SAMPLES = [
-  {
-    "Client Name": "John Smith",
-    "Client Company": "JC Air Conditioning",
-    Phone: "2145550100",
-    Email: "john@jcair.com",
-    State: "Texas",
-    "Interested Service": "HVAC Estimating",
-    Notes: "Client asked for quote by Friday",
-  },
-  {
-    "Client Name": "Maria Garcia",
-    "Client Company": "Sunrise Builders",
-    Phone: "5125550199",
-    Email: "maria@sunrise.com",
-    State: "Austin, TX",
-    "Interested Service": "Construction Takeoff",
-    Notes: "Follow up next week — interested in residential",
-  },
-  {
-    "Client Name": "Robert Chen",
-    "Client Company": "Metro Electric Co",
-    Phone: "7135550144",
-    Email: "rchen@metroelectric.com",
-    State: "Houston, TX",
-    "Interested Service": "Electrical Estimating",
-    Notes: "Previous client — wants new commercial bid",
-  },
-];
-
-const ACTIVE_HEADERS = [
-  ...BASE_HEADERS,
-  "Client Code",
-  "Project Detail",
-  "Quotation",
-];
-
-const ACTIVE_SAMPLES = [
-  {
-    "Client Name": "John Smith",
-    "Client Company": "JC Air Conditioning",
-    Phone: "2145550100",
-    Email: "john@jcair.com",
-    State: "Texas",
-    "Interested Service": "HVAC Estimating",
-    "Client Code": "JC-001",
-    "Project Detail": "Commercial HVAC Bid — Dallas Office",
-    Quotation: "4500",
-  },
-  {
-    "Client Name": "Maria Garcia",
-    "Client Company": "Sunrise Builders",
-    Phone: "5125550199",
-    Email: "maria@sunrise.com",
-    State: "Austin, TX",
-    "Interested Service": "Construction Takeoff",
-    "Client Code": "SB-102",
-    "Project Detail": "Residential framing takeoff",
-    Quotation: "2800",
-  },
-];
-
-const TEMPLATES = [
-  {
-    file: "CRM-Call-Data-Template.xlsx",
-    sheet: "Call Data",
-    headers: BASE_HEADERS,
-    samples: BASE_SAMPLES,
-    instructions: [
-      "Upload box: Upload New Leads",
-      "Step 1 in modal: Call Data (daily call list)",
-      "Leads go to CSR Call Data / Today Links as pending",
-      "Required per row: Client Name OR Phone (7+ digits)",
-      "Optional: Client Company, Email, State, Interested Service, Notes",
-      "Delete sample rows and add your own data before upload",
-    ],
-  },
-  {
-    file: "CRM-New-Clients-Template.xlsx",
-    sheet: "New Clients",
-    headers: BASE_HEADERS,
-    samples: BASE_SAMPLES,
-    instructions: [
-      "Upload box: Upload New Leads",
-      "Step 1 in modal: Clients → New Client (first-time)",
-      "Leads go to CSR Clients tab as won / Close Client",
-      "Required per row: Client Name OR Phone",
-      "Same columns as Call Data template",
-      "Delete sample rows before upload",
-    ],
-  },
-  {
-    file: "CRM-Old-Clients-Template.xlsx",
-    sheet: "Old Clients",
-    headers: BASE_HEADERS,
-    samples: BASE_SAMPLES,
-    instructions: [
-      "Upload box: Upload New Leads",
-      "Step 1 in modal: Clients → Old Client (returning / repeat)",
-      "Leads go to CSR Old Clients tab",
-      "Required per row: Client Name OR Phone",
-      "Use for clients who already worked with you before",
-      "Delete sample rows before upload",
-    ],
-  },
-  {
-    file: "CRM-Interested-Clients-Template.xlsx",
-    sheet: "Interested",
-    headers: BASE_HEADERS,
-    samples: BASE_SAMPLES,
-    instructions: [
-      "Upload box: Interested Clients",
-      "Status after upload: interested (new client pipeline)",
-      "Required per row: Client Name OR Phone",
-      "Optional: Client Company, Email, State, Interested Service, Notes",
-      "Delete sample rows before upload",
-    ],
-  },
-  {
-    file: "CRM-Important-Clients-Template.xlsx",
-    sheet: "Important",
-    headers: BASE_HEADERS,
-    samples: BASE_SAMPLES,
-    instructions: [
-      "Upload box: Previous Important Clients",
-      "Status after upload: important (old / known clients)",
-      "Required per row: Client Name OR Phone",
-      "Optional: Client Company, Email, State, Interested Service, Notes",
-      "Delete sample rows before upload",
-    ],
-  },
-  {
-    file: "CRM-Active-Projects-Template.xlsx",
-    sheet: "Active Projects",
-    headers: ACTIVE_HEADERS,
-    samples: ACTIVE_SAMPLES,
-    instructions: [
-      "Upload box: Active Projects",
-      "Extra columns: Client Code, Project Detail, Quotation",
-      "Client Code: unique code per project (updates existing if same code)",
-      "Project Detail: project title / description",
-      "Quotation: budget or quote amount (numbers only, no $ sign)",
-      "Required: Client Name",
-      "Delete sample rows before upload",
-    ],
-  },
-];
-
 function writeTemplate({ file, sheet, headers, samples, instructions }) {
   const wb = XLSX.utils.book_new();
-
-  const ws = XLSX.utils.json_to_sheet(samples, { header: headers });
+  const data = samples.map(r => {
+    const o = {};
+    for (const h of headers) o[h] = r[h] ?? "";
+    return o;
+  });
+  const ws = XLSX.utils.json_to_sheet(data, { header: headers });
   ws["!cols"] = headers.map(h => ({
-    wch: Math.max(h.length, ...samples.map(r => String(r[h] ?? "").length)) + 2,
+    wch: Math.max(h.length, ...data.map(r => String(r[h] ?? "").length)) + 2,
   }));
   XLSX.utils.book_append_sheet(wb, ws, sheet);
 
@@ -181,13 +28,225 @@ function writeTemplate({ file, sheet, headers, samples, instructions }) {
     Instruction: line,
   }));
   const wsInstr = XLSX.utils.json_to_sheet(instrData);
-  wsInstr["!cols"] = [{ wch: 6 }, { wch: 72 }];
+  wsInstr["!cols"] = [{ wch: 6 }, { wch: 78 }];
   XLSX.utils.book_append_sheet(wb, wsInstr, "How to Use");
 
   const outPath = path.join(outDir, file);
   XLSX.writeFile(wb, outPath);
   console.log("Created:", outPath);
 }
+
+const TEMPLATES = [
+  {
+    file: "CRM-Call-Data-Template.xlsx",
+    sheet: "Call Data",
+    headers: ["Client Name", "Client Company", "Phone", "Email", "State"],
+    samples: [
+      {
+        "Client Name": "John Smith",
+        "Client Company": "JC Air Conditioning",
+        Phone: "2145550100",
+        Email: "john@jcair.com",
+        State: "Texas",
+      },
+      {
+        "Client Name": "Maria Garcia",
+        "Client Company": "Sunrise Builders",
+        Phone: "5125550199",
+        Email: "maria@sunrise.com",
+        State: "Austin, TX",
+      },
+    ],
+    instructions: [
+      "Admin upload: Upload New Leads → Call Data",
+      "CSR page: Call Data / Today Links (today's fresh leads)",
+      "Put ONLY: Client Name, Client Company, Phone, Email, State",
+      "NO Notes column — CSRs add notes while calling",
+      "NO Interested Service / Client Code / Project",
+      "Required: Client Name OR Phone (7+ digits)",
+      "Delete sample rows before upload",
+    ],
+  },
+  {
+    file: "CRM-Important-Clients-Template.xlsx",
+    sheet: "Important",
+    headers: ["Client Name", "Client Company", "Phone", "Email", "State", "Notes"],
+    samples: [
+      {
+        "Client Name": "Sarah Lee",
+        "Client Company": "Premier Plumbing",
+        Phone: "4695550188",
+        Email: "sarah@premierplumb.com",
+        State: "Dallas, TX",
+        Notes: "VIP — prefer morning calls. Known since 2023.",
+      },
+    ],
+    instructions: [
+      "Admin upload: Previous Important Clients",
+      "CSR page: Potential Clients → Important",
+      "Put: Name, Company, Phone, Email, State, Notes (why important / past talk)",
+      "NO Interested Service or Client Code",
+      "Delete sample rows before upload",
+    ],
+  },
+  {
+    file: "CRM-Interested-Clients-Template.xlsx",
+    sheet: "Interested",
+    headers: [
+      "Client Name",
+      "Client Company",
+      "Phone",
+      "Email",
+      "State",
+      "Interested Service",
+      "Notes",
+    ],
+    samples: [
+      {
+        "Client Name": "Mike Johnson",
+        "Client Company": "BuildRight LLC",
+        Phone: "5125550177",
+        Email: "mike@buildright.com",
+        State: "Austin, TX",
+        "Interested Service": "Estimating",
+        Notes: "Wants residential takeoff — call Monday",
+      },
+    ],
+    instructions: [
+      "Admin upload: Interested Clients",
+      "CSR page: Potential Clients → Interested (Interested In column)",
+      "Put: Name, Company, Phone, Email, State, Interested Service, Notes",
+      "Services: Estimating, Scheduling, Shop Drawing, Drafting, BIM, IT",
+      "Delete sample rows before upload",
+    ],
+  },
+  {
+    file: "CRM-New-Clients-Template.xlsx",
+    sheet: "New Clients",
+    headers: [
+      "Client Name",
+      "Client Company",
+      "Phone",
+      "Email",
+      "State",
+      "Interested Service",
+      "Client Code",
+      "Project Detail",
+      "Quotation",
+      "Notes",
+    ],
+    samples: [
+      {
+        "Client Name": "Alex Turner",
+        "Client Company": "Turner Electric",
+        Phone: "7135550166",
+        Email: "alex@turnerelectric.com",
+        State: "Houston, TX",
+        "Interested Service": "Estimating",
+        "Client Code": "TE-001",
+        "Project Detail": "First commercial electrical estimate",
+        Quotation: "3200",
+        Notes: "First project closed — new client",
+      },
+    ],
+    instructions: [
+      "Admin upload: Upload New Leads → Clients → New Client",
+      "CSR page: Clients → New Clients",
+      "Put: Name, Company, Phone, Email, State, Service, Client Code, Project Detail, Quotation, Notes",
+      "Client Code → Code column | Service → Service | Notes → Latest Note",
+      "First-time won clients only",
+      "Delete sample rows before upload",
+    ],
+  },
+  {
+    file: "CRM-Old-Clients-Template.xlsx",
+    sheet: "Old Clients",
+    headers: [
+      "Client Name",
+      "Client Company",
+      "Phone",
+      "Email",
+      "State",
+      "Interested Service",
+      "Client Code",
+      "Project Detail",
+      "Quotation",
+      "Notes",
+    ],
+    samples: [
+      {
+        "Client Name": "John Smith",
+        "Client Company": "JC Air Conditioning",
+        Phone: "2145550100",
+        Email: "john@jcair.com",
+        State: "Texas",
+        "Interested Service": "Estimating",
+        "Client Code": "JC-003",
+        "Project Detail": "3rd project — Commercial HVAC expansion",
+        Quotation: "5200",
+        Notes: "Repeat client — previous projects paid on time",
+      },
+    ],
+    instructions: [
+      "Admin upload: Upload New Leads → Clients → Old Client",
+      "CSR page: Clients → Old Clients",
+      "Same columns as New Clients",
+      "Use SAME Phone as earlier projects (history / Eye button)",
+      "NEW Client Code for the latest project",
+      "Delete sample rows before upload",
+    ],
+  },
+  {
+    file: "CRM-Active-Projects-Template.xlsx",
+    sheet: "Active Projects",
+    headers: [
+      "Client Name",
+      "Client Company",
+      "Phone",
+      "Email",
+      "State",
+      "Interested Service",
+      "Client Code",
+      "Project Detail",
+      "Quotation",
+      "Notes",
+    ],
+    samples: [
+      {
+        "Client Name": "John Smith",
+        "Client Company": "JC Air Conditioning",
+        Phone: "2145550100",
+        Email: "john@jcair.com",
+        State: "Texas",
+        "Interested Service": "Estimating",
+        "Client Code": "1000-01",
+        "Project Detail": "Commercial HVAC — Dallas office takeoff",
+        Quotation: "4500",
+        Notes: "In progress — takeoff due Friday",
+      },
+      {
+        "Client Name": "Maria Garcia",
+        "Client Company": "Sunrise Builders",
+        Phone: "5125550199",
+        Email: "maria@sunrise.com",
+        State: "Austin, TX",
+        "Interested Service": "BIM",
+        "Client Code": "1000-02",
+        "Project Detail": "Apartment Phase 2 — BIM coordination",
+        Quotation: "8900",
+        Notes: "Kickoff done — waiting on files",
+      },
+    ],
+    instructions: [
+      "Admin upload: Active Projects",
+      "CSR page: Active Projects",
+      "Put: Name, Company, Phone, Email, State, Service, Client Code, Project Detail, Quotation, Notes",
+      "Client Code unique — same code updates existing project",
+      "Payment & Fulfillment set inside CRM after upload",
+      "Delete sample rows before upload",
+    ],
+  },
+];
 
 for (const t of TEMPLATES) writeTemplate(t);
 console.log(`\nDone — ${TEMPLATES.length} templates in ${outDir}`);

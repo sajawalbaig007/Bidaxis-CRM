@@ -129,6 +129,8 @@ export function useCsrTabLeads(
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const reqGen = useRef(0);
+  const pageRef = useRef(page);
+  pageRef.current = page;
 
   const refetch = useCallback(async (force = false) => {
     const gen = ++reqGen.current;
@@ -138,7 +140,7 @@ export function useCsrTabLeads(
       const toDate   = to ? monthEnd(to) : undefined;
       const data = fetchAll
         ? await fetchAllCsrTabLeadsCached(tab, fromDate, toDate, force)
-        : await fetchCsrTabLeadsCached(tab, page, fromDate, toDate, force);
+        : await fetchCsrTabLeadsCached(tab, pageRef.current, fromDate, toDate, force);
       if (gen !== reqGen.current) return;
       setLeads((data.leads as BackendLead[] ?? []).map(mapBackendLead));
       setTotal(data.total ?? 0);
@@ -150,9 +152,14 @@ export function useCsrTabLeads(
     } finally {
       if (gen === reqGen.current) setLoading(false);
     }
-  }, [tab, page, from, to, fetchAll]);
+  }, [tab, from, to, fetchAll]);
 
-  useEffect(() => { void refetch(); }, [refetch]);
+  /* fetchAll: only refetch on tab/date change. Otherwise also on page. */
+  const refetchKey = fetchAll
+    ? `${tab}|all|${from ?? ""}|${to ?? ""}`
+    : `${tab}|${page}|${from ?? ""}|${to ?? ""}`;
+
+  useEffect(() => { void refetch(); }, [refetchKey, refetch]);
   useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, total, totalPages, loading, refetch };

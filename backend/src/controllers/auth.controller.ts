@@ -657,7 +657,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     if (!req.user?.id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-    const { name, email } = req.body;
+    const { name, email, profilePic, cnic } = req.body;
     if (!name || !email) {
       return res.status(400).json({ success: false, message: "Name and email required." });
     }
@@ -665,12 +665,23 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     if (taken) {
       return res.status(400).json({ success: false, message: "Email already in use." });
     }
+    const data: { name: string; email: string; profilePic?: string | null; cnic?: string | null } = {
+      name,
+      email,
+    };
+    if (profilePic !== undefined) data.profilePic = profilePic || null;
+    if (cnic !== undefined && req.user.role === "admin") data.cnic = cnic || null;
+
     const updated = await prisma.user.update({
       where:  { id: req.user.id },
-      data:   { name, email },
-      select: { id: true, name: true, email: true, role: true, twoFAEnabled: true, createdAt: true },
+      data,
+      select: {
+        id: true, name: true, email: true, role: true,
+        csrCode: true, cnic: true, profilePic: true,
+        twoFAEnabled: true, createdAt: true,
+      },
     });
-    invalidateCache(`auth:me:${req.user.id}`);
+    invalidateCache(`auth:me:${req.user.id}`, "users:list", "users:list:admin", "users:list:csr", "users:list:manager");
     return res.json({ success: true, user: updated });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to update profile." });

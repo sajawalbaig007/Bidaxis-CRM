@@ -9,13 +9,22 @@ import {
 } from "../utils/uploadExcelParse";
 import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
 import { isWonClientUploadStatus, clearPendingDuplicatesForPhone, reconcileClientOldFlagsForCsr } from "../utils/leadClientPromotion";
-import { buildLeadFieldsFromUploadRow } from "../utils/uploadLeadPayload";
 import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
+import { findLeadsByPhone } from "../utils/leadPhoneLookup";
 
 const CHUNK_INSERT = 1000;
 const BATCH_UPDATE = 30;
+
+/** Clear bin flags when upload restores / moves a lead onto a target page */
+const CLEAR_BIN = {
+  inBin: false,
+  binReason: null,
+  binPreviousStatus: null,
+  notInterestedCount: 0,
+  notPickedCount: 0,
+} as const;
 
 /** Cloudinary sub-folder under crm_uploads based on upload type */
 function getCloudinaryFolder(leadType: string, initialStatuses: string[]): string {
@@ -197,30 +206,40 @@ export const uploadLeads = async (req: Request, res: Response) => {
       isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
 
-    const { fresh, toUpdate, toUpsert, emailUpdates, preview, existingCodeMap } =
+    const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, existingCodeMap } =
       await classifyRows(parsed, isActiveUpload, uploadCategory, promoteWonClients);
 
     const distributionMap: Record<string, number> = {};
+
+    const leadFieldsFromRow = (r: typeof parsed[0], opts?: { forceOld?: boolean }) => ({
+      name:              r.name,
+      company:           r.company           || null,
+      phone:             r.phone             || null,
+      email:             r.email             || null,
+      state:             r.state             || null,
+      interestedService: r.interestedService || null,
+      clientCode:        r.clientCode        || null,
+      projectTitle:      r.projectTitle,
+      projectBudget:     r.projectBudget,
+      comments:          r.comments            || null,
+      status:            r.status            || (isActiveUpload ? "Close Client" : r.status),
+      important:         (r.status ?? "").toLowerCase() === "important",
+      interested:        (r.status ?? "").toLowerCase() === "interested",
+      isOldClient:       opts?.forceOld ?? r.isOldClient,
+      assignedTo:        r.csrId,
+      uploadedFileId:    uploadedFile.id,
+      hiddenOnMain:      hideOnMain(r.status),
+      ...CLEAR_BIN,
+    });
 
     if (isActiveUpload && toUpdate.length > 0 && existingCodeMap) {
       await runBatched(toUpdate, BATCH_UPDATE, r =>
         prisma.lead.update({
           where: { id: existingCodeMap.get(r.clientCode!)! },
           data: {
-            name:              r.name,
-            company:           r.company           || null,
-            phone:             r.phone             || null,
-            email:             r.email             || null,
-            state:             r.state             || null,
-            interestedService: r.interestedService || null,
-            projectTitle:      r.projectTitle      || null,
-            projectBudget:     r.projectBudget,
-            comments:          r.comments            || null,
-            status:            r.status            || "Close Client",
-            isOldClient:       true,
-            assignedTo:        r.csrId,
-            uploadedFileId:    uploadedFile.id,
-            hiddenOnMain:      hideOnMain(r.status),
+            ...leadFieldsFromRow(r, { forceOld: true }),
+            status: r.status || "Close Client",
+            isOldClient: true,
           },
         })
       );
@@ -235,22 +254,86 @@ export const uploadLeads = async (req: Request, res: Response) => {
       );
     }
 
-    if (!isActiveUpload && toUpsert.length > 0) {
-      await runBatched(toUpsert, BATCH_UPDATE, ({ row, existingId }) =>
+    if (toRestore.length > 0) {
+      await runBatched(toRestore, BATCH_UPDATE, ({ row, existingId }) =>
         prisma.lead.update({
           where: { id: existingId },
-          data: buildLeadFieldsFromUploadRow(row, uploadedFile.id, hideOnMain),
+          data: leadFieldsFromRow(row, { forceOld: isActiveUpload || row.isOldClient }),
         })
       );
-      for (const { row } of toUpsert) {
+      for (const { row } of toRestore) {
         distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
       }
     }
 
-    if (fresh.length > 0) {
-      const insertRows = fresh.map(r =>
-        buildLeadFieldsFromUploadRow(r, uploadedFile.id, hideOnMain),
+    if (!isActiveUpload && toPromote.length > 0) {
+      await runBatched(toPromote, BATCH_UPDATE, ({ row, existingId }) =>
+        prisma.lead.update({
+          where: { id: existingId },
+          data: {
+            ...leadFieldsFromRow(row),
+            important: false,
+            interested: false,
+          },
+        })
       );
+      for (const { row } of toPromote) {
+        distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
+      }
+    }
+
+    if (!isActiveUpload && toRefresh.length > 0) {
+      await runBatched(toRefresh, BATCH_UPDATE, ({ row, existingId }) =>
+        prisma.lead.update({
+          where: { id: existingId },
+          data: leadFieldsFromRow(row),
+        })
+      );
+      for (const { row } of toRefresh) {
+        distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
+      }
+    }
+
+    /* After restore/refresh: drop leftover bin copies for the same phone */
+    const restoredPhones = [
+      ...toRestore.map(x => x.row.phone),
+      ...toRefresh.map(x => x.row.phone),
+      ...toPromote.map(x => x.row.phone),
+    ].filter(p => p && p.length >= 7);
+    for (const phone of [...new Set(restoredPhones)]) {
+      const matches = await findLeadsByPhone(phone);
+      const keepIds = new Set([
+        ...toRestore.filter(x => x.row.phone === phone).map(x => x.existingId),
+        ...toRefresh.filter(x => x.row.phone === phone).map(x => x.existingId),
+        ...toPromote.filter(x => x.row.phone === phone).map(x => x.existingId),
+      ]);
+      const binDupes = matches.filter(m => m.inBin && !keepIds.has(m.id));
+      if (binDupes.length > 0) {
+        await deleteLeadsCascade(binDupes.map(m => m.id));
+      }
+    }
+
+    if (fresh.length > 0) {
+      const insertRows = fresh.map(r => ({
+        name:              r.name,
+        company:           r.company,
+        phone:             r.phone,
+        email:             r.email,
+        state:             r.state             || null,
+        interestedService: r.interestedService || null,
+        clientCode:        r.clientCode        || null,
+        projectTitle:      r.projectTitle,
+        projectBudget:     r.projectBudget,
+        comments:          r.comments            || null,
+        status:            r.status,
+        important:         (r.status ?? "").toLowerCase() === "important",
+        interested:        (r.status ?? "").toLowerCase() === "interested",
+        isOldClient:       r.isOldClient,
+        assignedTo:        r.csrId,
+        uploadedFileId:    uploadedFile.id,
+        hiddenOnMain:      hideOnMain(r.status),
+        inBin:             false,
+      }));
 
       for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {
         await prisma.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
@@ -284,11 +367,17 @@ export const uploadLeads = async (req: Request, res: Response) => {
         `csr:clients:${c.id}`,
         `csr:projects:${c.id}`,
         `csr:not-interested:${c.id}`,
+        `csr:bin:${c.id}`,
       ])
     );
 
     const distribution = Object.entries(distributionMap).map(([name, leads]) => ({ name, leads }));
-    const addedCount   = fresh.length + (isActiveUpload ? toUpdate.length : 0) + toUpsert.length;
+    const addedCount   =
+      fresh.length +
+      (isActiveUpload ? toUpdate.length : 0) +
+      toPromote.length +
+      toRefresh.length +
+      toRestore.length;
 
     await prisma.uploadFile.update({
       where: { id: uploadedFile.id },

@@ -11,6 +11,7 @@ import {
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
+import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
@@ -436,6 +437,7 @@ export default function UsersPage() {
       if (!res.ok) { toast.error(data.message || "Operation failed."); return; }
 
       toast.success(editingUser ? "User updated." : "User created.");
+      invalidateAuthMeCache();
       fetchUsers();
       setShowModal(false); setEditingUser(null);
       setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "", allowedIps: [""], allowedMacAddress: "", temporaryAccessIp: "", temporaryAccessMac: "", temporaryAccessHours: "9" });
