@@ -10,6 +10,7 @@ const cache_1 = require("../utils/cache");
 const uploadExcelParse_1 = require("../utils/uploadExcelParse");
 const uploadCategory_1 = require("../utils/uploadCategory");
 const leadClientPromotion_1 = require("../utils/leadClientPromotion");
+const leadNotes_1 = require("../utils/leadNotes");
 const deleteLeadsCascade_1 = require("../utils/deleteLeadsCascade");
 const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const CHUNK_INSERT = 1000;
@@ -183,6 +184,7 @@ const uploadLeads = async (req, res) => {
                     interestedService: r.interestedService || null,
                     projectTitle: r.projectTitle || null,
                     projectBudget: r.projectBudget,
+                    comments: r.comments || null,
                     status: r.status || "Close Client",
                     isOldClient: true,
                     assignedTo: r.csrId,
@@ -210,6 +212,7 @@ const uploadLeads = async (req, res) => {
                     clientCode: row.clientCode || null,
                     projectTitle: row.projectTitle,
                     projectBudget: row.projectBudget,
+                    comments: row.comments || null,
                     status: row.status,
                     important: false,
                     interested: false,
@@ -236,6 +239,7 @@ const uploadLeads = async (req, res) => {
                     clientCode: row.clientCode || null,
                     projectTitle: row.projectTitle,
                     projectBudget: row.projectBudget,
+                    comments: row.comments || null,
                     status: row.status,
                     important: (row.status ?? "").toLowerCase() === "important",
                     interested: (row.status ?? "").toLowerCase() === "interested",
@@ -260,6 +264,7 @@ const uploadLeads = async (req, res) => {
                 clientCode: r.clientCode || null,
                 projectTitle: r.projectTitle,
                 projectBudget: r.projectBudget,
+                comments: r.comments || null,
                 status: r.status,
                 important: (r.status ?? "").toLowerCase() === "important",
                 interested: (r.status ?? "").toLowerCase() === "interested",
@@ -303,6 +308,7 @@ const uploadLeads = async (req, res) => {
             where: { id: uploadedFile.id },
             data: { totalLeads: addedCount },
         });
+        await (0, leadNotes_1.seedLeadNotesFromCommentsForFile)(uploadedFile.id);
         return res.json({
             success: true,
             totalLeads: addedCount,

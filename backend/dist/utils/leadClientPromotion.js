@@ -21,6 +21,7 @@ const deleteLeadsCascade_1 = require("./deleteLeadsCascade");
 const projectLeads_1 = require("./projectLeads");
 const binLeads_1 = require("./binLeads");
 const phone_1 = require("./phone");
+const leadNotes_1 = require("./leadNotes");
 function isPendingPipelineStatus(status) {
     return (status ?? "").toLowerCase() === "pending";
 }
@@ -77,8 +78,14 @@ async function migrateNotesBeforeDelete(pendingDupes, keepLeadId) {
         select: { comments: true, followUpNotes: true },
     });
     for (const dup of pendingDupes) {
+        if (dup.comments?.trim()) {
+            await (0, leadNotes_1.ensureLeadNoteFromText)(keepLeadId, dup.comments);
+        }
         if (dup.comments?.trim() && !keepLead?.comments?.trim()) {
             await db_1.default.lead.update({ where: { id: keepLeadId }, data: { comments: dup.comments } });
+        }
+        if (dup.followUpNotes?.trim()) {
+            await (0, leadNotes_1.ensureLeadNoteFromText)(keepLeadId, dup.followUpNotes);
         }
         if (dup.followUpNotes?.trim() && !keepLead?.followUpNotes?.trim()) {
             await db_1.default.lead.update({ where: { id: keepLeadId }, data: { followUpNotes: dup.followUpNotes } });

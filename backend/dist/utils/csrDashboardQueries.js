@@ -81,14 +81,21 @@ async function getCsrLeadStats(csrId) {
         inHouseCount,
         totalAssigned,
         mainPipelineCount,
-        totalLeads: mainPipelineCount,
+        /** All assigned leads (non-bin) — use for dashboard totals; no row cap. */
+        totalLeads: totalAssigned,
     };
 }
 function mapDashboardLead(lead) {
-    const { _count, notes, ...rest } = lead;
-    const latest = notes?.[0];
+    const { _count, notes, comments, followUpNotes, createdAt, updatedAt, ...rest } = lead;
+    const tableNotes = notes ?? [];
+    const latest = tableNotes[0];
     return {
         ...rest,
+        comments,
+        followUpNotes,
+        createdAt,
+        updatedAt,
+        notes: tableNotes,
         noteCount: _count.notes,
         latestNote: latest
             ? { id: latest.id, text: latest.text, createdAt: latest.createdAt }
@@ -99,7 +106,7 @@ const LEAD_LIST_SELECT = {
     ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
     notes: {
         orderBy: { createdAt: "desc" },
-        take: 1,
+        take: 10,
         select: { id: true, text: true, createdAt: true },
     },
 };
