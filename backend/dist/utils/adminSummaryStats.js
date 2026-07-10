@@ -124,20 +124,60 @@ const performerResolvedWhere = {
         (0, adminClientQueries_1.isImportantStatusWhere)(),
     ],
 };
-const dashboardOtherWhere = {
-    AND: [
-        { NOT: closeClientOnlyWhere },
-        { NOT: legacyCompletedWhere },
-        { NOT: pendingWhere },
-        { NOT: (0, adminClientQueries_1.importantOnlyWhere)() },
-        { NOT: (0, adminClientQueries_1.scheduledCallWhere)() },
-        { NOT: (0, adminClientQueries_1.isInterestedStatusWhere)() },
-    ],
+const wonWhere = {
+    OR: [closeClientOnlyWhere, legacyCompletedWhere],
 };
+function andWhere(...parts) {
+    return { AND: parts };
+}
+function notBinAnd(...parts) {
+    return andWhere((0, binLeads_1.buildNotBinWhere)(), ...parts);
+}
+/** Mutually exclusive pipeline buckets (priority: won → interested → schedule → important → pending → other); bin counted separately. */
+async function countExclusivePipeline() {
+    const binWhere = (0, binLeads_1.buildBinWhere)();
+    const notBin = (0, binLeads_1.buildNotBinWhere)();
+    const [totalLeads, inBin, projectWon, interested, scheduled, importantOnly, pending, activeNotBin,] = await Promise.all([
+        db_1.default.lead.count(),
+        db_1.default.lead.count({ where: binWhere }),
+        db_1.default.lead.count({ where: notBinAnd(wonWhere) }),
+        db_1.default.lead.count({
+            where: notBinAnd((0, adminClientQueries_1.isInterestedStatusWhere)(), { NOT: wonWhere }),
+        }),
+        db_1.default.lead.count({
+            where: notBinAnd((0, adminClientQueries_1.scheduledCallWhere)(), { NOT: wonWhere }, { NOT: (0, adminClientQueries_1.isInterestedStatusWhere)() }),
+        }),
+        db_1.default.lead.count({
+            where: notBinAnd((0, adminClientQueries_1.importantOnlyWhere)(), { NOT: wonWhere }, { NOT: (0, adminClientQueries_1.isInterestedStatusWhere)() }, { NOT: (0, adminClientQueries_1.scheduledCallWhere)() }),
+        }),
+        db_1.default.lead.count({
+            where: notBinAnd(pendingWhere, { NOT: wonWhere }, { NOT: (0, adminClientQueries_1.isInterestedStatusWhere)() }, { NOT: (0, adminClientQueries_1.scheduledCallWhere)() }, { NOT: (0, adminClientQueries_1.importantOnlyWhere)() }),
+        }),
+        db_1.default.lead.count({ where: notBin }),
+    ]);
+    const categorizedActive = projectWon + interested + scheduled + importantOnly + pending;
+    const other = Math.max(0, activeNotBin - categorizedActive);
+    return {
+        totalLeads,
+        inBin,
+        projectWon,
+        interested,
+        scheduled,
+        importantOnly,
+        pending,
+        other,
+        legacyCompleted: await db_1.default.lead.count({
+            where: notBinAnd(legacyCompletedWhere, { NOT: closeClientOnlyWhere }),
+        }),
+    };
+}
 function performerRate(resolved, total) {
     if (total <= 0 || resolved <= 0)
         return 0;
-    return Math.round((resolved / total) * 1000) / 10;
+    const pct = (resolved / total) * 100;
+    if (pct < 1)
+        return Math.round(pct * 100) / 100;
+    return Math.round(pct * 10) / 10;
 }
 async function buildAdminTabCountsPayload() {
     const [all, important, schedule, interested, closed] = await Promise.all([
@@ -154,18 +194,11 @@ async function buildAdminTabCountsPayload() {
 }
 async function buildAdminClientSummaryPayload() {
     const chartSince = (0, businessCalendar_1.businessChartSinceUtc)(CHART_DAYS);
-    const activeWhere = (0, binLeads_1.notInBinFilter)();
-    const [totalLeads, pending, interested, projectWon, completed, importantOnly, scheduled, closedTab, other, inBin, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
-        db_1.default.lead.count(),
-        db_1.default.lead.count({ where: { AND: [activeWhere, pendingWhere] } }),
-        db_1.default.lead.count({ where: { AND: [activeWhere, (0, adminClientQueries_1.isInterestedStatusWhere)()] } }),
-        db_1.default.lead.count({ where: { AND: [activeWhere, closeClientOnlyWhere] } }),
-        db_1.default.lead.count({ where: { AND: [activeWhere, legacyCompletedWhere] } }),
-        db_1.default.lead.count({ where: { AND: [activeWhere, (0, adminClientQueries_1.importantOnlyWhere)()] } }),
-        db_1.default.lead.count({ where: { AND: [activeWhere, (0, adminClientQueries_1.scheduledCallWhere)()] } }),
+    const pipelinePromise = countExclusivePipeline();
+    const notBin = (0, binLeads_1.buildNotBinWhere)();
+    const [pipeline, closedTab, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
+        pipelinePromise,
         db_1.default.lead.count({ where: (0, adminClientQueries_1.buildAdminClientViewWhere)("closed") }),
-        db_1.default.lead.count({ where: { AND: [activeWhere, dashboardOtherWhere] } }),
-        db_1.default.lead.count({ where: { inBin: true } }),
         db_1.default.lead.findMany({
             select: {
                 id: true,
@@ -192,13 +225,14 @@ async function buildAdminClientSummaryPayload() {
         fetchChartSeries(chartSince),
         db_1.default.lead.groupBy({
             by: ["assignedTo"],
-            where: { assignedTo: { not: "" } },
+            where: { assignedTo: { not: "" }, ...notBin },
             _count: { _all: true },
         }),
         db_1.default.lead.groupBy({
             by: ["assignedTo"],
             where: {
                 assignedTo: { not: "" },
+                ...notBin,
                 ...performerResolvedWhere,
             },
             _count: { _all: true },
@@ -230,14 +264,16 @@ async function buildAdminClientSummaryPayload() {
         .filter(p => p.total > 0)
         .sort((a, b) => b.resolved - a.resolved || b.rate - a.rate)
         .slice(0, 5);
+    const { totalLeads, pending, interested, projectWon, importantOnly, scheduled, other, inBin, legacyCompleted, } = pipeline;
     const distribution = {
         Pending: pending,
         Important: importantOnly,
         Schedule: scheduled,
         Interested: interested,
         "Close Client": projectWon,
-        Completed: completed,
     };
+    if (legacyCompleted > 0)
+        distribution.Completed = legacyCompleted;
     if (other > 0)
         distribution.Other = other;
     if (inBin > 0)
@@ -252,7 +288,7 @@ async function buildAdminClientSummaryPayload() {
             scheduled,
             interested,
             projectWon,
-            completed,
+            completed: closedTab,
             closed: closedTab,
             other,
             inBin,

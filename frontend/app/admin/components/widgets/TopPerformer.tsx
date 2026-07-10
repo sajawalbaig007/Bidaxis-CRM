@@ -61,7 +61,11 @@ export default function TopPerformers({ leads = [], performers: performersProp }
               </div>
               <div className="flex items-center gap-2 text-right">
                 <p className="text-sm font-semibold text-green-600">
-                  {Number.isInteger(p.rate) ? p.rate : p.rate.toFixed(1)}%
+                  {p.rate === 0
+                    ? "0%"
+                    : p.rate < 1
+                      ? `${p.rate.toFixed(2)}%`
+                      : `${Number.isInteger(p.rate) ? p.rate : p.rate.toFixed(1)}%`}
                 </p>
                 {p.rate >= 50
                   ? <TrendingUp size={14} className="text-green-500"/>

@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
-import { notInBinFilter } from "./binLeads";
+import { buildBinWhere, buildNotBinWhere } from "./binLeads";
 import {
   buildAdminClientViewWhere,
   importantOnlyWhere,
@@ -177,20 +177,89 @@ const performerResolvedWhere: Prisma.LeadWhereInput = {
   ],
 };
 
-const dashboardOtherWhere: Prisma.LeadWhereInput = {
-  AND: [
-    { NOT: closeClientOnlyWhere },
-    { NOT: legacyCompletedWhere },
-    { NOT: pendingWhere },
-    { NOT: importantOnlyWhere() },
-    { NOT: scheduledCallWhere() },
-    { NOT: isInterestedStatusWhere() },
-  ],
+const wonWhere: Prisma.LeadWhereInput = {
+  OR: [closeClientOnlyWhere, legacyCompletedWhere],
 };
+
+function andWhere(...parts: Prisma.LeadWhereInput[]): Prisma.LeadWhereInput {
+  return { AND: parts };
+}
+
+function notBinAnd(...parts: Prisma.LeadWhereInput[]): Prisma.LeadWhereInput {
+  return andWhere(buildNotBinWhere(), ...parts);
+}
+
+/** Mutually exclusive pipeline buckets (priority: won → interested → schedule → important → pending → other); bin counted separately. */
+async function countExclusivePipeline() {
+  const binWhere = buildBinWhere();
+  const notBin = buildNotBinWhere();
+
+  const [
+    totalLeads,
+    inBin,
+    projectWon,
+    interested,
+    scheduled,
+    importantOnly,
+    pending,
+    activeNotBin,
+  ] = await Promise.all([
+    prisma.lead.count(),
+    prisma.lead.count({ where: binWhere }),
+    prisma.lead.count({ where: notBinAnd(wonWhere) }),
+    prisma.lead.count({
+      where: notBinAnd(isInterestedStatusWhere(), { NOT: wonWhere }),
+    }),
+    prisma.lead.count({
+      where: notBinAnd(
+        scheduledCallWhere(),
+        { NOT: wonWhere },
+        { NOT: isInterestedStatusWhere() },
+      ),
+    }),
+    prisma.lead.count({
+      where: notBinAnd(
+        importantOnlyWhere(),
+        { NOT: wonWhere },
+        { NOT: isInterestedStatusWhere() },
+        { NOT: scheduledCallWhere() },
+      ),
+    }),
+    prisma.lead.count({
+      where: notBinAnd(
+        pendingWhere,
+        { NOT: wonWhere },
+        { NOT: isInterestedStatusWhere() },
+        { NOT: scheduledCallWhere() },
+        { NOT: importantOnlyWhere() },
+      ),
+    }),
+    prisma.lead.count({ where: notBin }),
+  ]);
+
+  const categorizedActive = projectWon + interested + scheduled + importantOnly + pending;
+  const other = Math.max(0, activeNotBin - categorizedActive);
+
+  return {
+    totalLeads,
+    inBin,
+    projectWon,
+    interested,
+    scheduled,
+    importantOnly,
+    pending,
+    other,
+    legacyCompleted: await prisma.lead.count({
+      where: notBinAnd(legacyCompletedWhere, { NOT: closeClientOnlyWhere }),
+    }),
+  };
+}
 
 function performerRate(resolved: number, total: number): number {
   if (total <= 0 || resolved <= 0) return 0;
-  return Math.round((resolved / total) * 1000) / 10;
+  const pct = (resolved / total) * 100;
+  if (pct < 1) return Math.round(pct * 100) / 100;
+  return Math.round(pct * 10) / 10;
 }
 
 export async function buildAdminTabCountsPayload() {
@@ -211,19 +280,12 @@ export async function buildAdminTabCountsPayload() {
 export async function buildAdminClientSummaryPayload() {
   const chartSince = businessChartSinceUtc(CHART_DAYS);
 
-  const activeWhere = notInBinFilter();
+  const pipelinePromise = countExclusivePipeline();
+  const notBin = buildNotBinWhere();
 
   const [
-    totalLeads,
-    pending,
-    interested,
-    projectWon,
-    completed,
-    importantOnly,
-    scheduled,
+    pipeline,
     closedTab,
-    other,
-    inBin,
     recent,
     recentStatusLogs,
     chartSeries,
@@ -232,16 +294,8 @@ export async function buildAdminClientSummaryPayload() {
     onlineCSRs,
     totalOnline,
   ] = await Promise.all([
-    prisma.lead.count(),
-    prisma.lead.count({ where: { AND: [activeWhere, pendingWhere] } }),
-    prisma.lead.count({ where: { AND: [activeWhere, isInterestedStatusWhere()] } }),
-    prisma.lead.count({ where: { AND: [activeWhere, closeClientOnlyWhere] } }),
-    prisma.lead.count({ where: { AND: [activeWhere, legacyCompletedWhere] } }),
-    prisma.lead.count({ where: { AND: [activeWhere, importantOnlyWhere()] } }),
-    prisma.lead.count({ where: { AND: [activeWhere, scheduledCallWhere()] } }),
+    pipelinePromise,
     prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
-    prisma.lead.count({ where: { AND: [activeWhere, dashboardOtherWhere] } }),
-    prisma.lead.count({ where: { inBin: true } }),
     prisma.lead.findMany({
       select: {
         id: true,
@@ -268,13 +322,14 @@ export async function buildAdminClientSummaryPayload() {
     fetchChartSeries(chartSince),
     prisma.lead.groupBy({
       by: ["assignedTo"],
-      where: { assignedTo: { not: "" } },
+      where: { assignedTo: { not: "" }, ...notBin },
       _count: { _all: true },
     }),
     prisma.lead.groupBy({
       by: ["assignedTo"],
       where: {
         assignedTo: { not: "" },
+        ...notBin,
         ...performerResolvedWhere,
       },
       _count: { _all: true },
@@ -313,14 +368,26 @@ export async function buildAdminClientSummaryPayload() {
     .sort((a, b) => b.resolved - a.resolved || b.rate - a.rate)
     .slice(0, 5);
 
+  const {
+    totalLeads,
+    pending,
+    interested,
+    projectWon,
+    importantOnly,
+    scheduled,
+    other,
+    inBin,
+    legacyCompleted,
+  } = pipeline;
+
   const distribution: Record<string, number> = {
     Pending: pending,
     Important: importantOnly,
     Schedule: scheduled,
     Interested: interested,
     "Close Client": projectWon,
-    Completed: completed,
   };
+  if (legacyCompleted > 0) distribution.Completed = legacyCompleted;
   if (other > 0) distribution.Other = other;
   if (inBin > 0) distribution["In Bin"] = inBin;
 
@@ -334,7 +401,7 @@ export async function buildAdminClientSummaryPayload() {
       scheduled,
       interested,
       projectWon,
-      completed,
+      completed: closedTab,
       closed: closedTab,
       other,
       inBin,
