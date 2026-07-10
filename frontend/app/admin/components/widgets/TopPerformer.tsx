@@ -32,7 +32,7 @@ export default function TopPerformers({ leads = [], performers: performersProp }
     return Object.entries(map)
       .map(([name, { resolved, total }]) => ({
         name, resolved, total,
-        rate: total > 0 ? Math.round((resolved / total) * 100) : 0,
+        rate: total > 0 ? Math.round((resolved / total) * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.resolved - a.resolved)
       .slice(0, 5);
@@ -60,7 +60,9 @@ export default function TopPerformers({ leads = [], performers: performersProp }
                 </div>
               </div>
               <div className="flex items-center gap-2 text-right">
-                <p className="text-sm font-semibold text-green-600">{p.rate}%</p>
+                <p className="text-sm font-semibold text-green-600">
+                  {Number.isInteger(p.rate) ? p.rate : p.rate.toFixed(1)}%
+                </p>
                 {p.rate >= 50
                   ? <TrendingUp size={14} className="text-green-500"/>
                   : <Star       size={14} className="text-gray-400"/>

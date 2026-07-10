@@ -40,8 +40,8 @@ export default function OverviewChart({ leads = [], distribution }: Props) {
   return (
     <div className="flex flex-col h-full">
       <div>
-        <h2 className="text-xl font-semibold text-gray-800">Today&apos;s Overview</h2>
-        <p className="text-sm text-gray-400 mt-1">Lead status distribution</p>
+        <h2 className="text-xl font-semibold text-gray-800">Lead Overview</h2>
+        <p className="text-sm text-gray-400 mt-1">Pipeline status breakdown</p>
       </div>
 
       <div className="flex justify-center mt-2">

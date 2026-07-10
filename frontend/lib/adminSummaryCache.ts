@@ -21,6 +21,7 @@ export type AdminDashboardSummary = {
     totalOnline?: number;
     importantOnly?: number;
     scheduled?: number;
+    other?: number;
   };
   tabCounts?: {
     all?: number;
@@ -64,7 +65,7 @@ let inflight: Promise<AdminDashboardSummary> | null = null;
 let tabCountsInflight: Promise<AdminTabCounts> | null = null;
 const TTL_MS = 120_000;
 const TAB_COUNTS_TTL_MS = 60_000;
-const STORAGE_KEY = "crm_admin_summary_v1";
+const STORAGE_KEY = "crm_admin_summary_v2";
 
 function readStorage(): { data: AdminDashboardSummary; at: number } | null {
   if (typeof window === "undefined") return null;
