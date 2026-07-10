@@ -79,8 +79,11 @@ export default function PerformanceChart({ leads = [], series, range = "week" }:
           </defs>
           <CartesianGrid vertical={false} stroke="#F1F1F1" strokeDasharray="4 4"/>
           <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill:"#9CA3AF", fontSize:13 }}/>
-          <YAxis tickLine={false} axisLine={false} tick={{ fill:"#9CA3AF", fontSize:13 }}/>
-          <Tooltip contentStyle={{ borderRadius:"16px", border:"1px solid #eee", boxShadow:"0 10px 30px rgba(0,0,0,0.08)" }}/>
+          <YAxis tickLine={false} axisLine={false} tick={{ fill:"#9CA3AF", fontSize:13 }} allowDecimals={false}/>
+          <Tooltip
+            formatter={(value) => [`${value} calls`, "Activity"]}
+            contentStyle={{ borderRadius:"16px", border:"1px solid #eee", boxShadow:"0 10px 30px rgba(0,0,0,0.08)" }}
+          />
           <Area
             type="monotone" dataKey="calls"
             stroke="#B8112D" strokeWidth={4}

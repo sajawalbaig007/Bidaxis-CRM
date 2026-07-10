@@ -66,7 +66,7 @@ export default function RecentActivity({ leads = [], recent, recentStatus }: Pro
         return {
           id:     log.id ?? `status-${index}`,
           user:   log.csrName ?? "CSR",
-          action: `updated "${log.leadName ?? "Unknown"}" to ${status}`,
+          action: `updated "${log.leadName || "Lead"}" to ${status}`,
           time:   formatStatusTimestamp(log.createdAt),
           type:   statusToType(status),
         };
@@ -82,7 +82,7 @@ export default function RecentActivity({ leads = [], recent, recentStatus }: Pro
         return {
           id:     l.id ?? `activity-${index}`,
           user:   l.csr?.name ?? "A CSR",
-          action: `updated lead "${l.name ?? "Unknown"}" to ${status}`,
+          action: `updated lead "${l.name?.trim() || l.company?.trim() || "Lead"}" to ${status}`,
           time:   formatStatusTimestamp(l.updatedAt),
           type:   statusToType(status),
         };
