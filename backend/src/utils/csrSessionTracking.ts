@@ -3,6 +3,11 @@ import { detectBrowser } from "./sessions";
 import { formatDurationMs, formatEstDateTime } from "./estTime";
 
 const MAX_TICK_MS = 5 * 60 * 1000;
+/**
+ * Reports: gaps longer than this (lock / sleep / no heartbeat) count as away.
+ * Matches Users-page presence threshold but does not close the work session.
+ */
+const SILENCE_MS = 90_000;
 
 function openSessionWhere(userId: string) {
   return { userId, logoutAt: null as Date | null };
@@ -28,13 +33,19 @@ async function applyHeartbeatTick(
   now = new Date(),
 ) {
   const prevAt = session.lastHeartbeatAt ?? session.loginAt;
-  const deltaMs = Math.min(
-    MAX_TICK_MS,
-    Math.max(0, now.getTime() - new Date(prevAt).getTime()),
-  );
+  const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
 
-  const dashboardMs = session.dashboardMs + (session.lastVisible ? deltaMs : 0);
-  const awayMs = session.awayMs + (!session.lastVisible ? deltaMs : 0);
+  let dashboardMs = session.dashboardMs;
+  let awayMs = session.awayMs;
+
+  if (rawDelta > SILENCE_MS) {
+    // Lock / sleep / no network — full gap counts as away, session stays open.
+    awayMs += rawDelta;
+  } else {
+    const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
+    dashboardMs += session.lastVisible ? deltaMs : 0;
+    awayMs += !session.lastVisible ? deltaMs : 0;
+  }
 
   return prisma.csrWorkSession.update({
     where: { id: session.id },
@@ -164,12 +175,15 @@ function liveTotals(session: {
 
   if (!session.logoutAt) {
     const prevAt = session.lastHeartbeatAt ?? session.loginAt;
-    const deltaMs = Math.min(
-      MAX_TICK_MS,
-      Math.max(0, now.getTime() - new Date(prevAt).getTime()),
-    );
-    if (session.lastVisible) dashboardMs += deltaMs;
-    else awayMs += deltaMs;
+    const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
+
+    if (rawDelta > SILENCE_MS) {
+      awayMs += rawDelta;
+    } else {
+      const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
+      if (session.lastVisible) dashboardMs += deltaMs;
+      else awayMs += deltaMs;
+    }
   }
 
   const endAt = session.logoutAt ?? now;

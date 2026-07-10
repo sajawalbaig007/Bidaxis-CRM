@@ -1100,7 +1100,8 @@ router.post("/heartbeat", auth_middleware_1.verifyToken, (0, role_middleware_1.a
         return res.status(500).json({ success: false });
     }
 });
-/* ================= OFFLINE ================= */
+/* ================= OFFLINE (Users page presence only) ================= */
+/* Does not close work sessions — reports keep tracking until explicit logout. */
 router.post("/offline", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         sessions_1.userBrowserMap.delete(req.user.id);
@@ -1108,7 +1109,6 @@ router.post("/offline", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             where: { id: req.user.id },
             data: { isOnline: false },
         });
-        void (0, csrSessionTracking_1.closeCsrWorkSession)(req.user.id, "offline");
         return res.json({ success: true });
     }
     catch (error) {

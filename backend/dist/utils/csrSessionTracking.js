@@ -11,6 +11,11 @@ const db_1 = __importDefault(require("../config/db"));
 const sessions_1 = require("./sessions");
 const estTime_1 = require("./estTime");
 const MAX_TICK_MS = 5 * 60 * 1000;
+/**
+ * Reports: gaps longer than this (lock / sleep / no heartbeat) count as away.
+ * Matches Users-page presence threshold but does not close the work session.
+ */
+const SILENCE_MS = 90000;
 function openSessionWhere(userId) {
     return { userId, logoutAt: null };
 }
@@ -22,9 +27,18 @@ async function findOpenSession(userId) {
 }
 async function applyHeartbeatTick(session, tabVisible, now = new Date()) {
     const prevAt = session.lastHeartbeatAt ?? session.loginAt;
-    const deltaMs = Math.min(MAX_TICK_MS, Math.max(0, now.getTime() - new Date(prevAt).getTime()));
-    const dashboardMs = session.dashboardMs + (session.lastVisible ? deltaMs : 0);
-    const awayMs = session.awayMs + (!session.lastVisible ? deltaMs : 0);
+    const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
+    let dashboardMs = session.dashboardMs;
+    let awayMs = session.awayMs;
+    if (rawDelta > SILENCE_MS) {
+        // Lock / sleep / no network — full gap counts as away, session stays open.
+        awayMs += rawDelta;
+    }
+    else {
+        const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
+        dashboardMs += session.lastVisible ? deltaMs : 0;
+        awayMs += !session.lastVisible ? deltaMs : 0;
+    }
     return db_1.default.csrWorkSession.update({
         where: { id: session.id },
         data: {
@@ -96,11 +110,17 @@ function liveTotals(session) {
     let awayMs = session.awayMs;
     if (!session.logoutAt) {
         const prevAt = session.lastHeartbeatAt ?? session.loginAt;
-        const deltaMs = Math.min(MAX_TICK_MS, Math.max(0, now.getTime() - new Date(prevAt).getTime()));
-        if (session.lastVisible)
-            dashboardMs += deltaMs;
-        else
-            awayMs += deltaMs;
+        const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
+        if (rawDelta > SILENCE_MS) {
+            awayMs += rawDelta;
+        }
+        else {
+            const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
+            if (session.lastVisible)
+                dashboardMs += deltaMs;
+            else
+                awayMs += deltaMs;
+        }
     }
     const endAt = session.logoutAt ?? now;
     const totalMs = Math.max(0, endAt.getTime() - session.loginAt.getTime());

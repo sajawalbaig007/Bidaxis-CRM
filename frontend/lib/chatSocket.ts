@@ -12,6 +12,7 @@ export type ChatSocketEvent =
   | { type: "read"; conversationId: string; userId: string; readAt: string }
   | { type: "presence"; userId: string; isOnline: boolean }
   | { type: "csr-data-reset" }
+  | { type: "admin-summary-stale" }
   | { type: "pong" };
 
 type Handler = (event: ChatSocketEvent) => void;

@@ -1,8 +1,10 @@
 import { flushAdminClientsCache, invalidateCache, invalidatePattern } from "./cache";
+import { flushReportCache } from "../controllers/report.controller";
 
 /** Clear all server-side caches for one CSR after lead mutations or admin reset. */
 export function invalidateCsrLeadCaches(csrId: string, ...extra: string[]): void {
   flushAdminClientsCache();
+  flushReportCache();
   invalidateCache(
     `csr:dashboard:${csrId}`,
     `csr:stats:${csrId}`,

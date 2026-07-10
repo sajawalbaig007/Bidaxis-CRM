@@ -24,6 +24,7 @@ import {
   scopeLabel,
   type CsrResetScopeId,
 } from "@/lib/csrResetPages";
+import { broadcastAdminSummaryStale } from "@/lib/adminSummaryCache";
 
 type UserRole = "CSR" | "Admin" | "Manager";
 
@@ -459,6 +460,7 @@ export default function UsersPage() {
               const data = await res.json();
               if (!res.ok) { toast.error(data.message || "Delete failed.", { id: tid }); return; }
               toast.success("User deleted.", { id: tid });
+              broadcastAdminSummaryStale();
               fetchUsers();
             } catch { toast.error("Something went wrong.", { id: tid }); }
           }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Delete</button>
@@ -544,6 +546,7 @@ export default function UsersPage() {
         `Reset complete for ${resetUser.name}: ${data.deleted ?? 0} leads removed${labels ? ` (${labels}${more})` : ""}.`,
         { id: tid, duration: 6000 },
       );
+      broadcastAdminSummaryStale();
       setResetUser(null);
     } catch {
       toast.error("Reset timed out or failed. Try fewer sections and retry.", { id: tid });

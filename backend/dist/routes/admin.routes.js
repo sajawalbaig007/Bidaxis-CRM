@@ -886,6 +886,7 @@ async function runCsrLeadReset(csrId, pagesInput) {
     const purged = await (0, purgeCsrLeads_1.purgeCsrLeads)(csrId, scopes);
     (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
     (0, chatSocket_1.notifyCsrDataReset)(csrId);
+    (0, chatSocket_1.notifyAdminSummaryStale)();
     const remaining = await db_1.default.lead.count({ where: { assignedTo: csrId } });
     const warning = purged.leadsDeleted === 0 && remaining > 0
         ? "No leads matched the selected pages. CSR data was not changed."

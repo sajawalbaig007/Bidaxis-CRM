@@ -4,7 +4,7 @@ import prisma from "../config/db";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
-import { notifyCsrDataReset } from "../chat/chatSocket";
+import { notifyCsrDataReset, notifyAdminSummaryStale } from "../chat/chatSocket";
 import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { CSR_RESET_GROUPS, normalizeCsrResetScopes } from "../utils/csrResetPages";
@@ -987,6 +987,7 @@ async function runCsrLeadReset(csrId: string, pagesInput?: string[]) {
 
   invalidateCsrLeadCaches(csrId);
   notifyCsrDataReset(csrId);
+  notifyAdminSummaryStale();
 
   const remaining = await prisma.lead.count({ where: { assignedTo: csrId } });
   const warning =

@@ -8,7 +8,7 @@ import { useStaffBase } from "@/app/hooks/useStaffBase";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
 import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
-import { getAdminSummary, peekAdminSummary, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
+import { getAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
   TrendingUp, Briefcase, Trophy, RefreshCw, FolderKanban,
@@ -86,6 +86,12 @@ export default function DashboardPage() {
     } else {
       void loadOverview(false);
     }
+  }, [loadOverview]);
+
+  useEffect(() => {
+    return subscribeAdminSummaryStale(() => {
+      void loadOverview(true);
+    });
   }, [loadOverview]);
 
   const chartSeries = useMemo(() => {

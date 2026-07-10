@@ -33,10 +33,14 @@ export function useCsrPresence() {
 
     sendHeartbeat();
     const stopInterval = visibleInterval(sendHeartbeat, 30_000);
+
+    const onVisibility = () => { sendHeartbeat(); };
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("beforeunload", markOffline);
 
     return () => {
       stopInterval();
+      document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", markOffline);
     };
   }, []);

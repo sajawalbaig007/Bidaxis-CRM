@@ -4,7 +4,7 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
-import { tickCsrWorkSession, closeCsrWorkSession } from "../utils/csrSessionTracking";
+import { tickCsrWorkSession } from "../utils/csrSessionTracking";
 import { getClientIp } from "../utils/requestMeta";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
 import { invalidateCsrLeadCaches } from "../utils/csrCache";
@@ -1232,7 +1232,8 @@ router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) 
   }
 });
 
-/* ================= OFFLINE ================= */
+/* ================= OFFLINE (Users page presence only) ================= */
+/* Does not close work sessions — reports keep tracking until explicit logout. */
 
 router.post("/offline", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
@@ -1241,7 +1242,6 @@ router.post("/offline", verifyToken, allowRoles("csr"), async (req: any, res) =>
       where: { id: req.user.id },
       data:  { isOnline: false },
     });
-    void closeCsrWorkSession(req.user.id, "offline");
     return res.json({ success: true });
   } catch (error) {
     console.log(error);
