@@ -242,6 +242,7 @@ export default function UsersPage() {
   const [users,        setUsers]        = useState<User[]>([]);
   const [search,       setSearch]       = useState("");
   const [page,         setPage]         = useState(1);
+  const [roleFilter,   setRoleFilter]   = useState<"All" | UserRole>("All");
   const [showModal,    setShowModal]    = useState(false);
   const [editingUser,  setEditingUser]  = useState<User | null>(null);
   const [detailUser,   setDetailUser]   = useState<User | null>(null);
@@ -351,11 +352,20 @@ export default function UsersPage() {
   const onlineNow    = users.filter(u => u.isOnline).length;
   const activeCSR    = users.filter(u => u.role === "CSR"   && u.isOnline).length;
   const activeAdmins = users.filter(u => u.role === "Admin" && u.isOnline).length;
+  const activeManagers = users.filter(u => u.role === "Manager" && u.isOnline).length;
+  const countByRole = {
+    All: users.length,
+    CSR: users.filter(u => u.role === "CSR").length,
+    Admin: users.filter(u => u.role === "Admin").length,
+    Manager: users.filter(u => u.role === "Manager").length,
+  };
 
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    if (roleFilter !== "All" && u.role !== roleFilter) return false;
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  });
 
   const userColPredicates = useMemo(() => ({
     user:    (u: User, v: string) => textColumnMatch(u.name, v) || textColumnMatch(u.email, v),
@@ -654,8 +664,9 @@ export default function UsersPage() {
             <RechartsBox height={150}>
               <BarChart
                 data={[
-                  { name: "CSR",   online: activeCSR,    offline: users.filter(u => u.role === "CSR").length   - activeCSR   },
-                  { name: "Admin", online: activeAdmins, offline: users.filter(u => u.role === "Admin").length - activeAdmins },
+                  { name: "CSR",   online: activeCSR,      offline: countByRole.CSR - activeCSR },
+                  { name: "Admin", online: activeAdmins,   offline: countByRole.Admin - activeAdmins },
+                  { name: "Manager", online: activeManagers, offline: countByRole.Manager - activeManagers },
                 ]}
                 barGap={8} barSize={52}
               >
@@ -687,7 +698,7 @@ export default function UsersPage() {
         </div>
 
         {/* SEARCH + CREATE */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div className="relative w-full sm:w-[300px]">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
             <input type="text" placeholder="Search users..." value={search}
@@ -698,6 +709,37 @@ export default function UsersPage() {
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
+        </div>
+
+        {/* ROLE TABS — view CSR / Admin / Manager separately */}
+        <div className="flex flex-wrap items-center gap-2 mb-5">
+          {([
+            { id: "All" as const, label: "All Users" },
+            { id: "CSR" as const, label: "CSR" },
+            { id: "Admin" as const, label: "Admin" },
+            { id: "Manager" as const, label: "Manager" },
+          ]).map(tab => {
+            const active = roleFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { setRoleFilter(tab.id); setPage(1); }}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+                  active
+                    ? "bg-[#B8112D] text-white border-[#B8112D] shadow-sm"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40 hover:text-[#B8112D]"
+                }`}
+              >
+                {tab.label}
+                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
+                  active ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
+                }`}>
+                  {countByRole[tab.id]}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* TABLE */}
