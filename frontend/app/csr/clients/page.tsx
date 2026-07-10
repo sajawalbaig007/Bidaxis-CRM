@@ -21,6 +21,8 @@ import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
+import { parseEmails } from "../utils/parseEmails";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
 import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
@@ -171,6 +173,7 @@ export default function LeadsPage() {
       l.name.toLowerCase().includes(q) ||
       l.company.toLowerCase().includes(q) ||
       parsePhones(l.phone).some(p => p.includes(q)) ||
+      parseEmails(l.email).some(e => e.toLowerCase().includes(q)) ||
       l.email.toLowerCase().includes(q)
     );
   }, [baseList, search]);
@@ -558,9 +561,14 @@ export default function LeadsPage() {
                       </div>
 
                       {/* Email */}
-                      <p className={`hidden lg:block text-xs lg:text-sm truncate ${lead.email ? "text-[#0F172A]" : "text-gray-300"}`}>
-                        {lead.email || "—"}
-                      </p>
+                      <div className="hidden lg:block min-w-0">
+                        <EmailWithExtraCell
+                          email={lead.email}
+                          allEmails={parseEmails(lead.email)}
+                          variant="pill"
+                          className="px-2 py-1 text-xs lg:text-sm"
+                        />
+                      </div>
 
                       {/* Service */}
                       <p className={`hidden lg:block text-xs lg:text-sm truncate ${lead.interestedService ? "text-[#0F172A]" : "text-gray-300"}`}>

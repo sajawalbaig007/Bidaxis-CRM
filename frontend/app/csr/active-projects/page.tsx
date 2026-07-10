@@ -16,6 +16,8 @@ import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW } from "../compo
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import CommentCell from "../components/shared/CommentCell";
+import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
+import { parseEmails } from "../utils/parseEmails";
 import {
   ClientDetailCell,
   FulfillmentCell,
@@ -476,7 +478,13 @@ export default function CSRProjectsPage() {
                       <span className="bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-lg">{project.service}</span>
                     )}
                     {project.email && (
-                      <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-lg truncate max-w-[180px]">{project.email}</span>
+                      <EmailWithExtraCell
+                        email={project.email}
+                        allEmails={parseEmails(project.email)}
+                        variant="pill"
+                        className="px-2 py-0.5 text-[10px]"
+                        emptyLabel=""
+                      />
                     )}
                   </div>
 
