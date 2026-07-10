@@ -149,7 +149,7 @@ function clientIdentityKey(lead) {
         return `company:${co}`;
     return `id:${lead.id}`;
 }
-/** 2+ won deals = old client; mark all rows in that group isOldClient=true. */
+/** 2+ won deals = old client; explicit old upload also counts. */
 async function reconcileClientOldFlagsForCsr(csrId) {
     const wonLeads = await db_1.default.lead.findMany({
         where: {
@@ -157,7 +157,13 @@ async function reconcileClientOldFlagsForCsr(csrId) {
             ...(0, projectLeads_1.wonClientStatusWhere)(),
             ...(0, binLeads_1.notInBinFilter)(),
         },
-        select: { id: true, phone: true, company: true, isOldClient: true },
+        select: {
+            id: true,
+            phone: true,
+            company: true,
+            isOldClient: true,
+            uploadFile: { select: { uploadCategory: true } },
+        },
     });
     const groups = new Map();
     for (const lead of wonLeads) {
@@ -167,7 +173,9 @@ async function reconcileClientOldFlagsForCsr(csrId) {
         groups.get(key).push(lead);
     }
     for (const group of groups.values()) {
-        const shouldBeOld = group.length >= 2;
+        const shouldBeOld = group.some(l => l.isOldClient) ||
+            group.some(l => l.uploadFile?.uploadCategory === "old-client") ||
+            group.length >= 2;
         const ids = group.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
         if (ids.length > 0) {
             await db_1.default.lead.updateMany({

@@ -899,6 +899,8 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
+    await reconcileClientOldFlagsForCsr(csrId);
+
     const rawLeads = await prisma.lead.findMany({
       where: {
         ...activeCsrLeadWhere(csrId),
