@@ -111,7 +111,8 @@ export async function getCsrLeadStats(csrId: string) {
     inHouseCount,
     totalAssigned,
     mainPipelineCount,
-    totalLeads: mainPipelineCount,
+    /** All assigned leads (non-bin) — use for dashboard totals; no row cap. */
+    totalLeads: totalAssigned,
   };
 }
 

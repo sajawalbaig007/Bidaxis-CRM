@@ -15,6 +15,7 @@ const csrCache_1 = require("../utils/csrCache");
 const phone_1 = require("../utils/phone");
 const leadPhoneLookup_1 = require("../utils/leadPhoneLookup");
 const leadClientPromotion_1 = require("../utils/leadClientPromotion");
+const leadNotes_1 = require("../utils/leadNotes");
 const projectLeads_1 = require("../utils/projectLeads");
 const adminClientQueries_1 = require("../utils/adminClientQueries");
 const projectPayments_1 = require("../utils/projectPayments");
@@ -160,15 +161,12 @@ router.get("/stats", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
     try {
         const csrId = req.user.id;
         const cacheKey = `csr:stats:${csrId}`;
-        const removed = await maybeHealPipelineLeaks(csrId);
-        if (removed > 0)
-            (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
-        const cached = removed === 0 ? (0, cache_1.getCache)(cacheKey) : null;
+        const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
         const stats = await (0, csrDashboardQueries_1.getCsrLeadStats)(csrId);
         const payload = { success: true, stats };
-        (0, cache_1.setCache)(cacheKey, payload, 30000);
+        (0, cache_1.setCache)(cacheKey, payload, 45000);
         return res.json(payload);
     }
     catch (error) {
@@ -395,6 +393,9 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
         await db_1.default.lead.update({ where: { id: leadId }, data: { comments: comments ?? "" } });
+        if (comments?.trim()) {
+            await (0, leadNotes_1.ensureLeadNoteFromText)(leadId, comments);
+        }
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true });
@@ -683,6 +684,9 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             where: { id: leadId },
             data: updateData,
         });
+        if (comments !== undefined && comments?.trim()) {
+            await (0, leadNotes_1.ensureLeadNoteFromText)(leadId, comments);
+        }
         if (status !== undefined &&
             (status === "Close Client" || status === "completed")) {
             if (lead.phone) {
@@ -747,6 +751,9 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
                     await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)(companyTrim, csrId, lead.id);
                 }
                 await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
+                if (comments?.trim()) {
+                    await (0, leadNotes_1.ensureLeadNoteFromText)(lead.id, comments);
+                }
                 (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
                 (0, cache_1.flushAdminClientsCache)();
                 return res.status(200).json({ success: true, lead, promoted: true });
@@ -781,6 +788,9 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
             await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)(companyTrim, csrId, lead.id);
         }
         await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
+        if (comments?.trim()) {
+            await (0, leadNotes_1.ensureLeadNoteFromText)(lead.id, comments);
+        }
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });

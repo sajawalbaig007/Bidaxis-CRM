@@ -22,7 +22,7 @@ import {
 } from "./businessCalendar";
 
 const CHART_DAYS = 45;
-const CHART_BATCH = 5000;
+const LOG_BATCH = 2000;
 
 export type ChartSeriesPoint = { label: string; calls: number };
 export type ChartSeries = {
@@ -134,24 +134,26 @@ function bucketsToSeries(buckets: ReturnType<typeof initChartBuckets>): ChartSer
   };
 }
 
-/** CSR call activity — batched CallLog reads; business day resets 4:00 AM */
+/** Call activity charts — full CallLog scan in batches (no 5k cap). */
 export async function fetchChartSeries(since: Date): Promise<ChartSeries> {
   const now = new Date();
   const buckets = initChartBuckets(now);
-  let cursor: string | undefined;
+  let skip = 0;
 
   for (;;) {
     const batch = await prisma.callLog.findMany({
       where: { createdAt: { gte: since } },
-      select: { id: true, createdAt: true },
-      orderBy: { id: "asc" },
-      take: CHART_BATCH,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      select: { createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      skip,
+      take: LOG_BATCH,
     });
 
+    if (batch.length === 0) break;
+
     for (const row of batch) bumpChartBuckets(buckets, row.createdAt, now);
-    if (batch.length < CHART_BATCH) break;
-    cursor = batch[batch.length - 1]!.id;
+    skip += batch.length;
+    if (batch.length < LOG_BATCH) break;
   }
 
   return bucketsToSeries(buckets);

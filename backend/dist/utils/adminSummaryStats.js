@@ -11,7 +11,7 @@ const binLeads_1 = require("./binLeads");
 const adminClientQueries_1 = require("./adminClientQueries");
 const businessCalendar_1 = require("./businessCalendar");
 const CHART_DAYS = 45;
-const CHART_BATCH = 5000;
+const LOG_BATCH = 2000;
 function initChartBuckets(now = new Date()) {
     const currentBizYmd = (0, businessCalendar_1.currentBusinessYmd)(now);
     const today = (0, businessCalendar_1.initBusinessHourBuckets)();
@@ -87,24 +87,26 @@ function bucketsToSeries(buckets) {
         year: toPoints(buckets.year, yearLabels),
     };
 }
-/** CSR call activity — batched CallLog reads; business day resets 4:00 AM */
+/** Call activity charts — full CallLog scan in batches (no 5k cap). */
 async function fetchChartSeries(since) {
     const now = new Date();
     const buckets = initChartBuckets(now);
-    let cursor;
+    let skip = 0;
     for (;;) {
         const batch = await db_1.default.callLog.findMany({
             where: { createdAt: { gte: since } },
-            select: { id: true, createdAt: true },
-            orderBy: { id: "asc" },
-            take: CHART_BATCH,
-            ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+            select: { createdAt: true },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            skip,
+            take: LOG_BATCH,
         });
+        if (batch.length === 0)
+            break;
         for (const row of batch)
             bumpChartBuckets(buckets, row.createdAt, now);
-        if (batch.length < CHART_BATCH)
+        skip += batch.length;
+        if (batch.length < LOG_BATCH)
             break;
-        cursor = batch[batch.length - 1].id;
     }
     return bucketsToSeries(buckets);
 }
