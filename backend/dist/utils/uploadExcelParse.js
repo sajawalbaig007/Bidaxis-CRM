@@ -9,7 +9,6 @@ exports.classifyRows = classifyRows;
 const xlsx_1 = __importDefault(require("xlsx"));
 const db_1 = __importDefault(require("../config/db"));
 const leadPhoneLookup_1 = require("./leadPhoneLookup");
-const leadClientPromotion_1 = require("./leadClientPromotion");
 const CHUNK_LOOKUP = 500;
 function resolveColumnKey(keys, possibleKeys, excludeKeys = []) {
     return keys.find(k => {
@@ -109,7 +108,14 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
     }
     return parsed;
 }
-async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
+function pickUpsertId(matches, row) {
+    const active = matches.filter(m => !m.inBin);
+    if (active.length === 0)
+        return undefined;
+    const sameCsr = active.filter(m => m.assignedTo === row.csrId);
+    return (sameCsr[0] ?? active[0])?.id;
+}
+async function classifyRows(parsed, isActiveUpload, _uploadCategory, _promoteWonClients = false) {
     const preview = [];
     const toPreview = (r, status, reason) => ({
         row: r.rowIndex,
@@ -146,7 +152,7 @@ async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
                 preview.push(toPreview(r, "new", "New contact — will be added"));
             }
         }
-        return { fresh, toUpdate, toPromote: [], toRefresh: [], emailUpdates: [], preview, existingCodeMap };
+        return { fresh, toUpdate, toUpsert: [], emailUpdates: [], preview, existingCodeMap };
     }
     const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
     const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
@@ -182,8 +188,7 @@ async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
         return rows;
     }
     const emailUpdates = [];
-    const toPromote = [];
-    const toRefresh = [];
+    const toUpsert = [];
     const fresh = [];
     for (const r of parsed) {
         const hasValidPhone = r.phone.length >= 7;
@@ -192,44 +197,27 @@ async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
             preview.push(toPreview(r, "empty", "Empty row — skipped"));
             continue;
         }
+        let existingId;
         if (r.phone && hasValidPhone) {
             const matches = await phoneMatches(r.phone);
-            const activeMatches = matches.filter(m => !m.inBin);
-            const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0];
-            let pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
-            if (promoteWonClients && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status) && !pendingMatch) {
-                pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
-            }
-            if (promoteWonClients && pendingMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
-                toPromote.push({ row: r, existingId: pendingMatch.id });
-                preview.push(toPreview(r, "updated", "Moved from call-data to clients — pending removed"));
-                continue;
-            }
-            const wonMatch = activeMatches.find(m => (0, leadClientPromotion_1.isWonClientStatus)(m.status));
-            if (wonMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
-                toRefresh.push({ row: r, existingId: wonMatch.id });
-                preview.push(toPreview(r, "updated", r.isOldClient
-                    ? "Existing old client — will refresh data"
-                    : "Existing won client — will refresh data"));
-                continue;
-            }
-            if (exactExisting && !exactExisting.inBin) {
-                if (!exactExisting.email && hasValidEmail) {
-                    emailUpdates.push({ id: exactExisting.id, email: r.email });
-                }
-                preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
-                continue;
+            existingId = pickUpsertId(matches, r);
+            const exactExisting = dupPhoneMap.get(r.phone);
+            if (exactExisting && !exactExisting.inBin && !exactExisting.email && hasValidEmail) {
+                emailUpdates.push({ id: exactExisting.id, email: r.email });
             }
         }
-        if (r.email && dupEmails.has(r.email.toLowerCase())) {
+        if (!existingId && r.email && dupEmails.has(r.email.toLowerCase())) {
             const emailHit = dupEmails.get(r.email.toLowerCase());
-            if (!emailHit.inBin) {
-                preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
-                continue;
-            }
+            if (!emailHit.inBin)
+                existingId = emailHit.id;
+        }
+        if (existingId) {
+            toUpsert.push({ row: r, existingId });
+            preview.push(toPreview(r, "updated", "Routed to selected upload destination"));
+            continue;
         }
         fresh.push(r);
         preview.push(toPreview(r, "new", "New contact — will be added"));
     }
-    return { fresh, toUpdate: [], toPromote, toRefresh, emailUpdates, preview };
+    return { fresh, toUpdate: [], toUpsert, emailUpdates, preview };
 }

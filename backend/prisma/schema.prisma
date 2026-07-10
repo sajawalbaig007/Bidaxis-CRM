@@ -40,6 +40,7 @@ model User {
 
   auditLogs      SecurityAuditLog[]
   accessHistory  AccessHistory[]
+  workSessions   CsrWorkSession[]
 
   leads        Lead[]               @relation("AssignedLeads")
   callLogs     CallLog[]            @relation("CSRCallLogs")
@@ -318,4 +319,28 @@ model AccessHistory {
   @@index([userId])
   @@index([createdAt])
   @@index([userId, createdAt])
+}
+
+model CsrWorkSession {
+  id              String    @id @default(cuid()) @map("_id")
+  userId          String
+  loginAt         DateTime
+  logoutAt        DateTime?
+  dashboardMs     Int       @default(0)
+  awayMs          Int       @default(0)
+  lastHeartbeatAt DateTime?
+  lastVisible     Boolean   @default(true)
+  deviceId        String?
+  browser         String?
+  ip              String?
+  closedReason    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([loginAt])
+  @@index([userId, loginAt])
+  @@index([logoutAt])
 }

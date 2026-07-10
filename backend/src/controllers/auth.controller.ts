@@ -13,6 +13,7 @@ import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
+import { openCsrWorkSession, closeCsrWorkSession } from "../utils/csrSessionTracking";
 import {
   isLoginBlocked,
   requiresCaptcha,
@@ -107,6 +108,10 @@ async function finishLogin(
     userAgent: ua,
     event: "login",
   });
+
+  if (user.role === "csr") {
+    void openCsrWorkSession({ userId: user.id, ip, userAgent: ua });
+  }
 
   sendLoginAlertEmail({ to: user.email, name: user.name, ip, userAgent: ua });
 
@@ -568,6 +573,7 @@ export const logout = async (req: Request, res: Response) => {
           await clearActiveSession(decoded.id);
           await writeAuditLog({ action: "logout", userId: decoded.id, ip, userAgent: ua });
           await recordAccessHistory({ userId: decoded.id, ip, userAgent: ua, event: "logout" });
+          void closeCsrWorkSession(decoded.id, "logout");
         }
       } catch { /* ignore */ }
     }

@@ -1,11 +1,7 @@
 import XLSX from "xlsx";
 import prisma from "../config/db";
 import { findLeadsByPhone } from "./leadPhoneLookup";
-import {
-  isPendingPipelineStatus,
-  isWonClientStatus,
-  isWonClientUploadStatus,
-} from "./leadClientPromotion";
+import type { UploadCategory } from "./uploadCategory";
 
 const CHUNK_LOOKUP = 500;
 
@@ -157,7 +153,7 @@ export function parseLeadRows(
 }
 
 export type PromoteRow = { row: ParsedLeadRow; existingId: string };
-export type RefreshRow = { row: ParsedLeadRow; existingId: string };
+export type UpsertRow = { row: ParsedLeadRow; existingId: string };
 
 type ExistingLeadMatch = {
   id: string;
@@ -168,15 +164,22 @@ type ExistingLeadMatch = {
   assignedTo: string;
 };
 
+function pickUpsertId(matches: ExistingLeadMatch[], row: ParsedLeadRow): string | undefined {
+  const active = matches.filter(m => !m.inBin);
+  if (active.length === 0) return undefined;
+  const sameCsr = active.filter(m => m.assignedTo === row.csrId);
+  return (sameCsr[0] ?? active[0])?.id;
+}
+
 export async function classifyRows(
   parsed: ParsedLeadRow[],
   isActiveUpload: boolean,
-  promoteWonClients = false,
+  _uploadCategory: UploadCategory,
+  _promoteWonClients = false,
 ): Promise<{
   fresh: ParsedLeadRow[];
   toUpdate: ParsedLeadRow[];
-  toPromote: PromoteRow[];
-  toRefresh: RefreshRow[];
+  toUpsert: UpsertRow[];
   emailUpdates: { id: string; email: string }[];
   preview: RowPreview[];
   existingCodeMap?: Map<string, string>;
@@ -221,7 +224,7 @@ export async function classifyRows(
       }
     }
 
-    return { fresh, toUpdate, toPromote: [], toRefresh: [], emailUpdates: [], preview, existingCodeMap };
+    return { fresh, toUpdate, toUpsert: [], emailUpdates: [], preview, existingCodeMap };
   }
 
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
@@ -267,8 +270,7 @@ export async function classifyRows(
   }
 
   const emailUpdates: { id: string; email: string }[] = [];
-  const toPromote: PromoteRow[] = [];
-  const toRefresh: RefreshRow[] = [];
+  const toUpsert: UpsertRow[] = [];
   const fresh: ParsedLeadRow[] = [];
 
   for (const r of parsed) {
@@ -280,52 +282,31 @@ export async function classifyRows(
       continue;
     }
 
+    let existingId: string | undefined;
+
     if (r.phone && hasValidPhone) {
       const matches = await phoneMatches(r.phone);
-      const activeMatches = matches.filter(m => !m.inBin);
-      const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0];
-
-      let pendingMatch = activeMatches.find(m => isPendingPipelineStatus(m.status));
-
-      if (promoteWonClients && isWonClientUploadStatus(r.status) && !pendingMatch) {
-        pendingMatch = activeMatches.find(m => isPendingPipelineStatus(m.status));
-      }
-
-      if (promoteWonClients && pendingMatch && isWonClientUploadStatus(r.status)) {
-        toPromote.push({ row: r, existingId: pendingMatch.id });
-        preview.push(toPreview(r, "updated", "Moved from call-data to clients — pending removed"));
-        continue;
-      }
-
-      const wonMatch = activeMatches.find(m => isWonClientStatus(m.status));
-      if (wonMatch && isWonClientUploadStatus(r.status)) {
-        toRefresh.push({ row: r, existingId: wonMatch.id });
-        preview.push(toPreview(r, "updated", r.isOldClient
-          ? "Existing old client — will refresh data"
-          : "Existing won client — will refresh data"));
-        continue;
-      }
-
-      if (exactExisting && !exactExisting.inBin) {
-        if (!exactExisting.email && hasValidEmail) {
-          emailUpdates.push({ id: exactExisting.id, email: r.email });
-        }
-        preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
-        continue;
+      existingId = pickUpsertId(matches, r);
+      const exactExisting = dupPhoneMap.get(r.phone);
+      if (exactExisting && !exactExisting.inBin && !exactExisting.email && hasValidEmail) {
+        emailUpdates.push({ id: exactExisting.id, email: r.email });
       }
     }
 
-    if (r.email && dupEmails.has(r.email.toLowerCase())) {
+    if (!existingId && r.email && dupEmails.has(r.email.toLowerCase())) {
       const emailHit = dupEmails.get(r.email.toLowerCase())!;
-      if (!emailHit.inBin) {
-        preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
-        continue;
-      }
+      if (!emailHit.inBin) existingId = emailHit.id;
+    }
+
+    if (existingId) {
+      toUpsert.push({ row: r, existingId });
+      preview.push(toPreview(r, "updated", "Routed to selected upload destination"));
+      continue;
     }
 
     fresh.push(r);
     preview.push(toPreview(r, "new", "New contact — will be added"));
   }
 
-  return { fresh, toUpdate: [], toPromote, toRefresh, emailUpdates, preview };
+  return { fresh, toUpdate: [], toUpsert, emailUpdates, preview };
 }

@@ -9,6 +9,7 @@ import {
 } from "../utils/uploadExcelParse";
 import { resolveUploadCategory, isUploadCategory, UPLOAD_CATEGORIES, inferUploadCategoryFromLead, type UploadCategory } from "../utils/uploadCategory";
 import { isWonClientUploadStatus, clearPendingDuplicatesForPhone, reconcileClientOldFlagsForCsr } from "../utils/leadClientPromotion";
+import { buildLeadFieldsFromUploadRow } from "../utils/uploadLeadPayload";
 import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
@@ -196,8 +197,8 @@ export const uploadLeads = async (req: Request, res: Response) => {
       isSpecialUpload && (status ?? "").toLowerCase() !== "pending";
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
 
-    const { fresh, toUpdate, toPromote, toRefresh, emailUpdates, preview, existingCodeMap } =
-      await classifyRows(parsed, isActiveUpload, promoteWonClients);
+    const { fresh, toUpdate, toUpsert, emailUpdates, preview, existingCodeMap } =
+      await classifyRows(parsed, isActiveUpload, uploadCategory, promoteWonClients);
 
     const distributionMap: Record<string, number> = {};
 
@@ -234,86 +235,22 @@ export const uploadLeads = async (req: Request, res: Response) => {
       );
     }
 
-    if (!isActiveUpload && toPromote.length > 0) {
-      await runBatched(toPromote, BATCH_UPDATE, ({ row, existingId }) =>
+    if (!isActiveUpload && toUpsert.length > 0) {
+      await runBatched(toUpsert, BATCH_UPDATE, ({ row, existingId }) =>
         prisma.lead.update({
           where: { id: existingId },
-          data: {
-            name:              row.name,
-            company:           row.company           || null,
-            phone:             row.phone             || null,
-            email:             row.email             || null,
-            state:             row.state             || null,
-            interestedService: row.interestedService || null,
-            clientCode:        row.clientCode        || null,
-            projectTitle:      row.projectTitle,
-            projectBudget:     row.projectBudget,
-            comments:          row.comments            || null,
-            status:            row.status,
-            important:         false,
-            interested:        false,
-            isOldClient:       row.isOldClient,
-            assignedTo:        row.csrId,
-            uploadedFileId:    uploadedFile.id,
-            hiddenOnMain:      hideOnMain(row.status),
-          },
+          data: buildLeadFieldsFromUploadRow(row, uploadedFile.id, hideOnMain),
         })
       );
-      for (const { row } of toPromote) {
-        distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
-      }
-    }
-
-    if (!isActiveUpload && toRefresh.length > 0) {
-      await runBatched(toRefresh, BATCH_UPDATE, ({ row, existingId }) =>
-        prisma.lead.update({
-          where: { id: existingId },
-          data: {
-            name:              row.name,
-            company:           row.company           || null,
-            phone:             row.phone             || null,
-            email:             row.email             || null,
-            state:             row.state             || null,
-            interestedService: row.interestedService || null,
-            clientCode:        row.clientCode        || null,
-            projectTitle:      row.projectTitle,
-            projectBudget:     row.projectBudget,
-            comments:          row.comments            || null,
-            status:            row.status,
-            important:         (row.status ?? "").toLowerCase() === "important",
-            interested:        (row.status ?? "").toLowerCase() === "interested",
-            isOldClient:       row.isOldClient,
-            assignedTo:        row.csrId,
-            uploadedFileId:    uploadedFile.id,
-            hiddenOnMain:      hideOnMain(row.status),
-          },
-        })
-      );
-      for (const { row } of toRefresh) {
+      for (const { row } of toUpsert) {
         distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
       }
     }
 
     if (fresh.length > 0) {
-      const insertRows = fresh.map(r => ({
-        name:              r.name,
-        company:           r.company,
-        phone:             r.phone,
-        email:             r.email,
-        state:             r.state             || null,
-        interestedService: r.interestedService || null,
-        clientCode:        r.clientCode        || null,
-        projectTitle:      r.projectTitle,
-        projectBudget:     r.projectBudget,
-        comments:          r.comments            || null,
-        status:            r.status,
-        important:         (r.status ?? "").toLowerCase() === "important",
-        interested:        (r.status ?? "").toLowerCase() === "interested",
-        isOldClient:       r.isOldClient,
-        assignedTo:        r.csrId,
-        uploadedFileId:    uploadedFile.id,
-        hiddenOnMain:      hideOnMain(r.status),
-      }));
+      const insertRows = fresh.map(r =>
+        buildLeadFieldsFromUploadRow(r, uploadedFile.id, hideOnMain),
+      );
 
       for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {
         await prisma.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
@@ -323,7 +260,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;
       }
 
-      if (promoteWonClients) {
+      if (promoteWonClients || uploadCategory === "new-client" || uploadCategory === "old-client") {
         const created = await prisma.lead.findMany({
           where: { uploadedFileId: uploadedFile.id },
           select: { id: true, phone: true, assignedTo: true, status: true },
@@ -351,7 +288,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
     );
 
     const distribution = Object.entries(distributionMap).map(([name, leads]) => ({ name, leads }));
-    const addedCount   = fresh.length + (isActiveUpload ? toUpdate.length : 0) + toPromote.length + toRefresh.length;
+    const addedCount   = fresh.length + (isActiveUpload ? toUpdate.length : 0) + toUpsert.length;
 
     await prisma.uploadFile.update({
       where: { id: uploadedFile.id },
@@ -465,7 +402,7 @@ export const previewUpload = async (req: Request, res: Response) => {
     const parsed = parseLeadRows(rows, csrs, initialStatuses, leadType);
     const isSpecialUpload = initialStatuses.some(s => s.toLowerCase() !== "pending");
     const promoteWonClients = isSpecialUpload && initialStatuses.every(isWonClientUploadStatus);
-    const { preview } = await classifyRows(parsed, leadType === "active", promoteWonClients);
+    const { preview } = await classifyRows(parsed, leadType === "active", resolveUploadCategory(leadType, initialStatuses), promoteWonClients);
 
     const summary = {
       new:       preview.filter(p => p.status === "new").length,

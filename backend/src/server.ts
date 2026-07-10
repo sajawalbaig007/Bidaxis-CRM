@@ -10,6 +10,7 @@ import app          from "./app";
 import prisma       from "./config/db";
 import cloudinary   from "./config/cloudinary";
 import { initChatSocket } from "./chat/chatSocket";
+import { closeCsrWorkSession } from "./utils/csrSessionTracking";
 
 const PORT = process.env.PORT || 5000;
 
@@ -27,10 +28,21 @@ setInterval(async () => {
   if (_offlinePaused) return;
   try {
     const threshold = new Date(Date.now() - 90_000);
+    const staleCsrs = await prisma.user.findMany({
+      where: {
+        lastActive: { lt: threshold },
+        isOnline:   true,
+        role:       "csr",
+      },
+      select: { id: true },
+    });
     await prisma.user.updateMany({
       where: { lastActive: { lt: threshold }, isOnline: true },
       data:  { isOnline: false },
     });
+    for (const u of staleCsrs) {
+      void closeCsrWorkSession(u.id, "auto_offline");
+    }
     if (_offlineFailStreak > 0) {
       console.log("[Auto-offline] DB reconnected ✓");
       _offlineFailStreak = 0;
