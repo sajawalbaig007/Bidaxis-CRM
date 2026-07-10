@@ -30,12 +30,12 @@ type ActivityItem = {
 
 const getIcon = (type: string) => {
   switch (type) {
-    case "create":  return <UserPlus    size={13} className="text-green-600"/>;
-    case "resolve": return <CheckCircle size={13} className="text-blue-600"/>;
-    case "update":  return <Edit        size={13} className="text-amber-600"/>;
-    case "alert":   return <AlertCircle size={13} className="text-red-600"/>;
-    case "call":    return <Phone       size={13} className="text-violet-600"/>;
-    default:        return <Activity    size={13} className="text-gray-600"/>;
+    case "create":  return <UserPlus    size={14} className="text-green-600"/>;
+    case "resolve": return <CheckCircle size={14} className="text-blue-600"/>;
+    case "update":  return <Edit        size={14} className="text-amber-600"/>;
+    case "alert":   return <AlertCircle size={14} className="text-red-600"/>;
+    case "call":    return <Phone       size={14} className="text-violet-600"/>;
+    default:        return <Activity    size={14} className="text-gray-600"/>;
   }
 };
 
@@ -61,7 +61,7 @@ const statusToType = (s: string): ActivityItem["type"] => {
 export default function RecentActivity({ leads = [], recent, recentStatus }: Props) {
   const activities = useMemo<ActivityItem[]>(() => {
     if (recentStatus?.length) {
-      return recentStatus.slice(0, 10).map((log, index) => {
+      return recentStatus.slice(0, 8).map((log, index) => {
         const status = log.status ?? "updated";
         return {
           id:     log.id ?? `status-${index}`,
@@ -76,13 +76,13 @@ export default function RecentActivity({ leads = [], recent, recentStatus }: Pro
     const source = recent?.length ? recent : leads;
     return [...source]
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
-      .slice(0, 8)
+      .slice(0, 6)
       .map((l, index) => {
         const status = l.status ?? "updated";
         return {
           id:     l.id ?? `activity-${index}`,
           user:   l.csr?.name ?? "A CSR",
-          action: `updated "${l.name?.trim() || l.company?.trim() || "Lead"}" to ${status}`,
+          action: `updated lead "${l.name?.trim() || l.company?.trim() || "Lead"}" to ${status}`,
           time:   formatStatusTimestamp(l.updatedAt),
           type:   statusToType(status),
         };
@@ -90,34 +90,32 @@ export default function RecentActivity({ leads = [], recent, recentStatus }: Pro
   }, [leads, recent, recentStatus]);
 
   return (
-    <div className="h-full flex flex-col">
-      <h3 className="font-bold text-gray-800 text-sm mb-3">Recent Activity</h3>
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold text-gray-800">Recent Activity</h3>
+      </div>
 
-      {activities.length === 0 ? (
-        <p className="text-xs text-gray-400 py-6 text-center">No recent status updates</p>
-      ) : (
-        <div className="grid grid-cols-1 gap-1.5 flex-1 content-start">
-          {activities.map(activity => (
-            <div
-              key={activity.id}
-              className="flex items-start gap-2.5 p-2 hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <div className={`${getBg(activity.type)} w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5`}>
-                {getIcon(activity.type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs leading-snug">
-                  <span className="font-semibold text-gray-800">{activity.user}</span>
-                  <span className="text-gray-600"> {activity.action}</span>
-                </p>
-                {activity.time && (
-                  <p className="text-[10px] text-gray-400 mt-0.5 font-mono tabular-nums">{activity.time}</p>
-                )}
-              </div>
+      <div className="space-y-3">
+        {activities.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">No recent status updates</p>
+        ) : activities.map(activity => (
+          <div key={activity.id}
+            className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-all cursor-pointer">
+            <div className={`${getBg(activity.type)} w-10 h-10 rounded-full flex items-center justify-center shrink-0`}>
+              {getIcon(activity.type)}
             </div>
-          ))}
-        </div>
-      )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm">
+                <span className="font-semibold text-gray-800">{activity.user}</span>
+                <span className="text-gray-600"> {activity.action}</span>
+              </p>
+              {activity.time && (
+                <p className="text-[10px] text-gray-400 mt-0.5 font-mono tabular-nums">{activity.time}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
