@@ -5,6 +5,7 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { getCache, setCache, invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
+import { CSR_RESET_GROUPS, normalizeCsrResetScopes } from "../utils/csrResetPages";
 import { countLeadStatuses } from "../utils/uploadSourceStats";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "../utils/projectLeads";
 import {
@@ -954,6 +955,77 @@ router.get(
 );
 
 /* ================= RESET A SINGLE CSR'S LEADS ================= */
+router.get(
+  "/csr-reset-pages",
+  verifyToken,
+  allowRoles("admin"),
+  (_req, res) => {
+    return res.json({ success: true, groups: CSR_RESET_GROUPS });
+  },
+);
+
+async function runCsrLeadReset(csrId: string, pagesInput?: string[]) {
+  const csr = await prisma.user.findUnique({
+    where: { id: csrId },
+    select: { id: true, name: true, role: true },
+  });
+
+  if (!csr) {
+    return { status: 404 as const, body: { success: false, message: "CSR not found" } };
+  }
+
+  if (csr.role !== "csr") {
+    return { status: 400 as const, body: { success: false, message: "User is not a CSR" } };
+  }
+
+  const scopes = normalizeCsrResetScopes(pagesInput);
+  const purged = await purgeCsrLeads(csrId, scopes);
+
+  flushAdminClientsCache();
+  invalidateCache(
+    "admin:csrs",
+    `csr:dashboard:${csrId}`,
+    `csr:leads:${csrId}`,
+    `csr:projects:${csrId}`,
+    `csr:not-interested:${csrId}`,
+    `csr:clients:${csrId}`,
+    `csr:potential:${csrId}`,
+    `csr:bin:${csrId}`,
+    "admin:bin",
+  );
+
+  return {
+    status: 200 as const,
+    body: {
+      success: true,
+      message: `Reset complete for ${csr.name}`,
+      deleted: purged.leadsDeleted,
+      purged,
+      csrName: csr.name,
+      pages: purged.pages,
+      scopes: purged.pages,
+    },
+  };
+}
+
+router.post(
+  "/csr-leads/:csrId/reset",
+  verifyToken,
+  allowRoles("admin"),
+  async (req, res) => {
+    try {
+      const csrId = String(req.params.csrId);
+      const pages = Array.isArray(req.body?.pages) ? req.body.pages.map(String) : undefined;
+      const result = await runCsrLeadReset(csrId, pages);
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reset CSR data";
+      console.log("[csr-reset]", error);
+      return res.status(500).json({ success: false, message });
+    }
+  },
+);
+
 router.delete(
   "/csr-leads/:csrId",
   verifyToken,
@@ -961,37 +1033,13 @@ router.delete(
   async (req, res) => {
     try {
       const csrId = String(req.params.csrId);
-
-      const csr = await prisma.user.findUnique({
-        where: { id: csrId },
-        select: { id: true, name: true, role: true },
-      });
-
-      if (!csr) {
-        return res.status(404).json({ success: false, message: "CSR not found" });
-      }
-
-      if (csr.role !== "csr") {
-        return res.status(400).json({ success: false, message: "User is not a CSR" });
-      }
-
-      /* Permanently purge all lead data for this CSR from DB */
-      const purged = await purgeCsrLeads(csrId);
-
-      flushAdminClientsCache();
-      invalidateCache("admin:csrs", `csr:dashboard:${csrId}`, `csr:leads:${csrId}`, `csr:projects:${csrId}`, `csr:not-interested:${csrId}`);
-      return res.json({
-        success: true,
-        message: `Removed all data for ${csr.name} from database`,
-        deleted: purged.leadsDeleted,
-        purged,
-        csrName: csr.name,
-      });
+      const result = await runCsrLeadReset(csrId);
+      return res.status(result.status).json(result.body);
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to reset CSR data" });
     }
-  }
+  },
 );
 
 /* ================= RUN SHUFFLE MANUALLY ================= */
