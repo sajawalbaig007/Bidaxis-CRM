@@ -13,7 +13,7 @@ import {
 import API from "@/lib/api";
 import { dismissNotification, getDismissedNotificationIds } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
-import { getAuthMe } from "@/lib/authMeCache";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
@@ -32,7 +32,7 @@ const navItems = [
   { title: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
 ];
 
-type UserInfo = { name: string; email: string; role: string };
+type UserInfo = { name: string; email: string; role: string; profilePic?: string | null };
 
 type ScheduledCall = {
   id: string;
@@ -58,7 +58,7 @@ function filterDismissedCalls(all: ScheduledCall[]) {
 
 export default function ManagerSidebar() {
   const pathname = usePathname();
-  const [user, setUser] = useState<UserInfo | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(() => peekAuthMe());
   const [profileOpen, setProfileOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -91,12 +91,21 @@ export default function ManagerSidebar() {
   };
 
   useEffect(() => {
-    getAuthMe().then(u => { if (u) setUser(u); }).catch(() => {});
+    const apply = (u: UserInfo | null) => { if (u) setUser(u); };
+    apply(peekAuthMe());
+    getAuthMe(false).then(apply).catch(() => {});
+
+    const onAuthUpdated = () => {
+      apply(peekAuthMe());
+      getAuthMe(true).then(apply).catch(() => {});
+    };
+    window.addEventListener("crm-auth-me-updated", onAuthUpdated);
     if (Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL) {
       setScheduledCalls(filterDismissedCalls(_cachedScheduledCalls));
-      return;
+      return () => window.removeEventListener("crm-auth-me-updated", onAuthUpdated);
     }
     fetchNotifications();
+    return () => window.removeEventListener("crm-auth-me-updated", onAuthUpdated);
   }, []);
 
   useEffect(() => {
@@ -239,7 +248,12 @@ export default function ManagerSidebar() {
 
           <div ref={profileRef} className="relative shrink-0">
             <button type="button" onClick={() => { setProfileOpen(v => !v); setBellOpen(false); }} className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10">
-              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs">{initials}</div>
+              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs overflow-hidden">
+                {user?.profilePic ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" />
+                ) : initials}
+              </div>
               <ChevronDown size={13} className="hidden sm:block text-crm-text-faint" />
             </button>
             {profileOpen && (

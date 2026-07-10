@@ -158,7 +158,7 @@ export default function ProjectWorkbenchModal({
   const toggleSection = (key: string) => setOpenSection((s) => (s === key ? "" : key));
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[140] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-crm-surface w-full sm:max-w-2xl rounded-t-[24px] sm:rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-6 pt-5 pb-5 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />

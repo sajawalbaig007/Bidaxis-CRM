@@ -1228,7 +1228,9 @@ export default function LeadsPage() {
           <ClientHistoryModal
             phone={historyLead.phone}
             clientName={historyLead.name}
+            editable
             onClose={() => setHistoryLead(null)}
+            onProjectSaved={() => { void refetch(); }}
           />
         )}
       </main>

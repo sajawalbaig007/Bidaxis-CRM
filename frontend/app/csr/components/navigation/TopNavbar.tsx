@@ -24,7 +24,7 @@ import {
 import API from "@/lib/api";
 import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
-import { getAuthMe } from "@/lib/authMeCache";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
@@ -101,7 +101,7 @@ export default function TopNavbar() {
   const router = useRouter();
 
   const [user, setUser] = useState<UserInfo | null>(
-    () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedUser : null)
+    () => (Date.now() - _lastFetch < NAV_CACHE_TTL && _cachedUser ? _cachedUser : peekAuthMe())
   );
   const [notifications, setNotifications] = useState<NotificationsPayload>(
     () => (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedNotifications : {
@@ -139,25 +139,60 @@ export default function TopNavbar() {
   }, []);
 
   useEffect(() => {
-    if (Date.now() - _lastFetch < NAV_CACHE_TTL) return;
+    const load = () => {
+      const cached = peekAuthMe() ?? (Date.now() - _lastFetch < NAV_CACHE_TTL ? _cachedUser : null);
+      if (cached) {
+        _cachedUser = cached;
+        setUser(cached);
+      }
 
-    Promise.all([
-      getAuthMe(),
-      API.get("/csr/notifications").catch(() => null),
-    ]).then(([userData, notifRes]) => {
-      const dismissed = getDismissedNotificationIds();
-      const allCalls = (notifRes?.data?.scheduledCalls ?? []) as ScheduledCall[];
-      const payload: NotificationsPayload = {
-        scheduledCalls: allCalls.filter(c => !dismissed.has(c.id)),
-        dailyStats:     notifRes?.data?.dailyStats ?? { total: 0, byStatus: {}, periodHours: 24 },
-      };
+      if (Date.now() - _lastFetch < NAV_CACHE_TTL && _cachedUser && _cachedNotifications) {
+        setNotifications(_cachedNotifications);
+        getAuthMe(false).then(u => {
+          if (u) {
+            _cachedUser = u;
+            setUser(u);
+          }
+        }).catch(() => {});
+        return;
+      }
 
-      _cachedUser          = userData;
-      _cachedNotifications = payload;
-      _lastFetch           = Date.now();
-      setUser(userData);
-      setNotifications(payload);
-    });
+      Promise.all([
+        getAuthMe(false),
+        API.get("/csr/notifications").catch(() => null),
+      ]).then(([userData, notifRes]) => {
+        const dismissed = getDismissedNotificationIds();
+        const allCalls = (notifRes?.data?.scheduledCalls ?? []) as ScheduledCall[];
+        const payload: NotificationsPayload = {
+          scheduledCalls: allCalls.filter(c => !dismissed.has(c.id)),
+          dailyStats:     notifRes?.data?.dailyStats ?? { total: 0, byStatus: {}, periodHours: 24 },
+        };
+
+        if (userData) _cachedUser = userData;
+        _cachedNotifications = payload;
+        _lastFetch           = Date.now();
+        if (userData) setUser(userData);
+        setNotifications(payload);
+      });
+    };
+
+    load();
+    const onAuthUpdated = () => {
+      _lastFetch = 0;
+      const snap = peekAuthMe();
+      if (snap) {
+        _cachedUser = snap;
+        setUser(snap);
+      }
+      getAuthMe(true).then(u => {
+        if (u) {
+          _cachedUser = u;
+          setUser(u);
+        }
+      });
+    };
+    window.addEventListener("crm-auth-me-updated", onAuthUpdated);
+    return () => window.removeEventListener("crm-auth-me-updated", onAuthUpdated);
   }, []);
 
   useEffect(() => {

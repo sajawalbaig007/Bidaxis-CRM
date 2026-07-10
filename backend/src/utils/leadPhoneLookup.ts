@@ -70,6 +70,26 @@ export function buildPhoneLookupResponse(matches: Awaited<ReturnType<typeof find
       paidAmount: paidTotal(l),
       deadline: l.projectDeadline,
       closedAt: l.updatedAt ?? l.createdAt,
+      /* Full fields so CSR can open Edit form without a second fetch */
+      name: l.name,
+      company: l.company,
+      phone: l.phone,
+      email: l.email,
+      ownerName: l.ownerName,
+      state: l.state,
+      projectCode: l.projectCode,
+      projectTitle: l.projectTitle,
+      projectScope: l.projectScope,
+      interestedService: l.interestedService,
+      projectBudget: l.projectBudget,
+      projectDeadline: l.projectDeadline,
+      projectPhase: l.projectPhase,
+      takeoffDeadline: l.takeoffDeadline,
+      pricingDeadline: l.pricingDeadline,
+      qaDeadline: l.qaDeadline,
+      projectPayments: l.projectPayments,
+      projectNotes: l.projectNotes,
+      assignedTo: l.assignedTo,
     }))
     .sort((a, b) => {
       const ta = a.closedAt ? new Date(a.closedAt).getTime() : 0;

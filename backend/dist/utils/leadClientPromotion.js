@@ -41,11 +41,13 @@ function isWonProjectLead(lead) {
         lead.projectBudget?.trim() ||
         lead.projectDeadline?.trim());
 }
-/** Old client = this phone/company already had a won project before (excluding current lead). */
+/** Old client = this phone/company already had an active won project before (excluding current lead / bin). */
 async function hasPriorWonClient(phone, company, excludeLeadId) {
     if (phone?.trim()) {
         const related = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
-        if (related.some(l => l.id !== excludeLeadId && isWonClientStatus(l.status))) {
+        if (related.some(l => l.id !== excludeLeadId &&
+            !l.inBin &&
+            isWonClientStatus(l.status))) {
             return true;
         }
     }
@@ -55,6 +57,7 @@ async function hasPriorWonClient(phone, company, excludeLeadId) {
             where: {
                 ...(excludeLeadId ? { id: { not: excludeLeadId } } : {}),
                 company: { equals: companyTrim, mode: "insensitive" },
+                ...(0, binLeads_1.notInBinFilter)(),
                 OR: [
                     { status: { equals: "Close Client", mode: "insensitive" } },
                     { status: { equals: "completed", mode: "insensitive" } },

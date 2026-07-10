@@ -179,7 +179,8 @@ router.get("/tab-leads", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         const csrId = req.user.id;
         const tab = String(req.query.tab ?? "pending");
         const page = Math.max(1, Number(req.query.page) || 1);
-        const pageSize = Math.min(500, Math.max(10, Number(req.query.pageSize) || 30));
+        /* Allow large pageSize so CSR can load full assigned dataset (no artificial 500 cap) */
+        const pageSize = Math.min(10000, Math.max(10, Number(req.query.pageSize) || 30));
         const from = typeof req.query.from === "string" ? req.query.from : undefined;
         const to = typeof req.query.to === "string" ? req.query.to : undefined;
         const validTabs = [
@@ -556,6 +557,8 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.qaDeadline = req.body.qaDeadline;
         if (req.body.company !== undefined)
             updateData.company = req.body.company;
+        if (req.body.clientCode !== undefined)
+            updateData.clientCode = req.body.clientCode;
         const payments = (0, projectPayments_1.normalizePaymentsInput)(req.body.projectPayments);
         if (payments !== undefined) {
             updateData.projectPayments = payments;

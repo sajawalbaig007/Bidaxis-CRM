@@ -98,8 +98,9 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             state: readCell(row, col.state),
             interestedService: readCell(row, col.service),
             clientCode: readCell(row, col.clientCode) || null,
-            projectTitle: isActiveUpload ? (readCell(row, col.projectTitle) || "") : null,
-            projectBudget: isActiveUpload ? (readCell(row, col.projectBudget) || null) : null,
+            /* Project Detail / Quotation: Active Projects + New/Old Clients pages */
+            projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
+            projectBudget: readCell(row, col.projectBudget) || null,
             comments: readCell(row, col.comments) || null,
             csrId: csr.id,
             csrName: csr.name,
@@ -108,6 +109,10 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
         });
     }
     return parsed;
+}
+/** Call-data stays pending-only; every other upload category forces the lead onto that page. */
+function isCallDataStatus(status) {
+    return (status ?? "").toLowerCase() === "pending";
 }
 async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
     const preview = [];
@@ -126,27 +131,33 @@ async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
         const existingLeads = uniqueCodes.length
             ? await db_1.default.lead.findMany({
                 where: { clientCode: { in: uniqueCodes } },
-                select: { id: true, clientCode: true },
+                select: { id: true, clientCode: true, inBin: true },
             })
             : [];
         const existingCodeMap = new Map(existingLeads.map(l => [l.clientCode, l.id]));
+        const binByCode = new Map(existingLeads.filter(l => l.inBin).map(l => [l.clientCode, l.id]));
         const fresh = [];
         const toUpdate = [];
+        const toRestore = [];
         for (const r of parsed) {
             if (!r.name) {
                 preview.push(toPreview(r, "empty", "Missing client name"));
                 continue;
             }
-            if (r.clientCode && existingCodeMap.has(r.clientCode)) {
+            if (r.clientCode && binByCode.has(r.clientCode)) {
+                toRestore.push({ row: r, existingId: binByCode.get(r.clientCode) });
+                preview.push(toPreview(r, "updated", "Restored from Bin → Active Projects"));
+            }
+            else if (r.clientCode && existingCodeMap.has(r.clientCode)) {
                 toUpdate.push(r);
-                preview.push(toPreview(r, "updated", "Existing client — will refresh data"));
+                preview.push(toPreview(r, "updated", "Existing project — will refresh on Active Projects"));
             }
             else {
                 fresh.push(r);
-                preview.push(toPreview(r, "new", "New contact — will be added"));
+                preview.push(toPreview(r, "new", "New project — will be added to Active Projects"));
             }
         }
-        return { fresh, toUpdate, toPromote: [], toRefresh: [], emailUpdates: [], preview, existingCodeMap };
+        return { fresh, toUpdate, toPromote: [], toRefresh: [], toRestore, emailUpdates: [], preview, existingCodeMap };
     }
     const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
     const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
@@ -184,7 +195,20 @@ async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
     const emailUpdates = [];
     const toPromote = [];
     const toRefresh = [];
+    const toRestore = [];
     const fresh = [];
+    const pageLabel = (status) => {
+        const s = (status ?? "").toLowerCase();
+        if (s === "pending")
+            return "Call Data";
+        if (s === "important")
+            return "Important";
+        if (s === "interested")
+            return "Interested";
+        if ((0, leadClientPromotion_1.isWonClientStatus)(s))
+            return "Clients";
+        return status || "target page";
+    };
     for (const r of parsed) {
         const hasValidPhone = r.phone.length >= 7;
         const hasValidEmail = r.email.includes("@");
@@ -195,41 +219,56 @@ async function classifyRows(parsed, isActiveUpload, promoteWonClients = false) {
         if (r.phone && hasValidPhone) {
             const matches = await phoneMatches(r.phone);
             const activeMatches = matches.filter(m => !m.inBin);
-            const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0];
-            let pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
-            if (promoteWonClients && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status) && !pendingMatch) {
-                pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
+            const binMatches = matches.filter(m => m.inBin);
+            const callDataUpload = isCallDataStatus(r.status);
+            /* Bin-only match → restore onto the upload target page */
+            if (binMatches.length > 0 && activeMatches.length === 0) {
+                toRestore.push({ row: r, existingId: binMatches[0].id });
+                preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+                continue;
             }
+            let pendingMatch = activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status));
             if (promoteWonClients && pendingMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
                 toPromote.push({ row: r, existingId: pendingMatch.id });
-                preview.push(toPreview(r, "updated", "Moved from call-data to clients — pending removed"));
+                preview.push(toPreview(r, "updated", "Moved from Call Data → Clients"));
                 continue;
             }
-            const wonMatch = activeMatches.find(m => (0, leadClientPromotion_1.isWonClientStatus)(m.status));
-            if (wonMatch && (0, leadClientPromotion_1.isWonClientUploadStatus)(r.status)) {
-                toRefresh.push({ row: r, existingId: wonMatch.id });
-                preview.push(toPreview(r, "updated", r.isOldClient
-                    ? "Existing old client — will refresh data"
-                    : "Existing won client — will refresh data"));
+            /* Non–call-data uploads always land on their target page (refresh existing) */
+            if (!callDataUpload && activeMatches.length > 0) {
+                const wonMatch = activeMatches.find(m => (0, leadClientPromotion_1.isWonClientStatus)(m.status));
+                const target = wonMatch ?? activeMatches[0];
+                toRefresh.push({ row: r, existingId: target.id });
+                preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
                 continue;
             }
-            if (exactExisting && !exactExisting.inBin) {
+            /* Call-data: never overwrite existing active leads */
+            if (callDataUpload && activeMatches.length > 0) {
+                const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0];
                 if (!exactExisting.email && hasValidEmail) {
                     emailUpdates.push({ id: exactExisting.id, email: r.email });
                 }
                 preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
                 continue;
             }
+            /* Call-data + bin only already handled; active empty → fresh below */
         }
         if (r.email && dupEmails.has(r.email.toLowerCase())) {
             const emailHit = dupEmails.get(r.email.toLowerCase());
-            if (!emailHit.inBin) {
-                preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
+            if (emailHit.inBin) {
+                toRestore.push({ row: r, existingId: emailHit.id });
+                preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
                 continue;
             }
+            if (!isCallDataStatus(r.status)) {
+                toRefresh.push({ row: r, existingId: emailHit.id });
+                preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+                continue;
+            }
+            preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
+            continue;
         }
         fresh.push(r);
-        preview.push(toPreview(r, "new", "New contact — will be added"));
+        preview.push(toPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`));
     }
-    return { fresh, toUpdate: [], toPromote, toRefresh, emailUpdates, preview };
+    return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview };
 }

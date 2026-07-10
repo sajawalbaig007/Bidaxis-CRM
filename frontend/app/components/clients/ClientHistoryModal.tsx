@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Briefcase, DollarSign, History, Loader2 } from "lucide-react";
-import API from "@/lib/api";
+import { X, Briefcase, DollarSign, History, Loader2, Pencil } from "lucide-react";
+import toast from "react-hot-toast";
+import API, { apiErrorMessage } from "@/lib/api";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
+import {
+  ProjectWorkbenchData,
+  emptyWorkbench,
+  parsePayments,
+} from "@/lib/projectFields";
 
 type ProjectRow = {
   id: string;
@@ -13,6 +20,24 @@ type ProjectRow = {
   paidAmount: number;
   deadline?: string | null;
   closedAt?: string;
+  name?: string | null;
+  company?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  ownerName?: string | null;
+  state?: string | null;
+  projectCode?: string | null;
+  projectTitle?: string | null;
+  projectScope?: string | null;
+  interestedService?: string | null;
+  projectBudget?: string | null;
+  projectDeadline?: string | null;
+  projectPhase?: string | null;
+  takeoffDeadline?: string | null;
+  pricingDeadline?: string | null;
+  qaDeadline?: string | null;
+  projectPayments?: unknown;
+  projectNotes?: string | null;
 };
 
 type HistoryData = {
@@ -20,7 +45,6 @@ type HistoryData = {
   services?: string[];
   totalBusiness?: number;
   projects?: ProjectRow[];
-  history?: { id: string; name?: string; company?: string; status?: string; service?: string; paidAmount?: number; updatedAt?: string }[];
 };
 
 interface ClientHistoryModalProps {
@@ -28,6 +52,8 @@ interface ClientHistoryModalProps {
   clientName?: string;
   onClose: () => void;
   lookupPath?: string;
+  editable?: boolean;
+  onProjectSaved?: () => void;
 }
 
 function fmtDate(iso?: string | null) {
@@ -39,15 +65,87 @@ function fmtDate(iso?: string | null) {
   }
 }
 
+function projectToWorkbench(p: ProjectRow): ProjectWorkbenchData {
+  const deadlineRaw = p.projectDeadline || p.deadline || "";
+  const deadline = typeof deadlineRaw === "string" ? deadlineRaw.split("T")[0] : "";
+  return {
+    ...emptyWorkbench(),
+    id: p.id,
+    name: p.name ?? "",
+    company: p.company ?? "",
+    phone: p.phone ?? "",
+    email: p.email ?? "",
+    ownerName: p.ownerName ?? "",
+    state: p.state ?? "",
+    projectCode: p.projectCode || p.clientCode || "",
+    projectTitle: p.projectTitle || p.title || "",
+    projectScope: p.projectScope ?? "",
+    interestedService: p.interestedService || p.service || "",
+    projectBudget: p.projectBudget ?? "",
+    projectDeadline: deadline,
+    projectPhase: p.projectPhase || "not_started",
+    takeoffDeadline: typeof p.takeoffDeadline === "string" ? p.takeoffDeadline.split("T")[0] : "",
+    pricingDeadline: typeof p.pricingDeadline === "string" ? p.pricingDeadline.split("T")[0] : "",
+    qaDeadline: typeof p.qaDeadline === "string" ? p.qaDeadline.split("T")[0] : "",
+    projectPayments: parsePayments(p.projectPayments),
+    projectNotes: p.projectNotes ?? "",
+  };
+}
+
+function leadToWorkbench(lead: Record<string, unknown>): ProjectWorkbenchData {
+  const deadline = typeof lead.projectDeadline === "string" ? lead.projectDeadline.split("T")[0] : "";
+  return {
+    ...emptyWorkbench(),
+    id: String(lead.id ?? ""),
+    name: String(lead.name ?? ""),
+    company: String(lead.company ?? ""),
+    phone: String(lead.phone ?? ""),
+    email: String(lead.email ?? ""),
+    ownerName: String(lead.ownerName ?? ""),
+    state: String(lead.state ?? ""),
+    projectCode: String(lead.projectCode ?? lead.clientCode ?? ""),
+    projectTitle: String(lead.projectTitle ?? ""),
+    projectScope: String(lead.projectScope ?? ""),
+    interestedService: String(lead.interestedService ?? ""),
+    projectBudget: String(lead.projectBudget ?? ""),
+    projectDeadline: deadline,
+    projectPhase: String(lead.projectPhase ?? "not_started"),
+    takeoffDeadline: typeof lead.takeoffDeadline === "string" ? lead.takeoffDeadline.split("T")[0] : "",
+    pricingDeadline: typeof lead.pricingDeadline === "string" ? lead.pricingDeadline.split("T")[0] : "",
+    qaDeadline: typeof lead.qaDeadline === "string" ? lead.qaDeadline.split("T")[0] : "",
+    projectPayments: parsePayments(lead.projectPayments),
+    projectNotes: String(lead.projectNotes ?? ""),
+  };
+}
+
 export default function ClientHistoryModal({
   phone,
   clientName,
   onClose,
   lookupPath = "/csr/lookup-by-phone",
+  editable = true,
+  onProjectSaved,
 }: ClientHistoryModalProps) {
   const [loading, setLoading] = useState(true);
-  const [data, setData]       = useState<HistoryData | null>(null);
-  const [error, setError]     = useState("");
+  const [data, setData] = useState<HistoryData | null>(null);
+  const [error, setError] = useState("");
+  const [editing, setEditing] = useState<ProjectWorkbenchData | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const reload = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await API.get(lookupPath, { params: { phone } });
+      if (res.data?.found) setData(res.data);
+      else setError("No history found for this client.");
+    } catch {
+      setError("Failed to load client history.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -69,10 +167,79 @@ export default function ClientHistoryModal({
     return () => { cancelled = true; };
   }, [phone, lookupPath]);
 
+  const openEdit = async (project: ProjectRow) => {
+    setEditLoading(true);
+    setError("");
+    try {
+      /* Prefer live lead fetch; fall back to history payload so form always opens */
+      try {
+        const res = await API.get(`/csr/lead/${project.id}`);
+        if (res.data?.lead) {
+          setEditing(leadToWorkbench(res.data.lead));
+          return;
+        }
+      } catch {
+        /* fall through — use embedded project fields */
+      }
+      setEditing(projectToWorkbench(project));
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const saveProject = async (form: ProjectWorkbenchData) => {
+    setSaving(true);
+    try {
+      await API.put(`/csr/lead/${form.id}`, {
+        name: form.name,
+        company: form.company,
+        phone: form.phone,
+        email: form.email,
+        ownerName: form.ownerName,
+        state: form.state,
+        projectCode: form.projectCode,
+        clientCode: form.projectCode || undefined,
+        projectTitle: form.projectTitle,
+        projectScope: form.projectScope,
+        interestedService: form.interestedService,
+        projectBudget: form.projectBudget,
+        projectDeadline: form.projectDeadline,
+        projectPhase: form.projectPhase,
+        takeoffDeadline: form.takeoffDeadline,
+        pricingDeadline: form.pricingDeadline,
+        qaDeadline: form.qaDeadline,
+        projectPayments: form.projectPayments,
+        projectNotes: form.projectNotes,
+      });
+      toast.success("Project updated.");
+      setEditing(null);
+      await reload();
+      onProjectSaved?.();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not save project."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const title = clientName || data?.client?.name || "Client History";
   const services = data?.services ?? [];
   const projects = data?.projects ?? [];
   const totalBusiness = data?.totalBusiness ?? 0;
+
+  /* Edit form takes over — history stays underneath but hidden so form is visible */
+  if (editing) {
+    return (
+      <ProjectWorkbenchModal
+        open
+        onClose={() => setEditing(null)}
+        initial={editing}
+        mode="csr"
+        saving={saving}
+        onSave={saveProject}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[120] p-0 sm:p-4">
@@ -80,7 +247,9 @@ export default function ClientHistoryModal({
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-bold text-[#0F172A]">{title}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Services, projects & business history</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Services, projects & business history{editable ? " — tap Edit to update any project" : ""}
+            </p>
           </div>
           <button onClick={onClose} className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
             <X size={16} />
@@ -88,10 +257,10 @@ export default function ClientHistoryModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {loading ? (
+          {loading || editLoading ? (
             <div className="flex flex-col items-center py-12 text-gray-400">
               <Loader2 size={28} className="animate-spin mb-3" />
-              <p className="text-sm">Loading history…</p>
+              <p className="text-sm">{editLoading ? "Opening edit form…" : "Loading history…"}</p>
             </div>
           ) : error ? (
             <p className="text-sm text-gray-500 text-center py-8">{error}</p>
@@ -149,9 +318,18 @@ export default function ClientHistoryModal({
                               </p>
                             )}
                           </div>
-                          <div className="text-right shrink-0">
+                          <div className="text-right shrink-0 flex flex-col items-end gap-2">
                             <p className="text-sm font-bold text-green-600">${p.paidAmount.toLocaleString()}</p>
-                            {p.status && <p className="text-[10px] text-gray-400 mt-0.5 capitalize">{p.status}</p>}
+                            {p.status && <p className="text-[10px] text-gray-400 capitalize">{p.status}</p>}
+                            {editable && (
+                              <button
+                                type="button"
+                                onClick={() => void openEdit(p)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-semibold hover:bg-[#FFE4E8]"
+                              >
+                                <Pencil size={11} /> Edit
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -79,7 +79,7 @@ const updateUser = async (req, res) => {
                 allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
             },
         });
-        (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
+        (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "users:list:manager", "admin:csrs", `auth:me:${id}`);
         return res.json(user);
     }
     catch {

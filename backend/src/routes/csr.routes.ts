@@ -617,6 +617,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (req.body.pricingDeadline  !== undefined) updateData.pricingDeadline  = req.body.pricingDeadline;
     if (req.body.qaDeadline       !== undefined) updateData.qaDeadline       = req.body.qaDeadline;
     if (req.body.company          !== undefined) updateData.company          = req.body.company;
+    if (req.body.clientCode       !== undefined) updateData.clientCode       = req.body.clientCode;
     const payments = normalizePaymentsInput(req.body.projectPayments);
     if (payments !== undefined) {
       updateData.projectPayments = payments;

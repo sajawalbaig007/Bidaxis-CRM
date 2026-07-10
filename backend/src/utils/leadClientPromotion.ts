@@ -36,7 +36,7 @@ export function isWonProjectLead(lead: {
   );
 }
 
-/** Old client = this phone/company already had a won project before (excluding current lead). */
+/** Old client = this phone/company already had an active won project before (excluding current lead / bin). */
 export async function hasPriorWonClient(
   phone: string | null | undefined,
   company: string | null | undefined,
@@ -44,7 +44,11 @@ export async function hasPriorWonClient(
 ): Promise<boolean> {
   if (phone?.trim()) {
     const related = await findLeadsByPhone(phone);
-    if (related.some(l => l.id !== excludeLeadId && isWonClientStatus(l.status))) {
+    if (related.some(l =>
+      l.id !== excludeLeadId &&
+      !l.inBin &&
+      isWonClientStatus(l.status),
+    )) {
       return true;
     }
   }
@@ -55,6 +59,7 @@ export async function hasPriorWonClient(
       where: {
         ...(excludeLeadId ? { id: { not: excludeLeadId } } : {}),
         company: { equals: companyTrim, mode: "insensitive" },
+        ...notInBinFilter(),
         OR: [
           { status: { equals: "Close Client", mode: "insensitive" } },
           { status: { equals: "completed", mode: "insensitive" } },

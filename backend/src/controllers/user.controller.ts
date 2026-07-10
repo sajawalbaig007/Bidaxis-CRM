@@ -68,7 +68,7 @@ export const updateUser = async (req: Request, res: Response) => {
         allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
       },
     });
-    invalidateCache("users:list", "users:list:admin", "users:list:csr", "admin:csrs");
+    invalidateCache("users:list", "users:list:admin", "users:list:csr", "users:list:manager", "admin:csrs", `auth:me:${id}`);
     return res.json(user);
   } catch {
     return res.status(500).json({ message: "Update failed" });

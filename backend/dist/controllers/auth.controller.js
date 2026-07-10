@@ -565,7 +565,7 @@ const updateProfile = async (req, res) => {
         if (!req.user?.id) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-        const { name, email } = req.body;
+        const { name, email, profilePic, cnic } = req.body;
         if (!name || !email) {
             return res.status(400).json({ success: false, message: "Name and email required." });
         }
@@ -573,12 +573,24 @@ const updateProfile = async (req, res) => {
         if (taken) {
             return res.status(400).json({ success: false, message: "Email already in use." });
         }
+        const data = {
+            name,
+            email,
+        };
+        if (profilePic !== undefined)
+            data.profilePic = profilePic || null;
+        if (cnic !== undefined && req.user.role === "admin")
+            data.cnic = cnic || null;
         const updated = await db_1.default.user.update({
             where: { id: req.user.id },
-            data: { name, email },
-            select: { id: true, name: true, email: true, role: true, twoFAEnabled: true, createdAt: true },
+            data,
+            select: {
+                id: true, name: true, email: true, role: true,
+                csrCode: true, cnic: true, profilePic: true,
+                twoFAEnabled: true, createdAt: true,
+            },
         });
-        (0, cache_1.invalidateCache)(`auth:me:${req.user.id}`);
+        (0, cache_1.invalidateCache)(`auth:me:${req.user.id}`, "users:list", "users:list:admin", "users:list:csr", "users:list:manager");
         return res.json({ success: true, user: updated });
     }
     catch {
