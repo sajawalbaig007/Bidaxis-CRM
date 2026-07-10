@@ -85,6 +85,11 @@ export function buildActiveRetryWhere(csrId: string): Prisma.LeadWhereInput {
   };
 }
 
+/** Leads that are not in bin (includes legacy docs without persisted inBin). */
+export function buildNotBinWhere(csrId?: string): Prisma.LeadWhereInput {
+  return { NOT: buildBinWhere(csrId) };
+}
+
 /** CSR or admin bin — limit reached and manually deleted leads */
 export function buildBinWhere(csrId?: string): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {

@@ -9,6 +9,7 @@ exports.mainPipelineWhere = mainPipelineWhere;
 exports.pendingLeadWhere = pendingLeadWhere;
 exports.filterActiveLeads = filterActiveLeads;
 exports.buildActiveRetryWhere = buildActiveRetryWhere;
+exports.buildNotBinWhere = buildNotBinWhere;
 exports.buildBinWhere = buildBinWhere;
 exports.isBinLead = isBinLead;
 exports.NOT_INTERESTED_LIMIT = 3;
@@ -76,6 +77,10 @@ function buildActiveRetryWhere(csrId) {
             },
         ],
     };
+}
+/** Leads that are not in bin (includes legacy docs without persisted inBin). */
+function buildNotBinWhere(csrId) {
+    return { NOT: buildBinWhere(csrId) };
 }
 /** CSR or admin bin — limit reached and manually deleted leads */
 function buildBinWhere(csrId) {
