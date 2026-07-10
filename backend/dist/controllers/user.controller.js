@@ -7,6 +7,8 @@ exports.deleteUser = exports.adminSetUserPassword = exports.updateUser = exports
 const db_1 = __importDefault(require("../config/db"));
 const cache_1 = require("../utils/cache");
 const purgeCsrLeads_1 = require("../utils/purgeCsrLeads");
+const chatSocket_1 = require("../chat/chatSocket");
+const report_controller_1 = require("./report.controller");
 const hash_1 = require("../utils/hash");
 const security_1 = require("../config/security");
 const passwordBreach_1 = require("../utils/passwordBreach");
@@ -149,6 +151,8 @@ const deleteUser = async (req, res) => {
         /* 6. Delete the user */
         await db_1.default.user.delete({ where: { id } });
         (0, cache_1.flushAdminClientsCache)();
+        (0, report_controller_1.flushReportCache)();
+        (0, chatSocket_1.notifyAdminSummaryStale)();
         (0, cache_1.invalidateCache)("users:list", "users:list:admin", "users:list:csr", "admin:csrs", `csr:dashboard:${id}`, `csr:leads:${id}`);
         res.json({ success: true, message: "User deleted" });
     }

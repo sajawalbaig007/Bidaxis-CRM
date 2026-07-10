@@ -53,6 +53,10 @@ const reportCache = new Map<string, { at: number; data: ReportPayload }>();
 const CACHE_TTL_MS = 90_000;
 const ALL_PERIOD_CACHE_TTL_MS = 300_000;
 
+export function flushReportCache(): void {
+  reportCache.clear();
+}
+
 function getDateRange(period: string): { gte: Date; lte: Date } {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
