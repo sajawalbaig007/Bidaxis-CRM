@@ -169,7 +169,7 @@ export default function DashboardPage() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-5 items-start">
 
             <div className="lg:col-span-8 space-y-3 sm:space-y-4">
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
@@ -202,29 +202,34 @@ export default function DashboardPage() {
                   />
                 )}
               </div>
-
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                {overviewLoaded || loadingOverview ? (
-                  <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
-                ) : (
-                  <div className="h-[180px] rounded-xl bg-gray-100 animate-pulse" />
-                )}
-              </div>
             </div>
 
-            <div className="lg:col-span-4 space-y-3 sm:space-y-4">
-              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
+            <div className="lg:col-span-4">
+              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 h-full">
                 {overviewLoaded || loadingOverview ? (
                   <OverviewChart distribution={summary?.distribution} />
                 ) : (
                   <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />
                 )}
               </div>
+            </div>
+
+            <div className="lg:col-span-8">
+              <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
+                {overviewLoaded || loadingOverview ? (
+                  <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
+                ) : (
+                  <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />
+                )}
+              </div>
+            </div>
+
+            <div className="lg:col-span-4">
               <div className="bg-white rounded-2xl lg:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100">
                 {overviewLoaded || loadingOverview ? (
                   <TopPerformers performers={summary?.performers} />
                 ) : (
-                  <div className="h-[160px] rounded-xl bg-gray-100 animate-pulse" />
+                  <div className="h-[260px] rounded-xl bg-gray-100 animate-pulse" />
                 )}
               </div>
             </div>

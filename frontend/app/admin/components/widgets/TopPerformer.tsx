@@ -51,7 +51,7 @@ export default function TopPerformers({ leads = [], performers: performersProp }
         <Trophy size={18} className="text-amber-500"/>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {performers.length === 0
           ? <p className="text-sm text-gray-400 text-center py-4">No data yet</p>
           : performers.map((p, i) => (
