@@ -17,6 +17,12 @@ import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import RechartsBox from "@/app/components/charts/RechartsBox";
+import {
+  ALL_CSR_RESET_SCOPE_IDS,
+  CSR_RESET_GROUPS,
+  scopeLabel,
+  type CsrResetScopeId,
+} from "@/lib/csrResetPages";
 
 type UserRole = "CSR" | "Admin" | "Manager";
 
@@ -256,6 +262,9 @@ export default function UsersPage() {
   });
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingCnic, setUploadingCnic] = useState(false);
+  const [resetUser, setResetUser] = useState<User | null>(null);
+  const [resetScopes, setResetScopes] = useState<CsrResetScopeId[]>([...ALL_CSR_RESET_SCOPE_IDS]);
+  const [resettingCsr, setResettingCsr] = useState(false);
 
   /* Single 1s tick — replaces per-row useLiveSeconds intervals */
   useEffect(() => {
@@ -457,31 +466,88 @@ export default function UsersPage() {
     ), { duration: Infinity });
   };
 
+  const openResetModal = (user: User) => {
+    setResetScopes([...ALL_CSR_RESET_SCOPE_IDS]);
+    setResetUser(user);
+  };
+
+  const toggleResetScope = (scopeId: CsrResetScopeId) => {
+    setResetScopes(prev =>
+      prev.includes(scopeId)
+        ? prev.filter(id => id !== scopeId)
+        : [...prev, scopeId],
+    );
+  };
+
+  const isGroupFullySelected = (groupId: string) => {
+    const group = CSR_RESET_GROUPS.find(g => g.id === groupId);
+    if (!group) return false;
+    return group.children.every(c => resetScopes.includes(c.id));
+  };
+
+  const isGroupPartiallySelected = (groupId: string) => {
+    const group = CSR_RESET_GROUPS.find(g => g.id === groupId);
+    if (!group) return false;
+    const selected = group.children.filter(c => resetScopes.includes(c.id)).length;
+    return selected > 0 && selected < group.children.length;
+  };
+
+  const toggleResetGroup = (groupId: string) => {
+    const group = CSR_RESET_GROUPS.find(g => g.id === groupId);
+    if (!group) return;
+    const childIds = group.children.map(c => c.id);
+    if (isGroupFullySelected(groupId)) {
+      setResetScopes(prev => prev.filter(id => !childIds.includes(id)));
+    } else {
+      setResetScopes(prev => [...new Set([...prev, ...childIds])]);
+    }
+  };
+
+  const allResetScopesSelected = resetScopes.length === ALL_CSR_RESET_SCOPE_IDS.length;
+
+  const toggleAllResetScopes = () => {
+    setResetScopes(allResetScopesSelected ? [] : [...ALL_CSR_RESET_SCOPE_IDS]);
+  };
+
+  const runCsrReset = async () => {
+    if (!resetUser || resetScopes.length === 0) {
+      toast.error("Select at least one page or sub-page to reset.");
+      return;
+    }
+
+    setResettingCsr(true);
+    const tid = toast.loading(`Resetting ${resetUser.name}'s data (${resetScopes.length} selected)...`);
+    try {
+      const res = await fetch(`${apiBase()}/admin/csr-leads/${resetUser.id}/reset`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pages: resetScopes }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "Reset failed.", { id: tid });
+        return;
+      }
+      const labels = (data.scopes as string[] | undefined ?? data.pages as string[] | undefined)
+        ?.slice(0, 4)
+        .map(scopeLabel)
+        .join(", ");
+      const more = resetScopes.length > 4 ? ` +${resetScopes.length - 4} more` : "";
+      toast.success(
+        `Reset complete for ${resetUser.name}: ${data.deleted ?? 0} leads removed${labels ? ` (${labels}${more})` : ""}.`,
+        { id: tid, duration: 6000 },
+      );
+      setResetUser(null);
+    } catch {
+      toast.error("Reset timed out or failed. Try fewer sections and retry.", { id: tid });
+    } finally {
+      setResettingCsr(false);
+    }
+  };
+
   const handleResetCSR = (user: User) => {
-    toast(t => (
-      <div className="flex flex-col gap-3 min-w-[220px]">
-        <div>
-          <p className="font-semibold text-[#111827]">Reset {user.name}&apos;s data?</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Permanently removes from database: all leads, notes, sub-contacts, and call logs for this CSR.
-            The user account will stay — only their data is cleared.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={async () => {
-            toast.dismiss(t.id);
-            const tid = toast.loading(`Resetting ${user.name}'s data...`);
-            try {
-              const res  = await fetch(`${apiBase()}/admin/csr-leads/${user.id}`, { method: "DELETE", credentials: "include" });
-              const data = await res.json();
-              if (!res.ok) { toast.error(data.message || "Reset failed.", { id: tid }); return; }
-              toast.success(`All data removed for ${user.name} (${data.deleted ?? 0} leads deleted).`, { id: tid });
-            } catch { toast.error("Something went wrong.", { id: tid }); }
-          }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Reset</button>
-          <button onClick={() => toast.dismiss(t.id)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-600">Cancel</button>
-        </div>
-      </div>
-    ), { duration: Infinity });
+    openResetModal(user);
   };
 
   const toggleStatus = async (user: User) => {
@@ -1352,6 +1418,107 @@ export default function UsersPage() {
                 <button onClick={handleSubmit}
                   className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold">
                   {editingUser ? "Update User" : "Create User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSR RESET MODAL */}
+        {resetUser && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+            <div className="bg-white w-full rounded-3xl max-w-lg max-h-[90vh] flex flex-col overflow-hidden my-4 shadow-xl">
+              <div className="p-6 pb-4 shrink-0 border-b border-gray-100">
+                <h2 className="text-lg font-semibold text-gray-800">Reset CSR Data</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Select pages and sub-pages to clear for <span className="font-semibold text-gray-800">{resetUser.name}</span>.
+                  Account stays — only selected lead data is permanently deleted.
+                </p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0 space-y-4">
+                <label className="flex items-center gap-3 p-3 rounded-xl bg-[#FFF6F7] border border-[#B8112D]/20 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allResetScopesSelected}
+                    onChange={toggleAllResetScopes}
+                    className="w-4 h-4 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-[#B8112D]">Select All</p>
+                    <p className="text-xs text-gray-500">Reset every page and sub-page (full wipe)</p>
+                  </div>
+                </label>
+
+                {CSR_RESET_GROUPS.map(group => {
+                  const groupChecked = isGroupFullySelected(group.id);
+                  const groupPartial = isGroupPartiallySelected(group.id);
+                  return (
+                    <div key={group.id} className="rounded-xl border border-gray-100 overflow-hidden">
+                      <label className="flex items-start gap-3 p-3 bg-[#F8F9FC] cursor-pointer border-b border-gray-100">
+                        <input
+                          type="checkbox"
+                          checked={groupChecked}
+                          ref={el => {
+                            if (el) el.indeterminate = groupPartial;
+                          }}
+                          onChange={() => toggleResetGroup(group.id)}
+                          className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-800">{group.label}</p>
+                          {group.description && (
+                            <p className="text-xs text-gray-500 mt-0.5">{group.description}</p>
+                          )}
+                        </div>
+                      </label>
+
+                      <div className="divide-y divide-gray-50">
+                        {group.children.map(child => {
+                          const checked = resetScopes.includes(child.id);
+                          return (
+                            <label
+                              key={child.id}
+                              className={`flex items-start gap-3 px-3 py-2.5 pl-8 cursor-pointer transition-colors ${
+                                checked ? "bg-[#FFF6F7]" : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleResetScope(child.id)}
+                                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{child.label}</p>
+                                <p className="text-[11px] text-gray-500 mt-0.5">{child.description}</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-6 pt-4 shrink-0 border-t border-gray-100 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => !resettingCsr && setResetUser(null)}
+                  disabled={resettingCsr}
+                  className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-2xl hover:bg-gray-50 transition-all text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runCsrReset()}
+                  disabled={resettingCsr || resetScopes.length === 0}
+                  className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {resettingCsr && <RotateCcw size={14} className="animate-spin" />}
+                  {resettingCsr ? "Resetting…" : `Reset (${resetScopes.length})`}
                 </button>
               </div>
             </div>
