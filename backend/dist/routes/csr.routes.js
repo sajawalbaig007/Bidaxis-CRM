@@ -798,6 +798,7 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
+        await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
         const rawLeads = await db_1.default.lead.findMany({
             where: {
                 ...(0, binLeads_1.activeCsrLeadWhere)(csrId),

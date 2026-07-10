@@ -71,7 +71,7 @@ export function clientIdentityKey(l: Pick<ClientLead, "id" | "phone" | "rawCompa
   return `id:${l.id}`;
 }
 
-/** One row per client: 1 project → New tab; 2+ → Old tab (latest project shown). */
+/** One row per client: explicit old flag or 2+ projects → Old tab; else New. */
 export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
   newLeads: ClientLead[];
   oldLeads: ClientLead[];
@@ -92,8 +92,9 @@ export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
 
   for (const [key, group] of groups) {
     group.sort(byDate);
-    if (group.length >= 2) {
-      repeatKeys.add(key);
+    const isOld = group.some(l => l.isOldClient) || group.length >= 2;
+    if (isOld) {
+      if (group.length >= 2) repeatKeys.add(key);
       oldLeads.push(group[0]!);
     } else {
       newLeads.push(group[0]!);

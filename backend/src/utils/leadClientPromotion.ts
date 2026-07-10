@@ -181,7 +181,7 @@ export function clientIdentityKey(lead: {
   return `id:${lead.id}`;
 }
 
-/** 2+ won deals = old client; mark all rows in that group isOldClient=true. */
+/** 2+ won deals = old client; explicit old upload also counts. */
 export async function reconcileClientOldFlagsForCsr(csrId: string): Promise<void> {
   const wonLeads = await prisma.lead.findMany({
     where: {
@@ -189,7 +189,13 @@ export async function reconcileClientOldFlagsForCsr(csrId: string): Promise<void
       ...wonClientStatusWhere(),
       ...notInBinFilter(),
     },
-    select: { id: true, phone: true, company: true, isOldClient: true },
+    select: {
+      id: true,
+      phone: true,
+      company: true,
+      isOldClient: true,
+      uploadFile: { select: { uploadCategory: true } },
+    },
   });
 
   const groups = new Map<string, typeof wonLeads>();
@@ -200,7 +206,10 @@ export async function reconcileClientOldFlagsForCsr(csrId: string): Promise<void
   }
 
   for (const group of groups.values()) {
-    const shouldBeOld = group.length >= 2;
+    const shouldBeOld =
+      group.some(l => l.isOldClient) ||
+      group.some(l => l.uploadFile?.uploadCategory === "old-client") ||
+      group.length >= 2;
     const ids = group.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
     if (ids.length > 0) {
       await prisma.lead.updateMany({
