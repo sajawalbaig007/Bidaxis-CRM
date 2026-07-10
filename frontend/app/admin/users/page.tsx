@@ -431,9 +431,9 @@ export default function UsersPage() {
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic  || null,
         allowedIps: form.allowedIps.map(v => v.trim()).filter(Boolean).slice(0, 5),
-        allowedMacAddress: form.allowedMacAddress.trim() || null,
+        allowedMacAddress: null,
         temporaryAccessIp: form.temporaryAccessIp.trim() || null,
-        temporaryAccessMac: form.temporaryAccessMac.trim() || null,
+        temporaryAccessMac: null,
         temporaryAccessHours: Number(form.temporaryAccessHours || "9"),
       };
       const body = editingUser ? shared : { ...shared, password: form.password };
@@ -1001,12 +1001,9 @@ export default function UsersPage() {
                   <p className="text-xs text-gray-600">
                     In-house IPs: {detailUser.allowedIps.filter(Boolean).length > 0 ? detailUser.allowedIps.filter(Boolean).join(", ") : "Any"}
                   </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    In-house MAC/Device: {detailUser.allowedMacAddress || "Any"}
-                  </p>
-                  {(detailUser.temporaryAccessIp || detailUser.temporaryAccessMac) && (
+                  {detailUser.temporaryAccessIp && (
                     <p className="text-xs text-amber-700 mt-2">
-                      Temporary: {detailUser.temporaryAccessIp || "Any IP"} / {detailUser.temporaryAccessMac || "Any MAC"}{" "}
+                      Temporary IP: {detailUser.temporaryAccessIp}{" "}
                       {detailUser.temporaryAccessUntil ? `(expires ${new Date(detailUser.temporaryAccessUntil).toLocaleString()})` : ""}
                     </p>
                   )}
@@ -1024,7 +1021,7 @@ export default function UsersPage() {
                     className="w-full flex items-center justify-between px-4 py-3 bg-[#F8F9FC] text-left"
                   >
                     <div>
-                      <span className="text-sm font-semibold text-gray-700">IP &amp; Device Access History</span>
+                      <span className="text-sm font-semibold text-gray-700">IP Access History</span>
                       {!detailIpOpen && accessHistory.length > 0 && (
                         <span className="ml-2 text-[10px] font-semibold text-gray-400">
                           ({accessHistory.length} record{accessHistory.length === 1 ? "" : "s"})
@@ -1035,9 +1032,6 @@ export default function UsersPage() {
                   </button>
                   {detailIpOpen && (
                     <div className="p-4">
-                      <p className="text-[10px] text-gray-400 mb-3">
-                        Browsers cannot expose MAC addresses — device ID is the session tab identifier.
-                      </p>
                       {loadingHistory ? (
                         <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
                       ) : accessHistory.length === 0 ? (
@@ -1050,7 +1044,6 @@ export default function UsersPage() {
                                 <th className="pb-2 pr-2 font-medium">When</th>
                                 <th className="pb-2 pr-2 font-medium">Event</th>
                                 <th className="pb-2 pr-2 font-medium">IP</th>
-                                <th className="pb-2 pr-2 font-medium">Device</th>
                                 <th className="pb-2 font-medium">Browser</th>
                               </tr>
                             </thead>
@@ -1064,7 +1057,6 @@ export default function UsersPage() {
                                   </td>
                                   <td className="py-2 pr-2 font-medium text-gray-700 capitalize">{row.event}</td>
                                   <td className="py-2 pr-2 font-mono text-gray-600">{row.ip ?? "—"}</td>
-                                  <td className="py-2 pr-2 font-mono text-gray-500">{row.deviceId ?? "—"}</td>
                                   <td className="py-2 text-gray-500">{row.browser ?? "—"}</td>
                                 </tr>
                               ))}
@@ -1335,7 +1327,7 @@ export default function UsersPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-semibold text-gray-700">In-house Access Policy</p>
-                      <p className="text-[11px] text-gray-400">Max 5 approved IPs + 1 device MAC/ID</p>
+                      <p className="text-[11px] text-gray-400">Max 5 approved IPs</p>
                     </div>
                     {form.allowedIps.length < 5 && (
                       <button
@@ -1376,13 +1368,6 @@ export default function UsersPage() {
                       </div>
                     ))}
                   </div>
-                  <input
-                    type="text"
-                    value={form.allowedMacAddress}
-                    onChange={e => setForm({ ...form, allowedMacAddress: e.target.value })}
-                    placeholder="In-house MAC / device ID"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#B8112D] mt-3"
-                  />
                 </div>
 
                 <div className="border border-amber-200 bg-amber-50 rounded-2xl p-4">
@@ -1394,13 +1379,6 @@ export default function UsersPage() {
                       value={form.temporaryAccessIp}
                       onChange={e => setForm({ ...form, temporaryAccessIp: e.target.value })}
                       placeholder="Temporary IP"
-                      className="w-full border border-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500 bg-white"
-                    />
-                    <input
-                      type="text"
-                      value={form.temporaryAccessMac}
-                      onChange={e => setForm({ ...form, temporaryAccessMac: e.target.value })}
-                      placeholder="Temporary MAC / device ID"
                       className="w-full border border-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500 bg-white"
                     />
                     <select
@@ -1426,7 +1404,7 @@ export default function UsersPage() {
                       onClick={() => setEditIpOpen(v => !v)}
                       className="w-full flex items-center justify-between px-4 py-3 bg-[#F8F9FC] text-left"
                     >
-                      <span className="text-sm font-semibold text-gray-700">IP &amp; Device Access History</span>
+                      <span className="text-sm font-semibold text-gray-700">IP Access History</span>
                       <ChevronDown size={16} className={`text-gray-400 transition-transform ${editIpOpen ? "rotate-180" : ""}`} />
                     </button>
                     {editIpOpen && (
