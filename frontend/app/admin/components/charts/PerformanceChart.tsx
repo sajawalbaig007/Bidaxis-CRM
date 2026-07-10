@@ -5,6 +5,17 @@ import {
   ResponsiveContainer, AreaChart, Area,
   CartesianGrid, Tooltip, XAxis, YAxis,
 } from "recharts";
+import {
+  addDaysToYmd,
+  businessHourBucketKey,
+  currentBusinessYmd,
+  fmtMonthShortFromYmd,
+  fmtShortDateFromYmd,
+  fmtWeekDayFromYmd,
+  getBusinessYmd,
+  initBusinessHourBuckets,
+  isSameBusinessDay,
+} from "@/lib/businessCalendar";
 
 export type ClientLead = {
   id?: string;
@@ -25,41 +36,78 @@ type Props = {
 };
 
 function groupLeads(leads: ClientLead[], range: string): DataPoint[] {
-  const now   = new Date();
-  const buckets: Record<string, number> = {};
-
-  const fmt = (d: Date) => {
-    if (range === "today") return d.getHours() + ":00";
-    if (range === "year")  return d.toLocaleString("default", { month: "short" });
-    return d.toLocaleDateString("en-US", { weekday: "short" });
-  };
+  const now = new Date();
+  const currentBiz = currentBusinessYmd(now);
 
   if (range === "today") {
-    for (let h = 0; h < 24; h += 3) buckets[h + ":00"] = 0;
-  } else if (range === "week") {
-    for (let d = 6; d >= 0; d--) {
-      const dt = new Date(now); dt.setDate(dt.getDate() - d);
-      buckets[fmt(dt)] = 0;
-    }
-  } else if (range === "month") {
-    for (let d = 29; d >= 0; d -= 5) {
-      const dt = new Date(now); dt.setDate(dt.getDate() - d);
-      buckets[fmt(dt)] = 0;
-    }
-  } else {
-    for (let m = 11; m >= 0; m--) {
-      const dt = new Date(now); dt.setMonth(dt.getMonth() - m);
-      buckets[fmt(dt)] = 0;
-    }
+    const buckets = initBusinessHourBuckets();
+    leads.forEach(lead => {
+      if (!lead.createdAt) return;
+      const dt = new Date(lead.createdAt);
+      if (!isSameBusinessDay(dt, now)) return;
+      const key = businessHourBucketKey(dt);
+      if (key in buckets) buckets[key]++;
+    });
+    return Object.entries(buckets).map(([label, calls]) => ({ label, calls }));
   }
 
+  if (range === "week") {
+    const buckets: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+    for (let d = 6; d >= 0; d--) {
+      const ymd = addDaysToYmd(currentBiz, -d);
+      buckets[ymd] = 0;
+      labels[ymd] = fmtWeekDayFromYmd(ymd);
+    }
+    leads.forEach(lead => {
+      if (!lead.createdAt) return;
+      const ymd = getBusinessYmd(new Date(lead.createdAt));
+      if (ymd in buckets) buckets[ymd]++;
+    });
+    return Object.keys(buckets).map(k => ({ label: labels[k] ?? k, calls: buckets[k] ?? 0 }));
+  }
+
+  if (range === "month") {
+    const buckets: Record<string, number> = {};
+    const labels: Record<string, string> = {};
+    for (let d = 28; d >= 0; d -= 7) {
+      const ymd = addDaysToYmd(currentBiz, -d);
+      buckets[ymd] = 0;
+      labels[ymd] = fmtShortDateFromYmd(ymd);
+    }
+    const monthKeys = Object.keys(buckets);
+    leads.forEach(lead => {
+      if (!lead.createdAt) return;
+      const bizYmd = getBusinessYmd(new Date(lead.createdAt));
+      let chosen = monthKeys[0]!;
+      for (const key of monthKeys) {
+        if (key <= bizYmd) chosen = key;
+      }
+      if (chosen in buckets) buckets[chosen]++;
+    });
+    return Object.keys(buckets).map(k => ({ label: labels[k] ?? k, calls: buckets[k] ?? 0 }));
+  }
+
+  const buckets: Record<string, number> = {};
+  const labels: Record<string, string> = {};
+  const seen = new Set<string>();
+  for (let d = 364; d >= 0; d -= 28) {
+    const ymd = addDaysToYmd(currentBiz, -d);
+    const month = fmtMonthShortFromYmd(ymd);
+    if (seen.has(month)) continue;
+    seen.add(month);
+    buckets[ymd] = 0;
+    labels[ymd] = month;
+  }
+  const yearKeys = Object.keys(buckets);
   leads.forEach(lead => {
     if (!lead.createdAt) return;
-    const key = fmt(new Date(lead.createdAt));
-    if (key in buckets) buckets[key]++;
+    const bizYmd = getBusinessYmd(new Date(lead.createdAt));
+    const month = fmtMonthShortFromYmd(bizYmd);
+    const key = yearKeys.find(k => fmtMonthShortFromYmd(k) === month);
+    if (key && key in buckets) buckets[key]++;
   });
-
-  return Object.entries(buckets).map(([label, calls]) => ({ label, calls }));
+  return Object.keys(buckets).map(k => ({ label: labels[k] ?? k, calls: buckets[k] ?? 0 }));
 }
 
 export default function PerformanceChart({ leads = [], series, range = "week" }: Props) {
