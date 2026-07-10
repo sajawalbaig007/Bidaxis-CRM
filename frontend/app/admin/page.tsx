@@ -30,6 +30,7 @@ type QuickStats = {
   closed:      number;
   pending:     number;
   important:   number;
+  importantOnly?: number;
   interested:  number;
   projectWon:  number;
   onlineCSRs:  number;
@@ -43,6 +44,7 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
     closed:      s.stats?.closed      ?? 0,
     pending:     s.stats?.pending     ?? 0,
     important:   s.stats?.important   ?? 0,
+    importantOnly: s.stats?.importantOnly ?? s.stats?.important ?? 0,
     interested:  s.stats?.interested  ?? 0,
     projectWon:  s.stats?.projectWon  ?? 0,
     onlineCSRs:  s.stats?.onlineCSRs  ?? 0,
