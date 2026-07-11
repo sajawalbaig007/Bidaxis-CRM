@@ -21,10 +21,18 @@ export default function EmailWithExtraCell({
   className = "",
   emptyLabel = "—",
 }: EmailWithExtraCellProps) {
-  const emails =
+  const rawEmails =
     allEmails && allEmails.length > 0
       ? allEmails
       : parseEmails(email);
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  for (const e of rawEmails) {
+    const key = e.toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    emails.push(e);
+  }
   const primary = emails[0] ?? "";
   const extras = emails.length > 1 ? emails.length - 1 : 0;
   const canOpen = emails.length > 1;

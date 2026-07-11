@@ -27,7 +27,7 @@ import MonthRangeFilter from "./components/shared/MonthRangeFilter";
 import ClientNameCell from "./components/shared/ClientNameCell";
 import PhoneWithTzCell from "./components/shared/PhoneWithTzCell";
 import { ourCompany } from "./utils/leadFieldLabels";
-import { parsePhones } from "./utils/parsePhones";
+import { parsePhones, collectLeadPhones } from "./utils/parsePhones";
 import { useCsrStats, useCsrTabLeads, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -432,7 +432,7 @@ export default function CSRPage() {
                     {/* PHONE — number + area-code TZ (company TZ stays on name) */}
                     <td className={`${CSR_TD_POPOVER} text-[12px] sm:text-[14px] font-medium text-[#0F172A] dark:text-crm-text`}>
                       {(() => {
-                        const phones = parsePhones(currentLink.phone);
+                        const phones = collectLeadPhones(currentLink.phone, currentLink.subContacts);
                         return (
                           <PhoneWithTzCell
                             phone={phones[0] ?? currentLink.phone}

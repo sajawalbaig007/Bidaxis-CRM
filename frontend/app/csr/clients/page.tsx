@@ -23,8 +23,8 @@ import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
 import ClientSortControls from "../components/shared/ClientSortControls";
-import { parseEmails } from "../utils/parseEmails";
-import { parsePhones } from "../utils/parsePhones";
+import { parseEmails, collectLeadEmails } from "../utils/parseEmails";
+import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/clientListSort";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
@@ -177,8 +177,8 @@ export default function LeadsPage() {
         l.name.toLowerCase().includes(q) ||
         l.company.toLowerCase().includes(q) ||
         (l.clientCode ?? "").toLowerCase().includes(q) ||
-        parsePhones(l.phone).some(p => p.includes(q)) ||
-        parseEmails(l.email).some(e => e.toLowerCase().includes(q)) ||
+        collectLeadPhones(l.phone, l.contacts).some(p => p.includes(q)) ||
+        collectLeadEmails(l.email, l.contacts).some(e => e.toLowerCase().includes(q)) ||
         l.email.toLowerCase().includes(q)
       ))
     );
@@ -556,7 +556,7 @@ export default function LeadsPage() {
                       {/* Phone — number + area-code TZ */}
                       <div className="hidden lg:flex items-center gap-1.5 min-w-0 overflow-visible">
                         {(() => {
-                          const phones = parsePhones(lead.phone);
+                          const phones = collectLeadPhones(lead.phone, lead.contacts);
                           if (phones.length === 0) {
                             return <span className="text-gray-300 text-xs">—</span>;
                           }
@@ -579,7 +579,7 @@ export default function LeadsPage() {
                       <div className="hidden lg:block min-w-0 overflow-visible">
                         <EmailWithExtraCell
                           email={lead.email}
-                          allEmails={parseEmails(lead.email)}
+                          allEmails={collectLeadEmails(lead.email, lead.contacts)}
                           variant="pill"
                           className="px-2 py-1 text-xs lg:text-sm"
                         />

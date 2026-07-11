@@ -17,7 +17,7 @@ import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import { ourCompany } from "../utils/leadFieldLabels";
-import { parsePhones } from "../utils/parsePhones";
+import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
@@ -468,7 +468,7 @@ export default function NotInterestedPage() {
                         {/* Phone — number + area-code TZ */}
                         <td className={CSR_TD_POPOVER}>
                           {(() => {
-                            const phones = parsePhones(lead.phone);
+                            const phones = collectLeadPhones(lead.phone, lead.subContacts);
                             return (
                               <PhoneWithTzCell
                                 phone={phones[0] ?? lead.phone}

@@ -19,7 +19,7 @@ import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterIn
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
-import { parsePhones } from "../utils/parsePhones";
+import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 
 import { useCsrStats, usePotentialLeads } from "../hooks/useCsrTabPage";
 import { useLeadActions } from "../hooks/useLeadActions";
@@ -365,7 +365,7 @@ export default function ImportantCallsPage() {
                       </td>
                       <td className={CSR_TD_POPOVER}>
                         {(() => {
-                          const phones = parsePhones(lead.phone);
+                          const phones = collectLeadPhones(lead.phone, lead.subContacts);
                           return (
                             <PhoneWithTzCell
                               phone={phones[0] ?? lead.phone}
@@ -475,7 +475,7 @@ export default function ImportantCallsPage() {
                       </td>
                       <td className={CSR_TD_POPOVER}>
                         {(() => {
-                          const phones = parsePhones(lead.phone);
+                          const phones = collectLeadPhones(lead.phone, lead.subContacts);
                           return (
                             <PhoneWithTzCell
                               phone={phones[0] ?? lead.phone}
@@ -631,7 +631,7 @@ export default function ImportantCallsPage() {
                       </td>
                       <td className={CSR_TD_POPOVER}>
                         {(() => {
-                          const phones = parsePhones(lead.phone);
+                          const phones = collectLeadPhones(lead.phone, lead.subContacts);
                           return (
                             <PhoneWithTzCell
                               phone={phones[0] ?? lead.phone}

@@ -3,7 +3,7 @@
 import { Eye } from "lucide-react";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { clientCompany, ourCompany } from "../../utils/leadFieldLabels";
-import { parseEmails } from "../../utils/parseEmails";
+import { collectLeadEmails } from "../../utils/parseEmails";
 import type { Lead } from "../../types/lead";
 import EmailWithExtraCell from "./EmailWithExtraCell";
 
@@ -22,7 +22,10 @@ export default function ClientNameCell({
 }: ClientNameCellProps) {
   const tz = getCompanyTimezoneAbbr(lead);
   const co = clientCompany(lead);
-  const emails = parseEmails(lead.email !== "N/A" ? lead.email : "");
+  const emails = collectLeadEmails(
+    lead.email !== "N/A" ? lead.email : "",
+    lead.subContacts,
+  );
 
   return (
     <div className="flex items-start gap-2 sm:gap-3 min-w-0">
