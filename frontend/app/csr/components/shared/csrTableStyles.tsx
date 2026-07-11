@@ -9,6 +9,8 @@ export const CSR_THEAD =
 export const CSR_TH =
   "text-left py-2 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-semibold text-crm-text-muted";
 export const CSR_TD = "py-2 px-1.5 sm:px-2 align-middle max-w-0 overflow-hidden";
+/** Phone / email cells — allow +N badge and popover menus to show */
+export const CSR_TD_POPOVER = "py-2 px-1.5 sm:px-2 align-middle max-w-0 overflow-visible";
 export const CSR_TD_TOP = "py-2 px-1.5 sm:px-2 align-top max-w-0 overflow-hidden";
 /** Shrink-wrap action column so buttons sit under the header */
 export const CSR_TH_ACTION = `${CSR_TH} w-[1%] whitespace-nowrap`;

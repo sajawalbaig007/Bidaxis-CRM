@@ -33,6 +33,9 @@ import { useStaffBase } from "@/app/hooks/useStaffBase";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
+import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import LeadDetailModal from "../../csr/components/LeadDetailModal";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from "recharts";
 import {
@@ -60,6 +63,7 @@ type Client = {
   time: string;
   timezone: string;
   isOldClient: boolean;
+  state: string;
 };
 
 const PAGE_SIZE = 30;
@@ -107,6 +111,8 @@ function ClientsPageContent() {
   const effectiveView: ClientView = isClientView(urlTab) ? urlTab : view;
   const [csrFilter, setCsrFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   const [impSearch, setImpSearch] = useState("");
@@ -179,6 +185,7 @@ function ClientsPageContent() {
     time: "",
     timezone: "",
     isOldClient: false,
+    state: "",
     clientCode: null,
   };
 
@@ -280,7 +287,19 @@ function ClientsPageContent() {
   }), []);
 
   const { filters: leadColFilters, setFilter: setLeadColFilter, filtered: colFilteredClients, hasActiveFilters } =
-    useColumnFilters(clients, leadColPredicates);
+    useColumnFilters(
+      useMemo(() => {
+        let list = clients;
+        if (stateFilter) {
+          list = list.filter(c => matchesStateLocationFilter(c.state, c.contact, stateFilter));
+        }
+        if (phoneFilter) {
+          list = list.filter(c => matchesPhoneAreaCodeFilter(c.contact, phoneFilter));
+        }
+        return list;
+      }, [clients, stateFilter, phoneFilter]),
+      leadColPredicates,
+    );
 
   function clientViewBucket(c: Client): ClientView | null {
     const s = c.rawStatus.toLowerCase();
@@ -566,6 +585,8 @@ function ClientsPageContent() {
                     className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
                   />
                 </div>
+                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 {effectiveView === "schedule" && (
                   <div className="flex items-center gap-2">
                     <input

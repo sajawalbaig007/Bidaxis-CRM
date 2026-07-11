@@ -10,13 +10,16 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_6_POTENTIAL, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_6_POTENTIAL, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
-import MonthRangeFilter from "../components/shared/MonthRangeFilter";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
+import StateFilterDropdown from "../components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
+import { parsePhones } from "../utils/parsePhones";
 
 import { useCsrStats, usePotentialLeads } from "../hooks/useCsrTabPage";
 import { useLeadActions } from "../hooks/useLeadActions";
@@ -43,12 +46,6 @@ const getTzAbbr = (tzValue: string) => {
   return found ? found.abbreviation : (tzValue.split("/").pop() ?? tzValue);
 };
 
-function parsePhones(raw: string): string[] {
-  const matches = raw.match(/[\+\d][\d\s.()\-]{5,}/g);
-  if (!matches || matches.length <= 1) return [raw.trim()];
-  return matches.map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
-}
-
 function leadCurrentMoveStatus(lead: Lead): string {
   if (isInterestedLead(lead)) return "interested";
   if (isScheduledCall(lead)) return "schedule call";
@@ -65,6 +62,8 @@ export default function ImportantCallsPage() {
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDate,  setFilterDate]  = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [monthFrom, setMonthFrom] = useState("");
   const [monthTo, setMonthTo] = useState("");
 
@@ -152,12 +151,14 @@ export default function ImportantCallsPage() {
           service: lead.interestedService,
           state: lead.state,
         });
+        const matchesState  = matchesStateLocationFilter(lead.state, lead.phone, stateFilter);
+        const matchesPhone  = matchesPhoneAreaCodeFilter(lead.phone, phoneFilter);
         const matchesDate   = activeTab !== "schedule" || !filterDate || lead.nextSchedule === filterDate;
         const matchesMonth  = inMonth(lead.statusUpdatedAt || "");
-        return matchesTab && matchesSearch && matchesDate && matchesMonth;
+        return matchesTab && matchesSearch && matchesState && matchesPhone && matchesDate && matchesMonth;
       })
       .sort((a, b) => (b.statusUpdatedAt || "").localeCompare(a.statusUpdatedAt || ""));
-  }, [leads, activeTab, searchQuery, filterDate, monthFrom, monthTo]);
+  }, [leads, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
   const paginated  = filteredCalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -302,6 +303,11 @@ export default function ImportantCallsPage() {
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-4">
+          <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+          <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+        </div>
+
         {/* ══ IMPORTANT-ONLY TABLE ══ */}
         {activeTab === "important" && (
           <div className={CSR_TABLE_CARD}>
@@ -354,11 +360,20 @@ export default function ImportantCallsPage() {
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_POPOVER}>
                         <ClientNameCell lead={lead} subtitle="Important Lead" />
                       </td>
-                      <td className={CSR_TD}>
-                        <PhoneWithTzCell phone={lead.phone} variant="pill" />
+                      <td className={CSR_TD_POPOVER}>
+                        {(() => {
+                          const phones = parsePhones(lead.phone);
+                          return (
+                            <PhoneWithTzCell
+                              phone={phones[0] ?? lead.phone}
+                              allPhones={phones}
+                              variant="pill"
+                            />
+                          );
+                        })()}
                       </td>
                       <td className={CSR_TD}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
@@ -455,10 +470,10 @@ export default function ImportantCallsPage() {
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_POPOVER}>
                         <ClientNameCell lead={lead} subtitle="Scheduled Call" />
                       </td>
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_POPOVER}>
                         {(() => {
                           const phones = parsePhones(lead.phone);
                           return (
@@ -611,10 +626,10 @@ export default function ImportantCallsPage() {
                     ))
                   ) : filteredCalls.length > 0 ? paginated.map(lead => (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_POPOVER}>
                         <ClientNameCell lead={lead} subtitle="Interested Lead" />
                       </td>
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_POPOVER}>
                         {(() => {
                           const phones = parsePhones(lead.phone);
                           return (

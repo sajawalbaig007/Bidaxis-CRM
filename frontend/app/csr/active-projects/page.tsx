@@ -28,6 +28,9 @@ import {
   QuotedAmountCell,
 } from "@/app/components/projects/ProjectTableCells";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
+import StateFilterDropdown from "../components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { useProjectsData, Project, parseBudget, isDeadlinePast } from "../hooks/useProjectsData";
 import { NoteEntry } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
@@ -117,6 +120,8 @@ export default function CSRProjectsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo,   setDateTo]   = useState("");
   const [search,       setSearch]       = useState("");
+  const [stateFilter,  setStateFilter]  = useState("");
+  const [phoneFilter,  setPhoneFilter]  = useState("");
   const [page,         setPage]         = useState(1);
   const [sortBy,       setSortBy]       = useState<ClientListSortBy>("clientCode");
   const [sortDir,      setSortDir]      = useState<SortDir>("asc");
@@ -160,18 +165,20 @@ export default function CSRProjectsPage() {
     const q = search.toLowerCase().trim();
     const list = projects.filter(p => {
       const matchesDate   = matchesDeadlineRange(p.deadline, dateFrom, dateTo);
+      const matchesState  = matchesStateLocationFilter(p.state, p.phone, stateFilter);
+      const matchesPhone  = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
       const code = (p.clientCode || p.projectCode || "").toLowerCase();
       const matchesSearch = !q || (p.projectTitle ?? "").toLowerCase().includes(q) ||
         (p.client ?? "").toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q) ||
         code.includes(q);
-      return matchesDate && matchesSearch;
+      return matchesDate && matchesState && matchesPhone && matchesSearch;
     });
     return sortClientRows(
       list.map(p => ({ ...p, clientCode: p.clientCode || p.projectCode || null })),
       sortBy,
       sortDir,
     );
-  }, [dateFrom, dateTo, search, projects, sortBy, sortDir]);
+  }, [dateFrom, dateTo, search, stateFilter, phoneFilter, projects, sortBy, sortDir]);
 
   const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -392,6 +399,8 @@ export default function CSRProjectsPage() {
                 onSortBy={v => { setSortBy(v); setPage(1); }}
                 onSortDir={v => { setSortDir(v); setPage(1); }}
               />
+              <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+              <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
               <div className="flex items-center gap-1.5 sm:gap-2 text-[#B8112D] font-semibold text-xs sm:text-sm shrink-0">

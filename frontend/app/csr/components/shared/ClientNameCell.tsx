@@ -68,7 +68,7 @@ export default function ClientNameCell({
             </p>
           )}
           {emails.length > 0 && (
-            <div className="flex items-center gap-1 min-w-0 max-w-[220px]">
+            <div className="flex items-center gap-1 min-w-0 max-w-full overflow-visible">
               <span className="text-[10px] sm:text-[11px] text-gray-400 shrink-0">Email:</span>
               <EmailWithExtraCell
                 email={emails[0]}

@@ -34,6 +34,8 @@ export function formatAdminLead(lead: {
 
   timezone?: string;
 
+  state?: string | null;
+
   uploadFile?: { companyName?: string };
 
   csr?: { name?: string; csrCode?: string | null };
@@ -77,6 +79,8 @@ export function formatAdminLead(lead: {
   timezone: string;
 
   isOldClient: boolean;
+
+  state: string;
 
 } {
 
@@ -140,6 +144,8 @@ export function formatAdminLead(lead: {
     timezone: lead.timezone || "N/A",
 
     isOldClient: lead.isOldClient ?? false,
+
+    state: lead.state?.trim() || "",
 
   };
 

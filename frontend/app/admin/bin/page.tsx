@@ -13,6 +13,9 @@ import DashboardNavbar from "../components/layout/Navbar";
 import API from "@/lib/api";
 import { binCategory, binReasonLabel } from "@/app/csr/hooks/useBinData";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 
 const BinStatsChart = dynamic(() => import("./BinStatsChart"), {
   ssr: false,
@@ -24,6 +27,7 @@ type BinLead = {
   client:             string;
   company:            string;
   phone:              string;
+  state:              string;
   status:             string;
   notPickedCount:     number;
   notInterestedCount: number;
@@ -41,6 +45,8 @@ export default function AdminBinPage() {
   const [leads,      setLeads]      = useState<BinLead[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [tab,        setTab]        = useState<TabKey>("all");
   const [filterCSR,  setFilterCSR]  = useState("all");
   const [allCsrs,    setAllCsrs]    = useState<CSR[]>([]);
@@ -57,6 +63,7 @@ export default function AdminBinPage() {
       client:             String(l.name ?? "Unknown"),
       company:            String((l.uploadFile as { companyName?: string })?.companyName ?? l.company ?? "N/A"),
       phone:              String(l.phone ?? "N/A"),
+      state:              String(l.state ?? ""),
       status:             String(l.status ?? ""),
       notPickedCount:     Number(l.notPickedCount ?? 0),
       notInterestedCount: Number(l.notInterestedCount ?? 0),
@@ -123,14 +130,16 @@ export default function AdminBinPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return currentList.filter(l =>
-      !q || l.client.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q) ||
-      l.phone.includes(q) ||
-      l.csr.name.toLowerCase().includes(q) ||
-      binReasonLabel(l.binReason).toLowerCase().includes(q)
-    );
-  }, [currentList, search]);
+    return currentList.filter(l => {
+      if (!matchesStateLocationFilter(l.state, l.phone, stateFilter)) return false;
+      if (!matchesPhoneAreaCodeFilter(l.phone, phoneFilter)) return false;
+      return !q || l.client.toLowerCase().includes(q) ||
+        l.company.toLowerCase().includes(q) ||
+        l.phone.includes(q) ||
+        l.csr.name.toLowerCase().includes(q) ||
+        binReasonLabel(l.binReason).toLowerCase().includes(q);
+    });
+  }, [currentList, search, stateFilter, phoneFilter]);
 
   const tabs: { key: TabKey; label: string; count: number; Icon: typeof Trash2 }[] = [
     { key: "all",           label: "All",            count: leads.length,              Icon: Trash2     },
@@ -216,6 +225,8 @@ export default function AdminBinPage() {
                       className="w-full h-9 sm:h-[40px] rounded-xl border border-gray-200 bg-[#FAFAFA] pl-8 pr-3 text-xs outline-none focus:border-[#B8112D]"
                     />
                   </div>
+                  <StateFilterDropdown value={stateFilter} onChange={setStateFilter} />
+                  <PhoneAreaCodeFilterInput value={phoneFilter} onChange={setPhoneFilter} />
                   <button onClick={() => void fetchLeads()} className="h-9 w-9 rounded-xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] text-gray-500">
                     <RefreshCw size={13} />
                   </button>

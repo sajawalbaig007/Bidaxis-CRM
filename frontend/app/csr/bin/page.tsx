@@ -13,6 +13,9 @@ import { CSR_TABLE_CARD, CSR_TABLE_WRAP, CSR_THEAD, CSR_TABLE_CLASS, CsrColGroup
 import { getTimezoneAbbr, tzBadgeClass, getTimezoneAbbrFromPhone } from "../constants/timezoneAbbr";
 
 import { useBinData, binCategory, binReasonLabel } from "../hooks/useBinData";
+import StateFilterDropdown from "../components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import API from "@/lib/api";
 
@@ -23,6 +26,8 @@ export default function CSRBinPage() {
   const { leads, setLeads, loading, refetch } = useBinData();
 
   const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [page,   setPage]   = useState(1);
   const [tab,    setTab]    = useState<TabKey>("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -58,13 +63,15 @@ export default function CSRBinPage() {
     return currentList.filter(l => {
       if (statusFilter !== "all" && cat(l) !== statusFilter) return false;
       if (sourceFilter !== "all" && l.source !== sourceFilter) return false;
+      if (!matchesStateLocationFilter(l.state, l.phone, stateFilter)) return false;
+      if (!matchesPhoneAreaCodeFilter(l.phone, phoneFilter)) return false;
       return !q || l.client.toLowerCase().includes(q) ||
         l.company.toLowerCase().includes(q) ||
         l.phone.includes(q) ||
         l.source.toLowerCase().includes(q) ||
         binReasonLabel(l.binReason).toLowerCase().includes(q);
     });
-  }, [currentList, search, statusFilter, sourceFilter, leads]);
+  }, [currentList, search, statusFilter, sourceFilter, stateFilter, phoneFilter, leads]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -179,6 +186,8 @@ export default function CSRBinPage() {
                   <option value="all">All Sources</option>
                   {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input

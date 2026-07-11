@@ -7,7 +7,7 @@ import {
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, ChevronUp, RefreshCw, RotateCcw,
   PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle, Pencil,
-  Download,
+  Download, Search,
 } from "lucide-react";
 
 import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
@@ -46,6 +46,7 @@ type RowResult = {
   phone: string;
   email: string;
   company: string;
+  interestedService?: string;
   status: "new" | "duplicate" | "updated" | "empty";
   reason: string;
 };
@@ -95,6 +96,16 @@ const CATEGORY_LABEL_MAP = Object.fromEntries(
 type ModalStep = "category" | "reset" | "company" | "source" | "pane" | "csrs";
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
+
+const filterCsrsBySearch = (list: CSR[], query: string) => {
+  const q = query.trim().toLowerCase();
+  if (!q) return list;
+  return list.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    c.email.toLowerCase().includes(q) ||
+    (c.csrCode?.toLowerCase().includes(q) ?? false)
+  );
+};
 
 const sourceAdminLabel = (s: { name: string; sudoName?: string | null }) =>
   s.sudoName ? `${s.name} · ${s.sudoName}` : s.name;
@@ -191,6 +202,7 @@ export default function UploadPage() {
   const [selectedFile,  setSelectedFile]  = useState<File | null>(null);
   const [csrs,          setCsrs]          = useState<CSR[]>([]);
   const [selectedCSRs,  setSelectedCSRs]  = useState<string[]>([]);
+  const [csrSearchQuery, setCsrSearchQuery] = useState("");
 
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
@@ -420,6 +432,10 @@ export default function UploadPage() {
     void fetchSourceDetail(historySourceId);
   }, [historySourceId]);
 
+  useEffect(() => {
+    if (!showCSRModal) setCsrSearchQuery("");
+  }, [showCSRModal]);
+
   const openCSRModal = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
     setUploadMode("regular");
@@ -546,8 +562,9 @@ export default function UploadPage() {
 
   const handleFiles = async () => {
     if (!selectedFile) return;
-    /* company is optional for client uploads — comes from Excel rows */
-    if (selectedPane !== "lead" && !finalCompany.trim()) { toast.error("Please enter company name"); return; }
+    /* Company required only for regular Call Data uploads — special uploads (important/interested/active) and client sheets use Excel row company */
+    const needsCompany = uploadMode === "regular" && selectedPane === "pending";
+    if (needsCompany && !finalCompany.trim()) { toast.error("Please enter company name"); return; }
     if (selectedCSRs.length === 0) { toast.error("Select at least one CSR"); return; }
 
     const formData = buildUploadFormData();
@@ -1226,7 +1243,19 @@ export default function UploadPage() {
                         <Building2 size={12} className="sm:w-[15px] sm:h-[15px]" />{finalCompany}
                       </div>
                     )}
-                    {selectedPane === "pending" ? (
+                    {uploadMode === "important" ? (
+                      <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-amber-50 text-amber-700">
+                        Important Clients
+                      </span>
+                    ) : uploadMode === "interested" ? (
+                      <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-emerald-50 text-emerald-700">
+                        Interested Clients
+                      </span>
+                    ) : uploadMode === "active" ? (
+                      <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-indigo-50 text-indigo-700">
+                        Active Projects
+                      </span>
+                    ) : selectedPane === "pending" ? (
                       <span className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#EAF5FF] text-[#0B84F3]">
                         Call Data
                       </span>
@@ -1246,32 +1275,67 @@ export default function UploadPage() {
                     onToggleHideDuplicates={() => setHideDupInPreview(v => !v)}
                     filter={previewFilter}
                     onFilterChange={setPreviewFilter}
+                    showInterestedService={uploadMode === "interested"}
                   />
+
+                  {/* CSR search */}
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={csrSearchQuery}
+                      onChange={e => setCsrSearchQuery(e.target.value)}
+                      placeholder="Search CSR by name, code, or email..."
+                      className="w-full h-10 sm:h-11 pl-9 pr-9 rounded-xl border border-gray-200 bg-[#FAFAFA] text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40"
+                    />
+                    {csrSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setCsrSearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+                        aria-label="Clear search"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
 
                   {/* Select All / Deselect All */}
                   {(() => {
                     const activeCSRs = csrs.filter(c => c.isActive);
-                    const allSelected = activeCSRs.length > 0 && activeCSRs.every(c => selectedCSRs.includes(c.id));
+                    const filteredCsrs = filterCsrsBySearch(csrs, csrSearchQuery);
+                    const filteredActiveCSRs = filteredCsrs.filter(c => c.isActive);
+                    const filteredActiveIds = filteredActiveCSRs.map(c => c.id);
+                    const allFilteredSelected =
+                      filteredActiveIds.length > 0 &&
+                      filteredActiveIds.every(id => selectedCSRs.includes(id));
                     return (
                       <div className="flex items-center justify-between pb-1">
                         <p className="text-[11px] sm:text-xs text-gray-400">
                           <span className="font-semibold text-gray-600">{selectedCSRs.length}</span> of {activeCSRs.length} selected
+                          {csrSearchQuery.trim() && (
+                            <span> · {filteredCsrs.length} shown</span>
+                          )}
                         </p>
                         <button
-                          onClick={() => allSelected
-                            ? setSelectedCSRs([])
-                            : setSelectedCSRs(activeCSRs.map(c => c.id))
-                          }
-                          className="text-[11px] sm:text-xs font-semibold text-[#B8112D] hover:underline"
+                          onClick={() => {
+                            if (allFilteredSelected) {
+                              setSelectedCSRs(prev => prev.filter(id => !filteredActiveIds.includes(id)));
+                            } else {
+                              setSelectedCSRs(prev => [...new Set([...prev, ...filteredActiveIds])]);
+                            }
+                          }}
+                          disabled={filteredActiveCSRs.length === 0}
+                          className="text-[11px] sm:text-xs font-semibold text-[#B8112D] hover:underline disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
                         >
-                          {allSelected ? "Deselect All" : "Select All"}
+                          {allFilteredSelected ? "Deselect All" : csrSearchQuery.trim() ? "Select Shown" : "Select All"}
                         </button>
                       </div>
                     );
                   })()}
 
                   <div className="space-y-2 sm:space-y-3 max-h-[240px] sm:max-h-[300px] overflow-y-auto">
-                    {csrs.map(csr => {
+                    {filterCsrsBySearch(csrs, csrSearchQuery).map(csr => {
                       const checked = selectedCSRs.includes(csr.id);
                       const toggle = () => {
                         if (!csr.isActive) return;
@@ -1326,6 +1390,9 @@ export default function UploadPage() {
                         </div>
                       );
                     })}
+                    {filterCsrsBySearch(csrs, csrSearchQuery).length === 0 && (
+                      <p className="text-center text-sm text-gray-400 py-6">No CSRs match your search</p>
+                    )}
                   </div>
 
                   <div className="flex gap-2 sm:gap-3">

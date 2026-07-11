@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { parseEmails } from "../../utils/parseEmails";
+import { useFixedPopover } from "../../hooks/useFixedPopover";
 
 interface EmailWithExtraCellProps {
   email: string;
@@ -28,24 +29,7 @@ export default function EmailWithExtraCell({
   const extras = emails.length > 1 ? emails.length - 1 : 0;
   const canOpen = emails.length > 1;
 
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(300, 160);
 
   if (!primary) {
     return <span className={`text-gray-300 text-xs ${className}`}>{emptyLabel}</span>;
@@ -53,7 +37,9 @@ export default function EmailWithExtraCell({
 
   const chip = (
     <>
-      <span className={variant === "pill" || extras > 0 ? "truncate max-w-[140px]" : "truncate"}>{primary}</span>
+      <span className={extras > 0 ? "truncate min-w-0 max-w-[100px] sm:max-w-[130px]" : "truncate min-w-0"}>
+        {primary}
+      </span>
       {extras > 0 && (
         <span className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
           +{extras}
@@ -64,20 +50,43 @@ export default function EmailWithExtraCell({
 
   const shellClass =
     variant === "pill" || extras > 0
-      ? `inline-flex items-center gap-1 bg-[#F0F7FF] text-[#0B84F3] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap min-w-0 max-w-full ${className}`
-      : `inline-flex items-center gap-1.5 min-w-0 max-w-full text-xs sm:text-sm text-[#0F172A] ${className}`;
+      ? `inline-flex items-center gap-1 flex-nowrap bg-[#F0F7FF] text-[#0B84F3] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
+      : `inline-flex items-center gap-1.5 flex-nowrap min-w-0 max-w-full overflow-visible text-xs sm:text-sm text-[#0F172A] ${className}`;
+
+  const popup =
+    open &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={style}
+        className="bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[220px] max-w-[300px]"
+        onClick={e => e.stopPropagation()}
+      >
+        {emails.map((em, idx) => (
+          <div
+            key={`${em}-${idx}`}
+            className="flex items-center gap-2 px-3 py-2 text-xs text-[#0B84F3] font-medium hover:bg-[#F0F7FF]"
+          >
+            <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
+            <span className="truncate">{em}</span>
+          </div>
+        ))}
+      </div>,
+      document.body,
+    );
 
   if (!canOpen) {
     return <div className={shellClass} title={primary}>{chip}</div>;
   }
 
   return (
-    <div className="relative inline-flex min-w-0 max-w-full" ref={rootRef}>
+    <>
       <button
+        ref={anchorRef}
         type="button"
         onClick={e => {
           e.stopPropagation();
-          setOpen(v => !v);
+          toggle();
         }}
         className={`${shellClass} cursor-pointer hover:opacity-90 transition-opacity`}
         title="Show all emails"
@@ -85,23 +94,7 @@ export default function EmailWithExtraCell({
       >
         {chip}
       </button>
-
-      {open && (
-        <div
-          className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[220px] max-w-[300px]"
-          onClick={e => e.stopPropagation()}
-        >
-          {emails.map((em, idx) => (
-            <div
-              key={`${em}-${idx}`}
-              className="flex items-center gap-2 px-3 py-2 text-xs text-[#0B84F3] font-medium hover:bg-[#F0F7FF]"
-            >
-              <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
-              <span className="truncate">{em}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+      {typeof document !== "undefined" && popup}
+    </>
   );
 }

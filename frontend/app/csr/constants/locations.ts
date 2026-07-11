@@ -110,12 +110,38 @@ export const STATE_AREA_CODES: Record<string, string[]> = {
 
 export const stateMatches = (itemState: string, filterName: string): boolean => {
   const s = (itemState ?? "").trim().toLowerCase();
-  if (!s) return false;
+  if (!s || !filterName.trim()) return false;
   const f = filterName.trim().toLowerCase();
   if (s === f) return true;
-  const byName = [...US_STATES, ...CA_PROVINCES].find(l => l.name.toLowerCase() === f);
-  if (byName && s === byName.code.toLowerCase()) return true;
-  const byCode = [...US_STATES, ...CA_PROVINCES].find(l => l.code.toLowerCase() === f);
-  if (byCode && s === byCode.name.toLowerCase()) return true;
-  return false;
+
+  const allLocations = [...US_STATES, ...CA_PROVINCES];
+  const target =
+    allLocations.find(l => l.name.toLowerCase() === f) ??
+    allLocations.find(l => l.code.toLowerCase() === f);
+
+  if (target) {
+    const code = target.code.toLowerCase();
+    const name = target.name.toLowerCase();
+
+    const filterIsDC = code === "dc" || name.includes("d.c.");
+    const itemIsDC =
+      /\bd\.?\s*c\.?\b/.test(s) ||
+      s.includes("district of columbia") ||
+      s.endsWith(", dc") ||
+      s.endsWith(" dc");
+
+    if (filterIsDC !== itemIsDC && (code === "wa" || code === "dc" || name.startsWith("washington"))) {
+      return false;
+    }
+
+    if (s === code || s === name) return true;
+    const parts = s.split(/[,/|·]/).map(p => p.trim()).filter(Boolean);
+    if (parts.some(p => p === code || p === name)) return true;
+    if (parts.some(p => p.includes(name) || name.includes(p))) return true;
+    if (s.endsWith(` ${code}`) || s.endsWith(`, ${code}`)) return true;
+    if (s.includes(name)) return true;
+    return false;
+  }
+
+  return s.includes(f);
 };

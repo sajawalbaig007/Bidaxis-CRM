@@ -24,6 +24,7 @@ import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
 import ClientSortControls from "../components/shared/ClientSortControls";
 import { parseEmails } from "../utils/parseEmails";
+import { parsePhones } from "../utils/parsePhones";
 import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/clientListSort";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
@@ -32,6 +33,9 @@ import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import { apiErrorMessage } from "@/lib/api";
 import { formatQuotedAmount, parseMoney } from "@/lib/projectFields";
+import StateFilterDropdown from "../components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 
 /* ─── Constants ─────────────────────────────────────────── */
 const EDIT_STATUSES = ["pending", "important", "interested", "Close Client", "completed"];
@@ -75,22 +79,15 @@ function fmtFull(iso: string) {
   } catch { return iso; }
 }
 
-function parsePhones(raw: string): string[] {
-  if (!raw || raw === "N/A") return [];
-  const slashParts = raw.split(/\s*\/\s*/).map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
-  if (slashParts.length > 1) return slashParts;
-  const matches = raw.match(/[\+\d][\d\s.()\-]{5,}/g);
-  if (!matches || matches.length <= 1) return [raw.trim()];
-  return matches.map(p => p.trim()).filter(p => p.replace(/\D/g, "").length >= 7);
-}
-
 /* ─── Page ──────────────────────────────────────────────── */
 export default function LeadsPage() {
   const { leads, setLeads, stats, loading, refetch } = useLeadsData();
 
   /* tabs / search / pagination */
   const [activeTab, setActiveTab] = useState<"new" | "old">("new");
-  const [search,    setSearch]    = useState("");
+  const [search,       setSearch]       = useState("");
+  const [stateFilter,  setStateFilter]  = useState("");
+  const [phoneFilter,  setPhoneFilter]  = useState("");
   const [page,      setPage]      = useState(1);
   const [sortBy,    setSortBy]    = useState<ClientListSortBy>("clientCode");
   const [sortDir,   setSortDir]   = useState<SortDir>("asc");
@@ -173,16 +170,20 @@ export default function LeadsPage() {
   const pendingCount    = stats.pendingCount;
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const list = !q ? baseList : baseList.filter(l =>
-      l.name.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q) ||
-      (l.clientCode ?? "").toLowerCase().includes(q) ||
-      parsePhones(l.phone).some(p => p.includes(q)) ||
-      parseEmails(l.email).some(e => e.toLowerCase().includes(q)) ||
-      l.email.toLowerCase().includes(q)
+    const list = baseList.filter(l =>
+      matchesStateLocationFilter(l.state, l.phone, stateFilter) &&
+      matchesPhoneAreaCodeFilter(l.phone, phoneFilter) &&
+      (!q || (
+        l.name.toLowerCase().includes(q) ||
+        l.company.toLowerCase().includes(q) ||
+        (l.clientCode ?? "").toLowerCase().includes(q) ||
+        parsePhones(l.phone).some(p => p.includes(q)) ||
+        parseEmails(l.email).some(e => e.toLowerCase().includes(q)) ||
+        l.email.toLowerCase().includes(q)
+      ))
     );
     return sortClientRows(list, sortBy, sortDir);
-  }, [baseList, search, sortBy, sortDir]);
+  }, [baseList, search, stateFilter, phoneFilter, sortBy, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -454,6 +455,8 @@ export default function LeadsPage() {
                     className="w-full h-10 sm:h-[44px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-9 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D] transition-colors"
                   />
                 </div>
+                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 <ClientSortControls
                   sortBy={sortBy}
                   sortDir={sortDir}
@@ -551,7 +554,7 @@ export default function LeadsPage() {
                       <p className="hidden lg:block text-xs lg:text-sm text-[#0F172A] truncate">{lead.company}</p>
 
                       {/* Phone — number + area-code TZ */}
-                      <div className="hidden lg:flex items-center gap-1.5 min-w-0">
+                      <div className="hidden lg:flex items-center gap-1.5 min-w-0 overflow-visible">
                         {(() => {
                           const phones = parsePhones(lead.phone);
                           if (phones.length === 0) {
@@ -573,7 +576,7 @@ export default function LeadsPage() {
                       </div>
 
                       {/* Email */}
-                      <div className="hidden lg:block min-w-0">
+                      <div className="hidden lg:block min-w-0 overflow-visible">
                         <EmailWithExtraCell
                           email={lead.email}
                           allEmails={parseEmails(lead.email)}
