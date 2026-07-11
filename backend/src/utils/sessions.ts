@@ -1,5 +1,8 @@
 import prisma from "../config/db";
 
+const lastSessionTouch = new Map<string, number>();
+const SESSION_TOUCH_INTERVAL_MS = 60_000;
+
 /* OTP store: userId → { otp, expiresAt } */
 export const otpStore = new Map<string, { otp: string; expiresAt: number; loginRole?: string }>();
 
@@ -41,6 +44,10 @@ export async function registerActiveSession(userId: string, sid: string): Promis
 }
 
 export async function touchActiveSession(userId: string): Promise<void> {
+  const now = Date.now();
+  const last = lastSessionTouch.get(userId) ?? 0;
+  if (now - last < SESSION_TOUCH_INTERVAL_MS) return;
+  lastSessionTouch.set(userId, now);
   await prisma.user.update({
     where: { id: userId },
     data:  { lastActive: new Date() },

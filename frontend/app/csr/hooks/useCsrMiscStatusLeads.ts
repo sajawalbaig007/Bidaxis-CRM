@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { fetchAllCsrTabLeadsCached } from "@/lib/csrTabApiCache";
+import { fetchCsrTabLeadsCached } from "@/lib/csrTabApiCache";
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
 import { apiErrorMessage } from "@/lib/api";
 
-/** Leads for no-owner / not-in-service / in-house tabs — cached tab API instead of heavy dashboard. */
+const MISC_TAB_PAGE_SIZE = 200;
+
+/** Leads for no-owner / not-in-service / in-house tabs — one page per tab (no full-dataset fetch). */
 export function useCsrMiscStatusLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,9 +15,9 @@ export function useCsrMiscStatusLeads() {
     try {
       setLoading(true);
       const [noOwner, notInService, inHouse] = await Promise.all([
-        fetchAllCsrTabLeadsCached("noowner", undefined, undefined, force),
-        fetchAllCsrTabLeadsCached("notinservice", undefined, undefined, force),
-        fetchAllCsrTabLeadsCached("inhouse", undefined, undefined, force),
+        fetchCsrTabLeadsCached("noowner", 1, undefined, undefined, force, MISC_TAB_PAGE_SIZE),
+        fetchCsrTabLeadsCached("notinservice", 1, undefined, undefined, force, MISC_TAB_PAGE_SIZE),
+        fetchCsrTabLeadsCached("inhouse", 1, undefined, undefined, force, MISC_TAB_PAGE_SIZE),
       ]);
       const merged = [
         ...(noOwner.leads as BackendLead[]),
