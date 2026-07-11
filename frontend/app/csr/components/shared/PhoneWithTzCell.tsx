@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
+import { phoneDedupeKey } from "../../utils/parsePhones";
+import { useFixedPopover } from "../../hooks/useFixedPopover";
 
 interface PhoneWithTzCellProps {
   phone: string;
@@ -22,35 +24,28 @@ export default function PhoneWithTzCell({
   variant = "plain",
   className = "",
 }: PhoneWithTzCellProps) {
-  const phones = (allPhones && allPhones.length > 0 ? allPhones : [phone]).filter(Boolean);
+  const rawPhones = (allPhones && allPhones.length > 0 ? allPhones : [phone]).filter(Boolean);
+  const seen = new Set<string>();
+  const phones: string[] = [];
+  for (const p of rawPhones) {
+    const key = phoneDedupeKey(p);
+    if (key.length < 7 || seen.has(key)) continue;
+    seen.add(key);
+    phones.push(p);
+  }
   const primary = phones[0] ?? phone;
   const extras = phones.length > 1 ? phones.length - 1 : extraCount;
   const canOpen = phones.length > 1;
 
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(260, 160);
 
   const tz = getTimezoneAbbrFromPhone(primary);
 
   const chip = (
     <>
-      <span className={variant === "pill" || extras > 0 ? "truncate max-w-[100px]" : undefined}>{primary}</span>
+      <span className={extras > 0 ? "truncate min-w-0 max-w-[72px] sm:max-w-[96px]" : "truncate min-w-0"}>
+        {primary}
+      </span>
       {tz && (
         <span
           title="Phone area code timezone"
@@ -69,20 +64,51 @@ export default function PhoneWithTzCell({
 
   const shellClass =
     variant === "pill" || extras > 0
-      ? `inline-flex items-center gap-1 bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap min-w-0 max-w-full ${className}`
-      : `flex items-center gap-1.5 min-w-0 whitespace-nowrap ${className}`;
+      ? `inline-flex items-center gap-1 flex-nowrap bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
+      : `inline-flex items-center gap-1.5 flex-nowrap min-w-0 max-w-full overflow-visible ${className}`;
+
+  const popup =
+    open &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={style}
+        className="bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px] max-w-[260px]"
+        onClick={e => e.stopPropagation()}
+      >
+        {phones.map((ph, idx) => {
+          const pt = getTimezoneAbbrFromPhone(ph);
+          return (
+            <div
+              key={`${ph}-${idx}`}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]"
+            >
+              <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
+              <span className="truncate">{ph}</span>
+              {pt && (
+                <span className={`ml-auto inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(pt)}`}>
+                  {pt}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>,
+      document.body,
+    );
 
   if (!canOpen) {
     return <div className={shellClass}>{chip}</div>;
   }
 
   return (
-    <div className="relative inline-flex min-w-0 max-w-full" ref={rootRef}>
+    <>
       <button
+        ref={anchorRef}
         type="button"
         onClick={e => {
           e.stopPropagation();
-          setOpen(v => !v);
+          toggle();
         }}
         className={`${shellClass} cursor-pointer hover:opacity-90 transition-opacity`}
         title="Show all phone numbers"
@@ -90,31 +116,7 @@ export default function PhoneWithTzCell({
       >
         {chip}
       </button>
-
-      {open && (
-        <div
-          className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 min-w-[190px] max-w-[260px]"
-          onClick={e => e.stopPropagation()}
-        >
-          {phones.map((ph, idx) => {
-            const pt = getTimezoneAbbrFromPhone(ph);
-            return (
-              <div
-                key={`${ph}-${idx}`}
-                className="flex items-center gap-2 px-3 py-2 text-xs text-[#B8112D] font-medium hover:bg-[#FFF6F7]"
-              >
-                <span className="text-gray-300 text-[10px] shrink-0">{idx + 1}.</span>
-                <span className="truncate">{ph}</span>
-                {pt && (
-                  <span className={`ml-auto inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold border shrink-0 ${tzBadgeClass(pt)}`}>
-                    {pt}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+      {typeof document !== "undefined" && popup}
+    </>
   );
 }

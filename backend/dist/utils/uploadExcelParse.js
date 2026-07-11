@@ -11,13 +11,55 @@ const db_1 = __importDefault(require("../config/db"));
 const leadPhoneLookup_1 = require("./leadPhoneLookup");
 const leadClientPromotion_1 = require("./leadClientPromotion");
 const CHUNK_LOOKUP = 500;
+function normalizeHeaderKey(key) {
+    return key.trim().toLowerCase().replace(/[\s_]+/g, " ");
+}
 function resolveColumnKey(keys, possibleKeys, excludeKeys = []) {
+    const entries = keys.map(raw => ({ raw, norm: normalizeHeaderKey(raw) }));
+    for (const p of possibleKeys) {
+        const pn = normalizeHeaderKey(p);
+        const exact = entries.find(e => e.norm === pn);
+        if (exact)
+            return exact.raw;
+    }
     return keys.find(k => {
-        const kl = k.toLowerCase();
-        if (excludeKeys.some(ex => kl.includes(ex.toLowerCase())))
+        const kl = normalizeHeaderKey(k);
+        if (excludeKeys.some(ex => kl.includes(normalizeHeaderKey(ex))))
             return false;
-        return possibleKeys.some(p => kl.includes(p.toLowerCase()));
+        return possibleKeys.some(p => kl.includes(normalizeHeaderKey(p)));
     });
+}
+/** Prefer explicit Interested Service / Interested In headers over generic "service" or "interested". */
+function resolveServiceColumnKey(keys) {
+    const priority = [
+        "interested service",
+        "interested in",
+        "service interested",
+        "interested service type",
+        "service type",
+        "services",
+        "service",
+        "scope",
+        "interest",
+        "interested",
+    ];
+    const resolved = resolveColumnKey(keys, priority, ["status"]);
+    if (resolved)
+        return resolved;
+    return resolveColumnKey(keys, priority, []);
+}
+function readInterestedService(row, serviceKey, headerKeys) {
+    const keys = [
+        serviceKey,
+        resolveColumnKey(headerKeys, ["interested service", "interested in"], ["status"]),
+        resolveColumnKey(headerKeys, ["service type", "services", "service"], ["status", "client", "company", "project"]),
+    ].filter((k, i, arr) => !!k && arr.indexOf(k) === i);
+    for (const key of keys) {
+        const value = readCell(row, key);
+        if (value)
+            return value;
+    }
+    return "";
 }
 function readCell(row, key) {
     if (!key)
@@ -42,7 +84,62 @@ async function chunkedLookup(items, size, query) {
 function readExcelRows(buffer) {
     const workbook = xlsx_1.default.read(buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
-    return xlsx_1.default.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    const sheet = workbook.Sheets[sheetName];
+    const rows = xlsx_1.default.utils.sheet_to_json(sheet);
+    return fillMergedCells(sheet, rows);
+}
+/** Excel merged cells only store a value on the first row — copy down for uploads. */
+function fillMergedCells(sheet, rows) {
+    const merges = sheet["!merges"];
+    if (!merges?.length || rows.length === 0)
+        return rows;
+    const ref = sheet["!ref"];
+    if (!ref)
+        return rows;
+    const range = xlsx_1.default.utils.decode_range(ref);
+    const headerRow = range.s.r;
+    const headerByCol = new Map();
+    for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = xlsx_1.default.utils.encode_cell({ r: headerRow, c });
+        const cell = sheet[addr];
+        if (cell?.v != null) {
+            const h = String(cell.v).trim();
+            if (h)
+                headerByCol.set(c, h);
+        }
+    }
+    const out = rows.map(r => ({ ...r }));
+    for (const merge of merges) {
+        const { s, e } = merge;
+        if (s.r < headerRow)
+            continue;
+        for (let c = s.c; c <= e.c; c++) {
+            const headerKey = headerByCol.get(c);
+            if (!headerKey)
+                continue;
+            const sourceAddr = xlsx_1.default.utils.encode_cell({ r: s.r, c });
+            const sourceCell = sheet[sourceAddr];
+            const sourceVal = sourceCell?.v;
+            if (sourceVal === undefined || sourceVal === null)
+                continue;
+            const strVal = String(sourceVal).trim();
+            if (!strVal || strVal.toLowerCase() === "n/a" || strVal === "-")
+                continue;
+            for (let r = s.r; r <= e.r; r++) {
+                if (r <= headerRow)
+                    continue;
+                const idx = r - headerRow - 1;
+                if (idx < 0 || idx >= out.length)
+                    continue;
+                const row = out[idx];
+                const cur = row[headerKey];
+                if (cur === undefined || cur === null || String(cur).trim() === "") {
+                    row[headerKey] = sourceVal;
+                }
+            }
+        }
+    }
+    return out;
 }
 function parseLeadRows(data, csrs, initialStatuses, leadType) {
     const isActiveUpload = leadType === "active";
@@ -61,7 +158,7 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
         ], []),
         phone: resolveColumnKey(headerKeys, ["phone", "mobile", "cell", "telephone", "number", "contact"], ["person", "name", "detail"]),
         state: resolveColumnKey(headerKeys, ["location", "address", "state", "province", "city", "prov", "region"]),
-        service: resolveColumnKey(headerKeys, ["interested in", "interested", "service", "interest", "services", "scope"], ["status"]),
+        service: resolveServiceColumnKey(headerKeys),
         projectTitle: resolveColumnKey(headerKeys, ["project detail", "project title", "project name", "project"], ["code", "client"]),
         projectBudget: resolveColumnKey(headerKeys, ["quotation", "quote", "budget"]),
         email: resolveColumnKey(headerKeys, ["email", "mail", "e-mail"]),
@@ -96,7 +193,7 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
             phone,
             email: readCell(row, col.email),
             state: readCell(row, col.state),
-            interestedService: readCell(row, col.service),
+            interestedService: readInterestedService(row, col.service, headerKeys),
             clientCode: readCell(row, col.clientCode) || null,
             /* Project Detail / Quotation: Active Projects + New/Old Clients pages */
             projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
@@ -114,6 +211,24 @@ function parseLeadRows(data, csrs, initialStatuses, leadType) {
 function isCallDataStatus(status) {
     return (status ?? "").toLowerCase() === "pending";
 }
+function pickActiveRefreshTarget(activeMatches, uploadStatus) {
+    const target = (uploadStatus ?? "").toLowerCase();
+    if (target === "interested") {
+        return (activeMatches.find(m => (m.status ?? "").toLowerCase() === "interested") ??
+            activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status)) ??
+            activeMatches.find(m => (m.status ?? "").toLowerCase() === "important") ??
+            activeMatches.find(m => !(0, leadClientPromotion_1.isWonClientStatus)(m.status)) ??
+            activeMatches[0]);
+    }
+    if (target === "important") {
+        return (activeMatches.find(m => (m.status ?? "").toLowerCase() === "important") ??
+            activeMatches.find(m => (0, leadClientPromotion_1.isPendingPipelineStatus)(m.status)) ??
+            activeMatches.find(m => !(0, leadClientPromotion_1.isWonClientStatus)(m.status)) ??
+            activeMatches[0]);
+    }
+    const wonMatch = activeMatches.find(m => (0, leadClientPromotion_1.isWonClientStatus)(m.status));
+    return wonMatch ?? activeMatches[0];
+}
 async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data", promoteWonClientsArg = false) {
     /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
     const promoteWonClients = typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
@@ -124,6 +239,7 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
         phone: r.phone || "—",
         email: r.email || "—",
         company: r.company || "—",
+        ...(r.interestedService ? { interestedService: r.interestedService } : {}),
         status,
         reason,
     });
@@ -237,8 +353,7 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
             }
             /* Non–call-data uploads always land on their target page (refresh existing) */
             if (!callDataUpload && activeMatches.length > 0) {
-                const wonMatch = activeMatches.find(m => (0, leadClientPromotion_1.isWonClientStatus)(m.status));
-                const target = wonMatch ?? activeMatches[0];
+                const target = pickActiveRefreshTarget(activeMatches, r.status);
                 toRefresh.push({ row: r, existingId: target.id });
                 preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
                 continue;

@@ -61,6 +61,34 @@ async function runBatched(items, size, fn) {
         await Promise.all(items.slice(i, i + size).map(fn));
     }
 }
+/** Keep one interested lead per phone/CSR from this upload; merge service + remove stale dupes. */
+async function consolidateInterestedUploadByPhone(uploadedFileId) {
+    const uploaded = await db_1.default.lead.findMany({
+        where: { uploadedFileId },
+        select: { id: true, phone: true, assignedTo: true, interestedService: true, status: true },
+    });
+    for (const lead of uploaded) {
+        const phone = lead.phone?.trim();
+        if (!phone || phone.replace(/\D/g, "").length < 7)
+            continue;
+        const matches = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
+        const siblings = matches.filter(m => m.id !== lead.id &&
+            !m.inBin &&
+            m.assignedTo === lead.assignedTo &&
+            ((m.status ?? "").toLowerCase() === "interested" || m.interested === true));
+        if (siblings.length === 0)
+            continue;
+        const mergedService = lead.interestedService?.trim() ||
+            siblings.map(s => s.interestedService?.trim()).find(Boolean);
+        if (mergedService && !lead.interestedService?.trim()) {
+            await db_1.default.lead.update({
+                where: { id: lead.id },
+                data: { interestedService: mergedService },
+            });
+        }
+        await (0, deleteLeadsCascade_1.deleteLeadsCascade)(siblings.map(s => s.id));
+    }
+}
 /** Call-data = daily pending leads on CSR main page */
 const CALL_DATA_STATUSES = ["pending"];
 function isCallDataUpload(initialStatuses) {
@@ -181,26 +209,35 @@ const uploadLeads = async (req, res) => {
         const promoteWonClients = isSpecialUpload && initialStatuses.every(leadClientPromotion_1.isWonClientUploadStatus);
         const { fresh, toUpdate, toPromote, toRefresh, toRestore, emailUpdates, preview, existingCodeMap } = await (0, uploadExcelParse_1.classifyRows)(parsed, isActiveUpload, uploadCategory, promoteWonClients);
         const distributionMap = {};
-        const leadFieldsFromRow = (r, opts) => ({
-            name: r.name,
-            company: r.company || null,
-            phone: r.phone || null,
-            email: r.email || null,
-            state: r.state || null,
-            interestedService: r.interestedService || null,
-            clientCode: r.clientCode || null,
-            projectTitle: r.projectTitle,
-            projectBudget: r.projectBudget,
-            comments: r.comments || null,
-            status: r.status || (isActiveUpload ? "Close Client" : r.status),
-            important: (r.status ?? "").toLowerCase() === "important",
-            interested: (r.status ?? "").toLowerCase() === "interested",
-            isOldClient: opts?.forceOld ?? r.isOldClient,
-            assignedTo: r.csrId,
-            uploadedFileId: uploadedFile.id,
-            hiddenOnMain: hideOnMain(r.status),
-            ...CLEAR_BIN,
-        });
+        const leadFieldsFromRow = (r, opts) => {
+            const statusLower = (r.status ?? "").toLowerCase();
+            const data = {
+                name: r.name,
+                company: r.company || null,
+                phone: r.phone || null,
+                email: r.email || null,
+                state: r.state || null,
+                clientCode: r.clientCode || null,
+                projectTitle: r.projectTitle,
+                projectBudget: r.projectBudget,
+                comments: r.comments || null,
+                status: r.status || (isActiveUpload ? "Close Client" : r.status),
+                important: statusLower === "important",
+                interested: statusLower === "interested",
+                isOldClient: opts?.forceOld ?? r.isOldClient,
+                assignedTo: r.csrId,
+                uploadedFileId: uploadedFile.id,
+                hiddenOnMain: hideOnMain(r.status),
+                ...CLEAR_BIN,
+            };
+            if (r.interestedService?.trim()) {
+                data.interestedService = r.interestedService.trim();
+            }
+            else if (!opts?.skipEmptyInterestedService) {
+                data.interestedService = null;
+            }
+            return data;
+        };
         if (isActiveUpload && toUpdate.length > 0 && existingCodeMap) {
             await runBatched(toUpdate, BATCH_UPDATE, r => db_1.default.lead.update({
                 where: { id: existingCodeMap.get(r.clientCode) },
@@ -217,10 +254,14 @@ const uploadLeads = async (req, res) => {
         if (!isActiveUpload && emailUpdates.length > 0) {
             await runBatched(emailUpdates, BATCH_UPDATE, ({ id, email }) => db_1.default.lead.update({ where: { id }, data: { email } }));
         }
+        const skipEmptyService = (status) => (status ?? "").toLowerCase() === "interested";
         if (toRestore.length > 0) {
             await runBatched(toRestore, BATCH_UPDATE, ({ row, existingId }) => db_1.default.lead.update({
                 where: { id: existingId },
-                data: leadFieldsFromRow(row, { forceOld: isActiveUpload || row.isOldClient }),
+                data: leadFieldsFromRow(row, {
+                    forceOld: isActiveUpload || row.isOldClient,
+                    skipEmptyInterestedService: skipEmptyService(row.status),
+                }),
             }));
             for (const { row } of toRestore) {
                 distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
@@ -242,7 +283,9 @@ const uploadLeads = async (req, res) => {
         if (!isActiveUpload && toRefresh.length > 0) {
             await runBatched(toRefresh, BATCH_UPDATE, ({ row, existingId }) => db_1.default.lead.update({
                 where: { id: existingId },
-                data: leadFieldsFromRow(row),
+                data: leadFieldsFromRow(row, {
+                    skipEmptyInterestedService: skipEmptyService(row.status),
+                }),
             }));
             for (const { row } of toRefresh) {
                 distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
@@ -273,7 +316,7 @@ const uploadLeads = async (req, res) => {
                 phone: r.phone,
                 email: r.email,
                 state: r.state || null,
-                interestedService: r.interestedService || null,
+                interestedService: r.interestedService?.trim() || null,
                 clientCode: r.clientCode || null,
                 projectTitle: r.projectTitle,
                 projectBudget: r.projectBudget,
@@ -304,6 +347,9 @@ const uploadLeads = async (req, res) => {
                     await (0, leadClientPromotion_1.clearPendingDuplicatesForPhone)(lead.phone, lead.assignedTo, lead.id);
                 }
             }
+        }
+        if (uploadCategory === "interested") {
+            await consolidateInterestedUploadByPhone(uploadedFile.id);
         }
         (0, cache_1.flushAdminClientsCache)();
         for (const csr of csrs) {

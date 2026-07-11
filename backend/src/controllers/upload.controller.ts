@@ -63,6 +63,41 @@ async function runBatched<T>(items: T[], size: number, fn: (item: T) => Promise<
     await Promise.all(items.slice(i, i + size).map(fn));
   }
 }
+
+/** Keep one interested lead per phone/CSR from this upload; merge service + remove stale dupes. */
+async function consolidateInterestedUploadByPhone(uploadedFileId: string) {
+  const uploaded = await prisma.lead.findMany({
+    where: { uploadedFileId },
+    select: { id: true, phone: true, assignedTo: true, interestedService: true, status: true },
+  });
+
+  for (const lead of uploaded) {
+    const phone = lead.phone?.trim();
+    if (!phone || phone.replace(/\D/g, "").length < 7) continue;
+
+    const matches = await findLeadsByPhone(phone);
+    const siblings = matches.filter(m =>
+      m.id !== lead.id &&
+      !m.inBin &&
+      m.assignedTo === lead.assignedTo &&
+      ((m.status ?? "").toLowerCase() === "interested" || m.interested === true)
+    );
+    if (siblings.length === 0) continue;
+
+    const mergedService =
+      lead.interestedService?.trim() ||
+      siblings.map(s => s.interestedService?.trim()).find(Boolean);
+
+    if (mergedService && !lead.interestedService?.trim()) {
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data:  { interestedService: mergedService },
+      });
+    }
+
+    await deleteLeadsCascade(siblings.map(s => s.id));
+  }
+}
 /** Call-data = daily pending leads on CSR main page */
 const CALL_DATA_STATUSES = ["pending"] as const;
 
@@ -211,26 +246,34 @@ export const uploadLeads = async (req: Request, res: Response) => {
 
     const distributionMap: Record<string, number> = {};
 
-    const leadFieldsFromRow = (r: typeof parsed[0], opts?: { forceOld?: boolean }) => ({
-      name:              r.name,
-      company:           r.company           || null,
-      phone:             r.phone             || null,
-      email:             r.email             || null,
-      state:             r.state             || null,
-      interestedService: r.interestedService || null,
-      clientCode:        r.clientCode        || null,
-      projectTitle:      r.projectTitle,
-      projectBudget:     r.projectBudget,
-      comments:          r.comments            || null,
-      status:            r.status            || (isActiveUpload ? "Close Client" : r.status),
-      important:         (r.status ?? "").toLowerCase() === "important",
-      interested:        (r.status ?? "").toLowerCase() === "interested",
-      isOldClient:       opts?.forceOld ?? r.isOldClient,
-      assignedTo:        r.csrId,
-      uploadedFileId:    uploadedFile.id,
-      hiddenOnMain:      hideOnMain(r.status),
-      ...CLEAR_BIN,
-    });
+    const leadFieldsFromRow = (r: typeof parsed[0], opts?: { forceOld?: boolean; skipEmptyInterestedService?: boolean }) => {
+      const statusLower = (r.status ?? "").toLowerCase();
+      const data: Record<string, unknown> = {
+        name:              r.name,
+        company:           r.company           || null,
+        phone:             r.phone             || null,
+        email:             r.email             || null,
+        state:             r.state             || null,
+        clientCode:        r.clientCode        || null,
+        projectTitle:      r.projectTitle,
+        projectBudget:     r.projectBudget,
+        comments:          r.comments            || null,
+        status:            r.status            || (isActiveUpload ? "Close Client" : r.status),
+        important:         statusLower === "important",
+        interested:        statusLower === "interested",
+        isOldClient:       opts?.forceOld ?? r.isOldClient,
+        assignedTo:        r.csrId,
+        uploadedFileId:    uploadedFile.id,
+        hiddenOnMain:      hideOnMain(r.status),
+        ...CLEAR_BIN,
+      };
+      if (r.interestedService?.trim()) {
+        data.interestedService = r.interestedService.trim();
+      } else if (!opts?.skipEmptyInterestedService) {
+        data.interestedService = null;
+      }
+      return data;
+    };
 
     if (isActiveUpload && toUpdate.length > 0 && existingCodeMap) {
       await runBatched(toUpdate, BATCH_UPDATE, r =>
@@ -254,11 +297,17 @@ export const uploadLeads = async (req: Request, res: Response) => {
       );
     }
 
+    const skipEmptyService = (status: string) =>
+      (status ?? "").toLowerCase() === "interested";
+
     if (toRestore.length > 0) {
       await runBatched(toRestore, BATCH_UPDATE, ({ row, existingId }) =>
         prisma.lead.update({
           where: { id: existingId },
-          data: leadFieldsFromRow(row, { forceOld: isActiveUpload || row.isOldClient }),
+          data: leadFieldsFromRow(row, {
+            forceOld: isActiveUpload || row.isOldClient,
+            skipEmptyInterestedService: skipEmptyService(row.status),
+          }),
         })
       );
       for (const { row } of toRestore) {
@@ -286,7 +335,9 @@ export const uploadLeads = async (req: Request, res: Response) => {
       await runBatched(toRefresh, BATCH_UPDATE, ({ row, existingId }) =>
         prisma.lead.update({
           where: { id: existingId },
-          data: leadFieldsFromRow(row),
+          data: leadFieldsFromRow(row, {
+            skipEmptyInterestedService: skipEmptyService(row.status),
+          }),
         })
       );
       for (const { row } of toRefresh) {
@@ -320,7 +371,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         phone:             r.phone,
         email:             r.email,
         state:             r.state             || null,
-        interestedService: r.interestedService || null,
+        interestedService: r.interestedService?.trim() || null,
         clientCode:        r.clientCode        || null,
         projectTitle:      r.projectTitle,
         projectBudget:     r.projectBudget,
@@ -353,6 +404,10 @@ export const uploadLeads = async (req: Request, res: Response) => {
           await clearPendingDuplicatesForPhone(lead.phone, lead.assignedTo, lead.id);
         }
       }
+    }
+
+    if (uploadCategory === "interested") {
+      await consolidateInterestedUploadByPhone(uploadedFile.id);
     }
 
     flushAdminClientsCache();

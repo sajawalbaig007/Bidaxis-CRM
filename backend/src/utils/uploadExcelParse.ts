@@ -38,20 +38,66 @@ export type RowPreview = {
   phone: string;
   email: string;
   company: string;
+  interestedService?: string;
   status: "new" | "duplicate" | "updated" | "empty";
   reason: string;
 };
+
+function normalizeHeaderKey(key: string): string {
+  return key.trim().toLowerCase().replace(/[\s_]+/g, " ");
+}
 
 function resolveColumnKey(
   keys: string[],
   possibleKeys: string[],
   excludeKeys: string[] = []
 ): string | undefined {
+  const entries = keys.map(raw => ({ raw, norm: normalizeHeaderKey(raw) }));
+
+  for (const p of possibleKeys) {
+    const pn = normalizeHeaderKey(p);
+    const exact = entries.find(e => e.norm === pn);
+    if (exact) return exact.raw;
+  }
+
   return keys.find(k => {
-    const kl = k.toLowerCase();
-    if (excludeKeys.some(ex => kl.includes(ex.toLowerCase()))) return false;
-    return possibleKeys.some(p => kl.includes(p.toLowerCase()));
+    const kl = normalizeHeaderKey(k);
+    if (excludeKeys.some(ex => kl.includes(normalizeHeaderKey(ex)))) return false;
+    return possibleKeys.some(p => kl.includes(normalizeHeaderKey(p)));
   });
+}
+
+/** Prefer explicit Interested Service / Interested In headers over generic "service" or "interested". */
+function resolveServiceColumnKey(keys: string[]): string | undefined {
+  const priority = [
+    "interested service",
+    "interested in",
+    "service interested",
+    "interested service type",
+    "service type",
+    "services",
+    "service",
+    "scope",
+    "interest",
+    "interested",
+  ];
+  const resolved = resolveColumnKey(keys, priority, ["status"]);
+  if (resolved) return resolved;
+  return resolveColumnKey(keys, priority, []);
+}
+
+function readInterestedService(row: ExcelRow, serviceKey: string | undefined, headerKeys: string[]): string {
+  const keys = [
+    serviceKey,
+    resolveColumnKey(headerKeys, ["interested service", "interested in"], ["status"]),
+    resolveColumnKey(headerKeys, ["service type", "services", "service"], ["status", "client", "company", "project"]),
+  ].filter((k, i, arr): k is string => !!k && arr.indexOf(k) === i);
+
+  for (const key of keys) {
+    const value = readCell(row, key);
+    if (value) return value;
+  }
+  return "";
 }
 
 function readCell(row: ExcelRow, key: string | undefined): string {
@@ -79,7 +125,63 @@ async function chunkedLookup<T>(
 export function readExcelRows(buffer: Buffer): ExcelRow[] {
   const workbook = XLSX.read(buffer, { type: "buffer" });
   const sheetName = workbook.SheetNames[0];
-  return XLSX.utils.sheet_to_json<ExcelRow>(workbook.Sheets[sheetName]);
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json<ExcelRow>(sheet);
+  return fillMergedCells(sheet, rows);
+}
+
+/** Excel merged cells only store a value on the first row — copy down for uploads. */
+function fillMergedCells(sheet: XLSX.WorkSheet, rows: ExcelRow[]): ExcelRow[] {
+  const merges = sheet["!merges"] as XLSX.Range[] | undefined;
+  if (!merges?.length || rows.length === 0) return rows;
+
+  const ref = sheet["!ref"];
+  if (!ref) return rows;
+
+  const range = XLSX.utils.decode_range(ref);
+  const headerRow = range.s.r;
+
+  const headerByCol = new Map<number, string>();
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({ r: headerRow, c });
+    const cell = sheet[addr];
+    if (cell?.v != null) {
+      const h = String(cell.v).trim();
+      if (h) headerByCol.set(c, h);
+    }
+  }
+
+  const out = rows.map(r => ({ ...r }));
+
+  for (const merge of merges) {
+    const { s, e } = merge;
+    if (s.r < headerRow) continue;
+
+    for (let c = s.c; c <= e.c; c++) {
+      const headerKey = headerByCol.get(c);
+      if (!headerKey) continue;
+
+      const sourceAddr = XLSX.utils.encode_cell({ r: s.r, c });
+      const sourceCell = sheet[sourceAddr];
+      const sourceVal = sourceCell?.v;
+      if (sourceVal === undefined || sourceVal === null) continue;
+      const strVal = String(sourceVal).trim();
+      if (!strVal || strVal.toLowerCase() === "n/a" || strVal === "-") continue;
+
+      for (let r = s.r; r <= e.r; r++) {
+        if (r <= headerRow) continue;
+        const idx = r - headerRow - 1;
+        if (idx < 0 || idx >= out.length) continue;
+        const row = out[idx]!;
+        const cur = row[headerKey];
+        if (cur === undefined || cur === null || String(cur).trim() === "") {
+          row[headerKey] = sourceVal;
+        }
+      }
+    }
+  }
+
+  return out;
 }
 
 export function parseLeadRows(
@@ -104,7 +206,7 @@ export function parseLeadRows(
     ], []),
     phone:        resolveColumnKey(headerKeys, ["phone","mobile","cell","telephone","number","contact"], ["person","name","detail"]),
     state:        resolveColumnKey(headerKeys, ["location","address","state","province","city","prov","region"]),
-    service:      resolveColumnKey(headerKeys, ["interested in","interested","service","interest","services","scope"], ["status"]),
+    service:      resolveServiceColumnKey(headerKeys),
     projectTitle: resolveColumnKey(headerKeys, ["project detail","project title","project name","project"], ["code","client"]),
     projectBudget:resolveColumnKey(headerKeys, ["quotation","quote","budget"]),
     email:        resolveColumnKey(headerKeys, ["email","mail","e-mail"]),
@@ -142,7 +244,7 @@ export function parseLeadRows(
       phone,
       email: readCell(row, col.email),
       state: readCell(row, col.state),
-      interestedService: readCell(row, col.service),
+      interestedService: readInterestedService(row, col.service, headerKeys),
       clientCode: readCell(row, col.clientCode) || null,
       /* Project Detail / Quotation: Active Projects + New/Old Clients pages */
       projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
@@ -176,6 +278,35 @@ function isCallDataStatus(status: string | null | undefined): boolean {
   return (status ?? "").toLowerCase() === "pending";
 }
 
+function pickActiveRefreshTarget(
+  activeMatches: ExistingLeadMatch[],
+  uploadStatus: string,
+): ExistingLeadMatch {
+  const target = (uploadStatus ?? "").toLowerCase();
+
+  if (target === "interested") {
+    return (
+      activeMatches.find(m => (m.status ?? "").toLowerCase() === "interested") ??
+      activeMatches.find(m => isPendingPipelineStatus(m.status)) ??
+      activeMatches.find(m => (m.status ?? "").toLowerCase() === "important") ??
+      activeMatches.find(m => !isWonClientStatus(m.status)) ??
+      activeMatches[0]!
+    );
+  }
+
+  if (target === "important") {
+    return (
+      activeMatches.find(m => (m.status ?? "").toLowerCase() === "important") ??
+      activeMatches.find(m => isPendingPipelineStatus(m.status)) ??
+      activeMatches.find(m => !isWonClientStatus(m.status)) ??
+      activeMatches[0]!
+    );
+  }
+
+  const wonMatch = activeMatches.find(m => isWonClientStatus(m.status));
+  return wonMatch ?? activeMatches[0]!;
+}
+
 export async function classifyRows(
   parsed: ParsedLeadRow[],
   isActiveUpload: boolean,
@@ -202,6 +333,7 @@ export async function classifyRows(
     phone: r.phone || "—",
     email: r.email || "—",
     company: r.company || "—",
+    ...(r.interestedService ? { interestedService: r.interestedService } : {}),
     status,
     reason,
   });
@@ -332,8 +464,7 @@ export async function classifyRows(
 
       /* Non–call-data uploads always land on their target page (refresh existing) */
       if (!callDataUpload && activeMatches.length > 0) {
-        const wonMatch = activeMatches.find(m => isWonClientStatus(m.status));
-        const target = wonMatch ?? activeMatches[0]!;
+        const target = pickActiveRefreshTarget(activeMatches, r.status);
         toRefresh.push({ row: r, existingId: target.id });
         preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
         continue;

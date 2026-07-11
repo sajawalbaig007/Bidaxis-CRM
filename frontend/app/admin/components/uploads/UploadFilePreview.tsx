@@ -9,6 +9,7 @@ export type PreviewRow = {
   phone: string;
   email: string;
   company: string;
+  interestedService?: string;
   status: "new" | "duplicate" | "updated" | "empty";
   reason: string;
 };
@@ -37,6 +38,7 @@ type Props = {
   onToggleHideDuplicates: () => void;
   filter: "all" | PreviewRow["status"];
   onFilterChange: (f: "all" | PreviewRow["status"]) => void;
+  showInterestedService?: boolean;
 };
 
 export default function UploadFilePreview({
@@ -48,7 +50,10 @@ export default function UploadFilePreview({
   onToggleHideDuplicates,
   filter,
   onFilterChange,
+  showInterestedService = false,
 }: Props) {
+  const showServiceCol =
+    showInterestedService || rows.some(r => !!r.interestedService?.trim());
   const visibleRows = rows.filter(r => {
     if (hideDuplicates && r.status === "duplicate") return false;
     if (filter !== "all" && r.status !== filter) return false;
@@ -123,13 +128,16 @@ export default function UploadFilePreview({
                 <th className="px-3 py-2 font-semibold w-10">#</th>
                 <th className="px-3 py-2 font-semibold">Name</th>
                 <th className="px-3 py-2 font-semibold hidden sm:table-cell">Phone</th>
+                {showServiceCol && (
+                  <th className="px-3 py-2 font-semibold hidden md:table-cell">Interested In</th>
+                )}
                 <th className="px-3 py-2 font-semibold w-24">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {visibleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-gray-400">
+                  <td colSpan={showServiceCol ? 5 : 4} className="px-3 py-6 text-center text-gray-400">
                     {hideDuplicates && (summary?.duplicate ?? 0) > 0
                       ? "All visible rows are duplicates — toggle to show them."
                       : "No rows match this filter."}
@@ -148,6 +156,15 @@ export default function UploadFilePreview({
                         {row.name}
                       </td>
                       <td className="px-3 py-1.5 text-gray-600 hidden sm:table-cell">{row.phone}</td>
+                      {showServiceCol && (
+                        <td className="px-3 py-1.5 text-gray-600 hidden md:table-cell truncate max-w-[120px]">
+                          {row.interestedService?.trim() ? (
+                            <span className="font-medium text-[#D97706]">{row.interestedService}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-3 py-1.5">
                         <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${st.bg} ${st.text}`}>
                           {row.status === "duplicate" && <AlertCircle size={9} />}

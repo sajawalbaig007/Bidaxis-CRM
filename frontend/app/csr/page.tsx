@@ -14,10 +14,11 @@ import TopNavbar from "./components/navigation/TopNavbar";
 import UsaTimezoneClocks from "./components/shared/UsaTimezoneClocks";
 import LeadDetailModal from "./components/LeadDetailModal";
 import StateFilterDropdown from "./components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "./components/shared/PhoneAreaCodeFilterInput";
 import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
 import ProjectWonModal from "./components/modals/ProjectWonModal";
@@ -26,12 +27,13 @@ import MonthRangeFilter from "./components/shared/MonthRangeFilter";
 import ClientNameCell from "./components/shared/ClientNameCell";
 import PhoneWithTzCell from "./components/shared/PhoneWithTzCell";
 import { ourCompany } from "./utils/leadFieldLabels";
+import { parsePhones, collectLeadPhones } from "./utils/parsePhones";
 import { useCsrStats, useCsrTabLeads, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { useLeadActions } from "./hooks/useLeadActions";
 import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
-import { STATE_AREA_CODES, stateMatches } from "./constants/locations";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
@@ -115,24 +117,8 @@ export default function CSRPage() {
 
   const tabFiltered = useMemo(() => {
     return visibleLeads.filter(item => {
-      const matchesState = stateFilter
-        ? stateMatches(item.state, stateFilter) ||
-          (() => {
-            const codes = STATE_AREA_CODES[stateFilter] ?? [];
-            if (codes.length === 0) return false;
-            const digits      = (item.phone ?? "").replace(/\D/g, "");
-            const afterCountry = digits.length > 10 ? digits.slice(1) : digits;
-            return codes.some(c => afterCountry.startsWith(c));
-          })()
-        : true;
-      const matchesPhone = phoneFilter
-        ? (() => {
-            const digits = item.phone.replace(/\D/g, "");
-            const typed  = phoneFilter.replace(/\D/g, "");
-            const afterCountry = digits.length > 10 ? digits.slice(1) : digits;
-            return afterCountry.startsWith(typed);
-          })()
-        : true;
+      const matchesState = matchesStateLocationFilter(item.state, item.phone, stateFilter);
+      const matchesPhone = matchesPhoneAreaCodeFilter(item.phone, phoneFilter);
       const matchesTimezone = leadMatchesTimezoneFilter(item, timezoneFilter);
       const matchesSource = sourceFilter
         ? (item.sourceSudoName?.trim().toLowerCase() === sourceFilter.toLowerCase())
@@ -332,25 +318,7 @@ export default function CSRPage() {
                   <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
                   <TimezoneFilterDropdown value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
                   <SourceSudoFilterDropdown value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
-                  <div className="relative shrink-0">
-                    <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      value={phoneFilter}
-                      onChange={e => { setPhoneFilter(e.target.value); setPage(1); }}
-                      placeholder="Phone code..."
-                      className={`h-10 sm:h-[42px] pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none w-[130px] sm:w-[150px] ${
-                        phoneFilter
-                          ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
-                          : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary"
-                      }`}
-                    />
-                    {phoneFilter && (
-                      <button type="button" onClick={() => { setPhoneFilter(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8112D]">
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
+                  <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 </div>
                 <div className="bg-[#ECFDF3] text-[#027A48] px-3 py-1.5 rounded-xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A]" />Live Tracking
@@ -446,7 +414,7 @@ export default function CSRPage() {
                 ) : tabFiltered.length > 0 ? paginated.map((currentLink, idx) => (
                   <tr key={currentLink.id} className="border-t border-gray-100 dark:border-crm-border bg-white dark:bg-crm-surface hover:bg-[#FAFAFA] dark:hover:bg-crm-surface-raised transition-colors">
 
-                    <td className={CSR_TD}>
+                    <td className={CSR_TD_POPOVER}>
                       <ClientNameCell
                         lead={currentLink}
                         index={(page - 1) * PAGE_SIZE + idx + 1}
@@ -462,8 +430,16 @@ export default function CSRPage() {
                     </td>
 
                     {/* PHONE — number + area-code TZ (company TZ stays on name) */}
-                    <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A] dark:text-crm-text`}>
-                      <PhoneWithTzCell phone={currentLink.phone} />
+                    <td className={`${CSR_TD_POPOVER} text-[12px] sm:text-[14px] font-medium text-[#0F172A] dark:text-crm-text`}>
+                      {(() => {
+                        const phones = collectLeadPhones(currentLink.phone, currentLink.subContacts);
+                        return (
+                          <PhoneWithTzCell
+                            phone={phones[0] ?? currentLink.phone}
+                            allPhones={phones}
+                          />
+                        );
+                      })()}
                     </td>
 
                     {/* STATUS */}

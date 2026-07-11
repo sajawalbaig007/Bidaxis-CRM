@@ -14,6 +14,9 @@ import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
+import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
@@ -429,6 +432,8 @@ export default function AdminProjectsPage() {
   const [stats,     setStats]     = useState<Stats>({ total: 0, withBudget: 0, thisMonth: 0 });
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
   const [filterCSR, setFilterCSR] = useState("all");
   const [allCsrs,     setAllCsrs]     = useState<CSROption[]>([]);
   const [workbenchProject, setWorkbenchProject] = useState<Project | null>(null);
@@ -675,7 +680,9 @@ export default function AdminProjectsPage() {
       csrName.toLowerCase().includes(q) ||
       (p.projectSource ?? "").toLowerCase().includes(q) ||
       (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
-    return matchSearch && (filterCSR === "all" || p.csr?.id === filterCSR);
+    const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
+    const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
+    return matchSearch && matchState && matchPhone && (filterCSR === "all" || p.csr?.id === filterCSR);
   });
 
   const allProjects    = baseFiltered;
@@ -764,6 +771,9 @@ export default function AdminProjectsPage() {
               </select>
               <ChevronDown size={15} className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
+
+            <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+            <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">

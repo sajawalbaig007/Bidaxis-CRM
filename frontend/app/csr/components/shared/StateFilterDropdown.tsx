@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, MapPin, Search, X } from "lucide-react";
-import { US_STATES, CA_PROVINCES, STATE_AREA_CODES } from "../../constants/locations";
+import { US_STATES, CA_PROVINCES } from "../../constants/locations";
 
 interface StateFilterDropdownProps {
   value: string;
@@ -126,11 +126,6 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
                       <span>{s.name}</span>
                       <span className="text-[10px] sm:text-[11px] text-gray-400 font-mono ml-2">{s.code}</span>
                     </div>
-                    {(STATE_AREA_CODES[s.name] ?? []).length > 0 && (
-                      <span className="text-[9px] sm:text-[10px] font-mono text-gray-400 mt-0.5 leading-relaxed">
-                        {STATE_AREA_CODES[s.name].join(" · ")}
-                      </span>
-                    )}
                   </button>
                 ))}
               </>
@@ -154,11 +149,6 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
                       <span>{p.name}</span>
                       <span className="text-[10px] sm:text-[11px] text-gray-400 font-mono ml-2">{p.code}</span>
                     </div>
-                    {(STATE_AREA_CODES[p.name] ?? []).length > 0 && (
-                      <span className="text-[9px] sm:text-[10px] font-mono text-gray-400 mt-0.5 leading-relaxed">
-                        {STATE_AREA_CODES[p.name].join(" · ")}
-                      </span>
-                    )}
                   </button>
                 ))}
               </>

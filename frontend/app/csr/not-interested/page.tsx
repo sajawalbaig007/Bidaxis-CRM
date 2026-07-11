@@ -17,10 +17,14 @@ import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import { ourCompany } from "../utils/leadFieldLabels";
+import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_9_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_9_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import StateFilterDropdown from "../components/shared/StateFilterDropdown";
+import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
+import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
@@ -59,7 +63,9 @@ export default function NotInterestedPage() {
   const { leads: dashboardLeads, loading: dashLoading } = useCsrMiscStatusLeads();
 
   const [activeTab, setActiveTab] = useState<FollowUpTab>("notinterested");
-  const [search,    setSearch]    = useState("");
+  const [search,       setSearch]       = useState("");
+  const [stateFilter,  setStateFilter]  = useState("");
+  const [phoneFilter,  setPhoneFilter]  = useState("");
   const [page,      setPage]      = useState(1);
 
   const [expandedRow,  setExpandedRow]  = useState<string | null>(null);
@@ -127,9 +133,11 @@ export default function NotInterestedPage() {
         phone: l.phone,
         service: l.interestedService,
         state: l.state,
-      })
+      }) &&
+      matchesStateLocationFilter(l.state, l.phone, stateFilter) &&
+      matchesPhoneAreaCodeFilter(l.phone, phoneFilter)
     );
-  }, [currentList, search]);
+  }, [currentList, search, stateFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE));
   const paginated  = searchFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -380,6 +388,8 @@ export default function NotInterestedPage() {
                     className="w-full h-9 sm:h-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-8 sm:pl-9 pr-3 text-xs sm:text-[13px] outline-none focus:border-[#B8112D]"
                   />
                 </div>
+                <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+                <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
                 <button
                   onClick={() => void refetch()}
                   className="h-9 sm:h-[40px] w-9 sm:w-[40px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] flex items-center justify-center hover:border-[#B8112D] hover:text-[#B8112D] transition-colors text-gray-500"
@@ -440,7 +450,7 @@ export default function NotInterestedPage() {
                         className={`border-b border-[#F7F7F7] transition-all ${isAtLimit ? "opacity-60 bg-gray-50" : "hover:bg-[#FFF8F9]"}`}
                       >
                         {/* Client */}
-                        <td className={CSR_TD}>
+                        <td className={CSR_TD_POPOVER}>
                           <ClientNameCell
                             lead={lead}
                             subtitle={statusDisplayLabel(lead.status)}
@@ -456,8 +466,18 @@ export default function NotInterestedPage() {
                         </td>
 
                         {/* Phone — number + area-code TZ */}
-                        <td className={CSR_TD}>
-                          <PhoneWithTzCell phone={lead.phone} variant="pill" className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[12px]" />
+                        <td className={CSR_TD_POPOVER}>
+                          {(() => {
+                            const phones = collectLeadPhones(lead.phone, lead.subContacts);
+                            return (
+                              <PhoneWithTzCell
+                                phone={phones[0] ?? lead.phone}
+                                allPhones={phones}
+                                variant="pill"
+                                className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-[12px]"
+                              />
+                            );
+                          })()}
                         </td>
 
                         <td className={`hidden lg:table-cell ${CSR_TD}`}>
