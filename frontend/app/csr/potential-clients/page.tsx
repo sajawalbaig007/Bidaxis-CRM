@@ -16,6 +16,7 @@ import AddLeadModal from "../components/modals/AddLeadModal";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
+import MonthRangeFilter from "../components/shared/MonthRangeFilter";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";

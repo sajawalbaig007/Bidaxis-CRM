@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
 import { phoneDedupeKey } from "../../utils/parsePhones";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 
