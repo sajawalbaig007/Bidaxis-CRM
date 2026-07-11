@@ -6,7 +6,7 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let heartbeatOwners = 0;
 let lastPingAt = 0;
 const PING_TTL_MS = 25_000;
-const HEARTBEAT_MS = 30_000;
+const HEARTBEAT_MS = 60_000;
 
 function pingOnline(force = false) {
   if (!force && Date.now() - lastPingAt < PING_TTL_MS) return;

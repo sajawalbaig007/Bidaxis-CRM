@@ -28,7 +28,7 @@ import ClientNameCell from "./components/shared/ClientNameCell";
 import PhoneWithTzCell from "./components/shared/PhoneWithTzCell";
 import { ourCompany } from "./utils/leadFieldLabels";
 import { parsePhones, collectLeadPhones } from "./utils/parsePhones";
-import { useCsrStats, useCsrTabLeads, type CsrTabKey } from "./hooks/useCsrTabPage";
+import { useCsrStats, useCsrTabLeads, CSR_FILTER_BATCH_SIZE, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { useLeadActions } from "./hooks/useLeadActions";
@@ -67,9 +67,8 @@ export default function CSRPage() {
 
   const tabKey = (activeTab === "today" ? "pending" : activeTab) as CsrTabKey;
   const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats();
-  /* Always load full tab dataset so CSR sees every assigned lead (not just first page) */
-  const { leads, setLeads, total: tabTotal, loading: tabLoading, refetch: refetchTab } =
-    useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, true);
+  const { leads, setLeads, total: tabTotal, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
+    useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, hasTableFilters);
   const loading = statsLoading || tabLoading;
   const refetch = () => { void refetchStats(); void refetchTab(true); };
 
@@ -136,10 +135,15 @@ export default function CSRPage() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [visibleLeads]);
 
-  const paginated = tabFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = hasTableFilters
+    ? tabFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : tabFiltered;
 
-  const displayTotalPages = Math.max(1, Math.ceil(tabFiltered.length / PAGE_SIZE));
-  const displayTotal = hasTableFilters ? tabFiltered.length : (tabTotal || tabFiltered.length);
+  const displayTotalPages = hasTableFilters
+    ? Math.max(1, Math.ceil(tabFiltered.length / PAGE_SIZE))
+    : serverTotalPages;
+
+  const displayTotal = hasTableFilters ? tabFiltered.length : tabTotal;
 
   useEffect(() => {
     if (page > displayTotalPages) setPage(displayTotalPages);
@@ -325,6 +329,11 @@ export default function CSRPage() {
                 </div>
               </div>
             </div>
+            {hasTableFilters && tabTotal > CSR_FILTER_BATCH_SIZE && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5">
+                Filters search the most recent {CSR_FILTER_BATCH_SIZE} leads in this tab. Clear filters to browse all pages.
+              </p>
+            )}
           </div>
 
           {/* ── TABS ── */}

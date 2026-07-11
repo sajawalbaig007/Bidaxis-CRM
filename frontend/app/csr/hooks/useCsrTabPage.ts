@@ -7,8 +7,10 @@ import { apiErrorMessage } from "@/lib/api";
 import {
   fetchCsrStatsCached,
   fetchCsrTabLeadsCached,
-  fetchAllCsrTabLeadsCached,
+  fetchCsrTabLeadsBatchCached,
   fetchPotentialLeadsCached,
+  CSR_TAB_PAGE_SIZE,
+  CSR_FILTER_BATCH_SIZE,
 } from "@/lib/csrTabApiCache";
 
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
@@ -122,7 +124,7 @@ export function useCsrTabLeads(
   page: number,
   from?: string,
   to?: string,
-  fetchAll = false,
+  batchMode = false,
 ) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
@@ -138,9 +140,9 @@ export function useCsrTabLeads(
       setLoading(true);
       const fromDate = from ? monthStart(from) : undefined;
       const toDate   = to ? monthEnd(to) : undefined;
-      const data = fetchAll
-        ? await fetchAllCsrTabLeadsCached(tab, fromDate, toDate, force)
-        : await fetchCsrTabLeadsCached(tab, pageRef.current, fromDate, toDate, force);
+      const data = batchMode
+        ? await fetchCsrTabLeadsBatchCached(tab, fromDate, toDate, force)
+        : await fetchCsrTabLeadsCached(tab, pageRef.current, fromDate, toDate, force, CSR_TAB_PAGE_SIZE);
       if (gen !== reqGen.current) return;
       setLeads((data.leads as BackendLead[] ?? []).map(mapBackendLead));
       setTotal(data.total ?? 0);
@@ -152,11 +154,10 @@ export function useCsrTabLeads(
     } finally {
       if (gen === reqGen.current) setLoading(false);
     }
-  }, [tab, from, to, fetchAll]);
+  }, [tab, from, to, batchMode]);
 
-  /* fetchAll: only refetch on tab/date change. Otherwise also on page. */
-  const refetchKey = fetchAll
-    ? `${tab}|all|${from ?? ""}|${to ?? ""}`
+  const refetchKey = batchMode
+    ? `${tab}|batch|${from ?? ""}|${to ?? ""}`
     : `${tab}|${page}|${from ?? ""}|${to ?? ""}`;
 
   useEffect(() => { void refetch(); }, [refetchKey, refetch]);
@@ -205,4 +206,6 @@ export function usePotentialLeads() {
   return { leads, setLeads, loading, refetch };
 
 }
+
+export { CSR_TAB_PAGE_SIZE, CSR_FILTER_BATCH_SIZE };
 
