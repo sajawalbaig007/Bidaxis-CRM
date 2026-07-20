@@ -1,6 +1,6 @@
 import XLSX from "xlsx";
 import prisma from "../config/db";
-import { findLeadsByPhone } from "./leadPhoneLookup";
+import { findLeadsByPhonesBulk } from "./leadPhoneLookup";
 import {
   isPendingPipelineStatus,
   isWonClientStatus,
@@ -378,13 +378,8 @@ export async function classifyRows(
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
   const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
 
-  const [existingByPhone, existingByEmail] = await Promise.all([
-    chunkedLookup(phones, CHUNK_LOOKUP, chunk =>
-      prisma.lead.findMany({
-        where: { phone: { in: chunk } },
-        select: { phone: true, id: true, email: true, status: true, inBin: true, assignedTo: true },
-      })
-    ),
+  const [phoneMatchMap, existingByEmail] = await Promise.all([
+    findLeadsByPhonesBulk(phones, CHUNK_LOOKUP),
     chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
       prisma.lead.findMany({
         where: { email: { in: chunk } },
@@ -393,29 +388,11 @@ export async function classifyRows(
     ),
   ]);
 
-  const dupPhoneMap = new Map(existingByPhone.map(l => [l.phone ?? "", l]));
-  const dupEmails   = new Map(
+  const dupEmails = new Map(
     existingByEmail
       .filter(l => l.email)
       .map(l => [l.email!.toLowerCase(), l]),
   );
-
-  const phoneMatchCache = new Map<string, ExistingLeadMatch[]>();
-  async function phoneMatches(phone: string): Promise<ExistingLeadMatch[]> {
-    const cached = phoneMatchCache.get(phone);
-    if (cached) return cached;
-    const fuzzy = await findLeadsByPhone(phone);
-    const rows: ExistingLeadMatch[] = fuzzy.map(l => ({
-      id: l.id,
-      phone: l.phone,
-      email: l.email,
-      status: l.status,
-      inBin: l.inBin,
-      assignedTo: l.assignedTo,
-    }));
-    phoneMatchCache.set(phone, rows);
-    return rows;
-  }
 
   const emailUpdates: { id: string; email: string }[] = [];
   const toPromote: PromoteRow[] = [];
@@ -442,7 +419,14 @@ export async function classifyRows(
     }
 
     if (r.phone && hasValidPhone) {
-      const matches = await phoneMatches(r.phone);
+      const matches: ExistingLeadMatch[] = (phoneMatchMap.get(r.phone) ?? []).map(l => ({
+        id: l.id,
+        phone: l.phone,
+        email: l.email,
+        status: l.status,
+        inBin: l.inBin,
+        assignedTo: l.assignedTo,
+      }));
       const activeMatches = matches.filter(m => !m.inBin);
       const binMatches = matches.filter(m => m.inBin);
       const callDataUpload = isCallDataStatus(r.status);
@@ -472,7 +456,7 @@ export async function classifyRows(
 
       /* Call-data: never overwrite existing active leads */
       if (callDataUpload && activeMatches.length > 0) {
-        const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0]!;
+        const exactExisting = activeMatches[0]!;
         if (!exactExisting.email && hasValidEmail) {
           emailUpdates.push({ id: exactExisting.id, email: r.email });
         }
