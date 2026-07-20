@@ -30,13 +30,31 @@ export async function seedLeadNotesFromCommentsForFile(uploadedFileId: string): 
     select:  { id: true, comments: true, createdAt: true },
   });
 
-  let created = 0;
-  for (const lead of leads) {
-    if (!lead.comments?.trim()) continue;
-    const before = await prisma.leadNote.count({ where: { leadId: lead.id } });
-    await ensureLeadNoteFromText(lead.id, lead.comments, lead.createdAt);
-    const after = await prisma.leadNote.count({ where: { leadId: lead.id } });
-    if (after > before) created++;
+  const withComments = leads.filter(l => l.comments?.trim());
+  if (withComments.length === 0) return 0;
+
+  const existing = await prisma.leadNote.findMany({
+    where: {
+      leadId: { in: withComments.map(l => l.id) },
+      text:   { in: [...new Set(withComments.map(l => l.comments!.trim()))] },
+    },
+    select: { leadId: true, text: true },
+  });
+  const existingKeys = new Set(existing.map(n => `${n.leadId}::${n.text}`));
+
+  const toCreate = withComments
+    .filter(l => !existingKeys.has(`${l.id}::${l.comments!.trim()}`))
+    .map(l => ({
+      leadId:    l.id,
+      text:      l.comments!.trim(),
+      createdAt: l.createdAt,
+    }));
+
+  if (toCreate.length === 0) return 0;
+
+  const CHUNK = 500;
+  for (let i = 0; i < toCreate.length; i += CHUNK) {
+    await prisma.leadNote.createMany({ data: toCreate.slice(i, i + CHUNK) });
   }
-  return created;
+  return toCreate.length;
 }

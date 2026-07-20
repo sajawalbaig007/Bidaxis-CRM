@@ -2,6 +2,109 @@ import prisma from "../config/db";
 import { normalizePhone, phonesMatch } from "./phone";
 import { parseProjectPayments, paidTotalFromEntries } from "./projectPayments";
 
+const LEAD_PHONE_SELECT = {
+  id: true,
+  phone: true,
+  email: true,
+  status: true,
+  inBin: true,
+  assignedTo: true,
+  interested: true,
+  interestedService: true,
+  updatedAt: true,
+} as const;
+
+export type LeadPhoneMatch = {
+  id: string;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  inBin: boolean;
+  assignedTo: string;
+  interested?: boolean | null;
+  interestedService?: string | null;
+  updatedAt?: Date;
+};
+
+function phoneLookupKey(phone: string): string {
+  const digits = normalizePhone(phone);
+  if (digits.length < 7) return "";
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+/**
+ * Bulk phone match for large uploads — avoids N+1 findLeadsByPhone scans.
+ * Returns Map keyed by each input phone string → matching leads (exact + fuzzy format).
+ */
+export async function findLeadsByPhonesBulk(
+  phones: string[],
+  chunkSize = 500,
+): Promise<Map<string, LeadPhoneMatch[]>> {
+  const result = new Map<string, LeadPhoneMatch[]>();
+  const unique = [...new Set(phones.map(p => p.trim()).filter(p => p.length >= 7))];
+  if (unique.length === 0) return result;
+
+  const byKey = new Map<string, LeadPhoneMatch[]>();
+
+  const addLead = (l: LeadPhoneMatch) => {
+    if (!l.phone) return;
+    const key = phoneLookupKey(l.phone);
+    if (!key) return;
+    const list = byKey.get(key) ?? [];
+    if (!list.some(x => x.id === l.id)) list.push(l);
+    byKey.set(key, list);
+  };
+
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const exact = await prisma.lead.findMany({
+      where:   { phone: { in: chunk } },
+      select:  LEAD_PHONE_SELECT,
+      orderBy: { updatedAt: "desc" },
+    });
+    for (const l of exact) addLead(l);
+  }
+
+  const needFuzzy = unique.filter(p => {
+    const key = phoneLookupKey(p);
+    if (!key) return false;
+    const candidates = byKey.get(key) ?? [];
+    return !candidates.some(c => c.phone && phonesMatch(c.phone, p));
+  });
+
+  if (needFuzzy.length > 0) {
+    const suffixes = [...new Set(needFuzzy.map(phoneLookupKey).filter(Boolean))];
+    const FUZZY_OR = 40;
+    for (let i = 0; i < suffixes.length; i += FUZZY_OR) {
+      const chunk = suffixes.slice(i, i + FUZZY_OR);
+      const candidates = await prisma.lead.findMany({
+        where: {
+          phone: { not: null },
+          OR: chunk.map(s => ({ phone: { contains: s } })),
+        },
+        select:  LEAD_PHONE_SELECT,
+        orderBy: { updatedAt: "desc" },
+      });
+      for (const l of candidates) addLead(l);
+    }
+  }
+
+  for (const phone of unique) {
+    const key = phoneLookupKey(phone);
+    const candidates = key ? (byKey.get(key) ?? []) : [];
+    const matches = candidates
+      .filter(c => c.phone && phonesMatch(c.phone, phone))
+      .sort((a, b) => {
+        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return tb - ta;
+      });
+    result.set(phone, matches);
+  }
+
+  return result;
+}
+
 export async function findLeadsByPhone(phone: string) {
   const trimmed = phone.trim();
   if (!trimmed) return [];

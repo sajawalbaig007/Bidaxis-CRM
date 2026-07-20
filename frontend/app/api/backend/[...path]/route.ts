@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/** Allow long-running upload/proxy through Vercel (Pro: up to 300s). */
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 function backendRoot(): string {
   const raw =
     process.env.BACKEND_URL ??

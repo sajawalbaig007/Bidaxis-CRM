@@ -12,7 +12,7 @@ import { isWonClientUploadStatus, clearPendingDuplicatesForPhone, reconcileClien
 import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
-import { findLeadsByPhone } from "../utils/leadPhoneLookup";
+import { findLeadsByPhonesBulk } from "../utils/leadPhoneLookup";
 
 const CHUNK_INSERT = 1000;
 const BATCH_UPDATE = 30;
@@ -71,11 +71,18 @@ async function consolidateInterestedUploadByPhone(uploadedFileId: string) {
     select: { id: true, phone: true, assignedTo: true, interestedService: true, status: true },
   });
 
+  const phones = [...new Set(
+    uploaded.map(l => l.phone?.trim()).filter((p): p is string => !!p && p.replace(/\D/g, "").length >= 7)
+  )];
+  if (phones.length === 0) return;
+
+  const matchMap = await findLeadsByPhonesBulk(phones);
+
   for (const lead of uploaded) {
     const phone = lead.phone?.trim();
     if (!phone || phone.replace(/\D/g, "").length < 7) continue;
 
-    const matches = await findLeadsByPhone(phone);
+    const matches = matchMap.get(phone) ?? [];
     const siblings = matches.filter(m =>
       m.id !== lead.id &&
       !m.inBin &&
@@ -351,16 +358,20 @@ export const uploadLeads = async (req: Request, res: Response) => {
       ...toRefresh.map(x => x.row.phone),
       ...toPromote.map(x => x.row.phone),
     ].filter(p => p && p.length >= 7);
-    for (const phone of [...new Set(restoredPhones)]) {
-      const matches = await findLeadsByPhone(phone);
-      const keepIds = new Set([
-        ...toRestore.filter(x => x.row.phone === phone).map(x => x.existingId),
-        ...toRefresh.filter(x => x.row.phone === phone).map(x => x.existingId),
-        ...toPromote.filter(x => x.row.phone === phone).map(x => x.existingId),
-      ]);
-      const binDupes = matches.filter(m => m.inBin && !keepIds.has(m.id));
-      if (binDupes.length > 0) {
-        await deleteLeadsCascade(binDupes.map(m => m.id));
+    const uniqueRestoredPhones = [...new Set(restoredPhones)];
+    if (uniqueRestoredPhones.length > 0) {
+      const binMatchMap = await findLeadsByPhonesBulk(uniqueRestoredPhones);
+      for (const phone of uniqueRestoredPhones) {
+        const matches = binMatchMap.get(phone) ?? [];
+        const keepIds = new Set([
+          ...toRestore.filter(x => x.row.phone === phone).map(x => x.existingId),
+          ...toRefresh.filter(x => x.row.phone === phone).map(x => x.existingId),
+          ...toPromote.filter(x => x.row.phone === phone).map(x => x.existingId),
+        ]);
+        const binDupes = matches.filter(m => m.inBin && !keepIds.has(m.id));
+        if (binDupes.length > 0) {
+          await deleteLeadsCascade(binDupes.map(m => m.id));
+        }
       }
     }
 
@@ -441,13 +452,20 @@ export const uploadLeads = async (req: Request, res: Response) => {
 
     await seedLeadNotesFromCommentsForFile(uploadedFile.id);
 
+    /* Cap row preview payload for large sheets — UI paginates anyway */
+    const ROW_RESULTS_CAP = 2000;
+    const rowResults =
+      preview.length > ROW_RESULTS_CAP
+        ? preview.slice(0, ROW_RESULTS_CAP)
+        : preview;
+
     return res.json({
       success:       true,
       totalLeads:    addedCount,
       cloudinaryUrl: cloudinaryUrl,
       file:          { ...uploadedFile, uploadCategory },
       distribution,
-      rowResults:    preview,
+      rowResults,
       summary: {
         new:       preview.filter(p => p.status === "new").length,
         duplicate: preview.filter(p => p.status === "duplicate").length,

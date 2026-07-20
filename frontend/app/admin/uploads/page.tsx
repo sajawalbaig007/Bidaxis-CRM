@@ -534,6 +534,7 @@ export default function UploadPage() {
     try {
       const res = await API.post("/uploads/preview", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 180_000,
       });
       setFilePreviewRows((res.data.preview ?? []) as PreviewRow[]);
       setFilePreviewSummary((res.data.summary ?? null) as PreviewSummary | null);
@@ -569,8 +570,6 @@ export default function UploadPage() {
 
     const formData = buildUploadFormData();
     if (!formData) return;
-    const previewFormData = buildUploadFormData();
-    if (!previewFormData) return;
 
     setShowCSRModal(false);
     setResultsExpanded(true);
@@ -594,19 +593,12 @@ export default function UploadPage() {
 
     let processingInterval: ReturnType<typeof setInterval> | null = null;
 
-    const previewPromise = API.post("/uploads/preview", previewFormData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }).then(res => {
-      setRowResults((res.data.preview ?? []) as RowResult[]);
-      setUploadSummary((res.data.summary ?? null) as UploadSummary | null);
-      setPreviewLoading(false);
-    }).catch(() => {
-      setPreviewLoading(false);
-    });
-
+    /* Do not fire parallel /uploads/preview — that doubles DB work on large sheets.
+       Upload response already returns rowResults + summary. */
     try {
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 600_000,
         onUploadProgress: (event) => {
           if (!event.total) return;
           const pct = Math.min(50, Math.round((event.loaded / event.total) * 50));
@@ -634,8 +626,6 @@ export default function UploadPage() {
           ? { ...f, progress: 100, leads: res.data.totalLeads, distributed: true, status: "Distributed" }
           : f
       ));
-
-      await previewPromise;
 
       const created = res.data.totalLeads as number;
       const results = (res.data.rowResults ?? []) as RowResult[];
