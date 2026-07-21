@@ -27,6 +27,7 @@ export type ClientLead = {
   rawCompany: string;
   phone: string;
   email: string;
+  website: string;
   state: string;
   status: string;
   interestedService: string;
@@ -46,7 +47,7 @@ type RawContact = { id?: string; name?: string; designation?: string; phone?: st
 type RawNote   = { id?: string; text?: string; createdAt?: string; };
 export type RawClientLead = {
   id: string;
-  name?: string; company?: string; phone?: string; email?: string; state?: string;
+  name?: string; company?: string; phone?: string; email?: string; website?: string; state?: string;
   uploadFile?: { companyName?: string };
   status?: string; interestedService?: string; comments?: string;
   followUpNotes?: string | null;
@@ -113,6 +114,7 @@ export function mapClientLead(l: RawClientLead): ClientLead {
     rawCompany:        l.company           ?? "",
     phone:             l.phone             ?? "N/A",
     email:             l.email             ?? "",
+    website:           l.website?.trim()   ?? "",
     state:             l.state             ?? "",
     status:            l.status            ?? "pending",
     interestedService: l.interestedService ?? "",

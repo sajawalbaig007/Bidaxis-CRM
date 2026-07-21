@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Building2, Pencil, Check,
-  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users,
+  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2,
 } from "lucide-react";
 import API from "@/lib/api";
 import { NoteEntry, SubContact } from "../hooks/useLeadsData";
@@ -15,6 +15,7 @@ export type DetailLead = {
   rawCompany?: string;
   phone?: string;
   email?: string;
+  website?: string;
   state?: string;
   status?: string;
   interestedService?: string;
@@ -31,6 +32,7 @@ export type DetailLeadUpdates = Partial<{
   company: string;
   phone: string;
   email: string;
+  website: string;
   state: string;
   followUpNotes: string;
 }>;
@@ -150,6 +152,14 @@ const STATE_ABBREVIATIONS: Record<string, string> = {
 
 const SORTED_STATE_NAMES = Object.keys(STATE_TIMEZONES).sort((a, b) => b.length - a.length);
 
+/** Ensure website opens as a full URL in a new tab. */
+export function websiteHref(url: string): string {
+  const t = url.trim();
+  if (!t) return "";
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://${t}`;
+}
+
 /* Derive a US timezone from a free-form location string (state name, abbreviation, "City, State", etc.) */
 const getTimezoneForState = (state?: string): { label: string; abbreviation: string } | null => {
   if (!state) return null;
@@ -174,6 +184,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const [company, setCompany] = useState(lead.company ?? lead.rawCompany ?? "");
   const [phone, setPhone] = useState(lead.phone ?? "");
   const [email, setEmail] = useState(lead.email ?? "");
+  const [website, setWebsite] = useState(lead.website ?? "");
   const [state, setState] = useState(lead.state ?? "");
   const [saving, setSaving] = useState(false);
 
@@ -206,6 +217,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     setCompany(lead.company ?? lead.rawCompany ?? "");
     setPhone(lead.phone ?? "");
     setEmail(lead.email ?? "");
+    setWebsite(lead.website ?? "");
     setState(lead.state ?? "");
     setIsEditing(true);
   };
@@ -213,8 +225,9 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const save = async () => {
     setSaving(true);
     try {
-      await API.put(`${apiPrefix}/lead/${lead.id}`, { name, company, phone, email, state });
-      onSaved?.(lead.id, { name, company, phone, email, state });
+      const websiteTrim = website.trim();
+      await API.put(`${apiPrefix}/lead/${lead.id}`, { name, company, phone, email, website: websiteTrim, state });
+      onSaved?.(lead.id, { name, company, phone, email, website: websiteTrim, state });
       setIsEditing(false);
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -280,11 +293,17 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const locationDisplay = lead.state || "N/A";
   const locationTimezone = getTimezoneForState(lead.state);
 
-  const infoItems: { label: string; value: string; Icon: typeof Phone }[] = [
+  const infoItems: { label: string; value: string; Icon: typeof Phone; href?: string }[] = [
     { label: "Contact Person", value: lead.name, Icon: User2 },
     { label: "Company", value: lead.company || "N/A", Icon: Building2 },
     { label: "Phone", value: lead.phone || "N/A", Icon: Phone },
     { label: "Email", value: lead.email || "N/A", Icon: Mail },
+    {
+      label: "Website",
+      value: lead.website?.trim() || "N/A",
+      Icon: Link2,
+      ...(lead.website?.trim() ? { href: websiteHref(lead.website) } : {}),
+    },
     { label: "Location", value: locationDisplay, Icon: MapPin },
   ];
 
@@ -352,13 +371,24 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
 
                 {/* INFO GRID */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {infoItems.map(({ label, value, Icon }) => (
+                  {infoItems.map(({ label, value, Icon, href }) => (
                     <div key={label} className="bg-[#F8F9FC] rounded-2xl p-3.5">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <Icon size={12} className="text-[#B8112D]"/>
                         <p className="text-gray-400 text-[11px]">{label}</p>
                       </div>
-                      <p className="text-[#0F172A] text-[13px] font-semibold truncate">{value}</p>
+                      {href ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#B8112D] text-[13px] font-semibold truncate block hover:underline"
+                        >
+                          {value}
+                        </a>
+                      ) : (
+                        <p className="text-[#0F172A] text-[13px] font-semibold truncate">{value}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -393,11 +423,18 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                   </div>
                 </div>
 
-                {/* LOCATION */}
-                <div>
-                  <label className={`${labelClass} mb-2`}><MapPin size={11} className="text-[#B8112D]"/>Location</label>
-                  <input type="text" value={state} onChange={e => setState(e.target.value)}
-                    placeholder="e.g. Texas, USA" className={inputClass}/>
+                {/* LOCATION + WEBSITE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={`${labelClass} mb-2`}><MapPin size={11} className="text-[#B8112D]"/>Location</label>
+                    <input type="text" value={state} onChange={e => setState(e.target.value)}
+                      placeholder="e.g. Texas, USA" className={inputClass}/>
+                  </div>
+                  <div>
+                    <label className={`${labelClass} mb-2`}><Link2 size={11} className="text-[#B8112D]"/>Website Link</label>
+                    <input type="url" value={website} onChange={e => setWebsite(e.target.value)}
+                      placeholder="https://example.com" className={inputClass}/>
+                  </div>
                 </div>
 
                 {/* ACTIONS */}

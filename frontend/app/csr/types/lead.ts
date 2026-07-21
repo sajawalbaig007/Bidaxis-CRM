@@ -7,6 +7,7 @@ export interface BackendLead {
   company?: string;
   phone?: string;
   email?: string;
+  website?: string;
   status?: string;
   nextSchedule?: string;
   nextTime?: string;
@@ -38,6 +39,7 @@ export type Lead = {
   rawCompany: string;
   phone: string;
   email: string;
+  website: string;
   status: string;
   nextSchedule: string;
   nextTime: string;
@@ -68,6 +70,7 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     ourCompanyName:   lead.uploadFile?.companyName           ?? "",
     phone:            lead.phone                             ?? "N/A",
     email:            lead.email                             ?? "N/A",
+    website:          lead.website?.trim()                   ?? "",
     status:           lead.status                            ?? "pending",
     nextSchedule:     lead.nextSchedule                      ?? "",
     nextTime:         lead.nextTime                          ?? "",

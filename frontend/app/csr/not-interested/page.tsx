@@ -831,6 +831,7 @@ export default function NotInterestedPage() {
               rawCompany:        viewingLead.rawCompany || viewingLead.company,
               phone:             viewingLead.phone   !== "N/A" ? viewingLead.phone   : undefined,
               email:             viewingLead.email   !== "N/A" ? viewingLead.email   : undefined,
+              website:           viewingLead.website || undefined,
               state:             viewingLead.state   || undefined,
               status:            viewingLead.status,
               interestedService: viewingLead.interestedService,
@@ -844,6 +845,7 @@ export default function NotInterestedPage() {
               if (updates.company       !== undefined) merged.company = updates.company.trim() || "N/A";
               if (updates.phone         !== undefined) merged.phone  = updates.phone.trim() || "N/A";
               if (updates.email         !== undefined) merged.email  = updates.email.trim();
+              if (updates.website       !== undefined) merged.website = updates.website.trim();
               if (updates.state         !== undefined) merged.state  = updates.state.trim();
               if (updates.followUpNotes !== undefined) merged.followUpNotes = updates.followUpNotes;
               setLeads(prev => prev.map(l => l.id === id ? { ...l, ...merged } : l));

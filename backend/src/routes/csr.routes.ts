@@ -610,6 +610,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (phone             !== undefined) updateData.phone             = phone;
     if (email             !== undefined) updateData.email             = email;
     if (state             !== undefined) updateData.state             = state;
+    if (req.body.website  !== undefined) updateData.website          = String(req.body.website ?? "").trim() || null;
 
     if (req.body.ownerName        !== undefined) updateData.ownerName        = req.body.ownerName;
     if (req.body.projectScope     !== undefined) updateData.projectScope     = req.body.projectScope;
@@ -803,7 +804,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId = req.user.id;
-    const { name, phone, company, email, state, interestedService, comments, projectBudget, paidAmount } = req.body;
+    const { name, phone, company, email, website, state, interestedService, comments, projectBudget, paidAmount } = req.body;
 
     if (!name?.trim()) {
       return res.status(400).json({ success: false, message: "Client name is required." });
@@ -830,6 +831,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
             name:              name.trim(),
             phone:             trimmedPhone,
             email:             email?.trim()?.toLowerCase() || null,
+            website:           website?.trim() || null,
             state:             state?.trim()             || null,
             company:           companyTrim               || null,
             interestedService: interestedService?.trim() || null,
@@ -868,6 +870,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
         name:              name.trim(),
         phone:             trimmedPhone,
         email:             email?.trim()?.toLowerCase() || null,
+        website:           website?.trim() || null,
         state:             state?.trim()             || null,
         company:           company?.trim()           || null,
         interestedService: interestedService?.trim() || null,

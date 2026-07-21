@@ -49,6 +49,7 @@ type Client = {
   email: string;
   contact: string;
   company: string;
+  website: string;
   parentCompany: string;
   scope: string;
   lastEmail: string;
@@ -899,6 +900,7 @@ function ClientsPageContent() {
               company: selectedClient.company !== "N/A" ? selectedClient.company : undefined,
               phone:   selectedClient.contact !== "N/A" ? selectedClient.contact : undefined,
               email:   selectedClient.email !== "N/A" ? selectedClient.email : undefined,
+              website: selectedClient.website || undefined,
               status:  selectedClient.rawStatus,
               interestedService: selectedClient.scope !== "N/A" ? selectedClient.scope : undefined,
               followUpNotes: selectedClient.lastComment !== "No comments" ? selectedClient.lastComment : undefined,
@@ -916,6 +918,7 @@ function ClientsPageContent() {
                   company:    updates.company?.trim() || c.company,
                   contact:    updates.phone?.trim() || c.contact,
                   email:      updates.email?.trim() || c.email,
+                  website:    updates.website !== undefined ? updates.website.trim() : c.website,
                 };
               }));
               setSelectedClient(prev => {
@@ -926,6 +929,7 @@ function ClientsPageContent() {
                   company:    updates.company?.trim() || prev.company,
                   contact:    updates.phone?.trim() || prev.contact,
                   email:      updates.email?.trim() || prev.email,
+                  website:    updates.website !== undefined ? updates.website.trim() : prev.website,
                 };
               });
             }}
