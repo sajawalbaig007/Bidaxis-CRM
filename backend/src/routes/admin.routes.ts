@@ -335,16 +335,18 @@ router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (r
 router.put("/lead/:id", verifyToken, allowRoles("admin", "manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
-    const { name, phone, email, state } = req.body;
+    const { name, phone, email, state, company, website } = req.body;
 
     const existing = await prisma.lead.findFirst({ where: { id: leadId } });
     if (!existing) return res.status(404).json({ success: false, message: "Lead not found" });
 
     const updateData: Record<string, unknown> = {};
-    if (name  !== undefined) updateData.name  = name;
-    if (phone !== undefined) updateData.phone = phone;
-    if (email !== undefined) updateData.email = email;
-    if (state !== undefined) updateData.state = state;
+    if (name    !== undefined) updateData.name    = name;
+    if (phone   !== undefined) updateData.phone   = phone;
+    if (email   !== undefined) updateData.email   = email;
+    if (state   !== undefined) updateData.state   = state;
+    if (company !== undefined) updateData.company = company;
+    if (website !== undefined) updateData.website = String(website ?? "").trim() || null;
 
     const dup = await findDuplicateLead(
       phone !== undefined ? String(phone) : existing.phone,

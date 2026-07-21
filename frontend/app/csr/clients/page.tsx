@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Search, Filter, Phone, Briefcase,
   Clock3, Building2, AlignLeft, RefreshCw, Eye, Plus, X,
   Pencil, User2, Mail, MapPin, StickyNote, History,
-  CheckCircle2, Trash2, Loader2, DollarSign,
+  CheckCircle2, Trash2, Loader2, DollarSign, Link2,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -36,6 +36,7 @@ import { formatQuotedAmount, parseMoney } from "@/lib/projectFields";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
+import { websiteHref } from "../components/LeadDetailModal";
 
 /* ─── Constants ─────────────────────────────────────────── */
 const EDIT_STATUSES = ["pending", "important", "interested", "Close Client", "completed"];
@@ -50,7 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed:        "bg-emerald-50 text-emerald-700",
 };
 const PAGE_SIZE = 30;
-const emptyAdd  = { name: "", phone: "", email: "", company: "", state: "", service: "", comments: "", quotation: "", upfront: "" };
+const emptyAdd  = { name: "", phone: "", email: "", company: "", website: "", state: "", service: "", comments: "", quotation: "", upfront: "" };
 const emptyContact = { name: "", designation: "", phone: "", email: "" };
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -99,6 +100,7 @@ export default function LeadsPage() {
   const [editPhone,    setEditPhone]    = useState("");
   const [editEmail,    setEditEmail]    = useState("");
   const [editCompany,  setEditCompany]  = useState("");
+  const [editWebsite,  setEditWebsite]  = useState("");
   const [editState,    setEditState]    = useState("");
   const [editService,  setEditService]  = useState("");
   const [editStatus,   setEditStatus]   = useState("");
@@ -232,6 +234,7 @@ export default function LeadsPage() {
     setEditPhone(viewing.phone === "N/A" ? "" : viewing.phone);
     setEditEmail(viewing.email);
     setEditCompany(viewing.company === "N/A" ? "" : viewing.company);
+    setEditWebsite(viewing.website || "");
     setEditState(viewing.state);
     setEditService(viewing.interestedService);
     setEditStatus(viewing.status);
@@ -250,6 +253,7 @@ export default function LeadsPage() {
         phone:             editPhone.trim()   || undefined,
         email:             editEmail.trim()   || undefined,
         company:           editCompany.trim() || undefined,
+        website:           editWebsite.trim(),
         state:             editState.trim()   || undefined,
         interestedService: editService        || undefined,
         status:            editStatus         || undefined,
@@ -263,6 +267,7 @@ export default function LeadsPage() {
         phone:             editPhone.trim()   || viewing.phone,
         email:             editEmail.trim(),
         company:           editCompany.trim() || viewing.company,
+        website:           editWebsite.trim(),
         state:             editState.trim(),
         interestedService: editService,
         status:            editStatus,
@@ -288,6 +293,7 @@ export default function LeadsPage() {
         phone:             addForm.phone.trim()   || undefined,
         email:             addForm.email.trim()   || undefined,
         company:           addForm.company.trim() || undefined,
+        website:           addForm.website.trim() || undefined,
         state:             addForm.state.trim()   || undefined,
         interestedService: addForm.service        || undefined,
         comments:          addForm.comments.trim() || undefined,
@@ -822,6 +828,13 @@ export default function LeadsPage() {
                         />
                       </div>
                     </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Website Link</label>
+                      <input type="url" value={addForm.website} placeholder="https://example.com"
+                        onChange={e => setAddForm(f => ({ ...f, website: e.target.value }))}
+                        className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -967,17 +980,24 @@ export default function LeadsPage() {
                           { Icon: Mail,      label: "Email",   value: viewing.email   || "Not provided"  },
                           { Icon: Building2, label: "Company", value: viewing.company                    },
                           { Icon: MapPin,    label: "State",   value: viewing.state   || "Not provided"  },
+                          { Icon: Link2,     label: "Website", value: viewing.website || "Not provided", href: viewing.website ? websiteHref(viewing.website) : undefined },
                           { Icon: Briefcase, label: "Service", value: viewing.interestedService || "N/A" },
                           { Icon: Clock3,    label: "Status",  value: viewing.status                     },
                           { Icon: DollarSign, label: "Quotation", value: formatQuotedAmount(viewing.projectBudget) },
                           { Icon: DollarSign, label: "Upfront",   value: formatQuotedAmount(viewing.paidAmount) },
-                        ].map(({ Icon, label, value }) => (
+                        ].map(({ Icon, label, value, href }) => (
                           <div key={label} className="bg-[#F8F9FC] rounded-xl p-3">
                             <div className="flex items-center gap-1 mb-1">
                               <Icon size={11} className="text-[#B8112D]" />
                               <p className="text-gray-400 text-[10px]">{label}</p>
                             </div>
-                            <h4 className="font-semibold text-[#0F172A] text-[12px] sm:text-[13px] break-words">{value}</h4>
+                            {href ? (
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#B8112D] text-[12px] sm:text-[13px] break-words hover:underline">
+                                {value}
+                              </a>
+                            ) : (
+                              <h4 className="font-semibold text-[#0F172A] text-[12px] sm:text-[13px] break-words">{value}</h4>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1147,12 +1167,21 @@ export default function LeadsPage() {
                             />
                           </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
-                          <input type="text" value={editState} onChange={e => setEditState(e.target.value)}
-                            placeholder="e.g. California"
-                            className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
-                          />
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">State</label>
+                            <input type="text" value={editState} onChange={e => setEditState(e.target.value)}
+                              placeholder="e.g. California"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Website Link</label>
+                            <input type="url" value={editWebsite} onChange={e => setEditWebsite(e.target.value)}
+                              placeholder="https://example.com"
+                              className="w-full h-10 rounded-xl border-2 border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D] transition-colors placeholder:text-gray-300"
+                            />
+                          </div>
                         </div>
                       </div>
 

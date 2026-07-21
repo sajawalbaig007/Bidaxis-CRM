@@ -7,7 +7,7 @@ import ServicePicker from "../shared/ServicePicker";
 import { useClientPhoneLookup } from "../../hooks/useClientPhoneLookup";
 import toast from "react-hot-toast";
 
-const emptyForm = { name: "", phone: "", email: "", company: "", state: "", service: "", comments: "" };
+const emptyForm = { name: "", phone: "", email: "", company: "", website: "", state: "", service: "", comments: "" };
 
 interface AddLeadModalProps {
   open: boolean;
@@ -51,6 +51,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
         phone:             form.phone.trim()   || undefined,
         email:             form.email.trim()   || undefined,
         company:           form.company.trim() || undefined,
+        website:           form.website.trim() || undefined,
         state:             form.state.trim()   || undefined,
         interestedService: form.service        || undefined,
         comments:          form.comments.trim() || undefined,
@@ -137,6 +138,14 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
                 className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Website Link</label>
+            <input type="url" value={form.website} placeholder="https://example.com"
+              onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+              className="w-full h-10 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+            />
           </div>
 
           <ServicePicker value={form.service} onChange={v => setForm(f => ({ ...f, service: v }))} />
