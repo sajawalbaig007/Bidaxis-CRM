@@ -72,7 +72,7 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() =>
     typeof window !== "undefined" ? getSystemTheme() : "light"
   );
-
+//
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => setSystemTheme(getSystemTheme());
