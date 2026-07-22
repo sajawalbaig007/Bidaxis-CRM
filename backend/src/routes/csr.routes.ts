@@ -93,12 +93,16 @@ function getActivityRange(period: string, dateStr: string) {
   };
 }
 
-function aggregateLogs(logs: { status: string }[]) {
+function aggregateGrouped(
+  grouped: { status: string; _count: { _all: number } }[],
+) {
   const byStatus: Record<string, number> = {};
-  for (const log of logs) {
-    byStatus[log.status] = (byStatus[log.status] ?? 0) + 1;
+  let total = 0;
+  for (const g of grouped) {
+    byStatus[g.status] = g._count._all;
+    total += g._count._all;
   }
-  return { total: logs.length, byStatus };
+  return { total, byStatus };
 }
 
 /* ================= CSR ACTIVITY REPORT ================= */
@@ -117,17 +121,28 @@ router.get("/activity-report", verifyToken, allowRoles("csr"), async (req: any, 
     }
 
     const { from, to, label } = getActivityRange(period, date);
-    const logs = await prisma.callLog.findMany({
-      where:   { csrId, createdAt: { gte: from, lte: to } },
-      select:  {
-        id: true, status: true, createdAt: true,
-        lead: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+    const where = { csrId, createdAt: { gte: from, lte: to } };
 
-    const { total, byStatus } = aggregateLogs(logs);
+    /* Exact counts via groupBy — do NOT cap with take (was wrongly limited to 200).
+       Entries list is capped only for the UI scroll panel. */
+    const [grouped, logs] = await Promise.all([
+      prisma.callLog.groupBy({
+        by:     ["status"],
+        where,
+        _count: { _all: true },
+      }),
+      prisma.callLog.findMany({
+        where,
+        select:  {
+          id: true, status: true, createdAt: true,
+          lead: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+    ]);
+
+    const { total, byStatus } = aggregateGrouped(grouped);
     const entries = logs.map(log => ({
       id:        log.id,
       status:    log.status,
@@ -149,7 +164,7 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const today = new Date().toISOString().split("T")[0];
 
-    const [scheduledLeads, recentLogs] = await Promise.all([
+    const [scheduledLeads, grouped] = await Promise.all([
       prisma.lead.findMany({
         where: {
           assignedTo: csrId,
@@ -162,9 +177,10 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
         orderBy: [{ nextSchedule: "asc" }, { nextTime: "asc" }],
         take: 30,
       }),
-      prisma.callLog.findMany({
-        where:   { csrId, createdAt: { gte: since } },
-        select:  { status: true },
+      prisma.callLog.groupBy({
+        by:     ["status"],
+        where:  { csrId, createdAt: { gte: since } },
+        _count: { _all: true },
       }),
     ]);
 
@@ -180,7 +196,7 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
         status: l.status,
       }));
 
-    const { total, byStatus } = aggregateLogs(recentLogs);
+    const { total, byStatus } = aggregateGrouped(grouped);
     return res.json({
       success: true,
       scheduledCalls,
@@ -539,12 +555,13 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     const leadId = req.params.id as string;
 
     const {
-      status, nextSchedule, nextTime, timezone, followUpNotes,
+      nextSchedule, nextTime, timezone, followUpNotes,
       interestedService, projectTitle, projectCode, projectDeadline,
       projectBudget, projectNotes, paidAmount, comments,
       name, phone, email, state,
       moveToBin, inBin,
     } = req.body;
+    let status: string | undefined = req.body.status !== undefined ? String(req.body.status) : undefined;
 
     /* Fetch current lead to get existing counts */
     const lead = await prisma.lead.findFirst({
@@ -606,11 +623,34 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (projectNotes      !== undefined) updateData.projectNotes      = projectNotes;
     if (paidAmount        !== undefined) updateData.paidAmount        = paidAmount;
     if (comments          !== undefined) updateData.comments          = comments;
-    if (name              !== undefined) updateData.name              = name;
-    if (phone             !== undefined) updateData.phone             = phone;
-    if (email             !== undefined) updateData.email             = email;
-    if (state             !== undefined) updateData.state             = state;
-    if (req.body.website  !== undefined) updateData.website          = String(req.body.website ?? "").trim() || null;
+
+    /* Contact fields — never write UI placeholders ("N/A") over real data.
+       Status-change requests often accidentally include empty/N/A contact fields. */
+    const cleanContact = (v: unknown): string | undefined => {
+      if (v === undefined || v === null) return undefined;
+      const s = String(v).trim();
+      if (!s) return undefined;
+      const lower = s.toLowerCase();
+      if (
+        lower === "n/a" || lower === "na" || lower === "unknown" ||
+        lower === "not provided" || lower === "—" || lower === "-"
+      ) return undefined;
+      return s;
+    };
+
+    const cleanedName    = cleanContact(name);
+    const cleanedPhone   = cleanContact(phone);
+    const cleanedEmail   = cleanContact(email);
+    const cleanedState   = cleanContact(state);
+    const cleanedCompany = cleanContact(req.body.company);
+    const cleanedWebsite = cleanContact(req.body.website);
+
+    if (cleanedName    !== undefined) updateData.name    = cleanedName;
+    if (cleanedPhone   !== undefined) updateData.phone   = cleanedPhone;
+    if (cleanedEmail   !== undefined) updateData.email   = cleanedEmail.toLowerCase();
+    if (cleanedState   !== undefined) updateData.state   = cleanedState;
+    if (cleanedCompany !== undefined) updateData.company = cleanedCompany;
+    if (cleanedWebsite !== undefined) updateData.website = cleanedWebsite;
 
     if (req.body.ownerName        !== undefined) updateData.ownerName        = req.body.ownerName;
     if (req.body.projectScope     !== undefined) updateData.projectScope     = req.body.projectScope;
@@ -618,7 +658,6 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (req.body.takeoffDeadline  !== undefined) updateData.takeoffDeadline  = req.body.takeoffDeadline;
     if (req.body.pricingDeadline  !== undefined) updateData.pricingDeadline  = req.body.pricingDeadline;
     if (req.body.qaDeadline       !== undefined) updateData.qaDeadline       = req.body.qaDeadline;
-    if (req.body.company          !== undefined) updateData.company          = req.body.company;
     if (req.body.clientCode       !== undefined) updateData.clientCode       = req.body.clientCode;
     const payments = normalizePaymentsInput(req.body.projectPayments);
     if (payments !== undefined) {
@@ -628,14 +667,35 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     /* ── STATUS HANDLING ── */
     if (status !== undefined) {
-      updateData.status = status;
+      const raw = String(status).trim();
+      const n = raw.toLowerCase();
+      /* Canonical status strings used across CSR pages */
+      const canonical =
+        n === "not interested" ? "Not Interested" :
+        n === "not picked" || n === "notpicked" ? "not picked" :
+        n === "not completed" ? "not completed" :
+        n === "close client" ? "Close Client" :
+        n === "no owner available" ? "no owner available" :
+        n === "not in service" ? "not in service" :
+        n === "in house" ? "in house" :
+        n === "important" ? "important" :
+        n === "interested" ? "interested" :
+        n === "pending" ? "pending" :
+        n === "completed" ? "completed" :
+        n === "closed" ? "closed" :
+        raw;
+
+      updateData.status = canonical;
+      /* Always sync flags from status so leads land on the correct page */
+      updateData.important  = canonical === "important";
+      updateData.interested = canonical === "interested";
 
       /* ── NOT INTERESTED (limit = 3) ── */
-      if (status === "Not Interested") {
+      if (canonical === "Not Interested") {
         const newCount = (lead.notInterestedCount ?? 0) + 1;
         updateData.notInterestedCount = newCount;
-        updateData.important  = false;
-        updateData.interested = false;
+        updateData.nextSchedule = null;
+        updateData.nextTime     = null;
 
         const ts  = new Date().toLocaleString("en-US", { dateStyle:"medium", timeStyle:"short" });
         const tag = newCount >= NOT_INTERESTED_LIMIT ? " — LIMIT REACHED" : "";
@@ -648,7 +708,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         }
 
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
-        await logStatusChange(csrId, leadId, status);
+        await logStatusChange(csrId, leadId, canonical);
 
         invalidateCsrLeadCaches(csrId);
 
@@ -674,11 +734,11 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       }
 
       /* ── NOT PICKED (limit = 7) ── */
-      if (status === "not picked" || status === "not completed") {
+      if (canonical === "not picked" || canonical === "not completed") {
         const newCount = (lead.notPickedCount ?? 0) + 1;
         updateData.notPickedCount = newCount;
-        updateData.important  = false;
-        updateData.interested = false;
+        updateData.nextSchedule = null;
+        updateData.nextTime     = null;
 
         const ts  = new Date().toLocaleString("en-US", { dateStyle:"medium", timeStyle:"short" });
         const tag = newCount >= NOT_PICKED_LIMIT ? " — LIMIT REACHED" : "";
@@ -691,7 +751,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         }
 
         await prisma.lead.update({ where: { id: leadId }, data: updateData });
-        await logStatusChange(csrId, leadId, status);
+        await logStatusChange(csrId, leadId, canonical);
 
         invalidateCsrLeadCaches(csrId);
 
@@ -717,9 +777,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       }
 
       /* ── IMPORTANT ── */
-      if (status === "important") {
-        updateData.important  = true;
-        updateData.interested = false;
+      if (canonical === "important") {
         /* Direct "Important" (not Schedule Call) → important-only bucket for admin */
         if (nextSchedule === undefined && nextTime === undefined) {
           updateData.nextSchedule = null;
@@ -727,21 +785,23 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         }
       }
 
-      /* ── INTERESTED ── */
-      if (status === "interested") {
-        updateData.important  = false;
-        updateData.interested = true;
-      }
-
-      /* ── OTHER (pending, Close Client, etc.) ── */
-      if (["pending", "Close Client", "completed"].includes(status)) {
-        updateData.important  = false;
-        updateData.interested = false;
+      /* ── INTERESTED / misc / pending — clear leftover schedule ── */
+      if (
+        canonical === "interested" ||
+        canonical === "pending" ||
+        canonical === "no owner available" ||
+        canonical === "not in service" ||
+        canonical === "in house"
+      ) {
+        if (nextSchedule === undefined) updateData.nextSchedule = null;
+        if (nextTime === undefined) updateData.nextTime = null;
       }
 
       /* ── AUTO isOldClient when Close Client ── */
-      if (status === "Close Client" || status === "completed") {
+      if (canonical === "Close Client" || canonical === "completed" || canonical === "closed") {
         updateData.hiddenOnMain = true;
+        updateData.nextSchedule = null;
+        updateData.nextTime     = null;
         updateData.isOldClient = await hasPriorWonClient(lead.phone, lead.company, leadId);
 
         /* ── AUTO clientCode: {csrCode}-{padded_seq} ── */
@@ -754,7 +814,7 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
             const wonCount = await prisma.lead.count({
               where: {
                 assignedTo: csrId,
-                status:     { in: ["Close Client", "completed"] },
+                status:     { in: ["Close Client", "completed", "closed"] },
                 clientCode: { not: null },
               },
             });
@@ -763,6 +823,9 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
           }
         }
       }
+
+      /* Use canonical for downstream won-client / logging checks */
+      status = canonical;
     }
 
     const updatedLead = await prisma.lead.update({

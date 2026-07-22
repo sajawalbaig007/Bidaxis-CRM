@@ -72,13 +72,14 @@ export function filterActiveLeads<T extends {
 export function buildActiveRetryWhere(csrId: string): Prisma.LeadWhereInput {
   return {
     assignedTo: csrId,
+    ...notInBinFilter(),
     OR: [
       {
-        status:             "Not Interested",
+        status:             { equals: "Not Interested", mode: "insensitive" },
         notInterestedCount: { lt: NOT_INTERESTED_LIMIT },
       },
       {
-        status:         { in: ["not picked", "not completed"] },
+        status:         { in: ["not picked", "not completed"], mode: "insensitive" },
         notPickedCount: { lt: NOT_PICKED_LIMIT },
       },
     ],

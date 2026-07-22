@@ -33,6 +33,8 @@ import { useNotInterested, NiLead } from "../hooks/useNotInterested";
 import { useCsrMiscStatusLeads } from "../hooks/useCsrMiscStatusLeads";
 import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import API from "@/lib/api";
+import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
+import { invalidateCsrTabCaches } from "@/lib/csrTabApiCache";
 import StatusWithTimestamp from "../components/shared/StatusWithTimestamp";
 import {
   STATUS_NO_OWNER,
@@ -165,10 +167,16 @@ export default function NotInterestedPage() {
   }, [notInterested, notPicked]);
 
   /* ── Handlers ── */
+  const bustCaches = () => {
+    invalidateCsrTabCaches();
+    invalidateAllCsrListCaches();
+  };
+
   const handleRetry = async (lead: NiLead) => {
     const newStatus = activeTab === "notinterested" ? "Not Interested" : "not picked";
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status: newStatus });
+      bustCaches();
       if (res.data.needsManualAssign) {
         setCsrList(res.data.csrs ?? []);
         setAssignLead(lead);
@@ -232,6 +240,7 @@ export default function NotInterestedPage() {
     }
     try {
       await API.put(`/csr/lead/${lead.id}`, { status });
+      bustCaches();
       setLeads(prev => prev.filter(l => l.id !== lead.id));
       showToast(`Status updated to "${status}".`);
     } catch { showToast("Failed to update status.", "warn"); }
@@ -243,6 +252,7 @@ export default function NotInterestedPage() {
       status: "important", nextSchedule: scheduleDate,
       nextTime: scheduleTime, timezone: selectedTimezone,
     });
+    bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowImportantModal(false);
     showToast("Scheduled as Important Call.");
@@ -253,6 +263,7 @@ export default function NotInterestedPage() {
     const sub = serviceSubtype.trim();
     const interestedService = sub ? `${selectedService}-${sub}` : selectedService;
     await API.put(`/csr/lead/${statusLead.id}`, { status: "interested", interestedService });
+    bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowInterestedModal(false);
     setSelectedService("");
@@ -264,8 +275,10 @@ export default function NotInterestedPage() {
     if (!statusLead || !projectTitle || !projectDeadline || !projectService || !paidAmount) return;
     await API.put(`/csr/lead/${statusLead.id}`, {
       status: "Close Client", projectTitle, projectDeadline, projectCode,
-      projectBudget, projectNotes, interestedService: projectService, paidAmount, email,
+      projectBudget, projectNotes, interestedService: projectService, paidAmount,
+      ...(email.trim() && email.trim().toLowerCase() !== "n/a" ? { email: email.trim() } : {}),
     });
+    bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowCloseModal(false);
     showToast("Client closed & moved to Projects.");

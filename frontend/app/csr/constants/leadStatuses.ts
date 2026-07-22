@@ -15,13 +15,13 @@ export type LeadStatusFlags = {
   interested?: boolean;
 };
 
-/** Matches admin/DB: status or boolean flag */
+/** Matches admin/DB: status is source of truth (ignore stale flags). */
 export function isImportantLead(lead: LeadStatusFlags): boolean {
-  return !!lead.important || normStatus(lead.status) === "important";
+  return normStatus(lead.status) === "important";
 }
 
 export function isInterestedLeadStatus(lead: LeadStatusFlags): boolean {
-  return !!lead.interested || normStatus(lead.status) === "interested";
+  return normStatus(lead.status) === "interested";
 }
 
 export function isWonClientStatus(s?: string | null): boolean {

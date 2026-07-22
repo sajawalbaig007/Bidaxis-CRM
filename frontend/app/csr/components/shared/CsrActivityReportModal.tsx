@@ -139,6 +139,11 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
                 </div>
                 {report.entries && report.entries.length > 0 && (
                   <div className="mt-4 max-h-[220px] overflow-y-auto space-y-1.5 border-t border-gray-100 pt-3">
+                    {report.total > report.entries.length && (
+                      <p className="text-[10px] text-gray-400 mb-1">
+                        Showing latest {report.entries.length} of {report.total}
+                      </p>
+                    )}
                     {report.entries.map(entry => (
                       <div key={entry.id} className="flex items-center justify-between gap-2 text-[11px]">
                         <span className="text-gray-600 truncate">
