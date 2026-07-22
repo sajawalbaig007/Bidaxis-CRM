@@ -4,12 +4,13 @@ export function hasSchedule(nextSchedule?: string | null): boolean {
   return !!(nextSchedule && String(nextSchedule).trim());
 }
 
+/** Status is source of truth — ignore stale important/interested flags. */
 export function isImportantLead(lead: { status?: string | null; important?: boolean }): boolean {
-  return !!lead.important || (lead.status ?? "").trim().toLowerCase() === "important";
+  return (lead.status ?? "").trim().toLowerCase() === "important";
 }
 
 export function isInterestedLead(lead: { status?: string | null; interested?: boolean }): boolean {
-  return !!lead.interested || (lead.status ?? "").trim().toLowerCase() === "interested";
+  return (lead.status ?? "").trim().toLowerCase() === "interested";
 }
 
 export function isImportantOnlyLead(lead: {

@@ -185,7 +185,13 @@ export default function ImportantCallsPage() {
   const saveReschedule = async () => {
     if (!scheduleDate || !scheduleTime || !editingLead) return;
     try {
-      await updateLead(editingLead.id, { status: "important", nextSchedule: scheduleDate, nextTime: scheduleTime, timezone: selectedTimezone, email });
+      await updateLead(editingLead.id, {
+        status: "important",
+        nextSchedule: scheduleDate,
+        nextTime: scheduleTime,
+        timezone: selectedTimezone,
+        ...(email.trim() && email.trim().toLowerCase() !== "n/a" ? { email: email.trim() } : {}),
+      });
       setLeads(prev => prev.filter(l => l.id !== editingLead.id));
       void refetchStats();
       void refetch();
@@ -196,7 +202,21 @@ export default function ImportantCallsPage() {
   const saveProjectWon = async () => {
     if (!projectTitle || !projectDeadline || !projectService || !paidAmount || !editingLead) return;
     try {
-      await updateLead(editingLead.id, { status: "Close Client", projectCode, projectTitle, projectDeadline, projectBudget, paidAmount, projectNotes, interestedService: projectService, email });
+      const id = editingLead.id;
+      await updateLead(id, {
+        status: "Close Client",
+        projectCode,
+        projectTitle,
+        projectDeadline,
+        projectBudget,
+        paidAmount,
+        projectNotes,
+        interestedService: projectService,
+        ...(email.trim() && email.trim().toLowerCase() !== "n/a" ? { email: email.trim() } : {}),
+      });
+      setLeads(prev => prev.filter(l => l.id !== id));
+      void refetchStats();
+      void refetch();
       closeEditModal();
     } catch (err) { console.log(err); }
   };

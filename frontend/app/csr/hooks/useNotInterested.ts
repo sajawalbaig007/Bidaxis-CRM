@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { csrNotInterestedApi } from "@/lib/csrApiCache";
+import { useOnCsrDataReset } from "./useOnCsrDataReset";
 import { BackendLead, Lead, mapBackendLead } from "../types/lead";
 
 /** Follow-up lead with retry counters */
@@ -39,6 +40,7 @@ export function useNotInterested() {
   }, []);
 
   useEffect(() => { void (async () => { await Promise.resolve(); refetch(); })(); }, [refetch]);
+  useOnCsrDataReset(() => { void refetch(true); });
 
   return { leads, setLeads, loading, refetch };
 }

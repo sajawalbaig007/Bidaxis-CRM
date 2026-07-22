@@ -1,9 +1,10 @@
 import API, { getTokenUserId } from "./api";
 
-type Entry<T> = { userId: string; data: T; at: number };
+type Entry<T> = { userId: string; data: T; at: number; gen: number };
 
 const store = new Map<string, Entry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
+let cacheGeneration = 0;
 
 const STATS_TTL_MS = 60_000;
 const TAB_TTL_MS   = 45_000;
@@ -14,14 +15,16 @@ export const CSR_FILTER_BATCH_SIZE = 500;
 function read<T>(key: string, ttlMs: number): T | null {
   const userId = getTokenUserId() ?? "";
   const hit = store.get(key);
-  if (!hit || hit.userId !== userId || Date.now() - hit.at >= ttlMs) return null;
+  if (!hit || hit.userId !== userId || hit.gen !== cacheGeneration || Date.now() - hit.at >= ttlMs) {
+    return null;
+  }
   return hit.data as T;
 }
 
-function write<T>(key: string, data: T) {
+function write<T>(key: string, data: T, genAtStart: number) {
   const userId = getTokenUserId() ?? "";
-  if (!userId) return;
-  store.set(key, { userId, data, at: Date.now() });
+  if (!userId || genAtStart !== cacheGeneration) return;
+  store.set(key, { userId, data, at: Date.now(), gen: cacheGeneration });
 }
 
 async function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>, force = false): Promise<T> {
@@ -33,9 +36,10 @@ async function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>, 
   const pending = inflight.get(key) as Promise<T> | undefined;
   if (pending) return pending;
 
+  const genAtStart = cacheGeneration;
   const p = fetcher()
     .then(data => {
-      write(key, data);
+      write(key, data, genAtStart);
       return data;
     })
     .finally(() => inflight.delete(key));
@@ -124,6 +128,7 @@ export async function fetchPotentialLeadsCached(force = false): Promise<{ succes
 
 /** Light invalidation after lead mutations — stats + tab lists only */
 export function invalidateCsrTabCaches() {
+  cacheGeneration += 1;
   for (const key of store.keys()) {
     if (key.startsWith("csr:")) store.delete(key);
   }

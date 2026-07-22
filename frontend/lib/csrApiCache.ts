@@ -1,10 +1,11 @@
 import API, { getTokenUserId } from "./api";
 
-type CacheEntry<T> = { userId: string; data: T; at: number };
+type CacheEntry<T> = { userId: string; data: T; at: number; gen: number };
 
 function createFetcher<T>(url: string, ttlMs: number, timeoutMs = 30_000) {
   let cached: CacheEntry<T> | null = null;
   let inflight: Promise<T> | null = null;
+  let generation = 0;
 
   return {
     get(force = false): Promise<T> {
@@ -14,10 +15,14 @@ function createFetcher<T>(url: string, ttlMs: number, timeoutMs = 30_000) {
       }
       if (inflight) return inflight;
 
+      const genAtStart = generation;
       inflight = API.get(url, { timeout: timeoutMs })
         .then(res => {
           const data = res.data as T;
-          if (userId) cached = { userId, data, at: Date.now() };
+          /* Skip write if invalidate() ran while this request was in flight */
+          if (genAtStart === generation && userId) {
+            cached = { userId, data, at: Date.now(), gen: generation };
+          }
           return data;
         })
         .finally(() => { inflight = null; });
@@ -25,6 +30,7 @@ function createFetcher<T>(url: string, ttlMs: number, timeoutMs = 30_000) {
       return inflight;
     },
     invalidate() {
+      generation += 1;
       cached = null;
       inflight = null;
     },

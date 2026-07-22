@@ -6,6 +6,7 @@ export const CSR_DASHBOARD_LEAD_SELECT = {
   company:            true,
   phone:              true,
   email:              true,
+  website:            true,
   status:             true,
   nextSchedule:       true,
   nextTime:           true,

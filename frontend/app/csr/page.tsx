@@ -250,7 +250,8 @@ export default function CSRPage() {
     try {
       await updateLead(selectedProjectLead.id, {
         status: "Close Client", projectTitle, projectDeadline, projectCode,
-        projectBudget, projectNotes, interestedService: projectService, paidAmount, email,
+        projectBudget, projectNotes, interestedService: projectService, paidAmount,
+        ...(email.trim() && email.trim().toLowerCase() !== "n/a" ? { email: email.trim() } : {}),
       });
       setShowProjectWonModal(false);
       router.push("/csr/active-projects");
