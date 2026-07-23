@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Briefcase, Search, Plus,
+  PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Search, Plus,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -19,6 +19,7 @@ import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterIn
 import MonthRangeFilter from "../components/shared/MonthRangeFilter";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import InterestedServicesCell from "../components/shared/InterestedServicesCell";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
 import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 
@@ -664,12 +665,7 @@ export default function ImportantCallsPage() {
                         })()}
                       </td>
                       <td className={CSR_TD}>
-                        {lead.interestedService ? (
-                          <div className="inline-flex items-center gap-1 bg-[#FFF4E5] text-[#D97706] px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold min-w-0 max-w-full">
-                            <Briefcase size={11} className="shrink-0" />
-                            <span className="truncate">{lead.interestedService}</span>
-                          </div>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
+                        <InterestedServicesCell interestedService={lead.interestedService} />
                       </td>
                       <td className={CSR_TD}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />

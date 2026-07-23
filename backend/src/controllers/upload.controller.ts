@@ -64,6 +64,26 @@ async function runBatched<T>(items: T[], size: number, fn: (item: T) => Promise<
   }
 }
 
+/** Merge comma/slash-separated interested services from multiple leads. */
+function mergeInterestedServiceStrings(values: (string | null | undefined)[]): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const raw of values) {
+    if (!raw?.trim()) continue;
+    for (const part of raw.split(/\s*(?:\/|,|;|\||\n|·|•|\band\b)\s*/i)) {
+      const p = part.trim();
+      if (!p) continue;
+      const key = p.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+  }
+
+  return out.join(", ");
+}
+
 /** Keep one interested lead per phone/CSR from this upload; merge service + remove stale dupes. */
 async function consolidateInterestedUploadByPhone(uploadedFileId: string) {
   const uploaded = await prisma.lead.findMany({
@@ -91,11 +111,12 @@ async function consolidateInterestedUploadByPhone(uploadedFileId: string) {
     );
     if (siblings.length === 0) continue;
 
-    const mergedService =
-      lead.interestedService?.trim() ||
-      siblings.map(s => s.interestedService?.trim()).find(Boolean);
+    const mergedService = mergeInterestedServiceStrings([
+      lead.interestedService,
+      ...siblings.map(s => s.interestedService),
+    ]);
 
-    if (mergedService && !lead.interestedService?.trim()) {
+    if (mergedService) {
       await prisma.lead.update({
         where: { id: lead.id },
         data:  { interestedService: mergedService },
