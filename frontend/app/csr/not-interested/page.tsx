@@ -16,6 +16,7 @@ import ImportantCallModal from "../components/modals/ImportantCallModal";
 import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
+import InterestedServicesCell from "../components/shared/InterestedServicesCell";
 import { ourCompany } from "../utils/leadFieldLabels";
 import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
@@ -499,11 +500,7 @@ export default function NotInterestedPage() {
 
                         {/* Service */}
                         <td className={CSR_TD}>
-                          {lead.interestedService ? (
-                            <p className="text-[10px] sm:text-[11px] font-semibold text-[#D97706] truncate">{lead.interestedService}</p>
-                          ) : (
-                            <span className="text-gray-300 text-xs">—</span>
-                          )}
+                          <InterestedServicesCell interestedService={lead.interestedService} />
                         </td>
 
                         {/* Sticky Note */}

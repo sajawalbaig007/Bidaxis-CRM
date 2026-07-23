@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import API from "@/lib/api";
 import { NoteEntry, SubContact } from "../hooks/useLeadsData";
+import { parseInterestedServices } from "../utils/parseInterestedServices";
 
 export type DetailLead = {
   id: string;
@@ -308,7 +309,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   ];
 
   if (lead.interestedService) {
-    infoItems.push({ label: "Interested In", value: lead.interestedService, Icon: Briefcase });
+    const services = parseInterestedServices(lead.interestedService);
+    infoItems.push({
+      label: "Interested In",
+      value: services.length > 0 ? services.join(", ") : lead.interestedService,
+      Icon: Briefcase,
+    });
   }
   if (lead.nextSchedule) {
     infoItems.push({
