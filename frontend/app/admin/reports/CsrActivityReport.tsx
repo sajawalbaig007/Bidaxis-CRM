@@ -132,10 +132,11 @@ export default function CsrActivityReport() {
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [timezoneLabel, setTimezoneLabel] = useState("Eastern Time (EST/EDT)");
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [view, setView] = useState<"sessions" | "summary">("sessions");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const [editing, setEditing] = useState<SessionRow | null>(null);
   const [editCheckIn, setEditCheckIn] = useState("");
@@ -211,6 +212,7 @@ export default function CsrActivityReport() {
       setSessions(res.data.sessions ?? []);
       setSummary(res.data.summary ?? []);
       setTimezoneLabel(res.data.timezoneLabel ?? "Eastern Time (EST/EDT)");
+      setHasLoaded(true);
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to load CSR activity report."));
     } finally {
@@ -219,8 +221,9 @@ export default function CsrActivityReport() {
   }, [fromDate, toDate, csrId]);
 
   useEffect(() => {
+    if (!open) return;
     void loadReport();
-  }, [loadReport]);
+  }, [open, loadReport]);
 
   const selectedCsr = csrs.find(c => c.id === csrId) ?? null;
   const dropdownLabel = selectedCsr ? selectedCsr.name : "All CSRs";
@@ -231,25 +234,47 @@ export default function CsrActivityReport() {
   }), [sessions, summary]);
 
   return (
-    <div className="rounded-2xl sm:rounded-[24px] bg-white p-4 sm:p-5 shadow-sm border border-gray-100">
+    <div className="rounded-2xl sm:rounded-[24px] bg-white dark:bg-crm-surface p-4 sm:p-5 shadow-sm border border-gray-100 dark:border-crm-border overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between mb-3 sm:mb-4"
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors -m-1 p-1 sm:p-1.5"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 shrink-0">
             <Clock size={18} />
           </div>
-          <div className="text-left">
-            <h2 className="text-base sm:text-lg font-bold text-[#111827]">CSR Check In / Check Out</h2>
-            <p className="text-xs text-gray-400">Shift tracking · all times in {timezoneLabel}</p>
+          <div className="text-left min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-[#111827] dark:text-gray-100 truncate">
+              CSR Check In / Check Out
+            </h2>
+            <p className="text-xs text-gray-400 truncate">
+              {open
+                ? `Shift tracking · all times in ${timezoneLabel}`
+                : hasLoaded
+                  ? `${totals.sessions} session${totals.sessions === 1 ? "" : "s"} · click to expand`
+                  : "Click to expand shift tracking report"}
+            </p>
           </div>
         </div>
-        <ChevronDown size={18} className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <span className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold shrink-0 transition-colors ${
+          open
+            ? "bg-gray-100 dark:bg-crm-muted text-gray-600 dark:text-gray-300"
+            : "bg-[#B8112D] text-white"
+        }`}>
+          {open ? "Collapse" : "Expand"}
+          <ChevronDown size={16} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        </span>
       </button>
 
-      {open && (
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+          open ? "grid-rows-[1fr] mt-3 sm:mt-4" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden min-h-0">
+          {open && (
         <>
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <input
@@ -464,7 +489,9 @@ export default function CsrActivityReport() {
             )}
           </div>
         </>
-      )}
+          )}
+        </div>
+      </div>
 
       {editing && (
         <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
