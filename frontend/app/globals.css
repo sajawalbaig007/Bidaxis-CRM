@@ -130,7 +130,10 @@ body {
 .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--crm-border) !important; }
 
 .dark .hover\:bg-\[\#FAFAFA\]:hover,
-.dark .hover\:bg-\[\#FFFBF2\]:hover { background-color: var(--crm-surface-raised) !important; }
+.dark .hover\:bg-\[\#FFFBF2\]:hover,
+.dark .hover\:bg-\[\#F9FAFB\]:hover,
+.dark .hover\:bg-\[\#F5F6FA\]:hover,
+.dark .hover\:bg-\[\#F0FFF4\]:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
 .dark .hover\:bg-gray-50:hover { background-color: var(--crm-surface-muted) !important; }
 .dark .hover\:bg-gray-100:hover { background-color: var(--crm-muted) !important; }
 .dark .hover\:bg-white:hover { background-color: var(--crm-surface-raised) !important; }

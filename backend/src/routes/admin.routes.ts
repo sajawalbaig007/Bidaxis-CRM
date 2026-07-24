@@ -30,8 +30,8 @@ import {
   type AdminClientView,
 } from "../utils/adminClientQueries";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
-import { buildCsrSessionReport } from "../utils/csrSessionTracking";
-import { estDayBoundsUtc, estDateYmd, addEstDays } from "../utils/estTime";
+import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
+import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal } from "../utils/estTime";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
@@ -1460,6 +1460,83 @@ router.get(
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to fetch CSR activity report" });
+    }
+  },
+);
+
+/* Admin can correct check-in / check-out times (EST). */
+router.put(
+  "/csr-work-session/:id",
+  verifyToken,
+  allowRoles("admin"),
+  async (req, res) => {
+    try {
+      const sessionId = String(req.params.id ?? "");
+      if (!sessionId) {
+        return res.status(400).json({ success: false, message: "Session id required." });
+      }
+      const {
+        checkInAt,
+        checkOutAt,
+        clearCheckOut,
+        dashboardMs,
+        awayMs,
+        note,
+      } = req.body ?? {};
+
+      if (!checkInAt || typeof checkInAt !== "string") {
+        return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
+      }
+
+      const checkInDate =
+        parseEstDateTimeLocal(checkInAt) ??
+        (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
+      if (!checkInDate) {
+        return res.status(400).json({ success: false, message: "Invalid check-in time." });
+      }
+
+      let checkOutDate: Date | null = null;
+      if (!clearCheckOut && checkOutAt) {
+        if (typeof checkOutAt !== "string") {
+          return res.status(400).json({ success: false, message: "Invalid check-out time." });
+        }
+        checkOutDate =
+          parseEstDateTimeLocal(checkOutAt) ??
+          (!Number.isNaN(Date.parse(checkOutAt)) ? new Date(checkOutAt) : null);
+        if (!checkOutDate) {
+          return res.status(400).json({ success: false, message: "Invalid check-out time." });
+        }
+      }
+
+      const result = await adminAdjustCsrWorkSession({
+        sessionId,
+        checkInAt: checkInDate,
+        checkOutAt: checkOutDate,
+        clearCheckOut: !!clearCheckOut,
+        dashboardMs: typeof dashboardMs === "number" ? dashboardMs : undefined,
+        awayMs: typeof awayMs === "number" ? awayMs : undefined,
+        note: typeof note === "string" ? note : undefined,
+      });
+
+      if (!result.ok) {
+        return res.status(404).json({ success: false, message: result.message });
+      }
+
+      return res.json({
+        success: true,
+        message: "Session times updated.",
+        session: {
+          id: result.session.id,
+          loginAt: result.session.loginAt.toISOString(),
+          logoutAt: result.session.logoutAt?.toISOString() ?? null,
+          dashboardMs: result.session.dashboardMs,
+          awayMs: result.session.awayMs,
+          closedReason: result.session.closedReason,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to update work session." });
     }
   },
 );

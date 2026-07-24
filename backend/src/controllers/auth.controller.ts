@@ -13,7 +13,7 @@ import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
-import { openCsrWorkSession, closeCsrWorkSession } from "../utils/csrSessionTracking";
+import { closeCsrWorkSession } from "../utils/csrSessionTracking";
 import {
   isLoginBlocked,
   requiresCaptcha,
@@ -109,9 +109,7 @@ async function finishLogin(
     event: "login",
   });
 
-  if (user.role === "csr") {
-    void openCsrWorkSession({ userId: user.id, ip, userAgent: ua });
-  }
+  /* CSR Check In is explicit on the dashboard — do not auto-open on login. */
 
   sendLoginAlertEmail({ to: user.email, name: user.name, ip, userAgent: ua });
 

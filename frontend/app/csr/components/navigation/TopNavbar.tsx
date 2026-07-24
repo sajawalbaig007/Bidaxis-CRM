@@ -36,6 +36,8 @@ import {
   statusBadgeColor,
 } from "../../constants/notificationRoutes";
 import CsrActivityReportModal from "../shared/CsrActivityReportModal";
+import CsrCheckInControl from "../CsrCheckInControl";
+import CsrCheckInBanner from "../CsrCheckInBanner";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
 const navItems = [
@@ -332,6 +334,8 @@ export default function TopNavbar() {
           </nav>
         </div>
 
+        <CsrCheckInControl compact />
+
         <ThemeToggle />
 
         <button
@@ -597,6 +601,8 @@ export default function TopNavbar() {
         </div>
       </div>
     </header>
+
+    <CsrCheckInBanner />
 
     {chatOpen && <ChatPanel onClose={closeChat} />}
     <CsrActivityReportModal open={reportOpen} onClose={() => setReportOpen(false)} />

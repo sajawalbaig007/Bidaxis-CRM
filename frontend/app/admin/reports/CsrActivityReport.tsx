@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
-import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Users } from "lucide-react";
+import { ChevronDown, Clock, Download, LogIn, LogOut, Monitor, Pencil, Users, X } from "lucide-react";
 
 type CsrOption = { id: string; name: string; csrCode?: string | null };
 
@@ -12,8 +12,12 @@ type SessionRow = {
   csrId: string;
   csrName: string;
   csrCode: string | null;
+  loginAt: string;
+  logoutAt: string | null;
   loginAtEst: string;
   logoutAtEst: string;
+  checkInAtEst?: string;
+  checkOutAtEst?: string;
   dashboardDuration: string;
   awayDuration: string;
   totalDuration: string;
@@ -21,6 +25,7 @@ type SessionRow = {
   browser: string | null;
   ip: string | null;
   closedReason: string | null;
+  closedReasonLabel?: string;
 };
 
 type SummaryRow = {
@@ -56,12 +61,31 @@ function addDaysYmd(ymd: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** ISO → YYYY-MM-DDTHH:mm in America/New_York for datetime-local. */
+function toEstLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+  const hour = get("hour") === "24" ? "00" : get("hour");
+  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
+}
+
 function downloadCsv(rows: SessionRow[], filename: string) {
   const headers = [
     "CSR",
     "Code",
-    "Login (EST)",
-    "Logout (EST)",
+    "Check In (EST)",
+    "Check Out (EST)",
     "On Dashboard",
     "Away",
     "Total",
@@ -76,15 +100,15 @@ function downloadCsv(rows: SessionRow[], filename: string) {
     ...rows.map(r => [
       escape(r.csrName),
       escape(r.csrCode ?? ""),
-      escape(r.loginAtEst),
-      escape(r.logoutAtEst),
+      escape(r.checkInAtEst ?? r.loginAtEst),
+      escape(r.checkOutAtEst ?? r.logoutAtEst),
       escape(r.dashboardDuration),
       escape(r.awayDuration),
       escape(r.totalDuration),
-      escape(r.status),
+      escape(r.status === "active" ? "Checked In" : "Checked Out"),
       escape(r.browser ?? ""),
       escape(r.ip ?? ""),
-      escape(r.closedReason ?? ""),
+      escape(r.closedReasonLabel ?? r.closedReason ?? ""),
     ].join(",")),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -112,6 +136,53 @@ export default function CsrActivityReport() {
   const [view, setView] = useState<"sessions" | "summary">("sessions");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [editing, setEditing] = useState<SessionRow | null>(null);
+  const [editCheckIn, setEditCheckIn] = useState("");
+  const [editCheckOut, setEditCheckOut] = useState("");
+  const [editStillOpen, setEditStillOpen] = useState(false);
+  const [editNote, setEditNote] = useState("admin_adjusted");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (row: SessionRow) => {
+    setEditing(row);
+    setEditCheckIn(toEstLocalInput(row.loginAt));
+    setEditCheckOut(toEstLocalInput(row.logoutAt));
+    setEditStillOpen(row.status === "active" || !row.logoutAt);
+    setEditNote("admin_adjusted");
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+    setSavingEdit(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editing || !editCheckIn) {
+      toast.error("Check-in time is required.");
+      return;
+    }
+    if (!editStillOpen && !editCheckOut) {
+      toast.error("Enter check-out time, or mark as still checked in.");
+      return;
+    }
+    try {
+      setSavingEdit(true);
+      await API.put(`/admin/csr-work-session/${editing.id}`, {
+        checkInAt: editCheckIn,
+        checkOutAt: editStillOpen ? null : editCheckOut,
+        clearCheckOut: editStillOpen,
+        note: editNote.trim() || "admin_adjusted",
+      });
+      toast.success("Session times updated.");
+      closeEdit();
+      await loadReport();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to update session."));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   useEffect(() => {
     API.get("/admin/csrs")
@@ -171,8 +242,8 @@ export default function CsrActivityReport() {
             <Clock size={18} />
           </div>
           <div className="text-left">
-            <h2 className="text-base sm:text-lg font-bold text-[#111827]">CSR Login & Activity</h2>
-            <p className="text-xs text-gray-400">All times in {timezoneLabel}</p>
+            <h2 className="text-base sm:text-lg font-bold text-[#111827]">CSR Check In / Check Out</h2>
+            <p className="text-xs text-gray-400">Shift tracking · all times in {timezoneLabel}</p>
           </div>
         </div>
         <ChevronDown size={18} className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -279,11 +350,11 @@ export default function CsrActivityReport() {
 
           <div className="overflow-x-auto">
             {view === "sessions" ? (
-              <table className="w-full" style={{ minWidth: "900px" }}>
+              <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {["CSR", "Login (EST)", "Logout (EST)", "On Dashboard", "Away", "Total", "Status"].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                    {["CSR", "Check In (EST)", "Check Out (EST)", "On Dashboard", "Away", "Total", "Status", "Closed By", ""].map(h => (
+                      <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
                     ))}
@@ -293,7 +364,7 @@ export default function CsrActivityReport() {
                   {loading ? (
                     [1, 2, 3].map(i => (
                       <tr key={i} className="border-b border-gray-50">
-                        {[1, 2, 3, 4, 5, 6, 7].map(j => (
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(j => (
                           <td key={j} className="px-3 py-3">
                             <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
                           </td>
@@ -302,8 +373,8 @@ export default function CsrActivityReport() {
                     ))
                   ) : sessions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-gray-400 text-sm">
-                        No CSR sessions in this date range
+                      <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">
+                        No CSR check-in sessions in this date range
                       </td>
                     </tr>
                   ) : sessions.map(row => (
@@ -313,12 +384,12 @@ export default function CsrActivityReport() {
                         {row.csrCode && <div className="text-[10px] text-gray-400">{row.csrCode}</div>}
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{row.loginAtEst}</span>
+                        <span className="inline-flex items-center gap-1"><LogIn size={12} className="text-green-500" />{row.checkInAtEst ?? row.loginAtEst}</span>
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm text-gray-700 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1">
                           <LogOut size={12} className={row.status === "active" ? "text-amber-500" : "text-gray-400"} />
-                          {row.logoutAtEst}
+                          {row.checkOutAtEst ?? row.logoutAtEst}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-xs sm:text-sm font-semibold text-emerald-600 whitespace-nowrap">
@@ -330,8 +401,22 @@ export default function CsrActivityReport() {
                         <span className={`text-[10px] sm:text-xs font-bold px-2 py-1 rounded-full ${
                           row.status === "active" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
                         }`}>
-                          {row.status === "active" ? "Active" : "Closed"}
+                          {row.status === "active" ? "Checked In" : "Checked Out"}
                         </span>
+                      </td>
+                      <td className="px-3 py-3 text-[11px] text-gray-500 whitespace-nowrap">
+                        {row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—"))}
+                      </td>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(row)}
+                          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#FFF1F3] text-[#B8112D] text-[11px] font-bold hover:bg-[#B8112D] hover:text-white transition-colors"
+                          title="Adjust check-in / check-out times"
+                        >
+                          <Pencil size={12} />
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -379,6 +464,91 @@ export default function CsrActivityReport() {
             )}
           </div>
         </>
+      )}
+
+      {editing && (
+        <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-[#111827]">Adjust session times</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {editing.csrName} · times in Eastern (EST/EDT)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="w-8 h-8 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5">
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check In</label>
+                <input
+                  type="datetime-local"
+                  value={editCheckIn}
+                  onChange={e => setEditCheckIn(e.target.value)}
+                  className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={editStillOpen}
+                  onChange={e => setEditStillOpen(e.target.checked)}
+                  className="rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                />
+                Still checked in (no check-out)
+              </label>
+
+              {!editStillOpen && (
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Check Out</label>
+                  <input
+                    type="datetime-local"
+                    value={editCheckOut}
+                    onChange={e => setEditCheckOut(e.target.value)}
+                    className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Note / reason</label>
+                <input
+                  type="text"
+                  value={editNote}
+                  onChange={e => setEditNote(e.target.value)}
+                  placeholder="admin_adjusted"
+                  className="w-full h-11 rounded-xl border-2 border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-semibold text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveEdit()}
+                disabled={savingEdit}
+                className="flex-1 h-11 rounded-xl bg-[#B8112D] text-white font-semibold text-sm disabled:opacity-50"
+              >
+                {savingEdit ? "Saving…" : "Save times"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
