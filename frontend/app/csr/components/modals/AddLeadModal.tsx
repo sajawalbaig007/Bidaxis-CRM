@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Plus, X, User2, Loader2, CheckCircle2 } from "lucide-react";
+import { Plus, X, User2, Loader2, CheckCircle2, Briefcase } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
 import ServicePicker from "../shared/ServicePicker";
 import { useClientPhoneLookup } from "../../hooks/useClientPhoneLookup";
+import { decomposeInterestedServices, formatInterestedServices } from "../../utils/parseInterestedServices";
 import toast from "react-hot-toast";
 
-const emptyForm = { name: "", phone: "", email: "", company: "", website: "", state: "", service: "", comments: "" };
+const emptyForm = { name: "", phone: "", email: "", company: "", website: "", state: "", comments: "" };
 
 interface AddLeadModalProps {
   open: boolean;
@@ -16,19 +17,30 @@ interface AddLeadModalProps {
 }
 
 export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalProps) {
-  const [form, setForm]     = useState(emptyForm);
+  const [form, setForm] = useState(emptyForm);
+  const [services, setServices] = useState<string[]>([]);
+  const [serviceSubtypes, setServiceSubtypes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState("");
+  const [error, setError] = useState("");
 
-  const applyLookup = useCallback((client: { name: string; company: string; email: string; state: string; interestedService: string }) => {
+  const applyLookup = useCallback((client: {
+    name: string;
+    company: string;
+    email: string;
+    state: string;
+    interestedService: string;
+  }) => {
     setForm(f => ({
       ...f,
       name:    client.name    || f.name,
       company: client.company || f.company,
       email:   client.email   || f.email,
       state:   client.state   || f.state,
-      service: f.service || client.interestedService || "",
     }));
+    const { services: parsed, subtypes } = decomposeInterestedServices(client.interestedService);
+    if (parsed.length === 0) return;
+    setServices(prev => (prev.length > 0 ? prev : parsed));
+    setServiceSubtypes(prev => (Object.keys(prev).length > 0 ? prev : subtypes));
   }, []);
 
   const { phoneLookupLoading, returningClient, resetLookup, onPhoneValueChange, onPhoneBlur, onPhonePaste } =
@@ -36,10 +48,18 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
 
   const close = () => {
     setForm(emptyForm);
+    setServices([]);
+    setServiceSubtypes({});
     setError("");
     resetLookup();
     onClose();
   };
+
+  const setSubtype = (svc: string, text: string) => {
+    setServiceSubtypes(prev => ({ ...prev, [svc]: text }));
+  };
+
+  const scopePreview = formatInterestedServices(services, serviceSubtypes);
 
   const submit = async () => {
     if (!form.name.trim()) { setError("Client name is required."); return; }
@@ -53,7 +73,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
         company:           form.company.trim() || undefined,
         website:           form.website.trim() || undefined,
         state:             form.state.trim()   || undefined,
-        interestedService: form.service        || undefined,
+        interestedService: scopePreview || undefined,
         comments:          form.comments.trim() || undefined,
       });
       toast.success("Lead added");
@@ -80,7 +100,7 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
             </div>
             <div>
               <h2 className="text-base font-bold text-white">Add New Lead</h2>
-              <p className="text-white/65 text-xs">Client name & company required fields</p>
+              <p className="text-white/65 text-xs">Client name required — scope optional</p>
             </div>
           </div>
         </div>
@@ -148,7 +168,39 @@ export default function AddLeadModal({ open, onClose, onAdded }: AddLeadModalPro
             />
           </div>
 
-          <ServicePicker value={form.service} onChange={v => setForm(f => ({ ...f, service: v }))} />
+          <div className="space-y-2.5">
+            <label className="text-[10px] font-semibold text-gray-500 uppercase block">
+              Scope <span className="normal-case font-normal text-gray-400">(optional)</span>
+            </label>
+            <ServicePicker multi values={services} onValuesChange={setServices} />
+
+            {services.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                  Subtype <span className="normal-case font-normal text-gray-400">(optional)</span>
+                </p>
+                {services.map(svc => (
+                  <div key={svc} className="flex flex-col gap-1">
+                    <label className="text-[11px] font-semibold text-[#B8112D]">{svc}</label>
+                    <input
+                      type="text"
+                      value={serviceSubtypes[svc] ?? ""}
+                      onChange={e => setSubtype(svc, e.target.value)}
+                      placeholder={`e.g. ${svc === "IT" ? "Networking" : svc === "Estimating" ? "HVAC" : "detail"}`}
+                      className="h-10 px-3 rounded-xl border-2 border-gray-200 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
+                    />
+                  </div>
+                ))}
+                <div className="p-3 bg-[#FFF4E5] rounded-xl flex items-center gap-2">
+                  <Briefcase size={14} className="text-[#D97706] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-gray-500">Will save as</p>
+                    <p className="text-[13px] font-bold text-[#D97706] truncate">{scopePreview}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase mb-1 block">Notes</label>

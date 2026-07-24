@@ -206,19 +206,34 @@ html.dark .hover\:bg-gray-200:hover { background-color: var(--crm-muted) !import
 .dark .shadow-2xl { box-shadow: var(--crm-card-shadow) !important; }
 .dark .shadow-red-200 { box-shadow: 0 4px 14px rgba(184, 17, 45, 0.2) !important; }
 
-/* Status badges — same hues as light, darker tinted backgrounds */
-.dark .bg-\[\#FFF1F3\] { background-color: #2a1419 !important; }
-.dark .bg-\[\#FFF7E6\] { background-color: #2a2210 !important; }
-.dark .bg-\[\#FFF4E5\] { background-color: #2a1e0f !important; }
-.dark .bg-\[\#FFF1E8\] { background-color: #2a1a12 !important; }
+/* Status badges — luminous tinted surfaces (readable on dark bg) */
+.dark .bg-\[\#FFF1F3\] { background-color: rgba(244, 63, 94, 0.22) !important; }
+.dark .bg-\[\#FFF7E6\] { background-color: rgba(245, 158, 11, 0.22) !important; }
+.dark .bg-\[\#FFF4E5\] { background-color: rgba(249, 115, 22, 0.20) !important; }
+.dark .bg-\[\#FFF1E8\] { background-color: rgba(249, 115, 22, 0.22) !important; }
+.dark .bg-\[\#FEF3C7\] { background-color: rgba(234, 179, 8, 0.22) !important; }
+.dark .bg-\[\#F3E8FF\] { background-color: rgba(139, 92, 246, 0.22) !important; }
+.dark .bg-\[\#CCFBF1\] { background-color: rgba(20, 184, 166, 0.22) !important; }
 .dark .bg-\[\#ECFDF5\],
-.dark .bg-\[\#ECFDF3\] { background-color: #132820 !important; }
-.dark .bg-\[\#EAF5FF\] { background-color: #141f2e !important; }
-.dark .bg-\[\#F1F5F9\] { background-color: #1e2430 !important; }
-.dark .bg-\[\#F4F4F5\] { background-color: #242830 !important; }
-.dark .bg-red-50 { background-color: #2a1419 !important; }
-.dark .bg-amber-50 { background-color: #2a2210 !important; }
-.dark .bg-\[\#F0FFF4\] { background-color: #132820 !important; }
+.dark .bg-\[\#ECFDF3\] { background-color: rgba(16, 185, 129, 0.22) !important; }
+.dark .bg-\[\#EAF5FF\] { background-color: rgba(14, 165, 233, 0.22) !important; }
+.dark .bg-\[\#F1F5F9\] { background-color: rgba(148, 163, 184, 0.22) !important; }
+.dark .bg-\[\#F4F4F5\] { background-color: rgba(161, 161, 170, 0.22) !important; }
+.dark .bg-red-50 { background-color: rgba(244, 63, 94, 0.20) !important; }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.20) !important; }
+.dark .bg-\[\#F0FFF4\] { background-color: rgba(16, 185, 129, 0.20) !important; }
+
+/* Keep status badge text vivid in dark mode */
+.dark .text-\[\#B54708\] { color: #fbbf24 !important; }
+.dark .text-\[\#F97316\] { color: #fb923c !important; }
+.dark .text-\[\#B45309\] { color: #facc15 !important; }
+.dark .text-\[\#7C3AED\] { color: #c4b5fd !important; }
+.dark .text-\[\#0D9488\] { color: #5eead4 !important; }
+.dark .text-\[\#B42318\] { color: #fb7185 !important; }
+.dark .text-\[\#0B84F3\] { color: #7dd3fc !important; }
+.dark .text-\[\#065F46\] { color: #6ee7b7 !important; }
+.dark .text-\[\#475569\] { color: #cbd5e1 !important; }
+.dark .text-\[\#027A48\] { color: #6ee7b7 !important; }
 
 .dark .hover\:bg-\[\#FFF1F3\]:hover,
 .dark .hover\:bg-\[\#fce8ec\]:hover { background-color: #3a1a22 !important; }
