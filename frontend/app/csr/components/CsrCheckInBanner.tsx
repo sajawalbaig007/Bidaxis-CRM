@@ -53,7 +53,7 @@ export default function CsrCheckInBanner() {
           <div className="min-w-0">
             <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Check in to start your shift</p>
             <p className="text-[11px] sm:text-xs text-amber-800/80 dark:text-amber-300/80">
-              Use the green <span className="font-semibold">Check In</span> button in the top bar. Logout will check you out automatically.
+              Use the green <span className="font-semibold">Check In</span> button in the top bar. Only <span className="font-semibold">Check Out</span> ends your shift — logout does not.
             </p>
           </div>
         </div>
