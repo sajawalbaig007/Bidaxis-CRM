@@ -4,8 +4,8 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
-import { tickCsrWorkSession } from "../utils/csrSessionTracking";
-import { getClientIp } from "../utils/requestMeta";
+import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus } from "../utils/csrSessionTracking";
+import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
 import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { normalizePhone } from "../utils/phone";
@@ -1246,6 +1246,55 @@ router.delete("/lead/:id/subcontacts/:subId", verifyToken, allowRoles("csr"), as
   }
 });
 
+/* ================= CHECK IN / CHECK OUT ================= */
+
+router.get("/work-session", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const status = await getCsrWorkSessionStatus(req.user.id);
+    return res.json({ success: true, ...status });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to load work session." });
+  }
+});
+
+router.post("/check-in", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const result = await checkInCsrWorkSession({
+      userId: req.user.id,
+      ip: getClientIp(req),
+      userAgent: getUserAgent(req),
+      deviceId: req.body?.tabId ?? req.body?.deviceId,
+    });
+    const status = await getCsrWorkSessionStatus(req.user.id);
+    return res.json({
+      success: true,
+      created: result.created,
+      message: result.created ? "Checked in successfully." : "Already checked in.",
+      ...status,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Check-in failed." });
+  }
+});
+
+router.post("/check-out", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const closed = await checkOutCsrWorkSession(req.user.id);
+    return res.json({
+      success: true,
+      closed,
+      checkedIn: false,
+      session: null,
+      message: closed ? "Checked out successfully." : "No active check-in.",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Check-out failed." });
+  }
+});
+
 /* ================= HEARTBEAT ================= */
 
 router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) => {
@@ -1299,7 +1348,7 @@ router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) 
 });
 
 /* ================= OFFLINE (Users page presence only) ================= */
-/* Does not close work sessions — reports keep tracking until explicit logout. */
+/* Does not close work sessions — reports keep tracking until Check Out or Logout. */
 
 router.post("/offline", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {

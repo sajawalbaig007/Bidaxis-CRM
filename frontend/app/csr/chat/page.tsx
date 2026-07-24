@@ -1511,16 +1511,16 @@ export default function ChatPage() {
                             <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Offline</p>
                           )}
                           <button type="button" onClick={(e) => { e.stopPropagation(); void startDm(user); }}
-                            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${user.isOnline ? "hover:bg-[#F0FFF4]" : "hover:bg-[#F5F6FA]"}`}>
+                            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/10">
                             <Avatar name={user.name} size="md" online={user.isOnline} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="text-sm font-semibold text-[#0F172A] truncate">{user.name}</p>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{user.name}</p>
                                 {user.isOnline && (
-                                  <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full shrink-0">Active</span>
+                                  <span className="text-[9px] font-bold text-green-600 dark:text-green-300 bg-green-50 dark:bg-green-500/20 px-1.5 py-0.5 rounded-full shrink-0">Active</span>
                                 )}
                               </div>
-                              <p className="text-[11px] text-gray-400 truncate">{user.csrCode ?? user.role ?? user.email ?? ""}</p>
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{user.csrCode ?? user.role ?? user.email ?? ""}</p>
                             </div>
                           </button>
                         </div>

@@ -1189,10 +1189,10 @@ export default function ChatPanel({
               ) : filteredUsers.map(u => {
                 const sel = selectedUsers.includes(u.id);
                 return (
-                  <button key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${sel ? "bg-[#FFF1F3]" : "hover:bg-[#F9FAFB]"}`}>
+                  <button key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
                     <Avatar name={u.name} size="sm" online={u.isOnline} />
-                    <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{u.name}</p><p className="text-[10px] text-gray-400 capitalize">{u.csrCode ?? u.role ?? u.email}</p></div>
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300"}`}>{sel && <Check size={8} className="text-white" />}</div>
+                    <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{u.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{u.csrCode ?? u.role ?? u.email}</p></div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 dark:border-gray-500"}`}>{sel && <Check size={8} className="text-white" />}</div>
                   </button>
                 );
               })}
@@ -1211,12 +1211,12 @@ export default function ChatPanel({
       {/* ── DM MODAL ── */}
       {portalReady && showDmModal && createPortal(
         <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowDmModal(false); setDmSearch(""); }}>
-          <div className="w-full sm:max-w-[400px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
-            <div className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0 flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center"><User2 size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">New Direct Message</h2><p className="text-[10px] text-gray-400">Choose a team member</p></div></div>
-              <button onClick={() => { setShowDmModal(false); setDmSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"><X size={13} /></button>
+          <div className="w-full sm:max-w-[400px] bg-white dark:bg-crm-surface rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-transparent dark:border-crm-border" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+            <div className="px-4 pt-4 pb-3 border-b border-gray-100 dark:border-crm-border-subtle shrink-0 flex items-center justify-between">
+              <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-xl bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center"><User2 size={14} /></div><div><h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">New Direct Message</h2><p className="text-[10px] text-gray-500 dark:text-gray-400">Choose a team member</p></div></div>
+              <button onClick={() => { setShowDmModal(false); setDmSearch(""); }} className="w-7 h-7 rounded-xl bg-gray-100 dark:bg-crm-muted hover:bg-gray-200 dark:hover:bg-white/10 flex items-center justify-center transition-colors"><X size={13} /></button>
             </div>
-            <div className="px-3 py-2.5 border-b border-gray-100 shrink-0">
+            <div className="px-3 py-2.5 border-b border-gray-100 dark:border-crm-border-subtle shrink-0">
               <div className="relative"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search users..." value={dmSearch} onChange={e => setDmSearch(e.target.value)} autoFocus className="w-full h-8 rounded-xl bg-[#F3F4F6] dark:bg-crm-muted dark:text-gray-100 pl-7 pr-3 text-xs outline-none focus:bg-white dark:focus:bg-crm-input focus:ring-2 focus:ring-[#B8112D]/20 transition-all" /></div>
             </div>
             <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
@@ -1225,9 +1225,12 @@ export default function ChatPanel({
               ) : filteredUsers.length === 0 ? (
                 <div className="py-10 text-center"><User2 size={26} className="text-gray-200 mx-auto mb-2" /><p className="text-sm text-gray-400">{dmSearch ? "No users found" : "No team members"}</p></div>
               ) : filteredUsers.map(u => (
-                <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingUserId === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[#F9FAFB] transition-all group disabled:opacity-50">
+                <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingUserId === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/10 transition-all group disabled:opacity-50">
                   <Avatar name={u.name} size="sm" online={u.isOnline} />
-                  <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-[#B8112D] transition-colors">{u.name}</p><p className="text-[10px] text-gray-400">{u.csrCode ?? u.role ?? u.email}</p></div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-[#B8112D] dark:group-hover:text-red-300 transition-colors">{u.name}</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">{u.csrCode ?? u.role ?? u.email}</p>
+                  </div>
                   {u.isOnline && <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}
                 </button>
               ))}

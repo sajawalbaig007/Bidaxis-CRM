@@ -83,6 +83,65 @@ export async function openCsrWorkSession(opts: {
   }
 }
 
+/** Explicit CSR Check In — keeps existing open session (does not reset timers). */
+export async function checkInCsrWorkSession(opts: {
+  userId: string;
+  ip?: string;
+  userAgent?: string;
+  deviceId?: string;
+}): Promise<{ created: boolean; sessionId: string; loginAt: Date }> {
+  const existing = await findOpenSession(opts.userId);
+  if (existing) {
+    return { created: false, sessionId: existing.id, loginAt: existing.loginAt };
+  }
+
+  const ua = opts.userAgent ?? "";
+  const created = await prisma.csrWorkSession.create({
+    data: {
+      userId: opts.userId,
+      loginAt: new Date(),
+      lastHeartbeatAt: new Date(),
+      lastVisible: true,
+      ip: opts.ip ?? null,
+      browser: ua ? detectBrowser(ua) : null,
+      deviceId: opts.deviceId ?? null,
+    },
+  });
+  return { created: true, sessionId: created.id, loginAt: created.loginAt };
+}
+
+export async function checkOutCsrWorkSession(userId: string): Promise<boolean> {
+  const session = await findOpenSession(userId);
+  if (!session) return false;
+  await closeCsrWorkSession(userId, "check_out");
+  return true;
+}
+
+export async function getCsrWorkSessionStatus(userId: string) {
+  const session = await findOpenSession(userId);
+  if (!session) {
+    return {
+      checkedIn: false as const,
+      session: null,
+    };
+  }
+  const { dashboardMs, awayMs, totalMs } = liveTotals(session);
+  return {
+    checkedIn: true as const,
+    session: {
+      id: session.id,
+      checkInAt: session.loginAt.toISOString(),
+      checkInAtEst: formatEstDateTime(session.loginAt),
+      dashboardMs,
+      awayMs,
+      totalMs,
+      dashboardDuration: formatDurationMs(dashboardMs),
+      awayDuration: formatDurationMs(awayMs),
+      totalDuration: formatDurationMs(totalMs),
+    },
+  };
+}
+
 export async function tickCsrWorkSession(opts: {
   userId: string;
   tabVisible: boolean;
@@ -136,6 +195,8 @@ export type CsrSessionReportRow = {
   loginAtEst: string;
   logoutAt: string | null;
   logoutAtEst: string;
+  checkInAtEst: string;
+  checkOutAtEst: string;
   dashboardDuration: string;
   awayDuration: string;
   totalDuration: string;
@@ -146,7 +207,20 @@ export type CsrSessionReportRow = {
   browser: string | null;
   ip: string | null;
   closedReason: string | null;
+  closedReasonLabel: string;
 };
+
+function closedReasonLabel(reason: string | null, hasLogout: boolean): string {
+  if (!hasLogout) return "Still checked in";
+  switch ((reason ?? "").toLowerCase()) {
+    case "check_out": return "Check Out";
+    case "logout": return "Logout";
+    case "session_replaced": return "New check-in";
+    case "logout_all": return "Logout all";
+    case "admin_adjusted": return "Admin adjusted";
+    default: return reason ? reason.replace(/_/g, " ") : "Closed";
+  }
+}
 
 export type CsrSessionSummary = {
   csrId: string;
@@ -217,6 +291,7 @@ export async function buildCsrSessionReport(opts: {
 
   const sessions: CsrSessionReportRow[] = rows.map(row => {
     const { dashboardMs, awayMs, totalMs } = liveTotals(row);
+    const logoutAtEst = row.logoutAt ? formatEstDateTime(row.logoutAt) : "Still checked in";
     return {
       id: row.id,
       csrId: row.user.id,
@@ -225,7 +300,9 @@ export async function buildCsrSessionReport(opts: {
       loginAt: row.loginAt.toISOString(),
       loginAtEst: formatEstDateTime(row.loginAt),
       logoutAt: row.logoutAt?.toISOString() ?? null,
-      logoutAtEst: row.logoutAt ? formatEstDateTime(row.logoutAt) : "Still active",
+      logoutAtEst,
+      checkInAtEst: formatEstDateTime(row.loginAt),
+      checkOutAtEst: logoutAtEst,
       dashboardDuration: formatDurationMs(dashboardMs),
       awayDuration: formatDurationMs(awayMs),
       totalDuration: formatDurationMs(totalMs),
@@ -236,6 +313,7 @@ export async function buildCsrSessionReport(opts: {
       browser: row.browser,
       ip: row.ip,
       closedReason: row.closedReason,
+      closedReasonLabel: closedReasonLabel(row.closedReason, !!row.logoutAt),
     };
   });
 
@@ -269,5 +347,74 @@ export async function buildCsrSessionReport(opts: {
   return {
     sessions,
     summary: [...summaryMap.values()].sort((a, b) => a.csrName.localeCompare(b.csrName)),
+  };
+}
+
+/** Admin override of check-in / check-out times (EST wall-clock → stored UTC). */
+export async function adminAdjustCsrWorkSession(opts: {
+  sessionId: string;
+  checkInAt: Date;
+  checkOutAt: Date | null;
+  clearCheckOut?: boolean;
+  dashboardMs?: number;
+  awayMs?: number;
+  note?: string;
+}) {
+  const session = await prisma.csrWorkSession.findUnique({
+    where: { id: opts.sessionId },
+    include: { user: { select: { id: true, name: true, role: true } } },
+  });
+  if (!session || session.user.role !== "csr") {
+    return { ok: false as const, message: "Session not found." };
+  }
+
+  const checkInAt = opts.checkInAt;
+  let checkOutAt: Date | null =
+    opts.clearCheckOut ? null : (opts.checkOutAt ?? session.logoutAt);
+
+  if (checkOutAt && checkOutAt.getTime() < checkInAt.getTime()) {
+    return { ok: false as const, message: "Check-out must be after check-in." };
+  }
+
+  const endAt = checkOutAt ?? new Date();
+  const totalMs = Math.max(0, endAt.getTime() - checkInAt.getTime());
+
+  let dashboardMs = opts.dashboardMs;
+  let awayMs = opts.awayMs;
+
+  if (dashboardMs === undefined && awayMs === undefined) {
+    const prevTotal = Math.max(1, session.dashboardMs + session.awayMs);
+    if (session.dashboardMs + session.awayMs > 0 && totalMs > 0) {
+      const ratio = session.dashboardMs / prevTotal;
+      dashboardMs = Math.round(totalMs * ratio);
+      awayMs = Math.max(0, totalMs - dashboardMs);
+    } else {
+      dashboardMs = totalMs;
+      awayMs = 0;
+    }
+  } else {
+    dashboardMs = Math.max(0, dashboardMs ?? session.dashboardMs);
+    awayMs = Math.max(0, awayMs ?? session.awayMs);
+  }
+
+  const updated = await prisma.csrWorkSession.update({
+    where: { id: session.id },
+    data: {
+      loginAt: checkInAt,
+      logoutAt: checkOutAt,
+      dashboardMs,
+      awayMs,
+      lastHeartbeatAt: checkOutAt ?? new Date(),
+      lastVisible: true,
+      closedReason: checkOutAt
+        ? (opts.note?.trim() || "admin_adjusted")
+        : null,
+    },
+  });
+
+  return {
+    ok: true as const,
+    session: updated,
+    csrName: session.user.name,
   };
 }
