@@ -99,6 +99,9 @@ body {
 .dark .bg-\[\#FAFAFA\] { background-color: var(--crm-surface-raised) !important; }
 .dark .bg-\[\#F8F9FC\] { background-color: var(--crm-surface-muted) !important; }
 .dark .bg-\[\#F8F8F8\] { background-color: var(--crm-surface-muted) !important; }
+.dark .bg-\[\#F8FAFC\] { background-color: var(--crm-muted) !important; }
+.dark .bg-\[\#F9FAFB\] { background-color: var(--crm-surface-raised) !important; }
+.dark .bg-\[\#FFFBF5\] { background-color: rgba(245, 158, 11, 0.12) !important; }
 .dark .bg-\[\#F3F4F6\] { background-color: var(--crm-nav-pill) !important; }
 .dark .bg-\[\#F1F2F6\] { background-color: var(--crm-muted) !important; }
 .dark .bg-\[\#F1F5F9\] { background-color: rgba(100, 116, 139, 0.18) !important; }

@@ -28,16 +28,24 @@ export function formatNotificationStatus(status: string): string {
 }
 
 export const STATUS_BADGE_COLORS: Record<string, string> = {
-  important:        "bg-[#FFF1F3] text-[#B8112D]",
-  interested:       "bg-emerald-50 text-emerald-700",
-  pending:          "bg-blue-50 text-blue-700",
-  "Close Client":   "bg-violet-50 text-violet-700",
-  "Not Interested": "bg-gray-100 text-gray-600",
-  "not picked":     "bg-orange-50 text-orange-700",
+  important:        "bg-rose-100 text-rose-700 dark:bg-rose-500/25 dark:text-rose-300",
+  interested:       "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300",
+  pending:          "bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300",
+  "Close Client":   "bg-violet-100 text-violet-700 dark:bg-violet-500/25 dark:text-violet-300",
+  "Not Interested": "bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200",
+  "not picked":     "bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300",
+  completed:        "bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200",
+  "not completed":  "bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300",
+  "no owner available": "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/25 dark:text-yellow-300",
+  "not in service": "bg-violet-100 text-violet-700 dark:bg-violet-500/25 dark:text-violet-300",
+  "in house":       "bg-teal-100 text-teal-800 dark:bg-teal-500/25 dark:text-teal-300",
 };
 
 export function statusBadgeColor(status: string): string {
-  return STATUS_BADGE_COLORS[status] ?? "bg-gray-100 text-gray-600";
+  const key = status.trim();
+  return STATUS_BADGE_COLORS[key]
+    ?? STATUS_BADGE_COLORS[key.toLowerCase()]
+    ?? "bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200";
 }
 
 export function leadUrlForStatus(status: string, leadId: string): string {
