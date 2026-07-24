@@ -343,22 +343,22 @@ export default function CSRPage() {
               {
                 label: "Today's queue",
                 tabs: [
-                  { tab:"today",         label:"Today Leads",    short:"Today",    count: statCounts.pendingCount,       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-sm",  inactive:"bg-[#F8F8F8] text-gray-700 dark:text-gray-200"   },
-                  { tab:"pending",       label:"Pending",        short:"Pending",  count: statCounts.pendingCount,       icon:<Clock3         size={13}/>, active:"bg-[#B54708] text-white",            inactive:"bg-[#FFF7E6] text-[#B54708] dark:text-amber-300"  },
-                  { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: statCounts.notPickedCount,     icon:<Clock3         size={13}/>, active:"bg-[#F97316] text-white",            inactive:"bg-[#FFF1E8] text-[#F97316] dark:text-orange-300"  },
-                  { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: statCounts.notInterestedCount, icon:<CircleCheckBig size={13}/>, active:"bg-[#475569] text-white",            inactive:"bg-[#F1F5F9] text-[#475569] dark:text-slate-300"  },
+                  { tab:"today",         label:"Today Leads",    short:"Today",    count: statCounts.pendingCount,       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/25 ring-1 ring-[#B8112D]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
+                  { tab:"pending",       label:"Pending",        short:"Pending",  count: statCounts.pendingCount,       icon:<Clock3         size={13}/>, active:"bg-amber-600 text-white shadow-md shadow-amber-500/30",            inactive:"bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-300 ring-1 ring-amber-300/70 dark:ring-amber-400/35"  },
+                  { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: statCounts.notPickedCount,     icon:<Clock3         size={13}/>, active:"bg-orange-500 text-white shadow-md shadow-orange-500/30",          inactive:"bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 ring-1 ring-orange-300/70 dark:ring-orange-400/35"  },
+                  { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: statCounts.notInterestedCount, icon:<CircleCheckBig size={13}/>, active:"bg-slate-600 text-white shadow-md shadow-slate-500/25",            inactive:"bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200 ring-1 ring-slate-300/80 dark:ring-slate-400/35"  },
                 ],
               },
               {
                 label: "Follow-up & pipeline",
                 tabs: [
-                  { tab:"noowner",      label:"No Owner",     short:"No Owner", count: statCounts.noOwnerCount,      icon:<UserX        size={13}/>, active:"bg-[#D97706] text-white", inactive:"bg-[#FEF3C7] text-[#B45309] dark:text-amber-300"   },
-                  { tab:"notinservice", label:"Not In Svc",   short:"Not Svc",  count: statCounts.notInServiceCount, icon:<Ban          size={13}/>, active:"bg-[#7C3AED] text-white", inactive:"bg-[#F3E8FF] text-[#7C3AED] dark:text-violet-300" },
-                  { tab:"inhouse",      label:"In House",     short:"In House", count: statCounts.inHouseCount,      icon:<Home         size={13}/>, active:"bg-[#0D9488] text-white", inactive:"bg-[#CCFBF1] text-[#0D9488] dark:text-teal-300"   },
-                  { tab:"important",    label:"Important",    short:"Important",count: statCounts.importantOnlyCount,icon:<AlertTriangle size={13}/>, active:"bg-[#B42318] text-white", inactive:"bg-[#FFF1F3] text-[#B42318] dark:text-red-300"   },
-                  { tab:"schedule",     label:"Schedule",     short:"Schedule", count: statCounts.scheduledCount,    icon:<CalendarDays size={13}/>, active:"bg-[#0B84F3] text-white", inactive:"bg-[#EAF5FF] text-[#0B84F3] dark:text-blue-300"   },
-                  { tab:"interested",   label:"Interested",   short:"Interested",count: statCounts.interestedCount,  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white", inactive:"bg-[#FFF1F3] text-[#B42318] dark:text-red-300"   },
-                  { tab:"projectwon",   label:"Close Client", short:"Closed",   count: statCounts.projectWonCount,   icon:<CircleCheckBig size={13}/>, active:"bg-[#065F46] text-white", inactive:"bg-[#ECFDF5] text-[#065F46] dark:text-emerald-300"},
+                  { tab:"noowner",      label:"No Owner",     short:"No Owner", count: statCounts.noOwnerCount,      icon:<UserX        size={13}/>, active:"bg-yellow-500 text-white shadow-md shadow-yellow-500/30", inactive:"bg-yellow-100 text-yellow-800 dark:bg-yellow-500/25 dark:text-yellow-300 ring-1 ring-yellow-300/70 dark:ring-yellow-400/35"   },
+                  { tab:"notinservice", label:"Not In Svc",   short:"Not Svc",  count: statCounts.notInServiceCount, icon:<Ban          size={13}/>, active:"bg-violet-600 text-white shadow-md shadow-violet-500/30", inactive:"bg-violet-100 text-violet-700 dark:bg-violet-500/25 dark:text-violet-300 ring-1 ring-violet-300/70 dark:ring-violet-400/35" },
+                  { tab:"inhouse",      label:"In House",     short:"In House", count: statCounts.inHouseCount,      icon:<Home         size={13}/>, active:"bg-teal-600 text-white shadow-md shadow-teal-500/30",    inactive:"bg-teal-100 text-teal-800 dark:bg-teal-500/25 dark:text-teal-300 ring-1 ring-teal-300/70 dark:ring-teal-400/35"   },
+                  { tab:"important",    label:"Important",    short:"Important",count: statCounts.importantOnlyCount,icon:<AlertTriangle size={13}/>, active:"bg-rose-600 text-white shadow-md shadow-rose-500/30",   inactive:"bg-rose-100 text-rose-700 dark:bg-rose-500/25 dark:text-rose-300 ring-1 ring-rose-300/70 dark:ring-rose-400/35"   },
+                  { tab:"schedule",     label:"Schedule",     short:"Schedule", count: statCounts.scheduledCount,    icon:<CalendarDays size={13}/>, active:"bg-sky-500 text-white shadow-md shadow-sky-500/30",     inactive:"bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300 ring-1 ring-sky-300/70 dark:ring-sky-400/35"   },
+                  { tab:"interested",   label:"Interested",   short:"Interested",count: statCounts.interestedCount,  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30",   inactive:"bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-1 ring-red-300/70 dark:ring-red-400/35"   },
+                  { tab:"projectwon",   label:"Close Client", short:"Closed",   count: statCounts.projectWonCount,   icon:<CircleCheckBig size={13}/>, active:"bg-emerald-600 text-white shadow-md shadow-emerald-500/30", inactive:"bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300 ring-1 ring-emerald-300/70 dark:ring-emerald-400/35"},
                 ],
               },
             ].map((group, gi) => (
@@ -386,7 +386,7 @@ export default function CSRPage() {
                         <span className="truncate hidden md:inline">{btn.label}</span>
                         <span className="truncate md:hidden">{btn.short}</span>
                         <span className={`px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold shrink-0 ${
-                          isActive ? "bg-white/25 text-white" : "bg-black/8 dark:bg-white/15"
+                          isActive ? "bg-white/25 text-white" : "bg-black/10 dark:bg-white/20"
                         }`}>{btn.count}</span>
                       </button>
                     );

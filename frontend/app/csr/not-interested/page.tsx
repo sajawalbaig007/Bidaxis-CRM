@@ -5,7 +5,7 @@ import {
   ThumbsDown, PhoneOff, Search,
   X, ArrowRightLeft, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
-  Phone, Briefcase, Check,
+  Check,
   History, UserX, Ban, Home,
 } from "lucide-react";
 
@@ -16,13 +16,12 @@ import ImportantCallModal from "../components/modals/ImportantCallModal";
 import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
-import InterestedServicesCell from "../components/shared/InterestedServicesCell";
 import { ourCompany } from "../utils/leadFieldLabels";
 import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_9_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_8_FOLLOWUP, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -423,14 +422,13 @@ export default function NotInterestedPage() {
           {/* Table */}
           <div className={CSR_TABLE_WRAP}>
             <table className={CSR_TABLE_CLASS}>
-              <CsrColGroup widths={COL_9_FOLLOWUP} />
+              <CsrColGroup widths={COL_8_FOLLOWUP} />
               <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
                   <th className={CSR_TH}>Client Name</th>
                   <th className={CSR_TH}>Our Company</th>
                   <th className={CSR_TH}>Phone</th>
                   <th className={`hidden lg:table-cell ${CSR_TH}`}>Sub Contacts</th>
-                  <th className={CSR_TH}>Service</th>
                   <th className={CSR_TH}>Notes</th>
                   <th className={CSR_TH}>Tries</th>
                   <th className={CSR_TH}>Status</th>
@@ -441,7 +439,7 @@ export default function NotInterestedPage() {
                 {pageLoading ? (
                   [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
-                      {[1,2,3,4,5,6,7,8,9].map(j => (
+                      {[1,2,3,4,5,6,7,8].map(j => (
                         <td key={j} className={CSR_TD}>
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-14 sm:w-20" />
                         </td>
@@ -496,11 +494,6 @@ export default function NotInterestedPage() {
 
                         <td className={`hidden lg:table-cell ${CSR_TD}`}>
                           <SubContactsCell contacts={lead.subContacts} />
-                        </td>
-
-                        {/* Service */}
-                        <td className={CSR_TD}>
-                          <InterestedServicesCell interestedService={lead.interestedService} />
                         </td>
 
                         {/* Sticky Note */}
@@ -581,7 +574,7 @@ export default function NotInterestedPage() {
                       {/* ── History row ── */}
                       {expandedRow === lead.id && lead.followUpNotes && (
                         <tr key={`${lead.id}-hist`} className="bg-[#F8FAFF]">
-                          <td colSpan={9} className="px-4 sm:px-6 py-3 sm:py-4">
+                          <td colSpan={8} className="px-4 sm:px-6 py-3 sm:py-4">
                             <div className="flex items-start gap-2 sm:gap-3">
                               <div className="mt-0.5 w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                                 <History size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -653,7 +646,7 @@ export default function NotInterestedPage() {
                   );
                 }) : (
                   <tr>
-                    <td colSpan={9} className="py-16 sm:py-20 text-center">
+                    <td colSpan={8} className="py-16 sm:py-20 text-center">
                       {activeTab === "notinterested"
                         ? <ThumbsDown size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         : <PhoneOff   size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
