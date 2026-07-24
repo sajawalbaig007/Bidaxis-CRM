@@ -20,8 +20,14 @@ import MonthRangeFilter from "../components/shared/MonthRangeFilter";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import InterestedServicesCell from "../components/shared/InterestedServicesCell";
+import InterestedModal from "../components/modals/InterestedModal";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
 import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
+import {
+  decomposeInterestedServices,
+  formatInterestedServices,
+} from "../utils/parseInterestedServices";
+import toast from "react-hot-toast";
 
 import { useCsrStats, usePotentialLeads } from "../hooks/useCsrTabPage";
 import { useLeadActions } from "../hooks/useLeadActions";
@@ -90,6 +96,10 @@ export default function ImportantCallsPage() {
   const [projectNotes,     setProjectNotes]     = useState("");
   const [projectService,   setProjectService]   = useState("");
   const [email,            setEmail]            = useState("");
+
+  const [scopeLead, setScopeLead] = useState<Lead | null>(null);
+  const [scopeServices, setScopeServices] = useState<string[]>([]);
+  const [scopeSubtypes, setScopeSubtypes] = useState<Record<string, string>>({});
 
   /* ── Derived ── */
   const stats = useMemo(() => ({
@@ -233,6 +243,35 @@ export default function ImportantCallsPage() {
   };
 
   const projectWonValid = projectTitle.trim() !== "" && projectDeadline !== "" && projectService !== "" && paidAmount.trim() !== "";
+
+  const openScopeEditor = (lead: Lead) => {
+    const { services, subtypes } = decomposeInterestedServices(lead.interestedService);
+    setScopeLead(lead);
+    setScopeServices(services);
+    setScopeSubtypes(subtypes);
+  };
+
+  const closeScopeEditor = () => {
+    setScopeLead(null);
+    setScopeServices([]);
+    setScopeSubtypes({});
+  };
+
+  const saveInterestedScope = async () => {
+    if (!scopeLead || scopeServices.length === 0) return;
+    const interestedService = formatInterestedServices(scopeServices, scopeSubtypes);
+    try {
+      await updateLead(scopeLead.id, { interestedService });
+      setLeads(prev => prev.map(l =>
+        l.id === scopeLead.id ? { ...l, interestedService } : l
+      ));
+      closeScopeEditor();
+      toast.success("Interested scope updated.");
+    } catch (err) {
+      console.log(err);
+      toast.error("Could not update scope.");
+    }
+  };
 
   const movePipelineStatus = async (id: string, status: string) => {
     if (!status) return;
@@ -665,7 +704,10 @@ export default function ImportantCallsPage() {
                         })()}
                       </td>
                       <td className={CSR_TD}>
-                        <InterestedServicesCell interestedService={lead.interestedService} />
+                        <InterestedServicesCell
+                          interestedService={lead.interestedService}
+                          onEdit={() => openScopeEditor(lead)}
+                        />
                       </td>
                       <td className={CSR_TD}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
@@ -721,6 +763,19 @@ export default function ImportantCallsPage() {
               />
             </div>
           </div>
+        )}
+
+        {/* ── EDIT INTERESTED SCOPE ── */}
+        {scopeLead && (
+          <InterestedModal
+            mode="edit"
+            services={scopeServices}
+            onServicesChange={setScopeServices}
+            serviceSubtypes={scopeSubtypes}
+            onServiceSubtypesChange={setScopeSubtypes}
+            onClose={closeScopeEditor}
+            onSave={() => void saveInterestedScope()}
+          />
         )}
 
         {/* ── EDIT MODAL ── */}
