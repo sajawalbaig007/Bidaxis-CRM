@@ -22,7 +22,15 @@ export default function CsrCheckInBanner() {
   useEffect(() => {
     void refresh();
     const onFocus = () => void refresh();
-    const onCheckedIn = () => void refresh();
+    const onCheckedIn = (e: Event) => {
+      const detail = (e as CustomEvent<{ checkedIn?: boolean }>).detail;
+      if (detail && typeof detail.checkedIn === "boolean") {
+        setNeedsCheckIn(!detail.checkedIn);
+        if (detail.checkedIn) setDismissed(false);
+        return;
+      }
+      void refresh();
+    };
     window.addEventListener("focus", onFocus);
     window.addEventListener("csr-checkin-changed", onCheckedIn);
     const id = window.setInterval(() => void refresh(), 45_000);

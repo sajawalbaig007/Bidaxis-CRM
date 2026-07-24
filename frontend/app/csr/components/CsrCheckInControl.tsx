@@ -55,7 +55,16 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
 
   useEffect(() => {
     void refresh();
-    const onChanged = () => void refresh();
+    const onChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ checkedIn?: boolean }>).detail;
+      /* Trust local check-in/out — avoid refresh racing over optimistic UI */
+      if (detail && typeof detail.checkedIn === "boolean") {
+        setCheckedIn(detail.checkedIn);
+        if (!detail.checkedIn) setSession(null);
+        return;
+      }
+      void refresh();
+    };
     window.addEventListener("csr-checkin-changed", onChanged);
     const id = window.setInterval(() => void refresh(), 60_000);
     return () => {
@@ -74,7 +83,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         await refresh();
       }
       toast.success(res.data.message || "Checked in.");
-      window.dispatchEvent(new Event("csr-checkin-changed"));
+      window.dispatchEvent(new CustomEvent("csr-checkin-changed", { detail: { checkedIn: true } }));
     } catch (err) {
       toast.error(apiErrorMessage(err, "Check-in failed."));
     } finally {
@@ -89,9 +98,12 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
       setCheckedIn(false);
       setSession(null);
       toast.success(res.data.message || "Checked out.");
-      window.dispatchEvent(new Event("csr-checkin-changed"));
+      window.dispatchEvent(new CustomEvent("csr-checkin-changed", { detail: { checkedIn: false } }));
+      /* Confirm server closed all open sessions (including zombies) */
+      await refresh();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Check-out failed."));
+      await refresh();
     } finally {
       setBusy(false);
     }

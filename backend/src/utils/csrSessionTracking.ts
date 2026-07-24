@@ -27,6 +27,13 @@ async function findOpenSession(userId: string) {
   });
 }
 
+async function findAllOpenSessions(userId: string) {
+  return prisma.csrWorkSession.findMany({
+    where: openSessionWhere(userId),
+    orderBy: { loginAt: "desc" },
+  });
+}
+
 async function applyHeartbeatTick(
   session: {
     id: string;
@@ -120,10 +127,8 @@ export async function checkInCsrWorkSession(opts: {
 }
 
 export async function checkOutCsrWorkSession(userId: string): Promise<boolean> {
-  const session = await findOpenSession(userId);
-  if (!session) return false;
-  await closeCsrWorkSession(userId, "check_out");
-  return true;
+  const closed = await closeCsrWorkSession(userId, "check_out");
+  return closed > 0;
 }
 
 export async function getCsrWorkSessionStatus(userId: string) {
@@ -173,25 +178,34 @@ export async function tickCsrWorkSession(opts: {
   }
 }
 
+/** Close every open work session for this CSR (handles zombie duplicates). */
 export async function closeCsrWorkSession(
   userId: string,
   reason: string,
-): Promise<void> {
+): Promise<number> {
   try {
-    const session = await findOpenSession(userId);
-    if (!session) return;
+    const sessions = await findAllOpenSessions(userId);
+    if (sessions.length === 0) return 0;
 
-    await applyHeartbeatTick(session, session.lastVisible);
-
-    await prisma.csrWorkSession.update({
-      where: { id: session.id },
-      data: {
-        logoutAt: new Date(),
-        closedReason: reason,
-      },
-    });
+    const now = new Date();
+    for (const session of sessions) {
+      try {
+        await applyHeartbeatTick(session, session.lastVisible, now);
+      } catch {
+        /* still close even if tick fails */
+      }
+      await prisma.csrWorkSession.update({
+        where: { id: session.id },
+        data: {
+          logoutAt: now,
+          closedReason: reason,
+        },
+      });
+    }
+    return sessions.length;
   } catch (err) {
     console.log("[csr-session] close failed:", err);
+    return 0;
   }
 }
 
