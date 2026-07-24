@@ -192,7 +192,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         type="button"
         onClick={() => void checkOut()}
         disabled={busy}
-        title="Check out (logout also checks out)"
+        title="Check out to end your shift (logout does not check you out)"
         className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-amber-500/25 disabled:opacity-60 transition-colors`}
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}

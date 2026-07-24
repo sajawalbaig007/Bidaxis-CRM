@@ -13,7 +13,6 @@ import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { evaluateNetworkAccess, sanitizeIpList } from "../utils/networkAccess";
 import { writeAuditLog, fetchRecentAuditLogs } from "../utils/auditLog";
 import { recordAccessHistory } from "../utils/accessHistory";
-import { closeCsrWorkSession } from "../utils/csrSessionTracking";
 import {
   isLoginBlocked,
   requiresCaptcha,
@@ -571,7 +570,7 @@ export const logout = async (req: Request, res: Response) => {
           await clearActiveSession(decoded.id);
           await writeAuditLog({ action: "logout", userId: decoded.id, ip, userAgent: ua });
           await recordAccessHistory({ userId: decoded.id, ip, userAgent: ua, event: "logout" });
-          void closeCsrWorkSession(decoded.id, "logout");
+          /* Work session stays open — only Check Out / stale timeout ends the shift */
         }
       } catch { /* ignore */ }
     }
