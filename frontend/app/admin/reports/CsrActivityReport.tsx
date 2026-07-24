@@ -54,13 +54,6 @@ function estTodayYmd(): string {
   }).format(new Date());
 }
 
-function addDaysYmd(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
 /** ISO → YYYY-MM-DDTHH:mm in America/New_York for datetime-local. */
 function toEstLocalInput(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -122,9 +115,8 @@ function downloadCsv(rows: SessionRow[], filename: string) {
 
 export default function CsrActivityReport() {
   const today = estTodayYmd();
-  const weekAgo = addDaysYmd(today, -6);
 
-  const [fromDate, setFromDate] = useState(weekAgo);
+  const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [csrId, setCsrId] = useState("all");
   const [csrs, setCsrs] = useState<CsrOption[]>([]);
