@@ -22,9 +22,33 @@ type StatusResponse = {
   message?: string;
 };
 
-function formatSince(iso: string): string {
+function formatDurationMs(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function formatCheckInLabel(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    if (sameDay) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return d.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } catch {
     return "";
   }
@@ -35,6 +59,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   const [session, setSession] = useState<WorkSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const applyStatus = useCallback((data: StatusResponse | undefined, forceIn = false) => {
     const inNow = forceIn || !!data?.checkedIn || !!data?.session;
@@ -72,6 +97,19 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
       window.clearInterval(id);
     };
   }, [refresh]);
+
+  /* Live elapsed timer between server polls */
+  useEffect(() => {
+    if (!checkedIn || !session?.checkInAt) return;
+    setNowMs(Date.now());
+    const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [checkedIn, session?.checkInAt]);
+
+  const liveDuration =
+    session?.checkInAt
+      ? formatDurationMs(nowMs - new Date(session.checkInAt).getTime())
+      : session?.totalDuration ?? "";
 
   const checkIn = async () => {
     setBusy(true);
@@ -143,8 +181,8 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         <span className="hidden sm:inline">In</span>
         {session ? (
           <span className="text-emerald-600/80 dark:text-emerald-300/80 font-medium">
-            <span className="hidden sm:inline">{formatSince(session.checkInAt)} · </span>
-            {session.totalDuration}
+            <span className="hidden sm:inline">{formatCheckInLabel(session.checkInAt)} · </span>
+            {liveDuration}
           </span>
         ) : (
           <span>Checked in</span>

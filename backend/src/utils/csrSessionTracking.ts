@@ -8,6 +8,8 @@ const MAX_TICK_MS = 5 * 60 * 1000;
  * Matches Users-page presence threshold but does not close the work session.
  */
 const SILENCE_MS = 90_000;
+/** Open sessions older than this are auto-closed (forgotten check-outs / zombies). */
+const MAX_OPEN_SESSION_MS = 16 * 60 * 60 * 1000;
 
 function openSessionWhere(userId: string) {
   /* MongoDB: null filter alone can miss docs where logoutAt was never set. */
@@ -20,18 +22,68 @@ function openSessionWhere(userId: string) {
   };
 }
 
-async function findOpenSession(userId: string) {
-  return prisma.csrWorkSession.findFirst({
-    where: openSessionWhere(userId),
-    orderBy: { loginAt: "desc" },
-  });
-}
-
 async function findAllOpenSessions(userId: string) {
   return prisma.csrWorkSession.findMany({
     where: openSessionWhere(userId),
     orderBy: { loginAt: "desc" },
   });
+}
+
+function sessionAgeMs(loginAt: Date, now = new Date()) {
+  return Math.max(0, now.getTime() - new Date(loginAt).getTime());
+}
+
+function isStaleOpenSession(loginAt: Date, now = new Date()) {
+  return sessionAgeMs(loginAt, now) > MAX_OPEN_SESSION_MS;
+}
+
+async function finalizeOpenSession(
+  session: {
+    id: string;
+    loginAt: Date;
+    dashboardMs: number;
+    awayMs: number;
+    lastHeartbeatAt: Date | null;
+    lastVisible: boolean;
+  },
+  reason: string,
+  now = new Date(),
+) {
+  try {
+    await applyHeartbeatTick(session, session.lastVisible, now);
+  } catch {
+    /* still close even if tick fails */
+  }
+  await prisma.csrWorkSession.update({
+    where: { id: session.id },
+    data: {
+      logoutAt: now,
+      closedReason: reason,
+    },
+  });
+}
+
+/**
+ * Keep at most one open session: drop stale (>16h) and close older duplicates.
+ * Returns the single active session, or null if none / all closed.
+ */
+async function reconcileOpenSessions(userId: string) {
+  const sessions = await findAllOpenSessions(userId);
+  if (sessions.length === 0) return null;
+
+  const now = new Date();
+  const [newest, ...older] = sessions;
+
+  for (const session of older) {
+    await finalizeOpenSession(session, "session_replaced", now);
+  }
+
+  if (isStaleOpenSession(newest.loginAt, now)) {
+    await finalizeOpenSession(newest, "stale_timeout", now);
+    return null;
+  }
+
+  return newest;
 }
 
 async function applyHeartbeatTick(
@@ -48,17 +100,27 @@ async function applyHeartbeatTick(
 ) {
   const prevAt = session.lastHeartbeatAt ?? session.loginAt;
   const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
+  const wallMs = sessionAgeMs(session.loginAt, now);
 
   let dashboardMs = session.dashboardMs;
   let awayMs = session.awayMs;
 
   if (rawDelta > SILENCE_MS) {
-    // Lock / sleep / no network — full gap counts as away, session stays open.
-    awayMs += rawDelta;
+    // Lock / sleep / no network — count gap as away, but never past wall-clock.
+    const room = Math.max(0, wallMs - (dashboardMs + awayMs));
+    awayMs += Math.min(rawDelta, room);
   } else {
     const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
     dashboardMs += session.lastVisible ? deltaMs : 0;
     awayMs += !session.lastVisible ? deltaMs : 0;
+  }
+
+  /* Clamp so stored counters never exceed elapsed wall time */
+  const sum = dashboardMs + awayMs;
+  if (sum > wallMs && sum > 0) {
+    const scale = wallMs / sum;
+    dashboardMs = Math.round(dashboardMs * scale);
+    awayMs = Math.max(0, wallMs - dashboardMs);
   }
 
   return prisma.csrWorkSession.update({
@@ -98,14 +160,14 @@ export async function openCsrWorkSession(opts: {
   }
 }
 
-/** Explicit CSR Check In — keeps existing open session (does not reset timers). */
+/** Explicit CSR Check In — resumes a fresh same-day session; replaces stale/duplicates. */
 export async function checkInCsrWorkSession(opts: {
   userId: string;
   ip?: string;
   userAgent?: string;
   deviceId?: string;
 }): Promise<{ created: boolean; sessionId: string; loginAt: Date }> {
-  const existing = await findOpenSession(opts.userId);
+  const existing = await reconcileOpenSessions(opts.userId);
   if (existing) {
     return { created: false, sessionId: existing.id, loginAt: existing.loginAt };
   }
@@ -132,7 +194,7 @@ export async function checkOutCsrWorkSession(userId: string): Promise<boolean> {
 }
 
 export async function getCsrWorkSessionStatus(userId: string) {
-  const session = await findOpenSession(userId);
+  const session = await reconcileOpenSessions(userId);
   if (!session) {
     return {
       checkedIn: false as const,
@@ -162,7 +224,7 @@ export async function tickCsrWorkSession(opts: {
   deviceId?: string;
 }): Promise<void> {
   try {
-    const session = await findOpenSession(opts.userId);
+    const session = await reconcileOpenSessions(opts.userId);
     if (!session) return;
 
     await applyHeartbeatTick(session, opts.tabVisible);
@@ -189,18 +251,7 @@ export async function closeCsrWorkSession(
 
     const now = new Date();
     for (const session of sessions) {
-      try {
-        await applyHeartbeatTick(session, session.lastVisible, now);
-      } catch {
-        /* still close even if tick fails */
-      }
-      await prisma.csrWorkSession.update({
-        where: { id: session.id },
-        data: {
-          logoutAt: now,
-          closedReason: reason,
-        },
-      });
+      await finalizeOpenSession(session, reason, now);
     }
     return sessions.length;
   } catch (err) {
@@ -236,6 +287,7 @@ export type CsrSessionReportRow = {
 function closedReasonLabel(reason: string | null, hasLogout: boolean): string {
   if (!hasLogout) return "Still checked in";
   switch ((reason ?? "").toLowerCase()) {
+    case "stale_timeout": return "Auto (stale)";
     case "check_out": return "Check Out";
     case "logout": return "Logout";
     case "session_replaced": return "New check-in";
@@ -270,12 +322,16 @@ function liveTotals(session: {
   let dashboardMs = session.dashboardMs;
   let awayMs = session.awayMs;
 
+  const endAt = session.logoutAt ?? now;
+  const totalMs = Math.max(0, endAt.getTime() - new Date(session.loginAt).getTime());
+
   if (!session.logoutAt) {
     const prevAt = session.lastHeartbeatAt ?? session.loginAt;
     const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
 
     if (rawDelta > SILENCE_MS) {
-      awayMs += rawDelta;
+      const room = Math.max(0, totalMs - (dashboardMs + awayMs));
+      awayMs += Math.min(rawDelta, room);
     } else {
       const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
       if (session.lastVisible) dashboardMs += deltaMs;
@@ -283,8 +339,13 @@ function liveTotals(session: {
     }
   }
 
-  const endAt = session.logoutAt ?? now;
-  const totalMs = Math.max(0, endAt.getTime() - session.loginAt.getTime());
+  const sum = dashboardMs + awayMs;
+  if (sum > totalMs && sum > 0) {
+    const scale = totalMs / sum;
+    dashboardMs = Math.round(dashboardMs * scale);
+    awayMs = Math.max(0, totalMs - dashboardMs);
+  }
+
   return { dashboardMs, awayMs, totalMs };
 }
 
@@ -293,6 +354,31 @@ export async function buildCsrSessionReport(opts: {
   to?: Date;
   csrId?: string;
 }): Promise<{ sessions: CsrSessionReportRow[]; summary: CsrSessionSummary[] }> {
+  /* Clean zombies before reporting so Totals / Still checked-in stay accurate */
+  try {
+    const openWhere = {
+      ...(opts.csrId ? { userId: opts.csrId } : {}),
+      OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
+      user: { role: "csr" as const },
+    };
+    const openRows = await prisma.csrWorkSession.findMany({
+      where: openWhere,
+      orderBy: { loginAt: "desc" },
+      take: 2000,
+    });
+    const now = new Date();
+    const seen = new Set<string>();
+    for (const row of openRows) {
+      if (seen.has(row.userId) || isStaleOpenSession(row.loginAt, now)) {
+        await finalizeOpenSession(row, seen.has(row.userId) ? "session_replaced" : "stale_timeout", now);
+        continue;
+      }
+      seen.add(row.userId);
+    }
+  } catch (err) {
+    console.log("[csr-session] report cleanup failed:", err);
+  }
+
   const range: { gte?: Date; lte?: Date } = {};
   if (opts.from) range.gte = opts.from;
   if (opts.to) range.lte = opts.to;
