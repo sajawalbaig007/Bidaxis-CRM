@@ -376,14 +376,14 @@ export default function TopNavbar() {
 
             {bellOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[300px] sm:w-[340px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                   <div className="flex items-center gap-2">
                     <Bell size={14} className="text-[#B8112D]" />
-                    <span className="text-[13px] font-bold text-[#0F172A]">Notifications</span>
+                    <span className="text-[13px] font-bold text-crm-text">Notifications</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {todayCalls.length > 0 && (
-                      <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
+                      <span className="text-[11px] bg-red-100 text-[#B8112D] dark:bg-red-500/25 dark:text-red-300 font-bold px-2 py-0.5 rounded-full">
                         {todayCalls.length} call{todayCalls.length > 1 ? "s" : ""} today
                       </span>
                     )}
@@ -391,7 +391,7 @@ export default function TopNavbar() {
                       <button
                         type="button"
                         onClick={handleClearNotifications}
-                        className="text-[10px] font-semibold text-gray-400 hover:text-[#B8112D] transition-colors"
+                        className="text-[10px] font-semibold text-crm-text-muted hover:text-[#B8112D] transition-colors"
                       >
                         Clear
                       </button>
@@ -399,11 +399,11 @@ export default function TopNavbar() {
                   </div>
                 </div>
 
-                <div className="px-4 py-3 bg-[#F8FAFC] border-b border-gray-100">
+                <div className="px-4 py-3 bg-crm-muted border-b border-crm-border-subtle">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <Activity size={13} className="text-[#B8112D] shrink-0" />
-                      <p className="text-[12px] font-bold text-[#0F172A] truncate">
+                      <p className="text-[12px] font-bold text-crm-text truncate">
                         Last {dailyStats.periodHours}h — {dailyStats.total} status change{dailyStats.total !== 1 ? "s" : ""}
                       </p>
                     </div>
@@ -416,7 +416,7 @@ export default function TopNavbar() {
                     </button>
                   </div>
                   {dailyStats.total === 0 ? (
-                    <p className="text-[11px] text-gray-400">No status updates in the last 24 hours.</p>
+                    <p className="text-[11px] text-crm-text-muted">No status updates in the last 24 hours.</p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(dailyStats.byStatus).map(([status, count]) => (
@@ -429,8 +429,8 @@ export default function TopNavbar() {
                 </div>
 
                 {notifPerm !== "granted" && notifPerm !== "unsupported" && (
-                  <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center justify-between gap-2">
-                    <p className="text-[11px] text-amber-700 font-medium">
+                  <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-500/15 border-b border-amber-100 dark:border-amber-500/20 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
                       {notifPerm === "denied" ? "Notifications blocked in browser" : "Enable message notifications"}
                     </p>
                     {notifPerm !== "denied" && (
@@ -444,15 +444,15 @@ export default function TopNavbar() {
                   </div>
                 )}
 
-                <div className="max-h-[360px] overflow-y-auto">
-                  <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <div className="max-h-[360px] overflow-y-auto bg-crm-surface">
+                  <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold text-crm-text-muted uppercase tracking-wider">
                     Scheduled Calls
                   </p>
                   {calls.length === 0 ? (
                     <div className="py-8 text-center">
-                      <Bell size={24} className="text-gray-200 mx-auto mb-2" />
-                      <p className="text-gray-400 text-[13px]">No scheduled calls</p>
-                      <p className="text-gray-300 text-[11px] mt-1">Mark leads as Important + set a time</p>
+                      <Bell size={24} className="text-crm-text-faint mx-auto mb-2" />
+                      <p className="text-crm-text-muted text-[13px]">No scheduled calls</p>
+                      <p className="text-crm-text-faint text-[11px] mt-1">Mark leads as Important + set a time</p>
                     </div>
                   ) : (
                     calls.map((c) => {
@@ -480,10 +480,10 @@ export default function TopNavbar() {
                             <Phone size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-[#0F172A] truncate">{c.client}</p>
+                            <p className="text-[13px] font-semibold text-crm-text truncate">{c.client}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <Clock size={10} className="text-gray-400 shrink-0" />
-                              <p className="text-[11px] text-gray-500 truncate">
+                              <Clock size={10} className="text-crm-text-faint shrink-0" />
+                              <p className="text-[11px] text-crm-text-muted truncate">
                                 {c.time}{tzShort ? ` · ${tzShort}` : ""}
                               </p>
                             </div>
