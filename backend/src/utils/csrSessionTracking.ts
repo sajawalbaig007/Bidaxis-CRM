@@ -10,7 +10,14 @@ const MAX_TICK_MS = 5 * 60 * 1000;
 const SILENCE_MS = 90_000;
 
 function openSessionWhere(userId: string) {
-  return { userId, logoutAt: null as Date | null };
+  /* MongoDB: null filter alone can miss docs where logoutAt was never set. */
+  return {
+    userId,
+    OR: [
+      { logoutAt: null },
+      { logoutAt: { isSet: false } },
+    ],
+  };
 }
 
 async function findOpenSession(userId: string) {
@@ -71,6 +78,7 @@ export async function openCsrWorkSession(opts: {
       data: {
         userId: opts.userId,
         loginAt: new Date(),
+        logoutAt: null,
         lastHeartbeatAt: new Date(),
         lastVisible: true,
         ip: opts.ip ?? null,
@@ -100,6 +108,7 @@ export async function checkInCsrWorkSession(opts: {
     data: {
       userId: opts.userId,
       loginAt: new Date(),
+      logoutAt: null,
       lastHeartbeatAt: new Date(),
       lastVisible: true,
       ip: opts.ip ?? null,

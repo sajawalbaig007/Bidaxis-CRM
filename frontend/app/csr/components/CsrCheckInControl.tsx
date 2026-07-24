@@ -16,8 +16,9 @@ type WorkSession = {
 
 type StatusResponse = {
   success: boolean;
-  checkedIn: boolean;
-  session: WorkSession | null;
+  checkedIn?: boolean;
+  created?: boolean;
+  session?: WorkSession | null;
   message?: string;
 };
 
@@ -35,30 +36,43 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  const applyStatus = useCallback((data: StatusResponse | undefined, forceIn = false) => {
+    const inNow = forceIn || !!data?.checkedIn || !!data?.session;
+    setCheckedIn(inNow);
+    setSession(data?.session ?? null);
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const res = await API.get<StatusResponse>("/csr/work-session");
-      setCheckedIn(!!res.data.checkedIn);
-      setSession(res.data.session ?? null);
+      applyStatus(res.data);
     } catch {
       /* ignore — presence still works */
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyStatus]);
 
   useEffect(() => {
     void refresh();
+    const onChanged = () => void refresh();
+    window.addEventListener("csr-checkin-changed", onChanged);
     const id = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(id);
+    return () => {
+      window.removeEventListener("csr-checkin-changed", onChanged);
+      window.clearInterval(id);
+    };
   }, [refresh]);
 
   const checkIn = async () => {
     setBusy(true);
     try {
       const res = await API.post<StatusResponse>("/csr/check-in", {});
-      setCheckedIn(!!res.data.checkedIn);
-      setSession(res.data.session ?? null);
+      /* Optimistic: toast success means session exists even if status lookup lagged */
+      applyStatus(res.data, true);
+      if (!res.data?.session) {
+        await refresh();
+      }
       toast.success(res.data.message || "Checked in.");
       window.dispatchEvent(new Event("csr-checkin-changed"));
     } catch (err) {
@@ -110,15 +124,18 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   return (
     <div className={`inline-flex items-center gap-1 sm:gap-1.5 ${compact ? "h-9" : "h-10"} shrink-0`}>
       <div
-        className={`hidden sm:flex items-center gap-1.5 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30 text-[11px] font-semibold`}
+        className={`flex items-center gap-1.5 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30 text-[11px] font-semibold`}
         title={session ? `On dashboard ${session.dashboardDuration} · Away ${session.awayDuration}` : "Checked in"}
       >
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        <span>In</span>
-        {session && (
+        <span className="hidden sm:inline">In</span>
+        {session ? (
           <span className="text-emerald-600/80 dark:text-emerald-300/80 font-medium">
-            {formatSince(session.checkInAt)} · {session.totalDuration}
+            <span className="hidden sm:inline">{formatSince(session.checkInAt)} · </span>
+            {session.totalDuration}
           </span>
+        ) : (
+          <span>Checked in</span>
         )}
       </div>
       <button
@@ -126,11 +143,10 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         onClick={() => void checkOut()}
         disabled={busy}
         title="Check out (logout also checks out)"
-        className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 text-[11px] sm:text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-500/30 disabled:opacity-60 transition-colors`}
+        className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-amber-500/25 disabled:opacity-60 transition-colors`}
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
-        <span className="hidden md:inline">Check Out</span>
-        <span className="md:hidden">Out</span>
+        <span>Check Out</span>
       </button>
     </div>
   );

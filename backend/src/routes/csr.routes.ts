@@ -6,6 +6,7 @@ import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
 import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus } from "../utils/csrSessionTracking";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
+import { formatEstDateTime } from "../utils/estTime";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
 import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { normalizePhone } from "../utils/phone";
@@ -1266,7 +1267,24 @@ router.post("/check-in", verifyToken, allowRoles("csr"), async (req: any, res) =
       userAgent: getUserAgent(req),
       deviceId: req.body?.tabId ?? req.body?.deviceId,
     });
-    const status = await getCsrWorkSessionStatus(req.user.id);
+    let status = await getCsrWorkSessionStatus(req.user.id);
+    /* Guarantee UI can flip to Check Out even if open-session lookup lags */
+    if (!status.checkedIn) {
+      status = {
+        checkedIn: true,
+        session: {
+          id: result.sessionId,
+          checkInAt: result.loginAt.toISOString(),
+          checkInAtEst: formatEstDateTime(result.loginAt),
+          dashboardMs: 0,
+          awayMs: 0,
+          totalMs: 0,
+          dashboardDuration: "0s",
+          awayDuration: "0s",
+          totalDuration: "0s",
+        },
+      };
+    }
     return res.json({
       success: true,
       created: result.created,
