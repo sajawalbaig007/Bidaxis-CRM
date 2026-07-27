@@ -50,7 +50,8 @@ interface Message {
   id: string; senderId: string; senderName: string; text: string; type: MsgType;
   fileUrl?: string; fileName?: string; fileSize?: number; fileMimeType?: string;
   createdAt: string; editedAt?: string | null; deletedAt?: string | null;
-  isDeleted?: boolean; isOwn: boolean; status: MsgStatus;
+  isDeleted?: boolean; deleteLabel?: string | null;
+  isOwn: boolean; status: MsgStatus;
   replyTo?: ReplyQuote | null; mentions?: string[];
   reactions?: Record<string, string[]>;
   readBy?: string[];
@@ -203,9 +204,12 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
       <div className={`flex flex-col ${own ? "items-end" : "items-start"} max-w-[72%]`}>
         {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>}
         {deleted && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5 px-1" title="Deleted by CSR — visible in admin peek only">
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5 px-1"
+            title={msg.deleteLabel ?? "Deleted — visible in admin peek only"}
+          >
             <Trash2 size={10} className="shrink-0" />
-            Deleted
+            {msg.deleteLabel ?? "Deleted"}
           </span>
         )}
         {msg.replyTo && (
@@ -827,13 +831,11 @@ export default function ChatPanel({
     setSelectedConvs([]); setSelectMode(false);
     await Promise.all(ids.map(id => API.delete(`/chat/conversations/${id}`).catch(() => {})));
   };
-  const deleteMsg = async (msgId: string, softDelete: boolean) => {
+  const deleteMsg = async (msgId: string, mode: "for_me" | "for_everyone") => {
     setCtxMenu(null);
     setMessages(p => p.filter(m => m.id !== msgId));
-    if (softDelete) {
-      invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
-      await API.delete(`/chat/messages/${msgId}`).catch(() => {});
-    }
+    invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
+    await API.delete(`/chat/messages/${msgId}`, { data: { mode } }).catch(() => {});
   };
   const handleReply = (msg: Message) => { setReplyTo(msg); setCtxMenu(null); setTimeout(() => inputRef.current?.focus(), 50); };
   const copyText = async (text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); setCtxMenu(null); };
@@ -1172,11 +1174,11 @@ export default function ChatPanel({
             <button onClick={() => void pinMessage(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Pin size={13} className="text-gray-400" />Pin message</button>
             <div className="border-t border-gray-100 my-1 px-1"><ReactionPicker onPick={emoji => void toggleReaction(ctxMenu.msg, emoji)} /></div>
             <div className="border-t border-gray-100 my-1" />
-            {ctxMenu.msg.isOwn && !isStealthView && (
-              <button onClick={() => void deleteMsg(ctxMenu.msg.id, true)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete</button>
+            {!isStealthView && (
+              <button onClick={() => void deleteMsg(ctxMenu.msg.id, "for_me")} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for me</button>
             )}
-            {!ctxMenu.msg.isOwn && !isStealthView && (
-              <button onClick={() => void deleteMsg(ctxMenu.msg.id, false)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for me</button>
+            {ctxMenu.msg.isOwn && !isStealthView && (
+              <button onClick={() => void deleteMsg(ctxMenu.msg.id, "for_everyone")} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for everyone</button>
             )}
           </div>
         </>
