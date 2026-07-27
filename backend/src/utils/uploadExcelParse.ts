@@ -378,8 +378,9 @@ export async function classifyRows(
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
   const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
 
+  /* Large sheets: skip fuzzy contains — variants cover common formats */
   const [phoneMatchMap, existingByEmail] = await Promise.all([
-    findLeadsByPhonesBulk(phones, CHUNK_LOOKUP),
+    findLeadsByPhonesBulk(phones, CHUNK_LOOKUP, { fuzzy: phones.length <= 800 }),
     chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
       prisma.lead.findMany({
         where: { email: { in: chunk } },

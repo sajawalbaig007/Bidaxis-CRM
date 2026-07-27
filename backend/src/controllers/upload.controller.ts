@@ -443,8 +443,11 @@ export const uploadLeads = async (req: Request, res: Response) => {
     }
 
     flushAdminClientsCache();
-    for (const csr of csrs) {
-      await reconcileClientOldFlagsForCsr(csr.id);
+    /* Old/new client flags only matter for won/client uploads — skip on call-data */
+    if (uploadCategory !== "call-data") {
+      for (const csr of csrs) {
+        await reconcileClientOldFlagsForCsr(csr.id);
+      }
     }
     invalidateCache(
       "admin:csrs",
@@ -474,7 +477,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
     await seedLeadNotesFromCommentsForFile(uploadedFile.id);
 
     /* Cap row preview payload for large sheets — UI paginates anyway */
-    const ROW_RESULTS_CAP = 2000;
+    const ROW_RESULTS_CAP = 500;
     const rowResults =
       preview.length > ROW_RESULTS_CAP
         ? preview.slice(0, ROW_RESULTS_CAP)
@@ -595,7 +598,20 @@ export const previewUpload = async (req: Request, res: Response) => {
       total:     preview.length,
     };
 
-    return res.json({ success: true, preview, summary });
+    /* Cap payload — UI only shows a page; full 10k+ JSON freezes browser + proxy */
+    const PREVIEW_CAP = 400;
+    const capped =
+      preview.length > PREVIEW_CAP
+        ? preview.slice(0, PREVIEW_CAP)
+        : preview;
+
+    return res.json({
+      success: true,
+      preview: capped,
+      summary,
+      previewCapped: preview.length > PREVIEW_CAP,
+      previewTotal: preview.length,
+    });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Preview failed" });

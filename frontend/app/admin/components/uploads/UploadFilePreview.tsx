@@ -34,6 +34,7 @@ type Props = {
   rows: PreviewRow[];
   summary: PreviewSummary | null;
   loading: boolean;
+  skipped?: boolean;
   hideDuplicates: boolean;
   onToggleHideDuplicates: () => void;
   filter: "all" | PreviewRow["status"];
@@ -46,6 +47,7 @@ export default function UploadFilePreview({
   rows,
   summary,
   loading,
+  skipped = false,
   hideDuplicates,
   onToggleHideDuplicates,
   filter,
@@ -61,6 +63,7 @@ export default function UploadFilePreview({
   });
 
   const hiddenDupCount = hideDuplicates ? (summary?.duplicate ?? 0) : 0;
+  const totalCount = summary?.total ?? rows.length;
 
   return (
     <div className="border border-gray-200 rounded-xl sm:rounded-2xl overflow-hidden bg-[#FAFAFA]">
@@ -91,7 +94,7 @@ export default function UploadFilePreview({
         {summary && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {([
-              { key: "all" as const,       count: rows.length,           label: "All" },
+              { key: "all" as const,       count: totalCount,            label: "All" },
               { key: "new" as const,       count: summary.new,           label: "New" },
               { key: "duplicate" as const, count: summary.duplicate,     label: "Duplicate" },
               { key: "updated" as const,   count: summary.updated,       label: "Updated" },
@@ -117,6 +120,14 @@ export default function UploadFilePreview({
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-8 text-gray-400 text-sm">
           <Loader2 size={16} className="animate-spin" /> Reading file…
+        </div>
+      ) : skipped ? (
+        <div className="flex flex-col items-center justify-center gap-1.5 py-8 px-4 text-center">
+          <AlertCircle size={18} className="text-amber-500" />
+          <p className="text-xs sm:text-sm font-medium text-gray-700">Live preview off</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 max-w-sm">
+            Select CSR(s) and upload — results show after the file finishes processing.
+          </p>
         </div>
       ) : rows.length === 0 ? (
         <p className="text-xs text-gray-400 text-center py-6">Select a file to preview rows.</p>
@@ -177,10 +188,15 @@ export default function UploadFilePreview({
               )}
             </tbody>
           </table>
+          {summary?.total && summary.total > rows.length && (
+            <p className="px-3 py-2 text-[10px] text-gray-400 border-t border-gray-100 bg-white">
+              Showing first {rows.length} of {summary.total} rows — full file will upload.
+            </p>
+          )}
         </div>
       )}
 
-      {hiddenDupCount > 0 && (
+      {hiddenDupCount > 0 && !skipped && (
         <div className="px-3 py-2 bg-[#FFF7ED] border-t border-[#FED7AA]/50 flex items-start gap-1.5">
           <AlertCircle size={12} className="text-[#B45309] mt-0.5 shrink-0" />
           <p className="text-[10px] sm:text-xs text-[#92400E]">
