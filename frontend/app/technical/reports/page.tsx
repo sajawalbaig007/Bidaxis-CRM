@@ -8,7 +8,7 @@ export default function TechnicalReportsPage() {
   return (
     <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
       <TechnicalSidebar />
-      <main className="max-w-[900px] mx-auto p-6 flex flex-col items-center justify-center min-h-[70vh] text-center">
+      <main className="max-w-[900px] mx-auto p-6 flex flex-col items-center justify-center min-h-[70vh] text-center mt-14 sm:mt-16">
         <div className="w-14 h-14 rounded-2xl bg-[#ECFDF5] text-[#15803D] flex items-center justify-center mb-4">
           <FileText size={24} />
         </div>
@@ -20,7 +20,7 @@ export default function TechnicalReportsPage() {
           <Construction size={12} /> Placeholder
         </div>
         <Link href="/technical" className="mt-6 text-sm font-semibold text-[#B8112D] hover:underline">
-          ← Back to Overview
+          ← Back to Dashboard
         </Link>
       </main>
     </div>

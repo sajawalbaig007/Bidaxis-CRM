@@ -21,7 +21,7 @@ import API from "@/lib/api";
 const BASE = "/technical";
 
 const navItems = [
-  { title: "Overview",         href: `${BASE}`,                 icon: LayoutDashboard },
+  { title: "Dashboard",        href: `${BASE}`,                 icon: LayoutDashboard },
   { title: "Active Projects",  href: `${BASE}/active-projects`, icon: FolderKanban    },
   { title: "KPI",              href: `${BASE}/kpi`,             icon: BarChart3       },
   { title: "Team",             href: `${BASE}/team`,            icon: Users           },
@@ -82,7 +82,7 @@ export default function TechnicalSidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-crm-border-subtle bg-crm-surface/95 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 z-40 border-b border-crm-border-subtle bg-crm-surface/95 backdrop-blur-md">
         <div className="max-w-[1600px] mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center gap-2 sm:gap-3">
           <Link href={BASE} className="flex items-center gap-2.5 shrink-0 min-w-0">
             <div className="w-9 h-9 rounded-xl overflow-hidden border border-crm-border-subtle bg-white shrink-0">

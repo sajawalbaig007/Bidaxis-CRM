@@ -90,11 +90,11 @@ export default function TechnicalOverviewPage() {
   return (
     <div className="min-h-screen bg-[#F5F6FA] dark:bg-gray-950">
       <TechnicalSidebar />
-      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-6">
+      <main className="max-w-[1400px] mx-auto p-3 sm:p-4 md:p-6 mt-14 sm:mt-16">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
           <div>
             <h1 className="text-2xl sm:text-[28px] font-bold text-[#0F172A] dark:text-gray-100">
-              Technical Manager Overview
+              Technical Manager Dashboard
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
               Project data comes directly from Admin Active Projects.
