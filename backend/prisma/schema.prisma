@@ -242,6 +242,8 @@ model Message {
   mentions       String[] @default([])
   reactions      Json?
   editedAt       DateTime?
+  deletedAt      DateTime?
+  deletedById    String?
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id])

@@ -49,7 +49,8 @@ interface ReplyQuote { id: string; text: string; senderName: string; type: MsgTy
 interface Message {
   id: string; senderId: string; senderName: string; text: string; type: MsgType;
   fileUrl?: string; fileName?: string; fileSize?: number; fileMimeType?: string;
-  createdAt: string; editedAt?: string | null; isOwn: boolean; status: MsgStatus;
+  createdAt: string; editedAt?: string | null; deletedAt?: string | null;
+  isDeleted?: boolean; isOwn: boolean; status: MsgStatus;
   replyTo?: ReplyQuote | null; mentions?: string[];
   reactions?: Record<string, string[]>;
   readBy?: string[];
@@ -181,6 +182,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
   onReact: (msg: Message, emoji: string) => void;
 }) {
   const own = msg.isOwn;
+  const deleted = Boolean(msg.isDeleted);
   const body = () => {
     if (msg.type === "image" && msg.fileUrl) return (
       <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
@@ -190,16 +192,22 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
     );
     if (msg.type === "voice" && msg.fileUrl) return <VoicePlayer fileUrl={msg.fileUrl} isOwn={own} />;
     if (msg.type === "file"  && msg.fileUrl) return <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0} fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />;
-    return <MentionText text={msg.text} className="text-sm leading-relaxed break-words whitespace-pre-wrap" />;
+    return <MentionText text={msg.text} className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${deleted ? "opacity-75" : ""}`} />;
   };
   return (
     <div id={`msg-${msg.id}`}
       className={`flex items-end gap-2 group ${own ? "flex-row-reverse" : "flex-row"} ${!showAvatar ? (own ? "pr-11" : "pl-11") : ""}`}
-      onContextMenu={e => onCtxMenu(e, msg)}>
+      onContextMenu={e => !deleted && onCtxMenu(e, msg)}>
       {!own && showAvatar  && <Avatar name={msg.senderName} size="sm" />}
       {!own && !showAvatar && <div className="w-8 shrink-0" />}
       <div className={`flex flex-col ${own ? "items-end" : "items-start"} max-w-[72%]`}>
         {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>}
+        {deleted && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5 px-1" title="Deleted by CSR — visible in admin peek only">
+            <Trash2 size={10} className="shrink-0" />
+            Deleted
+          </span>
+        )}
         {msg.replyTo && (
           <button onClick={() => onJumpToReply(msg.replyTo!.id)}
             className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full transition-colors ${own ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20" : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"}`}>
@@ -207,7 +215,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
             <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
           </button>
         )}
-        <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${own ? "bg-[#B8112D] text-white rounded-br-sm" : "bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm"}`}>
+        <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `bg-[#B8112D] text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}>
           {body()}
         </div>
         {msg.reactions && Object.keys(msg.reactions).length > 0 && (
@@ -224,7 +232,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
         )}
       </div>
       <button onClick={() => onReply(msg)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mb-6 hover:bg-gray-50">
+        className={`${deleted ? "hidden" : "opacity-0 group-hover:opacity-100"} transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mb-6 hover:bg-gray-50`}>
         <Reply size={12} className="text-gray-500" />
       </button>
     </div>
@@ -819,9 +827,13 @@ export default function ChatPanel({
     setSelectedConvs([]); setSelectMode(false);
     await Promise.all(ids.map(id => API.delete(`/chat/conversations/${id}`).catch(() => {})));
   };
-  const deleteMsg = async (msgId: string, forEveryone: boolean) => {
-    setMessages(p => p.filter(m => m.id !== msgId)); setCtxMenu(null);
-    if (forEveryone) await API.delete(`/chat/messages/${msgId}`).catch(() => {});
+  const deleteMsg = async (msgId: string, softDelete: boolean) => {
+    setCtxMenu(null);
+    setMessages(p => p.filter(m => m.id !== msgId));
+    if (softDelete) {
+      invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
+      await API.delete(`/chat/messages/${msgId}`).catch(() => {});
+    }
   };
   const handleReply = (msg: Message) => { setReplyTo(msg); setCtxMenu(null); setTimeout(() => inputRef.current?.focus(), 50); };
   const copyText = async (text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); setCtxMenu(null); };
@@ -1160,9 +1172,11 @@ export default function ChatPanel({
             <button onClick={() => void pinMessage(ctxMenu.msg)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-[#F5F6FA] transition-colors"><Pin size={13} className="text-gray-400" />Pin message</button>
             <div className="border-t border-gray-100 my-1 px-1"><ReactionPicker onPick={emoji => void toggleReaction(ctxMenu.msg, emoji)} /></div>
             <div className="border-t border-gray-100 my-1" />
-            <button onClick={() => void deleteMsg(ctxMenu.msg.id, false)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for me</button>
-            {ctxMenu.msg.isOwn && me?.role === "admin" && (
-              <button onClick={() => void deleteMsg(ctxMenu.msg.id, true)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for everyone</button>
+            {ctxMenu.msg.isOwn && !isStealthView && (
+              <button onClick={() => void deleteMsg(ctxMenu.msg.id, true)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 font-semibold hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete</button>
+            )}
+            {!ctxMenu.msg.isOwn && !isStealthView && (
+              <button onClick={() => void deleteMsg(ctxMenu.msg.id, false)} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={13} />Delete for me</button>
             )}
           </div>
         </>
