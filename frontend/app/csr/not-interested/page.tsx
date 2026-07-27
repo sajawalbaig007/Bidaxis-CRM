@@ -17,7 +17,7 @@ import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import { ourCompany } from "../utils/leadFieldLabels";
-import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
+import { collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
 import Pagination from "../components/shared/Pagination";

@@ -22,7 +22,7 @@ import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import InterestedServicesCell from "../components/shared/InterestedServicesCell";
 import InterestedModal from "../components/modals/InterestedModal";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
-import { parsePhones, collectLeadPhones } from "../utils/parsePhones";
+import { collectLeadPhones } from "../utils/parsePhones";
 import {
   decomposeInterestedServices,
   formatInterestedServices,
@@ -38,7 +38,7 @@ import API from "@/lib/api";
 import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
 import { Lead, getPriority } from "../types/lead";
-import { isInterestedLeadStatus, isWonClientStatus } from "../constants/leadStatuses";
+import { isWonClientStatus } from "../constants/leadStatuses";
 import {
   isImportantOnly,
   isScheduledCall,
