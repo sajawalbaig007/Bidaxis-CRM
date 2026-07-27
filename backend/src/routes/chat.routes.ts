@@ -66,8 +66,8 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
           messages: {
             where: notDeletedMessageWhere(),
             orderBy: { createdAt: "desc" },
-            take: 1,
-            select: { text: true, type: true, createdAt: true, senderId: true },
+            take: 15,
+            select: { text: true, type: true, createdAt: true, senderId: true, hiddenForUserIds: true, deletedAt: true },
           },
         },
       },
@@ -94,7 +94,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
 
   return filteredMemberships.map((m, idx) => {
     const conv        = m.conversation;
-    const lastMsg     = conv.messages[0];
+    const lastMsg     = conv.messages.find(msg => messageVisibleForUser(msg, viewUserId));
     const otherMember = conv.type === "direct"
       ? conv.members.find(mem => mem.userId !== viewUserId)
       : null;
@@ -119,6 +119,14 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
   });
 }
 
+function messageVisibleForUser(
+  m: { deletedAt: Date | null; hiddenForUserIds?: string[] },
+  viewUserId: string,
+) {
+  if (m.deletedAt) return false;
+  return !(m.hiddenForUserIds ?? []).includes(viewUserId);
+}
+
 async function fetchMessagesForUser(
   conversationId: string,
   viewUserId: string,
@@ -130,10 +138,7 @@ async function fetchMessagesForUser(
   });
 
   const raw = await prisma.message.findMany({
-    where: {
-      conversationId,
-      ...(opts?.includeDeleted ? {} : notDeletedMessageWhere()),
-    },
+    where: { conversationId },
     include: {
       sender: { select: { id: true, name: true } },
       replyTo: {
@@ -148,7 +153,11 @@ async function fetchMessagesForUser(
   });
 
   const auditMode = Boolean(opts?.includeDeleted);
-  const messages = raw.map(m => formatMessage(m, viewUserId, members, auditMode));
+  const visible = auditMode
+    ? raw
+    : raw.filter(m => messageVisibleForUser(m, viewUserId));
+
+  const messages = visible.map(m => formatMessage(m, viewUserId, members, auditMode));
 
   const conv = await prisma.conversation.findUnique({
     where: { id: conversationId },
@@ -428,15 +437,17 @@ router.post(
 
 /* ═══════════════════════════════════════════════════════
    DELETE /chat/messages/:id
-   Soft-delete — hidden from CSR chat; admin peek still sees content.
+   for_me — hidden for requester only; for_everyone — soft-delete for all CSRs.
+   Admin peek still sees content + delete type.
 ═══════════════════════════════════════════════════════ */
 router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const msgId  = p(req.params.id);
+    const mode   = String(req.body?.mode ?? "for_everyone").toLowerCase();
 
     const msg = await prisma.message.findUnique({ where: { id: msgId } });
-    if (!msg || msg.deletedAt) return res.json({ success: true });
+    if (!msg) return res.json({ success: true });
 
     const member = await prisma.conversationMember.findUnique({
       where: { conversationId_userId: { conversationId: msg.conversationId, userId } },
@@ -445,9 +456,23 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
       return res.status(403).json({ message: "Not in this conversation" });
     }
 
+    if (mode === "for_me") {
+      const hidden = msg.hiddenForUserIds ?? [];
+      if (!hidden.includes(userId)) {
+        await prisma.message.update({
+          where: { id: msgId },
+          data:  { hiddenForUserIds: [...hidden, userId] },
+        });
+      }
+      invalidatePattern("chat:convs:");
+      return res.json({ success: true, mode: "for_me" });
+    }
+
+    if (msg.deletedAt) return res.json({ success: true, mode: "for_everyone" });
+
     const role = req.user!.role;
     if (role === "csr" && msg.senderId !== userId) {
-      return res.status(403).json({ message: "You can only delete your own messages" });
+      return res.status(403).json({ message: "You can only delete your own messages for everyone" });
     }
     if (role !== "admin" && role !== "csr" && msg.senderId !== userId) {
       return res.status(403).json({ message: "Cannot delete this message" });
@@ -455,13 +480,17 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
 
     await prisma.message.update({
       where: { id: msgId },
-      data:  { deletedAt: new Date(), deletedById: userId },
+      data:  {
+        deletedAt: new Date(),
+        deletedById: userId,
+        deletedReason: "for_everyone",
+      },
     });
 
     const memberIds = await getConversationMemberIds(msg.conversationId);
     emitMessageDelete(msg.conversationId, msgId, memberIds);
     invalidatePattern("chat:convs:");
-    return res.json({ success: true });
+    return res.json({ success: true, mode: "for_everyone" });
   } catch {
     return res.json({ success: true });
   }
