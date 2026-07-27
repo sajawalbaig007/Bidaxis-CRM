@@ -665,7 +665,9 @@ export default function AdminProjectsPage() {
     ? allCsrs.map((c): [string, string] => [c.id, c.name])
     : Array.from(
         new Map<string, string>(
-          projects.map((p): [string, string] => [p.csr.id, p.csr.name ?? "Unknown"]),
+          projects
+            .filter((p): p is Project & { csr: NonNullable<Project["csr"]> } => !!p.csr?.id)
+            .map((p): [string, string] => [p.csr.id, p.csr.name ?? "Unknown"]),
         ),
       );
 

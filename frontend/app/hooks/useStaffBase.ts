@@ -2,8 +2,10 @@
 
 import { usePathname } from "next/navigation";
 
-/** Route prefix for shared admin/manager pages (`/admin` or `/manager`). */
-export function useStaffBase(): "/admin" | "/manager" {
+/** Route prefix for shared admin/manager/technical pages. */
+export function useStaffBase(): "/admin" | "/manager" | "/technical" {
   const pathname = usePathname();
-  return pathname.startsWith("/manager") ? "/manager" : "/admin";
+  if (pathname.startsWith("/manager")) return "/manager";
+  if (pathname.startsWith("/technical")) return "/technical";
+  return "/admin";
 }

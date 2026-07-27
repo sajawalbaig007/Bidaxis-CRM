@@ -42,8 +42,9 @@ export default function TechnicalOverviewPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await API.get("/admin/projects", { params: { limit: 500 } });
-      setProjects((res.data.projects ?? res.data ?? []) as ProjectRow[]);
+      const res = await API.get("/admin/projects", { params: { limit: 100 } });
+      const rows = res.data?.leads ?? res.data?.projects ?? [];
+      setProjects(Array.isArray(rows) ? (rows as ProjectRow[]) : []);
     } catch {
       setProjects([]);
     } finally {
