@@ -32,6 +32,8 @@ export function formatMessage(
     fileUrl: string | null; fileName: string | null; fileSize: number | null;
     fileMimeType: string | null; createdAt: Date; editedAt: Date | null;
     deletedAt?: Date | null;
+    deletedReason?: string | null;
+    hiddenForUserIds?: string[];
     mentions: string[]; reactions: unknown;
     sender: { id: string; name: string };
     replyTo: {
@@ -44,7 +46,14 @@ export function formatMessage(
   auditMode = false,
 ) {
   const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
-  const isDeleted = Boolean(m.deletedAt);
+  const hiddenForViewer = (m.hiddenForUserIds ?? []).includes(userId);
+  const deletedForEveryone = Boolean(m.deletedAt);
+  let deleteLabel: string | null = null;
+  if (auditMode) {
+    if (deletedForEveryone) deleteLabel = "Deleted for everyone";
+    else if (hiddenForViewer) deleteLabel = "Deleted for me";
+  }
+  const isDeleted = auditMode && (deletedForEveryone || hiddenForViewer);
   return {
     id:           m.id,
     senderId:     m.senderId,
@@ -58,7 +67,11 @@ export function formatMessage(
     createdAt:    m.createdAt,
     editedAt:     m.editedAt,
     deletedAt:    m.deletedAt ?? null,
-    isDeleted:    auditMode && isDeleted,
+    deletedReason: m.deletedReason ?? null,
+    isDeleted,
+    isDeletedForEveryone: auditMode && deletedForEveryone,
+    isHiddenForViewer: auditMode && hiddenForViewer && !deletedForEveryone,
+    deleteLabel,
     mentions:     m.mentions ?? [],
     reactions:    parseReactions(m.reactions),
     readBy,
