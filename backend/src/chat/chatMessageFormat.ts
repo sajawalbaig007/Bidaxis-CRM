@@ -31,6 +31,7 @@ export function formatMessage(
     id: string; senderId: string; text: string; type: string;
     fileUrl: string | null; fileName: string | null; fileSize: number | null;
     fileMimeType: string | null; createdAt: Date; editedAt: Date | null;
+    deletedAt?: Date | null;
     mentions: string[]; reactions: unknown;
     sender: { id: string; name: string };
     replyTo: {
@@ -39,9 +40,11 @@ export function formatMessage(
     } | null;
   },
   userId: string,
-  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
+  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[],
+  auditMode = false,
 ) {
   const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
+  const isDeleted = Boolean(m.deletedAt);
   return {
     id:           m.id,
     senderId:     m.senderId,
@@ -54,6 +57,8 @@ export function formatMessage(
     fileMimeType: m.fileMimeType,
     createdAt:    m.createdAt,
     editedAt:     m.editedAt,
+    deletedAt:    m.deletedAt ?? null,
+    isDeleted:    auditMode && isDeleted,
     mentions:     m.mentions ?? [],
     reactions:    parseReactions(m.reactions),
     readBy,

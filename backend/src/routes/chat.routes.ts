@@ -37,6 +37,15 @@ function p(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
+function notDeletedMessageWhere() {
+  return {
+    OR: [
+      { deletedAt: null },
+      { deletedAt: { isSet: false } },
+    ],
+  };
+}
+
 async function getConversationMemberIds(conversationId: string): Promise<string[]> {
   const rows = await prisma.conversationMember.findMany({
     where: { conversationId },
@@ -55,6 +64,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
             include: { user: { select: { id: true, name: true, isOnline: true } } },
           },
           messages: {
+            where: notDeletedMessageWhere(),
             orderBy: { createdAt: "desc" },
             take: 1,
             select: { text: true, type: true, createdAt: true, senderId: true },
@@ -75,6 +85,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
         where: {
           conversationId: m.conversationId,
           senderId: { not: viewUserId },
+          ...notDeletedMessageWhere(),
           ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
         },
       })
@@ -108,14 +119,21 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
   });
 }
 
-async function fetchMessagesForUser(conversationId: string, viewUserId: string) {
+async function fetchMessagesForUser(
+  conversationId: string,
+  viewUserId: string,
+  opts?: { includeDeleted?: boolean },
+) {
   const members = await prisma.conversationMember.findMany({
     where: { conversationId },
     include: { user: { select: { id: true, name: true } } },
   });
 
   const raw = await prisma.message.findMany({
-    where: { conversationId },
+    where: {
+      conversationId,
+      ...(opts?.includeDeleted ? {} : notDeletedMessageWhere()),
+    },
     include: {
       sender: { select: { id: true, name: true } },
       replyTo: {
@@ -129,7 +147,8 @@ async function fetchMessagesForUser(conversationId: string, viewUserId: string) 
     take: 200,
   });
 
-  const messages = raw.map(m => formatMessage(m, viewUserId, members));
+  const auditMode = Boolean(opts?.includeDeleted);
+  const messages = raw.map(m => formatMessage(m, viewUserId, members, auditMode));
 
   const conv = await prisma.conversation.findUnique({
     where: { id: conversationId },
@@ -138,7 +157,7 @@ async function fetchMessagesForUser(conversationId: string, viewUserId: string) 
   let pinnedMessage = null;
   if (conv?.pinnedMessageId) {
     const pin = raw.find(m => m.id === conv.pinnedMessageId);
-    if (pin) pinnedMessage = formatMessage(pin, viewUserId, members);
+    if (pin) pinnedMessage = formatMessage(pin, viewUserId, members, auditMode);
   }
 
   return { messages, pinnedMessage };
@@ -409,26 +428,39 @@ router.post(
 
 /* ═══════════════════════════════════════════════════════
    DELETE /chat/messages/:id
-   Only the sender can delete for everyone.
+   Soft-delete — hidden from CSR chat; admin peek still sees content.
 ═══════════════════════════════════════════════════════ */
 router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const role   = req.user!.role;
     const msgId  = p(req.params.id);
 
-    if (role !== "admin") {
-      return res.status(403).json({ message: "Only admins can delete messages for everyone" });
+    const msg = await prisma.message.findUnique({ where: { id: msgId } });
+    if (!msg || msg.deletedAt) return res.json({ success: true });
+
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: msg.conversationId, userId } },
+    });
+    if (!member) {
+      return res.status(403).json({ message: "Not in this conversation" });
     }
 
-    const msg = await prisma.message.findUnique({ where: { id: msgId } });
-    if (!msg || msg.senderId !== userId) {
+    const role = req.user!.role;
+    if (role === "csr" && msg.senderId !== userId) {
+      return res.status(403).json({ message: "You can only delete your own messages" });
+    }
+    if (role !== "admin" && role !== "csr" && msg.senderId !== userId) {
       return res.status(403).json({ message: "Cannot delete this message" });
     }
 
-    await prisma.message.delete({ where: { id: msgId } });
+    await prisma.message.update({
+      where: { id: msgId },
+      data:  { deletedAt: new Date(), deletedById: userId },
+    });
+
     const memberIds = await getConversationMemberIds(msg.conversationId);
     emitMessageDelete(msg.conversationId, msgId, memberIds);
+    invalidatePattern("chat:convs:");
     return res.json({ success: true });
   } catch {
     return res.json({ success: true });
@@ -773,7 +805,7 @@ router.get("/admin/view/:csrId/conversations/:convId/messages", verifyToken, all
     });
     if (!member) return res.status(403).json({ message: "CSR is not in this conversation" });
 
-    const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId);
+    const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId, { includeDeleted: true });
     return res.json({ messages, pinnedMessage });
   } catch (err) {
     console.error("[chat] admin view messages", err);
