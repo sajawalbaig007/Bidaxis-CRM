@@ -11,6 +11,7 @@ enum Role {
   admin
   csr
   manager
+  technical_manager
 }
 
 model User {

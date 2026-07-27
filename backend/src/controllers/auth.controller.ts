@@ -125,17 +125,18 @@ function makeOTP(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-type PortalRole = "admin" | "csr" | "manager";
+type PortalRole = "admin" | "csr" | "manager" | "technical_manager";
 
 function parsePortalRole(raw: unknown): PortalRole | null {
   const r = String(raw ?? "").toLowerCase();
-  if (r === "admin" || r === "csr" || r === "manager") return r;
+  if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager") return r;
   return null;
 }
 
 function portalRoleLabel(role: PortalRole): string {
   if (role === "admin") return "Admin";
   if (role === "manager") return "Manager";
+  if (role === "technical_manager") return "Technical Manager";
   return "CSR";
 }
 
@@ -145,7 +146,7 @@ function assertPortalRoleMatch(userRole: string, loginRole: PortalRole): string 
 }
 
 function assertAdminIp(req: Request, role: string): string | null {
-  if (role !== "admin" && role !== "manager") return null;
+  if (role !== "admin" && role !== "manager" && role !== "technical_manager") return null;
   const allowed = getAdminAllowedIps();
   if (allowed.length === 0) return null;
   const ip = getClientIp(req);
@@ -192,7 +193,11 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: "Only admins can create manager accounts." });
     }
 
-    const validRoles = ["admin", "csr", "manager"];
+    if (role === "technical_manager" && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only admins can create Technical Manager accounts." });
+    }
+
+    const validRoles = ["admin", "csr", "manager", "technical_manager"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ success: false, message: "Invalid role." });
     }

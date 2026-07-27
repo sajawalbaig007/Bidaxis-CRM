@@ -51,14 +51,15 @@ export function resolveLoginRole(data: {
   user?: { role?: string };
 }): PortalRole | null {
   const r = (data.role ?? data.user?.role ?? "").toLowerCase();
-  if (r === "admin" || r === "csr" || r === "manager") return r;
+  if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager") return r;
   return null;
 }
 
-export type PortalRole = "admin" | "csr" | "manager";
+export type PortalRole = "admin" | "csr" | "manager" | "technical_manager";
 
 export function dashboardPathForRole(role: PortalRole): string {
   if (role === "admin") return "/admin";
   if (role === "manager") return "/manager";
+  if (role === "technical_manager") return "/technical";
   return "/csr";
 }

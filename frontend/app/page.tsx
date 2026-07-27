@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, LayoutDashboard, Headphones, BarChart3 } from "lucide-react";
+import { ArrowRight, LayoutDashboard, Headphones, BarChart3, Wrench } from "lucide-react";
 import { PORTAL_OPTIONS } from "@/lib/loginRole";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
@@ -11,6 +11,7 @@ const PORTAL_ICONS = {
   admin: LayoutDashboard,
   manager: BarChart3,
   csr: Headphones,
+  technical_manager: Wrench,
 } as const;
 
 export default function HomeLandingPage() {
