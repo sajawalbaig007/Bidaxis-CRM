@@ -433,7 +433,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         });
         for (const lead of created) {
           if (!lead.phone?.trim() || !isWonClientUploadStatus(lead.status)) continue;
-          await clearPendingDuplicatesForPhone(lead.phone, lead.assignedTo, lead.id, true);
+          await clearPendingDuplicatesForPhone(lead.phone, lead.assignedTo, lead.id);
         }
       }
     }

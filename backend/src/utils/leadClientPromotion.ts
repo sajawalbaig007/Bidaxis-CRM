@@ -5,7 +5,6 @@ import { wonClientStatusWhere } from "./projectLeads";
 import { notInBinFilter } from "./binLeads";
 import { normalizePhone } from "./phone";
 import { ensureLeadNoteFromText } from "./leadNotes";
-import { invalidateCsrLeadCaches } from "./csrCache";
 
 export function isPendingPipelineStatus(status: string | null | undefined): boolean {
   return (status ?? "").toLowerCase() === "pending";
@@ -105,45 +104,11 @@ async function migrateNotesBeforeDelete(
   }
 }
 
-/** Statuses that mean a CSR has claimed the client — other CSRs' pending copies should go. */
-export function isClaimedPipelineStatus(status: string | null | undefined): boolean {
-  const s = (status ?? "").toLowerCase();
-  return (
-    s === "important" ||
-    s === "interested" ||
-    s === "close client" ||
-    s === "completed" ||
-    s === "closed"
-  );
-}
-
-export function claimedPipelineStatusWhere(): {
-  OR: Array<{ status: { equals: string; mode: "insensitive" } }>;
-} {
-  return {
-    OR: [
-      { status: { equals: "important", mode: "insensitive" } },
-      { status: { equals: "interested", mode: "insensitive" } },
-      { status: { equals: "Close Client", mode: "insensitive" } },
-      { status: { equals: "completed", mode: "insensitive" } },
-      { status: { equals: "closed", mode: "insensitive" } },
-    ],
-  };
-}
-
-async function invalidateOwnersOfDeleted(pendingDupes: Array<{ assignedTo?: string | null }>) {
-  const csrIds = [...new Set(pendingDupes.map(l => l.assignedTo).filter(Boolean) as string[])];
-  for (const id of csrIds) invalidateCsrLeadCaches(id);
-}
-
-/** Remove duplicate pending call-data rows once the client is claimed / won.
- *  acrossCsrs=true clears pending copies for every CSR (default for claim/won).
- */
+/** Remove duplicate pending call-data rows once the client is won / moved to clients. */
 export async function clearPendingDuplicatesForPhone(
   phone: string | null | undefined,
   csrId: string,
   keepLeadId: string,
-  acrossCsrs = false,
 ): Promise<number> {
   if (!phone?.trim()) return 0;
 
@@ -151,95 +116,58 @@ export async function clearPendingDuplicatesForPhone(
   const pendingDupes = matches.filter(
     l =>
       l.id !== keepLeadId &&
-      (acrossCsrs || l.assignedTo === csrId) &&
+      l.assignedTo === csrId &&
       isPendingPipelineStatus(l.status) &&
       !l.inBin,
   );
 
   if (pendingDupes.length === 0) return 0;
   await migrateNotesBeforeDelete(pendingDupes, keepLeadId);
-  const count = await deleteLeadsCascade(pendingDupes.map(l => l.id));
-  if (acrossCsrs) await invalidateOwnersOfDeleted(pendingDupes);
-  return count;
+  return deleteLeadsCascade(pendingDupes.map(l => l.id));
 }
 
 export async function clearPendingDuplicatesForCompany(
   company: string | null | undefined,
   csrId: string,
   keepLeadId: string,
-  acrossCsrs = false,
 ): Promise<number> {
   const companyTrim = company?.trim();
   if (!companyTrim) return 0;
 
   const pendingDupes = await prisma.lead.findMany({
     where: {
-      id: { not: keepLeadId },
-      ...(acrossCsrs ? {} : { assignedTo: csrId }),
-      company: { equals: companyTrim, mode: "insensitive" },
-      status:  { equals: "pending", mode: "insensitive" },
+      id:         { not: keepLeadId },
+      assignedTo: csrId,
+      company:    { equals: companyTrim, mode: "insensitive" },
+      status:     { equals: "pending", mode: "insensitive" },
       ...notInBinFilter(),
     },
-    select: { id: true, comments: true, followUpNotes: true, assignedTo: true },
+    select: { id: true, comments: true, followUpNotes: true },
   });
 
   if (pendingDupes.length === 0) return 0;
   await migrateNotesBeforeDelete(pendingDupes, keepLeadId);
-  const count = await deleteLeadsCascade(pendingDupes.map(l => l.id));
-  if (acrossCsrs) await invalidateOwnersOfDeleted(pendingDupes);
-  return count;
+  return deleteLeadsCascade(pendingDupes.map(l => l.id));
 }
 
-/** Clear other CSRs' pending rows after Important / Interested / Won.
- *  Cross-CSR: phone only (reliable). Company only within same CSR unless name is strong.
- */
-export async function clearClaimedPendingDuplicates(
-  phone: string | null | undefined,
-  company: string | null | undefined,
-  csrId: string,
-  keepLeadId: string,
-): Promise<number> {
-  let removed = 0;
-  if (phone?.trim()) {
-    removed += await clearPendingDuplicatesForPhone(phone, csrId, keepLeadId, true);
-  }
-  if (isStrongCompanyName(company)) {
-    /* Same-CSR company cleanup always; cross-CSR company only with a strong unique name */
-    removed += await clearPendingDuplicatesForCompany(company, csrId, keepLeadId, false);
-  }
-  return removed;
-}
-
-function isStrongCompanyName(company: string | null | undefined): boolean {
-  const c = (company ?? "").trim().toLowerCase();
-  if (c.length < 3) return false;
-  const weak = new Set(["n/a", "na", "none", "null", "-", "--", "unknown", "test", "company", "client"]);
-  return !weak.has(c);
-}
-
-/**
- * Fast heal on pending tab: only clear this CSR's pending dupes of their own won/claimed leads.
- * Cross-CSR cleanup runs on claim (clearClaimedPendingDuplicates), not on every list load.
- */
+/** Drop stale pending call-data rows when the same phone/company already has a won client. */
 export async function healPendingDuplicatesForCsr(csrId: string): Promise<number> {
-  const claimedLeads = await prisma.lead.findMany({
+  const wonLeads = await prisma.lead.findMany({
     where: {
       assignedTo: csrId,
+      ...wonClientStatusWhere(),
       ...notInBinFilter(),
-      ...claimedPipelineStatusWhere(),
     },
     select: { id: true, phone: true, company: true },
-    take: 200,
   });
 
   let removed = 0;
-  for (const lead of claimedLeads) {
-    /* Same-CSR only on list heal — keep this path fast; cross-CSR clears on claim */
+  for (const lead of wonLeads) {
     if (lead.phone?.trim()) {
-      removed += await clearPendingDuplicatesForPhone(lead.phone, csrId, lead.id, false);
+      removed += await clearPendingDuplicatesForPhone(lead.phone, csrId, lead.id);
     }
-    if (isStrongCompanyName(lead.company)) {
-      removed += await clearPendingDuplicatesForCompany(lead.company, csrId, lead.id, false);
+    if (lead.company?.trim()) {
+      removed += await clearPendingDuplicatesForCompany(lead.company, csrId, lead.id);
     }
   }
   return removed;
