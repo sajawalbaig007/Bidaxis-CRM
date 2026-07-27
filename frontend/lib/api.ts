@@ -94,7 +94,11 @@ API.interceptors.response.use(
   err => {
     const status = err?.response?.status;
     const path = typeof window !== "undefined" ? window.location.pathname : "";
-    const isProtected = path.startsWith("/admin") || path.startsWith("/csr");
+    const isProtected =
+      path.startsWith("/admin") ||
+      path.startsWith("/csr") ||
+      path.startsWith("/manager") ||
+      path.startsWith("/technical");
 
     if (
       status === 401 &&
