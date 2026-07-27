@@ -190,7 +190,9 @@ export async function clearPendingDuplicatesForCompany(
   return count;
 }
 
-/** Clear other CSRs' pending rows for this phone/company after Important / Interested / Won. */
+/** Clear other CSRs' pending rows after Important / Interested / Won.
+ *  Cross-CSR: phone only (reliable). Company only within same CSR unless name is strong.
+ */
 export async function clearClaimedPendingDuplicates(
   phone: string | null | undefined,
   company: string | null | undefined,
@@ -201,111 +203,45 @@ export async function clearClaimedPendingDuplicates(
   if (phone?.trim()) {
     removed += await clearPendingDuplicatesForPhone(phone, csrId, keepLeadId, true);
   }
-  if (company?.trim()) {
-    removed += await clearPendingDuplicatesForCompany(company, csrId, keepLeadId, true);
+  if (isStrongCompanyName(company)) {
+    /* Same-CSR company cleanup always; cross-CSR company only with a strong unique name */
+    removed += await clearPendingDuplicatesForCompany(company, csrId, keepLeadId, false);
   }
   return removed;
 }
 
-async function isClaimedElsewhere(
-  phone: string | null | undefined,
-  company: string | null | undefined,
-  excludeLeadId: string,
-): Promise<boolean> {
-  if (phone?.trim()) {
-    const matches = await findLeadsByPhone(phone);
-    if (matches.some(l =>
-      l.id !== excludeLeadId &&
-      !l.inBin &&
-      isClaimedPipelineStatus(l.status),
-    )) {
-      return true;
-    }
-  }
-
-  const companyTrim = company?.trim();
-  if (companyTrim) {
-    const hit = await prisma.lead.findFirst({
-      where: {
-        id: { not: excludeLeadId },
-        company: { equals: companyTrim, mode: "insensitive" },
-        ...notInBinFilter(),
-        ...claimedPipelineStatusWhere(),
-      },
-      select: { id: true },
-    });
-    if (hit) return true;
-  }
-
-  return false;
+function isStrongCompanyName(company: string | null | undefined): boolean {
+  const c = (company ?? "").trim().toLowerCase();
+  if (c.length < 3) return false;
+  const weak = new Set(["n/a", "na", "none", "null", "-", "--", "unknown", "test", "company", "client"]);
+  return !weak.has(c);
 }
 
 /**
- * Drop this CSR's stale pending rows when:
- * - they themselves already claimed/won the same phone/company, OR
- * - another CSR already has Important / Interested / Won for that client.
+ * Fast heal on pending tab: only clear this CSR's pending dupes of their own won/claimed leads.
+ * Cross-CSR cleanup runs on claim (clearClaimedPendingDuplicates), not on every list load.
  */
 export async function healPendingDuplicatesForCsr(csrId: string): Promise<number> {
-  let removed = 0;
-
-  const myClaimed = await prisma.lead.findMany({
+  const claimedLeads = await prisma.lead.findMany({
     where: {
       assignedTo: csrId,
       ...notInBinFilter(),
       ...claimedPipelineStatusWhere(),
     },
     select: { id: true, phone: true, company: true },
+    take: 200,
   });
 
-  for (const lead of myClaimed) {
-    removed += await clearClaimedPendingDuplicates(lead.phone, lead.company, csrId, lead.id);
-  }
-
-  const myPending = await prisma.lead.findMany({
-    where: {
-      assignedTo: csrId,
-      status: { equals: "pending", mode: "insensitive" },
-      ...notInBinFilter(),
-    },
-    select: { id: true, phone: true, company: true, comments: true, followUpNotes: true },
-    take: 800,
-  });
-
-  const toDelete: string[] = [];
-  for (const lead of myPending) {
-    if (await isClaimedElsewhere(lead.phone, lead.company, lead.id)) {
-      toDelete.push(lead.id);
+  let removed = 0;
+  for (const lead of claimedLeads) {
+    /* Same-CSR only on list heal — keep this path fast; cross-CSR clears on claim */
+    if (lead.phone?.trim()) {
+      removed += await clearPendingDuplicatesForPhone(lead.phone, csrId, lead.id, false);
+    }
+    if (isStrongCompanyName(lead.company)) {
+      removed += await clearPendingDuplicatesForCompany(lead.company, csrId, lead.id, false);
     }
   }
-
-  if (toDelete.length > 0) {
-    /* Prefer attaching notes to a claimed lead when possible */
-    for (const lead of myPending.filter(l => toDelete.includes(l.id))) {
-      let keepId: string | undefined;
-      if (lead.phone?.trim()) {
-        const matches = await findLeadsByPhone(lead.phone);
-        keepId = matches.find(l =>
-          l.id !== lead.id && !l.inBin && isClaimedPipelineStatus(l.status),
-        )?.id;
-      }
-      if (!keepId && lead.company?.trim()) {
-        const hit = await prisma.lead.findFirst({
-          where: {
-            id: { not: lead.id },
-            company: { equals: lead.company.trim(), mode: "insensitive" },
-            ...notInBinFilter(),
-            ...claimedPipelineStatusWhere(),
-          },
-          select: { id: true },
-        });
-        keepId = hit?.id;
-      }
-      if (keepId) await migrateNotesBeforeDelete([lead], keepId);
-    }
-    removed += await deleteLeadsCascade(toDelete);
-    invalidateCsrLeadCaches(csrId);
-  }
-
   return removed;
 }
 

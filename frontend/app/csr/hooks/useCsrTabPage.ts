@@ -151,6 +151,8 @@ export function useCsrTabLeads(
       if (gen !== reqGen.current) return;
       toast.error(apiErrorMessage(err, "Could not load leads. Please refresh."));
       setLeads([]);
+      setTotal(0);
+      setTotalPages(1);
     } finally {
       if (gen === reqGen.current) setLoading(false);
     }
