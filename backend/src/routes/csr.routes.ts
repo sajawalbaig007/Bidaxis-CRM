@@ -12,8 +12,7 @@ import { invalidateCsrLeadCaches } from "../utils/csrCache";
 import { normalizePhone } from "../utils/phone";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import {
-  clearPendingDuplicatesForPhone,
-  clearPendingDuplicatesForCompany,
+  clearClaimedPendingDuplicates,
   hasPriorWonClient,
   healPipelineLeaksForCsr,
   reconcileClientOldFlagsForCsr,
@@ -430,11 +429,8 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       },
     });
 
-    if (trimmedPhone) {
-      await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
-    }
-    if (company?.trim()) {
-      await clearPendingDuplicatesForCompany(company.trim(), csrId, lead.id);
+    if (trimmedPhone || company?.trim()) {
+      await clearClaimedPendingDuplicates(trimmedPhone, company?.trim() ?? null, csrId, lead.id);
     }
 
     await reconcileClientOldFlagsForCsr(csrId);
@@ -840,15 +836,15 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
 
     if (
       status !== undefined &&
-      (status === "Close Client" || status === "completed")
+      (status === "Close Client" ||
+        status === "completed" ||
+        status === "important" ||
+        status === "interested")
     ) {
-      if (lead.phone) {
-        await clearPendingDuplicatesForPhone(lead.phone, csrId, leadId);
+      await clearClaimedPendingDuplicates(lead.phone, lead.company, csrId, leadId);
+      if (status === "Close Client" || status === "completed") {
+        await reconcileClientOldFlagsForCsr(csrId);
       }
-      if (lead.company) {
-        await clearPendingDuplicatesForCompany(lead.company, csrId, leadId);
-      }
-      await reconcileClientOldFlagsForCsr(csrId);
     }
 
     if (status !== undefined && status !== lead.status) {
@@ -911,10 +907,7 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
           },
         });
 
-        await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
-        if (companyTrim) {
-          await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
-        }
+        await clearClaimedPendingDuplicates(trimmedPhone, companyTrim, csrId, lead.id);
         await reconcileClientOldFlagsForCsr(csrId);
         if (comments?.trim()) {
           await ensureLeadNoteFromText(lead.id, comments);
@@ -950,11 +943,8 @@ router.post("/lead", verifyToken, allowRoles("csr"), async (req: any, res) => {
       },
     });
 
-    if (asWonClient && trimmedPhone) {
-      await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
-    }
-    if (asWonClient && companyTrim) {
-      await clearPendingDuplicatesForCompany(companyTrim, csrId, lead.id);
+    if (asWonClient) {
+      await clearClaimedPendingDuplicates(trimmedPhone, companyTrim, csrId, lead.id);
     }
 
     await reconcileClientOldFlagsForCsr(csrId);
