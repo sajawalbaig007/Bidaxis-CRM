@@ -10,7 +10,7 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_6_POTENTIAL, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -100,6 +100,7 @@ export default function ImportantCallsPage() {
   const [scopeLead, setScopeLead] = useState<Lead | null>(null);
   const [scopeServices, setScopeServices] = useState<string[]>([]);
   const [scopeSubtypes, setScopeSubtypes] = useState<Record<string, string>>({});
+  const [pendingImportantId, setPendingImportantId] = useState<string | null>(null);
 
   /* ── Derived ── */
   const stats = useMemo(() => ({
@@ -255,18 +256,32 @@ export default function ImportantCallsPage() {
     setScopeLead(null);
     setScopeServices([]);
     setScopeSubtypes({});
+    setPendingImportantId(null);
   };
 
-  const saveInterestedScope = async () => {
+  const saveScope = async () => {
     if (!scopeLead || scopeServices.length === 0) return;
     const interestedService = formatInterestedServices(scopeServices, scopeSubtypes);
     try {
-      await updateLead(scopeLead.id, { interestedService });
-      setLeads(prev => prev.map(l =>
-        l.id === scopeLead.id ? { ...l, interestedService } : l
-      ));
+      if (pendingImportantId && scopeLead.id === pendingImportantId) {
+        await updateLead(pendingImportantId, {
+          status: "important",
+          interestedService,
+          nextSchedule: "",
+          nextTime: "",
+        });
+        setLeads(prev => prev.filter(l => l.id !== pendingImportantId));
+        void refetchStats();
+        void refetch();
+        toast.success("Marked as Important.");
+      } else {
+        await updateLead(scopeLead.id, { interestedService });
+        setLeads(prev => prev.map(l =>
+          l.id === scopeLead.id ? { ...l, interestedService } : l
+        ));
+        toast.success("Scope updated.");
+      }
       closeScopeEditor();
-      toast.success("Interested scope updated.");
     } catch (err) {
       console.log(err);
       toast.error("Could not update scope.");
@@ -286,7 +301,10 @@ export default function ImportantCallsPage() {
       if (status === "interested") {
         await updateLead(id, { status: "interested", interestedService: lead.interestedService || "General" });
       } else if (status === "important") {
-        await updateLead(id, { status: "important", nextSchedule: "", nextTime: "" });
+        closeEditModal();
+        setPendingImportantId(id);
+        openScopeEditor(lead);
+        return;
       } else {
         await updateLead(id, { status });
       }
@@ -397,11 +415,12 @@ export default function ImportantCallsPage() {
 
             <div className={CSR_TABLE_WRAP}>
               <table className={CSR_TABLE_CLASS}>
-                <CsrColGroup widths={COL_6_POTENTIAL} />
+                <CsrColGroup widths={COL_7_IMPORTANT_SUB} />
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
                     <th className={CSR_TH}>Client Name</th>
                     <th className={CSR_TH}>Phone</th>
+                    <th className={CSR_TH}>Interested In</th>
                     <th className={CSR_TH}>Notes</th>
                     <th className={CSR_TH}>Status</th>
                     <th className={CSR_TH}>Our Company</th>
@@ -412,7 +431,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6].map(j => (
+                        {[1,2,3,4,5,6,7].map(j => (
                           <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
@@ -437,6 +456,12 @@ export default function ImportantCallsPage() {
                         })()}
                       </td>
                       <td className={CSR_TD}>
+                        <InterestedServicesCell
+                          interestedService={lead.interestedService}
+                          onEdit={() => openScopeEditor(lead)}
+                        />
+                      </td>
+                      <td className={CSR_TD}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
@@ -458,7 +483,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={6} className="py-16 sm:py-20 text-center">
+                      <td colSpan={7} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         <p className="text-gray-400 text-xs sm:text-sm">No important clients found.</p>
                       </td>
@@ -768,13 +793,14 @@ export default function ImportantCallsPage() {
         {/* ── EDIT INTERESTED SCOPE ── */}
         {scopeLead && (
           <InterestedModal
-            mode="edit"
+            mode={pendingImportantId ? "create" : "edit"}
+            variant={pendingImportantId ? "important" : "interested"}
             services={scopeServices}
             onServicesChange={setScopeServices}
             serviceSubtypes={scopeSubtypes}
             onServiceSubtypesChange={setScopeSubtypes}
             onClose={closeScopeEditor}
-            onSave={() => void saveInterestedScope()}
+            onSave={() => void saveScope()}
           />
         )}
 

@@ -18,7 +18,9 @@ import PhoneAreaCodeFilterInput from "./components/shared/PhoneAreaCodeFilterInp
 import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_6_DASHBOARD } from "./components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD } from "./components/shared/csrTableStyles";
+import InterestedServicesCell from "./components/shared/InterestedServicesCell";
+import { decomposeInterestedServices, formatInterestedServices } from "./utils/parseInterestedServices";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
 import ProjectWonModal from "./components/modals/ProjectWonModal";
@@ -89,6 +91,11 @@ export default function CSRPage() {
   const [selectedInterestedId, setSelectedInterestedId] = useState<string | null>(null);
   const [selectedServices,     setSelectedServices]     = useState<string[]>([]);
   const [serviceSubtypes,      setServiceSubtypes]      = useState<Record<string, string>>({});
+  const [serviceModalVariant,  setServiceModalVariant]  = useState<"interested" | "important">("interested");
+
+  const [scopeLead, setScopeLead] = useState<Lead | null>(null);
+  const [scopeServices, setScopeServices] = useState<string[]>([]);
+  const [scopeSubtypes, setScopeSubtypes] = useState<Record<string, string>>({});
 
   const [showProjectWonModal, setShowProjectWonModal] = useState(false);
   const [selectedProjectLead, setSelectedProjectLead] = useState<Lead | null>(null);
@@ -145,6 +152,9 @@ export default function CSRPage() {
 
   const displayTotal = hasTableFilters ? tabFiltered.length : tabTotal;
 
+  const showInterestedCol = activeTab === "important" || activeTab === "interested";
+  const tableColWidths = showInterestedCol ? COL_7_DASHBOARD : COL_6_DASHBOARD;
+
   useEffect(() => {
     if (page > displayTotalPages) setPage(displayTotalPages);
   }, [page, displayTotalPages]);
@@ -161,11 +171,12 @@ export default function CSRPage() {
     if (!lead) return;
 
     if (status === "important") {
-      try {
-        const res = await updateLead(id, { status: "important", nextSchedule: "", nextTime: "" });
-        if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
-        else { toast.success("Marked as Important."); leaveTab(id); }
-      } catch (err) { console.log(err); }
+      const { services, subtypes } = decomposeInterestedServices(lead.interestedService);
+      setSelectedImportantId(id);
+      setSelectedServices(services);
+      setServiceSubtypes(subtypes);
+      setServiceModalVariant("important");
+      setShowInterestedModal(true);
       return;
     }
     if (status === "schedule call") {
@@ -173,7 +184,12 @@ export default function CSRPage() {
       setShowImportantModal(true); return;
     }
     if (status === "interested") {
-      setSelectedInterestedId(id); setSelectedServices([]); setServiceSubtypes({}); setShowInterestedModal(true); return;
+      setSelectedInterestedId(id);
+      setSelectedServices([]);
+      setServiceSubtypes({});
+      setServiceModalVariant("interested");
+      setShowInterestedModal(true);
+      return;
     }
     if (status === "Close Client") {
       setSelectedProjectLead(lead);
@@ -227,14 +243,32 @@ export default function CSRPage() {
   };
 
   const saveInterestedCall = async () => {
-    if (selectedServices.length === 0 || !selectedInterestedId) return;
+    if (selectedServices.length === 0) return;
+    const interestedService = formatInterestedServices(selectedServices, serviceSubtypes);
+
+    if (serviceModalVariant === "important" && selectedImportantId) {
+      try {
+        const res = await updateLead(selectedImportantId, {
+          status: "important",
+          interestedService,
+          nextSchedule: "",
+          nextTime: "",
+        });
+        if (res?.redistributed) toast.success("Lead limit reached — reassigned to another CSR.");
+        else {
+          toast.success("Marked as Important.");
+          leaveTab(selectedImportantId);
+        }
+      } catch (err) { console.log(err); }
+      setShowInterestedModal(false);
+      setSelectedServices([]);
+      setServiceSubtypes({});
+      setSelectedImportantId(null);
+      return;
+    }
+
+    if (!selectedInterestedId) return;
     try {
-      const interestedService = selectedServices
-        .map(s => {
-          const sub = (serviceSubtypes[s] ?? "").trim();
-          return sub ? `${s}-${sub}` : s;
-        })
-        .join(", ");
       await updateLead(selectedInterestedId, {
         status: "interested",
         interestedService,
@@ -242,7 +276,39 @@ export default function CSRPage() {
       leaveTab(selectedInterestedId);
       toast.success("Moved to Interested.");
     } catch (err) { console.log(err); }
-    setShowInterestedModal(false); setSelectedServices([]); setServiceSubtypes({}); setSelectedInterestedId(null);
+    setShowInterestedModal(false);
+    setSelectedServices([]);
+    setServiceSubtypes({});
+    setSelectedInterestedId(null);
+  };
+
+  const openScopeEditor = (lead: Lead) => {
+    const { services, subtypes } = decomposeInterestedServices(lead.interestedService);
+    setScopeLead(lead);
+    setScopeServices(services);
+    setScopeSubtypes(subtypes);
+  };
+
+  const closeScopeEditor = () => {
+    setScopeLead(null);
+    setScopeServices([]);
+    setScopeSubtypes({});
+  };
+
+  const saveScope = async () => {
+    if (!scopeLead || scopeServices.length === 0) return;
+    const interestedService = formatInterestedServices(scopeServices, scopeSubtypes);
+    try {
+      await updateLead(scopeLead.id, { interestedService });
+      setLeads(prev => prev.map(l =>
+        l.id === scopeLead.id ? { ...l, interestedService } : l
+      ));
+      closeScopeEditor();
+      toast.success("Scope updated.");
+    } catch (err) {
+      console.log(err);
+      toast.error("Could not update scope.");
+    }
   };
 
   const saveProjectWon = async () => {
@@ -399,12 +465,13 @@ export default function CSRPage() {
           {/* ── TABLE ── */}
           <div className="overflow-x-hidden rounded-xl sm:rounded-2xl border border-gray-100 dark:border-crm-border">
             <table className={CSR_TABLE_CLASS}>
-              <CsrColGroup widths={COL_6_DASHBOARD} />
+              <CsrColGroup widths={tableColWidths} />
               <thead className="crm-thead bg-[#FAFAFA]">
                 <tr>
                   <th className={CSR_TH}>Client Name</th>
                   <th className={CSR_TH}>Our Company</th>
                   <th className={CSR_TH}>Phone</th>
+                  {showInterestedCol && <th className={CSR_TH}>Interested In</th>}
                   <th className={CSR_TH}>Status</th>
                   <th className={CSR_TH}>Notes</th>
                   <th className={CSR_TH}>Action</th>
@@ -414,7 +481,7 @@ export default function CSRPage() {
                 {loading ? (
                   [1,2,3,4,5].map(i => (
                     <tr key={i} className="border-t border-gray-100">
-                      {[1,2,3,4,5,6].map(j => (
+                      {Array.from({ length: showInterestedCol ? 7 : 6 }).map((_, j) => (
                         <td key={j} className="py-4 sm:py-5 px-3 sm:px-5">
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-24" />
                         </td>
@@ -451,6 +518,15 @@ export default function CSRPage() {
                         );
                       })()}
                     </td>
+
+                    {showInterestedCol && (
+                      <td className={CSR_TD}>
+                        <InterestedServicesCell
+                          interestedService={currentLink.interestedService}
+                          onEdit={() => openScopeEditor(currentLink)}
+                        />
+                      </td>
+                    )}
 
                     {/* STATUS */}
                     <td className={CSR_TD}>
@@ -524,7 +600,7 @@ export default function CSRPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="py-14 sm:py-20 text-center">
+                    <td colSpan={showInterestedCol ? 7 : 6} className="py-14 sm:py-20 text-center">
                       <h2 className="text-lg sm:text-2xl font-bold text-[#0F172A]">No Data Found</h2>
                       <p className="text-gray-500 mt-2 sm:mt-3 text-xs sm:text-sm">
                         {stateFilter && timezoneFilter && sourceFilter
@@ -594,12 +670,31 @@ export default function CSRPage() {
         {/* ══ INTERESTED MODAL ══ */}
         {showInterestedModal && (
           <InterestedModal
+            variant={serviceModalVariant}
             services={selectedServices}
             onServicesChange={setSelectedServices}
             serviceSubtypes={serviceSubtypes}
             onServiceSubtypesChange={setServiceSubtypes}
-            onClose={() => { setShowInterestedModal(false); setSelectedServices([]); setServiceSubtypes({}); }}
+            onClose={() => {
+              setShowInterestedModal(false);
+              setSelectedServices([]);
+              setServiceSubtypes({});
+              setSelectedInterestedId(null);
+              setSelectedImportantId(null);
+            }}
             onSave={saveInterestedCall}
+          />
+        )}
+
+        {scopeLead && (
+          <InterestedModal
+            mode="edit"
+            services={scopeServices}
+            onServicesChange={setScopeServices}
+            serviceSubtypes={scopeSubtypes}
+            onServiceSubtypesChange={setScopeSubtypes}
+            onClose={closeScopeEditor}
+            onSave={() => void saveScope()}
           />
         )}
 
