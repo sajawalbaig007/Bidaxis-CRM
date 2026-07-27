@@ -35,11 +35,14 @@ function phoneLookupKey(phone: string): string {
 /**
  * Bulk phone match for large uploads — avoids N+1 findLeadsByPhone scans.
  * Returns Map keyed by each input phone string → matching leads (exact + fuzzy format).
+ * fuzzy=false skips expensive `contains` scans (use for 1k+ row uploads).
  */
 export async function findLeadsByPhonesBulk(
   phones: string[],
   chunkSize = 500,
+  opts?: { fuzzy?: boolean },
 ): Promise<Map<string, LeadPhoneMatch[]>> {
+  const fuzzy = opts?.fuzzy !== false;
   const result = new Map<string, LeadPhoneMatch[]>();
   const unique = [...new Set(phones.map(p => p.trim()).filter(p => p.length >= 7))];
   if (unique.length === 0) return result;
@@ -55,8 +58,15 @@ export async function findLeadsByPhonesBulk(
     byKey.set(key, list);
   };
 
-  for (let i = 0; i < unique.length; i += chunkSize) {
-    const chunk = unique.slice(i, i + chunkSize);
+  /* Expand each phone into common format variants so exact `in` catches more without fuzzy */
+  const queryValues = new Set<string>();
+  for (const p of unique) {
+    for (const v of phoneQueryVariants(p)) queryValues.add(v);
+  }
+  const queryList = [...queryValues];
+
+  for (let i = 0; i < queryList.length; i += chunkSize) {
+    const chunk = queryList.slice(i, i + chunkSize);
     const exact = await prisma.lead.findMany({
       where:   { phone: { in: chunk } },
       select:  LEAD_PHONE_SELECT,
@@ -65,27 +75,31 @@ export async function findLeadsByPhonesBulk(
     for (const l of exact) addLead(l);
   }
 
-  const needFuzzy = unique.filter(p => {
-    const key = phoneLookupKey(p);
-    if (!key) return false;
-    const candidates = byKey.get(key) ?? [];
-    return !candidates.some(c => c.phone && phonesMatch(c.phone, p));
-  });
+  /* Fuzzy contains is O(n) on Mongo — only for smaller sheets */
+  const useFuzzy = fuzzy && unique.length <= 800;
+  if (useFuzzy) {
+    const needFuzzy = unique.filter(p => {
+      const key = phoneLookupKey(p);
+      if (!key) return false;
+      const candidates = byKey.get(key) ?? [];
+      return !candidates.some(c => c.phone && phonesMatch(c.phone, p));
+    });
 
-  if (needFuzzy.length > 0) {
-    const suffixes = [...new Set(needFuzzy.map(phoneLookupKey).filter(Boolean))];
-    const FUZZY_OR = 40;
-    for (let i = 0; i < suffixes.length; i += FUZZY_OR) {
-      const chunk = suffixes.slice(i, i + FUZZY_OR);
-      const candidates = await prisma.lead.findMany({
-        where: {
-          phone: { not: null },
-          OR: chunk.map(s => ({ phone: { contains: s } })),
-        },
-        select:  LEAD_PHONE_SELECT,
-        orderBy: { updatedAt: "desc" },
-      });
-      for (const l of candidates) addLead(l);
+    if (needFuzzy.length > 0) {
+      const suffixes = [...new Set(needFuzzy.map(phoneLookupKey).filter(Boolean))];
+      const FUZZY_OR = 40;
+      for (let i = 0; i < suffixes.length; i += FUZZY_OR) {
+        const chunk = suffixes.slice(i, i + FUZZY_OR);
+        const candidates = await prisma.lead.findMany({
+          where: {
+            phone: { not: null },
+            OR: chunk.map(s => ({ phone: { contains: s } })),
+          },
+          select:  LEAD_PHONE_SELECT,
+          orderBy: { updatedAt: "desc" },
+        });
+        for (const l of candidates) addLead(l);
+      }
     }
   }
 
@@ -103,6 +117,25 @@ export async function findLeadsByPhonesBulk(
   }
 
   return result;
+}
+
+function phoneQueryVariants(phone: string): string[] {
+  const trimmed = phone.trim();
+  const digits = normalizePhone(trimmed);
+  const out = new Set<string>([trimmed]);
+  if (!digits || digits.length < 7) return [...out];
+
+  out.add(digits);
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  out.add(last10);
+  if (last10.length === 10) {
+    out.add(`+1${last10}`);
+    out.add(`1${last10}`);
+    out.add(`(${last10.slice(0, 3)}) ${last10.slice(3, 6)}-${last10.slice(6)}`);
+    out.add(`${last10.slice(0, 3)}-${last10.slice(3, 6)}-${last10.slice(6)}`);
+    out.add(`${last10.slice(0, 3)}.${last10.slice(3, 6)}.${last10.slice(6)}`);
+  }
+  return [...out];
 }
 
 export async function findLeadsByPhone(phone: string) {

@@ -236,6 +236,7 @@ export default function UploadPage() {
   const [filePreviewRows,    setFilePreviewRows]    = useState<PreviewRow[]>([]);
   const [filePreviewSummary, setFilePreviewSummary] = useState<PreviewSummary | null>(null);
   const [filePreviewLoading, setFilePreviewLoading] = useState(false);
+  const [filePreviewSkipped, setFilePreviewSkipped] = useState(false);
   const [hideDupInPreview,     setHideDupInPreview]     = useState(true);
   const [previewFilter,        setPreviewFilter]        = useState<"all" | PreviewRow["status"]>("all");
 
@@ -498,16 +499,11 @@ export default function UploadPage() {
 
   const finalCompany = selectedCompany === "Other" ? customCompany : selectedCompany;
 
-  const buildUploadFormData = (forPreview = false) => {
+  const buildUploadFormData = () => {
     if (!selectedFile) return null;
     const formData = new FormData();
     formData.append("file", selectedFile);
-    const csrIds = selectedCSRs.length > 0
-      ? selectedCSRs
-      : forPreview
-        ? csrs.filter(c => c.isActive).map(c => c.id)
-        : selectedCSRs;
-    formData.append("selectedCSRs", JSON.stringify(csrIds));
+    formData.append("selectedCSRs", JSON.stringify(selectedCSRs));
     formData.append("companyName", finalCompany.trim());
     formData.append("resetMode", resetMode ?? "keep");
     formData.append("initialStatuses", JSON.stringify(
@@ -527,39 +523,23 @@ export default function UploadPage() {
     return formData;
   };
 
-  const fetchFilePreview = async () => {
-    const formData = buildUploadFormData(true);
-    if (!formData) return;
-    setFilePreviewLoading(true);
-    try {
-      const res = await API.post("/uploads/preview", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 180_000,
-      });
-      setFilePreviewRows((res.data.preview ?? []) as PreviewRow[]);
-      setFilePreviewSummary((res.data.summary ?? null) as PreviewSummary | null);
-      setPreviewFilter("all");
-    } catch {
-      setFilePreviewRows([]);
-      setFilePreviewSummary(null);
-    } finally {
-      setFilePreviewLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (!showCSRModal || modalStep !== "csrs" || !selectedFile) {
       if (!showCSRModal) {
         setFilePreviewRows([]);
         setFilePreviewSummary(null);
+        setFilePreviewSkipped(false);
         setHideDupInPreview(true);
         setPreviewFilter("all");
       }
       return;
     }
-    void fetchFilePreview();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCSRModal, modalStep, selectedFile, selectedCSRs, uploadMode, selectedPane, selectedLeadType, selectedSourceId, finalCompany, resetMode]);
+    /* Live preview off — avoid /uploads/preview during CSR select / upload */
+    setFilePreviewSkipped(true);
+    setFilePreviewRows([]);
+    setFilePreviewSummary(null);
+    setFilePreviewLoading(false);
+  }, [showCSRModal, modalStep, selectedFile]);
 
   const handleFiles = async () => {
     if (!selectedFile) return;
@@ -1261,6 +1241,7 @@ export default function UploadPage() {
                     rows={filePreviewRows}
                     summary={filePreviewSummary}
                     loading={filePreviewLoading}
+                    skipped={filePreviewSkipped}
                     hideDuplicates={hideDupInPreview}
                     onToggleHideDuplicates={() => setHideDupInPreview(v => !v)}
                     filter={previewFilter}
@@ -2068,12 +2049,12 @@ export default function UploadPage() {
                   }
                   <div className="min-w-0">
                     <h3 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center gap-2">
-                      {previewLive ? "Live Preview" : "Upload Results"} — {lastUploadName}
+                      {previewLive ? "Uploading" : "Upload Results"} — {lastUploadName}
                       {previewLoading && <Loader2 size={16} className="animate-spin text-[#B8112D]" />}
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
                       {previewLoading
-                        ? "Analyzing rows while upload processes..."
+                        ? "Processing file on server — please wait…"
                         : "Each row checked against the database before import."}
                     </p>
                   </div>
