@@ -2,7 +2,6 @@
 
 import { createPortal } from "react-dom";
 import { getTimezoneAbbrFromPhone, tzBadgeClass } from "../../constants/timezoneAbbr";
-import { phoneDedupeKey } from "../../utils/parsePhones";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 
 interface PhoneWithTzCellProps {
@@ -24,15 +23,7 @@ export default function PhoneWithTzCell({
   variant = "plain",
   className = "",
 }: PhoneWithTzCellProps) {
-  const rawPhones = (allPhones && allPhones.length > 0 ? allPhones : [phone]).filter(Boolean);
-  const seen = new Set<string>();
-  const phones: string[] = [];
-  for (const p of rawPhones) {
-    const key = phoneDedupeKey(p);
-    if (key.length < 7 || seen.has(key)) continue;
-    seen.add(key);
-    phones.push(p);
-  }
+  const phones = (allPhones && allPhones.length > 0 ? allPhones : [phone]).filter(Boolean);
   const primary = phones[0] ?? phone;
   const extras = phones.length > 1 ? phones.length - 1 : extraCount;
   const canOpen = phones.length > 1;
