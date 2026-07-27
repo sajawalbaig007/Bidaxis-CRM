@@ -14,8 +14,10 @@ interface InterestedModalProps {
   onServiceSubtypesChange?: (v: Record<string, string>) => void;
   onClose: () => void;
   onSave: () => void;
-  /** Edit existing interested scope (vs first-time mark) */
+  /** Edit existing scope (vs first-time mark) */
   mode?: "create" | "edit";
+  /** Create-mode labels — important uses same scope picker */
+  variant?: "interested" | "important";
 }
 
 function formatPreview(services: string[], subtypes: Record<string, string>) {
@@ -34,11 +36,13 @@ export default function InterestedModal({
   serviceSubtypes = {}, onServiceSubtypesChange,
   onClose, onSave,
   mode = "create",
+  variant = "interested",
 }: InterestedModalProps) {
   const multi = !!onServicesChange;
   const selected = multi ? services : (service ? [service] : []);
   const canSave = selected.length > 0;
   const isEdit = mode === "edit";
+  const isImportant = variant === "important" && !isEdit;
 
   const setSubtype = (svc: string, text: string) => {
     if (multi && onServiceSubtypesChange) {
@@ -61,12 +65,14 @@ export default function InterestedModal({
         <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-0">
           <div>
             <h2 className="text-xl sm:text-[26px] font-bold text-[#0F172A] dark:text-gray-100">
-              {isEdit ? "Edit Interested Scope" : "Client Interested In"}
+              {isEdit ? "Edit Scope" : isImportant ? "Important — Scope" : "Client Interested In"}
             </h2>
             <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mt-1 sm:mt-2">
               {isEdit
                 ? "Update service(s) and optional subtypes for this client."
-                : "Select service(s), then optionally type a subtype (shows as IT-Networking)."}
+                : isImportant
+                  ? "Select what this client is interested in before marking important."
+                  : "Select service(s), then optionally type a subtype (shows as IT-Networking)."}
             </p>
           </div>
           <button onClick={onClose}
@@ -119,7 +125,7 @@ export default function InterestedModal({
             className="flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl bg-[#F5F6FA] dark:bg-gray-800 font-semibold text-gray-600 dark:text-gray-300 text-sm">Cancel</button>
           <button onClick={onSave} disabled={!canSave}
             className={`flex-1 h-11 sm:h-[52px] rounded-xl sm:rounded-2xl font-semibold text-white text-sm transition-all ${canSave ? "bg-[#B8112D]" : "bg-gray-300 cursor-not-allowed"}`}>
-            {isEdit ? "Update Scope" : "Save Interest"}
+            {isEdit ? "Update Scope" : isImportant ? "Mark Important" : "Save Interest"}
           </button>
         </div>
       </div>
