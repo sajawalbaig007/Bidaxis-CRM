@@ -248,14 +248,15 @@ router.get("/tab-leads", verifyToken, allowRoles("csr"), async (req: any, res) =
       return res.status(400).json({ success: false, message: "Invalid tab." });
     }
 
-    let removed = 0;
     if (tab === "pending" || tab === "today") {
-      removed = await maybeHealPipelineLeaks(csrId);
-      if (removed > 0) invalidateCsrLeadCaches(csrId);
+      /* Do not block the list response — heal in background */
+      void maybeHealPipelineLeaks(csrId)
+        .then(n => { if (n > 0) invalidateCsrLeadCaches(csrId); })
+        .catch(err => console.log("[csr] background heal failed:", err));
     }
 
     const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
-    const cached   = removed === 0 ? getCache<object>(cacheKey) : null;
+    const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const result = await fetchCsrTabLeads({ csrId, tab, page, pageSize, from, to });
