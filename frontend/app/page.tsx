@@ -33,7 +33,7 @@ export default function HomeLandingPage() {
           <ThemeToggle className="!w-10 !h-10 rounded-xl shadow-sm bg-white/10 border border-white/20 text-white" />
         </div>
 
-        <div className="relative z-10 w-full max-w-[520px] text-center px-1 sm:px-0">
+        <div className="relative z-10 w-full max-w-[720px] text-center px-1 sm:px-0">
           <div className="inline-flex bg-white dark:bg-crm-surface rounded-2xl px-5 sm:px-6 py-3 shadow-2xl mb-5 sm:mb-8">
             <Image src="/images/logo.jpeg" alt="BEM Solutions" width={160} height={48} className="object-contain h-9 sm:h-12 w-auto" style={{ width: "auto", height: "auto" }} />
           </div>
@@ -45,25 +45,26 @@ export default function HomeLandingPage() {
             Select your role to sign in. Each portal uses separate credentials.
           </p>
 
-          <div className="flex flex-col gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-2 grid-rows-3 gap-2.5 sm:gap-3 max-w-[640px] mx-auto">
             {PORTAL_OPTIONS.map(opt => {
               const Icon = PORTAL_ICONS[opt.value];
+              const isLastAlone = opt.value === "accounts";
               return (
                 <Link
                   key={opt.value}
                   href={`/login/${opt.value}`}
-                  className="group flex items-center gap-3 sm:gap-4 w-full px-4 sm:px-6 py-3.5 sm:py-5 rounded-xl sm:rounded-2xl bg-white/95 dark:bg-crm-surface/95 hover:bg-white dark:hover:bg-crm-surface backdrop-blur-sm border border-white/30 dark:border-crm-border shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 text-left"
+                  className={`group flex items-center gap-2.5 sm:gap-3 w-full px-3 sm:px-4 py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-white/95 dark:bg-crm-surface/95 hover:bg-white dark:hover:bg-crm-surface backdrop-blur-sm border border-white/30 dark:border-crm-border shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 text-left ${
+                    isLastAlone ? "col-span-2 max-w-[320px] sm:max-w-[340px] justify-self-center" : ""
+                  }`}
                 >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#FFF1F3] dark:bg-[#B8112D]/20 text-[#B8112D] flex items-center justify-center shrink-0 group-hover:bg-[#B8112D] group-hover:text-white transition-colors">
-                    <Icon size={20} className="sm:hidden" />
-                    <Icon size={22} className="hidden sm:block" />
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#FFF1F3] dark:bg-[#B8112D]/20 text-[#B8112D] flex items-center justify-center shrink-0 group-hover:bg-[#B8112D] group-hover:text-white transition-colors">
+                    <Icon size={18} className="sm:w-5 sm:h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] sm:text-[17px] font-bold text-crm-text">{opt.label}</p>
-                    <p className="text-[11px] sm:text-[13px] text-crm-text-muted mt-0.5 truncate">{opt.hint}</p>
+                    <p className="text-[13px] sm:text-[15px] font-bold text-crm-text leading-tight">{opt.label}</p>
+                    <p className="text-[10px] sm:text-[11px] text-crm-text-muted mt-0.5 line-clamp-2 leading-snug">{opt.hint}</p>
                   </div>
-                  <ArrowRight size={18} className="text-[#B8112D] shrink-0 group-hover:translate-x-1 transition-transform sm:hidden" />
-                  <ArrowRight size={20} className="text-[#B8112D] shrink-0 group-hover:translate-x-1 transition-transform hidden sm:block" />
+                  <ArrowRight size={16} className="text-[#B8112D] shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
               );
             })}
