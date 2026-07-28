@@ -59,34 +59,34 @@ export default function TotalAssetsPage() {
           </header>
 
           <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="bg-[#EAF5FF] border-b border-gray-200 py-2.5 px-4 text-center">
-              <h2 className="text-lg sm:text-xl font-black text-[#111827] tracking-tight">Asset Register (Head Wise)</h2>
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-200 bg-[#F8FAFC]">
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Asset Register (Head Wise)</h2>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead>
-                  <tr className="bg-[#FAFAFA] border-b border-gray-300">
-                    <th className="text-left px-3 py-2 text-sm font-bold text-[#111827]">Section</th>
-                    <th className="text-left px-3 py-2 text-sm font-bold text-[#111827]">Picked Heads</th>
-                    <th className="text-right px-3 py-2 text-sm font-bold text-[#111827]">Total</th>
+              <table className="w-full text-sm" style={{ minWidth: "900px" }}>
+                <thead className="bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Section</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Picked Heads</th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-700">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ASSET_SECTIONS.map((section) => (
-                    <tr key={section.title} className="border-b border-gray-200">
-                      <td className="px-3 py-2.5 text-sm font-semibold text-[#111827]">{section.title}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-700">{section.heads.join(" • ")}</td>
-                      <td className="px-3 py-2.5 text-right text-sm font-bold text-[#111827]">{currency(section.total)}</td>
+                    <tr key={section.title} className="border-b border-gray-100">
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{section.title}</td>
+                      <td className="px-3 py-2.5 text-xs text-gray-600">{section.heads.join(" • ")}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{currency(section.total)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-[#ECFDF3] border-t border-gray-300">
-                    <td className="px-3 py-2.5 text-sm font-bold text-[#0F172A]" colSpan={2}>
+                  <tr className="bg-[#ECFDF3] border-t border-gray-200">
+                    <td className="px-3 py-2.5 font-bold text-[#0F172A]" colSpan={2}>
                       Grand Total Assets
                     </td>
-                    <td className="px-3 py-2.5 text-right text-sm font-extrabold text-[#0F172A]">{currency(grandTotal)}</td>
+                    <td className="px-3 py-2.5 text-right font-extrabold text-[#0F172A]">{currency(grandTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
