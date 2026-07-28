@@ -2,52 +2,20 @@
 
 import { useMemo } from "react";
 import {
-  BarChart, Bar, CartesianGrid, Legend, PieChart, Pie, Cell, Tooltip, XAxis, YAxis, ResponsiveContainer,
+  BarChart, Bar, CartesianGrid, PieChart, Pie, Cell, Tooltip, XAxis, YAxis, ResponsiveContainer,
 } from "recharts";
+import { Scale, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
-import EditableDataTable from "../components/EditableDataTable";
+import BalanceSheetTable, { sumItems } from "../components/BalanceSheetTable";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
-import type { BalanceSheetData, BalanceSection, BalanceLineItem } from "../types";
+import type { BalanceSheetData, BalanceLineItem, BalanceSection } from "../types";
 import { currency, newRowId } from "../types";
 
 function defaultData(): BalanceSheetData {
-  return {
-    assetSections: [
-      {
-        id: "as-1",
-        title: "Non-Current Assets",
-        items: [
-          { id: "a-1", label: "Property, Plant & Equipment", note: "1", amount: 1825000 },
-          { id: "a-2", label: "Intangible Assets", note: "2", amount: 420000 },
-        ],
-      },
-      {
-        id: "as-2",
-        title: "Current Assets",
-        items: [
-          { id: "a-3", label: "Inventories", note: "5", amount: 535000 },
-          { id: "a-4", label: "Cash and Cash Equivalents", note: "8", amount: 280000 },
-        ],
-      },
-    ],
-    equityLiabilitySections: [
-      {
-        id: "es-1",
-        title: "Equity",
-        items: [
-          { id: "e-1", label: "Share Capital", note: "10", amount: 1800000 },
-          { id: "e-2", label: "Retained Earnings", note: "11", amount: 970000 },
-        ],
-      },
-    ],
-  };
-}
-
-function sumItems(items: BalanceLineItem[]) {
-  return items.reduce((a, i) => a + (Number(i.amount) || 0), 0);
+  return { assetSections: [], equityLiabilitySections: [] };
 }
 
 function sumSections(sections: BalanceSection[]) {
@@ -57,19 +25,27 @@ function sumSections(sections: BalanceSection[]) {
 export default function BalanceSheetPage() {
   const acc = useAccountsPage<BalanceSheetData>({ page: "balance_sheet", defaultData });
 
-  const { totalAssets, currentAssets, nonCurrentAssets, totalEquity, totalLiabilities } = useMemo(() => {
+  const { totalAssets, currentAssets, nonCurrentAssets, totalEquity, totalLiabilities, balanced } = useMemo(() => {
     const assetSections = acc.data.assetSections ?? [];
     const eqSections = acc.data.equityLiabilitySections ?? [];
-    const nc = assetSections.find(s => s.title.includes("Non-Current"))?.items ?? [];
-    const cur = assetSections.find(s => s.title === "Current Assets")?.items ?? [];
+    const nc = assetSections.find(s => s.title.toLowerCase().includes("non-current"))?.items ?? [];
+    const cur = assetSections.find(s => s.title.toLowerCase() === "current assets")?.items ?? [];
     const nonCurrentAssets = sumItems(nc.length ? nc : assetSections[0]?.items ?? []);
     const currentAssets = sumItems(cur.length ? cur : assetSections[1]?.items ?? []);
     const totalAssets = sumSections(assetSections);
-    const equity = eqSections.find(s => s.title === "Equity")?.items ?? [];
+    const equity = eqSections.find(s => s.title.toLowerCase() === "equity")?.items ?? [];
     const totalEquity = sumItems(equity);
-    const liabilities = eqSections.filter(s => s.title !== "Equity");
+    const liabilities = eqSections.filter(s => s.title.toLowerCase() !== "equity");
     const totalLiabilities = sumSections(liabilities);
-    return { totalAssets, currentAssets, nonCurrentAssets, totalEquity, totalLiabilities };
+    const totalEL = totalEquity + totalLiabilities;
+    return {
+      totalAssets,
+      currentAssets,
+      nonCurrentAssets,
+      totalEquity,
+      totalLiabilities,
+      balanced: totalAssets > 0 && Math.abs(totalAssets - totalEL) < 1,
+    };
   }, [acc.data]);
 
   const updateItem = (
@@ -83,80 +59,16 @@ export default function BalanceSheetPage() {
       ...prev,
       [side]: prev[side].map(sec =>
         sec.id === sectionId
-          ? {
-              ...sec,
-              items: sec.items.map(it =>
-                it.id === itemId ? { ...it, [key]: value } : it,
-              ),
-            }
-          : sec,
-      ),
-    }));
-  };
-
-  const addRow = () => {
-    acc.setData(prev => {
-      const sections = [...prev.assetSections];
-      const target = sections[0] ?? { id: newRowId("as"), title: "Non-Current Assets", items: [] };
-      if (!sections[0]) sections.push(target);
-      target.items = [
-        ...target.items,
-        { id: newRowId("a"), label: "New Line Item", note: "", amount: 0 },
-      ];
-      return { ...prev, assetSections: sections };
-    });
-  };
-
-  const deleteItem = (
-    side: "assetSections" | "equityLiabilitySections",
-    sectionId: string,
-    itemId: string,
-  ) => {
-    acc.setData(prev => ({
-      ...prev,
-      [side]: prev[side].map(sec =>
-        sec.id === sectionId
-          ? { ...sec, items: sec.items.filter(it => it.id !== itemId) }
+          ? { ...sec, items: sec.items.map(it => (it.id === itemId ? { ...it, [key]: value } : it)) }
           : sec,
       ),
     }));
   };
 
   const assetMixData = [
-    { name: "Non-Current Assets", value: nonCurrentAssets },
-    { name: "Current Assets", value: currentAssets },
+    { name: "Non-Current", value: nonCurrentAssets },
+    { name: "Current", value: currentAssets },
   ];
-
-  const renderSectionBlock = (
-    side: "assetSections" | "equityLiabilitySections",
-    section: BalanceSection,
-  ) => (
-    <div key={section.id} className="space-y-2">
-      <input
-        value={section.title}
-        onChange={e => {
-          acc.setData(prev => ({
-            ...prev,
-            [side]: prev[side].map(s => (s.id === section.id ? { ...s, title: e.target.value } : s)),
-          }));
-        }}
-        className="w-full h-10 px-3 rounded-xl border border-gray-200 font-semibold text-gray-800 text-sm bg-[#FCFCFC]"
-      />
-      <EditableDataTable
-        columns={[
-          { key: "label", label: "Particulars", type: "text" },
-          { key: "note", label: "Note", type: "text", width: "100px", align: "center" },
-          { key: "amount", label: "Amount", type: "number", align: "right", width: "140px" },
-        ]}
-        rows={section.items}
-        onChange={(id, key, value) => updateItem(side, section.id, id, key as keyof BalanceLineItem, value)}
-        onDelete={id => deleteItem(side, section.id, id)}
-      />
-      <p className="text-right text-sm font-bold text-gray-700 pr-2">
-        Section Total: {currency(sumItems(section.items))}
-      </p>
-    </div>
-  );
 
   return (
     <div className="flex min-h-screen bg-[#F0F2F8]">
@@ -165,65 +77,133 @@ export default function BalanceSheetPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Balance Sheet"
-          subtitle="Editable vertical balance sheet — saved by record date."
-          onAddNew={addRow}
+          subtitle="Professional vertical format — eye icon per section to edit lines."
+          onAddNew={() => {
+            acc.setData(prev => {
+              const sections = [...prev.assetSections];
+              const target = sections[0] ?? { id: newRowId("as"), title: "Non-Current Assets", items: [] };
+              if (!sections[0]) sections.push(target);
+              target.items.push({ id: newRowId("a"), label: "New Line Item", note: "", amount: 0 });
+              return { ...prev, assetSections: sections };
+            });
+          }}
         >
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: "Total Assets", value: totalAssets, cls: "from-[#0B84F3] to-[#0369A1]" },
-              { label: "Current Assets", value: currentAssets, cls: "from-[#12B76A] to-[#027A48]" },
-              { label: "Total Liabilities", value: totalLiabilities, cls: "from-[#B8112D] to-[#8b0d22]" },
-              { label: "Total Equity", value: totalEquity, cls: "from-[#7C3AED] to-[#5B21B6]" },
-            ].map(card => (
-              <div key={card.label} className={`bg-gradient-to-br ${card.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md`}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{card.label}</p>
-                <p className="text-lg sm:text-2xl font-extrabold mt-1">{currency(card.value)}</p>
+              { label: "Total Assets", value: totalAssets, grad: "from-[#0B84F3] to-[#0369A1]" },
+              { label: "Current Assets", value: currentAssets, grad: "from-[#12B76A] to-[#027A48]" },
+              { label: "Total Liabilities", value: totalLiabilities, grad: "from-[#B8112D] to-[#8b0d22]" },
+              { label: "Total Equity", value: totalEquity, grad: "from-[#7C3AED] to-[#5B21B6]" },
+            ].map(c => (
+              <div key={c.label} className={`relative overflow-hidden rounded-2xl p-4 text-white shadow-lg bg-gradient-to-br ${c.grad}`}>
+                <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/75">{c.label}</p>
+                <p className="text-xl sm:text-2xl font-extrabold mt-1 tabular-nums">{currency(c.value)}</p>
               </div>
             ))}
           </section>
 
+          {!balanced && totalAssets > 0 && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
+              Assets ({currency(totalAssets)}) ≠ Equity + Liabilities ({currency(totalEquity + totalLiabilities)}) — review totals.
+            </div>
+          )}
+
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <h2 className="font-bold text-gray-800 text-sm">Asset Composition</h2>
-              <RechartsBox height={240} className="mt-3">
+            <div className="bg-white rounded-2xl p-4 border-2 border-[#0B84F3]/20 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <Scale size={16} className="text-[#0B84F3]" />
+                <h2 className="font-bold text-gray-800 text-sm">Asset Composition</h2>
+              </div>
+              <RechartsBox height={220} className="mt-2">
                 <PieChart>
-                  <Pie data={assetMixData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={4}>
-                    {assetMixData.map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? "#0B84F3" : "#12B76A"} />
-                    ))}
+                  <Pie data={assetMixData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={78} paddingAngle={4}>
+                    <Cell fill="#0B84F3" />
+                    <Cell fill="#12B76A" />
                   </Pie>
                   <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                  <Legend />
                 </PieChart>
               </RechartsBox>
             </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <h2 className="font-bold text-gray-800 text-sm">Totals Comparison</h2>
-              <div className="h-[240px] mt-3">
+            <div className="bg-white rounded-2xl p-4 border-2 border-[#B8112D]/20 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp size={16} className="text-[#B8112D]" />
+                <h2 className="font-bold text-gray-800 text-sm">Assets vs Equity + Liabilities</h2>
+              </div>
+              <div className="h-[220px] mt-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[{ name: "Assets", value: totalAssets }, { name: "Equity+Liab.", value: totalEquity + totalLiabilities }]}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
+                  <BarChart data={[
+                    { name: "Assets", value: totalAssets, fill: "#0B84F3" },
+                    { name: "Eq + Liab.", value: totalEquity + totalLiabilities, fill: "#B8112D" },
+                  ]} barSize={48}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="value" fill="#B8112D" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                      {[0, 1].map(i => (
+                        <Cell key={i} fill={i === 0 ? "#0B84F3" : "#B8112D"} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </section>
 
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 mt-5 space-y-6">
-            <h2 className="font-bold text-gray-800">Assets</h2>
-            {(acc.data.assetSections ?? []).map(sec => renderSectionBlock("assetSections", sec))}
-            <p className="text-right font-extrabold text-[#0F172A]">Total Assets: {currency(totalAssets)}</p>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
+            <BalanceSheetTable
+              variant="assets"
+              groupTitle="Assets"
+              grandLabel="Total Assets"
+              sections={acc.data.assetSections ?? []}
+              onUpdateSectionTitle={(id, title) => acc.setData(prev => ({
+                ...prev,
+                assetSections: prev.assetSections.map(s => (s.id === id ? { ...s, title } : s)),
+              }))}
+              onUpdateItem={(sid, iid, key, val) => updateItem("assetSections", sid, iid, key, val)}
+              onDeleteItem={(sid, iid) => acc.setData(prev => ({
+                ...prev,
+                assetSections: prev.assetSections.map(s => s.id === sid ? { ...s, items: s.items.filter(i => i.id !== iid) } : s),
+              }))}
+              onAddItem={sid => acc.setData(prev => ({
+                ...prev,
+                assetSections: prev.assetSections.map(s =>
+                  s.id === sid ? { ...s, items: [...s.items, { id: newRowId("a"), label: "New Line", note: "", amount: 0 }] } : s,
+                ),
+              }))}
+              onAddSection={() => acc.setData(prev => ({
+                ...prev,
+                assetSections: [...prev.assetSections, { id: newRowId("as"), title: "New Asset Section", items: [] }],
+              }))}
+            />
 
-            <h2 className="font-bold text-gray-800 pt-4 border-t">Equity and Liabilities</h2>
-            {(acc.data.equityLiabilitySections ?? []).map(sec => renderSectionBlock("equityLiabilitySections", sec))}
-            <p className="text-right font-extrabold text-[#0F172A]">
-              Total Equity & Liabilities: {currency(totalEquity + totalLiabilities)}
-            </p>
-          </section>
+            <BalanceSheetTable
+              variant="liability"
+              groupTitle="Equity & Liabilities"
+              grandLabel="Total Equity & Liabilities"
+              sections={acc.data.equityLiabilitySections ?? []}
+              onUpdateSectionTitle={(id, title) => acc.setData(prev => ({
+                ...prev,
+                equityLiabilitySections: prev.equityLiabilitySections.map(s => (s.id === id ? { ...s, title } : s)),
+              }))}
+              onUpdateItem={(sid, iid, key, val) => updateItem("equityLiabilitySections", sid, iid, key, val)}
+              onDeleteItem={(sid, iid) => acc.setData(prev => ({
+                ...prev,
+                equityLiabilitySections: prev.equityLiabilitySections.map(s => s.id === sid ? { ...s, items: s.items.filter(i => i.id !== iid) } : s),
+              }))}
+              onAddItem={sid => acc.setData(prev => ({
+                ...prev,
+                equityLiabilitySections: prev.equityLiabilitySections.map(s =>
+                  s.id === sid ? { ...s, items: [...s.items, { id: newRowId("e"), label: "New Line", note: "", amount: 0 }] } : s,
+                ),
+              }))}
+              onAddSection={() => acc.setData(prev => ({
+                ...prev,
+                equityLiabilitySections: [...prev.equityLiabilitySections, { id: newRowId("es"), title: "New Section", items: [] }],
+              }))}
+            />
+          </div>
         </AccountsPageShell>
       </main>
     </div>
