@@ -106,7 +106,7 @@ const LEAD_LIST_SELECT = {
     ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
     notes: {
         orderBy: { createdAt: "desc" },
-        take: 10,
+        take: 1,
         select: { id: true, text: true, createdAt: true },
     },
 };

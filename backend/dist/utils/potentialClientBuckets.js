@@ -10,11 +10,12 @@ exports.isPotentialClientLead = isPotentialClientLead;
 function hasSchedule(nextSchedule) {
     return !!(nextSchedule && String(nextSchedule).trim());
 }
+/** Status is source of truth — ignore stale important/interested flags. */
 function isImportantLead(lead) {
-    return !!lead.important || (lead.status ?? "").trim().toLowerCase() === "important";
+    return (lead.status ?? "").trim().toLowerCase() === "important";
 }
 function isInterestedLead(lead) {
-    return !!lead.interested || (lead.status ?? "").trim().toLowerCase() === "interested";
+    return (lead.status ?? "").trim().toLowerCase() === "interested";
 }
 function isImportantOnlyLead(lead) {
     return isImportantLead(lead) && !hasSchedule(lead.nextSchedule);

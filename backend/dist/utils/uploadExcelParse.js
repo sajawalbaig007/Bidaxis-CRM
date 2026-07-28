@@ -279,37 +279,17 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
     }
     const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
     const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
-    const [existingByPhone, existingByEmail] = await Promise.all([
-        chunkedLookup(phones, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({
-            where: { phone: { in: chunk } },
-            select: { phone: true, id: true, email: true, status: true, inBin: true, assignedTo: true },
-        })),
+    /* Large sheets: skip fuzzy contains — variants cover common formats */
+    const [phoneMatchMap, existingByEmail] = await Promise.all([
+        (0, leadPhoneLookup_1.findLeadsByPhonesBulk)(phones, CHUNK_LOOKUP, { fuzzy: phones.length <= 800 }),
         chunkedLookup(emails, CHUNK_LOOKUP, chunk => db_1.default.lead.findMany({
             where: { email: { in: chunk } },
             select: { email: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
         })),
     ]);
-    const dupPhoneMap = new Map(existingByPhone.map(l => [l.phone ?? "", l]));
     const dupEmails = new Map(existingByEmail
         .filter(l => l.email)
         .map(l => [l.email.toLowerCase(), l]));
-    const phoneMatchCache = new Map();
-    async function phoneMatches(phone) {
-        const cached = phoneMatchCache.get(phone);
-        if (cached)
-            return cached;
-        const fuzzy = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
-        const rows = fuzzy.map(l => ({
-            id: l.id,
-            phone: l.phone,
-            email: l.email,
-            status: l.status,
-            inBin: l.inBin,
-            assignedTo: l.assignedTo,
-        }));
-        phoneMatchCache.set(phone, rows);
-        return rows;
-    }
     const emailUpdates = [];
     const toPromote = [];
     const toRefresh = [];
@@ -335,7 +315,14 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
             continue;
         }
         if (r.phone && hasValidPhone) {
-            const matches = await phoneMatches(r.phone);
+            const matches = (phoneMatchMap.get(r.phone) ?? []).map(l => ({
+                id: l.id,
+                phone: l.phone,
+                email: l.email,
+                status: l.status,
+                inBin: l.inBin,
+                assignedTo: l.assignedTo,
+            }));
             const activeMatches = matches.filter(m => !m.inBin);
             const binMatches = matches.filter(m => m.inBin);
             const callDataUpload = isCallDataStatus(r.status);
@@ -360,7 +347,7 @@ async function classifyRows(parsed, isActiveUpload, _uploadCategory = "call-data
             }
             /* Call-data: never overwrite existing active leads */
             if (callDataUpload && activeMatches.length > 0) {
-                const exactExisting = dupPhoneMap.get(r.phone) ?? activeMatches[0];
+                const exactExisting = activeMatches[0];
                 if (!exactExisting.email && hasValidEmail) {
                     emailUpdates.push({ id: exactExisting.id, email: r.email });
                 }

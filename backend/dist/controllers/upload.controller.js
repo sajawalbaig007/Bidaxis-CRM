@@ -61,26 +61,52 @@ async function runBatched(items, size, fn) {
         await Promise.all(items.slice(i, i + size).map(fn));
     }
 }
+/** Merge comma/slash-separated interested services from multiple leads. */
+function mergeInterestedServiceStrings(values) {
+    const seen = new Set();
+    const out = [];
+    for (const raw of values) {
+        if (!raw?.trim())
+            continue;
+        for (const part of raw.split(/\s*(?:\/|,|;|\||\n|·|•|\band\b)\s*/i)) {
+            const p = part.trim();
+            if (!p)
+                continue;
+            const key = p.toLowerCase();
+            if (seen.has(key))
+                continue;
+            seen.add(key);
+            out.push(p);
+        }
+    }
+    return out.join(", ");
+}
 /** Keep one interested lead per phone/CSR from this upload; merge service + remove stale dupes. */
 async function consolidateInterestedUploadByPhone(uploadedFileId) {
     const uploaded = await db_1.default.lead.findMany({
         where: { uploadedFileId },
         select: { id: true, phone: true, assignedTo: true, interestedService: true, status: true },
     });
+    const phones = [...new Set(uploaded.map(l => l.phone?.trim()).filter((p) => !!p && p.replace(/\D/g, "").length >= 7))];
+    if (phones.length === 0)
+        return;
+    const matchMap = await (0, leadPhoneLookup_1.findLeadsByPhonesBulk)(phones);
     for (const lead of uploaded) {
         const phone = lead.phone?.trim();
         if (!phone || phone.replace(/\D/g, "").length < 7)
             continue;
-        const matches = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
+        const matches = matchMap.get(phone) ?? [];
         const siblings = matches.filter(m => m.id !== lead.id &&
             !m.inBin &&
             m.assignedTo === lead.assignedTo &&
             ((m.status ?? "").toLowerCase() === "interested" || m.interested === true));
         if (siblings.length === 0)
             continue;
-        const mergedService = lead.interestedService?.trim() ||
-            siblings.map(s => s.interestedService?.trim()).find(Boolean);
-        if (mergedService && !lead.interestedService?.trim()) {
+        const mergedService = mergeInterestedServiceStrings([
+            lead.interestedService,
+            ...siblings.map(s => s.interestedService),
+        ]);
+        if (mergedService) {
             await db_1.default.lead.update({
                 where: { id: lead.id },
                 data: { interestedService: mergedService },
@@ -297,16 +323,20 @@ const uploadLeads = async (req, res) => {
             ...toRefresh.map(x => x.row.phone),
             ...toPromote.map(x => x.row.phone),
         ].filter(p => p && p.length >= 7);
-        for (const phone of [...new Set(restoredPhones)]) {
-            const matches = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
-            const keepIds = new Set([
-                ...toRestore.filter(x => x.row.phone === phone).map(x => x.existingId),
-                ...toRefresh.filter(x => x.row.phone === phone).map(x => x.existingId),
-                ...toPromote.filter(x => x.row.phone === phone).map(x => x.existingId),
-            ]);
-            const binDupes = matches.filter(m => m.inBin && !keepIds.has(m.id));
-            if (binDupes.length > 0) {
-                await (0, deleteLeadsCascade_1.deleteLeadsCascade)(binDupes.map(m => m.id));
+        const uniqueRestoredPhones = [...new Set(restoredPhones)];
+        if (uniqueRestoredPhones.length > 0) {
+            const binMatchMap = await (0, leadPhoneLookup_1.findLeadsByPhonesBulk)(uniqueRestoredPhones);
+            for (const phone of uniqueRestoredPhones) {
+                const matches = binMatchMap.get(phone) ?? [];
+                const keepIds = new Set([
+                    ...toRestore.filter(x => x.row.phone === phone).map(x => x.existingId),
+                    ...toRefresh.filter(x => x.row.phone === phone).map(x => x.existingId),
+                    ...toPromote.filter(x => x.row.phone === phone).map(x => x.existingId),
+                ]);
+                const binDupes = matches.filter(m => m.inBin && !keepIds.has(m.id));
+                if (binDupes.length > 0) {
+                    await (0, deleteLeadsCascade_1.deleteLeadsCascade)(binDupes.map(m => m.id));
+                }
             }
         }
         if (fresh.length > 0) {
@@ -352,8 +382,11 @@ const uploadLeads = async (req, res) => {
             await consolidateInterestedUploadByPhone(uploadedFile.id);
         }
         (0, cache_1.flushAdminClientsCache)();
-        for (const csr of csrs) {
-            await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csr.id);
+        /* Old/new client flags only matter for won/client uploads — skip on call-data */
+        if (uploadCategory !== "call-data") {
+            for (const csr of csrs) {
+                await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csr.id);
+            }
         }
         (0, cache_1.invalidateCache)("admin:csrs", ...csrs.flatMap(c => [
             `csr:dashboard:${c.id}`,
@@ -374,13 +407,18 @@ const uploadLeads = async (req, res) => {
             data: { totalLeads: addedCount },
         });
         await (0, leadNotes_1.seedLeadNotesFromCommentsForFile)(uploadedFile.id);
+        /* Cap row preview payload for large sheets — UI paginates anyway */
+        const ROW_RESULTS_CAP = 500;
+        const rowResults = preview.length > ROW_RESULTS_CAP
+            ? preview.slice(0, ROW_RESULTS_CAP)
+            : preview;
         return res.json({
             success: true,
             totalLeads: addedCount,
             cloudinaryUrl: cloudinaryUrl,
             file: { ...uploadedFile, uploadCategory },
             distribution,
-            rowResults: preview,
+            rowResults,
             summary: {
                 new: preview.filter(p => p.status === "new").length,
                 duplicate: preview.filter(p => p.status === "duplicate").length,
@@ -477,7 +515,18 @@ const previewUpload = async (req, res) => {
             empty: preview.filter(p => p.status === "empty").length,
             total: preview.length,
         };
-        return res.json({ success: true, preview, summary });
+        /* Cap payload — UI only shows a page; full 10k+ JSON freezes browser + proxy */
+        const PREVIEW_CAP = 400;
+        const capped = preview.length > PREVIEW_CAP
+            ? preview.slice(0, PREVIEW_CAP)
+            : preview;
+        return res.json({
+            success: true,
+            preview: capped,
+            summary,
+            previewCapped: preview.length > PREVIEW_CAP,
+            previewTotal: preview.length,
+        });
     }
     catch (error) {
         console.log(error);

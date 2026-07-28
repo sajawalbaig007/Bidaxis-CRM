@@ -7,22 +7,16 @@ exports.importantOnlyWhere = importantOnlyWhere;
 exports.scheduledCallWhere = scheduledCallWhere;
 exports.buildAdminClientViewWhere = buildAdminClientViewWhere;
 exports.buildAdminClientListWhere = buildAdminClientListWhere;
-/** CSR marks important via status and/or the important boolean */
+/**
+ * Status is the source of truth for page routing.
+ * Do not OR with boolean flags alone — stale important/interested flags
+ * were putting leads on the wrong CSR pages after status changes.
+ */
 function isImportantStatusWhere() {
-    return {
-        OR: [
-            { important: true },
-            { status: { equals: "important", mode: "insensitive" } },
-        ],
-    };
+    return { status: { equals: "important", mode: "insensitive" } };
 }
 function isInterestedStatusWhere() {
-    return {
-        OR: [
-            { interested: true },
-            { status: { equals: "interested", mode: "insensitive" } },
-        ],
-    };
+    return { status: { equals: "interested", mode: "insensitive" } };
 }
 function noScheduleWhere() {
     return {

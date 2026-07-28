@@ -12,6 +12,7 @@ import userRoutes from "./routes/user.routes";
 import reportRoutes from "./routes/report.routes";
 import reportUploadRoutes from "./routes/reportUpload.routes";
 import chatRoutes from "./routes/chat.routes";
+import accountsRoutes from "./routes/accounts.routes";
 import { apiLimiter } from "./middleware/rateLimit.middleware";
 
 import { validateEnv } from "./config/env";
@@ -73,6 +74,7 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/report-uploads", reportUploadRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/accounts", accountsRoutes);
 
 app.use((
   err: Error & { code?: string },

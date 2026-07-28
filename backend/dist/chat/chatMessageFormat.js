@@ -24,8 +24,18 @@ function msgStatus(senderId, userId, createdAt, members) {
     const read = me?.lastReadAt && me.lastReadAt >= createdAt;
     return { status: read ? "read" : "delivered", readBy: [] };
 }
-function formatMessage(m, userId, members) {
+function formatMessage(m, userId, members, auditMode = false) {
     const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
+    const hiddenForViewer = (m.hiddenForUserIds ?? []).includes(userId);
+    const deletedForEveryone = Boolean(m.deletedAt);
+    let deleteLabel = null;
+    if (auditMode) {
+        if (deletedForEveryone)
+            deleteLabel = "Deleted for everyone";
+        else if (hiddenForViewer)
+            deleteLabel = "Deleted for me";
+    }
+    const isDeleted = auditMode && (deletedForEveryone || hiddenForViewer);
     return {
         id: m.id,
         senderId: m.senderId,
@@ -38,6 +48,12 @@ function formatMessage(m, userId, members) {
         fileMimeType: m.fileMimeType,
         createdAt: m.createdAt,
         editedAt: m.editedAt,
+        deletedAt: m.deletedAt ?? null,
+        deletedReason: m.deletedReason ?? null,
+        isDeleted,
+        isDeletedForEveryone: auditMode && deletedForEveryone,
+        isHiddenForViewer: auditMode && hiddenForViewer && !deletedForEveryone,
+        deleteLabel,
         mentions: m.mentions ?? [],
         reactions: parseReactions(m.reactions),
         readBy,

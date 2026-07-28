@@ -3,11 +3,129 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.findLeadsByPhonesBulk = findLeadsByPhonesBulk;
 exports.findLeadsByPhone = findLeadsByPhone;
 exports.buildPhoneLookupResponse = buildPhoneLookupResponse;
 const db_1 = __importDefault(require("../config/db"));
 const phone_1 = require("./phone");
 const projectPayments_1 = require("./projectPayments");
+const LEAD_PHONE_SELECT = {
+    id: true,
+    phone: true,
+    email: true,
+    status: true,
+    inBin: true,
+    assignedTo: true,
+    interested: true,
+    interestedService: true,
+    updatedAt: true,
+};
+function phoneLookupKey(phone) {
+    const digits = (0, phone_1.normalizePhone)(phone);
+    if (digits.length < 7)
+        return "";
+    return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+/**
+ * Bulk phone match for large uploads — avoids N+1 findLeadsByPhone scans.
+ * Returns Map keyed by each input phone string → matching leads (exact + fuzzy format).
+ * fuzzy=false skips expensive `contains` scans (use for 1k+ row uploads).
+ */
+async function findLeadsByPhonesBulk(phones, chunkSize = 500, opts) {
+    const fuzzy = opts?.fuzzy !== false;
+    const result = new Map();
+    const unique = [...new Set(phones.map(p => p.trim()).filter(p => p.length >= 7))];
+    if (unique.length === 0)
+        return result;
+    const byKey = new Map();
+    const addLead = (l) => {
+        if (!l.phone)
+            return;
+        const key = phoneLookupKey(l.phone);
+        if (!key)
+            return;
+        const list = byKey.get(key) ?? [];
+        if (!list.some(x => x.id === l.id))
+            list.push(l);
+        byKey.set(key, list);
+    };
+    /* Expand each phone into common format variants so exact `in` catches more without fuzzy */
+    const queryValues = new Set();
+    for (const p of unique) {
+        for (const v of phoneQueryVariants(p))
+            queryValues.add(v);
+    }
+    const queryList = [...queryValues];
+    for (let i = 0; i < queryList.length; i += chunkSize) {
+        const chunk = queryList.slice(i, i + chunkSize);
+        const exact = await db_1.default.lead.findMany({
+            where: { phone: { in: chunk } },
+            select: LEAD_PHONE_SELECT,
+            orderBy: { updatedAt: "desc" },
+        });
+        for (const l of exact)
+            addLead(l);
+    }
+    /* Fuzzy contains is O(n) on Mongo — only for smaller sheets */
+    const useFuzzy = fuzzy && unique.length <= 800;
+    if (useFuzzy) {
+        const needFuzzy = unique.filter(p => {
+            const key = phoneLookupKey(p);
+            if (!key)
+                return false;
+            const candidates = byKey.get(key) ?? [];
+            return !candidates.some(c => c.phone && (0, phone_1.phonesMatch)(c.phone, p));
+        });
+        if (needFuzzy.length > 0) {
+            const suffixes = [...new Set(needFuzzy.map(phoneLookupKey).filter(Boolean))];
+            const FUZZY_OR = 40;
+            for (let i = 0; i < suffixes.length; i += FUZZY_OR) {
+                const chunk = suffixes.slice(i, i + FUZZY_OR);
+                const candidates = await db_1.default.lead.findMany({
+                    where: {
+                        phone: { not: null },
+                        OR: chunk.map(s => ({ phone: { contains: s } })),
+                    },
+                    select: LEAD_PHONE_SELECT,
+                    orderBy: { updatedAt: "desc" },
+                });
+                for (const l of candidates)
+                    addLead(l);
+            }
+        }
+    }
+    for (const phone of unique) {
+        const key = phoneLookupKey(phone);
+        const candidates = key ? (byKey.get(key) ?? []) : [];
+        const matches = candidates
+            .filter(c => c.phone && (0, phone_1.phonesMatch)(c.phone, phone))
+            .sort((a, b) => {
+            const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return tb - ta;
+        });
+        result.set(phone, matches);
+    }
+    return result;
+}
+function phoneQueryVariants(phone) {
+    const trimmed = phone.trim();
+    const digits = (0, phone_1.normalizePhone)(trimmed);
+    const out = new Set([trimmed]);
+    if (!digits || digits.length < 7)
+        return [...out];
+    out.add(digits);
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    out.add(last10);
+    if (last10.length === 10) {
+        out.add(`+1${last10}`);
+        out.add(`1${last10}`);
+        out.add(`(${last10.slice(0, 3)}) ${last10.slice(3, 6)}-${last10.slice(6)}`);
+        out.add(`${last10.slice(0, 3)}-${last10.slice(3, 6)}-${last10.slice(6)}`);
+        out.add(`${last10.slice(0, 3)}.${last10.slice(3, 6)}.${last10.slice(6)}`);
+    }
+    return [...out];
+}
 async function findLeadsByPhone(phone) {
     const trimmed = phone.trim();
     if (!trimmed)
