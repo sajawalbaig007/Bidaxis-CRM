@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, LogOut } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import API from "@/lib/api";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 const BASE = "/accounts";
 
@@ -27,13 +29,24 @@ export default function AccountsSidebar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
-        <Link href={BASE} prefetch={false} className="shrink-0">
-          <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
-            Accounts
-          </h2>
-          <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-            Financial Dashboard
-          </p>
+        <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
+          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+            <Image
+              src="/images/image.png"
+              alt="logo"
+              width={44}
+              height={44}
+              className="object-cover w-full h-full rounded-[10px] bg-white"
+            />
+          </div>
+          <div className="hidden sm:block">
+            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
+              CRM Dashboard
+            </h2>
+            <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
+              Accounts Panel
+            </p>
+          </div>
         </Link>
 
         <div className="flex-1 min-w-0">
@@ -58,6 +71,8 @@ export default function AccountsSidebar() {
             })}
           </nav>
         </div>
+
+        <ThemeToggle />
 
         <button
           type="button"
