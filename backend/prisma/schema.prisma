@@ -12,6 +12,7 @@ enum Role {
   csr
   manager
   technical_manager
+  accounts
 }
 
 model User {
