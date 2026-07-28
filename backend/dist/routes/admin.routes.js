@@ -53,7 +53,7 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
     res.json({ success: true, message: "Welcome Admin" });
 });
 /* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
-router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const today = new Date().toISOString().split("T")[0];
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
@@ -105,7 +105,7 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
     }
 });
 /* ================= GET ALL CSRS ================= */
-router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const CACHE_KEY = "admin:csrs";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
@@ -136,7 +136,7 @@ router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRo
     }
 });
 /* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
-router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
+router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
     try {
         const CACHE_KEY = "admin:clients:tab-counts";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
@@ -152,7 +152,7 @@ router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middle
     }
 });
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
-router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
+router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
     try {
         const CACHE_KEY = "admin:clients:summary";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
@@ -168,7 +168,7 @@ router.get("/clients/summary", auth_middleware_1.verifyToken, (0, role_middlewar
     }
 });
 /* ================= GET CLIENTS / LEADS (paginated — admin leads page) ================= */
-router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const view = String(req.query.view || "all");
         const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
@@ -213,7 +213,7 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
     }
 });
 /* ================= CREATE LEAD (ADMIN manual add) ================= */
-router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const adminId = req.user?.id;
         if (!adminId)
@@ -261,7 +261,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
     }
 });
 /* ================= GET SINGLE LEAD (ADMIN) ================= */
-router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const lead = await db_1.default.lead.findFirst({
@@ -283,7 +283,7 @@ router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
     }
 });
 /* ================= DELETE LEAD / PROJECT (ADMIN) ================= */
-router.delete("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.delete("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const lead = await db_1.default.lead.findFirst({
@@ -307,10 +307,10 @@ router.delete("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.
     }
 });
 /* ================= UPDATE LEAD DETAILS (ADMIN) ================= */
-router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
-        const { name, phone, email, state } = req.body;
+        const { name, phone, email, state, company, website } = req.body;
         const existing = await db_1.default.lead.findFirst({ where: { id: leadId } });
         if (!existing)
             return res.status(404).json({ success: false, message: "Lead not found" });
@@ -323,6 +323,10 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.email = email;
         if (state !== undefined)
             updateData.state = state;
+        if (company !== undefined)
+            updateData.company = company;
+        if (website !== undefined)
+            updateData.website = String(website ?? "").trim() || null;
         const dup = await (0, leadDuplicateCheck_1.findDuplicateLead)(phone !== undefined ? String(phone) : existing.phone, email !== undefined ? String(email) : existing.email, leadId);
         if (dup && (phone !== undefined || email !== undefined)) {
             return res.status(409).json({ success: false, message: dup.message, field: dup.field });
@@ -336,7 +340,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         return res.status(500).json({ success: false, message: "Failed to update lead" });
     }
 });
-router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { name, designation, phone, email } = req.body;
@@ -357,7 +361,7 @@ router.post("/lead/:id/subcontacts", auth_middleware_1.verifyToken, (0, role_mid
         return res.status(500).json({ success: false, message: "Failed to add sub-contact" });
     }
 });
-router.put("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.put("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const subId = String(req.params.subId);
@@ -386,7 +390,7 @@ router.put("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, ro
         return res.status(500).json({ success: false, message: "Failed to update sub-contact" });
     }
 });
-router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const subId = String(req.params.subId);
@@ -404,7 +408,7 @@ router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0,
     }
 });
 /* ================= UPDATE LEAD NOTE ================= */
-router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const { comments } = req.body;
         await db_1.default.lead.update({
@@ -419,7 +423,7 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
     }
 });
 /* ================= ADMIN TIMESTAMPED NOTES (shared with CSR) ================= */
-router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { text } = req.body;
@@ -437,7 +441,7 @@ router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to add note" });
     }
 });
-router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { noteId } = req.params;
@@ -455,7 +459,7 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
         return res.status(500).json({ success: false, message: "Failed to update note" });
     }
 });
-router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { noteId } = req.params;
@@ -597,7 +601,7 @@ router.get("/csr-history/:csrId", auth_middleware_1.verifyToken, (0, role_middle
     }
 });
 /* ================= ALL ACTIVE PROJECT LEADS (all CSRs) ================= */
-router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
         const from = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
@@ -700,7 +704,7 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
     }
 });
 /* ================= LOOKUP CLIENT BY PHONE (ADMIN) ================= */
-router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const phone = req.query.phone?.trim();
         if (!phone || (0, phone_1.normalizePhone)(phone).length < 7) {
@@ -715,7 +719,7 @@ router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middlewar
     }
 });
 /* ================= ADD PROJECT (ADMIN) ================= */
-router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const body = req.body;
         const { name, projectTitle, interestedService, projectDeadline } = body;
@@ -786,7 +790,7 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
     }
 });
 /* ================= UPDATE PROJECT (ADMIN) ================= */
-router.put("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.put("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const updateData = {};
@@ -1038,7 +1042,7 @@ router.post("/run-shuffle", auth_middleware_1.verifyToken, (0, role_middleware_1
     }
 });
 /* ================= ADMIN BIN (all not-picked + not-interested leads) ================= */
-router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
         const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
@@ -1071,7 +1075,7 @@ router.get("/bin", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRol
     }
 });
 /* ================= REASSIGN LEAD TO SPECIFIC CSR (ADMIN) ================= */
-router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const { csrId } = req.body;
@@ -1154,7 +1158,7 @@ async function statsForSource(sourceId) {
         uploads: uploadsBySource.get(sourceId) ?? [],
     };
 }
-router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
+router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
     try {
         const CACHE_KEY = "admin:upload-sources";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
@@ -1185,7 +1189,7 @@ router.get("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware
         return res.status(500).json({ success: false, message: "Failed to fetch upload sources" });
     }
 });
-router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const name = String(req.body.name ?? "").trim();
         const sudoNameRaw = String(req.body.sudoName ?? "").trim();
@@ -1212,7 +1216,7 @@ router.post("/upload-sources", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to create upload source" });
     }
 });
-router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const sourceId = String(req.params.sourceId);
         const source = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });
@@ -1246,7 +1250,7 @@ router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_
     }
 });
 /* ================= CSR LOGIN / ACTIVITY REPORT (EST) ================= */
-router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" && req.query.csrId !== "all"
             ? req.query.csrId
@@ -1286,6 +1290,64 @@ router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middle
         return res.status(500).json({ success: false, message: "Failed to fetch CSR activity report" });
     }
 });
+/* Admin can correct check-in / check-out times (EST). */
+router.put("/csr-work-session/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const sessionId = String(req.params.id ?? "");
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: "Session id required." });
+        }
+        const { checkInAt, checkOutAt, clearCheckOut, dashboardMs, awayMs, note, } = req.body ?? {};
+        if (!checkInAt || typeof checkInAt !== "string") {
+            return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
+        }
+        const checkInDate = (0, estTime_1.parseEstDateTimeLocal)(checkInAt) ??
+            (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
+        if (!checkInDate) {
+            return res.status(400).json({ success: false, message: "Invalid check-in time." });
+        }
+        let checkOutDate = null;
+        if (!clearCheckOut && checkOutAt) {
+            if (typeof checkOutAt !== "string") {
+                return res.status(400).json({ success: false, message: "Invalid check-out time." });
+            }
+            checkOutDate =
+                (0, estTime_1.parseEstDateTimeLocal)(checkOutAt) ??
+                    (!Number.isNaN(Date.parse(checkOutAt)) ? new Date(checkOutAt) : null);
+            if (!checkOutDate) {
+                return res.status(400).json({ success: false, message: "Invalid check-out time." });
+            }
+        }
+        const result = await (0, csrSessionTracking_1.adminAdjustCsrWorkSession)({
+            sessionId,
+            checkInAt: checkInDate,
+            checkOutAt: checkOutDate,
+            clearCheckOut: !!clearCheckOut,
+            dashboardMs: typeof dashboardMs === "number" ? dashboardMs : undefined,
+            awayMs: typeof awayMs === "number" ? awayMs : undefined,
+            note: typeof note === "string" ? note : undefined,
+        });
+        if (!result.ok) {
+            return res.status(404).json({ success: false, message: result.message });
+        }
+        return res.json({
+            success: true,
+            message: "Session times updated.",
+            session: {
+                id: result.session.id,
+                loginAt: result.session.loginAt.toISOString(),
+                logoutAt: result.session.logoutAt?.toISOString() ?? null,
+                dashboardMs: result.session.dashboardMs,
+                awayMs: result.session.awayMs,
+                closedReason: result.session.closedReason,
+            },
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to update work session." });
+    }
+});
 /* ================= ACCESS HISTORY (IP / device) ================= */
 router.get("/access-history/:userId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
     try {
@@ -1312,7 +1374,7 @@ router.get("/access-history/:userId", auth_middleware_1.verifyToken, (0, role_mi
         return res.status(500).json({ success: false, message: "Failed to fetch access history" });
     }
 });
-router.patch("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.patch("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const sourceId = String(req.params.sourceId);
         const existing = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });
@@ -1344,7 +1406,7 @@ router.patch("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, rol
         return res.status(500).json({ success: false, message: "Failed to update upload source" });
     }
 });
-router.delete("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+router.delete("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const sourceId = String(req.params.sourceId);
         const existing = await db_1.default.uploadSource.findUnique({ where: { id: sourceId } });

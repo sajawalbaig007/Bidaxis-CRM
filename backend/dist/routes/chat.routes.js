@@ -24,6 +24,14 @@ const typingMap = new Map();
 function p(val) {
     return Array.isArray(val) ? val[0] : val;
 }
+function notDeletedMessageWhere() {
+    return {
+        OR: [
+            { deletedAt: null },
+            { deletedAt: { isSet: false } },
+        ],
+    };
+}
 async function getConversationMemberIds(conversationId) {
     const rows = await db_1.default.conversationMember.findMany({
         where: { conversationId },
@@ -41,9 +49,10 @@ async function fetchConversationsForUser(viewUserId, showArchived) {
                         include: { user: { select: { id: true, name: true, isOnline: true } } },
                     },
                     messages: {
+                        where: notDeletedMessageWhere(),
                         orderBy: { createdAt: "desc" },
-                        take: 1,
-                        select: { text: true, type: true, createdAt: true, senderId: true },
+                        take: 15,
+                        select: { text: true, type: true, createdAt: true, senderId: true, hiddenForUserIds: true, deletedAt: true },
                     },
                 },
             },
@@ -55,12 +64,13 @@ async function fetchConversationsForUser(viewUserId, showArchived) {
         where: {
             conversationId: m.conversationId,
             senderId: { not: viewUserId },
+            ...notDeletedMessageWhere(),
             ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
         },
     })));
     return filteredMemberships.map((m, idx) => {
         const conv = m.conversation;
-        const lastMsg = conv.messages[0];
+        const lastMsg = conv.messages.find(msg => messageVisibleForUser(msg, viewUserId));
         const otherMember = conv.type === "direct"
             ? conv.members.find(mem => mem.userId !== viewUserId)
             : null;
@@ -83,7 +93,12 @@ async function fetchConversationsForUser(viewUserId, showArchived) {
         };
     });
 }
-async function fetchMessagesForUser(conversationId, viewUserId) {
+function messageVisibleForUser(m, viewUserId) {
+    if (m.deletedAt)
+        return false;
+    return !(m.hiddenForUserIds ?? []).includes(viewUserId);
+}
+async function fetchMessagesForUser(conversationId, viewUserId, opts) {
     const members = await db_1.default.conversationMember.findMany({
         where: { conversationId },
         include: { user: { select: { id: true, name: true } } },
@@ -102,7 +117,11 @@ async function fetchMessagesForUser(conversationId, viewUserId) {
         orderBy: { createdAt: "asc" },
         take: 200,
     });
-    const messages = raw.map(m => (0, chatMessageFormat_1.formatMessage)(m, viewUserId, members));
+    const auditMode = Boolean(opts?.includeDeleted);
+    const visible = auditMode
+        ? raw
+        : raw.filter(m => messageVisibleForUser(m, viewUserId));
+    const messages = visible.map(m => (0, chatMessageFormat_1.formatMessage)(m, viewUserId, members, auditMode));
     const conv = await db_1.default.conversation.findUnique({
         where: { id: conversationId },
         select: { pinnedMessageId: true },
@@ -111,7 +130,7 @@ async function fetchMessagesForUser(conversationId, viewUserId) {
     if (conv?.pinnedMessageId) {
         const pin = raw.find(m => m.id === conv.pinnedMessageId);
         if (pin)
-            pinnedMessage = (0, chatMessageFormat_1.formatMessage)(pin, viewUserId, members);
+            pinnedMessage = (0, chatMessageFormat_1.formatMessage)(pin, viewUserId, members, auditMode);
     }
     return { messages, pinnedMessage };
 }
@@ -353,24 +372,55 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
 });
 /* ═══════════════════════════════════════════════════════
    DELETE /chat/messages/:id
-   Only the sender can delete for everyone.
+   for_me — hidden for requester only; for_everyone — soft-delete for all CSRs.
+   Admin peek still sees content + delete type.
 ═══════════════════════════════════════════════════════ */
 router.delete("/messages/:id", auth_middleware_1.verifyToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        const role = req.user.role;
         const msgId = p(req.params.id);
-        if (role !== "admin") {
-            return res.status(403).json({ message: "Only admins can delete messages for everyone" });
-        }
+        const mode = String(req.body?.mode ?? "for_everyone").toLowerCase();
         const msg = await db_1.default.message.findUnique({ where: { id: msgId } });
-        if (!msg || msg.senderId !== userId) {
+        if (!msg)
+            return res.json({ success: true });
+        const member = await db_1.default.conversationMember.findUnique({
+            where: { conversationId_userId: { conversationId: msg.conversationId, userId } },
+        });
+        if (!member) {
+            return res.status(403).json({ message: "Not in this conversation" });
+        }
+        if (mode === "for_me") {
+            const hidden = msg.hiddenForUserIds ?? [];
+            if (!hidden.includes(userId)) {
+                await db_1.default.message.update({
+                    where: { id: msgId },
+                    data: { hiddenForUserIds: [...hidden, userId] },
+                });
+            }
+            (0, cache_1.invalidatePattern)("chat:convs:");
+            return res.json({ success: true, mode: "for_me" });
+        }
+        if (msg.deletedAt)
+            return res.json({ success: true, mode: "for_everyone" });
+        const role = req.user.role;
+        if (role === "csr" && msg.senderId !== userId) {
+            return res.status(403).json({ message: "You can only delete your own messages for everyone" });
+        }
+        if (role !== "admin" && role !== "csr" && msg.senderId !== userId) {
             return res.status(403).json({ message: "Cannot delete this message" });
         }
-        await db_1.default.message.delete({ where: { id: msgId } });
+        await db_1.default.message.update({
+            where: { id: msgId },
+            data: {
+                deletedAt: new Date(),
+                deletedById: userId,
+                deletedReason: "for_everyone",
+            },
+        });
         const memberIds = await getConversationMemberIds(msg.conversationId);
         (0, chatSocket_1.emitMessageDelete)(msg.conversationId, msgId, memberIds);
-        return res.json({ success: true });
+        (0, cache_1.invalidatePattern)("chat:convs:");
+        return res.json({ success: true, mode: "for_everyone" });
     }
     catch {
         return res.json({ success: true });
@@ -696,7 +746,7 @@ router.get("/admin/view/:csrId/conversations/:convId/messages", auth_middleware_
         });
         if (!member)
             return res.status(403).json({ message: "CSR is not in this conversation" });
-        const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId);
+        const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId, { includeDeleted: true });
         return res.json({ messages, pinnedMessage });
     }
     catch (err) {

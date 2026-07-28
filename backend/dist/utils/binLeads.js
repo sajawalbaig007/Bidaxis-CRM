@@ -66,13 +66,14 @@ function filterActiveLeads(leads) {
 function buildActiveRetryWhere(csrId) {
     return {
         assignedTo: csrId,
+        ...notInBinFilter(),
         OR: [
             {
-                status: "Not Interested",
+                status: { equals: "Not Interested", mode: "insensitive" },
                 notInterestedCount: { lt: exports.NOT_INTERESTED_LIMIT },
             },
             {
-                status: { in: ["not picked", "not completed"] },
+                status: { in: ["not picked", "not completed"], mode: "insensitive" },
                 notPickedCount: { lt: exports.NOT_PICKED_LIMIT },
             },
         ],

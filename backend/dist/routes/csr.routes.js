@@ -11,6 +11,7 @@ const sessions_1 = require("../utils/sessions");
 const accessHistory_1 = require("../utils/accessHistory");
 const csrSessionTracking_1 = require("../utils/csrSessionTracking");
 const requestMeta_1 = require("../utils/requestMeta");
+const estTime_1 = require("../utils/estTime");
 const cache_1 = require("../utils/cache");
 const csrCache_1 = require("../utils/csrCache");
 const phone_1 = require("../utils/phone");
@@ -66,12 +67,14 @@ function getActivityRange(period, dateStr) {
         label: from.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }),
     };
 }
-function aggregateLogs(logs) {
+function aggregateGrouped(grouped) {
     const byStatus = {};
-    for (const log of logs) {
-        byStatus[log.status] = (byStatus[log.status] ?? 0) + 1;
+    let total = 0;
+    for (const g of grouped) {
+        byStatus[g.status] = g._count._all;
+        total += g._count._all;
     }
-    return { total: logs.length, byStatus };
+    return { total, byStatus };
 }
 /* ================= CSR ACTIVITY REPORT ================= */
 router.get("/activity-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
@@ -86,16 +89,26 @@ router.get("/activity-report", auth_middleware_1.verifyToken, (0, role_middlewar
             return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
         }
         const { from, to, label } = getActivityRange(period, date);
-        const logs = await db_1.default.callLog.findMany({
-            where: { csrId, createdAt: { gte: from, lte: to } },
-            select: {
-                id: true, status: true, createdAt: true,
-                lead: { select: { name: true } },
-            },
-            orderBy: { createdAt: "desc" },
-            take: 200,
-        });
-        const { total, byStatus } = aggregateLogs(logs);
+        const where = { csrId, createdAt: { gte: from, lte: to } };
+        /* Exact counts via groupBy — do NOT cap with take (was wrongly limited to 200).
+           Entries list is capped only for the UI scroll panel. */
+        const [grouped, logs] = await Promise.all([
+            db_1.default.callLog.groupBy({
+                by: ["status"],
+                where,
+                _count: { _all: true },
+            }),
+            db_1.default.callLog.findMany({
+                where,
+                select: {
+                    id: true, status: true, createdAt: true,
+                    lead: { select: { name: true } },
+                },
+                orderBy: { createdAt: "desc" },
+                take: 100,
+            }),
+        ]);
+        const { total, byStatus } = aggregateGrouped(grouped);
         const entries = logs.map(log => ({
             id: log.id,
             status: log.status,
@@ -115,7 +128,7 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
         const csrId = req.user.id;
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const today = new Date().toISOString().split("T")[0];
-        const [scheduledLeads, recentLogs] = await Promise.all([
+        const [scheduledLeads, grouped] = await Promise.all([
             db_1.default.lead.findMany({
                 where: {
                     assignedTo: csrId,
@@ -128,9 +141,10 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
                 orderBy: [{ nextSchedule: "asc" }, { nextTime: "asc" }],
                 take: 30,
             }),
-            db_1.default.callLog.findMany({
+            db_1.default.callLog.groupBy({
+                by: ["status"],
                 where: { csrId, createdAt: { gte: since } },
-                select: { status: true },
+                _count: { _all: true },
             }),
         ]);
         const scheduledCalls = scheduledLeads
@@ -144,7 +158,7 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
             timezone: l.timezone ?? "",
             status: l.status,
         }));
-        const { total, byStatus } = aggregateLogs(recentLogs);
+        const { total, byStatus } = aggregateGrouped(grouped);
         return res.json({
             success: true,
             scheduledCalls,
@@ -180,8 +194,8 @@ router.get("/tab-leads", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         const csrId = req.user.id;
         const tab = String(req.query.tab ?? "pending");
         const page = Math.max(1, Number(req.query.page) || 1);
-        /* Allow large pageSize so CSR can load full assigned dataset (no artificial 500 cap) */
-        const pageSize = Math.min(10000, Math.max(10, Number(req.query.pageSize) || 30));
+        /* Cap page size to protect Render/Mongo under load (CSR uses 30; filter batch up to 500) */
+        const pageSize = Math.min(500, Math.max(10, Number(req.query.pageSize) || 30));
         const from = typeof req.query.from === "string" ? req.query.from : undefined;
         const to = typeof req.query.to === "string" ? req.query.to : undefined;
         const validTabs = [
@@ -191,14 +205,15 @@ router.get("/tab-leads", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         if (!validTabs.includes(tab)) {
             return res.status(400).json({ success: false, message: "Invalid tab." });
         }
-        let removed = 0;
         if (tab === "pending" || tab === "today") {
-            removed = await maybeHealPipelineLeaks(csrId);
-            if (removed > 0)
-                (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
+            /* Do not block the list response — heal in background */
+            void maybeHealPipelineLeaks(csrId)
+                .then(n => { if (n > 0)
+                (0, csrCache_1.invalidateCsrLeadCaches)(csrId); })
+                .catch(err => console.log("[csr] background heal failed:", err));
         }
         const cacheKey = `csr:tab:${csrId}:${tab}:${page}:${pageSize}:${from ?? ""}:${to ?? ""}`;
-        const cached = removed === 0 ? (0, cache_1.getCache)(cacheKey) : null;
+        const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
         const result = await (0, csrDashboardQueries_1.fetchCsrTabLeads)({ csrId, tab, page, pageSize, from, to });
@@ -468,7 +483,8 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
     try {
         const csrId = req.user.id;
         const leadId = req.params.id;
-        const { status, nextSchedule, nextTime, timezone, followUpNotes, interestedService, projectTitle, projectCode, projectDeadline, projectBudget, projectNotes, paidAmount, comments, name, phone, email, state, moveToBin, inBin, } = req.body;
+        const { nextSchedule, nextTime, timezone, followUpNotes, interestedService, projectTitle, projectCode, projectDeadline, projectBudget, projectNotes, paidAmount, comments, name, phone, email, state, moveToBin, inBin, } = req.body;
+        let status = req.body.status !== undefined ? String(req.body.status) : undefined;
         /* Fetch current lead to get existing counts */
         const lead = await db_1.default.lead.findFirst({
             where: { id: leadId, assignedTo: csrId },
@@ -536,14 +552,38 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.paidAmount = paidAmount;
         if (comments !== undefined)
             updateData.comments = comments;
-        if (name !== undefined)
-            updateData.name = name;
-        if (phone !== undefined)
-            updateData.phone = phone;
-        if (email !== undefined)
-            updateData.email = email;
-        if (state !== undefined)
-            updateData.state = state;
+        /* Contact fields — never write UI placeholders ("N/A") over real data.
+           Status-change requests often accidentally include empty/N/A contact fields. */
+        const cleanContact = (v) => {
+            if (v === undefined || v === null)
+                return undefined;
+            const s = String(v).trim();
+            if (!s)
+                return undefined;
+            const lower = s.toLowerCase();
+            if (lower === "n/a" || lower === "na" || lower === "unknown" ||
+                lower === "not provided" || lower === "—" || lower === "-")
+                return undefined;
+            return s;
+        };
+        const cleanedName = cleanContact(name);
+        const cleanedPhone = cleanContact(phone);
+        const cleanedEmail = cleanContact(email);
+        const cleanedState = cleanContact(state);
+        const cleanedCompany = cleanContact(req.body.company);
+        const cleanedWebsite = cleanContact(req.body.website);
+        if (cleanedName !== undefined)
+            updateData.name = cleanedName;
+        if (cleanedPhone !== undefined)
+            updateData.phone = cleanedPhone;
+        if (cleanedEmail !== undefined)
+            updateData.email = cleanedEmail.toLowerCase();
+        if (cleanedState !== undefined)
+            updateData.state = cleanedState;
+        if (cleanedCompany !== undefined)
+            updateData.company = cleanedCompany;
+        if (cleanedWebsite !== undefined)
+            updateData.website = cleanedWebsite;
         if (req.body.ownerName !== undefined)
             updateData.ownerName = req.body.ownerName;
         if (req.body.projectScope !== undefined)
@@ -556,8 +596,6 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.pricingDeadline = req.body.pricingDeadline;
         if (req.body.qaDeadline !== undefined)
             updateData.qaDeadline = req.body.qaDeadline;
-        if (req.body.company !== undefined)
-            updateData.company = req.body.company;
         if (req.body.clientCode !== undefined)
             updateData.clientCode = req.body.clientCode;
         const payments = (0, projectPayments_1.normalizePaymentsInput)(req.body.projectPayments);
@@ -567,13 +605,32 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         }
         /* ── STATUS HANDLING ── */
         if (status !== undefined) {
-            updateData.status = status;
+            const raw = String(status).trim();
+            const n = raw.toLowerCase();
+            /* Canonical status strings used across CSR pages */
+            const canonical = n === "not interested" ? "Not Interested" :
+                n === "not picked" || n === "notpicked" ? "not picked" :
+                    n === "not completed" ? "not completed" :
+                        n === "close client" ? "Close Client" :
+                            n === "no owner available" ? "no owner available" :
+                                n === "not in service" ? "not in service" :
+                                    n === "in house" ? "in house" :
+                                        n === "important" ? "important" :
+                                            n === "interested" ? "interested" :
+                                                n === "pending" ? "pending" :
+                                                    n === "completed" ? "completed" :
+                                                        n === "closed" ? "closed" :
+                                                            raw;
+            updateData.status = canonical;
+            /* Always sync flags from status so leads land on the correct page */
+            updateData.important = canonical === "important";
+            updateData.interested = canonical === "interested";
             /* ── NOT INTERESTED (limit = 3) ── */
-            if (status === "Not Interested") {
+            if (canonical === "Not Interested") {
                 const newCount = (lead.notInterestedCount ?? 0) + 1;
                 updateData.notInterestedCount = newCount;
-                updateData.important = false;
-                updateData.interested = false;
+                updateData.nextSchedule = null;
+                updateData.nextTime = null;
                 const ts = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
                 const tag = newCount >= binLeads_1.NOT_INTERESTED_LIMIT ? " — LIMIT REACHED" : "";
                 const entry = `[Try ${newCount}/${binLeads_1.NOT_INTERESTED_LIMIT} · ${ts}] Not Interested${tag}`;
@@ -583,7 +640,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                     updateData.binReason = "limit-not-interested";
                 }
                 await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
-                await logStatusChange(csrId, leadId, status);
+                await logStatusChange(csrId, leadId, canonical);
                 (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
                 if (newCount >= binLeads_1.NOT_INTERESTED_LIMIT) {
                     const otherCsrs = await db_1.default.user.findMany({
@@ -605,11 +662,11 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 });
             }
             /* ── NOT PICKED (limit = 7) ── */
-            if (status === "not picked" || status === "not completed") {
+            if (canonical === "not picked" || canonical === "not completed") {
                 const newCount = (lead.notPickedCount ?? 0) + 1;
                 updateData.notPickedCount = newCount;
-                updateData.important = false;
-                updateData.interested = false;
+                updateData.nextSchedule = null;
+                updateData.nextTime = null;
                 const ts = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
                 const tag = newCount >= binLeads_1.NOT_PICKED_LIMIT ? " — LIMIT REACHED" : "";
                 const entry = `[Try ${newCount}/${binLeads_1.NOT_PICKED_LIMIT} · ${ts}] Not Picked${tag}`;
@@ -619,7 +676,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                     updateData.binReason = "limit-not-picked";
                 }
                 await db_1.default.lead.update({ where: { id: leadId }, data: updateData });
-                await logStatusChange(csrId, leadId, status);
+                await logStatusChange(csrId, leadId, canonical);
                 (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
                 if (newCount >= binLeads_1.NOT_PICKED_LIMIT) {
                     const otherCsrs = await db_1.default.user.findMany({
@@ -641,28 +698,29 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 });
             }
             /* ── IMPORTANT ── */
-            if (status === "important") {
-                updateData.important = true;
-                updateData.interested = false;
+            if (canonical === "important") {
                 /* Direct "Important" (not Schedule Call) → important-only bucket for admin */
                 if (nextSchedule === undefined && nextTime === undefined) {
                     updateData.nextSchedule = null;
                     updateData.nextTime = null;
                 }
             }
-            /* ── INTERESTED ── */
-            if (status === "interested") {
-                updateData.important = false;
-                updateData.interested = true;
-            }
-            /* ── OTHER (pending, Close Client, etc.) ── */
-            if (["pending", "Close Client", "completed"].includes(status)) {
-                updateData.important = false;
-                updateData.interested = false;
+            /* ── INTERESTED / misc / pending — clear leftover schedule ── */
+            if (canonical === "interested" ||
+                canonical === "pending" ||
+                canonical === "no owner available" ||
+                canonical === "not in service" ||
+                canonical === "in house") {
+                if (nextSchedule === undefined)
+                    updateData.nextSchedule = null;
+                if (nextTime === undefined)
+                    updateData.nextTime = null;
             }
             /* ── AUTO isOldClient when Close Client ── */
-            if (status === "Close Client" || status === "completed") {
+            if (canonical === "Close Client" || canonical === "completed" || canonical === "closed") {
                 updateData.hiddenOnMain = true;
+                updateData.nextSchedule = null;
+                updateData.nextTime = null;
                 updateData.isOldClient = await (0, leadClientPromotion_1.hasPriorWonClient)(lead.phone, lead.company, leadId);
                 /* ── AUTO clientCode: {csrCode}-{padded_seq} ── */
                 if (!lead.clientCode) {
@@ -674,7 +732,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                         const wonCount = await db_1.default.lead.count({
                             where: {
                                 assignedTo: csrId,
-                                status: { in: ["Close Client", "completed"] },
+                                status: { in: ["Close Client", "completed", "closed"] },
                                 clientCode: { not: null },
                             },
                         });
@@ -683,6 +741,8 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                     }
                 }
             }
+            /* Use canonical for downstream won-client / logging checks */
+            status = canonical;
         }
         const updatedLead = await db_1.default.lead.update({
             where: { id: leadId },
@@ -716,7 +776,7 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
 router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
-        const { name, phone, company, email, state, interestedService, comments, projectBudget, paidAmount } = req.body;
+        const { name, phone, company, email, website, state, interestedService, comments, projectBudget, paidAmount } = req.body;
         if (!name?.trim()) {
             return res.status(400).json({ success: false, message: "Client name is required." });
         }
@@ -736,6 +796,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
                         name: name.trim(),
                         phone: trimmedPhone,
                         email: email?.trim()?.toLowerCase() || null,
+                        website: website?.trim() || null,
                         state: state?.trim() || null,
                         company: companyTrim || null,
                         interestedService: interestedService?.trim() || null,
@@ -771,6 +832,7 @@ router.post("/lead", auth_middleware_1.verifyToken, (0, role_middleware_1.allowR
                 name: name.trim(),
                 phone: trimmedPhone,
                 email: email?.trim()?.toLowerCase() || null,
+                website: website?.trim() || null,
                 state: state?.trim() || null,
                 company: company?.trim() || null,
                 interestedService: interestedService?.trim() || null,
@@ -1056,6 +1118,71 @@ router.delete("/lead/:id/subcontacts/:subId", auth_middleware_1.verifyToken, (0,
         return res.status(500).json({ success: false, message: "Failed to delete sub-contact" });
     }
 });
+/* ================= CHECK IN / CHECK OUT ================= */
+router.get("/work-session", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const status = await (0, csrSessionTracking_1.getCsrWorkSessionStatus)(req.user.id);
+        return res.json({ success: true, ...status });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to load work session." });
+    }
+});
+router.post("/check-in", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const result = await (0, csrSessionTracking_1.checkInCsrWorkSession)({
+            userId: req.user.id,
+            ip: (0, requestMeta_1.getClientIp)(req),
+            userAgent: (0, requestMeta_1.getUserAgent)(req),
+            deviceId: req.body?.tabId ?? req.body?.deviceId,
+        });
+        let status = await (0, csrSessionTracking_1.getCsrWorkSessionStatus)(req.user.id);
+        /* Guarantee UI can flip to Check Out even if open-session lookup lags */
+        if (!status.checkedIn) {
+            status = {
+                checkedIn: true,
+                session: {
+                    id: result.sessionId,
+                    checkInAt: result.loginAt.toISOString(),
+                    checkInAtEst: (0, estTime_1.formatEstDateTime)(result.loginAt),
+                    dashboardMs: 0,
+                    awayMs: 0,
+                    totalMs: 0,
+                    dashboardDuration: "0s",
+                    awayDuration: "0s",
+                    totalDuration: "0s",
+                },
+            };
+        }
+        return res.json({
+            success: true,
+            created: result.created,
+            message: result.created ? "Checked in successfully." : "Already checked in.",
+            ...status,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Check-in failed." });
+    }
+});
+router.post("/check-out", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const closed = await (0, csrSessionTracking_1.checkOutCsrWorkSession)(req.user.id);
+        return res.json({
+            success: true,
+            closed,
+            checkedIn: false,
+            session: null,
+            message: closed ? "Checked out successfully." : "No active check-in.",
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Check-out failed." });
+    }
+});
 /* ================= HEARTBEAT ================= */
 router.post("/heartbeat", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
@@ -1101,7 +1228,7 @@ router.post("/heartbeat", auth_middleware_1.verifyToken, (0, role_middleware_1.a
     }
 });
 /* ================= OFFLINE (Users page presence only) ================= */
-/* Does not close work sessions — reports keep tracking until explicit logout. */
+/* Does not close work sessions — reports keep tracking until Check Out or Logout. */
 router.post("/offline", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         sessions_1.userBrowserMap.delete(req.user.id);

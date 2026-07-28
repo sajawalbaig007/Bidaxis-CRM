@@ -16,7 +16,6 @@ const requestMeta_1 = require("../utils/requestMeta");
 const networkAccess_1 = require("../utils/networkAccess");
 const auditLog_1 = require("../utils/auditLog");
 const accessHistory_1 = require("../utils/accessHistory");
-const csrSessionTracking_1 = require("../utils/csrSessionTracking");
 const loginLockout_1 = require("../utils/loginLockout");
 const captcha_1 = require("../utils/captcha");
 const passwordBreach_1 = require("../utils/passwordBreach");
@@ -70,9 +69,7 @@ async function finishLogin(req, res, user, rememberMe) {
         userAgent: ua,
         event: "login",
     });
-    if (user.role === "csr") {
-        void (0, csrSessionTracking_1.openCsrWorkSession)({ userId: user.id, ip, userAgent: ua });
-    }
+    /* CSR Check In is explicit on the dashboard — do not auto-open on login. */
     (0, securityEmail_1.sendLoginAlertEmail)({ to: user.email, name: user.name, ip, userAgent: ua });
     return res.json({
         success: true,
@@ -87,7 +84,7 @@ function makeOTP() {
 }
 function parsePortalRole(raw) {
     const r = String(raw ?? "").toLowerCase();
-    if (r === "admin" || r === "csr" || r === "manager")
+    if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager" || r === "accounts")
         return r;
     return null;
 }
@@ -96,6 +93,10 @@ function portalRoleLabel(role) {
         return "Admin";
     if (role === "manager")
         return "Manager";
+    if (role === "technical_manager")
+        return "Technical Manager";
+    if (role === "accounts")
+        return "Accounts";
     return "CSR";
 }
 function assertPortalRoleMatch(userRole, loginRole) {
@@ -104,7 +105,7 @@ function assertPortalRoleMatch(userRole, loginRole) {
     return `This account is registered as ${portalRoleLabel(userRole)}. Select "${portalRoleLabel(userRole)}" on the login page.`;
 }
 function assertAdminIp(req, role) {
-    if (role !== "admin" && role !== "manager")
+    if (role !== "admin" && role !== "manager" && role !== "technical_manager")
         return null;
     const allowed = (0, env_1.getAdminAllowedIps)();
     if (allowed.length === 0)
@@ -144,7 +145,13 @@ const register = async (req, res) => {
         if (role === "manager" && req.user?.role !== "admin") {
             return res.status(403).json({ success: false, message: "Only admins can create manager accounts." });
         }
-        const validRoles = ["admin", "csr", "manager"];
+        if (role === "technical_manager" && req.user?.role !== "admin") {
+            return res.status(403).json({ success: false, message: "Only admins can create Technical Manager accounts." });
+        }
+        if (role === "accounts" && req.user?.role !== "admin") {
+            return res.status(403).json({ success: false, message: "Only admins can create Accounts users." });
+        }
+        const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts"];
         if (!validRoles.includes(role)) {
             return res.status(400).json({ success: false, message: "Invalid role." });
         }
@@ -224,7 +231,7 @@ const login = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 code: "INVALID_LOGIN_ROLE",
-                message: "Select Admin, CSR, or Manager before signing in.",
+                message: "Select the correct role portal before signing in.",
             });
         }
         const email = (rawEmail ?? "").trim().toLowerCase();
@@ -407,7 +414,7 @@ const verifyOTP = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 code: "INVALID_LOGIN_ROLE",
-                message: "Select Admin, CSR, or Manager before signing in.",
+                message: "Select the correct role portal before signing in.",
             });
         }
         const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
@@ -482,7 +489,7 @@ const logout = async (req, res) => {
                     await (0, sessions_1.clearActiveSession)(decoded.id);
                     await (0, auditLog_1.writeAuditLog)({ action: "logout", userId: decoded.id, ip, userAgent: ua });
                     await (0, accessHistory_1.recordAccessHistory)({ userId: decoded.id, ip, userAgent: ua, event: "logout" });
-                    void (0, csrSessionTracking_1.closeCsrWorkSession)(decoded.id, "logout");
+                    /* Work session stays open — only Check Out / stale timeout ends the shift */
                 }
             }
             catch { /* ignore */ }

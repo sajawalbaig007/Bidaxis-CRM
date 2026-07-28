@@ -13,6 +13,8 @@ exports.getLoginAttemptAlert = getLoginAttemptAlert;
 exports.clearLoginAttemptAlert = clearLoginAttemptAlert;
 exports.detectBrowser = detectBrowser;
 const db_1 = __importDefault(require("../config/db"));
+const lastSessionTouch = new Map();
+const SESSION_TOUCH_INTERVAL_MS = 60000;
 /* OTP store: userId → { otp, expiresAt } */
 exports.otpStore = new Map();
 /* OTP wrong attempts: userId → { count, blockedUntil? } */
@@ -36,6 +38,11 @@ async function registerActiveSession(userId, sid) {
     });
 }
 async function touchActiveSession(userId) {
+    const now = Date.now();
+    const last = lastSessionTouch.get(userId) ?? 0;
+    if (now - last < SESSION_TOUCH_INTERVAL_MS)
+        return;
+    lastSessionTouch.set(userId, now);
     await db_1.default.user.update({
         where: { id: userId },
         data: { lastActive: new Date() },

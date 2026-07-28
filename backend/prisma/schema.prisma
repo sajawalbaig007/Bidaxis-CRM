@@ -351,3 +351,37 @@ model CsrWorkSession {
   @@index([userId, loginAt])
   @@index([logoutAt])
 }
+
+enum AccountsPage {
+  dashboard
+  balance_sheet
+  income_statement
+  cash_flow
+  total_assets
+}
+
+model AccountsRecord {
+  id         String       @id @default(cuid()) @map("_id")
+  page       AccountsPage
+  recordDate String
+  data       Json
+  updatedBy  String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([page, recordDate])
+  @@index([recordDate])
+}
+
+model AccountsFileUpload {
+  id         String       @id @default(cuid()) @map("_id")
+  page       AccountsPage
+  recordDate String
+  fileName   String
+  fileUrl    String
+  mimeType   String?
+  uploadedBy String
+  createdAt  DateTime     @default(now())
+
+  @@index([page, recordDate])
+}
