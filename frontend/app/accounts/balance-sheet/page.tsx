@@ -153,7 +153,7 @@ export default function BalanceSheetPage() {
                       <Cell key={`asset-${idx}`} fill={ASSET_COLORS[idx % ASSET_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => currency(value)} />
+                  <Tooltip formatter={(value) => currency(Number(value ?? 0))} />
                   <Legend />
                 </PieChart>
               </RechartsBox>
@@ -169,7 +169,7 @@ export default function BalanceSheetPage() {
                       <Cell key={`fund-${idx}`} fill={FUNDING_COLORS[idx % FUNDING_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => currency(value)} />
+                  <Tooltip formatter={(value) => currency(Number(value ?? 0))} />
                   <Legend />
                 </PieChart>
               </RechartsBox>
@@ -185,7 +185,7 @@ export default function BalanceSheetPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: "#475569" }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} />
-                  <Tooltip formatter={(value: number) => currency(value)} />
+                  <Tooltip formatter={(value) => currency(Number(value ?? 0))} />
                   <Legend />
                   <Bar dataKey="nonCurrent" stackId="a" fill="#0B84F3" radius={[8, 8, 0, 0]} name="Non-Current / Equity Base" />
                   <Bar dataKey="current" stackId="a" fill="#12B76A" radius={[8, 8, 0, 0]} name="Current / Current Liabilities" />
