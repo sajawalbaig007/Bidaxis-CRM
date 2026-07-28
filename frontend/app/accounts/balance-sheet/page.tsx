@@ -195,25 +195,22 @@ export default function BalanceSheetPage() {
           </section>
 
           <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="bg-[#FDF1E8] border-b border-gray-200 py-2.5 px-4 text-center">
-              <h2 className="text-lg sm:text-xl font-black text-[#111827] tracking-tight">Vertical Format of Balance Sheet</h2>
-            </div>
-            <div className="bg-[#EAF5FF] border-b border-gray-200 py-2 px-4 text-center">
-              <p className="text-base sm:text-[28px] font-semibold text-[#0F172A]">Balance Sheet as at...</p>
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-200 bg-[#F8FAFC]">
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Vertical Format of Balance Sheet</h2>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px]">
-                <thead>
-                  <tr className="bg-[#FAFAFA] border-b border-gray-300">
-                    <th className="text-left px-3 py-2 text-2xl font-bold text-[#111827]">Particulars</th>
-                    <th className="text-center px-3 py-2 w-[120px] text-xl font-bold text-[#111827]">Note</th>
-                    <th className="text-right px-3 py-2 w-[170px] text-xl font-bold text-[#111827]">Amt</th>
+              <table className="w-full text-sm" style={{ minWidth: "760px" }}>
+                <thead className="bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Particulars</th>
+                    <th className="text-center px-3 py-2 w-[120px] font-semibold text-gray-700">Note</th>
+                    <th className="text-right px-3 py-2 w-[170px] font-semibold text-gray-700">Amt</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-gray-200">
-                    <td className="px-3 py-2 text-2xl font-extrabold italic text-[#111827]">Assets</td>
+                    <td className="px-3 py-2 font-bold italic text-gray-800">Assets</td>
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
                   </tr>
@@ -224,15 +221,15 @@ export default function BalanceSheetPage() {
                         <table className="w-full">
                           <tbody>
                             <tr className="border-y border-gray-200 bg-[#FCFCFC]">
-                              <td className="px-3 py-1.5 text-xl font-bold text-[#111827]">{section.title}:</td>
+                              <td className="px-3 py-1.5 font-semibold text-gray-800">{section.title}:</td>
                               <td className="px-3 py-1.5 w-[120px]" />
                               <td className="px-3 py-1.5 w-[170px]" />
                             </tr>
                             {section.items.map((item) => (
                               <tr key={`${section.title}-${item.label}`} className="border-b border-gray-200">
-                                <td className="px-3 py-1.5 text-xl text-[#111827]">{item.label}</td>
+                                <td className="px-3 py-1.5 text-gray-700">{item.label}</td>
                                 <td className="px-3 py-1.5 text-center text-sm text-gray-600">{item.note ?? ""}</td>
-                                <td className="px-3 py-1.5 text-right text-xl font-semibold text-[#111827]">{currency(item.amount)}</td>
+                                <td className="px-3 py-1.5 text-right font-semibold text-gray-800">{currency(item.amount)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -241,14 +238,14 @@ export default function BalanceSheetPage() {
                     </tr>
                   ))}
 
-                  <tr className="border-y border-gray-300 bg-[#FFF8F2]">
-                    <td className="px-3 py-2 text-2xl font-bold text-[#111827]">Total Assets</td>
+                  <tr className="border-y border-gray-200 bg-[#FFF8F2]">
+                    <td className="px-3 py-2 font-bold text-gray-800">Total Assets</td>
                     <td className="px-3 py-2" />
-                    <td className="px-3 py-2 text-right text-2xl font-extrabold text-[#111827]">{currency(totalAssets)}</td>
+                    <td className="px-3 py-2 text-right font-extrabold text-gray-800">{currency(totalAssets)}</td>
                   </tr>
 
                   <tr className="border-b border-gray-200">
-                    <td className="px-3 py-2 text-2xl font-extrabold italic text-[#111827]">Equity and Liabilities</td>
+                    <td className="px-3 py-2 font-bold italic text-gray-800">Equity and Liabilities</td>
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
                   </tr>
@@ -259,15 +256,15 @@ export default function BalanceSheetPage() {
                         <table className="w-full">
                           <tbody>
                             <tr className="border-y border-gray-200 bg-[#FCFCFC]">
-                              <td className="px-3 py-1.5 text-xl font-bold text-[#111827]">{section.title}:</td>
+                              <td className="px-3 py-1.5 font-semibold text-gray-800">{section.title}:</td>
                               <td className="px-3 py-1.5 w-[120px]" />
                               <td className="px-3 py-1.5 w-[170px]" />
                             </tr>
                             {section.items.map((item) => (
                               <tr key={`${section.title}-${item.label}`} className="border-b border-gray-200">
-                                <td className="px-3 py-1.5 text-xl text-[#111827]">{item.label}</td>
+                                <td className="px-3 py-1.5 text-gray-700">{item.label}</td>
                                 <td className="px-3 py-1.5 text-center text-sm text-gray-600">{item.note ?? ""}</td>
-                                <td className="px-3 py-1.5 text-right text-xl font-semibold text-[#111827]">{currency(item.amount)}</td>
+                                <td className="px-3 py-1.5 text-right font-semibold text-gray-800">{currency(item.amount)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -276,10 +273,10 @@ export default function BalanceSheetPage() {
                     </tr>
                   ))}
 
-                  <tr className="border-y border-gray-300 bg-[#FFF8F2]">
-                    <td className="px-3 py-2 text-2xl font-bold text-[#111827]">Total Equity and Liabilities</td>
+                  <tr className="border-y border-gray-200 bg-[#FFF8F2]">
+                    <td className="px-3 py-2 font-bold text-gray-800">Total Equity and Liabilities</td>
                     <td className="px-3 py-2" />
-                    <td className="px-3 py-2 text-right text-2xl font-extrabold text-[#111827]">{currency(totalEquityAndLiabilities)}</td>
+                    <td className="px-3 py-2 text-right font-extrabold text-gray-800">{currency(totalEquityAndLiabilities)}</td>
                   </tr>
                 </tbody>
               </table>

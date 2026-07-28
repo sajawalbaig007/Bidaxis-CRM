@@ -231,46 +231,46 @@ export default function IncomeStatementPage() {
           </section>
 
           <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="bg-[#FDF1E8] border-b border-gray-200 py-2.5 px-4 text-center">
-              <h2 className="text-lg sm:text-xl font-black text-[#111827] tracking-tight">Income Statement (Head Wise)</h2>
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-200 bg-[#F8FAFC]">
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Income Statement (Head Wise)</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[950px]">
-                <thead>
-                  <tr className="bg-[#FAFAFA] border-b border-gray-300">
-                    <th className="text-left px-3 py-2 text-sm font-bold text-[#111827]">Section</th>
-                    <th className="text-left px-3 py-2 text-sm font-bold text-[#111827]">Picked Heads From Salary Table</th>
-                    <th className="text-right px-3 py-2 text-sm font-bold text-[#111827]">Net Total</th>
+              <table className="w-full text-sm" style={{ minWidth: "980px" }}>
+                <thead className="bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Section</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Picked Heads From Salary Table</th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-700">Net Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {TEAM_SALARY_HEADS.map((section) => (
-                    <tr key={section.team} className="border-b border-gray-200 align-top">
-                      <td className="px-3 py-2.5 text-sm font-semibold text-[#111827]">{section.team}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-700 leading-5">{section.headLabels.join(" • ")}</td>
-                      <td className="px-3 py-2.5 text-right text-sm font-bold text-[#111827]">{currency(section.totalSalary)}</td>
+                    <tr key={section.team} className="border-b border-gray-100 align-top">
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{section.team}</td>
+                      <td className="px-3 py-2.5 text-xs text-gray-600 leading-5">{section.headLabels.join(" • ")}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{currency(section.totalSalary)}</td>
                     </tr>
                   ))}
                   {OPEX_HEADS.map((item) => (
-                    <tr key={item.label} className="border-b border-gray-200">
-                      <td className="px-3 py-2.5 text-sm font-semibold text-[#111827]">{item.label}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-700">Payment Purpose, Date, Person of Payment, Account Specification, Amount, Remarks</td>
-                      <td className="px-3 py-2.5 text-right text-sm font-bold text-[#111827]">{currency(item.amount)}</td>
+                    <tr key={item.label} className="border-b border-gray-100">
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{item.label}</td>
+                      <td className="px-3 py-2.5 text-xs text-gray-600">Payment Purpose, Date, Person of Payment, Account Specification, Amount, Remarks</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{currency(item.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-[#EEF7FF] border-t border-gray-300">
-                    <td className="px-3 py-2.5 text-sm font-bold text-[#0F172A]" colSpan={2}>
+                  <tr className="bg-[#EEF7FF] border-t border-gray-200">
+                    <td className="px-3 py-2.5 font-bold text-[#0F172A]" colSpan={2}>
                       Total Expense
                     </td>
-                    <td className="px-3 py-2.5 text-right text-sm font-extrabold text-[#0F172A]">{currency(totalExpense)}</td>
+                    <td className="px-3 py-2.5 text-right font-extrabold text-[#0F172A]">{currency(totalExpense)}</td>
                   </tr>
-                  <tr className="bg-[#ECFDF3] border-t border-gray-300">
-                    <td className="px-3 py-2.5 text-sm font-bold text-[#0F172A]" colSpan={2}>
+                  <tr className="bg-[#ECFDF3] border-t border-gray-200">
+                    <td className="px-3 py-2.5 font-bold text-[#0F172A]" colSpan={2}>
                       Net Profit ({netMargin.toFixed(2)}%)
                     </td>
-                    <td className="px-3 py-2.5 text-right text-sm font-extrabold text-[#0F172A]">{currency(netProfit)}</td>
+                    <td className="px-3 py-2.5 text-right font-extrabold text-[#0F172A]">{currency(netProfit)}</td>
                   </tr>
                 </tfoot>
               </table>

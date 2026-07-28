@@ -30,18 +30,18 @@ export default function CashFlowStatementPage() {
           </header>
 
           <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="bg-[#EAF5FF] border-b border-gray-200 py-2.5 px-4 text-center">
-              <h2 className="text-lg sm:text-xl font-black text-[#111827] tracking-tight">BEM Solutions - Cashflow Record</h2>
+            <div className="px-4 sm:px-5 py-3 border-b border-gray-200 bg-[#F8FAFC]">
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">BEM Solutions - Cashflow Record</h2>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
-                <thead>
-                  <tr className="bg-[#FAFAFA] border-b border-gray-300">
-                    <th className="text-left px-3 py-2 text-sm font-bold text-[#111827]">Date</th>
-                    <th className="text-left px-3 py-2 text-sm font-bold text-[#111827]">Description</th>
+              <table className="w-full text-sm" style={{ minWidth: "1100px" }}>
+                <thead className="bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Date</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Description</th>
                     {BANK_HEADS.map((bank) => (
-                      <th key={`${bank}-debit`} className="text-center px-2 py-2 text-xs font-bold text-[#111827]">
+                      <th key={`${bank}-debit`} className="text-center px-2 py-2 text-xs font-semibold text-gray-700">
                         {bank}
                         <div className="mt-1 flex justify-between text-[10px] font-semibold text-gray-500">
                           <span className="w-1/2 text-center">Debit</span>
@@ -49,13 +49,13 @@ export default function CashFlowStatementPage() {
                         </div>
                       </th>
                     ))}
-                    <th className="text-right px-3 py-2 text-sm font-bold text-[#111827]">Net Amount</th>
+                    <th className="text-right px-3 py-2 font-semibold text-gray-700">Net Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {MONTH_SECTIONS.flatMap((section) => [
-                    <tr key={`${section.month}-title`} className="bg-[#F3F8FF] border-y border-gray-300">
-                      <td className="px-3 py-2 text-sm font-bold text-[#111827]" colSpan={2 + BANK_HEADS.length + 1}>
+                    <tr key={`${section.month}-title`} className="bg-[#F3F8FF] border-y border-gray-200">
+                      <td className="px-3 py-2 font-semibold text-gray-800" colSpan={2 + BANK_HEADS.length + 1}>
                         {section.month}
                       </td>
                     </tr>,
@@ -69,11 +69,11 @@ export default function CashFlowStatementPage() {
                       ))}
                       <td className="px-3 py-2 text-right text-xs font-semibold text-[#111827]">{currency(section.netAmount)}</td>
                     </tr>,
-                    <tr key={`${section.month}-total`} className="bg-[#FFF8F2] border-b border-gray-300">
-                      <td className="px-3 py-2 text-xs font-bold text-[#111827]" colSpan={2 + BANK_HEADS.length}>
+                    <tr key={`${section.month}-total`} className="bg-[#FFF8F2] border-b border-gray-200">
+                      <td className="px-3 py-2 text-xs font-semibold text-gray-800" colSpan={2 + BANK_HEADS.length}>
                         TOTAL AMOUNT
                       </td>
-                      <td className="px-3 py-2 text-right text-sm font-extrabold text-[#111827]">{currency(section.netAmount)}</td>
+                      <td className="px-3 py-2 text-right font-extrabold text-gray-800">{currency(section.netAmount)}</td>
                     </tr>,
                   ])}
                 </tbody>
