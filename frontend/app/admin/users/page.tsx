@@ -26,7 +26,7 @@ import {
 } from "@/lib/csrResetPages";
 import { broadcastAdminSummaryStale } from "@/lib/adminSummaryCache";
 
-type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager";
+type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts";
 
 type User = {
   id: string; name: string; email: string; password: string;
@@ -63,6 +63,7 @@ const roleColor = (role: UserRole) => {
   if (role === "Admin") return "bg-blue-100 text-blue-600";
   if (role === "Manager") return "bg-violet-100 text-violet-600";
   if (role === "Technical Manager") return "bg-amber-100 text-amber-700";
+  if (role === "Accounts") return "bg-cyan-100 text-cyan-700";
   return "bg-emerald-100 text-emerald-600";
 };
 
@@ -301,6 +302,7 @@ export default function UsersPage() {
         role:       u.role === "csr" ? "CSR"
                   : u.role === "manager" ? "Manager"
                   : u.role === "technical_manager" ? "Technical Manager"
+                  : u.role === "accounts" ? "Accounts"
                   : "Admin",
         csrCode:    u.csrCode    ?? null,
         cnic:       u.cnic       ?? null,
@@ -358,12 +360,14 @@ export default function UsersPage() {
   const activeAdmins = users.filter(u => u.role === "Admin" && u.isOnline).length;
   const activeManagers = users.filter(u => u.role === "Manager" && u.isOnline).length;
   const activeTechManagers = users.filter(u => u.role === "Technical Manager" && u.isOnline).length;
+  const activeAccounts = users.filter(u => u.role === "Accounts" && u.isOnline).length;
   const countByRole = {
     All: users.length,
     CSR: users.filter(u => u.role === "CSR").length,
     Admin: users.filter(u => u.role === "Admin").length,
     Manager: users.filter(u => u.role === "Manager").length,
     "Technical Manager": users.filter(u => u.role === "Technical Manager").length,
+    Accounts: users.filter(u => u.role === "Accounts").length,
   };
 
   const filteredUsers = users.filter(u => {
@@ -430,6 +434,7 @@ export default function UsersPage() {
         form.role === "CSR" ? "csr"
         : form.role === "Manager" ? "manager"
         : form.role === "Technical Manager" ? "technical_manager"
+        : form.role === "Accounts" ? "accounts"
         : "admin";
       const url    = editingUser ? `${apiBase()}/users/${editingUser.id}` : `${apiBase()}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
@@ -677,6 +682,7 @@ export default function UsersPage() {
                   { name: "Admin", online: activeAdmins,   offline: countByRole.Admin - activeAdmins },
                   { name: "Manager", online: activeManagers, offline: countByRole.Manager - activeManagers },
                   { name: "Tech Mgr", online: activeTechManagers, offline: countByRole["Technical Manager"] - activeTechManagers },
+                  { name: "Accounts", online: activeAccounts, offline: countByRole.Accounts - activeAccounts },
                 ]}
                 barGap={8} barSize={52}
               >
@@ -729,6 +735,7 @@ export default function UsersPage() {
             { id: "Admin" as const, label: "Admin" },
             { id: "Manager" as const, label: "Manager" },
             { id: "Technical Manager" as const, label: "Technical Manager" },
+            { id: "Accounts" as const, label: "Accounts" },
           ]).map(tab => {
             const active = roleFilter === tab.id;
             return (
@@ -1229,6 +1236,7 @@ export default function UsersPage() {
                     <option value="CSR">CSR (Customer Support)</option>
                     <option value="Manager">Manager</option>
                     <option value="Technical Manager">Technical Manager</option>
+                    <option value="Accounts">Accounts</option>
                     <option value="Admin">Admin</option>
                   </select>
                 </div>

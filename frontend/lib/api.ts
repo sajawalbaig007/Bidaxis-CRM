@@ -98,7 +98,8 @@ API.interceptors.response.use(
       path.startsWith("/admin") ||
       path.startsWith("/csr") ||
       path.startsWith("/manager") ||
-      path.startsWith("/technical");
+      path.startsWith("/technical") ||
+      path.startsWith("/accounts");
 
     if (
       status === 401 &&

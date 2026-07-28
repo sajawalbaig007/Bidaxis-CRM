@@ -125,11 +125,11 @@ function makeOTP(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-type PortalRole = "admin" | "csr" | "manager" | "technical_manager";
+type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts";
 
 function parsePortalRole(raw: unknown): PortalRole | null {
   const r = String(raw ?? "").toLowerCase();
-  if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager") return r;
+  if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager" || r === "accounts") return r;
   return null;
 }
 
@@ -137,6 +137,7 @@ function portalRoleLabel(role: PortalRole): string {
   if (role === "admin") return "Admin";
   if (role === "manager") return "Manager";
   if (role === "technical_manager") return "Technical Manager";
+  if (role === "accounts") return "Accounts";
   return "CSR";
 }
 
@@ -197,7 +198,11 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: "Only admins can create Technical Manager accounts." });
     }
 
-    const validRoles = ["admin", "csr", "manager", "technical_manager"];
+    if (role === "accounts" && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only admins can create Accounts users." });
+    }
+
+    const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ success: false, message: "Invalid role." });
     }
@@ -288,7 +293,7 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         code: "INVALID_LOGIN_ROLE",
-        message: "Select Admin, CSR, or Manager before signing in.",
+        message: "Select the correct role portal before signing in.",
       });
     }
 
@@ -494,7 +499,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         code: "INVALID_LOGIN_ROLE",
-        message: "Select Admin, CSR, or Manager before signing in.",
+        message: "Select the correct role portal before signing in.",
       });
     }
     const roleMismatch = assertPortalRoleMatch(user.role, loginRole);
