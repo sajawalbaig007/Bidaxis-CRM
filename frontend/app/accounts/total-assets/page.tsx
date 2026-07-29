@@ -3,30 +3,52 @@
 import { useMemo } from "react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
-import EditableDataTable from "../components/EditableDataTable";
+import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
 import type { AssetSectionRow, TotalAssetsData } from "../types";
-import { currency, newRowId } from "../types";
+import { currency, lineAmount, newRowId, todayIso } from "../types";
 
 function defaultData(): TotalAssetsData {
   return { sections: [] };
+}
+
+function sectionToHead(s: AssetSectionRow): ExpandableHeadRow {
+  const subHeads = s.subHeads?.length
+    ? s.subHeads
+    : (s.heads ?? []).map((label, i) => ({
+        id: `${s.id}-h-${i}`,
+        label,
+        amount: 0,
+        filledAt: s.filledAt ?? todayIso(),
+      }));
+  return {
+    id: s.id,
+    title: s.title,
+    amount: s.total,
+    filledAt: s.filledAt,
+    subHeads,
+  };
+}
+
+function headToSection(h: ExpandableHeadRow): AssetSectionRow {
+  return {
+    id: h.id,
+    title: h.title,
+    total: lineAmount(h),
+    filledAt: h.filledAt,
+    subHeads: h.subHeads ?? [],
+    heads: (h.subHeads ?? []).map(s => s.label),
+  };
 }
 
 export default function TotalAssetsPage() {
   const acc = useAccountsPage<TotalAssetsData>({ page: "total_assets", defaultData });
 
   const grandTotal = useMemo(
-    () => (acc.data.sections ?? []).reduce((a, s) => a + (Number(s.total) || 0), 0),
+    () => (acc.data.sections ?? []).reduce((a, s) => a + lineAmount({ amount: s.total, subHeads: s.subHeads }), 0),
     [acc.data.sections],
   );
-
-  const rows = (acc.data.sections ?? []).map(s => ({
-    id: s.id,
-    title: s.title,
-    headsText: s.heads.join(", "),
-    total: s.total,
-  }));
 
   return (
     <div className="flex min-h-screen bg-[#F0F2F8]">
@@ -35,7 +57,7 @@ export default function TotalAssetsPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Total Assets"
-          subtitle="Editable asset register by section — saved by record date."
+          subtitle="Section totals on main rows — expand for individual heads with fill dates."
           onAddNew={() => {
             acc.setData(prev => ({
               ...prev,
@@ -44,8 +66,12 @@ export default function TotalAssetsPage() {
                 {
                   id: newRowId("s"),
                   title: "New Asset Section",
-                  heads: ["SR#", "Description", "Qty", "Total Price"],
+                  heads: [],
                   total: 0,
+                  filledAt: todayIso(),
+                  subHeads: [
+                    { id: newRowId("sub"), label: "Item 1", amount: 0, filledAt: todayIso() },
+                  ],
                 },
               ],
             }));
@@ -56,30 +82,15 @@ export default function TotalAssetsPage() {
             <p className="text-2xl font-extrabold mt-1">{currency(grandTotal)}</p>
           </section>
 
-          <section className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mt-5">
-            <EditableDataTable
-              columns={[
-                { key: "title", label: "Section", type: "text" },
-                { key: "headsText", label: "Column Heads (comma separated)", type: "text" },
-                { key: "total", label: "Total", type: "number", align: "right", width: "140px" },
-              ]}
-              rows={rows}
-              onChange={(id, key, value) => {
-                acc.setData(prev => ({
-                  ...prev,
-                  sections: prev.sections.map(s => {
-                    if (s.id !== id) return s;
-                    if (key === "headsText") {
-                      return { ...s, heads: String(value).split(",").map(x => x.trim()).filter(Boolean) };
-                    }
-                    return { ...s, [key]: value } as AssetSectionRow;
-                  }),
-                }));
-              }}
-              onDelete={id => acc.setData(prev => ({ ...prev, sections: prev.sections.filter(s => s.id !== id) }))}
-              minWidth="900px"
+          <section className="mt-5">
+            <ExpandableHeadsTable
+              title="Asset Register"
+              accent="#7C3AED"
+              addLabel="Add Section"
+              rows={(acc.data.sections ?? []).map(sectionToHead)}
+              onChange={rows => acc.setData(prev => ({ ...prev, sections: rows.map(headToSection) }))}
             />
-            <p className="text-right font-extrabold text-[#0F172A] mt-4 pt-3 border-t">
+            <p className="text-right font-extrabold text-[#0F172A] mt-4 pt-3">
               Grand Total: {currency(grandTotal)}
             </p>
           </section>

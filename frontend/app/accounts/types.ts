@@ -13,11 +13,22 @@ export type AccountsUpload = {
   createdAt: string;
 };
 
+/** Individual fillable line under a parent head. */
+export type SubHeadEntry = {
+  id: string;
+  label: string;
+  amount: number;
+  /** Date this individual entry was filled (YYYY-MM-DD). */
+  filledAt: string;
+};
+
 export type BalanceLineItem = {
   id: string;
   label: string;
   note?: string;
   amount: number;
+  filledAt?: string;
+  subHeads?: SubHeadEntry[];
 };
 
 export type BalanceSection = {
@@ -30,6 +41,10 @@ export type StickyNote = {
   id: string;
   text: string;
   color?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
 };
 
 export type BalanceSheetData = {
@@ -41,20 +56,27 @@ export type BalanceSheetData = {
 export type TeamSalaryRow = {
   id: string;
   team: string;
-  headLabels: string[];
+  /** @deprecated migrated into subHeads */
+  headLabels?: string[];
   totalSalary: number;
+  filledAt?: string;
+  subHeads?: SubHeadEntry[];
 };
 
 export type OpexRow = {
   id: string;
   label: string;
   amount: number;
+  filledAt?: string;
+  subHeads?: SubHeadEntry[];
 };
 
 export type IncomeStatementData = {
   totalRevenue: number;
   teamSalaries: TeamSalaryRow[];
   opexHeads: OpexRow[];
+  loanHeads?: OpexRow[];
+  providentFundHeads?: OpexRow[];
 };
 
 export type CashFlowRow = {
@@ -81,6 +103,8 @@ export type AssetSectionRow = {
   title: string;
   heads: string[];
   total: number;
+  filledAt?: string;
+  subHeads?: SubHeadEntry[];
 };
 
 export type TotalAssetsData = {
@@ -89,21 +113,17 @@ export type TotalAssetsData = {
 
 export type CurrencyTabKey = "SN" | "AH";
 
-/** Per-entity payment inputs + editable tax / FX formula factors. */
 export type DashboardCurrencyTab = {
   usdAmount: number;
   cadAmount: number;
   pkrAmount: number;
   usdToPkrRate: number;
   cadToPkrRate: number;
-  /** USD × this = USD after tax (editable). Default 0.89 */
   usdTaxFactor: number;
-  /** CAD × this = CAD after tax (editable). SN default 0.89, AH/Sherjeel 0.945 */
   cadTaxFactor: number;
 };
 
 export type DashboardCurrency = {
-  /** @deprecated kept for older saved records — migrated on load */
   usdAmount?: number;
   cadAmount?: number;
   pkrAmount?: number;
@@ -131,4 +151,13 @@ export function newRowId(prefix = "row"): string {
 
 export function currency(value: number) {
   return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+export function sumSubHeads(subHeads?: SubHeadEntry[]): number {
+  return (subHeads ?? []).reduce((a, s) => a + (Number(s.amount) || 0), 0);
+}
+
+export function lineAmount(item: { amount?: number; totalSalary?: number; subHeads?: SubHeadEntry[] }): number {
+  if (item.subHeads && item.subHeads.length > 0) return sumSubHeads(item.subHeads);
+  return Number(item.amount ?? item.totalSalary) || 0;
 }

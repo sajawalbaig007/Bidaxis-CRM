@@ -4,18 +4,68 @@ import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
-import EditableDataTable from "../components/EditableDataTable";
-import RechartsBox from "@/app/components/charts/RechartsBox";
+import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
-import type { IncomeStatementData, TeamSalaryRow, OpexRow } from "../types";
-import { currency, newRowId } from "../types";
+import type { IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
+import { currency, lineAmount, newRowId, todayIso } from "../types";
 
 function defaultData(): IncomeStatementData {
   return {
     totalRevenue: 0,
     teamSalaries: [],
     opexHeads: [],
+    loanHeads: [],
+    providentFundHeads: [],
+  };
+}
+
+function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
+  const subHeads = t.subHeads?.length
+    ? t.subHeads
+    : (t.headLabels ?? []).map((label, i) => ({
+        id: `${t.id}-legacy-${i}`,
+        label,
+        amount: 0,
+        filledAt: t.filledAt ?? todayIso(),
+      }));
+  return {
+    id: t.id,
+    title: t.team,
+    amount: t.totalSalary,
+    filledAt: t.filledAt,
+    subHeads,
+  };
+}
+
+function opexToHead(o: OpexRow): ExpandableHeadRow {
+  return {
+    id: o.id,
+    title: o.label,
+    amount: o.amount,
+    filledAt: o.filledAt,
+    subHeads: o.subHeads ?? [],
+  };
+}
+
+function headToTeam(h: ExpandableHeadRow): TeamSalaryRow {
+  return {
+    id: h.id,
+    team: h.title,
+    totalSalary: lineAmount(h),
+    filledAt: h.filledAt,
+    subHeads: h.subHeads ?? [],
+    headLabels: (h.subHeads ?? []).map(s => s.label),
+  };
+}
+
+function headToOpex(h: ExpandableHeadRow): OpexRow {
+  return {
+    id: h.id,
+    label: h.title,
+    amount: lineAmount(h),
+    filledAt: h.filledAt,
+    subHeads: h.subHeads ?? [],
   };
 }
 
@@ -23,20 +73,28 @@ export default function IncomeStatementPage() {
   const acc = useAccountsPage<IncomeStatementData>({ page: "income_statement", defaultData });
 
   const payrollExpense = useMemo(
-    () => (acc.data.teamSalaries ?? []).reduce((a, t) => a + (Number(t.totalSalary) || 0), 0),
+    () => (acc.data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
     [acc.data.teamSalaries],
   );
   const operatingExpense = useMemo(
-    () => (acc.data.opexHeads ?? []).reduce((a, o) => a + (Number(o.amount) || 0), 0),
+    () => (acc.data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
     [acc.data.opexHeads],
   );
-  const totalExpense = payrollExpense + operatingExpense;
+  const loanExpense = useMemo(
+    () => (acc.data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [acc.data.loanHeads],
+  );
+  const pfExpense = useMemo(
+    () => (acc.data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [acc.data.providentFundHeads],
+  );
+  const totalExpense = payrollExpense + operatingExpense + loanExpense + pfExpense;
   const netProfit = (Number(acc.data.totalRevenue) || 0) - totalExpense;
   const netMargin = acc.data.totalRevenue > 0 ? (netProfit / acc.data.totalRevenue) * 100 : 0;
 
   const payrollChartData = (acc.data.teamSalaries ?? []).map(t => ({
     name: t.team.replace(" Salaries", ""),
-    value: t.totalSalary,
+    value: lineAmount(t),
   }));
 
   const incomeCompareData = [
@@ -45,20 +103,6 @@ export default function IncomeStatementPage() {
     { name: "Net Profit", amount: netProfit },
   ];
 
-  const updateTeam = (id: string, key: keyof TeamSalaryRow, value: string | number) => {
-    acc.setData(prev => ({
-      ...prev,
-      teamSalaries: prev.teamSalaries.map(t => (t.id === id ? { ...t, [key]: value } : t)),
-    }));
-  };
-
-  const updateOpex = (id: string, key: keyof OpexRow, value: string | number) => {
-    acc.setData(prev => ({
-      ...prev,
-      opexHeads: prev.opexHeads.map(o => (o.id === id ? { ...o, [key]: value } : o)),
-    }));
-  };
-
   return (
     <div className="flex min-h-screen bg-[#F0F2F8]">
       <AccountsSidebar />
@@ -66,28 +110,36 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Editable payroll and operating expenses — saved by record date."
+          subtitle="Totals on main rows — expand for individuals. Edit/delete opens a detail popup."
           onAddNew={() => {
             acc.setData(prev => ({
               ...prev,
               teamSalaries: [
                 ...prev.teamSalaries,
-                { id: newRowId("t"), team: "New Team Salaries", headLabels: ["Basic Salary", "Total Salary"], totalSalary: 0 },
+                {
+                  id: newRowId("t"),
+                  team: "New Team Salaries",
+                  totalSalary: 0,
+                  filledAt: todayIso(),
+                  subHeads: [{ id: newRowId("sub"), label: "Basic Salary", amount: 0, filledAt: todayIso() }],
+                },
               ],
             }));
           }}
-          addNewLabel="Add Team / Row"
+          addNewLabel="Add Team"
         >
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
             {[
               { label: "Revenue", value: acc.data.totalRevenue, cls: "from-[#0B84F3] to-[#0369A1]" },
               { label: "Payroll", value: payrollExpense, cls: "from-[#8B5CF6] to-[#6D28D9]" },
+              { label: "Loans", value: loanExpense, cls: "from-[#F59E0B] to-[#B45309]" },
+              { label: "Provident Fund", value: pfExpense, cls: "from-[#06B6D4] to-[#0E7490]" },
               { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]" },
             ].map(c => (
               <div key={c.label} className={`bg-gradient-to-br ${c.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{c.label}</p>
-                <p className="text-lg sm:text-2xl font-extrabold mt-1">{currency(Number(c.value) || 0)}</p>
+                <p className="text-lg sm:text-xl font-extrabold mt-1">{currency(Number(c.value) || 0)}</p>
               </div>
             ))}
           </section>
@@ -142,66 +194,40 @@ export default function IncomeStatementPage() {
             </div>
           </section>
 
-          <section className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 mt-5 space-y-5">
-            <div>
-              <h2 className="font-bold text-gray-800 mb-3">Team Salaries</h2>
-              <EditableDataTable
-                columns={[
-                  { key: "team", label: "Section / Team", type: "text" },
-                  { key: "headLabelsText", label: "Head Labels (comma separated)", type: "text" },
-                  { key: "totalSalary", label: "Net Total", type: "number", align: "right" },
-                ]}
-                rows={(acc.data.teamSalaries ?? []).map(t => ({
-                  id: t.id,
-                  team: t.team,
-                  headLabelsText: t.headLabels.join(", "),
-                  totalSalary: t.totalSalary,
-                }))}
-                onChange={(id, key, value) => {
-                  if (key === "headLabelsText") {
-                    acc.setData(prev => ({
-                      ...prev,
-                      teamSalaries: prev.teamSalaries.map(t =>
-                        t.id === id
-                          ? { ...t, headLabels: String(value).split(",").map(s => s.trim()).filter(Boolean) }
-                          : t,
-                      ),
-                    }));
-                  } else {
-                    updateTeam(id, key as keyof TeamSalaryRow, value);
-                  }
-                }}
-                onDelete={id => acc.setData(prev => ({ ...prev, teamSalaries: prev.teamSalaries.filter(t => t.id !== id) }))}
-                minWidth="900px"
-              />
-            </div>
+          <section className="mt-5 space-y-5">
+            <ExpandableHeadsTable
+              title="Team Salaries"
+              accent="#0B84F3"
+              addLabel="Add Team"
+              rows={(acc.data.teamSalaries ?? []).map(teamToHead)}
+              onChange={rows => acc.setData(prev => ({ ...prev, teamSalaries: rows.map(headToTeam) }))}
+            />
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold text-gray-800">Operating Expenses</h2>
-                <button
-                  type="button"
-                  onClick={() => acc.setData(prev => ({
-                    ...prev,
-                    opexHeads: [...prev.opexHeads, { id: newRowId("o"), label: "New Expense", amount: 0 }],
-                  }))}
-                  className="text-xs font-semibold text-[#0B84F3]"
-                >
-                  + Add OPEX
-                </button>
-              </div>
-              <EditableDataTable
-                columns={[
-                  { key: "label", label: "Expense Head", type: "text" },
-                  { key: "amount", label: "Amount", type: "number", align: "right" },
-                ]}
-                rows={acc.data.opexHeads ?? []}
-                onChange={(id, key, value) => updateOpex(id, key as keyof OpexRow, value)}
-                onDelete={id => acc.setData(prev => ({ ...prev, opexHeads: prev.opexHeads.filter(o => o.id !== id) }))}
-              />
-            </div>
+            <ExpandableHeadsTable
+              title="Operating Expenses"
+              accent="#7C3AED"
+              addLabel="Add OPEX"
+              rows={(acc.data.opexHeads ?? []).map(opexToHead)}
+              onChange={rows => acc.setData(prev => ({ ...prev, opexHeads: rows.map(headToOpex) }))}
+            />
 
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-3 border-t text-sm font-bold">
+            <ExpandableHeadsTable
+              title="Loans"
+              accent="#F59E0B"
+              addLabel="Add Loan Head"
+              rows={(acc.data.loanHeads ?? []).map(opexToHead)}
+              onChange={rows => acc.setData(prev => ({ ...prev, loanHeads: rows.map(headToOpex) }))}
+            />
+
+            <ExpandableHeadsTable
+              title="Provident Fund"
+              accent="#06B6D4"
+              addLabel="Add PF Head"
+              rows={(acc.data.providentFundHeads ?? []).map(opexToHead)}
+              onChange={rows => acc.setData(prev => ({ ...prev, providentFundHeads: rows.map(headToOpex) }))}
+            />
+
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1 text-sm font-bold">
               <span className="text-gray-600">Total Expense: {currency(totalExpense)}</span>
               <span className="text-[#12B76A]">Net Profit ({netMargin.toFixed(2)}%): {currency(netProfit)}</span>
             </div>
