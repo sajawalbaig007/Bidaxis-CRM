@@ -109,10 +109,10 @@ export default function IncomeStatementPage() {
   }));
 
   const expenseMix = [
-    { name: "Payroll", value: payrollExpense, color: "#8B5CF6" },
-    { name: "OPEX", value: operatingExpense, color: "#7C3AED" },
-    { name: "Loans", value: loanExpense, color: "#F59E0B" },
-    { name: "PF", value: pfExpense, color: "#06B6D4" },
+    { name: "Payroll", value: payrollExpense, color: "#0B84F3" },
+    { name: "OPEX", value: operatingExpense, color: "#F59E0B" },
+    { name: "Loans", value: loanExpense, color: "#EA580C" },
+    { name: "PF", value: pfExpense, color: "#0D9488" },
   ].filter(d => d.value > 0);
 
   const stackCompare = [
@@ -153,9 +153,9 @@ export default function IncomeStatementPage() {
         >
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
             {[
-              { label: "Payroll", value: payrollExpense, cls: "from-[#8B5CF6] to-[#6D28D9]" },
-              { label: "Loans", value: loanExpense, cls: "from-[#F59E0B] to-[#B45309]" },
-              { label: "Provident Fund", value: pfExpense, cls: "from-[#06B6D4] to-[#0E7490]" },
+              { label: "Payroll", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]" },
+              { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]" },
+              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]" },
               { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]" },
             ].map(c => (
@@ -245,7 +245,7 @@ export default function IncomeStatementPage() {
               <AccountsChartCard
                 title="Top Operating Expenses"
                 subtitle="Largest OPEX heads"
-                accent="#7C3AED"
+                accent="#F59E0B"
                 icon={<Layers3 size={16} />}
               >
                 <RechartsBox height={220}>
@@ -254,7 +254,7 @@ export default function IncomeStatementPage() {
                     <XAxis type="number" tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fontWeight: 600 }} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="value" fill="#7C3AED" radius={[0, 8, 8, 0]} barSize={16} />
+                    <Bar dataKey="value" fill="#F59E0B" radius={[0, 8, 8, 0]} barSize={16} />
                   </BarChart>
                 </RechartsBox>
               </AccountsChartCard>
@@ -272,7 +272,7 @@ export default function IncomeStatementPage() {
 
             <ExpandableHeadsTable
               title="Operating Expenses"
-              accent="#7C3AED"
+              accent="#F59E0B"
               addLabel="Add OPEX"
               rows={(acc.data.opexHeads ?? []).map(opexToHead)}
               onChange={rows => acc.setData(prev => ({ ...prev, opexHeads: rows.map(headToOpex) }))}
@@ -280,7 +280,7 @@ export default function IncomeStatementPage() {
 
             <ExpandableHeadsTable
               title="Loans"
-              accent="#F59E0B"
+              accent="#EA580C"
               addLabel="Add Loan Head"
               rows={(acc.data.loanHeads ?? []).map(opexToHead)}
               onChange={rows => acc.setData(prev => ({ ...prev, loanHeads: rows.map(headToOpex) }))}
@@ -288,7 +288,7 @@ export default function IncomeStatementPage() {
 
             <ExpandableHeadsTable
               title="Provident Fund"
-              accent="#06B6D4"
+              accent="#0D9488"
               addLabel="Add PF Head"
               rows={(acc.data.providentFundHeads ?? []).map(opexToHead)}
               onChange={rows => acc.setData(prev => ({ ...prev, providentFundHeads: rows.map(headToOpex) }))}

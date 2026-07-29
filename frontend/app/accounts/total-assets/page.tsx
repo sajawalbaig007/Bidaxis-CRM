@@ -156,7 +156,7 @@ export default function TotalAssetsPage() {
             <AccountsChartCard
               title="Company Share"
               subtitle="BEM · GPS · BDS mix"
-              accent="#7C3AED"
+              accent="#0D9488"
               icon={<Building2 size={16} />}
             >
               <RechartsBox height={240}>
@@ -191,7 +191,7 @@ export default function TotalAssetsPage() {
             <AccountsChartCard
               title="Company Comparison"
               subtitle="Total assets by company"
-              accent="#0B84F3"
+              accent="#F59E0B"
               icon={<BarChart3 size={16} />}
             >
               <RechartsBox height={240}>

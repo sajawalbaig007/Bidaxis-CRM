@@ -150,7 +150,7 @@ export default function AccountsDashboardPage() {
   const paymentSummary = useMemo(
     () => [
       { name: "USD", amount: displayCalc.usdInPkr, color: "#0B84F3" },
-      { name: "CAD", amount: displayCalc.cadInPkr, color: "#8B5CF6" },
+      { name: "CAD", amount: displayCalc.cadInPkr, color: "#0D9488" },
       { name: "PKR", amount: displayCalc.pkrAmount, color: "#12B76A" },
     ],
     [displayCalc.usdInPkr, displayCalc.cadInPkr, displayCalc.pkrAmount],
@@ -160,7 +160,7 @@ export default function AccountsDashboardPage() {
     { label: "Balance Sheet Total Assets", value: summaries.balanceSheetTotalAssets ?? 0, color: "from-[#0B84F3] to-[#0369A1]" },
     { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]" },
     { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]" },
-    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#7C3AED] to-[#5B21B6]" },
+    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]" },
     {
       label: "Balance Sheet + Total Assets",
       value: (summaries.balanceSheetTotalAssets ?? 0) + (summaries.totalAssetsRegister ?? 0),
@@ -413,7 +413,7 @@ export default function AccountsDashboardPage() {
                     { name: "Balance Sheet", value: summaries.balanceSheetTotalAssets ?? 0, fill: "#0B84F3" },
                     { name: "Income NP", value: summaries.incomeNetProfit ?? 0, fill: "#12B76A" },
                     { name: "Cash Flow", value: summaries.cashFlowNet ?? 0, fill: "#B8112D" },
-                    { name: "Total Assets", value: summaries.totalAssetsRegister ?? 0, fill: "#7C3AED" },
+                    { name: "Total Assets", value: summaries.totalAssetsRegister ?? 0, fill: "#0D9488" },
                   ]}
                   barSize={40}
                 >
@@ -422,7 +422,7 @@ export default function AccountsDashboardPage() {
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip formatter={v => currency(Number(v ?? 0))} />
                   <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                    {["#0B84F3", "#12B76A", "#B8112D", "#7C3AED"].map((c, i) => (
+                    {["#0B84F3", "#12B76A", "#B8112D", "#0D9488"].map((c, i) => (
                       <Cell key={i} fill={c} />
                     ))}
                   </Bar>

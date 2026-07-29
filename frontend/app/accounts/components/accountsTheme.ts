@@ -25,14 +25,14 @@ export const TABLE_VARIANT: Record<
     accent: "#0B84F3",
   },
   equity: {
-    card: "border-[#7C3AED]/25 shadow-[0_4px_24px_-4px_rgba(124,58,237,0.15)]",
-    header: "bg-gradient-to-r from-[#F3EEFF] to-[#FAF5FF]",
-    headerText: "text-[#6D28D9]",
-    rowHover: "hover:bg-[#FAF8FF]",
-    footer: "bg-[#F3EEFF]/80 border-t-2 border-[#7C3AED]/30",
-    input: "focus:ring-[#7C3AED]/25 focus:border-[#7C3AED]",
-    badge: "bg-[#7C3AED]",
-    accent: "#7C3AED",
+    card: "border-[#0D9488]/25 shadow-[0_4px_24px_-4px_rgba(13,148,136,0.15)]",
+    header: "bg-gradient-to-r from-[#F0FDFA] to-[#F0F9FF]",
+    headerText: "text-[#0F766E]",
+    rowHover: "hover:bg-[#F8FFFE]",
+    footer: "bg-[#F0FDFA]/80 border-t-2 border-[#0D9488]/30",
+    input: "focus:ring-[#0D9488]/25 focus:border-[#0D9488]",
+    badge: "bg-[#0D9488]",
+    accent: "#0D9488",
   },
   liability: {
     card: "border-[#B8112D]/25 shadow-[0_4px_24px_-4px_rgba(184,17,45,0.12)]",
@@ -66,7 +66,7 @@ export const TABLE_VARIANT: Record<
   },
 };
 
-export const BANK_COLORS = ["#0B84F3", "#7C3AED", "#12B76A", "#D97706", "#B8112D", "#0891B2"];
+export const BANK_COLORS = ["#0B84F3", "#B8112D", "#12B76A", "#F59E0B", "#0D9488", "#EA580C"];
 
 export function bankColor(index: number): string {
   return BANK_COLORS[index % BANK_COLORS.length];
