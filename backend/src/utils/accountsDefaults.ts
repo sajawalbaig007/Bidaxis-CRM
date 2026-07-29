@@ -203,14 +203,22 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
 
     case "total_assets":
       return {
-        sections: [
-          { id: rid("s", 1), title: "IT Inventory", heads: ["SR#", "Description", "Qty", "Total Price"], total: 171540 },
-          { id: rid("s", 2), title: "Electrical Inventory", heads: ["SR#", "Description", "Qty", "Total Price"], total: 416730 },
-          { id: rid("s", 3), title: "Furniture Inventory", heads: ["SR#", "Description", "Qty", "Total Price"], total: 645770 },
-          { id: rid("s", 4), title: "Office Renovation & Security Expense", heads: ["SR#", "Description", "Qty", "Total Price"], total: 89350 },
-          { id: rid("s", 5), title: "BIM Designing Studio", heads: ["IT Inventory", "Electrical Inventory", "Furniture Inventory"], total: 323830 },
-          { id: rid("s", 6), title: "Global Pre-Construction Services", heads: ["SR#", "Description", "Qty", "Total Price"], total: 117900 },
-        ],
+        companies: {
+          BEM: [
+            { id: rid("bem", 1), title: "IT Inventory", heads: [], total: 0, subHeads: [] },
+            { id: rid("bem", 2), title: "Electrical Inventory", heads: [], total: 0, subHeads: [] },
+            { id: rid("bem", 3), title: "Furniture Inventory", heads: [], total: 0, subHeads: [] },
+          ],
+          GPS: [
+            { id: rid("gps", 1), title: "IT Inventory", heads: [], total: 0, subHeads: [] },
+            { id: rid("gps", 2), title: "Global Pre-Construction Services", heads: [], total: 0, subHeads: [] },
+          ],
+          BDS: [
+            { id: rid("bds", 1), title: "BIM Designing Studio", heads: [], total: 0, subHeads: [] },
+            { id: rid("bds", 2), title: "Office Renovation & Security", heads: [], total: 0, subHeads: [] },
+          ],
+        },
+        sections: [],
       };
 
     default:
