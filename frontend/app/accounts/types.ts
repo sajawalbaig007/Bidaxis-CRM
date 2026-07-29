@@ -26,9 +26,16 @@ export type BalanceSection = {
   items: BalanceLineItem[];
 };
 
+export type StickyNote = {
+  id: string;
+  text: string;
+  color?: string;
+};
+
 export type BalanceSheetData = {
   assetSections: BalanceSection[];
   equityLiabilitySections: BalanceSection[];
+  stickyNotes?: StickyNote[];
 };
 
 export type TeamSalaryRow = {
