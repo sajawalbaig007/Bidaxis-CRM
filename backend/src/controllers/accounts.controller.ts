@@ -284,8 +284,26 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           0,
         );
       } else if (page === "total_assets") {
-        const sections = (data.sections as Array<{ total: number }>) ?? [];
-        summaries.totalAssetsRegister = sections.reduce((a, s) => a + (Number(s.total) || 0), 0);
+        const sumSections = (sections: Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>) =>
+          sections.reduce((a, s) => {
+            if (s.subHeads && s.subHeads.length > 0) {
+              return a + s.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+            }
+            return a + (Number(s.total) || 0);
+          }, 0);
+
+        const companies = data.companies as
+          | Record<string, Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>>
+          | undefined;
+        if (companies && (companies.BEM || companies.GPS || companies.BDS)) {
+          summaries.totalAssetsRegister =
+            sumSections(companies.BEM ?? []) +
+            sumSections(companies.GPS ?? []) +
+            sumSections(companies.BDS ?? []);
+        } else {
+          const sections = (data.sections as Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>) ?? [];
+          summaries.totalAssetsRegister = sumSections(sections);
+        }
       }
     }
 

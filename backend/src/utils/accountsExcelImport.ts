@@ -103,7 +103,14 @@ export function mergeAccountsExcel(
   }
 
   if (page === "total_assets") {
-    const sections = (next.sections as Array<{ id: string; title: string; heads: string[]; total: number }>) ?? [];
+    type Sec = { id: string; title: string; heads: string[]; total: number; subHeads?: Array<{ id: string; label: string; amount: number; filledAt: string }> };
+    const companies = (next.companies as Record<string, Sec[]> | undefined) ?? {
+      BEM: [],
+      GPS: [],
+      BDS: [],
+    };
+    // Excel import targets BEM by default (company column can be added later)
+    const sections = companies.BEM ?? ((next.sections as Sec[]) ?? []);
     for (const row of rows) {
       const title = String(row[0] ?? "").trim();
       if (!title || title.toLowerCase().startsWith("grand")) continue;
@@ -122,7 +129,9 @@ export function mergeAccountsExcel(
         });
       }
     }
-    next.sections = sections;
+    companies.BEM = sections;
+    next.companies = companies;
+    next.sections = [];
     return next;
   }
 

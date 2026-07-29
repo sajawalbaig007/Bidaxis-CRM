@@ -109,11 +109,30 @@ export type AssetSectionRow = {
   notes?: DatedNote[];
 };
 
+/** Company keys for Total Assets register. */
+export type AssetsCompanyKey = "BEM" | "GPS" | "BDS";
+
+export const ASSETS_COMPANIES: { key: AssetsCompanyKey; label: string; accent: string }[] = [
+  { key: "BEM", label: "BEM", accent: "#7C3AED" },
+  { key: "GPS", label: "GPS", accent: "#0B84F3" },
+  { key: "BDS", label: "BDS", accent: "#B8112D" },
+];
+
 export type TotalAssetsData = {
-  sections: AssetSectionRow[];
+  /** Company-wise asset registers */
+  companies?: Record<AssetsCompanyKey, AssetSectionRow[]>;
+  /** @deprecated legacy flat list — migrated into companies.BEM */
+  sections?: AssetSectionRow[];
 };
 
+/** AH = Ahmed Hamza (0.89), SN = Sharjeel Nasir (CAD 0.945 / rate 196) */
 export type CurrencyTabKey = "SN" | "AH";
+
+export const CURRENCY_TAB_LABELS: Record<CurrencyTabKey | "ALL", string> = {
+  AH: "Ahmed Hamza",
+  SN: "Sharjeel Nasir",
+  ALL: "All",
+};
 
 export type DashboardCurrencyTab = {
   usdAmount: number;
