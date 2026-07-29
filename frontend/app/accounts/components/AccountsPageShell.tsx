@@ -54,7 +54,6 @@ export default function AccountsPageShell({
   onPeriodPresetChange,
   filterMonth,
   onFilterMonthChange,
-  savedDates,
   onSave,
   onAddNew,
   addNewLabel = "Add New Row",
@@ -202,27 +201,6 @@ export default function AccountsPageShell({
           )}
         </div>
 
-        <div className="text-xs font-semibold text-gray-600">
-          Saved dates{activePreset === "all_time" ? "" : " in range"} ({savedDates.length})
-          <div className="mt-1 min-h-10 max-h-28 overflow-y-auto rounded-xl border border-gray-100 bg-[#FAFAFA] p-2 flex flex-wrap gap-1">
-            {savedDates.length === 0 ? (
-              <span className="text-gray-400 text-[11px]">No saved records{activePreset === "all_time" ? "" : " in this range"}</span>
-            ) : (
-              savedDates.map(d => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => onRecordDateChange(d)}
-                  className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-colors ${
-                    d === recordDate ? "bg-[#B8112D] text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-[#B8112D]"
-                  }`}
-                >
-                  {d}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
       </section>
 
       {uploads.length > 0 && (
