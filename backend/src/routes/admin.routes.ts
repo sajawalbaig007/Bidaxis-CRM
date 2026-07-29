@@ -1667,7 +1667,7 @@ router.post("/trades", verifyToken, allowRoles("admin", "manager", "technical_ma
 
 router.delete("/trades/:tradeId", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
-    const { tradeId } = req.params;
+    const tradeId = req.params.tradeId as string;
     await prisma.trade.delete({ where: { id: tradeId } }).catch(() => null);
     return res.json({ success: true });
   } catch (error) {
