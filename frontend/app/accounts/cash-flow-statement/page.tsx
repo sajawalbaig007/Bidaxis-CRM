@@ -106,7 +106,7 @@ export default function CashFlowStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Cash Flow Statement"
-          subtitle="View mode by default — pencil on each row to edit. Net auto-calculates when bank Dr/Cr filled."
+          subtitle="Tables are view-only — pencil opens edit popup for bank Dr/Cr & notes. Net auto-calculates from banks."
           onAddNew={addRowToFirstMonth}
           addNewLabel="Add New Entry"
         >

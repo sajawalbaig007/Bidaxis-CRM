@@ -2,7 +2,7 @@
 
 import { Trash2, X, Plus, StickyNote } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
-import { currency, newRowId, todayIso } from "../types";
+import { currency, newRowId, sumSubHeads, todayIso } from "../types";
 
 export type HeadDetailModel = {
   id: string;
@@ -38,24 +38,33 @@ export default function HeadDetailModal({
   };
 
   const updateSub = (id: string, patch: Partial<SubHeadEntry>) => {
+    const subHeads = value.subHeads.map(s => (s.id === id ? { ...s, ...patch } : s));
     onSave({
       ...value,
-      subHeads: value.subHeads.map(s => (s.id === id ? { ...s, ...patch } : s)),
+      subHeads,
+      amount: sumSubHeads(subHeads),
     });
   };
 
   const addSub = () => {
+    const subHeads = [
+      ...value.subHeads,
+      { id: newRowId("sub"), label: "New sub-head", amount: 0, filledAt: todayIso() },
+    ];
     onSave({
       ...value,
-      subHeads: [
-        ...value.subHeads,
-        { id: newRowId("sub"), label: "New sub-head", amount: 0, filledAt: todayIso() },
-      ],
+      subHeads,
+      amount: sumSubHeads(subHeads),
     });
   };
 
   const removeSub = (id: string) => {
-    onSave({ ...value, subHeads: value.subHeads.filter(s => s.id !== id) });
+    const subHeads = value.subHeads.filter(s => s.id !== id);
+    onSave({
+      ...value,
+      subHeads,
+      amount: subHeads.length > 0 ? sumSubHeads(subHeads) : value.amount,
+    });
   };
 
   const addNote = () => {
@@ -106,12 +115,18 @@ export default function HeadDetailModal({
 
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs font-semibold text-gray-600 block">
-              Total (override if no sub-heads)
+              {value.subHeads.length > 0 ? "Total (from sub-heads)" : "Total (add sub-heads or set here)"}
               <input
                 type="number"
-                value={value.amount}
-                onChange={e => setField("amount", Number(e.target.value || 0))}
-                className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                value={value.subHeads.length > 0 ? sumSubHeads(value.subHeads) : value.amount}
+                readOnly={value.subHeads.length > 0}
+                onChange={e => {
+                  if (value.subHeads.length > 0) return;
+                  setField("amount", Number(e.target.value || 0));
+                }}
+                className={`mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30 ${
+                  value.subHeads.length > 0 ? "bg-[#F8FAFC] text-gray-600 cursor-default" : ""
+                }`}
               />
             </label>
             <label className="text-xs font-semibold text-gray-600 block">

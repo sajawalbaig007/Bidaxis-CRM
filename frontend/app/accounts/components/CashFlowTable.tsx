@@ -1,12 +1,12 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { Plus, Trash2, Landmark, CalendarDays, StickyNote } from "lucide-react";
-import type { CashFlowMonth, CashFlowRow, DatedNote } from "../types";
-import { currency, newRowId, normalizeNotes, todayIso } from "../types";
+import { Plus, Landmark, CalendarDays, Pencil } from "lucide-react";
+import type { CashFlowMonth, CashFlowRow } from "../types";
+import { currency } from "../types";
 import { TABLE_VARIANT, bankColor } from "./accountsTheme";
 import AccountsNotesCell from "./AccountsNotesCell";
-import { RowEditToggle } from "./ViewEditCell";
+import CashFlowRowModal, { type CashFlowEditModel } from "./CashFlowRowModal";
 
 function bankActivity(row: CashFlowRow): boolean {
   return Object.values(row.bankAmounts ?? {}).some(
@@ -36,188 +36,19 @@ type CashFlowTableProps = {
   onAddRow: (monthId: string) => void;
 };
 
-function NotesEditor({
-  notes,
-  onChange,
-}: {
-  notes: DatedNote[];
-  onChange: (next: DatedNote[]) => void;
-}) {
-  const sorted = [...notes].sort((a, b) => b.date.localeCompare(a.date));
-  return (
-    <div className="rounded-xl border border-amber-100 overflow-hidden bg-white min-w-[180px]">
-      <div className="px-2 py-1 bg-amber-50/80 text-[10px] font-bold uppercase text-amber-800 border-b border-amber-100 flex items-center justify-between gap-1">
-        <span className="inline-flex items-center gap-1"><StickyNote size={11} /> Notes</span>
-        <button
-          type="button"
-          onClick={() => onChange([{ id: newRowId("n"), text: "", date: todayIso() }, ...notes])}
-          className="text-[10px] font-bold text-amber-700 normal-case tracking-normal inline-flex items-center gap-0.5"
-        >
-          <Plus size={11} /> Add
-        </button>
-      </div>
-      {sorted.length === 0 ? (
-        <p className="text-[11px] text-gray-400 px-2 py-2">No notes yet.</p>
-      ) : (
-        <div className="p-1.5 space-y-1.5 max-h-40 overflow-y-auto">
-          {sorted.map(n => (
-            <div key={n.id} className="rounded-lg border border-amber-100 bg-amber-50/40 p-1.5 space-y-1">
-              <div className="flex items-center gap-1">
-                <input
-                  type="date"
-                  value={n.date}
-                  onChange={e => onChange(notes.map(x => (x.id === n.id ? { ...x, date: e.target.value } : x)))}
-                  className="h-7 flex-1 rounded border border-amber-200 bg-white px-1 text-[10px]"
-                />
-                <button
-                  type="button"
-                  onClick={() => onChange(notes.filter(x => x.id !== n.id))}
-                  className="text-red-500 w-6 h-6 inline-flex items-center justify-center"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-              <textarea
-                value={n.text}
-                onChange={e => onChange(notes.map(x => (x.id === n.id ? { ...x, text: e.target.value } : x)))}
-                rows={2}
-                placeholder="Write note…"
-                className="w-full rounded border border-amber-200 bg-white px-1.5 py-1 text-[11px] outline-none resize-none"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CashFlowRowBlock({
-  row,
-  monthId,
-  bankHeads,
-  editing,
-  onToggleEdit,
-  onUpdateRow,
-  onUpdateBank,
-  onRemoveRow,
-}: {
-  row: CashFlowRow;
-  monthId: string;
-  bankHeads: string[];
-  editing: boolean;
-  onToggleEdit: () => void;
-  onUpdateRow: CashFlowTableProps["onUpdateRow"];
-  onUpdateBank: CashFlowTableProps["onUpdateBank"];
-  onRemoveRow: CashFlowTableProps["onRemoveRow"];
-}) {
-  const theme = TABLE_VARIANT.cashflow;
-  const net = computedNet(row);
-  const isAutoNet = bankActivity(row);
-  const inputCls = `h-8 w-full min-w-0 rounded-lg border border-gray-200 px-2 text-xs outline-none focus:ring-2 ${theme.input}`;
-  const notes = normalizeNotes(row.notes, undefined, row.date);
-
-  return (
-    <tr className={`border-b border-gray-100 ${theme.rowHover} transition-colors`}>
-      <td className="px-2 py-2">
-        {editing ? (
-          <input type="date" value={row.date?.slice(0, 10) ?? ""} onChange={e => onUpdateRow(monthId, row.id, { date: e.target.value })} className={inputCls} />
-        ) : (
-          <span className="inline-flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap px-1">
-            <CalendarDays size={11} className="text-gray-400" />
-            {row.date?.slice(0, 10) || "—"}
-          </span>
-        )}
-      </td>
-      <td className="px-2 py-2">
-        {editing ? (
-          <input value={row.description} onChange={e => onUpdateRow(monthId, row.id, { description: e.target.value })} className={`${inputCls} min-w-[140px]`} />
-        ) : (
-          <span className="text-sm text-[#0F172A] font-medium truncate block max-w-[200px]" title={row.description}>
-            {row.description || "—"}
-          </span>
-        )}
-      </td>
-      {bankHeads.map((bank, bi) => {
-        const b = row.bankAmounts?.[bank] ?? { debit: 0, credit: 0 };
-        const col = bankColor(bi);
-        return (
-          <Fragment key={bank}>
-            <td className="px-1 py-2" style={{ borderLeft: `2px solid ${col}${editing ? "33" : "18"}` }}>
-              {editing ? (
-                <input type="number" value={b.debit} onChange={e => onUpdateBank(monthId, row.id, bank, "debit", Number(e.target.value || 0))} className={`${inputCls} text-right tabular-nums`} />
-              ) : (
-                <span className="block text-right text-xs tabular-nums text-[#334155] px-1">{b.debit ? currency(b.debit) : <span className="text-gray-300">—</span>}</span>
-              )}
-            </td>
-            <td className="px-1 py-2" style={{ borderRight: `2px solid ${col}${editing ? "33" : "18"}` }}>
-              {editing ? (
-                <input type="number" value={b.credit} onChange={e => onUpdateBank(monthId, row.id, bank, "credit", Number(e.target.value || 0))} className={`${inputCls} text-right tabular-nums`} />
-              ) : (
-                <span className="block text-right text-xs tabular-nums text-[#334155] px-1">{b.credit ? currency(b.credit) : <span className="text-gray-300">—</span>}</span>
-              )}
-            </td>
-          </Fragment>
-        );
-      })}
-      <td className="px-2 py-2 align-top">
-        {editing ? (
-          <NotesEditor notes={notes} onChange={next => onUpdateRow(monthId, row.id, { notes: next })} />
-        ) : (
-          <AccountsNotesCell notes={row.notes} fallbackDate={row.date} />
-        )}
-      </td>
-      <td className="px-2 py-2 text-right">
-        {editing ? (
-          <input
-            type="number"
-            value={isAutoNet ? net : row.netAmount}
-            disabled={isAutoNet}
-            onChange={e => onUpdateRow(monthId, row.id, { netAmount: Number(e.target.value || 0) })}
-            className={`${inputCls} font-bold tabular-nums ${isAutoNet ? "bg-[#F8FAFC] text-[#64748B]" : ""}`}
-          />
-        ) : (
-          <>
-            <span className="text-sm font-bold text-[#B8112D] tabular-nums">{currency(net)}</span>
-            {isAutoNet && <span className="block text-[9px] text-gray-400 font-semibold">auto</span>}
-          </>
-        )}
-      </td>
-      <td className="px-2 py-2">
-        <div className="flex flex-col items-center gap-1">
-          <RowEditToggle editing={editing} onToggle={onToggleEdit} />
-          {editing && (
-            <button type="button" onClick={() => onRemoveRow(monthId, row.id)} className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center" title="Delete row">
-              <Trash2 size={14} />
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 export default function CashFlowTable({
   months,
   bankHeads,
   onUpdateMonthTitle,
   onRemoveMonth,
   onUpdateRow,
-  onUpdateBank,
+  onUpdateBank: _onUpdateBank,
   onRemoveRow,
   onAddRow,
 }: CashFlowTableProps) {
   const theme = TABLE_VARIANT.cashflow;
-  const [editingRows, setEditingRows] = useState<Set<string>>(new Set());
-
-  const toggleRow = (rowId: string) => {
-    setEditingRows(prev => {
-      const next = new Set(prev);
-      if (next.has(rowId)) next.delete(rowId);
-      else next.add(rowId);
-      return next;
-    });
-  };
+  const [editing, setEditing] = useState<CashFlowEditModel | null>(null);
+  const [renamingMonthId, setRenamingMonthId] = useState<string | null>(null);
 
   if (months.length === 0) {
     return (
@@ -234,14 +65,37 @@ export default function CashFlowTable({
     <div className="space-y-5">
       {months.map(month => {
         const sectionTotal = month.rows.reduce((a, r) => a + computedNet(r), 0);
+        const renaming = renamingMonthId === month.id;
         return (
           <div key={month.id} className={`bg-white rounded-2xl border-2 overflow-hidden ${theme.card}`}>
             <div className={`px-4 py-3 border-b flex items-center gap-3 ${theme.header}`}>
-              <input
-                value={month.month}
-                onChange={e => onUpdateMonthTitle(month.id, e.target.value)}
-                className={`flex-1 min-w-0 bg-transparent font-extrabold text-sm sm:text-base outline-none ${theme.headerText}`}
-              />
+              {renaming ? (
+                <input
+                  autoFocus
+                  defaultValue={month.month}
+                  onBlur={e => {
+                    onUpdateMonthTitle(month.id, e.target.value.trim() || month.month);
+                    setRenamingMonthId(null);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") setRenamingMonthId(null);
+                  }}
+                  className={`flex-1 min-w-0 h-9 rounded-lg border border-white/40 bg-white/90 px-2 font-extrabold text-sm outline-none ${theme.headerText}`}
+                />
+              ) : (
+                <p className={`flex-1 min-w-0 font-extrabold text-sm sm:text-base truncate ${theme.headerText}`}>
+                  {month.month}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setRenamingMonthId(month.id)}
+                className="w-8 h-8 rounded-lg text-[#0B84F3] hover:bg-[#EAF5FF] inline-flex items-center justify-center"
+                title="Rename section"
+              >
+                <Pencil size={13} />
+              </button>
               <button type="button" onClick={() => onAddRow(month.id)} className="h-8 px-3 rounded-lg bg-[#EAF5FF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1">
                 <Plus size={13} /> Row
               </button>
@@ -270,19 +124,65 @@ export default function CashFlowTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {month.rows.map(row => (
-                    <CashFlowRowBlock
-                      key={row.id}
-                      row={row}
-                      monthId={month.id}
-                      bankHeads={bankHeads}
-                      editing={editingRows.has(row.id)}
-                      onToggleEdit={() => toggleRow(row.id)}
-                      onUpdateRow={onUpdateRow}
-                      onUpdateBank={onUpdateBank}
-                      onRemoveRow={onRemoveRow}
-                    />
-                  ))}
+                  {month.rows.map(row => {
+                    const net = computedNet(row);
+                    const isAutoNet = bankActivity(row);
+                    return (
+                      <tr key={row.id} className={`border-b border-gray-100 ${theme.rowHover} transition-colors`}>
+                        <td className="px-2 py-2">
+                          <span className="inline-flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap px-1">
+                            <CalendarDays size={11} className="text-gray-400" />
+                            {row.date?.slice(0, 10) || "—"}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <span className="text-sm text-[#0F172A] font-medium truncate block max-w-[200px]" title={row.description}>
+                            {row.description || "—"}
+                          </span>
+                        </td>
+                        {bankHeads.map((bank, bi) => {
+                          const b = row.bankAmounts?.[bank] ?? { debit: 0, credit: 0 };
+                          const col = bankColor(bi);
+                          return (
+                            <Fragment key={bank}>
+                              <td className="px-1 py-2" style={{ borderLeft: `2px solid ${col}18` }}>
+                                <span className="block text-right text-xs tabular-nums text-[#334155] px-1">
+                                  {b.debit ? currency(b.debit) : <span className="text-gray-300">—</span>}
+                                </span>
+                              </td>
+                              <td className="px-1 py-2" style={{ borderRight: `2px solid ${col}18` }}>
+                                <span className="block text-right text-xs tabular-nums text-[#334155] px-1">
+                                  {b.credit ? currency(b.credit) : <span className="text-gray-300">—</span>}
+                                </span>
+                              </td>
+                            </Fragment>
+                          );
+                        })}
+                        <td className="px-2 py-2 align-top">
+                          <AccountsNotesCell notes={row.notes} fallbackDate={row.date} />
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <span className="text-sm font-bold text-[#B8112D] tabular-nums">{currency(net)}</span>
+                          {isAutoNet && <span className="block text-[9px] text-gray-400 font-semibold">auto</span>}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setEditing({
+                              ...row,
+                              monthId: month.id,
+                              bankAmounts: row.bankAmounts ?? {},
+                              notes: row.notes ?? [],
+                            })}
+                            className="w-8 h-8 rounded-lg text-[#0B84F3] hover:bg-[#EAF5FF] inline-flex items-center justify-center"
+                            title="Edit in popup"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className={theme.footer}>
@@ -298,6 +198,28 @@ export default function CashFlowTable({
           </div>
         );
       })}
+
+      <CashFlowRowModal
+        open={!!editing}
+        bankHeads={bankHeads}
+        value={editing}
+        onClose={() => setEditing(null)}
+        onSave={next => {
+          onUpdateRow(next.monthId, next.id, {
+            date: next.date,
+            description: next.description,
+            bankAmounts: next.bankAmounts,
+            netAmount: next.netAmount,
+            notes: next.notes,
+          });
+          setEditing(next);
+        }}
+        onDelete={() => {
+          if (!editing) return;
+          onRemoveRow(editing.monthId, editing.id);
+          setEditing(null);
+        }}
+      />
     </div>
   );
 }

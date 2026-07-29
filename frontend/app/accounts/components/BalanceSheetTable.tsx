@@ -29,7 +29,7 @@ export default function BalanceSheetTable({
   groupTitle,
   sections,
   grandLabel,
-  onUpdateSectionTitle,
+  onUpdateSectionTitle: _onUpdateSectionTitle,
   onUpdateItem,
   onDeleteItem,
   onAddItem,
@@ -84,12 +84,8 @@ export default function BalanceSheetTable({
             {sections.map(section => (
               <Fragment key={section.id}>
                 <tr className="bg-[#FAFAFA]/90 border-y border-gray-200/60">
-                  <td colSpan={4} className="px-3 py-2">
-                    <input
-                      value={section.title}
-                      onChange={e => onUpdateSectionTitle(section.id, e.target.value)}
-                      className={`h-9 w-full max-w-md rounded-lg border border-transparent hover:border-gray-200 px-2 text-sm font-bold outline-none focus:ring-2 ${theme.input}`}
-                    />
+                  <td colSpan={4} className="px-3 py-2.5">
+                    <p className="text-sm font-bold text-gray-800">{section.title}</p>
                   </td>
                   <td className="px-3 py-2 text-right font-bold text-[#475569] tabular-nums">
                     {currency(sumItems(section.items))}
