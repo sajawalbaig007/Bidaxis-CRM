@@ -176,7 +176,7 @@ export default function AccountsDashboardPage() {
         : "Combined SN + AH totals (actual cash received only).";
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
+    <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_#F8FAFC_0%,_#EEF1F7_45%,_#E8ECF4_100%)]">
       <AccountsSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
         <AccountsPageShell
@@ -184,24 +184,29 @@ export default function AccountsDashboardPage() {
           title="Dashboard"
           subtitle="Live totals from other pages for the selected record date + editable currency formulas."
         >
-          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             {metrics.map(m => (
-              <div key={m.label} className={`rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md bg-gradient-to-br ${m.color}`}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{m.label}</p>
-                <p className="text-lg sm:text-2xl font-extrabold mt-1">{currency(m.value)}</p>
-                <p className="text-[10px] text-white/70 mt-1">As of {acc.recordDate || todayIso()}</p>
+              <div
+                key={m.label}
+                className={`relative overflow-hidden rounded-2xl p-3.5 sm:p-4 text-white shadow-lg shadow-black/10 bg-gradient-to-br ${m.color}`}
+              >
+                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10" />
+                <div className="absolute -right-2 bottom-0 w-16 h-16 rounded-full bg-white/5" />
+                <p className="relative text-[10px] font-bold uppercase tracking-wider text-white/80 leading-snug">{m.label}</p>
+                <p className="relative text-lg sm:text-2xl font-extrabold mt-2 tabular-nums tracking-tight">{currency(m.value)}</p>
+                <p className="relative text-[10px] text-white/65 mt-1.5 font-medium">As of {acc.recordDate || todayIso()}</p>
               </div>
             ))}
           </section>
 
-          <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 mt-5">
-            <div className="xl:col-span-7 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-5">
+            <div className="xl:col-span-7 bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
+              <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <h2 className="font-bold text-gray-800 text-sm">Currency Payment Formula (Editable)</h2>
-                  <p className="text-xs text-gray-400">Saved under record date {acc.recordDate}</p>
+                  <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Editable · saved under {acc.recordDate}</p>
                 </div>
-                <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 shrink-0">
+                <div className="inline-flex rounded-xl border border-gray-200/80 bg-[#F4F5F8] p-0.5 shrink-0">
                   {(["SN", "AH", "ALL"] as const).map(tab => {
                     const selected = viewTab === tab;
                     return (
@@ -211,8 +216,8 @@ export default function AccountsDashboardPage() {
                         onClick={() => setViewTab(tab)}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           selected
-                            ? "bg-[#B8112D] text-white shadow-sm"
-                            : "text-gray-600 hover:bg-gray-50"
+                            ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
+                            : "text-gray-600 hover:bg-white"
                         }`}
                       >
                         {tab === "ALL" ? "All" : tab}
@@ -222,7 +227,7 @@ export default function AccountsDashboardPage() {
                 </div>
               </div>
 
-              <div className="px-4 pt-3">
+              <div className="px-4 sm:px-5 pt-3">
                 <p className="text-[11px] text-gray-500 leading-relaxed">{formulaNote}</p>
                 <p className="text-[10px] text-gray-400 mt-1">
                   All calculations are based on actual cash received. No quoted, billed, forecasted, or anticipated amounts.
@@ -232,17 +237,17 @@ export default function AccountsDashboardPage() {
               {viewTab === "ALL" ? (
                 <div className="p-4 sm:p-5 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-3">
-                      <p className="text-xs font-bold text-gray-700 mb-2">SN totals</p>
-                      <p className="text-sm text-gray-600">USD after tax → PKR: <span className="font-semibold text-gray-800">{currency(snCalc.usdInPkr)}</span></p>
-                      <p className="text-sm text-gray-600">CAD after tax → PKR: <span className="font-semibold text-gray-800">{currency(snCalc.cadInPkr)}</span></p>
-                      <p className="text-sm font-bold text-gray-800 mt-1">Subtotal: {currency(snCalc.total)}</p>
+                    <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-[#F8FAFC] to-white p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D] mb-2">SN totals</p>
+                      <p className="text-sm text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.usdInPkr)}</span></p>
+                      <p className="text-sm text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.cadInPkr)}</span></p>
+                      <p className="text-sm font-extrabold text-gray-900 mt-2 tabular-nums">Subtotal: {currency(snCalc.total)}</p>
                     </div>
-                    <div className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-3">
-                      <p className="text-xs font-bold text-gray-700 mb-2">AH totals (Sherjeel CAD defaults)</p>
-                      <p className="text-sm text-gray-600">USD after tax → PKR: <span className="font-semibold text-gray-800">{currency(ahCalc.usdInPkr)}</span></p>
-                      <p className="text-sm text-gray-600">CAD after tax → PKR: <span className="font-semibold text-gray-800">{currency(ahCalc.cadInPkr)}</span></p>
-                      <p className="text-sm font-bold text-gray-800 mt-1">Subtotal: {currency(ahCalc.total)}</p>
+                    <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-[#F8FAFC] to-white p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#0B84F3] mb-2">AH totals</p>
+                      <p className="text-sm text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.usdInPkr)}</span></p>
+                      <p className="text-sm text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.cadInPkr)}</span></p>
+                      <p className="text-sm font-extrabold text-gray-900 mt-2 tabular-nums">Subtotal: {currency(ahCalc.total)}</p>
                     </div>
                   </div>
                 </div>
@@ -257,29 +262,29 @@ export default function AccountsDashboardPage() {
                       ["CAD Tax Factor (editable)", "cadTaxFactor"],
                       ["CAD to PKR Rate", "cadToPkrRate"],
                     ] as const).map(([label, key]) => (
-                      <label key={key} className="text-xs font-semibold text-gray-700">
+                      <label key={key} className="text-xs font-semibold text-gray-600">
                         {label}
                         <input
                           type="number"
                           step={key.includes("Tax") ? "0.001" : "1"}
                           value={active[key]}
                           onChange={e => setTabField(activeKey, key, Number(e.target.value || 0))}
-                          className="mt-1 h-10 w-full rounded-xl border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                          className="mt-1 h-10 w-full rounded-xl border border-gray-200 bg-[#FAFBFC] px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40 focus:bg-white transition-all"
                         />
                       </label>
                     ))}
-                    <label className="text-xs font-semibold text-gray-700 md:col-span-2">
+                    <label className="text-xs font-semibold text-gray-600 md:col-span-2">
                       Direct PKR Payment
                       <input
                         type="number"
                         value={active.pkrAmount}
                         onChange={e => setTabField(activeKey, "pkrAmount", Number(e.target.value || 0))}
-                        className="mt-1 h-10 w-full rounded-xl border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                        className="mt-1 h-10 w-full rounded-xl border border-gray-200 bg-[#FAFBFC] px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40 focus:bg-white transition-all"
                       />
                     </label>
                   </div>
 
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 text-[11px] text-gray-600 space-y-1 font-mono">
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
                     <p>1. USD After Tax = {currency(active.usdAmount)} × {active.usdTaxFactor} = <span className="font-bold text-gray-800">{currency(activeCalc.usdAfterTax)}</span></p>
                     <p>2. USD → PKR = {currency(activeCalc.usdAfterTax)} × {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
                     <p className="pt-1">1. CAD After Tax = {currency(active.cadAmount)} × {active.cadTaxFactor} = <span className="font-bold text-gray-800">{currency(activeCalc.cadAfterTax)}</span></p>
@@ -288,26 +293,26 @@ export default function AccountsDashboardPage() {
                 </div>
               )}
 
-              <div className="mx-4 mb-4 rounded-2xl border border-[#F3D7DC] bg-[#FFF6F8] p-3 text-sm text-gray-700 space-y-1">
-                <p><span className="font-bold">USD in PKR</span> (after tax) = {currency(displayCalc.usdInPkr)}</p>
-                <p><span className="font-bold">CAD in PKR</span> (after tax) = {currency(displayCalc.cadInPkr)}</p>
-                <p><span className="font-bold">Direct PKR</span> = {currency(displayCalc.pkrAmount)}</p>
-                <p><span className="font-bold">Total</span> = {currency(displayCalc.total)}</p>
+              <div className="mx-4 sm:mx-5 mb-4 rounded-2xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-3.5 text-sm text-gray-700 space-y-1">
+                <p><span className="font-bold text-gray-800">USD in PKR</span> (after tax) = <span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
+                <p><span className="font-bold text-gray-800">CAD in PKR</span> (after tax) = <span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
+                <p><span className="font-bold text-gray-800">Direct PKR</span> = <span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
+                <p className="pt-1 border-t border-[#F3D7DC]/60 mt-1"><span className="font-extrabold text-[#B8112D]">Total</span> = <span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
               </div>
             </div>
 
-            <div className="xl:col-span-5 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <h2 className="font-bold text-gray-800 text-sm">
+            <div className="xl:col-span-5 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)]">
+              <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">
                 Payment Split (PKR){viewTab !== "ALL" ? ` — ${viewTab}` : " — All"}
               </h2>
               <div className="mt-3 h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={paymentSummary}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                    <Bar dataKey="amount" radius={[10, 10, 0, 0]}>
                       {paymentSummary.map(row => (
                         <Cell key={row.name} fill={row.color} />
                       ))}
@@ -318,17 +323,17 @@ export default function AccountsDashboardPage() {
             </div>
           </section>
 
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-5">
-            <div className="px-4 py-3 border-b bg-[#F8FAFC]">
-              <h2 className="font-bold text-gray-800 text-sm">Combined Snapshot — {acc.recordDate}</h2>
+          <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden mt-5">
+            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#F8FAFC] to-white">
+              <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Combined Snapshot — {acc.recordDate}</h2>
             </div>
             <div className="overflow-x-auto overflow-y-auto max-h-[420px]">
               <table className="w-full text-sm" style={{ minWidth: "860px" }}>
-                <thead className="bg-gray-50 sticky top-0 z-10">
-                  <tr className="border-b">
-                    <th className="px-3 py-2 text-left font-semibold">Page</th>
-                    <th className="px-3 py-2 text-left font-semibold">Primary Heads</th>
-                    <th className="px-3 py-2 text-right font-semibold">Total (this date)</th>
+                <thead className="bg-[#FAFBFC] sticky top-0 z-10">
+                  <tr className="border-b border-gray-200/80">
+                    <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Page</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Primary Heads</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400">Total (this date)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -342,11 +347,11 @@ export default function AccountsDashboardPage() {
                       "Combined register sum",
                       (summaries.balanceSheetTotalAssets ?? 0) + (summaries.totalAssetsRegister ?? 0),
                     ],
-                  ].map(([page, heads, total]) => (
-                    <tr key={String(page)} className="border-b border-gray-100">
-                      <td className="px-3 py-2.5 font-medium">{page}</td>
-                      <td className="px-3 py-2.5 text-gray-600">{heads}</td>
-                      <td className="px-3 py-2.5 text-right font-semibold">{currency(Number(total) || 0)}</td>
+                  ].map(([page, heads, total], i) => (
+                    <tr key={String(page)} className={`border-b border-gray-50 ${i % 2 ? "bg-[#FCFCFD]" : "bg-white"} hover:bg-[#F8FAFC]`}>
+                      <td className="px-4 py-2.5 font-semibold text-gray-800">{page}</td>
+                      <td className="px-3 py-2.5 text-gray-500 text-xs">{heads}</td>
+                      <td className="px-4 py-2.5 text-right font-bold tabular-nums text-gray-900">{currency(Number(total) || 0)}</td>
                     </tr>
                   ))}
                 </tbody>

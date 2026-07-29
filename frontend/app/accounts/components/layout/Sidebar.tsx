@@ -27,10 +27,10 @@ export default function AccountsSidebar() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
+    <header className="fixed top-0 left-0 right-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200/70 shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
         <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
-          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-md shadow-[#B8112D]/25 overflow-hidden p-1">
             <Image
               src="/images/image.png"
               alt="logo"
@@ -40,7 +40,7 @@ export default function AccountsSidebar() {
             />
           </div>
           <div className="hidden sm:block">
-            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
+            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-[#0F172A] tracking-tight">
               CRM Dashboard
             </h2>
             <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
@@ -50,7 +50,7 @@ export default function AccountsSidebar() {
         </Link>
 
         <div className="flex-1 min-w-0">
-          <nav className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <nav className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-[#F4F5F8] rounded-[18px] p-1 overflow-x-auto border border-gray-100/80" style={{ scrollbarWidth: "none" }}>
             {navItems.map(({ title, href, icon: Icon }) => {
               const active = href === BASE ? pathname === BASE : pathname.startsWith(href);
               return (
@@ -60,8 +60,8 @@ export default function AccountsSidebar() {
                   prefetch={false}
                   className={`h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
                     active
-                      ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                      : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
+                      ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/25"
+                      : "text-gray-600 hover:bg-white hover:text-[#B8112D]"
                   }`}
                 >
                   <Icon size={15} className="shrink-0" />
@@ -77,7 +77,7 @@ export default function AccountsSidebar() {
         <button
           type="button"
           onClick={() => void handleLogout()}
-          className="h-10 px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#FFE4E8]"
+          className="h-10 px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#FFE4E8] transition-colors border border-[#F3D7DC]/50"
         >
           <LogOut size={14} />
           Logout
