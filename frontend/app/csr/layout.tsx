@@ -1,6 +1,5 @@
 import CsrPresenceInit from "./components/CsrPresenceInit";
 import CsrDataResetListener from "./components/CsrDataResetListener";
-import CsrCheckInBanner from "./components/CsrCheckInBanner";
 import StaffPresenceInit from "../components/StaffPresenceInit";
 import StaffChatNotifier from "../components/StaffChatNotifier";
 import DevToolsGuard from "../components/DevToolsGuard";
@@ -15,7 +14,6 @@ export default function CsrLayout({ children }: { children: React.ReactNode }) {
       <CsrPresenceInit />
       <StaffChatNotifier />
       <ChatLayoutCleanup />
-      <CsrCheckInBanner />
       {children}
     </>
   );

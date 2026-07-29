@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import {
-  BarChart, Bar, CartesianGrid, PieChart, Pie, Cell, Tooltip, XAxis, YAxis, ResponsiveContainer,
+  BarChart, Bar, CartesianGrid, PieChart, Pie, Cell, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { Scale, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
+import AccountsChartCard from "../components/AccountsChartCard";
 import BalanceSheetTable, { sumItems } from "../components/BalanceSheetTable";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
@@ -117,45 +118,44 @@ export default function BalanceSheetPage() {
           )}
 
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
-            <div className="bg-white rounded-2xl p-4 border-2 border-[#0B84F3]/20 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <Scale size={16} className="text-[#0B84F3]" />
-                <h2 className="font-bold text-gray-800 text-sm">Asset Composition</h2>
-              </div>
-              <RechartsBox height={220} className="mt-2">
+            <AccountsChartCard
+              title="Asset Composition"
+              subtitle="Current vs non-current mix"
+              accent="#0B84F3"
+              icon={<Scale size={16} />}
+            >
+              <RechartsBox height={240}>
                 <PieChart>
-                  <Pie data={assetMixData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={78} paddingAngle={4}>
+                  <Pie data={assetMixData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={88} paddingAngle={4} stroke="#fff" strokeWidth={2}>
                     <Cell fill="#0B84F3" />
                     <Cell fill="#12B76A" />
                   </Pie>
                   <Tooltip formatter={v => currency(Number(v ?? 0))} />
                 </PieChart>
               </RechartsBox>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border-2 border-[#B8112D]/20 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp size={16} className="text-[#B8112D]" />
-                <h2 className="font-bold text-gray-800 text-sm">Assets vs Equity + Liabilities</h2>
-              </div>
-              <div className="h-[220px] mt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[
-                    { name: "Assets", value: totalAssets, fill: "#0B84F3" },
-                    { name: "Eq + Liab.", value: totalEquity + totalLiabilities, fill: "#B8112D" },
-                  ]} barSize={48}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                      {[0, 1].map(i => (
-                        <Cell key={i} fill={i === 0 ? "#0B84F3" : "#B8112D"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            </AccountsChartCard>
+            <AccountsChartCard
+              title="Assets vs Equity + Liabilities"
+              subtitle="Balance check at a glance"
+              accent="#B8112D"
+              icon={<TrendingUp size={16} />}
+            >
+              <RechartsBox height={240}>
+                <BarChart data={[
+                  { name: "Assets", value: totalAssets, fill: "#0B84F3" },
+                  { name: "Eq + Liab.", value: totalEquity + totalLiabilities, fill: "#B8112D" },
+                ]} barSize={52}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  <Bar dataKey="value" radius={[12, 12, 0, 0]}>
+                    <Cell fill="#0B84F3" />
+                    <Cell fill="#B8112D" />
+                  </Bar>
+                </BarChart>
+              </RechartsBox>
+            </AccountsChartCard>
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">

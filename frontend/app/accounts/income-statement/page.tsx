@@ -1,10 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
+  Tooltip, XAxis, YAxis,
+} from "recharts";
+import { PieChart as PieIcon, Users, Layers3, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
+import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
 import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
 import type { IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
@@ -93,19 +99,32 @@ export default function IncomeStatementPage() {
     [acc.data.providentFundHeads],
   );
   const totalExpense = payrollExpense + operatingExpense + loanExpense + pfExpense;
-  const netProfit = (Number(acc.data.totalRevenue) || 0) - totalExpense;
-  const netMargin = acc.data.totalRevenue > 0 ? (netProfit / acc.data.totalRevenue) * 100 : 0;
+  const revenue = Number(acc.data.totalRevenue) || 0;
+  const netProfit = revenue - totalExpense;
+  const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
   const payrollChartData = (acc.data.teamSalaries ?? []).map(t => ({
-    name: t.team.replace(" Salaries", ""),
+    name: t.team.replace(/ Salaries$/i, "").slice(0, 14),
     value: lineAmount(t),
   }));
 
-  const incomeCompareData = [
-    { name: "Revenue", amount: Number(acc.data.totalRevenue) || 0 },
-    { name: "Total Expense", amount: totalExpense },
-    { name: "Net Profit", amount: netProfit },
+  const expenseMix = [
+    { name: "Payroll", value: payrollExpense, color: "#8B5CF6" },
+    { name: "OPEX", value: operatingExpense, color: "#7C3AED" },
+    { name: "Loans", value: loanExpense, color: "#F59E0B" },
+    { name: "PF", value: pfExpense, color: "#06B6D4" },
+  ].filter(d => d.value > 0);
+
+  const stackCompare = [
+    { name: "Revenue", amount: revenue, fill: "#0B84F3" },
+    { name: "Expense", amount: totalExpense, fill: "#B8112D" },
+    { name: "Profit", amount: netProfit, fill: "#12B76A" },
   ];
+
+  const opexBars = (acc.data.opexHeads ?? [])
+    .map(o => ({ name: o.label.slice(0, 16), value: lineAmount(o) }))
+    .filter(d => d.value > 0)
+    .slice(0, 8);
 
   return (
     <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_#F8FAFC_0%,_#EEF1F7_45%,_#E8ECF4_100%)]">
@@ -132,9 +151,8 @@ export default function IncomeStatementPage() {
           }}
           addNewLabel="Add Team"
         >
-          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
             {[
-              { label: "Revenue", value: acc.data.totalRevenue, cls: "from-[#0B84F3] to-[#0369A1]" },
               { label: "Payroll", value: payrollExpense, cls: "from-[#8B5CF6] to-[#6D28D9]" },
               { label: "Loans", value: loanExpense, cls: "from-[#F59E0B] to-[#B45309]" },
               { label: "Provident Fund", value: pfExpense, cls: "from-[#06B6D4] to-[#0E7490]" },
@@ -143,60 +161,105 @@ export default function IncomeStatementPage() {
             ].map(c => (
               <div key={c.label} className={`bg-gradient-to-br ${c.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{c.label}</p>
-                <p className="text-lg sm:text-xl font-extrabold mt-1">{currency(Number(c.value) || 0)}</p>
+                <p className="text-lg sm:text-xl font-extrabold mt-1 tabular-nums">{currency(Number(c.value) || 0)}</p>
               </div>
             ))}
           </section>
 
-          <section className="bg-white rounded-2xl border border-gray-100 p-4 mt-5">
-            <label className="text-xs font-semibold text-gray-600 block max-w-xs">
-              Total Revenue
-              <input
-                type="number"
-                value={acc.data.totalRevenue ?? 0}
-                onChange={e => acc.setData(prev => ({ ...prev, totalRevenue: Number(e.target.value || 0) }))}
-                className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm"
-              />
-            </label>
+          <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mt-5">
+            <AccountsChartCard
+              title="Expense Mix"
+              subtitle="Share of payroll, OPEX, loans & PF"
+              accent="#B8112D"
+              icon={<PieIcon size={16} />}
+            >
+              <RechartsBox height={240}>
+                <PieChart>
+                  <Pie
+                    data={expenseMix.length ? expenseMix : [{ name: "Empty", value: 1, color: "#E2E8F0" }]}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={58}
+                    outerRadius={88}
+                    paddingAngle={3}
+                    stroke="#fff"
+                    strokeWidth={2}
+                  >
+                    {(expenseMix.length ? expenseMix : [{ color: "#E2E8F0" }]).map((d, i) => (
+                      <Cell key={i} fill={d.color || CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                </PieChart>
+              </RechartsBox>
+            </AccountsChartCard>
+
+            <AccountsChartCard
+              title="Team Salaries"
+              subtitle="Payroll by team"
+              accent="#0B84F3"
+              icon={<Users size={16} />}
+            >
+              <RechartsBox height={240}>
+                <BarChart data={payrollChartData.length ? payrollChartData : [{ name: "—", value: 0 }]} barSize={28}>
+                  <defs>
+                    <linearGradient id="payGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0B84F3" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#38BDF8" stopOpacity={0.75} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  <Bar dataKey="value" fill="url(#payGrad)" radius={[10, 10, 0, 0]} />
+                </BarChart>
+              </RechartsBox>
+            </AccountsChartCard>
+
+            <AccountsChartCard
+              title="Revenue · Expense · Profit"
+              subtitle="Saved revenue vs current expenses"
+              accent="#12B76A"
+              icon={<TrendingUp size={16} />}
+              className="lg:col-span-2 xl:col-span-1"
+            >
+              <RechartsBox height={240}>
+                <BarChart data={stackCompare} barSize={40}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 600 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  <Bar dataKey="amount" radius={[12, 12, 0, 0]}>
+                    {stackCompare.map(item => (
+                      <Cell key={item.name} fill={item.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </RechartsBox>
+            </AccountsChartCard>
           </section>
 
-          <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
-            <div className="bg-white rounded-2xl p-4 border border-gray-100">
-              <h2 className="font-bold text-sm text-gray-800">Team Salary Distribution</h2>
-              <div className="h-[260px] mt-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={payrollChartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
+          {opexBars.length > 0 && (
+            <section className="mt-4">
+              <AccountsChartCard
+                title="Top Operating Expenses"
+                subtitle="Largest OPEX heads"
+                accent="#7C3AED"
+                icon={<Layers3 size={16} />}
+              >
+                <RechartsBox height={220}>
+                  <BarChart data={opexBars} layout="vertical" margin={{ left: 8, right: 12 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fontWeight: 600 }} />
                     <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="value" fill="#0B84F3" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="value" fill="#7C3AED" radius={[0, 8, 8, 0]} barSize={16} />
                   </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-100">
-              <h2 className="font-bold text-sm text-gray-800">Revenue vs Expense vs Profit</h2>
-              <div className="h-[260px] mt-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={incomeCompareData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                      {incomeCompareData.map(item => (
-                        <Cell
-                          key={item.name}
-                          fill={item.name === "Revenue" ? "#0B84F3" : item.name === "Total Expense" ? "#B8112D" : "#12B76A"}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </section>
+                </RechartsBox>
+              </AccountsChartCard>
+            </section>
+          )}
 
           <section className="mt-5 space-y-5">
             <ExpandableHeadsTable
