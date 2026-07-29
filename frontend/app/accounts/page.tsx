@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Eye } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import API from "@/lib/api";
 import AccountsSidebar from "./components/layout/Sidebar";
 import AccountsPageShell from "./components/AccountsPageShell";
+import CurrencyFormulaModal from "./components/CurrencyFormulaModal";
 import { accountsShellProps } from "./utils/accountsShellProps";
 import { useAccountsPage } from "./hooks/useAccountsPage";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData } from "./types";
@@ -94,6 +96,7 @@ export default function AccountsDashboardPage() {
   const acc = useAccountsPage<DashboardData>({ page: "dashboard", defaultData });
   const [summaries, setSummaries] = useState<Summary>({});
   const [viewTab, setViewTab] = useState<ViewTab>("SN");
+  const [formulaOpen, setFormulaOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,7 +185,7 @@ export default function AccountsDashboardPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Dashboard"
-          subtitle="Live totals from other pages for the selected record date + editable currency formulas."
+          subtitle="Live totals from other pages. Currency formulas are view-only — open the eye to edit."
         >
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             {metrics.map(m => (
@@ -204,26 +207,41 @@ export default function AccountsDashboardPage() {
               <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Editable · saved under {acc.recordDate}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">View-only · edit via eye · saved under {acc.recordDate}</p>
                 </div>
-                <div className="inline-flex rounded-xl border border-gray-200/80 bg-[#F4F5F8] p-0.5 shrink-0">
-                  {(["SN", "AH", "ALL"] as const).map(tab => {
-                    const selected = viewTab === tab;
-                    return (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => setViewTab(tab)}
-                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          selected
-                            ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                            : "text-gray-600 hover:bg-white"
-                        }`}
-                      >
-                        {tab === "ALL" ? "All" : tab}
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center gap-2 shrink-0">
+                  {viewTab !== "ALL" && (
+                    <button
+                      type="button"
+                      onClick={() => setFormulaOpen(true)}
+                      className="h-9 w-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center transition-colors"
+                      title={`Edit ${viewTab} currency formula`}
+                    >
+                      <Eye size={16} />
+                    </button>
+                  )}
+                  <div className="inline-flex rounded-xl border border-gray-200/80 bg-[#F4F5F8] p-0.5">
+                    {(["SN", "AH", "ALL"] as const).map(tab => {
+                      const selected = viewTab === tab;
+                      return (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => {
+                            setViewTab(tab);
+                            setFormulaOpen(false);
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            selected
+                              ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
+                              : "text-gray-600 hover:bg-white"
+                          }`}
+                        >
+                          {tab === "ALL" ? "All" : tab}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -238,13 +256,33 @@ export default function AccountsDashboardPage() {
                 <div className="p-4 sm:p-5 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-[#F8FAFC] to-white p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D] mb-2">SN totals</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]">SN totals</p>
+                        <button
+                          type="button"
+                          onClick={() => { setViewTab("SN"); setFormulaOpen(true); }}
+                          className="h-7 w-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center"
+                          title="Edit SN formula"
+                        >
+                          <Eye size={13} />
+                        </button>
+                      </div>
                       <p className="text-sm text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.usdInPkr)}</span></p>
                       <p className="text-sm text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.cadInPkr)}</span></p>
                       <p className="text-sm font-extrabold text-gray-900 mt-2 tabular-nums">Subtotal: {currency(snCalc.total)}</p>
                     </div>
                     <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-[#F8FAFC] to-white p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#0B84F3] mb-2">AH totals</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#0B84F3]">AH totals</p>
+                        <button
+                          type="button"
+                          onClick={() => { setViewTab("AH"); setFormulaOpen(true); }}
+                          className="h-7 w-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center"
+                          title="Edit AH formula"
+                        >
+                          <Eye size={13} />
+                        </button>
+                      </div>
                       <p className="text-sm text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.usdInPkr)}</span></p>
                       <p className="text-sm text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.cadInPkr)}</span></p>
                       <p className="text-sm font-extrabold text-gray-900 mt-2 tabular-nums">Subtotal: {currency(ahCalc.total)}</p>
@@ -255,33 +293,22 @@ export default function AccountsDashboardPage() {
                 <div className="p-4 sm:p-5 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {([
-                      ["USD Payment (actual cash)", "usdAmount"],
-                      ["USD Tax Factor (editable)", "usdTaxFactor"],
-                      ["USD to PKR Rate", "usdToPkrRate"],
-                      ["CAD Payment (actual cash)", "cadAmount"],
-                      ["CAD Tax Factor (editable)", "cadTaxFactor"],
-                      ["CAD to PKR Rate", "cadToPkrRate"],
-                    ] as const).map(([label, key]) => (
-                      <label key={key} className="text-xs font-semibold text-gray-600">
-                        {label}
-                        <input
-                          type="number"
-                          step={key.includes("Tax") ? "0.001" : "1"}
-                          value={active[key]}
-                          onChange={e => setTabField(activeKey, key, Number(e.target.value || 0))}
-                          className="mt-1 h-10 w-full rounded-xl border border-gray-200 bg-[#FAFBFC] px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40 focus:bg-white transition-all"
-                        />
-                      </label>
+                      ["USD Payment", active.usdAmount],
+                      ["USD Tax Factor", active.usdTaxFactor],
+                      ["USD → PKR Rate", active.usdToPkrRate],
+                      ["CAD Payment", active.cadAmount],
+                      ["CAD Tax Factor", active.cadTaxFactor],
+                      ["CAD → PKR Rate", active.cadToPkrRate],
+                      ["Direct PKR", active.pkrAmount],
+                    ] as const).map(([label, val]) => (
+                      <div
+                        key={label}
+                        className={`rounded-xl border border-gray-100 bg-[#FAFBFC] px-3 py-2.5 ${label === "Direct PKR" ? "md:col-span-2" : ""}`}
+                      >
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
+                        <p className="mt-1 text-sm font-semibold text-gray-800 tabular-nums">{currency(val)}</p>
+                      </div>
                     ))}
-                    <label className="text-xs font-semibold text-gray-600 md:col-span-2">
-                      Direct PKR Payment
-                      <input
-                        type="number"
-                        value={active.pkrAmount}
-                        onChange={e => setTabField(activeKey, "pkrAmount", Number(e.target.value || 0))}
-                        className="mt-1 h-10 w-full rounded-xl border border-gray-200 bg-[#FAFBFC] px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40 focus:bg-white transition-all"
-                      />
-                    </label>
                   </div>
 
                   <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
@@ -359,6 +386,14 @@ export default function AccountsDashboardPage() {
             </div>
           </section>
         </AccountsPageShell>
+
+        <CurrencyFormulaModal
+          open={formulaOpen && viewTab !== "ALL"}
+          tab={activeKey}
+          value={active}
+          onClose={() => setFormulaOpen(false)}
+          onChange={(key, val) => setTabField(activeKey, key, val)}
+        />
       </main>
     </div>
   );
