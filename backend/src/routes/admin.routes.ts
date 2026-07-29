@@ -198,16 +198,30 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
 
     const where = buildAdminClientListWhere(view, csrName, search, scheduleDate);
 
-    const [leads, total] = await Promise.all([
-      prisma.lead.findMany({
-        where,
-        select:  ADMIN_LEAD_LIST_SELECT,
-        orderBy: { updatedAt: "desc" },
-        skip:    (page - 1) * limit,
-        take:    limit,
-      }),
-      prisma.lead.count({ where }),
-    ]);
+    // Fetch more than limit so we can deduplicate by phone before slicing the page
+    const FETCH_FACTOR = 4;
+    const rawLeads = await prisma.lead.findMany({
+      where,
+      select:  ADMIN_LEAD_LIST_SELECT,
+      orderBy: { updatedAt: "desc" },
+      // Fetch enough rows to fill the requested page after dedup
+      skip:    0,
+      take:    limit * FETCH_FACTOR * (page + 1),
+    });
+
+    // Deduplicate: for each phone keep only the most-recently-updated lead
+    const seenPhones = new Set<string>();
+    const dedupedLeads: typeof rawLeads = [];
+    for (const lead of rawLeads) {
+      const phone = lead.phone?.trim() || "";
+      const key = phone || lead.id; // if no phone, treat as unique
+      if (seenPhones.has(key)) continue;
+      seenPhones.add(key);
+      dedupedLeads.push(lead);
+    }
+
+    const total = dedupedLeads.length;
+    const leads = dedupedLeads.slice((page - 1) * limit, page * limit);
 
     const payload = {
       success: true,

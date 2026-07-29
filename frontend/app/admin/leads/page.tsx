@@ -243,7 +243,13 @@ function ClientsPageContent() {
 
         const res = await API.get(`/admin/clients?${params}`);
         if (cancelled) return;
-        setClients((res.data.leads ?? []).map(formatAdminLead));
+        const seenIds = new Set<string>();
+        const uniqueLeads = (res.data.leads ?? []).filter((l: { id: string }) => {
+          if (seenIds.has(l.id)) return false;
+          seenIds.add(l.id);
+          return true;
+        });
+        setClients(uniqueLeads.map(formatAdminLead));
         setTotalRecords(res.data.total ?? 0);
       } catch {
         if (!cancelled) toast.error("Failed to fetch clients");
