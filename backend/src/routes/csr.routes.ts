@@ -1383,4 +1383,15 @@ router.post("/offline", verifyToken, allowRoles("csr"), async (req: any, res) =>
   }
 });
 
+/* ================= TRADES (read-only for CSR) ================= */
+router.get("/trades", verifyToken, allowRoles("csr"), async (_req, res) => {
+  try {
+    const trades = await prisma.trade.findMany({ orderBy: { name: "asc" } });
+    return res.json({ success: true, trades });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch trades" });
+  }
+});
+
 export default router;

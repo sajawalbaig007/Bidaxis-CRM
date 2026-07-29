@@ -93,7 +93,8 @@ const CATEGORY_LABEL_MAP = Object.fromEntries(
   HISTORY_CATEGORIES.map(c => [c.key, c.label])
 ) as Record<UploadCategoryKey, string>;
 
-type ModalStep = "category" | "reset" | "company" | "source" | "pane" | "csrs";
+type ModalStep = "category" | "reset" | "company" | "source" | "trade" | "pane" | "csrs";
+type TradeRow = { id: string; name: string };
 
 const PRESET_COMPANIES = ["PS Estimating", "Devcon", "Other"];
 
@@ -227,6 +228,14 @@ export default function UploadPage() {
   const [assignNewSourceName, setAssignNewSourceName] = useState("");
   const [assignNewSourceSudoName, setAssignNewSourceSudoName] = useState("");
   const [savingAssignId,   setSavingAssignId]   = useState<string | null>(null);
+
+  /* Trades */
+  const [trades,          setTrades]          = useState<TradeRow[]>([]);
+  const [selectedTrade,   setSelectedTrade]   = useState("");
+  const [newTradeName,    setNewTradeName]    = useState("");
+  const [addingTrade,     setAddingTrade]     = useState(false);
+  const [deletingTradeId, setDeletingTradeId] = useState<string | null>(null);
+  const [tradesManageOpen, setTradesManageOpen] = useState(false);
   const [historySourceId,  setHistorySourceId]  = useState<string | "all">("all");
   const [sourceDetail,     setSourceDetail]     = useState<{
     stats: SourceStats;
@@ -252,6 +261,38 @@ export default function UploadPage() {
       const res = await API.get(`/admin/upload-sources/${sourceId}`);
       setSourceDetail({ stats: res.data.stats, uploads: res.data.uploads ?? [] });
     } catch { setSourceDetail(null); }
+  };
+
+  const fetchTrades = async () => {
+    try {
+      const res = await API.get("/admin/trades");
+      setTrades(res.data.trades ?? []);
+    } catch { /* non-blocking */ }
+  };
+
+  const addNewTrade = async () => {
+    const name = newTradeName.trim();
+    if (!name) { toast.error("Enter a trade name"); return; }
+    setAddingTrade(true);
+    try {
+      const res = await API.post("/admin/trades", { name });
+      toast.success(`"${name}" added`);
+      setNewTradeName("");
+      setSelectedTrade(res.data.trade?.name ?? name);
+      await fetchTrades();
+    } catch { toast.error("Failed to add trade"); }
+    finally { setAddingTrade(false); }
+  };
+
+  const deleteTrade = async (id: string, name: string) => {
+    if (!confirm(`Delete trade "${name}"?`)) return;
+    setDeletingTradeId(id);
+    try {
+      await API.delete(`/admin/trades/${id}`);
+      if (selectedTrade === name) setSelectedTrade("");
+      await fetchTrades();
+    } catch { toast.error("Failed to delete trade"); }
+    finally { setDeletingTradeId(null); }
   };
 
   const addNewSource = async () => {
@@ -421,7 +462,7 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); await fetchUploadSources(); };
+    const load = async () => { await fetchLatestUpload(); await fetchCSRs(); await fetchUploadSources(); await fetchTrades(); };
     load();
   }, []);
 
@@ -520,6 +561,7 @@ export default function UploadPage() {
       selectedLeadType
     );
     if (selectedSourceId) formData.append("sourceId", selectedSourceId);
+    if (selectedTrade) formData.append("trade", selectedTrade);
     return formData;
   };
 
@@ -694,6 +736,7 @@ export default function UploadPage() {
                    : modalStep === "reset"   ? "Data Mode"
                    : modalStep === "company" ? "Select Company"
                    : modalStep === "source"  ? "Data Source"
+                   : modalStep === "trade"   ? "Trade Type"
                    : modalStep === "pane"    ? "Select CSR Pane"
                    : "Select CSRs"}
                 </h2>
@@ -702,6 +745,7 @@ export default function UploadPage() {
                    : modalStep === "reset"   ? "What should happen to existing call data?"
                    : modalStep === "company" ? "Which company does this data belong to?"
                    : modalStep === "source"  ? "Source name is admin-only. Sudo name is what CSRs see on leads."
+                   : modalStep === "trade"   ? "Tag this upload with a trade type — shown as a badge on CSR leads."
                    : modalStep === "pane"    ? "Which section should these leads appear in?"
                    : "Choose which CSRs should receive leads."}
                 </p>
@@ -1093,7 +1137,7 @@ export default function UploadPage() {
                       <button
                         onClick={() => {
                           setSelectedSourceId("");
-                          setModalStep("csrs");
+                          setModalStep("trade");
                         }}
                         className="h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-500 font-semibold text-sm hover:border-gray-300 hover:text-gray-700 transition-all"
                       >
@@ -1102,19 +1146,102 @@ export default function UploadPage() {
                       <button
                         onClick={() => {
                           if (!selectedSourceId) { toast.error("Please select or add a source"); return; }
-                          setModalStep("csrs");
+                          setModalStep("trade");
                         }}
                         disabled={!selectedSourceId}
                         className={`flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl font-semibold text-sm transition-all ${
                           selectedSourceId ? "bg-[#B8112D] text-white hover:bg-[#a30f27]" : "bg-gray-100 text-gray-400 cursor-not-allowed"
                         }`}
                       >
-                        Next — Select CSRs
+                        Next — Trade
                       </button>
                     </div>
                     <p className="text-[10px] sm:text-[11px] text-gray-400 text-center">
                       Skip if you don&apos;t want to assign a source or sudo name for this upload.
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP — Trade */}
+              {modalStep === "trade" && (
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium">
+                    Select the trade type for this upload. These badges will appear on CSR pending leads.
+                  </p>
+
+                  {trades.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {trades.map(t => {
+                        const sel = selectedTrade === t.name;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => setSelectedTrade(sel ? "" : t.name)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all ${
+                              sel
+                                ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                                : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400"
+                            }`}
+                          >
+                            {t.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-semibold text-gray-600">Add new trade</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTradeName}
+                        onChange={e => setNewTradeName(e.target.value)}
+                        placeholder="e.g. General Contractor, Electric Contractor..."
+                        className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D]"
+                        onKeyDown={e => { if (e.key === "Enter") void addNewTrade(); }}
+                        list="trade-autocomplete"
+                      />
+                      <datalist id="trade-autocomplete">
+                        {trades.map(t => <option key={t.id} value={t.name} />)}
+                      </datalist>
+                      <button
+                        onClick={() => void addNewTrade()}
+                        disabled={addingTrade || !newTradeName.trim()}
+                        className="h-10 px-4 rounded-xl bg-[#111827] text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5"
+                      >
+                        {addingTrade ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add
+                      </button>
+                    </div>
+                  </div>
+
+                  {selectedTrade && (
+                    <div className="flex items-center gap-2 bg-[#FFF1F3] text-[#B8112D] px-3 py-2 rounded-xl w-fit text-xs font-semibold">
+                      <Briefcase size={13} /> {selectedTrade}
+                      <button onClick={() => setSelectedTrade("")} className="ml-1 text-[#B8112D] hover:text-red-700"><X size={12} /></button>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 sm:gap-3">
+                    <button
+                      onClick={() => setModalStep("source")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => { setSelectedTrade(""); setModalStep("csrs"); }}
+                      className="h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-500 font-semibold text-sm hover:border-gray-300 hover:text-gray-700 transition-all"
+                    >
+                      Skip
+                    </button>
+                    <button
+                      onClick={() => setModalStep("csrs")}
+                      className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
+                    >
+                      Next — Select CSRs
+                    </button>
                   </div>
                 </div>
               )}
@@ -1793,6 +1920,53 @@ export default function UploadPage() {
               )}
             </div>
           )}
+
+          {/* ── Trades Manage ── */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setTradesManageOpen(v => !v)}
+                className="w-full flex items-center justify-between mb-3 text-left"
+              >
+                <p className="text-xs font-semibold text-gray-500">Manage Trades</p>
+                <ChevronDown size={16} className={`text-gray-400 transition-transform ${tradesManageOpen ? "rotate-180" : ""}`} />
+              </button>
+              {tradesManageOpen && (
+                <div className="space-y-2">
+                  {trades.map(t => (
+                    <div key={t.id} className="flex items-center justify-between bg-[#FAFAFA] rounded-xl px-3 py-2">
+                      <span className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                        <Briefcase size={13} className="text-gray-400" /> {t.name}
+                      </span>
+                      <button
+                        onClick={() => void deleteTrade(t.id, t.name)}
+                        disabled={deletingTradeId === t.id}
+                        className="w-7 h-7 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center disabled:opacity-50"
+                      >
+                        {deletingTradeId === t.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={newTradeName}
+                      onChange={e => setNewTradeName(e.target.value)}
+                      placeholder="Add trade (e.g. General Contractor)..."
+                      className="flex-1 h-9 rounded-lg border border-gray-200 px-3 text-xs outline-none focus:border-[#B8112D]"
+                      onKeyDown={e => { if (e.key === "Enter") void addNewTrade(); }}
+                    />
+                    <button
+                      onClick={() => void addNewTrade()}
+                      disabled={addingTrade || !newTradeName.trim()}
+                      className="h-9 px-3 rounded-lg bg-[#111827] text-white text-xs font-semibold disabled:opacity-40 flex items-center gap-1"
+                    >
+                      {addingTrade ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
           )}
         </div>

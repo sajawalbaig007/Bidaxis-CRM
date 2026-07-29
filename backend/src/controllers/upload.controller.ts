@@ -152,6 +152,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
     const resetMode:   string = req.body.resetMode || "keep";
     const leadType:    string = req.body.leadType || "new";   /* "new" | "old" — only used when pane = "lead" */
     const sourceId:    string = String(req.body.sourceId ?? "").trim();
+    const tradeName:   string = String(req.body.trade ?? "").trim();
     const uploadedBy          = "admin";
 
     let source: { id: string } | null = null;
@@ -416,6 +417,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
         uploadedFileId:    uploadedFile.id,
         hiddenOnMain:      hideOnMain(r.status),
         inBin:             false,
+        trade:             tradeName || null,
       }));
 
       for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {

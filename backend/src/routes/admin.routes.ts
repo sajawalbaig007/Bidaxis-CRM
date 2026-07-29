@@ -1640,6 +1640,42 @@ router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "man
   }
 });
 
+/* ================= TRADES ================= */
+router.get("/trades", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
+  try {
+    const trades = await prisma.trade.findMany({ orderBy: { name: "asc" } });
+    return res.json({ success: true, trades });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to fetch trades" });
+  }
+});
+
+router.post("/trades", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
+  try {
+    const name = (req.body.name as string | undefined)?.trim();
+    if (!name) return res.status(400).json({ success: false, message: "Trade name required" });
+    const existing = await prisma.trade.findUnique({ where: { name } });
+    if (existing) return res.status(409).json({ success: false, message: "Trade already exists" });
+    const trade = await prisma.trade.create({ data: { name } });
+    return res.status(201).json({ success: true, trade });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to create trade" });
+  }
+});
+
+router.delete("/trades/:tradeId", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
+  try {
+    const { tradeId } = req.params;
+    await prisma.trade.delete({ where: { id: tradeId } }).catch(() => null);
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete trade" });
+  }
+});
+
 /* ================= RESTORE LEGACY COMMENTS → LeadNote ================= */
 router.post("/migrate-legacy-notes", verifyToken, allowRoles("admin"), async (_req, res) => {
   try {
