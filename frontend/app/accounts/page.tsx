@@ -217,9 +217,9 @@ export default function AccountsDashboardPage() {
             ))}
           </section>
 
-          <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-5 items-start">
-            <div className="xl:col-span-7 bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <section className="mt-5 w-full space-y-4">
+            <div className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
+              <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
                   <p className="text-[11px] text-gray-400 mt-0.5">View-only · eye to edit · {acc.recordDate}</p>
@@ -261,11 +261,11 @@ export default function AccountsDashboardPage() {
                 </div>
               </div>
 
-              <p className="px-4 pt-2.5 text-[11px] text-gray-500 leading-snug">{formulaNote}</p>
+              <p className="px-4 sm:px-5 pt-2.5 text-[11px] text-gray-500 leading-snug">{formulaNote}</p>
 
               {viewTab === "ALL" ? (
-                <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3">
+                <div className="p-3 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3.5">
                     <div className="flex items-center justify-between mb-1.5">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]">Ahmed Hamza</p>
                       <button
@@ -281,7 +281,7 @@ export default function AccountsDashboardPage() {
                     <p className="text-xs text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.cadInPkr)}</span></p>
                     <p className="text-sm font-extrabold text-gray-900 mt-1.5 tabular-nums">Subtotal: {currency(ahCalc.total)}</p>
                   </div>
-                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3">
+                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3.5">
                     <div className="flex items-center justify-between mb-1.5">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#0B84F3]">Sharjeel Nasir</p>
                       <button
@@ -299,8 +299,8 @@ export default function AccountsDashboardPage() {
                   </div>
                 </div>
               ) : (
-                <div className="p-3 sm:p-4 space-y-2.5">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="p-3 sm:p-5 space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                     {([
                       ["USD Payment", active.usdAmount],
                       ["USD Tax", active.usdTaxFactor],
@@ -312,21 +312,21 @@ export default function AccountsDashboardPage() {
                     ] as const).map(([label, val]) => (
                       <div
                         key={label}
-                        className={`rounded-lg border border-gray-100 bg-[#FAFBFC] px-2.5 py-2 ${label === "Direct PKR" ? "sm:col-span-3" : ""}`}
+                        className="rounded-lg border border-gray-100 bg-[#FAFBFC] px-2.5 py-2"
                       >
                         <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
                         <p className="mt-0.5 text-sm font-semibold text-gray-800 tabular-nums">{currency(val)}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2 text-[10px] text-gray-600 space-y-0.5 font-mono leading-snug">
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-gray-600 space-y-0.5 font-mono leading-snug sm:flex sm:gap-8 sm:space-y-0">
                     <p>USD: {currency(active.usdAmount)} × {active.usdTaxFactor} × {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
                     <p>CAD: {currency(active.cadAmount)} × {active.cadTaxFactor} × {active.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.cadInPkr)}</span></p>
                   </div>
                 </div>
               )}
 
-              <div className="mx-3 sm:mx-4 mb-3 rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white px-3 py-2.5 text-xs text-gray-700 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="mx-3 sm:mx-5 mb-4 rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white px-3 sm:px-4 py-2.5 text-xs text-gray-700 grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">USD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
                 <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">CAD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
                 <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">Direct PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
@@ -334,7 +334,7 @@ export default function AccountsDashboardPage() {
               </div>
             </div>
 
-            <div className="xl:col-span-5 flex flex-col gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 w-full">
               <AccountsChartCard
                 title={`Payment Split — ${viewTab !== "ALL" ? CURRENCY_TAB_LABELS[viewTab] : "All"}`}
                 subtitle="Pie + bars · USD · CAD · PKR"
@@ -342,7 +342,7 @@ export default function AccountsDashboardPage() {
                 icon={<PieIcon size={16} />}
               >
                 <div className="grid grid-cols-2 gap-1 items-center">
-                  <RechartsBox height={168}>
+                  <RechartsBox height={180}>
                     <PieChart>
                       <Pie
                         data={paymentSummary.filter(r => r.amount > 0).concat(
@@ -350,8 +350,8 @@ export default function AccountsDashboardPage() {
                         )}
                         dataKey="amount"
                         nameKey="name"
-                        innerRadius={36}
-                        outerRadius={62}
+                        innerRadius={40}
+                        outerRadius={68}
                         paddingAngle={3}
                         stroke="#fff"
                         strokeWidth={2}
@@ -364,8 +364,8 @@ export default function AccountsDashboardPage() {
                       <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     </PieChart>
                   </RechartsBox>
-                  <RechartsBox height={168}>
-                    <BarChart data={paymentSummary} barSize={22} margin={{ left: -8, right: 4 }}>
+                  <RechartsBox height={180}>
+                    <BarChart data={paymentSummary} barSize={26} margin={{ left: -8, right: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
                       <YAxis tick={{ fontSize: 9 }} width={36} />
@@ -386,7 +386,7 @@ export default function AccountsDashboardPage() {
                 accent="#0F172A"
                 icon={<LayoutDashboard size={16} />}
               >
-                <RechartsBox height={200}>
+                <RechartsBox height={180}>
                   <BarChart
                     data={[
                       { name: "BS", value: summaries.balanceSheetTotalAssets ?? 0 },
@@ -394,7 +394,7 @@ export default function AccountsDashboardPage() {
                       { name: "Cash", value: summaries.cashFlowNet ?? 0 },
                       { name: "Assets", value: summaries.totalAssetsRegister ?? 0 },
                     ]}
-                    barSize={28}
+                    barSize={32}
                     margin={{ left: -4, right: 4 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
