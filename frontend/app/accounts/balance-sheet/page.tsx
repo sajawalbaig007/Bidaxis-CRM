@@ -4,26 +4,30 @@ import { useMemo } from "react";
 import {
   BarChart, Bar, CartesianGrid, PieChart, Pie, Cell, Tooltip, XAxis, YAxis, ResponsiveContainer,
 } from "recharts";
-import { Scale, TrendingUp } from "lucide-react";
+import { Scale, TrendingUp, StickyNote, Plus, Trash2 } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
 import BalanceSheetTable, { sumItems } from "../components/BalanceSheetTable";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
-import type { BalanceSheetData, BalanceLineItem, BalanceSection } from "../types";
+import type { BalanceSheetData, BalanceLineItem, StickyNote as StickyNoteType } from "../types";
 import { currency, newRowId } from "../types";
 
 function defaultData(): BalanceSheetData {
-  return { assetSections: [], equityLiabilitySections: [] };
+  return { assetSections: [], equityLiabilitySections: [], stickyNotes: [] };
 }
 
-function sumSections(sections: BalanceSection[]) {
+function sumSections(sections: BalanceSheetData["assetSections"]) {
   return sections.reduce((a, s) => a + sumItems(s.items), 0);
 }
 
+const NOTE_COLORS = ["#FEF3C7", "#FCE7F3", "#DBEAFE", "#D1FAE5", "#EDE9FE"];
+
 export default function BalanceSheetPage() {
   const acc = useAccountsPage<BalanceSheetData>({ page: "balance_sheet", defaultData });
+
+  const stickyNotes = acc.data.stickyNotes ?? [];
 
   const { totalAssets, currentAssets, nonCurrentAssets, totalEquity, totalLiabilities, balanced } = useMemo(() => {
     const assetSections = acc.data.assetSections ?? [];
@@ -63,6 +67,10 @@ export default function BalanceSheetPage() {
           : sec,
       ),
     }));
+  };
+
+  const setNotes = (notes: StickyNoteType[]) => {
+    acc.setData(prev => ({ ...prev, stickyNotes: notes }));
   };
 
   const assetMixData = [
@@ -108,6 +116,53 @@ export default function BalanceSheetPage() {
               Assets ({currency(totalAssets)}) ≠ Equity + Liabilities ({currency(totalEquity + totalLiabilities)}) — review totals.
             </div>
           )}
+
+          <section className="mt-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <StickyNote size={15} className="text-amber-500" />
+                <h2 className="font-bold text-gray-800 text-sm">Sticky Notes</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotes([
+                  ...stickyNotes,
+                  { id: newRowId("note"), text: "", color: NOTE_COLORS[stickyNotes.length % NOTE_COLORS.length] },
+                ])}
+                className="h-8 px-3 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold inline-flex items-center gap-1 hover:bg-amber-200"
+              >
+                <Plus size={13} /> Add Note
+              </button>
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[320px] overflow-y-auto">
+              {stickyNotes.length === 0 ? (
+                <p className="text-xs text-gray-400 col-span-full py-6 text-center">No sticky notes yet — add one for reminders.</p>
+              ) : (
+                stickyNotes.map((note, idx) => (
+                  <div
+                    key={note.id}
+                    className="relative rounded-xl p-3 shadow-sm border border-black/5 min-h-[120px] flex flex-col"
+                    style={{ backgroundColor: note.color || NOTE_COLORS[idx % NOTE_COLORS.length] }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setNotes(stickyNotes.filter(n => n.id !== note.id))}
+                      className="absolute top-2 right-2 w-6 h-6 rounded-md text-gray-500 hover:bg-black/5 flex items-center justify-center"
+                      title="Delete note"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <textarea
+                      value={note.text}
+                      onChange={e => setNotes(stickyNotes.map(n => n.id === note.id ? { ...n, text: e.target.value } : n))}
+                      placeholder="Write a note…"
+                      className="flex-1 w-full bg-transparent resize-none text-sm text-gray-800 outline-none placeholder:text-gray-400 pr-6"
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
 
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
             <div className="bg-white rounded-2xl p-4 border-2 border-[#0B84F3]/20 shadow-sm">

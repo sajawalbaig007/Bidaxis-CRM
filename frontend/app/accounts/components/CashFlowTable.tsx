@@ -181,9 +181,9 @@ export default function CashFlowTable({
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
               <table className="w-full text-sm" style={{ minWidth: `${700 + bankHeads.length * 128}px` }}>
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200 bg-[#FAFBFC]">
                     <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 w-[118px]">Date</th>
                     <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 min-w-[160px]">Description</th>

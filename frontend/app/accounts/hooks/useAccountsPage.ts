@@ -8,6 +8,7 @@ import { todayIso } from "../types";
 import {
   currentMonthValue,
   currentYear,
+  normalizePeriodPreset,
   periodDateRange,
   type AccountsPeriodPreset,
 } from "../utils/accountsPeriodFilters";
@@ -38,28 +39,26 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   const [uploading, setUploading] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const applyPresetRange = useCallback((
-    preset: AccountsPeriodPreset,
-    year: number,
-    month: string,
-  ) => {
-    if (preset === "custom") return;
-    const range = periodDateRange(preset, { year, month });
-    setFilterFromState(range.from);
-    setFilterToState(range.to);
-  }, []);
-
   const setPeriodPreset = useCallback((preset: AccountsPeriodPreset) => {
-    setPeriodPresetState(preset);
-    applyPresetRange(preset, filterYear, filterMonth);
-  }, [applyPresetRange, filterYear, filterMonth]);
+    const next = normalizePeriodPreset(preset);
+    setPeriodPresetState(next);
+    if (next === "all_time") {
+      setFilterFromState("");
+      setFilterToState("");
+      return;
+    }
+    if (next === "month") {
+      const range = periodDateRange("month", { month: filterMonth });
+      setFilterFromState(range.from);
+      setFilterToState(range.to);
+      return;
+    }
+    // date_range — keep existing from/to so user can edit
+  }, [filterMonth]);
 
   const setFilterYear = useCallback((year: number) => {
     setFilterYearState(year);
-    if (periodPreset !== "custom" && periodPreset !== "all_time" && periodPreset !== "month") {
-      applyPresetRange(periodPreset, year, filterMonth);
-    }
-  }, [applyPresetRange, periodPreset, filterMonth]);
+  }, []);
 
   const setFilterMonth = useCallback((month: string) => {
     setFilterMonthState(month);
@@ -70,27 +69,31 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   }, []);
 
   const setFilterFrom = useCallback((from: string) => {
-    setPeriodPresetState("custom");
+    setPeriodPresetState("date_range");
     setFilterFromState(from);
   }, []);
 
   const setFilterTo = useCallback((to: string) => {
-    setPeriodPresetState("custom");
+    setPeriodPresetState("date_range");
     setFilterToState(to);
   }, []);
 
   const refreshDates = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (filterFrom) params.set("from", filterFrom);
-      if (filterTo) params.set("to", filterTo);
+      const mode = normalizePeriodPreset(periodPreset);
+      // All Time → no date filter params
+      if (mode !== "all_time") {
+        if (filterFrom) params.set("from", filterFrom);
+        if (filterTo) params.set("to", filterTo);
+      }
       const qs = params.toString();
       const res = await API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`);
       setSavedDates(res.data.dates ?? []);
     } catch {
       /* ignore */
     }
-  }, [page, filterFrom, filterTo]);
+  }, [page, filterFrom, filterTo, periodPreset]);
 
   const loadRecord = useCallback(async (date: string) => {
     setLoading(true);

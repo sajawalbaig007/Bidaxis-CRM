@@ -128,9 +128,9 @@ export default function BalanceSheetTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[520px]">
         <table className="w-full text-sm min-w-[520px]">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-gray-200/80 bg-[#FAFBFC]">
               <th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Particulars</th>
               <th className="px-3 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[88px]">Note</th>

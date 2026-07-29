@@ -30,9 +30,9 @@ export default function EditableDataTable<T extends { id: string }>({
   emptyLabel = "No rows yet — use Add New.",
 }: EditableDataTableProps<T>) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-100">
+    <div className="overflow-x-auto overflow-y-auto max-h-[520px] rounded-2xl border border-gray-100">
       <table className="w-full text-sm" style={{ minWidth }}>
-        <thead className="bg-[#F8FAFC]">
+        <thead className="bg-[#F8FAFC] sticky top-0 z-10">
           <tr className="border-b border-gray-200">
             {columns.map(col => (
               <th

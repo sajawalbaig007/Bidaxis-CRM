@@ -143,6 +143,11 @@ export default function AccountsDashboardPage() {
     { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]" },
     { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]" },
     { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#7C3AED] to-[#5B21B6]" },
+    {
+      label: "Balance Sheet + Total Assets",
+      value: (summaries.balanceSheetTotalAssets ?? 0) + (summaries.totalAssetsRegister ?? 0),
+      color: "from-[#0F172A] to-[#334155]",
+    },
   ];
 
   const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
@@ -179,7 +184,7 @@ export default function AccountsDashboardPage() {
           title="Dashboard"
           subtitle="Live totals from other pages for the selected record date + editable currency formulas."
         >
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
             {metrics.map(m => (
               <div key={m.label} className={`rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md bg-gradient-to-br ${m.color}`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{m.label}</p>
@@ -317,9 +322,9 @@ export default function AccountsDashboardPage() {
             <div className="px-4 py-3 border-b bg-[#F8FAFC]">
               <h2 className="font-bold text-gray-800 text-sm">Combined Snapshot — {acc.recordDate}</h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[420px]">
               <table className="w-full text-sm" style={{ minWidth: "860px" }}>
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr className="border-b">
                     <th className="px-3 py-2 text-left font-semibold">Page</th>
                     <th className="px-3 py-2 text-left font-semibold">Primary Heads</th>
@@ -332,6 +337,11 @@ export default function AccountsDashboardPage() {
                     ["Income Statement", "Revenue, Payroll, OPEX, Net Profit", summaries.incomeNetProfit],
                     ["Cash Flow Statement", "AH Paypal, SN Paypal, CO. Habib Metro, Qasim Habib Metro", summaries.cashFlowNet],
                     ["Total Assets", "IT, Electrical, Furniture, Renovation, BIM, Global PCS", summaries.totalAssetsRegister],
+                    [
+                      "Balance Sheet + Total Assets",
+                      "Combined register sum",
+                      (summaries.balanceSheetTotalAssets ?? 0) + (summaries.totalAssetsRegister ?? 0),
+                    ],
                   ].map(([page, heads, total]) => (
                     <tr key={String(page)} className="border-b border-gray-100">
                       <td className="px-3 py-2.5 font-medium">{page}</td>

@@ -8,20 +8,10 @@ import type { AccountsUpload } from "../types";
 import {
   formatPeriodSummary,
   PERIOD_PRESET_LABELS,
+  QUICK_PERIOD_PRESETS,
+  normalizePeriodPreset,
   type AccountsPeriodPreset,
 } from "../utils/accountsPeriodFilters";
-
-type PresetKey = Exclude<AccountsPeriodPreset, "custom">;
-
-const QUICK_PRESETS: PresetKey[] = [
-  "all_time",
-  "month",
-  "q1",
-  "q2",
-  "q3",
-  "h1",
-  "h2",
-];
 
 type AccountsPageShellProps = {
   title: string;
@@ -62,8 +52,6 @@ export default function AccountsPageShell({
   onFilterToChange,
   periodPreset,
   onPeriodPresetChange,
-  filterYear,
-  onFilterYearChange,
   filterMonth,
   onFilterMonthChange,
   savedDates,
@@ -79,8 +67,8 @@ export default function AccountsPageShell({
   children,
 }: AccountsPageShellProps) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const periodSummary = formatPeriodSummary(periodPreset, filterFrom, filterTo, filterMonth, filterYear);
-  const showYearPicker = periodPreset === "q1" || periodPreset === "q2" || periodPreset === "q3" || periodPreset === "h1" || periodPreset === "h2";
+  const activePreset = normalizePeriodPreset(periodPreset);
+  const periodSummary = formatPeriodSummary(periodPreset, filterFrom, filterTo, filterMonth);
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 space-y-5">
@@ -147,16 +135,16 @@ export default function AccountsPageShell({
 
         <div>
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Quick period <span className="normal-case font-normal text-gray-400">(3 quarters × 4 months)</span>
+            Quick period
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_PRESETS.map(key => (
+            {QUICK_PERIOD_PRESETS.map(key => (
               <button
                 key={key}
                 type="button"
                 onClick={() => onPeriodPresetChange(key)}
                 className={`h-9 px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all ${
-                  periodPreset === key
+                  activePreset === key
                     ? "bg-[#B8112D] text-white shadow-sm"
                     : "bg-[#F5F6FA] text-gray-600 hover:bg-[#FFF1F3] hover:text-[#B8112D]"
                 }`}
@@ -167,7 +155,7 @@ export default function AccountsPageShell({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <label className="text-xs font-semibold text-gray-600">
             <span className="inline-flex items-center gap-1 mb-1"><CalendarDays size={12} /> Record Date (save under)</span>
             <input
@@ -178,7 +166,7 @@ export default function AccountsPageShell({
             />
           </label>
 
-          {(periodPreset === "month" || periodPreset === "custom") && (
+          {activePreset === "month" && (
             <label className="text-xs font-semibold text-gray-600">
               Month
               <input
@@ -190,45 +178,35 @@ export default function AccountsPageShell({
             </label>
           )}
 
-          {showYearPicker && (
-            <label className="text-xs font-semibold text-gray-600">
-              Year
-              <input
-                type="number"
-                min={2000}
-                max={2100}
-                value={filterYear}
-                onChange={e => onFilterYearChange(Number(e.target.value || new Date().getFullYear()))}
-                className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
-              />
-            </label>
+          {activePreset === "date_range" && (
+            <>
+              <label className="text-xs font-semibold text-gray-600">
+                From
+                <input
+                  type="date"
+                  value={filterFrom}
+                  onChange={e => onFilterFromChange(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                />
+              </label>
+              <label className="text-xs font-semibold text-gray-600">
+                To
+                <input
+                  type="date"
+                  value={filterTo}
+                  onChange={e => onFilterToChange(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                />
+              </label>
+            </>
           )}
-
-          <label className="text-xs font-semibold text-gray-600">
-            From
-            <input
-              type="date"
-              value={filterFrom}
-              onChange={e => onFilterFromChange(e.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
-            />
-          </label>
-          <label className="text-xs font-semibold text-gray-600">
-            To
-            <input
-              type="date"
-              value={filterTo}
-              onChange={e => onFilterToChange(e.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
-            />
-          </label>
         </div>
 
         <div className="text-xs font-semibold text-gray-600">
-          Saved dates in range ({savedDates.length})
+          Saved dates{activePreset === "all_time" ? "" : " in range"} ({savedDates.length})
           <div className="mt-1 min-h-10 max-h-28 overflow-y-auto rounded-xl border border-gray-100 bg-[#FAFAFA] p-2 flex flex-wrap gap-1">
             {savedDates.length === 0 ? (
-              <span className="text-gray-400 text-[11px]">No saved records in this range</span>
+              <span className="text-gray-400 text-[11px]">No saved records{activePreset === "all_time" ? "" : " in this range"}</span>
             ) : (
               savedDates.map(d => (
                 <button
