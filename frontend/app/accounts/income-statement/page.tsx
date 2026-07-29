@@ -122,9 +122,17 @@ export default function IncomeStatementPage() {
   ];
 
   const opexBars = (acc.data.opexHeads ?? [])
-    .map(o => ({ name: o.label.slice(0, 16), value: lineAmount(o) }))
+    .map(o => ({ name: o.label.slice(0, 18), value: lineAmount(o) }))
     .filter(d => d.value > 0)
+    .sort((a, b) => b.value - a.value)
     .slice(0, 8);
+
+  const tablesSummary = [
+    { name: "Team Salaries", value: payrollExpense, fill: "#0B84F3" },
+    { name: "OPEX", value: operatingExpense, fill: "#F59E0B" },
+    { name: "Loans", value: loanExpense, fill: "#EA580C" },
+    { name: "Provident Fund", value: pfExpense, fill: "#0D9488" },
+  ].filter(d => d.value > 0);
 
   return (
     <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_#F8FAFC_0%,_#EEF1F7_45%,_#E8ECF4_100%)]">
@@ -240,26 +248,58 @@ export default function IncomeStatementPage() {
             </AccountsChartCard>
           </section>
 
-          {opexBars.length > 0 && (
-            <section className="mt-4">
-              <AccountsChartCard
-                title="Top Operating Expenses"
-                subtitle="Largest OPEX heads"
-                accent="#F59E0B"
-                icon={<Layers3 size={16} />}
-              >
-                <RechartsBox height={220}>
-                  <BarChart data={opexBars} layout="vertical" margin={{ left: 8, right: 12 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                    <XAxis type="number" tick={{ fontSize: 10 }} />
-                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fontWeight: 600 }} />
-                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="value" fill="#F59E0B" radius={[0, 8, 8, 0]} barSize={16} />
-                  </BarChart>
-                </RechartsBox>
-              </AccountsChartCard>
-            </section>
-          )}
+          <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
+            <AccountsChartCard
+              title="All Tables Summary"
+              subtitle="Team · OPEX · Loans · Provident Fund"
+              accent="#0B84F3"
+              icon={<PieIcon size={16} />}
+              className="lg:col-span-7"
+            >
+              <RechartsBox height={210}>
+                <BarChart
+                  data={tablesSummary.length ? tablesSummary : [{ name: "—", value: 0, fill: "#E2E8F0" }]}
+                  barSize={36}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                    {(tablesSummary.length ? tablesSummary : [{ fill: "#E2E8F0" }]).map((d, i) => (
+                      <Cell key={i} fill={d.fill || CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </RechartsBox>
+            </AccountsChartCard>
+
+            <AccountsChartCard
+              title="Top Operating Expenses"
+              subtitle="Largest OPEX heads"
+              accent="#F59E0B"
+              icon={<Layers3 size={16} />}
+              className="lg:col-span-5"
+            >
+              <RechartsBox height={210}>
+                <BarChart
+                  data={opexBars.length ? opexBars : [{ name: "—", value: 0 }]}
+                  layout="vertical"
+                  margin={{ left: 4, right: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis type="number" tick={{ fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 9, fontWeight: 600 }} />
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={14}>
+                    {(opexBars.length ? opexBars : [{ name: "—" }]).map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </RechartsBox>
+            </AccountsChartCard>
+          </section>
 
           <section className="mt-5 space-y-5">
             <ExpandableHeadsTable
