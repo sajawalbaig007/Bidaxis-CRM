@@ -28,6 +28,7 @@ type QuickStats = {
   totalLeads:  number;
   completed:   number;
   closed:      number;
+  todayCompletedCalls: number;
   pending:     number;
   important:   number;
   importantOnly?: number;
@@ -42,6 +43,7 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
     totalLeads:  s.stats?.totalLeads  ?? 0,
     completed:   s.stats?.completed   ?? 0,
     closed:      s.stats?.closed      ?? 0,
+    todayCompletedCalls: s.stats?.todayCompletedCalls ?? 0,
     pending:     s.stats?.pending     ?? 0,
     important:   s.stats?.important   ?? 0,
     importantOnly: s.stats?.importantOnly ?? s.stats?.important ?? 0,
@@ -103,7 +105,7 @@ export default function DashboardPage() {
 
   const tiles = useMemo(() => [
     { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%", href: `${staffBase}/leads` },
-    { label: "Completed",    value: stats?.closed ?? stats?.completed ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%", href: `${staffBase}/leads?tab=closed` },
+    { label: "Today Completed Calls", value: stats?.todayCompletedCalls ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%" },
     { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%", href: `${staffBase}/leads` },
     { label: "Important",    value: stats?.importantOnly ?? stats?.important ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <Star         size={15}/>, bar: "40%", href: `${staffBase}/leads?tab=important` },
     { label: "Interested",   value: stats?.interested  ?? 0, from: "from-[#2563EB]", to: "to-[#1D4ED8]",  icon: <TrendingUp   size={15}/>, bar: "60%", href: `${staffBase}/leads?tab=interested` },
