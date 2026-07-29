@@ -80,12 +80,29 @@ export type TotalAssetsData = {
   sections: AssetSectionRow[];
 };
 
-export type DashboardCurrency = {
+export type CurrencyTabKey = "SN" | "AH";
+
+/** Per-entity payment inputs + editable tax / FX formula factors. */
+export type DashboardCurrencyTab = {
   usdAmount: number;
   cadAmount: number;
   pkrAmount: number;
   usdToPkrRate: number;
   cadToPkrRate: number;
+  /** USD × this = USD after tax (editable). Default 0.89 */
+  usdTaxFactor: number;
+  /** CAD × this = CAD after tax (editable). SN default 0.89, AH/Sherjeel 0.945 */
+  cadTaxFactor: number;
+};
+
+export type DashboardCurrency = {
+  /** @deprecated kept for older saved records — migrated on load */
+  usdAmount?: number;
+  cadAmount?: number;
+  pkrAmount?: number;
+  usdToPkrRate?: number;
+  cadToPkrRate?: number;
+  tabs: Record<CurrencyTabKey, DashboardCurrencyTab>;
 };
 
 export type DashboardData = {
