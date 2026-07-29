@@ -22,13 +22,22 @@ export type SubHeadEntry = {
   filledAt: string;
 };
 
+/** Date-tagged note on a table row / head. */
+export type DatedNote = {
+  id: string;
+  text: string;
+  date: string;
+};
+
 export type BalanceLineItem = {
   id: string;
   label: string;
+  /** @deprecated use notes[] — kept for old saves */
   note?: string;
   amount: number;
   filledAt?: string;
   subHeads?: SubHeadEntry[];
+  notes?: DatedNote[];
 };
 
 export type BalanceSection = {
@@ -37,20 +46,9 @@ export type BalanceSection = {
   items: BalanceLineItem[];
 };
 
-export type StickyNote = {
-  id: string;
-  text: string;
-  color?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-};
-
 export type BalanceSheetData = {
   assetSections: BalanceSection[];
   equityLiabilitySections: BalanceSection[];
-  stickyNotes?: StickyNote[];
 };
 
 export type TeamSalaryRow = {
@@ -61,6 +59,7 @@ export type TeamSalaryRow = {
   totalSalary: number;
   filledAt?: string;
   subHeads?: SubHeadEntry[];
+  notes?: DatedNote[];
 };
 
 export type OpexRow = {
@@ -69,6 +68,7 @@ export type OpexRow = {
   amount: number;
   filledAt?: string;
   subHeads?: SubHeadEntry[];
+  notes?: DatedNote[];
 };
 
 export type IncomeStatementData = {
@@ -85,6 +85,7 @@ export type CashFlowRow = {
   description: string;
   bankAmounts: Record<string, { debit: number; credit: number }>;
   netAmount: number;
+  notes?: DatedNote[];
 };
 
 export type CashFlowMonth = {
@@ -105,6 +106,7 @@ export type AssetSectionRow = {
   total: number;
   filledAt?: string;
   subHeads?: SubHeadEntry[];
+  notes?: DatedNote[];
 };
 
 export type TotalAssetsData = {
@@ -160,4 +162,30 @@ export function sumSubHeads(subHeads?: SubHeadEntry[]): number {
 export function lineAmount(item: { amount?: number; totalSalary?: number; subHeads?: SubHeadEntry[] }): number {
   if (item.subHeads && item.subHeads.length > 0) return sumSubHeads(item.subHeads);
   return Number(item.amount ?? item.totalSalary) || 0;
+}
+
+/** Normalize legacy string note + notes[] into a dated list. */
+export function normalizeNotes(
+  notes?: DatedNote[],
+  legacyNote?: string,
+  fallbackDate?: string,
+): DatedNote[] {
+  if (notes && notes.length > 0) return notes;
+  const text = legacyNote?.trim();
+  if (!text) return [];
+  return [{ id: "legacy-note", text, date: fallbackDate || todayIso() }];
+}
+
+/** Latest note by date (then id). */
+export function latestNote(
+  notes?: DatedNote[],
+  legacyNote?: string,
+  fallbackDate?: string,
+): DatedNote | null {
+  const list = normalizeNotes(notes, legacyNote, fallbackDate);
+  if (!list.length) return null;
+  return [...list].sort((a, b) => {
+    const d = b.date.localeCompare(a.date);
+    return d !== 0 ? d : b.id.localeCompare(a.id);
+  })[0];
 }

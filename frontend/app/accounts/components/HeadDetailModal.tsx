@@ -1,7 +1,7 @@
 "use client";
 
-import { Trash2, X } from "lucide-react";
-import type { SubHeadEntry } from "../types";
+import { Trash2, X, Plus, StickyNote } from "lucide-react";
+import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, todayIso } from "../types";
 
 export type HeadDetailModel = {
@@ -11,6 +11,7 @@ export type HeadDetailModel = {
   filledAt?: string;
   note?: string;
   subHeads: SubHeadEntry[];
+  notes: DatedNote[];
 };
 
 type HeadDetailModalProps = {
@@ -57,6 +58,29 @@ export default function HeadDetailModal({
     onSave({ ...value, subHeads: value.subHeads.filter(s => s.id !== id) });
   };
 
+  const addNote = () => {
+    onSave({
+      ...value,
+      notes: [
+        { id: newRowId("note"), text: "", date: todayIso() },
+        ...value.notes,
+      ],
+    });
+  };
+
+  const updateNote = (id: string, patch: Partial<DatedNote>) => {
+    onSave({
+      ...value,
+      notes: value.notes.map(n => (n.id === id ? { ...n, ...patch } : n)),
+    });
+  };
+
+  const removeNote = (id: string) => {
+    onSave({ ...value, notes: value.notes.filter(n => n.id !== id) });
+  };
+
+  const sortedNotes = [...value.notes].sort((a, b) => b.date.localeCompare(a.date));
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div
@@ -70,7 +94,7 @@ export default function HeadDetailModal({
           </button>
         </div>
 
-        <div className="p-4 space-y-3 overflow-y-auto flex-1">
+        <div className="p-4 space-y-4 overflow-y-auto flex-1">
           <label className="text-xs font-semibold text-gray-600 block">
             Title
             <input
@@ -101,16 +125,47 @@ export default function HeadDetailModal({
             </label>
           </div>
 
-          {value.note !== undefined && (
-            <label className="text-xs font-semibold text-gray-600 block">
-              Note ref
-              <input
-                value={value.note ?? ""}
-                onChange={e => setField("note", e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
-              />
-            </label>
-          )}
+          {/* Notes */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-700 inline-flex items-center gap-1.5">
+                <StickyNote size={13} className="text-amber-500" /> Notes (by date)
+              </p>
+              <button type="button" onClick={addNote} className="text-[11px] font-bold text-amber-700 inline-flex items-center gap-1">
+                <Plus size={12} /> Add note
+              </button>
+            </div>
+            <div className="space-y-2 max-h-44 overflow-y-auto">
+              {sortedNotes.length === 0 ? (
+                <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
+                  No notes yet — add one with a date.
+                </p>
+              ) : (
+                sortedNotes.map(n => (
+                  <div key={n.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-2 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={n.date}
+                        onChange={e => updateNote(n.id, { date: e.target.value })}
+                        className="h-8 rounded-lg border border-amber-200/80 bg-white px-2 text-[11px] flex-1"
+                      />
+                      <button type="button" onClick={() => removeNote(n.id)} className="text-red-500 w-7 h-7 flex items-center justify-center">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <textarea
+                      value={n.text}
+                      onChange={e => updateNote(n.id, { text: e.target.value })}
+                      placeholder="Write note…"
+                      rows={2}
+                      className="w-full rounded-lg border border-amber-200/80 bg-white px-2 py-1.5 text-xs outline-none resize-none focus:ring-2 focus:ring-amber-200"
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
