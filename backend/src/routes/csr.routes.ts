@@ -1339,9 +1339,19 @@ router.post("/heartbeat", verifyToken, allowRoles("csr"), async (req: any, res) 
 
     const now = Date.now();
     const lastWrite = (existing as { lastDbWrite?: number } | undefined)?.lastDbWrite ?? 0;
+    const wasVisible = existing?.tabVisible ?? true;
+    const tabBecameHidden  = wasVisible && !tabVisible;
+    const tabBecameVisible = !wasVisible && tabVisible;
     const shouldWriteDb = tabVisible && now - lastWrite >= 30_000;
 
-    if (shouldWriteDb) {
+    if (tabBecameHidden) {
+      // Tab just went away — mark offline in DB immediately
+      await prisma.user.update({
+        where: { id: userId },
+        data:  { isOnline: false },
+      }).catch(() => {});
+    } else if (tabBecameVisible || shouldWriteDb) {
+      // Tab came back or regular heartbeat interval
       await prisma.user.update({
         where: { id: userId },
         data:  { isOnline: true, lastActive: new Date() },

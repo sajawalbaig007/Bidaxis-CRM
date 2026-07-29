@@ -335,6 +335,9 @@ export default function UsersPage() {
   useEffect(() => {
     const load = async () => { await fetchUsers(); };
     load();
+    // Auto-refresh every 20s for live presence tracking
+    const interval = setInterval(() => { void fetchUsers(true); }, 20_000);
+    return () => clearInterval(interval);
   }, [fetchUsers]);
 
   useEffect(() => {

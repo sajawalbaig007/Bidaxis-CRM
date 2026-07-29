@@ -49,7 +49,7 @@ router.get("/", allowRoles("admin", "csr", "manager"), async (req: AuthRequest, 
         },
         orderBy: { createdAt: "asc" },
       }) as Array<Record<string, unknown>>;
-      setCache(CACHE_KEY, users, 15_000);
+      setCache(CACHE_KEY, users, 8_000);
     }
 
     const withBrowser = users.map(u => ({
