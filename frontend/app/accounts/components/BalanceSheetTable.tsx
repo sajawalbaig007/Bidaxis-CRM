@@ -3,8 +3,9 @@
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react";
 import type { BalanceLineItem, BalanceSection } from "../types";
-import { currency, latestNote, lineAmount, normalizeNotes, todayIso } from "../types";
+import { currency, lineAmount, normalizeNotes, todayIso } from "../types";
 import { TABLE_VARIANT, type AccountsTableVariant } from "./accountsTheme";
+import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 
 function sumItems(items: BalanceLineItem[]) {
@@ -73,7 +74,7 @@ export default function BalanceSheetTable({
             <tr className="border-b border-gray-200/80 bg-[#FAFBFC]">
               <th className="w-8 px-1 py-2.5" />
               <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Particulars</th>
-              <th className="px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 min-w-[140px]">Latest note</th>
+              <th className="px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 min-w-[140px]">Notes</th>
               <th className="px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[100px]">Filled</th>
               <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[120px]">Amount</th>
               <th className="w-16 px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">Edit</th>
@@ -107,8 +108,6 @@ export default function BalanceSheetTable({
                 {section.items.map(item => {
                   const expanded = openItems.has(item.id);
                   const subs = item.subHeads ?? [];
-                  const notes = normalizeNotes(item.notes, item.note, item.filledAt);
-                  const latest = latestNote(item.notes, item.note, item.filledAt);
                   const amt = lineAmount(item);
                   return (
                     <Fragment key={item.id}>
@@ -118,23 +117,23 @@ export default function BalanceSheetTable({
                             type="button"
                             onClick={() => toggleItem(item.id)}
                             className="w-7 h-7 rounded-lg text-gray-500 hover:bg-gray-100 inline-flex items-center justify-center"
+                            title="Toggle individuals"
                           >
                             {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </button>
                         </td>
                         <td className="px-3 py-2.5 text-sm text-[#334155] font-medium">
                           {item.label}
-                          {notes.length > 0 && (
-                            <span className="ml-2 text-[10px] font-bold text-amber-700">{notes.length}n</span>
+                          {subs.length > 0 && (
+                            <span className="ml-2 text-[10px] font-bold text-gray-400">{subs.length}</span>
                           )}
                         </td>
-                        <td className="px-2 py-2.5 text-xs text-gray-600 max-w-[180px]">
-                          {latest ? (
-                            <span className="block truncate" title={latest.text}>
-                              <span className="text-[10px] font-bold text-amber-700 mr-1">{latest.date}</span>
-                              {latest.text || "—"}
-                            </span>
-                          ) : "—"}
+                        <td className="px-2 py-2.5 align-top">
+                          <AccountsNotesCell
+                            notes={item.notes}
+                            legacyNote={item.note}
+                            fallbackDate={item.filledAt}
+                          />
                         </td>
                         <td className="px-2 py-2.5 text-center text-[11px] text-gray-500">{item.filledAt || "—"}</td>
                         <td className="px-3 py-2.5 text-right text-sm font-semibold text-[#0F172A] tabular-nums">{currency(amt)}</td>
@@ -159,26 +158,7 @@ export default function BalanceSheetTable({
                       </tr>
                       {expanded && (
                         <tr className="bg-[#F8FAFC]">
-                          <td colSpan={6} className="px-4 py-2 space-y-2">
-                            <div className="rounded-xl border border-amber-100 overflow-hidden bg-white">
-                              <div className="px-3 py-1.5 bg-amber-50 text-[10px] font-bold uppercase text-amber-800 border-b border-amber-100">
-                                Notes by date
-                              </div>
-                              {notes.length === 0 ? (
-                                <p className="text-[11px] text-gray-400 px-3 py-2">No notes — open Edit to add.</p>
-                              ) : (
-                                <table className="w-full text-xs">
-                                  <tbody>
-                                    {[...notes].sort((a, b) => b.date.localeCompare(a.date)).map(n => (
-                                      <tr key={n.id} className="border-b border-amber-50 last:border-0">
-                                        <td className="px-3 py-1.5 w-[110px] font-semibold text-amber-800">{n.date}</td>
-                                        <td className="px-3 py-1.5 text-gray-700">{n.text || "—"}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
+                          <td colSpan={6} className="px-4 py-2">
                             {subs.length === 0 ? (
                               <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add.</p>
                             ) : (

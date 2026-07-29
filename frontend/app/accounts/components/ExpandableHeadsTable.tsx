@@ -3,7 +3,8 @@
 import { useState, Fragment } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
-import { currency, latestNote, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
+import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
+import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 
 export type ExpandableHeadRow = {
@@ -126,7 +127,7 @@ export default function ExpandableHeadsTable({
             <tr className="border-b border-gray-200/80">
               <th className="w-8 px-2 py-2.5" />
               <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Head</th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 min-w-[160px]">Latest note</th>
+              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 min-w-[160px]">Notes</th>
               <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400 w-[100px]">Filled</th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 w-[110px]">Total</th>
               <th className="w-24 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400">Actions</th>
@@ -141,8 +142,6 @@ export default function ExpandableHeadsTable({
               rows.map((row, idx) => {
                 const expanded = openIds.has(row.id);
                 const subs = row.subHeads ?? [];
-                const notes = normalizeNotes(row.notes, row.note, row.filledAt);
-                const latest = latestNote(row.notes, row.note, row.filledAt);
                 const amt = lineAmount(row);
                 return (
                   <Fragment key={row.id}>
@@ -152,37 +151,28 @@ export default function ExpandableHeadsTable({
                           type="button"
                           onClick={() => toggle(row.id)}
                           className="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center transition-colors"
-                          title="Toggle individuals & notes"
+                          title="Toggle individuals"
                         >
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                       </td>
                       <td className="px-3 py-2.5 font-semibold text-gray-800">
                         {row.title}
-                        {(subs.length > 0 || notes.length > 0) && (
-                          <span className="ml-2 inline-flex gap-1">
-                            {subs.length > 0 && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white/95" style={{ backgroundColor: accent }}>
-                                {subs.length}
-                              </span>
-                            )}
-                            {notes.length > 0 && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800">
-                                {notes.length}n
-                              </span>
-                            )}
+                        {subs.length > 0 && (
+                          <span
+                            className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white/95"
+                            style={{ backgroundColor: accent }}
+                          >
+                            {subs.length}
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-gray-600 max-w-[220px]">
-                        {latest ? (
-                          <span className="block truncate" title={latest.text}>
-                            <span className="text-[10px] font-bold text-amber-700 mr-1">{latest.date}</span>
-                            {latest.text || "—"}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
+                      <td className="px-3 py-2.5 align-top">
+                        <AccountsNotesCell
+                          notes={row.notes}
+                          legacyNote={row.note}
+                          fallbackDate={row.filledAt}
+                        />
                       </td>
                       <td className="px-3 py-2.5 text-center text-xs text-gray-500 tabular-nums">{row.filledAt || "—"}</td>
                       <td className="px-3 py-2.5 text-right font-bold tabular-nums text-gray-900">{currency(amt)}</td>
@@ -209,29 +199,7 @@ export default function ExpandableHeadsTable({
                     </tr>
                     {expanded && (
                       <tr className="bg-[#F8FAFC]">
-                        <td colSpan={6} className="px-4 py-2.5 space-y-2">
-                          {/* Notes by date */}
-                          <div className="rounded-xl border border-amber-100 overflow-hidden bg-white shadow-sm">
-                            <div className="px-3 py-1.5 bg-amber-50/80 text-[10px] font-bold uppercase tracking-wide text-amber-800 border-b border-amber-100">
-                              Notes by date
-                            </div>
-                            {notes.length === 0 ? (
-                              <p className="text-[11px] text-gray-400 px-3 py-2">No notes — open Edit to add.</p>
-                            ) : (
-                              <table className="w-full text-xs">
-                                <tbody>
-                                  {[...notes].sort((a, b) => b.date.localeCompare(a.date)).map(n => (
-                                    <tr key={n.id} className="border-b border-amber-50 last:border-0">
-                                      <td className="px-3 py-1.5 w-[110px] font-semibold text-amber-800 tabular-nums">{n.date}</td>
-                                      <td className="px-3 py-1.5 text-gray-700">{n.text || "—"}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-
-                          {/* Sub-heads */}
+                        <td colSpan={6} className="px-4 py-2.5">
                           {subs.length === 0 ? (
                             <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add sub-heads.</p>
                           ) : (
