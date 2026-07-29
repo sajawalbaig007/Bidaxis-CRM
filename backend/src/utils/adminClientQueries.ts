@@ -192,5 +192,11 @@ export const ADMIN_LEAD_LIST_SELECT = {
 
   _count: { select: { notes: true } },
 
+  notes: {
+    orderBy: { createdAt: "desc" as const },
+    take: 1,
+    select: { text: true, createdAt: true },
+  },
+
 } satisfies Prisma.LeadSelect;
 

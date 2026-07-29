@@ -22,6 +22,7 @@ export function formatAdminLead(lead: {
   state?: string | null;
   uploadFile?: { companyName?: string };
   csr?: { name?: string; csrCode?: string | null };
+  notes?: { text: string; createdAt?: string }[];
 }): {
   id: string;
   clientName: string;
@@ -70,7 +71,7 @@ export function formatAdminLead(lead: {
     scope: lead.interestedService?.trim() || "N/A",
     lastEmail: "",
     lastCall: lead.updatedAt?.split("T")[0] || "",
-    lastComment: lead.comments || "No comments",
+    lastComment: lead.notes?.[0]?.text || lead.comments || "No comments",
     rawStatus: raw,
     status: adminLeadStatusLabel(raw, nextFollowup),
     csr: lead.csr?.name || "Unassigned",
