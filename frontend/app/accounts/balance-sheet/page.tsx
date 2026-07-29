@@ -71,7 +71,7 @@ export default function BalanceSheetPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
+    <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_#F8FAFC_0%,_#EEF1F7_45%,_#E8ECF4_100%)]">
       <AccountsSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
         <AccountsPageShell

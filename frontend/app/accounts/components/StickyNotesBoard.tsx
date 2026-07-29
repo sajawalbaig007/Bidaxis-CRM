@@ -63,25 +63,29 @@ export default function StickyNotesBoard({ notes, onChange }: StickyNotesBoardPr
   const onPointerUp = () => setDragging(null);
 
   return (
-    <div className="relative mt-5">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
-          <StickyNote size={15} className="text-amber-500" />
-          <h2 className="font-bold text-gray-800 text-sm">Sticky Notes</h2>
-          <span className="text-[10px] text-gray-400 font-medium">IDE-style · drag to move</span>
+    <div className="relative mt-5 rounded-2xl sm:rounded-3xl border border-amber-100/80 bg-white shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-amber-100/60 bg-gradient-to-r from-amber-50/80 to-white flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 inline-flex items-center justify-center">
+            <StickyNote size={15} />
+          </span>
+          <div>
+            <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Sticky Notes</h2>
+            <p className="text-[10px] text-gray-400 font-medium">IDE-style · drag to move</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setMinimized(v => !v)}
-            className="h-8 px-3 rounded-lg bg-gray-100 text-gray-600 text-[11px] font-bold hover:bg-gray-200"
+            className="h-8 px-3 rounded-xl bg-gray-100 text-gray-600 text-[11px] font-bold hover:bg-gray-200 transition-colors"
           >
             {minimized ? "Show board" : "Hide board"}
           </button>
           <button
             type="button"
             onClick={addNote}
-            className="h-8 px-3 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold inline-flex items-center gap-1 hover:bg-amber-200"
+            className="h-8 px-3 rounded-xl bg-amber-400/90 text-amber-950 text-[11px] font-bold inline-flex items-center gap-1 hover:bg-amber-400 shadow-sm transition-colors"
           >
             <Plus size={13} /> Add Note
           </button>
@@ -91,7 +95,7 @@ export default function StickyNotesBoard({ notes, onChange }: StickyNotesBoardPr
       {!minimized && (
         <div
           ref={boardRef}
-          className="relative h-[280px] sm:h-[320px] rounded-2xl border border-dashed border-amber-200 bg-[repeating-linear-gradient(0deg,transparent,transparent_23px,#f3f4f6_24px),repeating-linear-gradient(90deg,transparent,transparent_23px,#f3f4f6_24px)] bg-[length:24px_24px] overflow-hidden"
+          className="relative h-[280px] sm:h-[320px] bg-[repeating-linear-gradient(0deg,transparent,transparent_23px,#f1f5f9_24px),repeating-linear-gradient(90deg,transparent,transparent_23px,#f1f5f9_24px)] bg-[length:24px_24px] overflow-hidden"
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
