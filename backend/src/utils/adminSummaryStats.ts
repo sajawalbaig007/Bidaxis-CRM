@@ -11,6 +11,7 @@ import {
 import {
   addDaysToYmd,
   businessChartSinceUtc,
+  businessDayStartUtc,
   businessHourBucketKey,
   currentBusinessYmd,
   fmtMonthShortFromYmd,
@@ -285,9 +286,14 @@ export async function buildAdminClientSummaryPayload() {
   const pipelinePromise = countExclusivePipeline();
   const notBin = buildNotBinWhere();
 
+  const todayYmd = currentBusinessYmd();
+  const todayStart = businessDayStartUtc(todayYmd);
+  const tomorrowStart = businessDayStartUtc(addDaysToYmd(todayYmd, 1));
+
   const [
     pipeline,
     closedTab,
+    todayCompletedCalls,
     recent,
     recentStatusLogs,
     chartSeries,
@@ -298,6 +304,9 @@ export async function buildAdminClientSummaryPayload() {
   ] = await Promise.all([
     pipelinePromise,
     prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
+    prisma.callLog.count({
+      where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
+    }),
     prisma.lead.findMany({
       select: {
         id: true,
@@ -405,6 +414,7 @@ export async function buildAdminClientSummaryPayload() {
       projectWon,
       completed: closedTab,
       closed: closedTab,
+      todayCompletedCalls,
       other,
       inBin,
       onlineCSRs,

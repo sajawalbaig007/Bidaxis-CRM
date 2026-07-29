@@ -32,6 +32,7 @@ import { ourCompany } from "./utils/leadFieldLabels";
 import { collectLeadPhones } from "./utils/parsePhones";
 import { useCsrStats, useCsrTabLeads, CSR_FILTER_BATCH_SIZE, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
+import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { useLeadActions } from "./hooks/useLeadActions";
 import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
@@ -63,9 +64,11 @@ export default function CSRPage() {
   const [timezoneFilter, setTimezoneFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [tradeFilter, setTradeFilter]   = useState("");
+  const [tradeOptions, setTradeOptions] = useState<string[]>([]);
   const [dismissedNotification, setDismissedNotification] = useState(false);
 
-  const hasTableFilters = !!(stateFilter || timezoneFilter || phoneFilter || sourceFilter);
+  const hasTableFilters = !!(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter);
 
   const tabKey = (activeTab === "today" ? "pending" : activeTab) as CsrTabKey;
   const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats();
@@ -129,9 +132,12 @@ export default function CSRPage() {
       const matchesSource = sourceFilter
         ? (item.sourceSudoName?.trim().toLowerCase() === sourceFilter.toLowerCase())
         : true;
-      return matchesState && matchesPhone && matchesTimezone && matchesSource;
+      const matchesTrade = tradeFilter
+        ? (item.trade?.trim().toLowerCase() === tradeFilter.toLowerCase())
+        : true;
+      return matchesState && matchesPhone && matchesTimezone && matchesSource && matchesTrade;
     });
-  }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter]);
+  }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter]);
 
   const sourceSudoOptions = useMemo(() => {
     const names = new Set<string>();
@@ -158,6 +164,13 @@ export default function CSRPage() {
   useEffect(() => {
     if (page > displayTotalPages) setPage(displayTotalPages);
   }, [page, displayTotalPages]);
+
+  useEffect(() => {
+    API.get("/csr/trades").then(res => {
+      const names: string[] = (res.data.trades ?? []).map((t: { name: string }) => t.name);
+      setTradeOptions(names);
+    }).catch(() => {});
+  }, []);
 
   /** Lead left this tab — remove from table immediately */
   const leaveTab = (id: string) => {
@@ -390,6 +403,16 @@ export default function CSRPage() {
                   <TimezoneFilterDropdown value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
                   <SourceSudoFilterDropdown value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
                   <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+                  {tradeOptions.length > 0 && (
+                    <select
+                      value={tradeFilter}
+                      onChange={e => { setTradeFilter(e.target.value); setPage(1); }}
+                      className="h-8 rounded-xl border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#B8112D] cursor-pointer"
+                    >
+                      <option value="">All Trades</option>
+                      {tradeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div className="bg-[#ECFDF3] text-[#027A48] px-3 py-1.5 rounded-xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A]" />Live Tracking
@@ -500,6 +523,11 @@ export default function CSRPage() {
                         hideOurCompany
                         onView={() => setViewingLead(currentLink)}
                       />
+                      {currentLink.trade && (
+                        <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                          {currentLink.trade}
+                        </span>
+                      )}
                     </td>
 
                     <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A] dark:text-gray-100`}>

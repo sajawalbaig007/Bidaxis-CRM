@@ -91,6 +91,7 @@ model Lead {
   state              String?
   isOldClient        Boolean   @default(false)
   projectSource      String?
+  trade              String?
   assignedTo         String
   uploadedFileId     String?
   shuffleAttempts    Int       @default(0)
@@ -179,6 +180,12 @@ model UploadSource {
   createdAt DateTime @default(now())
 
   uploads UploadFile[]
+}
+
+model Trade {
+  id        String   @id @default(cuid()) @map("_id")
+  name      String   @unique
+  createdAt DateTime @default(now())
 }
 
 model UploadFile {
