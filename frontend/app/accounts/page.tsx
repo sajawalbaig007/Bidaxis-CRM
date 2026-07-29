@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Eye, PieChart as PieIcon, LayoutDashboard } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import API from "@/lib/api";
 import AccountsSidebar from "./components/layout/Sidebar";
 import AccountsPageShell from "./components/AccountsPageShell";
@@ -217,12 +217,12 @@ export default function AccountsDashboardPage() {
             ))}
           </section>
 
-          <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-5">
+          <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-5 items-start">
             <div className="xl:col-span-7 bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
-              <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">View-only · edit via eye · saved under {acc.recordDate}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">View-only · eye to edit · {acc.recordDate}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {viewTab !== "ALL" && (
@@ -246,7 +246,7 @@ export default function AccountsDashboardPage() {
                             setViewTab(tab);
                             setFormulaOpen(false);
                           }}
-                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             selected
                               ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
                               : "text-gray-600 hover:bg-white"
@@ -261,174 +261,155 @@ export default function AccountsDashboardPage() {
                 </div>
               </div>
 
-              <div className="px-4 sm:px-5 pt-3">
-                <p className="text-[11px] text-gray-500 leading-relaxed">{formulaNote}</p>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  All calculations are based on actual cash received. No quoted, billed, forecasted, or anticipated amounts.
-                </p>
-              </div>
+              <p className="px-4 pt-2.5 text-[11px] text-gray-500 leading-snug">{formulaNote}</p>
 
               {viewTab === "ALL" ? (
-                <div className="p-4 sm:p-5 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-[#F8FAFC] to-white p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]">Ahmed Hamza</p>
-                        <button
-                          type="button"
-                          onClick={() => { setViewTab("AH"); setFormulaOpen(true); }}
-                          className="h-7 w-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center"
-                          title="Edit Ahmed Hamza formula"
-                        >
-                          <Eye size={13} />
-                        </button>
-                      </div>
-                      <p className="text-sm text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.usdInPkr)}</span></p>
-                      <p className="text-sm text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.cadInPkr)}</span></p>
-                      <p className="text-sm font-extrabold text-gray-900 mt-2 tabular-nums">Subtotal: {currency(ahCalc.total)}</p>
+                <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]">Ahmed Hamza</p>
+                      <button
+                        type="button"
+                        onClick={() => { setViewTab("AH"); setFormulaOpen(true); }}
+                        className="h-7 w-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center"
+                        title="Edit Ahmed Hamza formula"
+                      >
+                        <Eye size={13} />
+                      </button>
                     </div>
-                    <div className="rounded-2xl border border-gray-100 bg-gradient-to-br from-[#F8FAFC] to-white p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#0B84F3]">Sharjeel Nasir</p>
-                        <button
-                          type="button"
-                          onClick={() => { setViewTab("SN"); setFormulaOpen(true); }}
-                          className="h-7 w-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center"
-                          title="Edit Sharjeel Nasir formula"
-                        >
-                          <Eye size={13} />
-                        </button>
-                      </div>
-                      <p className="text-sm text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.usdInPkr)}</span></p>
-                      <p className="text-sm text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.cadInPkr)}</span></p>
-                      <p className="text-sm font-extrabold text-gray-900 mt-2 tabular-nums">Subtotal: {currency(snCalc.total)}</p>
+                    <p className="text-xs text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.usdInPkr)}</span></p>
+                    <p className="text-xs text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(ahCalc.cadInPkr)}</span></p>
+                    <p className="text-sm font-extrabold text-gray-900 mt-1.5 tabular-nums">Subtotal: {currency(ahCalc.total)}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#0B84F3]">Sharjeel Nasir</p>
+                      <button
+                        type="button"
+                        onClick={() => { setViewTab("SN"); setFormulaOpen(true); }}
+                        className="h-7 w-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 inline-flex items-center justify-center"
+                        title="Edit Sharjeel Nasir formula"
+                      >
+                        <Eye size={13} />
+                      </button>
                     </div>
+                    <p className="text-xs text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.usdInPkr)}</span></p>
+                    <p className="text-xs text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(snCalc.cadInPkr)}</span></p>
+                    <p className="text-sm font-extrabold text-gray-900 mt-1.5 tabular-nums">Subtotal: {currency(snCalc.total)}</p>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 sm:p-5 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-3 sm:p-4 space-y-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {([
                       ["USD Payment", active.usdAmount],
-                      ["USD Tax Factor", active.usdTaxFactor],
-                      ["USD → PKR Rate", active.usdToPkrRate],
+                      ["USD Tax", active.usdTaxFactor],
+                      ["USD → PKR", active.usdToPkrRate],
                       ["CAD Payment", active.cadAmount],
-                      ["CAD Tax Factor", active.cadTaxFactor],
-                      ["CAD → PKR Rate", active.cadToPkrRate],
+                      ["CAD Tax", active.cadTaxFactor],
+                      ["CAD → PKR", active.cadToPkrRate],
                       ["Direct PKR", active.pkrAmount],
                     ] as const).map(([label, val]) => (
                       <div
                         key={label}
-                        className={`rounded-xl border border-gray-100 bg-[#FAFBFC] px-3 py-2.5 ${label === "Direct PKR" ? "md:col-span-2" : ""}`}
+                        className={`rounded-lg border border-gray-100 bg-[#FAFBFC] px-2.5 py-2 ${label === "Direct PKR" ? "sm:col-span-3" : ""}`}
                       >
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-                        <p className="mt-1 text-sm font-semibold text-gray-800 tabular-nums">{currency(val)}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
+                        <p className="mt-0.5 text-sm font-semibold text-gray-800 tabular-nums">{currency(val)}</p>
                       </div>
                     ))}
                   </div>
-
-                  <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
-                    <p>1. USD After Tax = {currency(active.usdAmount)} × {active.usdTaxFactor} = <span className="font-bold text-gray-800">{currency(activeCalc.usdAfterTax)}</span></p>
-                    <p>2. USD → PKR = {currency(activeCalc.usdAfterTax)} × {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
-                    <p className="pt-1">1. CAD After Tax = {currency(active.cadAmount)} × {active.cadTaxFactor} = <span className="font-bold text-gray-800">{currency(activeCalc.cadAfterTax)}</span></p>
-                    <p>2. CAD → PKR = {currency(activeCalc.cadAfterTax)} × {active.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.cadInPkr)}</span></p>
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2 text-[10px] text-gray-600 space-y-0.5 font-mono leading-snug">
+                    <p>USD: {currency(active.usdAmount)} × {active.usdTaxFactor} × {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
+                    <p>CAD: {currency(active.cadAmount)} × {active.cadTaxFactor} × {active.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.cadInPkr)}</span></p>
                   </div>
                 </div>
               )}
 
-              <div className="mx-4 sm:mx-5 mb-4 rounded-2xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-3.5 text-sm text-gray-700 space-y-1">
-                <p><span className="font-bold text-gray-800">USD in PKR</span> (after tax) = <span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
-                <p><span className="font-bold text-gray-800">CAD in PKR</span> (after tax) = <span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
-                <p><span className="font-bold text-gray-800">Direct PKR</span> = <span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
-                <p className="pt-1 border-t border-[#F3D7DC]/60 mt-1"><span className="font-extrabold text-[#B8112D]">Total</span> = <span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
+              <div className="mx-3 sm:mx-4 mb-3 rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white px-3 py-2.5 text-xs text-gray-700 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">USD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
+                <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">CAD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
+                <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">Direct PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
+                <p><span className="font-extrabold text-[#B8112D] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
               </div>
             </div>
 
-            <div className="xl:col-span-5 space-y-4">
+            <div className="xl:col-span-5 flex flex-col gap-4">
               <AccountsChartCard
                 title={`Payment Split — ${viewTab !== "ALL" ? CURRENCY_TAB_LABELS[viewTab] : "All"}`}
-                subtitle="USD · CAD · PKR after tax"
+                subtitle="Pie + bars · USD · CAD · PKR"
                 accent="#B8112D"
                 icon={<PieIcon size={16} />}
               >
-                <RechartsBox height={200}>
-                  <PieChart>
-                    <Pie
-                      data={paymentSummary.filter(r => r.amount > 0).concat(
-                        paymentSummary.every(r => r.amount <= 0) ? [{ name: "Empty", amount: 1, color: "#E2E8F0" }] : [],
-                      )}
-                      dataKey="amount"
-                      nameKey="name"
-                      innerRadius={48}
-                      outerRadius={78}
-                      paddingAngle={3}
-                      stroke="#fff"
-                      strokeWidth={2}
-                    >
-                      {paymentSummary.map(row => (
-                        <Cell key={row.name} fill={row.color} />
-                      ))}
-                      {paymentSummary.every(r => r.amount <= 0) && <Cell fill="#E2E8F0" />}
-                    </Pie>
-                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                  </PieChart>
-                </RechartsBox>
-              </AccountsChartCard>
-
-              <AccountsChartCard
-                title="Bars"
-                subtitle="Same split as columns"
-                accent="#0B84F3"
-                icon={<LayoutDashboard size={16} />}
-              >
-                <div className="h-[200px] px-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={paymentSummary} barSize={36}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
+                <div className="grid grid-cols-2 gap-1 items-center">
+                  <RechartsBox height={168}>
+                    <PieChart>
+                      <Pie
+                        data={paymentSummary.filter(r => r.amount > 0).concat(
+                          paymentSummary.every(r => r.amount <= 0) ? [{ name: "Empty", amount: 1, color: "#E2E8F0" }] : [],
+                        )}
+                        dataKey="amount"
+                        nameKey="name"
+                        innerRadius={36}
+                        outerRadius={62}
+                        paddingAngle={3}
+                        stroke="#fff"
+                        strokeWidth={2}
+                      >
+                        {paymentSummary.map(row => (
+                          <Cell key={row.name} fill={row.color} />
+                        ))}
+                        {paymentSummary.every(r => r.amount <= 0) && <Cell fill="#E2E8F0" />}
+                      </Pie>
                       <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                      <Bar dataKey="amount" radius={[10, 10, 0, 0]}>
+                    </PieChart>
+                  </RechartsBox>
+                  <RechartsBox height={168}>
+                    <BarChart data={paymentSummary} barSize={22} margin={{ left: -8, right: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
+                      <YAxis tick={{ fontSize: 9 }} width={36} />
+                      <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                      <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
                         {paymentSummary.map(row => (
                           <Cell key={row.name} fill={row.color} />
                         ))}
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
+                  </RechartsBox>
                 </div>
               </AccountsChartCard>
-            </div>
-          </section>
 
-          <section className="mt-5">
-            <AccountsChartCard
-              title="Pages Snapshot"
-              subtitle={`Totals as of ${acc.recordDate}`}
-              accent="#0F172A"
-              icon={<LayoutDashboard size={16} />}
-            >
-              <RechartsBox height={260}>
-                <BarChart
-                  data={[
-                    { name: "Balance Sheet", value: summaries.balanceSheetTotalAssets ?? 0, fill: "#0B84F3" },
-                    { name: "Income NP", value: summaries.incomeNetProfit ?? 0, fill: "#12B76A" },
-                    { name: "Cash Flow", value: summaries.cashFlowNet ?? 0, fill: "#B8112D" },
-                    { name: "Total Assets", value: summaries.totalAssetsRegister ?? 0, fill: "#0D9488" },
-                  ]}
-                  barSize={40}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                    {["#0B84F3", "#12B76A", "#B8112D", "#0D9488"].map((c, i) => (
-                      <Cell key={i} fill={c} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </RechartsBox>
-            </AccountsChartCard>
+              <AccountsChartCard
+                title="Pages Snapshot"
+                subtitle={`As of ${acc.recordDate}`}
+                accent="#0F172A"
+                icon={<LayoutDashboard size={16} />}
+              >
+                <RechartsBox height={200}>
+                  <BarChart
+                    data={[
+                      { name: "BS", value: summaries.balanceSheetTotalAssets ?? 0 },
+                      { name: "Income", value: summaries.incomeNetProfit ?? 0 },
+                      { name: "Cash", value: summaries.cashFlowNet ?? 0 },
+                      { name: "Assets", value: summaries.totalAssetsRegister ?? 0 },
+                    ]}
+                    barSize={28}
+                    margin={{ left: -4, right: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} />
+                    <YAxis tick={{ fontSize: 9 }} width={40} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      {["#0B84F3", "#12B76A", "#B8112D", "#0D9488"].map((c, i) => (
+                        <Cell key={i} fill={c} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </RechartsBox>
+              </AccountsChartCard>
+            </div>
           </section>
 
           <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden mt-5">
