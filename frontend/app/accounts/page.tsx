@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Eye } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Eye, PieChart as PieIcon, LayoutDashboard } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import API from "@/lib/api";
 import AccountsSidebar from "./components/layout/Sidebar";
 import AccountsPageShell from "./components/AccountsPageShell";
+import AccountsChartCard from "./components/AccountsChartCard";
 import CurrencyFormulaModal from "./components/CurrencyFormulaModal";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "./utils/accountsShellProps";
 import { useAccountsPage } from "./hooks/useAccountsPage";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData } from "./types";
@@ -342,26 +344,91 @@ export default function AccountsDashboardPage() {
               </div>
             </div>
 
-            <div className="xl:col-span-5 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)]">
-              <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">
-                Payment Split (PKR){viewTab !== "ALL" ? ` — ${CURRENCY_TAB_LABELS[viewTab]}` : " — All"}
-              </h2>
-              <div className="mt-3 h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={paymentSummary}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
-                    <Bar dataKey="amount" radius={[10, 10, 0, 0]}>
+            <div className="xl:col-span-5 space-y-4">
+              <AccountsChartCard
+                title={`Payment Split — ${viewTab !== "ALL" ? CURRENCY_TAB_LABELS[viewTab] : "All"}`}
+                subtitle="USD · CAD · PKR after tax"
+                accent="#B8112D"
+                icon={<PieIcon size={16} />}
+              >
+                <RechartsBox height={200}>
+                  <PieChart>
+                    <Pie
+                      data={paymentSummary.filter(r => r.amount > 0).concat(
+                        paymentSummary.every(r => r.amount <= 0) ? [{ name: "Empty", amount: 1, color: "#E2E8F0" }] : [],
+                      )}
+                      dataKey="amount"
+                      nameKey="name"
+                      innerRadius={48}
+                      outerRadius={78}
+                      paddingAngle={3}
+                      stroke="#fff"
+                      strokeWidth={2}
+                    >
                       {paymentSummary.map(row => (
                         <Cell key={row.name} fill={row.color} />
                       ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                      {paymentSummary.every(r => r.amount <= 0) && <Cell fill="#E2E8F0" />}
+                    </Pie>
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  </PieChart>
+                </RechartsBox>
+              </AccountsChartCard>
+
+              <AccountsChartCard
+                title="Bars"
+                subtitle="Same split as columns"
+                accent="#0B84F3"
+                icon={<LayoutDashboard size={16} />}
+              >
+                <div className="h-[200px] px-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={paymentSummary} barSize={36}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                      <Bar dataKey="amount" radius={[10, 10, 0, 0]}>
+                        {paymentSummary.map(row => (
+                          <Cell key={row.name} fill={row.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </AccountsChartCard>
             </div>
+          </section>
+
+          <section className="mt-5">
+            <AccountsChartCard
+              title="Pages Snapshot"
+              subtitle={`Totals as of ${acc.recordDate}`}
+              accent="#0F172A"
+              icon={<LayoutDashboard size={16} />}
+            >
+              <RechartsBox height={260}>
+                <BarChart
+                  data={[
+                    { name: "Balance Sheet", value: summaries.balanceSheetTotalAssets ?? 0, fill: "#0B84F3" },
+                    { name: "Income NP", value: summaries.incomeNetProfit ?? 0, fill: "#12B76A" },
+                    { name: "Cash Flow", value: summaries.cashFlowNet ?? 0, fill: "#B8112D" },
+                    { name: "Total Assets", value: summaries.totalAssetsRegister ?? 0, fill: "#7C3AED" },
+                  ]}
+                  barSize={40}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={v => currency(Number(v ?? 0))} />
+                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                    {["#0B84F3", "#12B76A", "#B8112D", "#7C3AED"].map((c, i) => (
+                      <Cell key={i} fill={c} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </RechartsBox>
+            </AccountsChartCard>
           </section>
 
           <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden mt-5">
