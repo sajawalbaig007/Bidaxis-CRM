@@ -17,7 +17,6 @@ type AccountsPageShellProps = {
   title: string;
   subtitle: string;
   recordDate: string;
-  onRecordDateChange: (v: string) => void;
   filterFrom: string;
   filterTo: string;
   onFilterFromChange: (v: string) => void;
@@ -48,7 +47,6 @@ export default function AccountsPageShell({
   title,
   subtitle,
   recordDate,
-  onRecordDateChange,
   filterFrom,
   filterTo,
   onFilterFromChange,
@@ -170,52 +168,44 @@ export default function AccountsPageShell({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <label className="text-xs font-semibold text-gray-600">
-              <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Record Date (save under)</span>
-              <input
-                type="date"
-                value={recordDate}
-                onChange={e => onRecordDateChange(e.target.value)}
-                className={inputCls}
-              />
-            </label>
-
-            {activePreset === "month" && (
-              <label className="text-xs font-semibold text-gray-600">
-                Month
-                <input
-                  type="month"
-                  value={filterMonth}
-                  onChange={e => onFilterMonthChange(e.target.value)}
-                  className={inputCls}
-                />
-              </label>
-            )}
-
-            {activePreset === "date_range" && (
-              <>
+          {(activePreset === "month" || activePreset === "date_range") && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {activePreset === "month" && (
                 <label className="text-xs font-semibold text-gray-600">
-                  From
+                  <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Month</span>
                   <input
-                    type="date"
-                    value={filterFrom}
-                    onChange={e => onFilterFromChange(e.target.value)}
+                    type="month"
+                    value={filterMonth}
+                    onChange={e => onFilterMonthChange(e.target.value)}
                     className={inputCls}
                   />
                 </label>
-                <label className="text-xs font-semibold text-gray-600">
-                  To
-                  <input
-                    type="date"
-                    value={filterTo}
-                    onChange={e => onFilterToChange(e.target.value)}
-                    className={inputCls}
-                  />
-                </label>
-              </>
-            )}
-          </div>
+              )}
+
+              {activePreset === "date_range" && (
+                <>
+                  <label className="text-xs font-semibold text-gray-600">
+                    From
+                    <input
+                      type="date"
+                      value={filterFrom}
+                      onChange={e => onFilterFromChange(e.target.value)}
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-gray-600">
+                    To
+                    <input
+                      type="date"
+                      value={filterTo}
+                      onChange={e => onFilterToChange(e.target.value)}
+                      className={inputCls}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

@@ -39,6 +39,16 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   const [uploading, setUploading] = useState(false);
   const [dirty, setDirty] = useState(false);
 
+  const setFilterMonth = useCallback((month: string) => {
+    setFilterMonthState(month);
+    setPeriodPresetState("month");
+    const range = periodDateRange("month", { month });
+    setFilterFromState(range.from);
+    setFilterToState(range.to);
+    // Month mode has no day picker — save under 1st of selected month
+    if (range.from) setRecordDate(range.from);
+  }, []);
+
   const setPeriodPreset = useCallback((preset: AccountsPeriodPreset) => {
     const next = normalizePeriodPreset(preset);
     setPeriodPresetState(next);
@@ -51,6 +61,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
       const range = periodDateRange("month", { month: filterMonth });
       setFilterFromState(range.from);
       setFilterToState(range.to);
+      if (range.from) setRecordDate(range.from);
       return;
     }
     // date_range — keep existing from/to so user can edit
@@ -60,22 +71,16 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     setFilterYearState(year);
   }, []);
 
-  const setFilterMonth = useCallback((month: string) => {
-    setFilterMonthState(month);
-    setPeriodPresetState("month");
-    const range = periodDateRange("month", { month });
-    setFilterFromState(range.from);
-    setFilterToState(range.to);
-  }, []);
-
   const setFilterFrom = useCallback((from: string) => {
     setPeriodPresetState("date_range");
     setFilterFromState(from);
+    if (from) setRecordDate(from);
   }, []);
 
   const setFilterTo = useCallback((to: string) => {
     setPeriodPresetState("date_range");
     setFilterToState(to);
+    if (to) setRecordDate(to);
   }, []);
 
   const refreshDates = useCallback(async () => {

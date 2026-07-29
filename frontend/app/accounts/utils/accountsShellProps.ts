@@ -6,7 +6,6 @@ export function accountsShellProps<T extends Record<string, unknown>>(
 ) {
   return {
     recordDate: acc.recordDate,
-    onRecordDateChange: acc.setRecordDate,
     filterFrom: acc.filterFrom,
     filterTo: acc.filterTo,
     onFilterFromChange: acc.setFilterFrom,
