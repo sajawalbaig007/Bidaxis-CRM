@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus } from "lucide-react";
 import type { BalanceLineItem, BalanceSection } from "../types";
-import { currency, lineAmount, newRowId, todayIso } from "../types";
+import { currency, latestNote, lineAmount, normalizeNotes, todayIso } from "../types";
 import { TABLE_VARIANT, type AccountsTableVariant } from "./accountsTheme";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 
@@ -68,12 +68,12 @@ export default function BalanceSheetTable({
       </div>
 
       <div className="overflow-x-auto overflow-y-auto max-h-[520px]">
-        <table className="w-full text-sm min-w-[560px]">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-gray-200/80 bg-[#FAFBFC]">
               <th className="w-8 px-1 py-2.5" />
               <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Particulars</th>
-              <th className="px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[72px]">Note</th>
+              <th className="px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 min-w-[140px]">Latest note</th>
               <th className="px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[100px]">Filled</th>
               <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[120px]">Amount</th>
               <th className="w-16 px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">Edit</th>
@@ -107,6 +107,8 @@ export default function BalanceSheetTable({
                 {section.items.map(item => {
                   const expanded = openItems.has(item.id);
                   const subs = item.subHeads ?? [];
+                  const notes = normalizeNotes(item.notes, item.note, item.filledAt);
+                  const latest = latestNote(item.notes, item.note, item.filledAt);
                   const amt = lineAmount(item);
                   return (
                     <Fragment key={item.id}>
@@ -122,11 +124,18 @@ export default function BalanceSheetTable({
                         </td>
                         <td className="px-3 py-2.5 text-sm text-[#334155] font-medium">
                           {item.label}
-                          {subs.length > 0 && (
-                            <span className="ml-2 text-[10px] font-bold text-gray-400">{subs.length}</span>
+                          {notes.length > 0 && (
+                            <span className="ml-2 text-[10px] font-bold text-amber-700">{notes.length}n</span>
                           )}
                         </td>
-                        <td className="px-2 py-2.5 text-center text-sm text-gray-500">{item.note || "—"}</td>
+                        <td className="px-2 py-2.5 text-xs text-gray-600 max-w-[180px]">
+                          {latest ? (
+                            <span className="block truncate" title={latest.text}>
+                              <span className="text-[10px] font-bold text-amber-700 mr-1">{latest.date}</span>
+                              {latest.text || "—"}
+                            </span>
+                          ) : "—"}
+                        </td>
                         <td className="px-2 py-2.5 text-center text-[11px] text-gray-500">{item.filledAt || "—"}</td>
                         <td className="px-3 py-2.5 text-right text-sm font-semibold text-[#0F172A] tabular-nums">{currency(amt)}</td>
                         <td className="px-2 py-2 text-center">
@@ -140,6 +149,7 @@ export default function BalanceSheetTable({
                               filledAt: item.filledAt ?? todayIso(),
                               note: item.note ?? "",
                               subHeads: item.subHeads ?? [],
+                              notes: normalizeNotes(item.notes, item.note, item.filledAt),
                             })}
                             className="w-8 h-8 rounded-lg text-[#0B84F3] hover:bg-[#EAF5FF] inline-flex items-center justify-center"
                           >
@@ -149,7 +159,26 @@ export default function BalanceSheetTable({
                       </tr>
                       {expanded && (
                         <tr className="bg-[#F8FAFC]">
-                          <td colSpan={6} className="px-4 py-2">
+                          <td colSpan={6} className="px-4 py-2 space-y-2">
+                            <div className="rounded-xl border border-amber-100 overflow-hidden bg-white">
+                              <div className="px-3 py-1.5 bg-amber-50 text-[10px] font-bold uppercase text-amber-800 border-b border-amber-100">
+                                Notes by date
+                              </div>
+                              {notes.length === 0 ? (
+                                <p className="text-[11px] text-gray-400 px-3 py-2">No notes — open Edit to add.</p>
+                              ) : (
+                                <table className="w-full text-xs">
+                                  <tbody>
+                                    {[...notes].sort((a, b) => b.date.localeCompare(a.date)).map(n => (
+                                      <tr key={n.id} className="border-b border-amber-50 last:border-0">
+                                        <td className="px-3 py-1.5 w-[110px] font-semibold text-amber-800">{n.date}</td>
+                                        <td className="px-3 py-1.5 text-gray-700">{n.text || "—"}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
                             {subs.length === 0 ? (
                               <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add.</p>
                             ) : (
@@ -209,10 +238,11 @@ export default function BalanceSheetTable({
             : next.amount;
           onUpdateItem(editing.sectionId, next.id, {
             label: next.title,
-            note: next.note,
+            note: next.notes[0]?.text ?? next.note,
             amount,
             filledAt: next.filledAt,
             subHeads: next.subHeads,
+            notes: next.notes,
           });
           setEditing({ ...editing, ...next, amount });
         }}

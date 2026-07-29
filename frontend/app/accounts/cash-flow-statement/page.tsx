@@ -72,6 +72,7 @@ export default function CashFlowStatementPage() {
             description: "New entry",
             bankAmounts: Object.fromEntries(bankHeads.map(b => [b, { debit: 0, credit: 0 }])),
             netAmount: 0,
+            notes: [],
           }],
         },
       ],
@@ -92,6 +93,7 @@ export default function CashFlowStatementPage() {
         description: "New entry",
         bankAmounts: Object.fromEntries((prev.bankHeads ?? []).map(b => [b, { debit: 0, credit: 0 }])),
         netAmount: 0,
+        notes: [],
       });
       return { ...prev, months };
     });
@@ -179,6 +181,7 @@ export default function CashFlowStatementPage() {
                           description: "New entry",
                           bankAmounts: Object.fromEntries((prev.bankHeads ?? []).map(b => [b, { debit: 0, credit: 0 }])),
                           netAmount: 0,
+                          notes: [],
                         }],
                       }
                     : m,

@@ -8,7 +8,6 @@ import { Scale, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
 import BalanceSheetTable, { sumItems } from "../components/BalanceSheetTable";
-import StickyNotesBoard from "../components/StickyNotesBoard";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
@@ -16,7 +15,7 @@ import type { BalanceSheetData, BalanceLineItem } from "../types";
 import { currency, newRowId, todayIso } from "../types";
 
 function defaultData(): BalanceSheetData {
-  return { assetSections: [], equityLiabilitySections: [], stickyNotes: [] };
+  return { assetSections: [], equityLiabilitySections: [] };
 }
 
 function sumSections(sections: BalanceSheetData["assetSections"]) {
@@ -90,6 +89,7 @@ export default function BalanceSheetPage() {
                 amount: 0,
                 filledAt: todayIso(),
                 subHeads: [],
+                notes: [],
               });
               return { ...prev, assetSections: sections };
             });
@@ -115,11 +115,6 @@ export default function BalanceSheetPage() {
               Assets ({currency(totalAssets)}) ≠ Equity + Liabilities ({currency(totalEquity + totalLiabilities)}) — review totals.
             </div>
           )}
-
-          <StickyNotesBoard
-            notes={acc.data.stickyNotes ?? []}
-            onChange={notes => acc.setData(prev => ({ ...prev, stickyNotes: notes }))}
-          />
 
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
             <div className="bg-white rounded-2xl p-4 border-2 border-[#0B84F3]/20 shadow-sm">
@@ -185,7 +180,7 @@ export default function BalanceSheetPage() {
                     ? {
                         ...s,
                         items: [...s.items, {
-                          id: newRowId("a"), label: "New Line", note: "", amount: 0, filledAt: todayIso(), subHeads: [],
+                          id: newRowId("a"), label: "New Line", note: "", amount: 0, filledAt: todayIso(), subHeads: [], notes: [],
                         }],
                       }
                     : s,
@@ -218,7 +213,7 @@ export default function BalanceSheetPage() {
                     ? {
                         ...s,
                         items: [...s.items, {
-                          id: newRowId("e"), label: "New Line", note: "", amount: 0, filledAt: todayIso(), subHeads: [],
+                          id: newRowId("e"), label: "New Line", note: "", amount: 0, filledAt: todayIso(), subHeads: [], notes: [],
                         }],
                       }
                     : s,

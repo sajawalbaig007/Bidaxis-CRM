@@ -35,6 +35,7 @@ function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
     amount: t.totalSalary,
     filledAt: t.filledAt,
     subHeads,
+    notes: t.notes ?? [],
   };
 }
 
@@ -45,6 +46,7 @@ function opexToHead(o: OpexRow): ExpandableHeadRow {
     amount: o.amount,
     filledAt: o.filledAt,
     subHeads: o.subHeads ?? [],
+    notes: o.notes ?? [],
   };
 }
 
@@ -56,6 +58,7 @@ function headToTeam(h: ExpandableHeadRow): TeamSalaryRow {
     filledAt: h.filledAt,
     subHeads: h.subHeads ?? [],
     headLabels: (h.subHeads ?? []).map(s => s.label),
+    notes: h.notes ?? [],
   };
 }
 
@@ -66,6 +69,7 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
     amount: lineAmount(h),
     filledAt: h.filledAt,
     subHeads: h.subHeads ?? [],
+    notes: h.notes ?? [],
   };
 }
 

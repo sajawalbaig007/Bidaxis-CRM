@@ -28,6 +28,7 @@ function sectionToHead(s: AssetSectionRow): ExpandableHeadRow {
     amount: s.total,
     filledAt: s.filledAt,
     subHeads,
+    notes: s.notes ?? [],
   };
 }
 
@@ -39,6 +40,7 @@ function headToSection(h: ExpandableHeadRow): AssetSectionRow {
     filledAt: h.filledAt,
     subHeads: h.subHeads ?? [],
     heads: (h.subHeads ?? []).map(s => s.label),
+    notes: h.notes ?? [],
   };
 }
 
