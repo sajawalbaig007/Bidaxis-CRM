@@ -49,12 +49,12 @@ export default function AccountsChartCard({
 }
 
 export const CHART_COLORS = [
-  "#B8112D",
-  "#0B84F3",
-  "#12B76A",
-  "#7C3AED",
-  "#F59E0B",
-  "#06B6D4",
-  "#EC4899",
-  "#64748B",
+  "#B8112D", // brand red
+  "#0B84F3", // blue
+  "#12B76A", // green
+  "#F59E0B", // amber
+  "#0D9488", // teal
+  "#EA580C", // orange
+  "#0284C7", // sky
+  "#475569", // slate
 ];

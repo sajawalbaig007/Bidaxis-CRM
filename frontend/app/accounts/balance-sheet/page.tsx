@@ -101,7 +101,7 @@ export default function BalanceSheetPage() {
               { label: "Total Assets", value: totalAssets, grad: "from-[#0B84F3] to-[#0369A1]" },
               { label: "Current Assets", value: currentAssets, grad: "from-[#12B76A] to-[#027A48]" },
               { label: "Total Liabilities", value: totalLiabilities, grad: "from-[#B8112D] to-[#8b0d22]" },
-              { label: "Total Equity", value: totalEquity, grad: "from-[#7C3AED] to-[#5B21B6]" },
+              { label: "Total Equity", value: totalEquity, grad: "from-[#0D9488] to-[#0F766E]" },
             ].map(c => (
               <div key={c.label} className={`relative overflow-hidden rounded-2xl p-4 text-white shadow-lg bg-gradient-to-br ${c.grad}`}>
                 <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
