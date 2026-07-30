@@ -12,6 +12,7 @@ import {
   type AccountsPageKey,
 } from "../utils/accountsDefaults";
 import { mergeAccountsExcel } from "../utils/accountsExcelImport";
+import { normalizeIncomeStatementData } from "../utils/incomeStatementNormalize";
 import { normalizeSalesPayrollData } from "../utils/salesPayrollDefaults";
 
 function todayIsoDate(): string {
@@ -88,6 +89,11 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
 
     const record = await getOrCreateRecord(pageParam, recordDate, req.user?.id);
 
+    let responseData = record.data as Record<string, unknown>;
+    if (pageParam === "income_statement") {
+      responseData = normalizeIncomeStatementData(responseData);
+    }
+
     const uploads = await prisma.accountsFileUpload.findMany({
       where: { page: toPrismaAccountsPage(pageParam), recordDate },
       orderBy: { createdAt: "desc" },
@@ -103,7 +109,7 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     return res.json({
       success: true,
       recordDate,
-      data: record.data,
+      data: responseData,
       updatedAt: record.updatedAt,
       uploads,
     });
@@ -132,6 +138,9 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
     let payload = data;
     if (pageParam === "sales_payroll") {
       payload = normalizeSalesPayrollData(data) as unknown as Record<string, unknown>;
+    }
+    if (pageParam === "income_statement") {
+      payload = normalizeIncomeStatementData(data);
     }
 
     const prismaPage = toPrismaAccountsPage(pageParam);

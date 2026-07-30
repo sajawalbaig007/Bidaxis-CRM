@@ -126,15 +126,22 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
           {
             id: rid("t", 2),
             team: "Sales Team Salaries",
-            totalSalary: 420_303,
+            totalSalary: 358_853,
             subHeads: [
-              sub("ss", 1, "Hammad", 61_450),
               sub("ss", 2, "Huraira", 71_055),
               sub("ss", 3, "Faris", 43_763),
               sub("ss", 4, "Ali", 71_979),
               sub("ss", 5, "Faizan", 93_856),
               sub("ss", 6, "Asim", 31_400),
               sub("ss", 7, "Anam", 46_800),
+            ],
+          },
+          {
+            id: rid("t", 6),
+            team: "Sales Team Lead Salaries",
+            totalSalary: 61_450,
+            subHeads: [
+              sub("stl", 1, "Hammad", 61_450),
             ],
           },
           {
