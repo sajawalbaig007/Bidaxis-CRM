@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import DashboardNavbar  from "../components/layout/Navbar";
 import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { fetchReports, type ReportsData } from "@/lib/reportsCache";
-import { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 
 import {
   PhoneCall, ShoppingCart, Clock3, FileBarChart2,
@@ -24,6 +24,14 @@ const CsrActivityReport = dynamic(() => import("./CsrActivityReport"), {
 });
 
 type ReportResponse = ReportsData;
+type CsrActualStats = {
+  totalLeads: number;
+  completed: number;
+  pending: number;
+  important: number;
+  interested: number;
+  projectWon: number;
+};
 
 /* ── Main Page ── */
 export default function ReportsPage() {
@@ -36,6 +44,7 @@ export default function ReportsPage() {
   const [selectedCSRId, setSelectedCSRId] = useState<string>("all");
   const [dropdownOpen,  setDropdownOpen]  = useState(false);
   const [csrPerfOpen,   setCsrPerfOpen]   = useState(true);
+  const [csrActualStats, setCsrActualStats] = useState<CsrActualStats | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,19 +80,42 @@ export default function ReportsPage() {
     void loadReports("week");
   }, [loadReports]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedCSRId || selectedCSRId === "all") {
+      setCsrActualStats(null);
+      return;
+    }
+
+    const loadCsrActualStats = async () => {
+      try {
+        const res = await API.get(`/admin/csr-history/${selectedCSRId}`);
+        if (cancelled) return;
+        setCsrActualStats(res.data?.stats ?? null);
+      } catch {
+        if (!cancelled) setCsrActualStats(null);
+      }
+    };
+
+    void loadCsrActualStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCSRId]);
+
   const csrList     = useMemo(() => reportData?.csrPerformance ?? [], [reportData]);
   const selectedCSR = csrList.find(c => c.id === selectedCSRId) ?? null;
 
   const stats = selectedCSR
     ? {
-        totalLeads:     selectedCSR.totalLeads,
-        completed:      selectedCSR.completed,
-        pending:        selectedCSR.pending,
-        important:      selectedCSR.important,
-        interested:     selectedCSR.interested,
+        totalLeads:     csrActualStats?.totalLeads ?? selectedCSR.totalLeads,
+        completed:      csrActualStats?.completed ?? selectedCSR.completed,
+        pending:        csrActualStats?.pending ?? selectedCSR.pending,
+        important:      csrActualStats?.important ?? selectedCSR.important,
+        interested:     csrActualStats?.interested ?? selectedCSR.interested,
         notCompleted:   selectedCSR.notCompleted ?? 0,
         notInterested:  selectedCSR.notInterested ?? 0,
-        projectWon:     selectedCSR.projectWon   ?? 0,
+        projectWon:     csrActualStats?.projectWon ?? selectedCSR.projectWon ?? 0,
         inHouse:        selectedCSR.inHouse      ?? 0,
         noOwner:        0,
         notInService:   0,
@@ -132,6 +164,17 @@ export default function ReportsPage() {
     fromDate && toDate        ? `${fromDate} → ${toDate}` : "All time";
 
   const dropdownLabel = selectedCSR ? selectedCSR.name : "All CSRs";
+  const displayCsrRows = selectedCSR
+    ? [{
+        ...selectedCSR,
+        totalLeads: stats.totalLeads,
+        completed: stats.completed,
+        pending: stats.pending,
+        important: stats.important,
+        interested: stats.interested,
+        projectWon: stats.projectWon,
+      }]
+    : csrList;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
@@ -462,7 +505,7 @@ export default function ReportsPage() {
                       ))}
                     </tr>
                   ))
-                ) : (selectedCSR ? [selectedCSR] : csrList).map(csr => (
+                ) : displayCsrRows.map(csr => (
                   <tr key={csr.id} className="border-b border-gray-50 hover:bg-[#FAFAFB] transition-all">
                     <td className="px-3 sm:px-4 py-3 sm:py-4">
                       <div className="flex items-center gap-2 sm:gap-2.5">

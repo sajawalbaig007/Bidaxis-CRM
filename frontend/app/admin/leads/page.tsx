@@ -33,6 +33,7 @@ import { useStaffBase } from "@/app/hooks/useStaffBase";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
+import type { NoteEntry } from "../../csr/hooks/useLeadsData";
 import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -65,6 +66,8 @@ type Client = {
   timezone: string;
   isOldClient: boolean;
   state: string;
+  noteCount: number;
+  noteHistory: NoteEntry[];
 };
 
 const PAGE_SIZE = 30;
@@ -189,6 +192,8 @@ function ClientsPageContent() {
     isOldClient: false,
     state: "",
     clientCode: null,
+    noteCount: 0,
+    noteHistory: [],
   };
 
   const [newClient, setNewClient] = useState<Client>(emptyClient);
@@ -786,7 +791,30 @@ function ClientsPageContent() {
                           <td className={CSR_TD}>
                             <CommentCell
                               id={client.id}
+                              apiRole="admin"
+                              noteHistory={client.noteHistory}
+                              noteCount={client.noteCount}
                               comment={client.lastComment === "No comments" ? "" : client.lastComment}
+                              onAddNote={async (id, text) => {
+                                const res = await API.post(`/admin/lead/${id}/notes`, { text });
+                                const note = res.data?.note;
+                                const entry: NoteEntry = {
+                                  id: String(note?.id ?? `tmp-${Date.now()}`),
+                                  text: String(note?.text ?? text),
+                                  createdAt: String(note?.createdAt ?? new Date().toISOString()),
+                                };
+                                setClients(prev => prev.map(c => (
+                                  c.id === id
+                                    ? {
+                                        ...c,
+                                        lastComment: entry.text,
+                                        noteHistory: [entry, ...(c.noteHistory ?? [])],
+                                        noteCount: (c.noteCount ?? c.noteHistory?.length ?? 0) + 1,
+                                      }
+                                    : c
+                                )));
+                                return entry;
+                              }}
                               onSave={async (id, text) => {
                                 await API.patch(`/admin/lead/${id}/note`, { comments: text });
                                 setClients(prev => prev.map(c => c.id === id ? { ...c, lastComment: text || "No comments" } : c));
