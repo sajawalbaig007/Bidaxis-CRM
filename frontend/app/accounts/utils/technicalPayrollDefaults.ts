@@ -51,38 +51,37 @@ export function normalizeTechnicalPayrollData(raw: unknown): TechnicalPayrollDat
   const o = raw as Partial<TechnicalPayrollData>;
   if (!Array.isArray(o.employees) || o.employees.length === 0) return base;
 
-  const employees = o.employees
-    .map((e, i) => {
-      if (!e || typeof e !== "object") return null;
-      const name = String(e.name ?? "").trim();
-      if (!name) return null;
-      const detail = emptySalaryDetail({
-        basic: Number(e.basic) || 0,
-        allowance: Number(e.allowance) || 0,
-        weekdayOtHours: Number(e.weekdayOtHours) || 0,
-        weekendOtHours: Number(e.weekendOtHours) || 0,
-        checkIn: String(e.checkIn ?? "07:00"),
-        checkOut: String(e.checkOut ?? "16:00"),
-        lateDeductionOverride: e.lateDeductionOverride ?? null,
-        paidLeaveDays: Number(e.paidLeaveDays) || 0,
-        unpaidLeaveDays: Number(e.unpaidLeaveDays) || 0,
-        loanTotal: Number(e.loanTotal) || 0,
-        loanPaid: Number(e.loanPaid) || 0,
-        loanThisMonth: Number(e.loanThisMonth) || 0,
-        incomeTax: Number(e.incomeTax) || 0,
-        pfAuto: e.pfAuto !== false,
-        pfOverride: e.pfOverride ?? null,
-        remarks: String(e.remarks ?? ""),
-      });
-      return {
-        id: String(e.id ?? `tech-${i + 1}`),
-        name,
-        code: String(e.code ?? `TECH-${String(i + 1).padStart(2, "0")}`),
-        ...detail,
-        netSalary: computeSalary(detail).totalSalary,
-      } satisfies TechnicalPayrollEmployee;
-    })
-    .filter((e): e is TechnicalPayrollEmployee => !!e);
+  const employees: TechnicalPayrollEmployee[] = [];
+  o.employees.forEach((e, i) => {
+    if (!e || typeof e !== "object") return;
+    const name = String(e.name ?? "").trim();
+    if (!name) return;
+    const detail = emptySalaryDetail({
+      basic: Number(e.basic) || 0,
+      allowance: Number(e.allowance) || 0,
+      weekdayOtHours: Number(e.weekdayOtHours) || 0,
+      weekendOtHours: Number(e.weekendOtHours) || 0,
+      checkIn: String(e.checkIn ?? "07:00"),
+      checkOut: String(e.checkOut ?? "16:00"),
+      lateDeductionOverride: e.lateDeductionOverride ?? null,
+      paidLeaveDays: Number(e.paidLeaveDays) || 0,
+      unpaidLeaveDays: Number(e.unpaidLeaveDays) || 0,
+      loanTotal: Number(e.loanTotal) || 0,
+      loanPaid: Number(e.loanPaid) || 0,
+      loanThisMonth: Number(e.loanThisMonth) || 0,
+      incomeTax: Number(e.incomeTax) || 0,
+      pfAuto: e.pfAuto !== false,
+      pfOverride: e.pfOverride ?? null,
+      remarks: String(e.remarks ?? ""),
+    });
+    employees.push({
+      id: String(e.id ?? `tech-${i + 1}`),
+      name,
+      code: String(e.code ?? `TECH-${String(i + 1).padStart(2, "0")}`),
+      ...detail,
+      netSalary: computeSalary(detail).totalSalary,
+    });
+  });
 
   return { employees: employees.length ? employees : base.employees };
 }
