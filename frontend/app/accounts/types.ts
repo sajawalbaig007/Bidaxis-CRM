@@ -7,7 +7,8 @@ export type AccountsPageKey =
   | "income_statement"
   | "cash_flow"
   | "total_assets"
-  | "sales_payroll";
+  | "sales_payroll"
+  | "technical_payroll";
 
 export type AccountsUpload = {
   id: string;

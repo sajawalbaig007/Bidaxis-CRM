@@ -1,4 +1,5 @@
 import { defaultSalesPayrollData } from "./salesPayrollDefaults";
+import { defaultTechnicalPayrollData } from "./technicalPayrollDefaults";
 
 export type AccountsPageKey =
   | "dashboard"
@@ -6,7 +7,8 @@ export type AccountsPageKey =
   | "income_statement"
   | "cash_flow"
   | "total_assets"
-  | "sales_payroll";
+  | "sales_payroll"
+  | "technical_payroll";
 
 export function isAccountsPageKey(v: string): v is AccountsPageKey {
   return (
@@ -15,7 +17,8 @@ export function isAccountsPageKey(v: string): v is AccountsPageKey {
     v === "income_statement" ||
     v === "cash_flow" ||
     v === "total_assets" ||
-    v === "sales_payroll"
+    v === "sales_payroll" ||
+    v === "technical_payroll"
   );
 }
 
@@ -379,6 +382,9 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
 
     case "sales_payroll":
       return defaultSalesPayrollData() as unknown as Record<string, unknown>;
+
+    case "technical_payroll":
+      return defaultTechnicalPayrollData() as unknown as Record<string, unknown>;
 
     default:
       return {};

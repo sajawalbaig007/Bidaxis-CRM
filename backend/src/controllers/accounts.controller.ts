@@ -14,6 +14,10 @@ import {
 import { mergeAccountsExcel } from "../utils/accountsExcelImport";
 import { normalizeIncomeStatementData } from "../utils/incomeStatementNormalize";
 import { normalizeSalesPayrollData } from "../utils/salesPayrollDefaults";
+import {
+  normalizeTechnicalPayrollData,
+  recomputeTechnicalTeamInIncomeStatement,
+} from "../utils/technicalPayrollDefaults";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -91,7 +95,15 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
 
     let responseData = record.data as Record<string, unknown>;
     if (pageParam === "income_statement") {
-      responseData = normalizeIncomeStatementData(responseData);
+      responseData = recomputeTechnicalTeamInIncomeStatement(
+        normalizeIncomeStatementData(responseData),
+      );
+    }
+    if (pageParam === "technical_payroll") {
+      responseData = normalizeTechnicalPayrollData(responseData) as unknown as Record<string, unknown>;
+    }
+    if (pageParam === "sales_payroll") {
+      responseData = normalizeSalesPayrollData(responseData) as unknown as Record<string, unknown>;
     }
 
     const uploads = await prisma.accountsFileUpload.findMany({
@@ -139,8 +151,11 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
     if (pageParam === "sales_payroll") {
       payload = normalizeSalesPayrollData(data) as unknown as Record<string, unknown>;
     }
+    if (pageParam === "technical_payroll") {
+      payload = normalizeTechnicalPayrollData(data) as unknown as Record<string, unknown>;
+    }
     if (pageParam === "income_statement") {
-      payload = normalizeIncomeStatementData(data);
+      payload = recomputeTechnicalTeamInIncomeStatement(normalizeIncomeStatementData(data));
     }
 
     const prismaPage = toPrismaAccountsPage(pageParam);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, LogOut, Users, UserCog } from "lucide-react";
+import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, LogOut, Users, UserCog, Cpu } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import API from "@/lib/api";
 import ThemeToggle from "@/app/components/ThemeToggle";
@@ -14,6 +14,7 @@ const navItems = [
   { title: "Dashboard", href: `${BASE}`, icon: LayoutDashboard },
   { title: "Balance Sheet", href: `${BASE}/balance-sheet`, icon: Scale },
   { title: "Income Statement", href: `${BASE}/income-statement`, icon: TrendingUp },
+  { title: "Technical Team", href: `${BASE}/technical-team-payroll`, icon: Cpu },
   { title: "Sales Team", href: `${BASE}/sales-team-payroll`, icon: Users },
   { title: "Sales Team Lead", href: `${BASE}/sales-team-lead-payroll`, icon: UserCog },
   { title: "Cash Flow Statement", href: `${BASE}/cash-flow-statement`, icon: Landmark },

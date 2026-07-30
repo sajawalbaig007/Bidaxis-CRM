@@ -366,6 +366,7 @@ enum AccountsPage {
   cash_flow
   total_assets
   sales_payroll
+  technical_payroll
 }
 
 model PayrollLoan {
