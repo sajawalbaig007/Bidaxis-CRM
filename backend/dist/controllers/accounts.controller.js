@@ -13,6 +13,7 @@ const db_1 = __importDefault(require("../config/db"));
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const accountsDefaults_1 = require("../utils/accountsDefaults");
 const accountsExcelImport_1 = require("../utils/accountsExcelImport");
+const salesPayrollDefaults_1 = require("../utils/salesPayrollDefaults");
 function todayIsoDate() {
     return new Date().toISOString().slice(0, 10);
 }
@@ -118,17 +119,21 @@ async function saveAccountsRecord(req, res) {
         if (!data || typeof data !== "object") {
             return res.status(400).json({ success: false, message: "Missing data payload." });
         }
+        let payload = data;
+        if (pageParam === "sales_payroll") {
+            payload = (0, salesPayrollDefaults_1.normalizeSalesPayrollData)(data);
+        }
         const prismaPage = (0, accountsDefaults_1.toPrismaAccountsPage)(pageParam);
         const record = await db_1.default.accountsRecord.upsert({
             where: { page_recordDate: { page: prismaPage, recordDate } },
             create: {
                 page: prismaPage,
                 recordDate,
-                data: data,
+                data: payload,
                 updatedBy: req.user?.id ?? null,
             },
             update: {
-                data: data,
+                data: payload,
                 updatedBy: req.user?.id ?? null,
             },
         });
@@ -162,7 +167,7 @@ async function uploadAccountsFile(req, res) {
             return res.status(401).json({ success: false, message: "Unauthorized." });
         }
         const uploaded = await new Promise((resolve, reject) => {
-            const stream = cloudinary_1.default.uploader.upload_stream({ folder: "crm_accounts", resource_type: "raw" }, (error, result) => {
+            const stream = cloudinary_1.default.uploader.upload_stream({ folder: "crm_accounts", resource_type: "auto" }, (error, result) => {
                 if (error || !result)
                     reject(error ?? new Error("Upload failed"));
                 else
@@ -235,16 +240,39 @@ async function getAccountsDashboardSummary(req, res) {
             const record = await getOrCreateRecord(page, recordDate, req.user?.id);
             const data = record.data;
             if (page === "balance_sheet") {
-                const assetSections = data.assetSections ?? [];
-                const total = assetSections.reduce((acc, s) => acc + s.items.reduce((a, i) => a + (Number(i.amount) || 0), 0), 0);
-                summaries.balanceSheetTotalAssets = total;
+                const sumItems = (items) => (items ?? []).reduce((a, i) => {
+                    if (i.subHeads && i.subHeads.length > 0) {
+                        return a + i.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+                    }
+                    return a + (Number(i.amount) || 0);
+                }, 0);
+                const assetSections = data.assetSections ??
+                    [];
+                const eqSections = data.equityLiabilitySections ?? [];
+                const totalAssets = assetSections.reduce((a, s) => a + sumItems(s.items), 0);
+                const equityItems = eqSections.find(s => (s.title ?? "").toLowerCase() === "equity")?.items ?? [];
+                const totalEquity = sumItems(equityItems);
+                const liabilitySections = eqSections.filter(s => (s.title ?? "").toLowerCase() !== "equity");
+                const totalLiabilities = liabilitySections.reduce((a, s) => a + sumItems(s.items), 0);
+                const totalEquityLiabilities = totalEquity + totalLiabilities;
+                summaries.balanceSheetTotalAssets = totalAssets;
+                summaries.balanceSheetTotalEquity = totalEquity;
+                summaries.balanceSheetTotalLiabilities = totalLiabilities;
+                summaries.balanceSheetEquityLiabilities = totalEquityLiabilities;
+                summaries.balanceSheetDifference = totalAssets - totalEquityLiabilities;
             }
             else if (page === "income_statement") {
                 const revenue = Number(data.totalRevenue) || 0;
-                const teams = data.teamSalaries ?? [];
-                const opex = data.opexHeads ?? [];
-                const expense = teams.reduce((a, t) => a + (Number(t.totalSalary) || 0), 0)
-                    + opex.reduce((a, o) => a + (Number(o.amount) || 0), 0);
+                const sumLines = (rows) => (rows ?? []).reduce((a, row) => {
+                    if (row.subHeads && row.subHeads.length > 0) {
+                        return a + row.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+                    }
+                    return a + (Number(row.amount ?? row.totalSalary) || 0);
+                }, 0);
+                const expense = sumLines(data.teamSalaries) +
+                    sumLines(data.opexHeads) +
+                    sumLines(data.loanHeads) +
+                    sumLines(data.providentFundHeads);
                 summaries.incomeNetProfit = revenue - expense;
             }
             else if (page === "cash_flow") {
@@ -252,8 +280,23 @@ async function getAccountsDashboardSummary(req, res) {
                 summaries.cashFlowNet = months.reduce((acc, m) => acc + m.rows.reduce((a, r) => a + (Number(r.netAmount) || 0), 0), 0);
             }
             else if (page === "total_assets") {
-                const sections = data.sections ?? [];
-                summaries.totalAssetsRegister = sections.reduce((a, s) => a + (Number(s.total) || 0), 0);
+                const sumSections = (sections) => sections.reduce((a, s) => {
+                    if (s.subHeads && s.subHeads.length > 0) {
+                        return a + s.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+                    }
+                    return a + (Number(s.total) || 0);
+                }, 0);
+                const companies = data.companies;
+                if (companies && (companies.BEM || companies.GPS || companies.BDS)) {
+                    summaries.totalAssetsRegister =
+                        sumSections(companies.BEM ?? []) +
+                            sumSections(companies.GPS ?? []) +
+                            sumSections(companies.BDS ?? []);
+                }
+                else {
+                    const sections = data.sections ?? [];
+                    summaries.totalAssetsRegister = sumSections(sections);
+                }
             }
         }
         const dash = await getOrCreateRecord("dashboard", recordDate, req.user?.id);

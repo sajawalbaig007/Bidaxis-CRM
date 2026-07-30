@@ -12,6 +12,7 @@ import {
   type AccountsPageKey,
 } from "../utils/accountsDefaults";
 import { mergeAccountsExcel } from "../utils/accountsExcelImport";
+import { normalizeSalesPayrollData } from "../utils/salesPayrollDefaults";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -128,17 +129,22 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Missing data payload." });
     }
 
+    let payload = data;
+    if (pageParam === "sales_payroll") {
+      payload = normalizeSalesPayrollData(data) as unknown as Record<string, unknown>;
+    }
+
     const prismaPage = toPrismaAccountsPage(pageParam);
     const record = await prisma.accountsRecord.upsert({
       where: { page_recordDate: { page: prismaPage, recordDate } },
       create: {
         page: prismaPage,
         recordDate,
-        data: data as Prisma.InputJsonValue,
+        data: payload as Prisma.InputJsonValue,
         updatedBy: req.user?.id ?? null,
       },
       update: {
-        data: data as Prisma.InputJsonValue,
+        data: payload as Prisma.InputJsonValue,
         updatedBy: req.user?.id ?? null,
       },
     });

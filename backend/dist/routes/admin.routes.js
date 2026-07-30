@@ -181,16 +181,29 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         if (cached)
             return res.json(cached);
         const where = (0, adminClientQueries_1.buildAdminClientListWhere)(view, csrName, search, scheduleDate);
-        const [leads, total] = await Promise.all([
-            db_1.default.lead.findMany({
-                where,
-                select: adminClientQueries_1.ADMIN_LEAD_LIST_SELECT,
-                orderBy: { updatedAt: "desc" },
-                skip: (page - 1) * limit,
-                take: limit,
-            }),
-            db_1.default.lead.count({ where }),
-        ]);
+        // Fetch more than limit so we can deduplicate by phone before slicing the page
+        const FETCH_FACTOR = 4;
+        const rawLeads = await db_1.default.lead.findMany({
+            where,
+            select: adminClientQueries_1.ADMIN_LEAD_LIST_SELECT,
+            orderBy: { updatedAt: "desc" },
+            // Fetch enough rows to fill the requested page after dedup
+            skip: 0,
+            take: limit * FETCH_FACTOR * (page + 1),
+        });
+        // Deduplicate: for each phone keep only the most-recently-updated lead
+        const seenPhones = new Set();
+        const dedupedLeads = [];
+        for (const lead of rawLeads) {
+            const phone = lead.phone?.trim() || "";
+            const key = phone || lead.id; // if no phone, treat as unique
+            if (seenPhones.has(key))
+                continue;
+            seenPhones.add(key);
+            dedupedLeads.push(lead);
+        }
+        const total = dedupedLeads.length;
+        const leads = dedupedLeads.slice((page - 1) * limit, page * limit);
         const payload = {
             success: true,
             leads,
@@ -1423,6 +1436,44 @@ router.delete("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, ro
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to delete upload source" });
+    }
+});
+/* ================= TRADES ================= */
+router.get("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
+    try {
+        const trades = await db_1.default.trade.findMany({ orderBy: { name: "asc" } });
+        return res.json({ success: true, trades });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch trades" });
+    }
+});
+router.post("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const name = req.body.name?.trim();
+        if (!name)
+            return res.status(400).json({ success: false, message: "Trade name required" });
+        const existing = await db_1.default.trade.findUnique({ where: { name } });
+        if (existing)
+            return res.status(409).json({ success: false, message: "Trade already exists" });
+        const trade = await db_1.default.trade.create({ data: { name } });
+        return res.status(201).json({ success: true, trade });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to create trade" });
+    }
+});
+router.delete("/trades/:tradeId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const tradeId = req.params.tradeId;
+        await db_1.default.trade.delete({ where: { id: tradeId } }).catch(() => null);
+        return res.json({ success: true });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to delete trade" });
     }
 });
 /* ================= RESTORE LEGACY COMMENTS → LeadNote ================= */

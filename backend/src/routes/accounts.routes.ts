@@ -9,12 +9,23 @@ import {
   saveAccountsRecord,
   uploadAccountsFile,
 } from "../controllers/accounts.controller";
+import {
+  deletePayrollLoan,
+  listPayrollLoans,
+  lookupPayrollLoan,
+  upsertPayrollLoan,
+} from "../controllers/payrollLoan.controller";
 
 const router = express.Router();
 
 router.use(verifyToken, allowRoles("accounts", "admin"));
 
 router.get("/dashboard/summary", getAccountsDashboardSummary);
+router.get("/payroll-loans/lookup", lookupPayrollLoan);
+router.get("/payroll-loans", listPayrollLoans);
+router.post("/payroll-loans", upsertPayrollLoan);
+router.put("/payroll-loans", upsertPayrollLoan);
+router.delete("/payroll-loans/:id", deletePayrollLoan);
 router.get("/:page", listAccountsDates);
 router.get("/:page/:date", getAccountsRecord);
 router.put("/:page/:date", saveAccountsRecord);

@@ -365,6 +365,21 @@ enum AccountsPage {
   income_statement
   cash_flow
   total_assets
+  sales_payroll
+}
+
+model PayrollLoan {
+  id           String   @id @default(cuid()) @map("_id")
+  employeeName String
+  department   String
+  totalAmount  Float    @default(0)
+  paidAmount   Float    @default(0)
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([employeeName])
+  @@index([department])
 }
 
 model AccountsRecord {

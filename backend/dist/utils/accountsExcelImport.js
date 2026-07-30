@@ -154,7 +154,13 @@ function mergeAccountsExcel(page, existing, buffer) {
         return next;
     }
     if (page === "total_assets") {
-        const sections = next.sections ?? [];
+        const companies = next.companies ?? {
+            BEM: [],
+            GPS: [],
+            BDS: [],
+        };
+        // Excel import targets BEM by default (company column can be added later)
+        const sections = companies.BEM ?? (next.sections ?? []);
         for (const row of rows) {
             const title = String(row[0] ?? "").trim();
             if (!title || title.toLowerCase().startsWith("grand"))
@@ -176,7 +182,9 @@ function mergeAccountsExcel(page, existing, buffer) {
                 });
             }
         }
-        next.sections = sections;
+        companies.BEM = sections;
+        next.companies = companies;
+        next.sections = [];
         return next;
     }
     if (page === "cash_flow") {

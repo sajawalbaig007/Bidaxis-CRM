@@ -198,9 +198,15 @@ async function buildAdminClientSummaryPayload() {
     const chartSince = (0, businessCalendar_1.businessChartSinceUtc)(CHART_DAYS);
     const pipelinePromise = countExclusivePipeline();
     const notBin = (0, binLeads_1.buildNotBinWhere)();
-    const [pipeline, closedTab, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
+    const todayYmd = (0, businessCalendar_1.currentBusinessYmd)();
+    const todayStart = (0, businessCalendar_1.businessDayStartUtc)(todayYmd);
+    const tomorrowStart = (0, businessCalendar_1.businessDayStartUtc)((0, businessCalendar_1.addDaysToYmd)(todayYmd, 1));
+    const [pipeline, closedTab, todayCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
         pipelinePromise,
         db_1.default.lead.count({ where: (0, adminClientQueries_1.buildAdminClientViewWhere)("closed") }),
+        db_1.default.callLog.count({
+            where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
+        }),
         db_1.default.lead.findMany({
             select: {
                 id: true,
@@ -292,6 +298,7 @@ async function buildAdminClientSummaryPayload() {
             projectWon,
             completed: closedTab,
             closed: closedTab,
+            todayCompletedCalls,
             other,
             inBin,
             onlineCSRs,

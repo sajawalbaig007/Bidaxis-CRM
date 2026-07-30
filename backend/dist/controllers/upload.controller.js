@@ -133,6 +133,7 @@ const uploadLeads = async (req, res) => {
         const resetMode = req.body.resetMode || "keep";
         const leadType = req.body.leadType || "new"; /* "new" | "old" — only used when pane = "lead" */
         const sourceId = String(req.body.sourceId ?? "").trim();
+        const tradeName = String(req.body.trade ?? "").trim();
         const uploadedBy = "admin";
         let source = null;
         if (sourceId) {
@@ -359,6 +360,7 @@ const uploadLeads = async (req, res) => {
                 uploadedFileId: uploadedFile.id,
                 hiddenOnMain: hideOnMain(r.status),
                 inBin: false,
+                trade: tradeName || null,
             }));
             for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {
                 await db_1.default.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
