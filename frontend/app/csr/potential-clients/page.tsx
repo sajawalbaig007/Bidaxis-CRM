@@ -20,6 +20,7 @@ import MonthRangeFilter from "../components/shared/MonthRangeFilter";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import InterestedServicesCell from "../components/shared/InterestedServicesCell";
+import PipelineMoveSelect from "../components/shared/PipelineMoveSelect";
 import InterestedModal from "../components/modals/InterestedModal";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
 import { collectLeadPhones } from "../utils/parsePhones";
@@ -37,7 +38,7 @@ import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import API from "@/lib/api";
 import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
-import { Lead, getPriority } from "../types/lead";
+import { Lead } from "../types/lead";
 import { isWonClientStatus } from "../constants/leadStatuses";
 import {
   isImportantOnly,
@@ -264,16 +265,24 @@ export default function ImportantCallsPage() {
     const interestedService = formatInterestedServices(scopeServices, scopeSubtypes);
     try {
       if (pendingImportantId && scopeLead.id === pendingImportantId) {
+        const stayingImportant = isImportantOnly(scopeLead);
         await updateLead(pendingImportantId, {
           status: "important",
           interestedService,
           nextSchedule: "",
           nextTime: "",
         });
-        setLeads(prev => prev.filter(l => l.id !== pendingImportantId));
+        if (stayingImportant) {
+          setLeads(prev => prev.map(l =>
+            l.id === pendingImportantId ? { ...l, interestedService, status: "important" } : l
+          ));
+          toast.success("Updated as Important.");
+        } else {
+          setLeads(prev => prev.filter(l => l.id !== pendingImportantId));
+          toast.success("Marked as Important.");
+        }
         void refetchStats();
         void refetch();
-        toast.success("Marked as Important.");
       } else {
         await updateLead(scopeLead.id, { interestedService });
         setLeads(prev => prev.map(l =>
@@ -292,14 +301,25 @@ export default function ImportantCallsPage() {
     if (!status) return;
     const lead = leads.find(l => l.id === id);
     if (!lead) return;
+    const sameBucket = leadCurrentMoveStatus(lead).toLowerCase() === status.toLowerCase();
     try {
       if (status === "schedule call") {
         openEditModal(lead);
         setEditAction("reschedule");
         return;
       }
+      if (status === "Close Client") {
+        openEditModal(lead);
+        setEditAction("closeclient");
+        return;
+      }
       if (status === "interested") {
         await updateLead(id, { status: "interested", interestedService: lead.interestedService || "General" });
+        if (sameBucket) {
+          toast.success("Marked as Interested again.");
+          void refetchStats();
+          return;
+        }
       } else if (status === "important") {
         closeEditModal();
         setPendingImportantId(id);
@@ -307,11 +327,17 @@ export default function ImportantCallsPage() {
         return;
       } else {
         await updateLead(id, { status });
+        if (sameBucket) {
+          toast.success(`Status updated to "${status}".`);
+          void refetchStats();
+          return;
+        }
       }
       setLeads(prev => prev.filter(l => l.id !== id));
       void refetchStats();
       void refetch();
       closeEditModal();
+      toast.success(`Moved to ${status}.`);
     } catch (err) { console.log(err); }
   };
 
@@ -465,7 +491,12 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
-                        <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">Important</span>
+                        <div className="flex flex-col gap-1.5 min-w-0">
+                          <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap w-fit">Important</span>
+                          <PipelineMoveSelect
+                            onMove={s => void movePipelineStatus(lead.id, s)}
+                          />
+                        </div>
                       </td>
                       <td className={CSR_TD}>
                         <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
@@ -595,10 +626,13 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
-                        <div className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold w-fit whitespace-nowrap ${
-                          getPriority(lead.status) === "High" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#FFF1F3] text-[#B42318]"
-                        }`}>
-                          {getPriority(lead.status)}
+                        <div className="flex flex-col gap-1.5 min-w-0">
+                          <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
+                            Schedule Call
+                          </div>
+                          <PipelineMoveSelect
+                            onMove={s => void movePipelineStatus(lead.id, s)}
+                          />
                         </div>
                       </td>
                       <td className={CSR_TD}>
@@ -624,7 +658,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={9} className="py-16 sm:py-20 text-center">
+                      <td colSpan={8} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         <p className="text-gray-400 text-xs sm:text-sm">No scheduled calls found.</p>
                         {(searchQuery || filterDate) && (
@@ -738,8 +772,13 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
-                        <div className="bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 rounded-xl text-[11px] font-semibold w-fit whitespace-nowrap">
-                          Interested
+                        <div className="flex flex-col gap-1.5 min-w-0">
+                          <div className="bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 rounded-xl text-[11px] font-semibold w-fit whitespace-nowrap">
+                            Interested
+                          </div>
+                          <PipelineMoveSelect
+                            onMove={s => void movePipelineStatus(lead.id, s)}
+                          />
                         </div>
                       </td>
                       <td className={CSR_TD}>
@@ -765,7 +804,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={8} className="py-16 sm:py-20 text-center text-gray-400 text-xs sm:text-sm">
+                      <td colSpan={7} className="py-16 sm:py-20 text-center text-gray-400 text-xs sm:text-sm">
                         {searchQuery ? "No leads match your search." : "No interested clients found."}
                         {searchQuery && (
                           <button onClick={() => setSearchQuery("")}

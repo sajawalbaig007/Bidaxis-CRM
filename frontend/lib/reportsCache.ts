@@ -45,7 +45,7 @@ let inflightKey = "";
 const TTL_MS = 300_000;
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v3`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v4`;
 }
 
 export function invalidateReportsCache() {
@@ -68,7 +68,7 @@ export async function fetchReports(
   if (inflight && inflightKey === key) return inflight;
 
   const url = fromDate && toDate
-    ? `/reports?fromDate=${fromDate}&toDate=${toDate}`
+    ? `/reports?period=${encodeURIComponent(period)}&fromDate=${fromDate}&toDate=${toDate}`
     : `/reports?period=${period}`;
 
   inflightKey = key;
