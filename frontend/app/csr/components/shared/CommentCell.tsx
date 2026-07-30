@@ -354,16 +354,18 @@ export default function CommentCell({
             : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:bg-gray-800 dark:border-gray-700"
         }`}
       >
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1.5 w-full min-w-0">
           <StickyNote size={13} className="shrink-0" />
-          {count > 0 ? <span>{count} note{count !== 1 ? "s" : ""}</span> : <span>Note</span>}
+          {count > 0 ? <span className="shrink-0">{count} note{count !== 1 ? "s" : ""}</span> : <span className="shrink-0">Note</span>}
+          {latestNote?.createdAt && (
+            <span className="ml-auto text-[9px] font-medium text-gray-400 tabular-nums whitespace-nowrap">
+              {fmtTime(latestNote.createdAt)}
+            </span>
+          )}
         </span>
         {latestPreview && (
           <span className="text-[10px] font-normal text-gray-600 dark:text-gray-400 line-clamp-2 w-full leading-snug">
             {latestPreview}
-            {latestNote?.createdAt && (
-              <span className="block text-[9px] text-gray-400 mt-0.5">{fmtTime(latestNote.createdAt)}</span>
-            )}
           </span>
         )}
       </button>

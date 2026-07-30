@@ -16,6 +16,7 @@ type CsrPerf = {
   name: string;
   csrCode?: string | null;
   totalLeads: number;
+  /** CSR status updates (CallLog count) in period */
   completed: number;
   pending: number;
   important: number;
@@ -112,8 +113,22 @@ function buildPeriodWhere(
   return {};
 }
 
-function isCompletedOutcome(status: string): boolean {
-  return status === "completed" || status === "not interested" || status === "close client";
+/** Date filter for CallLog (CSR status updates). Null = all time. */
+function callLogCreatedAtFilter(
+  period: string,
+  fromDate?: string,
+  toDate?: string,
+): Prisma.DateTimeFilter | undefined {
+  if (fromDate && toDate) {
+    const start = new Date(fromDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+    return { gte: start, lte: end };
+  }
+  if (period === "all") return undefined;
+  const range = getDateRange(period);
+  return { gte: range.gte, lte: range.lte };
 }
 
 function emptyCsrEntry(csrId: string, csrName: string, csrCode: string | null): CsrPerf {
@@ -147,14 +162,18 @@ function bumpCounts(
   if (s === "interested" || lead.interested) target.interested++;
   if (s === "not picked" || s === "not completed") target.notCompleted++;
   if (s === "not interested") target.notInterested++;
-  if (s === "completed") target.completed++;
+  // `completed` comes from CallLog status updates — not lead.status
   if (s === "close client") target.projectWon++;
   if (s === "in house") target.inHouse++;
   if (s === "no owner available") target.noOwner++;
   if (s === "not in service") target.notInService++;
 }
 
-function buildTimeChart(leads: LeadRow[], period: string) {
+function buildTimeChart(
+  leads: LeadRow[],
+  period: string,
+  statusUpdates: { createdAt: Date }[],
+) {
   if (period === "today") {
     const buckets: Record<number, { leads: number; completed: number }> = {};
     for (let h = 0; h < 24; h++) buckets[h] = { leads: 0, completed: 0 };
@@ -162,11 +181,14 @@ function buildTimeChart(leads: LeadRow[], period: string) {
     leads.forEach(l => {
       const h = new Date(l.activityAt).getHours();
       buckets[h].leads++;
-      if (isCompletedOutcome((l.status ?? "").toLowerCase())) buckets[h].completed++;
+    });
+    statusUpdates.forEach(u => {
+      const h = new Date(u.createdAt).getHours();
+      if (buckets[h]) buckets[h].completed++;
     });
 
     return Object.entries(buckets)
-      .filter(([, v]) => v.leads > 0)
+      .filter(([, v]) => v.leads > 0 || v.completed > 0)
       .map(([h, v]) => ({
         label: `${Number(h) % 12 || 12} ${Number(h) < 12 ? "AM" : "PM"}`,
         leads: v.leads,
@@ -188,10 +210,12 @@ function buildTimeChart(leads: LeadRow[], period: string) {
     leads.forEach(l => {
       const d = new Date(l.activityAt);
       const key = `${d.getMonth() + 1}/${d.getDate()}`;
-      if (buckets[key]) {
-        buckets[key].leads++;
-        if (isCompletedOutcome((l.status ?? "").toLowerCase())) buckets[key].completed++;
-      }
+      if (buckets[key]) buckets[key].leads++;
+    });
+    statusUpdates.forEach(u => {
+      const d = new Date(u.createdAt);
+      const key = `${d.getMonth() + 1}/${d.getDate()}`;
+      if (buckets[key]) buckets[key].completed++;
     });
 
     return Object.entries(buckets).map(([date, v]) => {
@@ -207,14 +231,18 @@ function buildTimeChart(leads: LeadRow[], period: string) {
 
     for (let w = 4; w >= 0; w--) buckets[String(w)] = { leads: 0, completed: 0 };
 
+    const weekIdx = (dt: Date) => {
+      const diffDays = Math.floor((Date.now() - dt.getTime()) / 86400000);
+      return Math.min(Math.floor(diffDays / 7), 4);
+    };
+
     leads.forEach(l => {
-      const diffDays = Math.floor((Date.now() - new Date(l.activityAt).getTime()) / 86400000);
-      const weekIdx = Math.min(Math.floor(diffDays / 7), 4);
-      const key = String(weekIdx);
-      if (buckets[key]) {
-        buckets[key].leads++;
-        if (isCompletedOutcome((l.status ?? "").toLowerCase())) buckets[key].completed++;
-      }
+      const key = String(weekIdx(new Date(l.activityAt)));
+      if (buckets[key]) buckets[key].leads++;
+    });
+    statusUpdates.forEach(u => {
+      const key = String(weekIdx(new Date(u.createdAt)));
+      if (buckets[key]) buckets[key].completed++;
     });
 
     return [4, 3, 2, 1, 0].map(w => ({
@@ -228,7 +256,7 @@ function buildTimeChart(leads: LeadRow[], period: string) {
 }
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v2-status-updates`;
 }
 
 export const getReports = async (req: Request, res: Response) => {
@@ -246,10 +274,15 @@ export const getReports = async (req: Request, res: Response) => {
 
     const whereClause = buildPeriodWhere(period, fromDate, toDate);
     const needsTimeChart = !fromDate && (period === "today" || period === "week" || period === "month");
+    const createdAt = callLogCreatedAtFilter(period, fromDate, toDate);
 
-    const [leads, reports] = await Promise.all([
+    const [leads, reports, statusUpdates] = await Promise.all([
       fetchReportLeads(whereClause),
       prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+      prisma.callLog.findMany({
+        where: createdAt ? { createdAt } : {},
+        select: { csrId: true, createdAt: true },
+      }),
     ]);
 
     const totals = emptyCsrEntry("all", "all", null);
@@ -276,14 +309,52 @@ export const getReports = async (req: Request, res: Response) => {
       }
     }
 
-    const csrPerformance = Array.from(csrMap.values()).sort((a, b) => b.totalLeads - a.totalLeads);
-    const completed = leads.filter(l => isCompletedOutcome((l.status ?? "").toLowerCase())).length;
+    // Completed = how many times CSRs updated lead status (CallLog rows)
+    const completedByCsr = new Map<string, number>();
+    for (const u of statusUpdates) {
+      completedByCsr.set(u.csrId, (completedByCsr.get(u.csrId) ?? 0) + 1);
+    }
+    const completedTotal = statusUpdates.length;
+    totals.completed = completedTotal;
+    for (const [csrId, count] of completedByCsr) {
+      const row = csrMap.get(csrId);
+      if (row) row.completed = count;
+      else {
+        // CSR with updates but no lead activity in period — still show them
+        csrMap.set(csrId, {
+          ...emptyCsrEntry(csrId, "CSR", null),
+          completed: count,
+        });
+      }
+    }
+
+    // Fill CSR names for orphan update-only rows
+    const orphanIds = [...csrMap.entries()]
+      .filter(([, r]) => r.name === "CSR")
+      .map(([id]) => id);
+    if (orphanIds.length) {
+      const users = await prisma.user.findMany({
+        where: { id: { in: orphanIds } },
+        select: { id: true, name: true, csrCode: true },
+      });
+      for (const u of users) {
+        const row = csrMap.get(u.id);
+        if (row) {
+          row.name = u.name;
+          row.csrCode = u.csrCode;
+        }
+      }
+    }
+
+    const csrPerformance = Array.from(csrMap.values()).sort(
+      (a, b) => b.completed - a.completed || b.totalLeads - a.totalLeads,
+    );
 
     const payload: ReportPayload = {
       success: true,
       period,
       totalLeads: totals.totalLeads,
-      completed,
+      completed: completedTotal,
       pending: totals.pending,
       important: totals.important,
       interested: totals.interested,
@@ -294,7 +365,9 @@ export const getReports = async (req: Request, res: Response) => {
       noOwner: totals.noOwner,
       notInService: totals.notInService,
       csrPerformance,
-      timeChart: needsTimeChart ? buildTimeChart(timeRows, period) : [],
+      timeChart: needsTimeChart
+        ? buildTimeChart(timeRows, period, statusUpdates)
+        : [],
       reports,
     };
 

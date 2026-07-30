@@ -57,28 +57,29 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[250] bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[420px] overflow-hidden">
-        <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100">
+    <div className="fixed inset-0 z-[250] bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div className="bg-white dark:bg-[#1a1d24] rounded-2xl shadow-2xl w-full max-w-[420px] max-h-[min(92vh,760px)] my-auto flex flex-col overflow-hidden border border-gray-100 dark:border-gray-800">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center">
               <Activity size={17} />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-[#0F172A]">My Activity Report</h2>
+              <h2 className="text-[15px] font-bold text-[#0F172A] dark:text-gray-100">My Activity Report</h2>
               <p className="text-[11px] text-gray-400 mt-0.5">Your status change counts</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
           >
             <X size={15} />
           </button>
         </div>
 
-        <div className="p-4 sm:p-5 space-y-4">
-          <div className="flex gap-1.5 p-1 bg-[#F3F4F6] rounded-xl">
+        {/* Outer scroller — whole report body on short viewports */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4">
+          <div className="flex gap-1.5 p-1 bg-[#F3F4F6] dark:bg-gray-800/80 rounded-xl">
             {PERIOD_OPTIONS.map(opt => (
               <button
                 key={opt.key}
@@ -86,8 +87,8 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
                 onClick={() => setPeriod(opt.key)}
                 className={`flex-1 h-8 rounded-lg text-[12px] font-semibold transition-colors ${
                   period === opt.key
-                    ? "bg-white text-[#B8112D] shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white dark:bg-gray-700 text-[#B8112D] shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
               >
                 {opt.label}
@@ -104,7 +105,7 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-sm outline-none focus:border-[#B8112D]"
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-[#FAFAFA] dark:bg-gray-900 text-sm outline-none focus:border-[#B8112D] dark:text-gray-100"
             />
           </div>
 
@@ -114,9 +115,9 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
               <p className="text-[12px]">Loading report…</p>
             </div>
           ) : report ? (
-            <div className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-4">
+            <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-[#F8FAFC] dark:bg-gray-900/60 p-4">
               <p className="text-[11px] text-gray-500 font-medium">{report.rangeLabel}</p>
-              <p className="text-2xl font-bold text-[#0F172A] mt-1">
+              <p className="text-2xl font-bold text-[#0F172A] dark:text-gray-100 mt-1">
                 {report.total}
                 <span className="text-sm font-semibold text-gray-500 ml-1.5">
                   status change{report.total !== 1 ? "s" : ""}
@@ -138,7 +139,8 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
                   ))}
                 </div>
                 {report.entries && report.entries.length > 0 && (
-                  <div className="mt-4 max-h-[220px] overflow-y-auto space-y-1.5 border-t border-gray-100 pt-3">
+                  /* Inner scroller — status entries list */
+                  <div className="mt-4 max-h-[min(220px,32vh)] overflow-y-auto overscroll-contain space-y-1.5 border-t border-gray-100 dark:border-gray-800 pt-3 pr-1">
                     {report.total > report.entries.length && (
                       <p className="text-[10px] text-gray-400 mb-1">
                         Showing latest {report.entries.length} of {report.total}
@@ -146,8 +148,8 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
                     )}
                     {report.entries.map(entry => (
                       <div key={entry.id} className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="text-gray-600 truncate">
-                          <span className="font-semibold text-gray-800">{entry.leadName}</span>
+                        <span className="text-gray-600 dark:text-gray-300 truncate">
+                          <span className="font-semibold text-gray-800 dark:text-gray-100">{entry.leadName}</span>
                           {" → "}
                           <span className={`font-semibold px-1.5 py-0.5 rounded ${statusBadgeColor(entry.status)}`}>
                             {formatNotificationStatus(entry.status)}
