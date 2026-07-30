@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import type { CurrencyTabKey, DashboardCurrencyTab } from "../types";
-import { CURRENCY_TAB_LABELS, currency } from "../types";
+import { CURRENCY_TAB_LABELS, currency, isLocalPaymentTab } from "../types";
 
 type CurrencyFormulaModalProps = {
   open: boolean;
@@ -12,7 +12,7 @@ type CurrencyFormulaModalProps = {
   onChange: (key: keyof DashboardCurrencyTab, val: number) => void;
 };
 
-function calc(t: DashboardCurrencyTab) {
+function calcFx(t: DashboardCurrencyTab) {
   const usdAfterTax = t.usdAmount * t.usdTaxFactor;
   const cadAfterTax = t.cadAmount * t.cadTaxFactor;
   const usdInPkr = usdAfterTax * t.usdToPkrRate;
@@ -20,7 +20,15 @@ function calc(t: DashboardCurrencyTab) {
   return { usdAfterTax, cadAfterTax, usdInPkr, cadInPkr, total: usdInPkr + cadInPkr + t.pkrAmount };
 }
 
-const FIELDS: { label: string; key: keyof DashboardCurrencyTab; step: string; readOnly?: boolean }[] = [
+function calcLocal(t: DashboardCurrencyTab) {
+  const rate = Number(t.taxDeductionRate) || 0;
+  const gross = Number(t.pkrAmount) || 0;
+  const tax = gross * rate;
+  const net = gross - tax;
+  return { gross, tax, net, rate };
+}
+
+const FX_FIELDS: { label: string; key: keyof DashboardCurrencyTab; step: string; readOnly?: boolean }[] = [
   { label: "USD Payment (actual cash)", key: "usdAmount", step: "1" },
   { label: "USD Tax Factor", key: "usdTaxFactor", step: "0.001", readOnly: true },
   { label: "USD to PKR Rate", key: "usdToPkrRate", step: "1" },
@@ -38,7 +46,11 @@ export default function CurrencyFormulaModal({
   onChange,
 }: CurrencyFormulaModalProps) {
   if (!open) return null;
-  const c = calc(value);
+
+  const local = isLocalPaymentTab(tab);
+  const fx = calcFx(value);
+  const loc = calcLocal(value);
+  const taxPct = ((value.taxDeductionRate ?? 0) * 100).toFixed(0);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
@@ -47,41 +59,71 @@ export default function CurrencyFormulaModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
-          <h3 className="font-bold text-gray-800 text-sm">Edit currency formula — {CURRENCY_TAB_LABELS[tab]}</h3>
+          <h3 className="font-bold text-gray-800 text-sm">Edit payment formula — {CURRENCY_TAB_LABELS[tab]}</h3>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
             <X size={16} />
           </button>
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {FIELDS.map(({ label, key, step, readOnly }) => (
-              <label key={key} className={`text-xs font-semibold text-gray-600 ${key === "pkrAmount" ? "sm:col-span-2" : ""}`}>
-                {label}{readOnly ? " (fixed)" : ""}
+          {local ? (
+            <>
+              <label className="text-xs font-semibold text-gray-600 block">
+                Gross payment (PKR)
                 <input
                   type="number"
-                  step={step}
-                  value={value[key]}
-                  readOnly={readOnly}
-                  onChange={e => {
-                    if (readOnly) return;
-                    onChange(key, Number(e.target.value || 0));
-                  }}
-                  className={`mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30 ${
-                    readOnly ? "bg-[#F8FAFC] text-gray-500 cursor-default" : ""
-                  }`}
+                  step="1"
+                  value={value.pkrAmount}
+                  onChange={e => onChange("pkrAmount", Number(e.target.value || 0))}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                 />
               </label>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
-            <p>USD After Tax = {currency(value.usdAmount)} × {value.usdTaxFactor} = <span className="font-bold text-gray-800">{currency(c.usdAfterTax)}</span></p>
-            <p>USD → PKR = {currency(c.usdAfterTax)} × {value.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(c.usdInPkr)}</span></p>
-            <p className="pt-1">CAD After Tax = {currency(value.cadAmount)} × {value.cadTaxFactor} = <span className="font-bold text-gray-800">{currency(c.cadAfterTax)}</span></p>
-            <p>CAD → PKR = {currency(c.cadAfterTax)} × {value.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(c.cadInPkr)}</span></p>
-            <p className="pt-1 font-bold text-[#B8112D]">Total = {currency(c.total)}</p>
-          </div>
+              <label className="text-xs font-semibold text-gray-600 block">
+                Tax deduction (fixed)
+                <input
+                  type="text"
+                  readOnly
+                  value={`${taxPct}%`}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-500 cursor-default"
+                />
+              </label>
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
+                <p>Gross = <span className="font-bold text-gray-800">{currency(loc.gross)}</span></p>
+                <p>Tax ({taxPct}%) = <span className="font-bold text-red-600">{currency(loc.tax)}</span></p>
+                <p className="pt-1 font-bold text-[#B8112D]">Net received = {currency(loc.net)}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {FX_FIELDS.map(({ label, key, step, readOnly }) => (
+                  <label key={key} className={`text-xs font-semibold text-gray-600 ${key === "pkrAmount" ? "sm:col-span-2" : ""}`}>
+                    {label}{readOnly ? " (fixed)" : ""}
+                    <input
+                      type="number"
+                      step={step}
+                      value={value[key] as number}
+                      readOnly={readOnly}
+                      onChange={e => {
+                        if (readOnly) return;
+                        onChange(key, Number(e.target.value || 0));
+                      }}
+                      className={`mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30 ${
+                        readOnly ? "bg-[#F8FAFC] text-gray-500 cursor-default" : ""
+                      }`}
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
+                <p>USD After Tax = {currency(value.usdAmount)} × {value.usdTaxFactor} = <span className="font-bold text-gray-800">{currency(fx.usdAfterTax)}</span></p>
+                <p>USD → PKR = {currency(fx.usdAfterTax)} × {value.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(fx.usdInPkr)}</span></p>
+                <p className="pt-1">CAD After Tax = {currency(value.cadAmount)} × {value.cadTaxFactor} = <span className="font-bold text-gray-800">{currency(fx.cadAfterTax)}</span></p>
+                <p>CAD → PKR = {currency(fx.cadAfterTax)} × {value.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(fx.cadInPkr)}</span></p>
+                <p className="pt-1 font-bold text-[#B8112D]">Total = {currency(fx.total)}</p>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="px-4 py-3 border-t flex justify-end bg-[#FAFAFA]">

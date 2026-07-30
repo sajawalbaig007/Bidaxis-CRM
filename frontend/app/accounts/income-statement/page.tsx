@@ -171,7 +171,7 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Expand each team/expense for individual people & line items. Pencil opens editable detail."
+          subtitle="Team Salaries (Technical / Sales / Sales Lead) — expand a team, open Edit for full payroll fields."
           onAddNew={() => {
             acc.setData(prev => ({
               ...prev,
