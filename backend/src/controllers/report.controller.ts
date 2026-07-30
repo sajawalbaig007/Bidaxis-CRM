@@ -280,13 +280,20 @@ export const getReports = async (req: Request, res: Response) => {
     const needsTimeChart = !fromDate && (period === "today" || period === "week" || period === "month");
     const createdAt = callLogCreatedAtFilter(period, fromDate, toDate);
 
-    const [leads, reports, statusUpdates] = await Promise.all([
+    const [leads, reports, statusUpdates, assignedByCsr, allAssignedCount] = await Promise.all([
       fetchReportLeads(whereClause),
       prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.callLog.findMany({
         where: createdAt ? { createdAt } : {},
         select: { csrId: true, createdAt: true },
       }),
+      // Total = leads currently with each CSR (not period-filtered)
+      prisma.lead.groupBy({
+        by: ["assignedTo"],
+        where: { assignedTo: { not: null } },
+        _count: { _all: true },
+      }),
+      prisma.lead.count({ where: { assignedTo: { not: null } } }),
     ]);
 
     const totals = emptyCsrEntry("all", "all", null);
@@ -313,7 +320,26 @@ export const getReports = async (req: Request, res: Response) => {
       }
     }
 
-    // Completed = how many times CSRs updated lead status (CallLog rows)
+    // Override totalLeads: full assigned inventory per CSR (ignore period for Total)
+    const assignedCountMap = new Map<string, number>();
+    for (const row of assignedByCsr) {
+      if (!row.assignedTo) continue;
+      assignedCountMap.set(row.assignedTo, row._count._all);
+    }
+    for (const [csrId, count] of assignedCountMap) {
+      const existing = csrMap.get(csrId);
+      if (existing) {
+        existing.totalLeads = count;
+      } else {
+        csrMap.set(csrId, {
+          ...emptyCsrEntry(csrId, "CSR", null),
+          totalLeads: count,
+        });
+      }
+    }
+    totals.totalLeads = allAssignedCount;
+
+    // Completed = how many times CSRs updated lead status (CallLog rows in period)
     const completedByCsr = new Map<string, number>();
     for (const u of statusUpdates) {
       completedByCsr.set(u.csrId, (completedByCsr.get(u.csrId) ?? 0) + 1);
@@ -324,15 +350,15 @@ export const getReports = async (req: Request, res: Response) => {
       const row = csrMap.get(csrId);
       if (row) row.completed = count;
       else {
-        // CSR with updates but no lead activity in period — still show them
         csrMap.set(csrId, {
           ...emptyCsrEntry(csrId, "CSR", null),
           completed: count,
+          totalLeads: assignedCountMap.get(csrId) ?? 0,
         });
       }
     }
 
-    // Fill CSR names for orphan update-only rows
+    // Fill CSR names for rows that only have assigned count / updates
     const orphanIds = [...csrMap.entries()]
       .filter(([, r]) => r.name === "CSR")
       .map(([id]) => id);
@@ -357,7 +383,7 @@ export const getReports = async (req: Request, res: Response) => {
     const payload: ReportPayload = {
       success: true,
       period,
-      totalLeads: totals.totalLeads,
+      totalLeads: allAssignedCount,
       completed: completedTotal,
       pending: totals.pending,
       important: totals.important,

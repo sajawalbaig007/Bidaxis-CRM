@@ -108,9 +108,9 @@ export default function ReportsPage() {
 
   const stats = selectedCSR
     ? {
-        totalLeads:     selectedCSR.totalLeads,
+        // Total = all leads currently assigned to this CSR (not period-filtered)
+        totalLeads:     selectedCSR.totalLeads ?? csrActualStats?.totalLeads ?? 0,
         completed:      selectedCSR.completed ?? csrActualStats?.completed ?? 0,
-        pending:        selectedCSR.pending ?? csrActualStats?.pending ?? 0,
         important:      selectedCSR.important ?? csrActualStats?.important ?? 0,
         interested:     selectedCSR.interested ?? csrActualStats?.interested ?? 0,
         notCompleted:   selectedCSR.notCompleted ?? 0,
@@ -124,7 +124,6 @@ export default function ReportsPage() {
     : {
         totalLeads:     reportData?.totalLeads     ?? 0,
         completed:      reportData?.completed      ?? 0,
-        pending:        reportData?.pending        ?? 0,
         important:      reportData?.important      ?? 0,
         interested:     reportData?.interested     ?? 0,
         notCompleted:   reportData?.notCompleted   ?? 0,
@@ -144,7 +143,6 @@ export default function ReportsPage() {
       { name: "No Owner Available", value: stats.noOwner },
       { name: "Not In Service",     value: stats.notInService },
       { name: "In House",           value: stats.inHouse },
-      { name: "Pending",            value: stats.pending },
       { name: "Important",          value: stats.important },
       { name: "Schedule Call",      value: stats.scheduleCall },
       { name: "Interested",         value: stats.interested },
@@ -176,7 +174,6 @@ export default function ReportsPage() {
         ...selectedCSR,
         totalLeads: stats.totalLeads,
         completed: stats.completed,
-        pending: stats.pending,
         important: stats.important,
         interested: stats.interested,
         notCompleted: stats.notCompleted,
@@ -367,11 +364,10 @@ export default function ReportsPage() {
                 {activePeriod === "all" ? "All time" : activePeriod === "today" ? "Today" : activePeriod === "week" ? "7 Days" : activePeriod === "month" ? "30 Days" : "Custom"}
               </p>
             </div>
-            <div className="grid grid-cols-4 gap-3 sm:gap-4 text-center flex-1">
+            <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center flex-1">
               {[
-                { label: "Total", value: stats.totalLeads, color: "text-[#B8112D]", hint: "Leads in period" },
+                { label: "Total", value: stats.totalLeads, color: "text-[#B8112D]", hint: "Leads with CSR" },
                 { label: "Completed", value: stats.completed, color: "text-green-600", hint: "Status updates" },
-                { label: "Pending", value: stats.pending, color: "text-yellow-600", hint: "Pending leads" },
                 { label: "Important", value: stats.important, color: "text-orange-600", hint: "Important leads" },
               ].map(s => (
                 <div key={s.label}>
@@ -395,7 +391,6 @@ export default function ReportsPage() {
                 { val: stats.noOwner,       bg: "bg-yellow-600" },
                 { val: stats.notInService,  bg: "bg-violet-500" },
                 { val: stats.inHouse,       bg: "bg-purple-500" },
-                { val: stats.pending,       bg: "bg-blue-500" },
                 { val: stats.important,     bg: "bg-red-500" },
                 { val: stats.scheduleCall,  bg: "bg-sky-500" },
                 { val: stats.interested,    bg: "bg-orange-500" },
@@ -414,7 +409,6 @@ export default function ReportsPage() {
                 { label: "No Owner Available", val: stats.noOwner,        dot: "bg-yellow-600" },
                 { label: "Not In Service",     val: stats.notInService,   dot: "bg-violet-500" },
                 { label: "In House",           val: stats.inHouse,        dot: "bg-purple-500" },
-                { label: "Pending",            val: stats.pending,        dot: "bg-blue-500" },
                 { label: "Important",          val: stats.important,      dot: "bg-red-500" },
                 { label: "Schedule Call",      val: stats.scheduleCall,   dot: "bg-sky-500" },
                 { label: "Interested",         val: stats.interested,     dot: "bg-orange-500" },
@@ -470,14 +464,13 @@ export default function ReportsPage() {
               /* 2-col grid on mobile/sm for compact view; 1-col on xl */
               <div className="grid grid-cols-2 xl:grid-cols-1 gap-2 sm:gap-3 max-h-[520px] overflow-y-auto pr-0.5">
                 {[
-                  { label: "Total Leads",        value: stats.totalLeads,    bg: "bg-red-50",     color: "text-[#B8112D]",   icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" />, sub: "Leads in period" },
+                  { label: "Total Leads",        value: stats.totalLeads,    bg: "bg-red-50",     color: "text-[#B8112D]",   icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" />, sub: "Leads assigned to CSR" },
                   { label: "Completed",          value: stats.completed,     bg: "bg-green-50",   color: "text-green-600",   icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" />, sub: "Status updates by CSR" },
                   { label: "Not Interested",     value: stats.notInterested, bg: "bg-slate-50",   color: "text-slate-600",   icon: <Database size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "Not Picked",         value: stats.notCompleted,  bg: "bg-amber-50",   color: "text-amber-600",   icon: <Clock3 size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "No Owner Available", value: stats.noOwner,       bg: "bg-yellow-50",  color: "text-yellow-700",  icon: <Users size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "Not In Service",     value: stats.notInService,  bg: "bg-violet-50",  color: "text-violet-600",  icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "In House",           value: stats.inHouse,       bg: "bg-purple-50",  color: "text-purple-600",  icon: <Database size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Pending",            value: stats.pending,       bg: "bg-blue-50",    color: "text-blue-600",    icon: <Clock3 size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "Important",          value: stats.important,     bg: "bg-red-50",     color: "text-red-600",     icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "Schedule Call",      value: stats.scheduleCall,  bg: "bg-sky-50",     color: "text-sky-600",     icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" /> },
                   { label: "Interested",         value: stats.interested,    bg: "bg-orange-50",  color: "text-orange-600",  icon: <TrendingUp size={14} className="sm:w-4 sm:h-4" /> },
@@ -526,7 +519,7 @@ export default function ReportsPage() {
                   {[
                     "CSR", "Total", "Completed",
                     "Not Interested", "Not Picked", "No Owner", "Not In Service", "In House",
-                    "Pending", "Important", "Schedule Call", "Interested", "Close Client",
+                    "Important", "Schedule Call", "Interested", "Close Client",
                   ].map(h => (
                     <th key={h} className="px-2.5 sm:px-3 py-2.5 sm:py-3 text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                       {h}
@@ -538,7 +531,7 @@ export default function ReportsPage() {
                 {loadingReport ? (
                   [1, 2, 3].map(i => (
                     <tr key={i} className="border-b border-gray-50">
-                      {Array.from({ length: 13 }).map((_, j) => (
+                      {Array.from({ length: 12 }).map((_, j) => (
                         <td key={j} className="px-2.5 sm:px-3 py-3 sm:py-4">
                           <div className="h-3.5 sm:h-4 w-8 sm:w-10 bg-gray-100 rounded animate-pulse" />
                         </td>
@@ -564,7 +557,6 @@ export default function ReportsPage() {
                     <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-yellow-700">{csr.noOwner ?? 0}</span></td>
                     <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-violet-600">{csr.notInService ?? 0}</span></td>
                     <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-purple-600">{csr.inHouse ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-blue-600">{csr.pending}</span></td>
                     <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-red-600">{csr.important}</span></td>
                     <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-sky-600">{csr.scheduleCall ?? 0}</span></td>
                     <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-orange-600">{csr.interested ?? 0}</span></td>
