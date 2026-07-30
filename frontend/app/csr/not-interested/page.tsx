@@ -87,6 +87,7 @@ export default function NotInterestedPage() {
   const [isAssigning,     setIsAssigning]     = useState(false);
 
   const [statusLead,          setStatusLead]          = useState<NiLead | null>(null);
+  const [pendingPipelineStatus, setPendingPipelineStatus] = useState<"important" | "schedule call">("important");
   const [showImportantModal,  setShowImportantModal]  = useState(false);
   const [showInterestedModal, setShowInterestedModal] = useState(false);
   const [showCloseModal,      setShowCloseModal]      = useState(false);
@@ -226,9 +227,28 @@ export default function NotInterestedPage() {
 
   const handleUpdateStatus = async (lead: NiLead, status: string) => {
     if (status === "") return;
-    if (status === "important") {
-      setStatusLead(lead); setScheduleDate(""); setScheduleTime("");
-      setSelectedTimezone("America/New_York"); setShowImportantModal(true); return;
+
+    const sameTab =
+      (activeTab === "notinterested" && isNotInterestedStatus(status)) ||
+      (activeTab === "notpicked" && isNotPickedStatus(status)) ||
+      (activeTab === "noowner" && status === STATUS_NO_OWNER) ||
+      (activeTab === "notinservice" && status === STATUS_NOT_IN_SERVICE) ||
+      (activeTab === "inhouse" && status === STATUS_IN_HOUSE);
+
+    // Re-apply same follow-up status (counts as another try for NI / Not Picked)
+    if (sameTab && (activeTab === "notinterested" || activeTab === "notpicked")) {
+      await handleRetry(lead);
+      return;
+    }
+
+    if (status === "important" || status === "schedule call") {
+      setStatusLead(lead);
+      setPendingPipelineStatus(status);
+      setScheduleDate("");
+      setScheduleTime("");
+      setSelectedTimezone("America/New_York");
+      setShowImportantModal(true);
+      return;
     }
     if (status === "interested") {
       setStatusLead(lead); setSelectedService(""); setServiceSubtype(""); setShowInterestedModal(true); return;
@@ -239,23 +259,33 @@ export default function NotInterestedPage() {
       setProjectCode(""); setPaidAmount(""); setEmail(lead.email); setShowCloseModal(true); return;
     }
     try {
-      await API.put(`/csr/lead/${lead.id}`, { status });
+      const res = await API.put(`/csr/lead/${lead.id}`, { status });
       bustCaches();
+      if (sameTab) {
+        const updated = res.data?.lead;
+        if (updated) {
+          setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updated, status } : l));
+        }
+        showToast(`Status updated to "${statusDisplayLabel(status)}".`);
+        return;
+      }
       setLeads(prev => prev.filter(l => l.id !== lead.id));
-      showToast(`Status updated to "${status}".`);
+      showToast(`Status updated to "${statusDisplayLabel(status)}".`);
     } catch { showToast("Failed to update status.", "warn"); }
   };
 
   const saveImportant = async () => {
     if (!statusLead || !scheduleDate || !scheduleTime) return;
+    const nextStatus = pendingPipelineStatus;
     await API.put(`/csr/lead/${statusLead.id}`, {
-      status: "important", nextSchedule: scheduleDate,
+      status: nextStatus, nextSchedule: scheduleDate,
       nextTime: scheduleTime, timezone: selectedTimezone,
     });
     bustCaches();
     setLeads(prev => prev.filter(l => l.id !== statusLead.id));
     setShowImportantModal(false);
-    showToast("Scheduled as Important Call.");
+    setPendingPipelineStatus("important");
+    showToast(nextStatus === "schedule call" ? "Moved to Schedule Call." : "Scheduled as Important Call.");
   };
 
   const saveInterested = async () => {
@@ -557,15 +587,20 @@ export default function NotInterestedPage() {
                             )}
                             <select
                               defaultValue=""
-                              onChange={e => { handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
+                              onChange={e => { void handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
                               className="appearance-none h-7 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-1 text-[9px] sm:text-[10px] font-semibold text-[#0F172A] outline-none truncate"
                             >
                               <option value="">Status</option>
+                              <option value="Not Interested">Not Interested</option>
+                              <option value="not picked">Not Picked</option>
+                              <option value={STATUS_NO_OWNER}>No Owner Available</option>
+                              <option value={STATUS_NOT_IN_SERVICE}>Not In Service</option>
+                              <option value={STATUS_IN_HOUSE}>In House</option>
                               <option value="pending">Pending</option>
                               <option value="important">Important</option>
+                              <option value="schedule call">Schedule Call</option>
                               <option value="interested">Interested</option>
                               <option value="Close Client">Close Client</option>
-                              <option value={STATUS_IN_HOUSE}>In House</option>
                             </select>
                           </div>
                         </td>

@@ -70,10 +70,8 @@ export default function EditClientModal({
 }: EditClientModalProps) {
   const displayCo = clientCo && clientCo !== "—" ? clientCo : (company !== "N/A" ? company : "");
 
-  const visibleMoveOptions = MOVE_OPTIONS.filter(opt => {
-    if (!currentMoveStatus) return true;
-    return opt.status.toLowerCase() !== currentMoveStatus.toLowerCase();
-  });
+  /** Show all move options — CSR can re-apply the same status */
+  const visibleMoveOptions = MOVE_OPTIONS;
 
   const handleMove = (status: string) => {
     if (status === "schedule call") {

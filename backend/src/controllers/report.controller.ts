@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../config/db";
 import { Prisma } from "@prisma/client";
 import { fetchReportLeads } from "../utils/reportLeads";
+import { addEstDays, estDateYmd, estDayBoundsUtc } from "../utils/estTime";
 
 type LeadRow = {
   activityAt: Date;
@@ -60,29 +61,39 @@ export function flushReportCache(): void {
   reportCache.clear();
 }
 
+/** Period ranges in US Eastern (same as CSR activity reports). */
 function getDateRange(period: string): { gte: Date; lte: Date } {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayYmd = estDateYmd(now);
 
   if (period === "today") {
-    const end = new Date(today);
-    end.setHours(23, 59, 59, 999);
-    return { gte: today, lte: end };
+    const bounds = estDayBoundsUtc(todayYmd)!;
+    return { gte: bounds.start, lte: bounds.end };
   }
 
   if (period === "week") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 6);
-    return { gte: start, lte: now };
+    const startYmd = addEstDays(todayYmd, -6);
+    const start = estDayBoundsUtc(startYmd)!.start;
+    const end = estDayBoundsUtc(todayYmd)!.end;
+    return { gte: start, lte: end.getTime() > now.getTime() ? now : end };
   }
 
   if (period === "month") {
-    const start = new Date(today);
-    start.setDate(today.getDate() - 29);
-    return { gte: start, lte: now };
+    const startYmd = addEstDays(todayYmd, -29);
+    const start = estDayBoundsUtc(startYmd)!.start;
+    const end = estDayBoundsUtc(todayYmd)!.end;
+    return { gte: start, lte: end.getTime() > now.getTime() ? now : end };
   }
 
-  return { gte: new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()), lte: now };
+  const startYmd = addEstDays(todayYmd, -365);
+  return { gte: estDayBoundsUtc(startYmd)!.start, lte: now };
+}
+
+function customDateRange(fromDate: string, toDate: string): { gte: Date; lte: Date } | null {
+  const start = estDayBoundsUtc(fromDate)?.start;
+  const end = estDayBoundsUtc(toDate)?.end;
+  if (!start || !end) return null;
+  return { gte: start, lte: end };
 }
 
 function activityInRange(gte: Date, lte: Date): Prisma.LeadWhereInput {
@@ -100,11 +111,8 @@ function buildPeriodWhere(
   toDate?: string,
 ): Prisma.LeadWhereInput {
   if (fromDate && toDate) {
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
-    return activityInRange(start, end);
+    const range = customDateRange(fromDate, toDate);
+    if (range) return activityInRange(range.gte, range.lte);
   }
 
   if (period !== "all") {
@@ -122,11 +130,8 @@ function callLogCreatedAtFilter(
   toDate?: string,
 ): Prisma.DateTimeFilter | undefined {
   if (fromDate && toDate) {
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
-    return { gte: start, lte: end };
+    const range = customDateRange(fromDate, toDate);
+    if (range) return { gte: range.gte, lte: range.lte };
   }
   if (period === "all") return undefined;
   const range = getDateRange(period);
@@ -154,18 +159,14 @@ function emptyCsrEntry(csrId: string, csrName: string, csrCode: string | null): 
   };
 }
 
-function bumpCounts(
-  target: Totals,
-  lead: { status: string | null; important: boolean; interested: boolean },
-) {
-  const s = (lead.status ?? "").toLowerCase().trim();
-  target.totalLeads++;
+/** Bucket a status string (from CallLog) into report status columns. */
+function bumpStatusCount(target: Totals, status: string | null | undefined) {
+  const s = (status ?? "").toLowerCase().trim();
   if (s === "pending") target.pending++;
-  if (s === "important" || lead.important) target.important++;
-  if (s === "interested" || lead.interested) target.interested++;
+  if (s === "important") target.important++;
+  if (s === "interested") target.interested++;
   if (s === "not picked" || s === "not completed") target.notCompleted++;
   if (s === "not interested" || s === "completed") target.notInterested++;
-  // `completed` metric = CallLog status updates — not lead.status
   if (s === "close client" || s === "closed") target.projectWon++;
   if (s === "in house") target.inHouse++;
   if (s === "no owner available") target.noOwner++;
@@ -260,7 +261,7 @@ function buildTimeChart(
 }
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v3-all-statuses`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v4-est-calllog`;
 }
 
 export const getReports = async (req: Request, res: Response) => {
@@ -281,11 +282,11 @@ export const getReports = async (req: Request, res: Response) => {
     const createdAt = callLogCreatedAtFilter(period, fromDate, toDate);
 
     const [leads, reports, statusUpdates, assignedByCsr, allAssignedCount] = await Promise.all([
-      fetchReportLeads(whereClause),
+      needsTimeChart ? fetchReportLeads(whereClause) : Promise.resolve([]),
       prisma.report.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.callLog.findMany({
         where: createdAt ? { createdAt } : {},
-        select: { csrId: true, createdAt: true },
+        select: { csrId: true, createdAt: true, status: true },
       }),
       // Total = leads currently with each CSR (not period-filtered)
       prisma.lead.groupBy({
@@ -298,29 +299,23 @@ export const getReports = async (req: Request, res: Response) => {
 
     const totals = emptyCsrEntry("all", "all", null);
     const csrMap = new Map<string, CsrPerf>();
-    const timeRows: LeadRow[] = needsTimeChart ? [] : [];
+    const timeRows: LeadRow[] = [];
 
-    for (const lead of leads) {
-      bumpCounts(totals, lead);
+    // Status breakdown + Completed = CallLog rows in the (EST) period
+    for (const u of statusUpdates) {
+      bumpStatusCount(totals, u.status);
+      totals.completed++;
 
-      const csrId = lead.assignedTo ?? "unknown";
-      const csrName = lead.csr?.name ?? "Unknown";
-      if (!csrMap.has(csrId)) {
-        csrMap.set(csrId, emptyCsrEntry(csrId, csrName, lead.csr?.csrCode ?? null));
+      let row = csrMap.get(u.csrId);
+      if (!row) {
+        row = emptyCsrEntry(u.csrId, "CSR", null);
+        csrMap.set(u.csrId, row);
       }
-      bumpCounts(csrMap.get(csrId)!, lead);
-
-      if (needsTimeChart) {
-        timeRows.push({
-          activityAt: lead.updatedAt > lead.createdAt ? lead.updatedAt : lead.createdAt,
-          status: lead.status,
-          important: lead.important,
-          interested: lead.interested,
-        });
-      }
+      bumpStatusCount(row, u.status);
+      row.completed++;
     }
 
-    // Override totalLeads: full assigned inventory per CSR (ignore period for Total)
+    // Total = full assigned inventory per CSR
     const assignedCountMap = new Map<string, number>();
     for (const row of assignedByCsr) {
       if (!row.assignedTo) continue;
@@ -339,21 +334,13 @@ export const getReports = async (req: Request, res: Response) => {
     }
     totals.totalLeads = allAssignedCount;
 
-    // Completed = how many times CSRs updated lead status (CallLog rows in period)
-    const completedByCsr = new Map<string, number>();
-    for (const u of statusUpdates) {
-      completedByCsr.set(u.csrId, (completedByCsr.get(u.csrId) ?? 0) + 1);
-    }
-    const completedTotal = statusUpdates.length;
-    totals.completed = completedTotal;
-    for (const [csrId, count] of completedByCsr) {
-      const row = csrMap.get(csrId);
-      if (row) row.completed = count;
-      else {
-        csrMap.set(csrId, {
-          ...emptyCsrEntry(csrId, "CSR", null),
-          completed: count,
-          totalLeads: assignedCountMap.get(csrId) ?? 0,
+    if (needsTimeChart) {
+      for (const lead of leads) {
+        timeRows.push({
+          activityAt: lead.updatedAt > lead.createdAt ? lead.updatedAt : lead.createdAt,
+          status: lead.status,
+          important: lead.important,
+          interested: lead.interested,
         });
       }
     }
@@ -380,6 +367,7 @@ export const getReports = async (req: Request, res: Response) => {
       (a, b) => b.completed - a.completed || b.totalLeads - a.totalLeads,
     );
 
+    const completedTotal = totals.completed;
     const payload: ReportPayload = {
       success: true,
       period,

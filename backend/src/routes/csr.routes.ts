@@ -852,7 +852,9 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
       await reconcileClientOldFlagsForCsr(csrId);
     }
 
-    if (status !== undefined && status !== lead.status) {
+    // Always log when CSR submits a status (including same status again) —
+    // Admin reports Completed / status buckets are CallLog-based.
+    if (status !== undefined) {
       await logStatusChange(csrId, leadId, status);
     }
 
