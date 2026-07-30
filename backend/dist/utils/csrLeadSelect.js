@@ -25,6 +25,7 @@ exports.CSR_DASHBOARD_LEAD_SELECT = {
     notInterestedCount: true,
     updatedAt: true,
     createdAt: true,
+    trade: true,
     uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT },
     _count: { select: { notes: true } },
 };
@@ -51,6 +52,7 @@ exports.CSR_CLIENT_LIST_SELECT = {
     notInterestedCount: true,
     updatedAt: true,
     createdAt: true,
+    trade: true,
     uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT },
     isOldClient: true,
     clientCode: true,

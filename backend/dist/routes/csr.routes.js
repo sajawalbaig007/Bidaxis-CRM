@@ -1204,8 +1204,19 @@ router.post("/heartbeat", auth_middleware_1.verifyToken, (0, role_middleware_1.a
         });
         const now = Date.now();
         const lastWrite = existing?.lastDbWrite ?? 0;
+        const wasVisible = existing?.tabVisible ?? true;
+        const tabBecameHidden = wasVisible && !tabVisible;
+        const tabBecameVisible = !wasVisible && tabVisible;
         const shouldWriteDb = tabVisible && now - lastWrite >= 30000;
-        if (shouldWriteDb) {
+        if (tabBecameHidden) {
+            // Tab just went away — mark offline in DB immediately
+            await db_1.default.user.update({
+                where: { id: userId },
+                data: { isOnline: false },
+            }).catch(() => { });
+        }
+        else if (tabBecameVisible || shouldWriteDb) {
+            // Tab came back or regular heartbeat interval
             await db_1.default.user.update({
                 where: { id: userId },
                 data: { isOnline: true, lastActive: new Date() },
@@ -1241,6 +1252,17 @@ router.post("/offline", auth_middleware_1.verifyToken, (0, role_middleware_1.all
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false });
+    }
+});
+/* ================= TRADES (read-only for CSR) ================= */
+router.get("/trades", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (_req, res) => {
+    try {
+        const trades = await db_1.default.trade.findMany({ orderBy: { name: "asc" } });
+        return res.json({ success: true, trades });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to fetch trades" });
     }
 });
 exports.default = router;

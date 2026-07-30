@@ -78,7 +78,7 @@ router.get("/", (0, role_middleware_1.allowRoles)("admin", "csr", "manager"), as
                 },
                 orderBy: { createdAt: "asc" },
             });
-            (0, cache_1.setCache)(CACHE_KEY, users, 15000);
+            (0, cache_1.setCache)(CACHE_KEY, users, 8000);
         }
         const withBrowser = users.map(u => ({
             ...u,

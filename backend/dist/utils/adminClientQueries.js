@@ -99,4 +99,9 @@ exports.ADMIN_LEAD_LIST_SELECT = {
     csr: { select: { id: true, name: true, csrCode: true } },
     uploadFile: { select: { companyName: true } },
     _count: { select: { notes: true } },
+    notes: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { text: true, createdAt: true },
+    },
 };
