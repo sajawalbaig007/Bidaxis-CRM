@@ -100,6 +100,10 @@ function calcTab(t: DashboardCurrencyTab) {
 
 type Summary = {
   balanceSheetTotalAssets?: number;
+  balanceSheetTotalEquity?: number;
+  balanceSheetTotalLiabilities?: number;
+  balanceSheetEquityLiabilities?: number;
+  balanceSheetDifference?: number;
   incomeNetProfit?: number;
   cashFlowNet?: number;
   totalAssetsRegister?: number;
@@ -156,16 +160,18 @@ export default function AccountsDashboardPage() {
     [displayCalc.usdInPkr, displayCalc.cadInPkr, displayCalc.pkrAmount],
   );
 
+  const bsAssets = summaries.balanceSheetTotalAssets ?? 0;
+  const bsEquityLiab = summaries.balanceSheetEquityLiabilities
+    ?? ((summaries.balanceSheetTotalEquity ?? 0) + (summaries.balanceSheetTotalLiabilities ?? 0));
+  const bsDiff = summaries.balanceSheetDifference ?? (bsAssets - bsEquityLiab);
+  const bsBalanced = Math.abs(bsDiff) < 1 && bsAssets > 0;
+
   const metrics = [
-    { label: "Balance Sheet Total Assets", value: summaries.balanceSheetTotalAssets ?? 0, color: "from-[#0B84F3] to-[#0369A1]" },
+    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: "Must equal Equity + Liabilities" },
+    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}` },
+    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced" },
     { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]" },
     { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]" },
-    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]" },
-    {
-      label: "Balance Sheet + Total Assets",
-      value: (summaries.balanceSheetTotalAssets ?? 0) + (summaries.totalAssetsRegister ?? 0),
-      color: "from-[#0F172A] to-[#334155]",
-    },
   ];
 
   const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
@@ -212,7 +218,9 @@ export default function AccountsDashboardPage() {
                 <div className="absolute -right-2 bottom-0 w-16 h-16 rounded-full bg-white/5" />
                 <p className="relative text-[10px] font-bold uppercase tracking-wider text-white/80 leading-snug">{m.label}</p>
                 <p className="relative text-lg sm:text-2xl font-extrabold mt-2 tabular-nums tracking-tight">{currency(m.value)}</p>
-                <p className="relative text-[10px] text-white/65 mt-1.5 font-medium">As of {acc.recordDate || todayIso()}</p>
+                <p className="relative text-[10px] text-white/65 mt-1.5 font-medium">
+                  {"hint" in m && m.hint ? m.hint : `As of ${acc.recordDate || todayIso()}`}
+                </p>
               </div>
             ))}
           </section>
@@ -427,10 +435,12 @@ export default function AccountsDashboardPage() {
                 </thead>
                 <tbody>
                   {[
-                    ["Balance Sheet", "Assets, Equity, Liabilities", summaries.balanceSheetTotalAssets],
+                    ["Balance Sheet — Assets", "Must equal Equity + Liabilities", summaries.balanceSheetTotalAssets],
+                    ["Balance Sheet — Equity + Liab.", `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, bsEquityLiab],
+                    ["Balance Sheet — Difference", bsBalanced ? "Balanced" : "Assets − (Equity + Liabilities)", bsDiff],
                     ["Income Statement", "Revenue, Payroll, OPEX, Net Profit", summaries.incomeNetProfit],
                     ["Cash Flow Statement", "AH Paypal, SN Paypal, CO. Habib Metro, Qasim Habib Metro", summaries.cashFlowNet],
-                    ["Total Assets", "BEM, GPS, BDS company registers", summaries.totalAssetsRegister],
+                    ["Total Assets Register", "BEM, GPS, BDS company registers", summaries.totalAssetsRegister],
                     [
                       "Balance Sheet + Total Assets",
                       "Combined register sum",

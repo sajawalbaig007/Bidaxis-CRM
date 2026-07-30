@@ -1,5 +1,6 @@
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
 import { lineAmount, newRowId, todayIso } from "../types";
+import { emptySalaryDetail } from "./payrollFormula";
 
 const COLUMN_HEADERS = new Set([
   "basic salary",
@@ -35,8 +36,26 @@ const COLUMN_HEADERS = new Set([
   "name",
 ]);
 
-function sub(label: string, amount: number): SubHeadEntry {
-  return { id: newRowId("sub"), label, amount, filledAt: todayIso() };
+function sub(label: string, amount: number, withSalary = false): SubHeadEntry {
+  return {
+    id: newRowId("sub"),
+    label,
+    amount,
+    filledAt: todayIso(),
+    ...(withSalary
+      ? { salary: emptySalaryDetail({ basic: amount }) }
+      : {}),
+  };
+}
+
+/** Ensure every team person has a salary object (bootstrap basic from amount if missing). */
+function ensureTeamSalarySubs(subs: SubHeadEntry[] | undefined): SubHeadEntry[] {
+  return (subs ?? []).map(s => {
+    if (s.salary) return s;
+    const salary = emptySalaryDetail({ basic: Number(s.amount) || 0 });
+    // Keep listed amount as net until user edits payroll fields (PF still shows in editor).
+    return { ...s, salary };
+  });
 }
 
 function looksLikeColumnHeaders(subs: SubHeadEntry[] | undefined, headLabels?: string[]): boolean {
@@ -156,7 +175,7 @@ const OPEX_SEED: Record<string, { amount: number; lines: { label: string; amount
 function seedTeam(team: string): TeamSalaryRow {
   const seed = TEAM_SEED[team];
   const people = seed?.people ?? [];
-  const subHeads = people.map(p => sub(p.label, p.amount));
+  const subHeads = people.map(p => sub(p.label, p.amount, true));
   return {
     id: newRowId("team"),
     team,
@@ -270,9 +289,11 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
     const current = existingTeams.get(teamName);
     if (!current) return seedTeam(teamName);
     if (!looksLikeColumnHeaders(current.subHeads, current.headLabels)) {
+      const subHeads = ensureTeamSalarySubs(current.subHeads);
       return {
         ...current,
-        totalSalary: lineAmount(current),
+        subHeads,
+        totalSalary: lineAmount({ ...current, subHeads }),
       };
     }
     const seeded = seedTeam(teamName);
@@ -287,7 +308,8 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
   // Keep any custom teams the user already added
   for (const t of data.teamSalaries ?? []) {
     if (!TEAM_SEED[t.team] && !teamSalaries.some(x => x.id === t.id)) {
-      teamSalaries.push(t);
+      const subHeads = ensureTeamSalarySubs(t.subHeads);
+      teamSalaries.push({ ...t, subHeads, totalSalary: lineAmount({ ...t, subHeads }) });
     }
   }
 

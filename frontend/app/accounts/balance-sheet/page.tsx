@@ -116,6 +116,11 @@ export default function BalanceSheetPage() {
               Assets ({currency(totalAssets)}) ≠ Equity + Liabilities ({currency(totalEquity + totalLiabilities)}) — review totals.
             </div>
           )}
+          {balanced && (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-800">
+              Balanced — Assets ({currency(totalAssets)}) = Equity + Liabilities ({currency(totalEquity + totalLiabilities)}).
+            </div>
+          )}
 
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
             <AccountsChartCard

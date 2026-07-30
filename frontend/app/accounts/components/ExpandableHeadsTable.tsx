@@ -4,8 +4,10 @@ import { useState, Fragment } from "react";
 import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
+import { computeSalary } from "../utils/payrollFormula";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
+import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 
 export type ExpandableHeadRow = {
   id: string;
@@ -26,6 +28,8 @@ type ExpandableHeadsTableProps = {
   emptyLabel?: string;
   allowProofUpload?: boolean;
   onUploadProof?: (file: File) => Promise<{ fileUrl: string; fileName: string }>;
+  /** Team Salaries — full payroll editor in the edit modal. */
+  salaryMode?: boolean;
 };
 
 export default function ExpandableHeadsTable({
@@ -37,6 +41,7 @@ export default function ExpandableHeadsTable({
   emptyLabel = "No heads yet.",
   allowProofUpload = false,
   onUploadProof,
+  salaryMode = false,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -206,6 +211,50 @@ export default function ExpandableHeadsTable({
                         <td colSpan={6} className="px-4 py-2.5">
                           {subs.length === 0 ? (
                             <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add sub-heads.</p>
+                          ) : salaryMode ? (
+                            <div className="rounded-xl border border-gray-100 overflow-x-auto bg-white shadow-sm">
+                              <table className="w-full text-xs min-w-[980px]">
+                                <thead>
+                                  <tr className="border-b bg-gray-50/80 text-gray-400">
+                                    <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Employee</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Basic</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Allow.</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">OT</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Earning</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Late</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Unpaid</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">PF</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Tax</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduct</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Net</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {subs.map(s => {
+                                    const sal = s.salary ? ensureSalaryDetail(s.salary, s.amount) : null;
+                                    const b = sal ? computeSalary(sal) : null;
+                                    return (
+                                      <tr key={s.id} className="border-b border-gray-50 last:border-0">
+                                        <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(sal!.basic) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(sal!.allowance) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.totalOvertime) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{b ? currency(b.totalEarning) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.lateDeduction) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.unpaidLeaveDeduction) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.loanThisMonth) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.pf) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.incomeTax) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-red-600">{b ? currency(b.totalDeduction) : "—"}</td>
+                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">Open Edit to fill all payroll fields (OT hours, check-in/out, leaves, loan, PF, tax, remarks).</p>
+                            </div>
                           ) : (
                             <div className="rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
                               <table className="w-full text-xs">
@@ -276,6 +325,7 @@ export default function ExpandableHeadsTable({
         onDelete={deleteEditing}
         allowProofUpload={allowProofUpload}
         onUploadProof={onUploadProof}
+        salaryMode={salaryMode}
       />
     </div>
   );

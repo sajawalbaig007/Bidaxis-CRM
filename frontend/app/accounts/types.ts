@@ -1,3 +1,5 @@
+import type { EmployeeSalaryDetail } from "./utils/payrollFormula";
+
 export type AccountsPageKey =
   | "dashboard"
   | "balance_sheet"
@@ -17,12 +19,15 @@ export type AccountsUpload = {
 export type SubHeadEntry = {
   id: string;
   label: string;
+  /** Net / total for charts — for salary people = computed totalSalary */
   amount: number;
   /** Date this individual entry was filled (YYYY-MM-DD). */
   filledAt: string;
   /** Optional payment-proof / screenshot URL (OPEX lines). */
   proofUrl?: string;
   proofName?: string;
+  /** Rich payroll fields (Team Salaries people). */
+  salary?: EmployeeSalaryDetail;
 };
 
 /** Date-tagged note on a table row / head. */

@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Trash2, X, Plus, StickyNote, Upload, ExternalLink, Loader2, ImageIcon } from "lucide-react";
+import { Trash2, X, Plus, StickyNote, Upload, ExternalLink, Loader2, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
+import { computeSalary } from "../utils/payrollFormula";
+import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 
 export type HeadDetailModel = {
   id: string;
@@ -25,6 +27,8 @@ type HeadDetailModalProps = {
   /** Enable per-line screenshot / payment proof upload (OPEX). */
   allowProofUpload?: boolean;
   onUploadProof?: (file: File) => Promise<{ fileUrl: string; fileName: string }>;
+  /** Full payroll editor for Team Salaries people. */
+  salaryMode?: boolean;
 };
 
 export default function HeadDetailModal({
@@ -36,9 +40,11 @@ export default function HeadDetailModal({
   onDelete,
   allowProofUpload = false,
   onUploadProof,
+  salaryMode = false,
 }: HeadDetailModalProps) {
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [openSalaryIds, setOpenSalaryIds] = useState<Set<string>>(new Set());
 
   if (!open || !value) return null;
 
@@ -56,15 +62,25 @@ export default function HeadDetailModal({
   };
 
   const addSub = () => {
+    const id = newRowId("sub");
+    const salary = salaryMode ? ensureSalaryDetail(undefined, 0) : undefined;
+    const amount = salary ? computeSalary(salary).totalSalary : 0;
     const subHeads = [
       ...value.subHeads,
-      { id: newRowId("sub"), label: "New person / line", amount: 0, filledAt: todayIso() },
+      {
+        id,
+        label: salaryMode ? "New employee" : "New person / line",
+        amount,
+        filledAt: todayIso(),
+        ...(salary ? { salary } : {}),
+      },
     ];
     onSave({
       ...value,
       subHeads,
       amount: sumSubHeads(subHeads),
     });
+    if (salaryMode) setOpenSalaryIds(prev => new Set(prev).add(id));
   };
 
   const removeSub = (id: string) => {
@@ -109,11 +125,21 @@ export default function HeadDetailModal({
   };
 
   const sortedNotes = [...value.notes].sort((a, b) => b.date.localeCompare(a.date));
+  const toggleSalary = (id: string) => {
+    setOpenSalaryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
+        className={`bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col ${
+          salaryMode ? "max-w-3xl" : "max-w-lg"
+        }`}
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
@@ -169,7 +195,7 @@ export default function HeadDetailModal({
                 <Plus size={12} /> Add note
               </button>
             </div>
-            <div className="space-y-2 max-h-44 overflow-y-auto">
+            <div className="space-y-2 max-h-36 overflow-y-auto">
               {sortedNotes.length === 0 ? (
                 <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
                   No notes yet — add one with a date.
@@ -203,16 +229,57 @@ export default function HeadDetailModal({
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-gray-700">People / line items</p>
+              <p className="text-xs font-bold text-gray-700">
+                {salaryMode ? "Employees (full payroll)" : "People / line items"}
+              </p>
               <button type="button" onClick={addSub} className="text-[11px] font-bold text-[#0B84F3]">
-                + Add person / line
+                + {salaryMode ? "Add employee" : "Add person / line"}
               </button>
             </div>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+
+            <div className={`space-y-2 ${salaryMode ? "max-h-[55vh]" : "max-h-64"} overflow-y-auto`}>
               {value.subHeads.length === 0 ? (
                 <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed rounded-xl">
-                  No people/lines yet — total uses the amount above.
+                  No people yet — total uses the amount above.
                 </p>
+              ) : salaryMode ? (
+                value.subHeads.map(s => {
+                  const openEd = openSalaryIds.has(s.id);
+                  const sal = ensureSalaryDetail(s.salary, s.amount);
+                  const net = computeSalary(sal).totalSalary;
+                  return (
+                    <div key={s.id} className="rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="flex items-center gap-2 px-2.5 py-2 bg-[#F8FAFC]">
+                        <button type="button" onClick={() => toggleSalary(s.id)} className="text-gray-500">
+                          {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                        <input
+                          value={s.label}
+                          onChange={e => updateSub(s.id, { label: e.target.value })}
+                          className="flex-1 h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold"
+                          placeholder="Employee name"
+                        />
+                        <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                        <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      {openEd && (
+                        <div className="p-2 border-t border-gray-100">
+                          <EmployeeSalaryEditor
+                            name={s.label}
+                            teamHint={value.title}
+                            value={sal}
+                            onChange={next => {
+                              const total = computeSalary(next).totalSalary;
+                              updateSub(s.id, { salary: next, amount: total });
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               ) : (
                 value.subHeads.map(s => (
                   <div key={s.id} className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-2 space-y-1.5">
@@ -294,7 +361,7 @@ export default function HeadDetailModal({
             </div>
             {value.subHeads.length > 0 && (
               <p className="text-[11px] text-gray-500 mt-2 font-semibold">
-                Sub-heads sum: {currency(value.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0))}
+                Team / section sum: {currency(value.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0))}
               </p>
             )}
           </div>

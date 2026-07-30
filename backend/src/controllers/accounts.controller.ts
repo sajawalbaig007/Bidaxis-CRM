@@ -264,12 +264,38 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       const data = record.data as Record<string, unknown>;
 
       if (page === "balance_sheet") {
-        const assetSections = (data.assetSections as Array<{ items: Array<{ amount: number }> }>) ?? [];
-        const total = assetSections.reduce(
-          (acc, s) => acc + s.items.reduce((a, i) => a + (Number(i.amount) || 0), 0),
-          0,
-        );
-        summaries.balanceSheetTotalAssets = total;
+        const sumItems = (
+          items: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
+        ) =>
+          (items ?? []).reduce((a, i) => {
+            if (i.subHeads && i.subHeads.length > 0) {
+              return a + i.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+            }
+            return a + (Number(i.amount) || 0);
+          }, 0);
+
+        const assetSections =
+          (data.assetSections as Array<{ items?: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }> }>) ??
+          [];
+        const eqSections =
+          (data.equityLiabilitySections as Array<{
+            title?: string;
+            items?: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>;
+          }>) ?? [];
+
+        const totalAssets = assetSections.reduce((a, s) => a + sumItems(s.items), 0);
+        const equityItems =
+          eqSections.find(s => (s.title ?? "").toLowerCase() === "equity")?.items ?? [];
+        const totalEquity = sumItems(equityItems);
+        const liabilitySections = eqSections.filter(s => (s.title ?? "").toLowerCase() !== "equity");
+        const totalLiabilities = liabilitySections.reduce((a, s) => a + sumItems(s.items), 0);
+        const totalEquityLiabilities = totalEquity + totalLiabilities;
+
+        summaries.balanceSheetTotalAssets = totalAssets;
+        summaries.balanceSheetTotalEquity = totalEquity;
+        summaries.balanceSheetTotalLiabilities = totalLiabilities;
+        summaries.balanceSheetEquityLiabilities = totalEquityLiabilities;
+        summaries.balanceSheetDifference = totalAssets - totalEquityLiabilities;
       } else if (page === "income_statement") {
         const revenue = Number(data.totalRevenue) || 0;
         const sumLines = (
