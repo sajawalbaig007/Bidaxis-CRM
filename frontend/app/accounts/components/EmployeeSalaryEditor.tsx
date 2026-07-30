@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
+import API from "@/lib/api";
 import { computeSalary, emptySalaryDetail, type EmployeeSalaryDetail } from "../utils/payrollFormula";
 import { currency } from "../types";
 
@@ -8,6 +10,8 @@ type Props = {
   value: EmployeeSalaryDetail;
   onChange: (next: EmployeeSalaryDetail) => void;
   teamHint?: string;
+  /** Auto-lookup loan ledger by employee name */
+  enableLoanLookup?: boolean;
 };
 
 function Num({
@@ -47,12 +51,40 @@ function Read({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-export default function EmployeeSalaryEditor({ name, value, onChange, teamHint }: Props) {
+export default function EmployeeSalaryEditor({
+  name,
+  value,
+  onChange,
+  teamHint,
+  enableLoanLookup = true,
+}: Props) {
   const d = value;
   const b = computeSalary(d);
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
     onChange({ ...d, [key]: val });
   };
+
+  const lookupLoan = useCallback(async () => {
+    if (!enableLoanLookup || !name.trim()) return;
+    try {
+      const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(name)}`);
+      const loan = res.data.loan;
+      if (loan) {
+        onChange({
+          ...d,
+          loanTotal: Number(loan.totalAmount) || 0,
+          loanPaid: Number(loan.paidAmount) || 0,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [enableLoanLookup, name, d, onChange]);
+
+  useEffect(() => {
+    void lookupLoan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when name changes
+  }, [name]);
 
   return (
     <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3">
@@ -131,7 +163,18 @@ export default function EmployeeSalaryEditor({ name, value, onChange, teamHint }
       </div>
 
       <div className="rounded-xl border border-orange-100 bg-orange-50/30 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-orange-800">Loan</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-orange-800">Loan</p>
+          {enableLoanLookup && (
+            <button
+              type="button"
+              onClick={() => void lookupLoan()}
+              className="text-[10px] font-bold text-orange-700 hover:underline"
+            >
+              Lookup by name
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />
           <Num label="Amount Already Paid" value={d.loanPaid} onChange={v => set("loanPaid", v)} />
@@ -191,6 +234,5 @@ export function ensureSalaryDetail(
   fallbackAmount = 0,
 ): EmployeeSalaryDetail {
   if (existing) return emptySalaryDetail(existing);
-  // Bootstrap from flat amount as basic so net isn't zero on first open
   return emptySalaryDetail({ basic: fallbackAmount });
 }
