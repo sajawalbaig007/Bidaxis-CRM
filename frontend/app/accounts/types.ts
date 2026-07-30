@@ -1,11 +1,13 @@
 import type { EmployeeSalaryDetail } from "./utils/payrollFormula";
+import type { SalesPayrollEmployee } from "./utils/salesPayrollFormula";
 
 export type AccountsPageKey =
   | "dashboard"
   | "balance_sheet"
   | "income_statement"
   | "cash_flow"
-  | "total_assets";
+  | "total_assets"
+  | "sales_payroll";
 
 export type AccountsUpload = {
   id: string;
@@ -28,6 +30,8 @@ export type SubHeadEntry = {
   proofName?: string;
   /** Rich payroll fields (Team Salaries people). */
   salary?: EmployeeSalaryDetail;
+  /** Sales team commission payroll (no overtime, 6 PM shift). */
+  salesPayroll?: SalesPayrollEmployee;
 };
 
 /** Date-tagged note on a table row / head. */

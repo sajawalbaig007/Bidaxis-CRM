@@ -1,6 +1,17 @@
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
 import { lineAmount, newRowId, todayIso } from "../types";
 import { emptySalaryDetail } from "./payrollFormula";
+import {
+  emptySalesPayrollEmployee,
+  ensureSalesPayrollFromSub,
+  netFromSalesSub,
+  resolvePayrollKind,
+  tlExtraFromPeers,
+  isHammadSub,
+  isSalesLeadSub,
+  normalizeSalesTeamSubs,
+} from "./salesPayrollBridge";
+import { HAMMAD_TEAM_LEAD_ID } from "./salesPayrollDefaults";
 
 const COLUMN_HEADERS = new Set([
   "basic salary",
@@ -36,6 +47,17 @@ const COLUMN_HEADERS = new Set([
   "name",
 ]);
 
+function salesSub(label: string, amount: number, role: "sales" | "team_lead", id?: string): SubHeadEntry {
+  const sp = emptySalesPayrollEmployee(label, role, amount, 0, id ?? newRowId("sub"));
+  return {
+    id: sp.id,
+    label,
+    amount,
+    filledAt: todayIso(),
+    salesPayroll: sp,
+  };
+}
+
 function sub(label: string, amount: number, withSalary = false): SubHeadEntry {
   return {
     id: newRowId("sub"),
@@ -48,14 +70,33 @@ function sub(label: string, amount: number, withSalary = false): SubHeadEntry {
   };
 }
 
-/** Ensure every team person has a salary object (bootstrap basic from amount if missing). */
-function ensureTeamSalarySubs(subs: SubHeadEntry[] | undefined): SubHeadEntry[] {
+function ensureTeamSalarySubs(subs: SubHeadEntry[] | undefined, teamName: string): SubHeadEntry[] {
+  const kind = resolvePayrollKind(teamName, subs);
+  if (kind === "sales" || kind === "sales_lead") {
+    return normalizeSalesTeamSubs(subs, teamName);
+  }
   return (subs ?? []).map(s => {
     if (s.salary) return s;
     const salary = emptySalaryDetail({ basic: Number(s.amount) || 0 });
-    // Keep listed amount as net until user edits payroll fields (PF still shows in editor).
     return { ...s, salary };
   });
+}
+
+function seedTeam(team: string): TeamSalaryRow {
+  const seed = TEAM_SEED[team];
+  const people = seed?.people ?? [];
+  const subHeads = seed?.salesTeam
+    ? people.map(p => salesSub(p.label, p.amount, "sales"))
+    : seed?.salesTeamLead
+      ? people.map(p => salesSub(p.label, p.amount, "team_lead", p.id))
+      : people.map(p => sub(p.label, p.amount, true));
+  return {
+    id: newRowId("team"),
+    team,
+    totalSalary: seed?.total ?? lineAmount({ subHeads }),
+    filledAt: todayIso(),
+    subHeads,
+  };
 }
 
 function looksLikeColumnHeaders(subs: SubHeadEntry[] | undefined, headLabels?: string[]): boolean {
@@ -67,7 +108,15 @@ function looksLikeColumnHeaders(subs: SubHeadEntry[] | undefined, headLabels?: s
   return hits >= Math.ceil(labels.length * 0.6);
 }
 
-const TEAM_SEED: Record<string, { total: number; people: { label: string; amount: number }[] }> = {
+const TEAM_SEED: Record<
+  string,
+  {
+    total: number;
+    people: { label: string; amount: number; id?: string }[];
+    salesTeam?: boolean;
+    salesTeamLead?: boolean;
+  }
+> = {
   "Technical Team Salaries": {
     total: 162_645,
     people: [
@@ -82,9 +131,8 @@ const TEAM_SEED: Record<string, { total: number; people: { label: string; amount
     ],
   },
   "Sales Team Salaries": {
-    total: 420_303,
+    total: 358_853,
     people: [
-      { label: "Hammad", amount: 61_450 },
       { label: "Huraira", amount: 71_055 },
       { label: "Faris", amount: 43_763 },
       { label: "Ali", amount: 71_979 },
@@ -92,6 +140,12 @@ const TEAM_SEED: Record<string, { total: number; people: { label: string; amount
       { label: "Asim", amount: 31_400 },
       { label: "Anam", amount: 46_800 },
     ],
+    salesTeam: true,
+  },
+  "Sales Team Lead Salaries": {
+    total: 61_450,
+    people: [{ label: "Hammad", amount: 61_450, id: HAMMAD_TEAM_LEAD_ID }],
+    salesTeamLead: true,
   },
   "Email Marketing Team Salaries": {
     total: 10_000,
@@ -171,19 +225,6 @@ const OPEX_SEED: Record<string, { amount: number; lines: { label: string; amount
     ],
   },
 };
-
-function seedTeam(team: string): TeamSalaryRow {
-  const seed = TEAM_SEED[team];
-  const people = seed?.people ?? [];
-  const subHeads = people.map(p => sub(p.label, p.amount, true));
-  return {
-    id: newRowId("team"),
-    team,
-    totalSalary: seed?.total ?? lineAmount({ subHeads }),
-    filledAt: todayIso(),
-    subHeads,
-  };
-}
 
 function seedOpex(label: string): OpexRow {
   const seed = OPEX_SEED[label];
@@ -284,12 +325,63 @@ export function seededIncomeStatementData(): IncomeStatementData {
  * inject spreadsheet people / expense lines so the UI is editable per person.
  */
 export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeStatementData {
-  const existingTeams = new Map((data.teamSalaries ?? []).map(t => [t.team, t]));
+  // Migrate legacy: Hammad / team-lead subs under Sales Team → Sales Team Lead
+  let teamSalariesIn = [...(data.teamSalaries ?? [])];
+  const salesIdx = teamSalariesIn.findIndex(t => t.team === "Sales Team Salaries");
+  let leadIdx = teamSalariesIn.findIndex(t => t.team === "Sales Team Lead Salaries");
+
+  if (salesIdx >= 0) {
+    const salesTeam = teamSalariesIn[salesIdx];
+    const leadSubs = (salesTeam.subHeads ?? []).filter(isSalesLeadSub);
+    const reps = (salesTeam.subHeads ?? []).filter(s => !isSalesLeadSub(s));
+    teamSalariesIn[salesIdx] = {
+      ...salesTeam,
+      subHeads: reps,
+      totalSalary: lineAmount({ ...salesTeam, subHeads: reps }),
+    };
+    const hammad = leadSubs.find(isHammadSub) ?? leadSubs[0];
+    if (hammad) {
+      const leadTeam =
+        leadIdx >= 0 ? teamSalariesIn[leadIdx] : seedTeam("Sales Team Lead Salaries");
+      const hammadSub = salesSub("Hammad", hammad.amount, "team_lead", HAMMAD_TEAM_LEAD_ID);
+      const existing = (leadTeam.subHeads ?? []).filter(s => !isHammadSub(s));
+      const nextLead = {
+        ...leadTeam,
+        subHeads: [...existing, hammadSub],
+        totalSalary: lineAmount({
+          ...leadTeam,
+          subHeads: [...existing, hammadSub],
+        }),
+      };
+      if (leadIdx >= 0) teamSalariesIn[leadIdx] = nextLead;
+      else {
+        teamSalariesIn.push(nextLead);
+        leadIdx = teamSalariesIn.length - 1;
+      }
+    }
+  }
+
+  if (leadIdx < 0) {
+    teamSalariesIn.push(seedTeam("Sales Team Lead Salaries"));
+  }
+
+  const existingTeams = new Map(teamSalariesIn.map(t => [t.team, t]));
   const teamSalaries = Object.keys(TEAM_SEED).map(teamName => {
     const current = existingTeams.get(teamName);
     if (!current) return seedTeam(teamName);
     if (!looksLikeColumnHeaders(current.subHeads, current.headLabels)) {
-      const subHeads = ensureTeamSalarySubs(current.subHeads);
+      const salesPeers =
+        teamName === "Sales Team Lead Salaries"
+          ? ensureTeamSalarySubs(existingTeams.get("Sales Team Salaries")?.subHeads, "Sales Team Salaries")
+          : [];
+      let subHeads = ensureTeamSalarySubs(current.subHeads, teamName);
+      if (teamName === "Sales Team Lead Salaries") {
+        subHeads = subHeads.map(s => {
+          const extra = tlExtraFromPeers(s.id, salesPeers);
+          const amount = netFromSalesSub({ ...s, salesPayroll: ensureSalesPayrollFromSub(s, "team_lead") }, "team_lead", extra);
+          return { ...s, amount };
+        });
+      }
       return {
         ...current,
         subHeads,
@@ -306,9 +398,9 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
   });
 
   // Keep any custom teams the user already added
-  for (const t of data.teamSalaries ?? []) {
+  for (const t of teamSalariesIn) {
     if (!TEAM_SEED[t.team] && !teamSalaries.some(x => x.id === t.id)) {
-      const subHeads = ensureTeamSalarySubs(t.subHeads);
+      const subHeads = ensureTeamSalarySubs(t.subHeads, t.team);
       teamSalaries.push({ ...t, subHeads, totalSalary: lineAmount({ ...t, subHeads }) });
     }
   }
