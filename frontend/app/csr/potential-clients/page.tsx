@@ -20,7 +20,6 @@ import MonthRangeFilter from "../components/shared/MonthRangeFilter";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import InterestedServicesCell from "../components/shared/InterestedServicesCell";
-import PipelineMoveSelect from "../components/shared/PipelineMoveSelect";
 import InterestedModal from "../components/modals/InterestedModal";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
 import { collectLeadPhones } from "../utils/parsePhones";
@@ -449,7 +448,6 @@ export default function ImportantCallsPage() {
                     <th className={CSR_TH}>Interested In</th>
                     <th className={CSR_TH}>Notes</th>
                     <th className={CSR_TH}>Status</th>
-                    <th className={CSR_TH}>Our Company</th>
                     <th className={CSR_TH}>Action</th>
                   </tr>
                 </thead>
@@ -457,7 +455,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6,7].map(j => (
+                        {[1,2,3,4,5,6].map(j => (
                           <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
@@ -491,22 +489,14 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
-                        <div className="flex flex-col gap-1.5 min-w-0">
-                          <span className="px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap w-fit">Important</span>
-                          <PipelineMoveSelect
-                            onMove={s => void movePipelineStatus(lead.id, s)}
-                          />
-                        </div>
-                      </td>
-                      <td className={CSR_TD}>
-                        <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
+                        <span className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">Important</span>
                       </td>
                       <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 sm:gap-2">
-                          <button onClick={() => setViewingLead(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center" title="View">
+                          <button onClick={() => setViewingLead(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center shrink-0" title="View">
                             <Eye size={14} />
                           </button>
-                          <button onClick={() => openEditModal(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center" title="Edit">
+                          <button onClick={() => openEditModal(lead)} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#B8112D] text-white hover:bg-[#a30f27] flex items-center justify-center shrink-0" title="Edit">
                             <Pencil size={14} />
                           </button>
                         </div>
@@ -514,7 +504,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={7} className="py-16 sm:py-20 text-center">
+                      <td colSpan={6} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         <p className="text-gray-400 text-xs sm:text-sm">No important clients found.</p>
                       </td>
@@ -569,7 +559,7 @@ export default function ImportantCallsPage() {
                 <CsrColGroup widths={COL_9_SCHEDULE} />
                 <thead className={CSR_THEAD}>
                   <tr className="border-b border-[#F1F1F1]">
-                    {["Client Name","Phone","Next Schedule","Time & Timezone","Notes","Status","Our Company","Action"].map(h => (
+                    {["Client Name","Phone","Schedule","Notes","Status","Action"].map(h => (
                       <th key={h} className={CSR_TH}>{h}</th>
                     ))}
                   </tr>
@@ -578,7 +568,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6,7,8,9].map(j => (
+                        {[1,2,3,4,5,6].map(j => (
                           <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
@@ -603,43 +593,33 @@ export default function ImportantCallsPage() {
                         })()}
                       </td>
                       <td className={CSR_TD}>
-                        {lead.nextSchedule ? (
-                          <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold whitespace-nowrap ${
-                            lead.nextSchedule === TODAY_STR ? "bg-[#EAF5FF] text-[#0B84F3]" : "bg-[#F5F6FA] text-gray-600"
-                          }`}>
-                            <CalendarDays size={11} className="sm:w-[12px] sm:h-[12px]" />
-                            {lead.nextSchedule === TODAY_STR ? "Today" : lead.nextSchedule}
-                          </span>
-                        ) : <span className="text-gray-300 text-sm">—</span>}
-                      </td>
-                      <td className={CSR_TD}>
-                        <p className="text-[13px] sm:text-[14px] font-semibold text-[#0F172A] whitespace-nowrap truncate">
-                          {lead.nextTime || "—"}
-                        </p>
-                        {lead.timezone && (
-                          <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 truncate">
-                            {getTzAbbr(lead.timezone)}
+                        <div className="min-w-0">
+                          {lead.nextSchedule ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold max-w-full ${
+                              lead.nextSchedule === TODAY_STR ? "bg-[#EAF5FF] text-[#0B84F3]" : "bg-[#F5F6FA] text-gray-600"
+                            }`}>
+                              <CalendarDays size={11} className="shrink-0" />
+                              <span className="truncate">{lead.nextSchedule === TODAY_STR ? "Today" : lead.nextSchedule}</span>
+                            </span>
+                          ) : <span className="text-gray-300 text-sm">—</span>}
+                          <p className="text-[11px] sm:text-[12px] font-semibold text-[#0F172A] mt-0.5 truncate">
+                            {lead.nextTime || "—"}
+                            {lead.timezone ? (
+                              <span className="text-[10px] font-normal text-gray-400 ml-1">{getTzAbbr(lead.timezone)}</span>
+                            ) : null}
                           </p>
-                        )}
+                        </div>
                       </td>
                       <td className={CSR_TD}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
-                        <div className="flex flex-col gap-1.5 min-w-0">
-                          <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-[12px] font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
-                            Schedule Call
-                          </div>
-                          <PipelineMoveSelect
-                            onMove={s => void movePipelineStatus(lead.id, s)}
-                          />
+                        <div className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
+                          Schedule Call
                         </div>
                       </td>
                       <td className={CSR_TD}>
-                        <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
-                      </td>
-                      <td className={CSR_TD}>
-                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             onClick={() => setViewingLead(lead)}
                             className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
@@ -658,7 +638,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={8} className="py-16 sm:py-20 text-center">
+                      <td colSpan={6} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         <p className="text-gray-400 text-xs sm:text-sm">No scheduled calls found.</p>
                         {(searchQuery || filterDate) && (
@@ -729,7 +709,6 @@ export default function ImportantCallsPage() {
                     <th className={CSR_TH}>Interested In</th>
                     <th className={CSR_TH}>Notes</th>
                     <th className={CSR_TH}>Status</th>
-                    <th className={CSR_TH}>Our Company</th>
                     <th className={CSR_TH}>Action</th>
                   </tr>
                 </thead>
@@ -737,7 +716,7 @@ export default function ImportantCallsPage() {
                   {loading ? (
                     [1,2,3].map(i => (
                       <tr key={i} className="border-b border-[#F7F7F7]">
-                        {[1,2,3,4,5,6,7,8].map(j => (
+                        {[1,2,3,4,5,6].map(j => (
                           <td key={j} className={CSR_TD}>
                             <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-16 sm:w-20" />
                           </td>
@@ -772,17 +751,9 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} />
                       </td>
                       <td className={CSR_TD}>
-                        <div className="flex flex-col gap-1.5 min-w-0">
-                          <div className="bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 rounded-xl text-[11px] font-semibold w-fit whitespace-nowrap">
-                            Interested
-                          </div>
-                          <PipelineMoveSelect
-                            onMove={s => void movePipelineStatus(lead.id, s)}
-                          />
+                        <div className="bg-[#FFF1F3] text-[#B8112D] px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap">
+                          Interested
                         </div>
-                      </td>
-                      <td className={CSR_TD}>
-                        <span className="text-[12px] truncate block">{ourCompany(lead)}</span>
                       </td>
                       <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -804,7 +775,7 @@ export default function ImportantCallsPage() {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={7} className="py-16 sm:py-20 text-center text-gray-400 text-xs sm:text-sm">
+                      <td colSpan={6} className="py-16 sm:py-20 text-center text-gray-400 text-xs sm:text-sm">
                         {searchQuery ? "No leads match your search." : "No interested clients found."}
                         {searchQuery && (
                           <button onClick={() => setSearchQuery("")}

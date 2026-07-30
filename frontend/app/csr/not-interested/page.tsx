@@ -16,7 +16,6 @@ import ImportantCallModal from "../components/modals/ImportantCallModal";
 import InterestedModal from "../components/modals/InterestedModal";
 import ClientNameCell from "../components/shared/ClientNameCell";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
-import { ourCompany } from "../utils/leadFieldLabels";
 import { collectLeadPhones } from "../utils/parsePhones";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import TriesBar from "../components/shared/TriesBar";
@@ -27,7 +26,6 @@ import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterIn
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
-import SubContactsCell from "@/app/components/clients/SubContactsCell";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
 import { useCsrMiscStatusLeads } from "../hooks/useCsrMiscStatusLeads";
@@ -456,9 +454,7 @@ export default function NotInterestedPage() {
               <thead className={CSR_THEAD}>
                 <tr className="border-b border-[#F1F1F1]">
                   <th className={CSR_TH}>Client Name</th>
-                  <th className={CSR_TH}>Our Company</th>
                   <th className={CSR_TH}>Phone</th>
-                  <th className={`hidden lg:table-cell ${CSR_TH}`}>Sub Contacts</th>
                   <th className={CSR_TH}>Notes</th>
                   <th className={CSR_TH}>Tries</th>
                   <th className={CSR_TH}>Status</th>
@@ -469,7 +465,7 @@ export default function NotInterestedPage() {
                 {pageLoading ? (
                   [1,2,3,4].map(i => (
                     <tr key={i} className="border-b border-[#F7F7F7]">
-                      {[1,2,3,4,5,6,7,8].map(j => (
+                      {[1,2,3,4,5,6].map(j => (
                         <td key={j} className={CSR_TD}>
                           <div className="h-3.5 sm:h-4 bg-gray-100 rounded animate-pulse w-14 sm:w-20" />
                         </td>
@@ -496,15 +492,7 @@ export default function NotInterestedPage() {
                           <ClientNameCell
                             lead={lead}
                             subtitle={statusDisplayLabel(lead.status)}
-                            hideOurCompany
                           />
-                        </td>
-
-                        {/* Our Company */}
-                        <td className={CSR_TD}>
-                          <span className="text-[11px] sm:text-[12px] font-medium text-[#0F172A] dark:text-crm-text truncate block">
-                            {ourCompany(lead)}
-                          </span>
                         </td>
 
                         {/* Phone — number + area-code TZ */}
@@ -520,10 +508,6 @@ export default function NotInterestedPage() {
                               />
                             );
                           })()}
-                        </td>
-
-                        <td className={`hidden lg:table-cell ${CSR_TD}`}>
-                          <SubContactsCell contacts={lead.subContacts} />
                         </td>
 
                         {/* Sticky Note */}
@@ -559,38 +543,40 @@ export default function NotInterestedPage() {
 
                         {/* Action */}
                         <td className={CSR_TD}>
-                          <div className="flex items-center gap-1 min-w-0">
-                            <button
-                              onClick={() => setViewingLead(lead)}
-                              title="View details"
-                              className="h-7 w-7 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
-                            >
-                              <Eye size={12} />
-                            </button>
-                            {isRetryTab && !isAtLimit && (
+                          <div className="flex flex-col gap-1 min-w-0 w-full">
+                            <div className="flex items-center gap-1">
                               <button
-                                onClick={() => handleRetry(lead)}
-                                title="Retry"
-                                className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-700 flex items-center justify-center hover:bg-[#B8112D] hover:text-white shrink-0"
+                                onClick={() => setViewingLead(lead)}
+                                title="View details"
+                                className="h-7 w-7 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
                               >
-                                <RefreshCw size={11} />
+                                <Eye size={12} />
                               </button>
-                            )}
-                            {lead.followUpNotes && (
-                              <button
-                                onClick={() => setExpandedRow(expandedRow === lead.id ? null : lead.id)}
-                                title="View history"
-                                className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-500 flex items-center justify-center shrink-0"
-                              >
-                                {expandedRow === lead.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                              </button>
-                            )}
+                              {isRetryTab && !isAtLimit && (
+                                <button
+                                  onClick={() => handleRetry(lead)}
+                                  title="Retry"
+                                  className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-700 flex items-center justify-center hover:bg-[#B8112D] hover:text-white shrink-0"
+                                >
+                                  <RefreshCw size={11} />
+                                </button>
+                              )}
+                              {lead.followUpNotes && (
+                                <button
+                                  onClick={() => setExpandedRow(expandedRow === lead.id ? null : lead.id)}
+                                  title="View history"
+                                  className="h-7 w-7 rounded-lg bg-[#F5F6FA] text-gray-500 flex items-center justify-center shrink-0"
+                                >
+                                  {expandedRow === lead.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                </button>
+                              )}
+                            </div>
                             <select
                               defaultValue=""
                               onChange={e => { void handleUpdateStatus(lead, e.target.value); e.currentTarget.value = ""; }}
-                              className="appearance-none h-7 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-1 text-[9px] sm:text-[10px] font-semibold text-[#0F172A] outline-none truncate"
+                              className="appearance-none h-7 w-full rounded-lg border border-gray-200 bg-white px-1.5 text-[9px] sm:text-[10px] font-semibold text-[#0F172A] outline-none"
                             >
-                              <option value="">Status</option>
+                              <option value="">Update Status</option>
                               <option value="Not Interested">Not Interested</option>
                               <option value="not picked">Not Picked</option>
                               <option value={STATUS_NO_OWNER}>No Owner Available</option>
@@ -609,7 +595,7 @@ export default function NotInterestedPage() {
                       {/* ── History row ── */}
                       {expandedRow === lead.id && lead.followUpNotes && (
                         <tr key={`${lead.id}-hist`} className="bg-[#F8FAFF]">
-                          <td colSpan={8} className="px-4 sm:px-6 py-3 sm:py-4">
+                          <td colSpan={6} className="px-4 sm:px-6 py-3 sm:py-4">
                             <div className="flex items-start gap-2 sm:gap-3">
                               <div className="mt-0.5 w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                                 <History size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -681,7 +667,7 @@ export default function NotInterestedPage() {
                   );
                 }) : (
                   <tr>
-                    <td colSpan={8} className="py-16 sm:py-20 text-center">
+                    <td colSpan={6} className="py-16 sm:py-20 text-center">
                       {activeTab === "notinterested"
                         ? <ThumbsDown size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                         : <PhoneOff   size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />

@@ -344,11 +344,11 @@ export default function CommentCell({
   );
 
   return (
-    <div className="relative min-w-0 max-w-[280px]">
+    <div className="relative min-w-0 w-full max-w-full">
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className={`flex flex-col items-start gap-0.5 w-full min-w-[120px] h-auto min-h-8 px-3 py-1.5 rounded-xl border text-left text-[12px] font-semibold transition-all ${
+        className={`flex flex-col items-start gap-0.5 w-full min-w-0 h-auto min-h-8 px-2 sm:px-3 py-1.5 rounded-xl border text-left text-[11px] sm:text-[12px] font-semibold transition-all ${
           count > 0
             ? "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-200"
             : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:bg-gray-800 dark:border-gray-700"

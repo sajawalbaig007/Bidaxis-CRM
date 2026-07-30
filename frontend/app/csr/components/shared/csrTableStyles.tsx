@@ -16,13 +16,15 @@ export const CSR_TD_TOP = "py-2 px-1.5 sm:px-2 align-top max-w-0 overflow-hidden
 export const CSR_TH_ACTION = `${CSR_TH} w-[1%] whitespace-nowrap`;
 export const CSR_TD_ACTION = `${CSR_TD_FLUID} w-[1%] whitespace-nowrap`;
 
-export const COL_8_FOLLOWUP = ["17%", "12%", "13%", "11%", "9%", "10%", "11%", "17%"] as const;
+export const COL_8_FOLLOWUP = ["22%", "14%", "18%", "12%", "14%", "20%"] as const;
 export const COL_9_FOLLOWUP = ["14%", "10%", "11%", "9%", "10%", "9%", "7%", "9%", "21%"] as const;
 export const COL_8_IMPORTANT = ["16%", "11%", "12%", "11%", "10%", "9%", "10%", "21%"] as const;
-export const COL_7_IMPORTANT_SUB = ["20%", "12%", "12%", "16%", "14%", "10%", "16%"] as const;
+/** Potential Important / Interested: Client, Phone, Scope, Notes, Status, Action */
+export const COL_7_IMPORTANT_SUB = ["24%", "14%", "16%", "20%", "12%", "14%"] as const;
 export const COL_6_POTENTIAL = ["24%", "14%", "14%", "16%", "12%", "20%"] as const;
-export const COL_9_SCHEDULE = ["13%", "10%", "11%", "9%", "15%", "14%", "9%", "19%"] as const;
-export const COL_8_INTERESTED_SUB = ["15%", "11%", "12%", "16%", "15%", "10%", "21%"] as const;
+/** Potential Schedule: Client, Phone, When, Notes, Status, Action */
+export const COL_9_SCHEDULE = ["22%", "13%", "20%", "18%", "13%", "14%"] as const;
+export const COL_8_INTERESTED_SUB = ["24%", "14%", "16%", "20%", "12%", "14%"] as const;
 export const COL_8_SCHEDULE = COL_9_SCHEDULE;
 export const COL_7_INTERESTED_SUB = COL_8_INTERESTED_SUB;
 export const COL_5_POTENTIAL = COL_6_POTENTIAL;
@@ -70,7 +72,7 @@ export const CSR_TABLE_CARD =
   "crm-table-card rounded-2xl sm:rounded-[30px] border shadow-sm mt-4 sm:mt-7 min-w-0 overflow-hidden";
 
 /** Table fits viewport — no inner horizontal scroll */
-export const CSR_TABLE_WRAP = "w-full min-w-0 overflow-x-hidden px-2 sm:px-4 lg:px-5 pb-3 sm:pb-4";
+export const CSR_TABLE_WRAP = "w-full min-w-0 overflow-x-hidden px-1.5 sm:px-3 lg:px-4 pb-3 sm:pb-4";
 
 export function matchesLeadSearch(
   q: string,
