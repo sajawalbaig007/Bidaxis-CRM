@@ -9,7 +9,7 @@ import { PieChart as PieIcon, Users, Layers3, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
-import ExpandableHeadsTable, { type ExpandableHeadProp } from "../components/ExpandableHeadsTable";
+import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
@@ -21,7 +21,7 @@ function defaultData(): IncomeStatementData {
   return seededIncomeStatementData();
 }
 
-function teamToHead(t: TeamSalaryRow): ExpandableHeadProp {
+function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
   return {
     id: t.id,
     title: t.team,
@@ -32,7 +32,7 @@ function teamToHead(t: TeamSalaryRow): ExpandableHeadProp {
   };
 }
 
-function opexToHead(o: OpexRow): ExpandableHeadProp {
+function opexToHead(o: OpexRow): ExpandableHeadRow {
   return {
     id: o.id,
     title: o.label,
@@ -43,7 +43,7 @@ function opexToHead(o: OpexRow): ExpandableHeadProp {
   };
 }
 
-function headToTeam(h: ExpandableHeadProp): TeamSalaryRow {
+function headToTeam(h: ExpandableHeadRow): TeamSalaryRow {
   return {
     id: h.id,
     team: h.title,
@@ -54,7 +54,7 @@ function headToTeam(h: ExpandableHeadProp): TeamSalaryRow {
   };
 }
 
-function headToOpex(h: ExpandableHeadProp): OpexRow {
+function headToOpex(h: ExpandableHeadRow): OpexRow {
   return {
     id: h.id,
     label: h.title,
