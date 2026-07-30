@@ -22,7 +22,7 @@ export function formatAdminLead(lead: {
   state?: string | null;
   uploadFile?: { companyName?: string };
   csr?: { name?: string; csrCode?: string | null };
-  notes?: { text: string; createdAt?: string }[];
+  notes?: { id?: string; text: string; createdAt?: string }[];
 }): {
   id: string;
   clientName: string;
@@ -45,6 +45,8 @@ export function formatAdminLead(lead: {
   timezone: string;
   isOldClient: boolean;
   state: string;
+  noteCount: number;
+  noteHistory: { id: string; text: string; createdAt: string }[];
 } {
   const rawStatus = (lead.status || "pending").toLowerCase();
   const raw = lead.important && rawStatus !== "important" ? "important" : rawStatus;
@@ -59,6 +61,14 @@ export function formatAdminLead(lead: {
     lead.company?.trim() || lead.uploadFile?.companyName?.trim() || "N/A";
 
   const nextFollowup = lead.nextSchedule || "";
+
+  const noteHistory = (lead.notes ?? [])
+    .filter((n) => !!n.text?.trim())
+    .map((n, idx) => ({
+      id: n.id ?? `legacy-${lead.id}-${idx}`,
+      text: n.text.trim(),
+      createdAt: n.createdAt || lead.updatedAt || new Date().toISOString(),
+    }));
 
   return {
     id: lead.id,
@@ -82,5 +92,7 @@ export function formatAdminLead(lead: {
     timezone: lead.timezone || "N/A",
     isOldClient: lead.isOldClient ?? false,
     state: lead.state?.trim() || "",
+    noteCount: noteHistory.length,
+    noteHistory,
   };
 }
