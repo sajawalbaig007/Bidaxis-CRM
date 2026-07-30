@@ -329,6 +329,7 @@ export default function IncomeStatementPage() {
               title="Team Salaries"
               accent="#0B84F3"
               addLabel="Add Team"
+              salaryMode
               rows={(acc.data.teamSalaries ?? []).map(teamToHead)}
               onChange={rows => acc.setData(prev => ({ ...prev, teamSalaries: rows.map(headToTeam) }))}
             />
