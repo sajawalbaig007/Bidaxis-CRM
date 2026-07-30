@@ -291,10 +291,10 @@ export const getReports = async (req: Request, res: Response) => {
       // Total = leads currently with each CSR (not period-filtered)
       prisma.lead.groupBy({
         by: ["assignedTo"],
-        where: { assignedTo: { not: null } },
+        where: { assignedTo: { not: "" } },
         _count: { _all: true },
       }),
-      prisma.lead.count({ where: { assignedTo: { not: null } } }),
+      prisma.lead.count({ where: { assignedTo: { not: "" } } }),
     ]);
 
     const totals = emptyCsrEntry("all", "all", null);
@@ -319,7 +319,11 @@ export const getReports = async (req: Request, res: Response) => {
     const assignedCountMap = new Map<string, number>();
     for (const row of assignedByCsr) {
       if (!row.assignedTo) continue;
-      assignedCountMap.set(row.assignedTo, row._count._all);
+      const count =
+        typeof row._count === "object" && row._count && typeof row._count._all === "number"
+          ? row._count._all
+          : 0;
+      assignedCountMap.set(row.assignedTo, count);
     }
     for (const [csrId, count] of assignedCountMap) {
       const existing = csrMap.get(csrId);
