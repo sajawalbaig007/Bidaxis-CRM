@@ -1,15 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import AccountsSidebar from "../components/layout/Sidebar";
-import SalesPayrollPageContent from "../components/salesPayroll/SalesPayrollPageContent";
-
-export default function SalesTeamLeadPayrollPage() {
-  return (
-    <div className="min-h-screen bg-[#F5F6FA]">
-      <AccountsSidebar />
-      <main className="pt-[76px] pb-10">
-        <SalesPayrollPageContent variant="team_lead" />
-      </main>
-    </div>
-  );
+/** Payroll lives under Income Statement → Team Salaries */
+export default function SalesTeamLeadPayrollRedirect() {
+  redirect("/accounts/income-statement");
 }

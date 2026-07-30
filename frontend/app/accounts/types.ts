@@ -138,12 +138,22 @@ export type TotalAssetsData = {
   sections?: AssetSectionRow[];
 };
 
-/** AH = Ahmed Hamza (0.89), SN = Sharjeel Nasir (CAD 0.945 / rate 196) */
-export type CurrencyTabKey = "SN" | "AH";
+/** AH/SN = FX; CHQ = cheque 25% tax; HM = Habib Metro direct 1% tax */
+export type CurrencyTabKey = "SN" | "AH" | "CHQ" | "HM";
 
 export const CURRENCY_TAB_LABELS: Record<CurrencyTabKey | "ALL", string> = {
   AH: "Ahmed Hamza",
   SN: "Sharjeel Nasir",
+  CHQ: "Cheque Payment",
+  HM: "Direct Habib Metro",
+  ALL: "All",
+};
+
+export const CURRENCY_TAB_SHORT: Record<CurrencyTabKey | "ALL", string> = {
+  AH: "Ahmed",
+  SN: "Sharjeel",
+  CHQ: "Cheque",
+  HM: "Habib",
   ALL: "All",
 };
 
@@ -155,6 +165,11 @@ export type DashboardCurrencyTab = {
   cadToPkrRate: number;
   usdTaxFactor: number;
   cadTaxFactor: number;
+  /**
+   * Local PKR payment tax deduction rate (e.g. 0.25 cheque, 0.01 Habib Metro).
+   * When set, `pkrAmount` is treated as gross and net = gross × (1 − rate).
+   */
+  taxDeductionRate?: number;
 };
 
 export type DashboardCurrency = {
@@ -169,6 +184,10 @@ export type DashboardCurrency = {
 export type DashboardData = {
   currency: DashboardCurrency;
 };
+
+export function isLocalPaymentTab(tab: CurrencyTabKey): boolean {
+  return tab === "CHQ" || tab === "HM";
+}
 
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
