@@ -272,10 +272,21 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         summaries.balanceSheetTotalAssets = total;
       } else if (page === "income_statement") {
         const revenue = Number(data.totalRevenue) || 0;
-        const teams = (data.teamSalaries as Array<{ totalSalary: number }>) ?? [];
-        const opex = (data.opexHeads as Array<{ amount: number }>) ?? [];
-        const expense = teams.reduce((a, t) => a + (Number(t.totalSalary) || 0), 0)
-          + opex.reduce((a, o) => a + (Number(o.amount) || 0), 0);
+        const sumLines = (
+          rows: Array<{ amount?: number; totalSalary?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
+        ) =>
+          (rows ?? []).reduce((a, row) => {
+            if (row.subHeads && row.subHeads.length > 0) {
+              return a + row.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+            }
+            return a + (Number(row.amount ?? row.totalSalary) || 0);
+          }, 0);
+
+        const expense =
+          sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>) +
+          sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>) +
+          sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>) +
+          sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
         summaries.incomeNetProfit = revenue - expense;
       } else if (page === "cash_flow") {
         const months = (data.months as Array<{ rows: Array<{ netAmount: number }> }>) ?? [];

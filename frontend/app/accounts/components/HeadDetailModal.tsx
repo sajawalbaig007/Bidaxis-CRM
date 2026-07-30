@@ -49,7 +49,7 @@ export default function HeadDetailModal({
   const addSub = () => {
     const subHeads = [
       ...value.subHeads,
-      { id: newRowId("sub"), label: "New sub-head", amount: 0, filledAt: todayIso() },
+      { id: newRowId("sub"), label: "New person / line", amount: 0, filledAt: todayIso() },
     ];
     onSave({
       ...value,
@@ -115,7 +115,7 @@ export default function HeadDetailModal({
 
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs font-semibold text-gray-600 block">
-              {value.subHeads.length > 0 ? "Total (from sub-heads)" : "Total (add sub-heads or set here)"}
+              {value.subHeads.length > 0 ? "Total (auto from people / lines)" : "Total (add people/lines or set here)"}
               <input
                 type="number"
                 value={value.subHeads.length > 0 ? sumSubHeads(value.subHeads) : value.amount}
@@ -184,15 +184,15 @@ export default function HeadDetailModal({
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-gray-700">Individual sub-heads</p>
+              <p className="text-xs font-bold text-gray-700">People / line items</p>
               <button type="button" onClick={addSub} className="text-[11px] font-bold text-[#0B84F3]">
-                + Add sub-head
+                + Add person / line
               </button>
             </div>
             <div className="space-y-2 max-h-52 overflow-y-auto">
               {value.subHeads.length === 0 ? (
                 <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed rounded-xl">
-                  No sub-heads — total uses the amount above.
+                  No people/lines yet — total uses the amount above.
                 </p>
               ) : (
                 value.subHeads.map(s => (
