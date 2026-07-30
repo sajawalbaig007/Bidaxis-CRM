@@ -5,6 +5,17 @@ import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
 import { computeSalary } from "../utils/payrollFormula";
+import {
+  resolvePayrollKind,
+  payrollKindForTeamTitle,
+  ensureSalesPayrollFromSub,
+  netFromSalesSub,
+  tlExtraFromPeers,
+  salesSubsFromPeerRows,
+  normalizeSalesTeamSubs,
+  isSalesTeamTitle,
+} from "../utils/salesPayrollBridge";
+import { computeSalesEmployeePayroll } from "../utils/salesPayrollFormula";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
@@ -97,14 +108,27 @@ export default function ExpandableHeadsTable({
   };
 
   const openEdit = (row: ExpandableHeadRow) => {
+    const kind = salaryMode ? resolvePayrollKind(row.title, row.subHeads) : "technical";
+    const isSales = kind === "sales" || kind === "sales_lead" || isSalesTeamTitle(row.title, row.subHeads);
+    const subHeads = isSales ? normalizeSalesTeamSubs(row.subHeads, row.title) : (row.subHeads ?? []);
+    if (isSales) {
+      onChange(
+        rows.map(r =>
+          r.id === row.id
+            ? { ...r, subHeads, amount: subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0) }
+            : r,
+        ),
+      );
+    }
     setEditing({
       id: row.id,
       title: row.title,
       amount: row.amount,
       filledAt: row.filledAt ?? todayIso(),
       note: row.note,
-      subHeads: row.subHeads ?? [],
+      subHeads,
       notes: normalizeNotes(row.notes, row.note, row.filledAt),
+      payrollKind: isSales ? (kind === "technical" ? payrollKindForTeamTitle(row.title) : kind) : kind,
     });
   };
 
@@ -150,8 +174,19 @@ export default function ExpandableHeadsTable({
             ) : (
               rows.map((row, idx) => {
                 const expanded = openIds.has(row.id);
-                const subs = row.subHeads ?? [];
-                const amt = lineAmount(row);
+                const rowPayrollKind = salaryMode ? resolvePayrollKind(row.title, row.subHeads) : "technical";
+                const isSalesRow =
+                  salaryMode &&
+                  (rowPayrollKind === "sales" ||
+                    rowPayrollKind === "sales_lead" ||
+                    isSalesTeamTitle(row.title, row.subHeads));
+                const subs = isSalesRow
+                  ? normalizeSalesTeamSubs(row.subHeads, row.title)
+                  : (row.subHeads ?? []);
+                const salesPeers = salesSubsFromPeerRows(rows);
+                const amt = isSalesRow
+                  ? subs.reduce((a, s) => a + (Number(s.amount) || 0), 0)
+                  : lineAmount(row);
                 return (
                   <Fragment key={row.id}>
                     <tr className={`border-b border-gray-50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-[#FCFCFD]"} hover:bg-[#F8FAFC]`}>
@@ -217,10 +252,20 @@ export default function ExpandableHeadsTable({
                                 <thead>
                                   <tr className="border-b bg-gray-50/80 text-gray-400">
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Employee</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Basic</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Allow.</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">OT</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Earning</th>
+                                    {isSalesRow ? (
+                                      <>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Commission</th>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Basic</th>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Allow.</th>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Basic</th>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Allow.</th>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">OT</th>
+                                        <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Earning</th>
+                                      </>
+                                    )}
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Late</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Unpaid</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan</th>
@@ -232,6 +277,27 @@ export default function ExpandableHeadsTable({
                                 </thead>
                                 <tbody>
                                   {subs.map(s => {
+                                    if (isSalesRow) {
+                                      const role = rowPayrollKind === "sales_lead" ? "team_lead" : "sales";
+                                      const sp = ensureSalesPayrollFromSub(s, role);
+                                      const extra = rowPayrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0;
+                                      const b = computeSalesEmployeePayroll(sp, extra);
+                                      return (
+                                        <tr key={s.id} className="border-b border-gray-50 last:border-0">
+                                          <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{currency(b.totalCommission + extra)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(sp.basic)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(sp.allowance)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(b.lateDeduction)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(b.unpaidLeaveDeduction)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(sp.loanThisMonth)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(b.pf)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums">{currency(sp.incomeTax)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(b.totalDeduction)}</td>
+                                          <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                        </tr>
+                                      );
+                                    }
                                     const sal = s.salary ? ensureSalaryDetail(s.salary, s.amount) : null;
                                     const b = sal ? computeSalary(sal) : null;
                                     return (
@@ -253,7 +319,11 @@ export default function ExpandableHeadsTable({
                                   })}
                                 </tbody>
                               </table>
-                              <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">Open Edit to fill all payroll fields (OT hours, check-in/out, leaves, loan, PF, tax, remarks).</p>
+                              <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
+                                {isSalesRow
+                                  ? "Sales team: project commission · 6 PM shift · no overtime. Open Edit for full fields."
+                                  : "Open Edit to fill all payroll fields (OT hours, check-in/out, leaves, loan, PF, tax, remarks)."}
+                              </p>
                             </div>
                           ) : (
                             <div className="rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
@@ -326,6 +396,15 @@ export default function ExpandableHeadsTable({
         allowProofUpload={allowProofUpload}
         onUploadProof={onUploadProof}
         salaryMode={salaryMode}
+        payrollKind={editing?.payrollKind ?? (editing ? resolvePayrollKind(editing.title, editing.subHeads) : undefined)}
+        peerTeamRows={rows.map(r => ({
+          id: r.id,
+          title: r.title,
+          amount: r.amount,
+          filledAt: r.filledAt,
+          subHeads: r.subHeads ?? [],
+          notes: normalizeNotes(r.notes, r.note, r.filledAt),
+        }))}
       />
     </div>
   );

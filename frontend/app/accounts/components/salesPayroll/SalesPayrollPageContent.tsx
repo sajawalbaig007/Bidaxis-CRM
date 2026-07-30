@@ -1,0 +1,121 @@
+"use client";
+
+import { useCallback } from "react";
+import AccountsPageShell from "../AccountsPageShell";
+import SalesPayrollEmployeeEditor, { assignMemberToLead } from "./SalesPayrollEmployeeEditor";
+import { accountsShellProps } from "../../utils/accountsShellProps";
+import { useAccountsPage } from "../../hooks/useAccountsPage";
+import {
+  defaultSalesPayrollData,
+  normalizeSalesPayrollData,
+  HAMMAD_TEAM_LEAD_ID,
+} from "../../utils/salesPayrollDefaults";
+import type { SalesPayrollData, SalesPayrollEmployee } from "../../utils/salesPayrollFormula";
+import { computeSalesEmployeePayroll, calcTlAssignedCommission } from "../../utils/salesPayrollFormula";
+import { currency } from "../../types";
+
+type Props = {
+  variant: "sales" | "team_lead";
+};
+
+export default function SalesPayrollPageContent({ variant }: Props) {
+  const acc = useAccountsPage<SalesPayrollData>({
+    page: "sales_payroll",
+    defaultData: defaultSalesPayrollData,
+  });
+
+  const data = normalizeSalesPayrollData(acc.data);
+  const employees = variant === "sales" ? data.salesTeamMembers : data.salesTeamLeads;
+
+  const updateMember = useCallback(
+    (id: string, next: SalesPayrollEmployee) => {
+      acc.setData(prev => {
+        const d = normalizeSalesPayrollData(prev);
+        return {
+          ...d,
+          salesTeamMembers: d.salesTeamMembers.map(m => (m.id === id ? next : m)),
+        };
+      });
+    },
+    [acc],
+  );
+
+  const updateLead = useCallback(
+    (id: string, next: SalesPayrollEmployee) => {
+      acc.setData(prev => {
+        const d = normalizeSalesPayrollData(prev);
+        return {
+          ...d,
+          salesTeamLeads: d.salesTeamLeads.map(m => (m.id === id ? next : m)),
+        };
+      });
+    },
+    [acc],
+  );
+
+  const handleAssign = useCallback(
+    (memberId: string) => {
+      acc.setData(prev => assignMemberToLead(normalizeSalesPayrollData(prev), memberId, HAMMAD_TEAM_LEAD_ID));
+    },
+    [acc],
+  );
+
+  const totalNet = employees.reduce((s, e) => {
+    const extra =
+      variant === "team_lead"
+        ? data.salesTeamMembers
+            .filter(m => m.assignedToLead && m.assignedTeamLeadId === e.id)
+            .reduce((x, m) => x + calcTlAssignedCommission(m), 0)
+        : 0;
+    return s + computeSalesEmployeePayroll(e, extra).netSalary;
+  }, 0);
+
+  const title = variant === "sales" ? "Sales Team Payroll" : "Sales Team Lead Payroll";
+  const subtitle =
+    variant === "sales"
+      ? "Project commission only — old/new/fix client · Assign to Hammad (Team Lead)"
+      : "Hammad & team leads — own commission + assigned sales rep commission";
+
+  return (
+    <AccountsPageShell
+      title={title}
+      subtitle={subtitle}
+      {...accountsShellProps(acc)}
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-[#ECFDF3] to-white p-4">
+          <p className="text-[10px] font-bold uppercase text-emerald-700 opacity-80">Headcount</p>
+          <p className="text-xl font-extrabold text-emerald-800 mt-1">{employees.length}</p>
+        </div>
+        <div className="rounded-2xl border border-[#B8112D]/20 bg-gradient-to-br from-[#FFF1F3] to-white p-4">
+          <p className="text-[10px] font-bold uppercase text-[#B8112D] opacity-80">Total Net (computed)</p>
+          <p className="text-xl font-extrabold text-[#B8112D] mt-1 tabular-nums">{currency(totalNet)}</p>
+        </div>
+        {variant === "team_lead" && (
+          <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-[#F3EEFF] to-white p-4 col-span-2 lg:col-span-1">
+            <p className="text-[10px] font-bold uppercase text-indigo-700 opacity-80">Primary Team Lead</p>
+            <p className="text-lg font-extrabold text-indigo-900 mt-1">Hammad</p>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {employees.map((emp, i) => (
+          <SalesPayrollEmployeeEditor
+            key={emp.id}
+            employee={emp}
+            variant={variant}
+            allData={data}
+            defaultOpen={i === 0}
+            onChange={next =>
+              variant === "sales" ? updateMember(emp.id, next) : updateLead(emp.id, next)
+            }
+            onAssignToLead={
+              variant === "sales" ? () => handleAssign(emp.id) : undefined
+            }
+          />
+        ))}
+      </div>
+    </AccountsPageShell>
+  );
+}

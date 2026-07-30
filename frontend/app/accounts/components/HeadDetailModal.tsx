@@ -1,11 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Trash2, X, Plus, StickyNote, Upload, ExternalLink, Loader2, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
 import { computeSalary } from "../utils/payrollFormula";
 import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
+import SalesPayrollEmployeeEditor from "./salesPayroll/SalesPayrollEmployeeEditor";
+import {
+  type PayrollKind,
+  payrollKindForTeamTitle,
+  resolvePayrollKind,
+  ensureSalesPayrollFromSub,
+  netFromSalesSub,
+  tlExtraFromPeers,
+  assignSalesSubToLead,
+  emptySalesPayrollEmployee,
+  salesSubsFromPeerRows,
+  isSalesTeamTitle,
+} from "../utils/salesPayrollBridge";
+import type { SalesPayrollData } from "../utils/salesPayrollFormula";
+import { HAMMAD_TEAM_LEAD_ID } from "../utils/salesPayrollDefaults";
 
 export type HeadDetailModel = {
   id: string;
@@ -15,6 +30,8 @@ export type HeadDetailModel = {
   note?: string;
   subHeads: SubHeadEntry[];
   notes: DatedNote[];
+  /** Locked at open — sales vs technical payroll editor */
+  payrollKind?: PayrollKind;
 };
 
 type HeadDetailModalProps = {
@@ -29,6 +46,9 @@ type HeadDetailModalProps = {
   onUploadProof?: (file: File) => Promise<{ fileUrl: string; fileName: string }>;
   /** Full payroll editor for Team Salaries people. */
   salaryMode?: boolean;
+  payrollKind?: PayrollKind;
+  /** All team rows (for sales assign / TL commission). */
+  peerTeamRows?: HeadDetailModel[];
 };
 
 export default function HeadDetailModal({
@@ -41,12 +61,42 @@ export default function HeadDetailModal({
   allowProofUpload = false,
   onUploadProof,
   salaryMode = false,
+  payrollKind: payrollKindProp,
+  peerTeamRows = [],
 }: HeadDetailModalProps) {
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [openSalaryIds, setOpenSalaryIds] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    if (open && value?.subHeads.length && salaryMode) {
+      const kind = value.payrollKind ?? resolvePayrollKind(value.title, value.subHeads);
+      if (kind === "sales" || kind === "sales_lead") {
+        setOpenSalaryIds(new Set(value.subHeads.map(s => s.id)));
+      }
+    }
+  }, [open, value?.id, salaryMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!open || !value) return null;
+
+  const payrollKind: PayrollKind =
+    value.payrollKind ??
+    payrollKindProp ??
+    (salaryMode ? resolvePayrollKind(value.title, value.subHeads) : "technical");
+  const isSalesPayroll =
+    payrollKind === "sales" ||
+    payrollKind === "sales_lead" ||
+    (salaryMode && isSalesTeamTitle(value.title, value.subHeads)) ||
+    (salaryMode && /sales team/i.test(value.title) && !/technical/i.test(value.title)) ||
+    value.subHeads.some(s => !!s.salesPayroll);
+  const salesPeers = salesSubsFromPeerRows(peerTeamRows.map(r => ({ title: r.title, subHeads: r.subHeads })));
+
+  const salesPayrollContext = (): SalesPayrollData => ({
+    salesTeamMembers: salesPeers.map(s => ensureSalesPayrollFromSub(s, "sales")),
+    salesTeamLeads: peerTeamRows
+      .filter(r => payrollKindForTeamTitle(r.title) === "sales_lead")
+      .flatMap(r => (r.subHeads ?? []).map(sh => ensureSalesPayrollFromSub(sh, "team_lead"))),
+  });
 
   const setField = <K extends keyof HeadDetailModel>(key: K, val: HeadDetailModel[K]) => {
     onSave({ ...value, [key]: val });
@@ -63,6 +113,17 @@ export default function HeadDetailModal({
 
   const addSub = () => {
     const id = newRowId("sub");
+    if (isSalesPayroll) {
+      const role = payrollKind === "sales_lead" ? "team_lead" : "sales";
+      const sp = emptySalesPayrollEmployee("New employee", role, 0, 0, id);
+      const subHeads = [
+        ...value.subHeads,
+        { id, label: "New employee", amount: 0, filledAt: todayIso(), salesPayroll: sp },
+      ];
+      onSave({ ...value, subHeads, amount: sumSubHeads(subHeads) });
+      setOpenSalaryIds(prev => new Set(prev).add(id));
+      return;
+    }
     const salary = salaryMode ? ensureSalaryDetail(undefined, 0) : undefined;
     const amount = salary ? computeSalary(salary).totalSalary : 0;
     const subHeads = [
@@ -143,7 +204,14 @@ export default function HeadDetailModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
-          <h3 className="font-bold text-gray-800 text-sm">{title}</h3>
+          <div>
+            <h3 className="font-bold text-gray-800 text-sm">{title}</h3>
+            {isSalesPayroll && salaryMode && (
+              <p className="text-[10px] font-bold text-emerald-700 mt-0.5">
+                Sales payroll — project commission · 6 PM shift · no overtime
+              </p>
+            )}
+          </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
             <X size={16} />
           </button>
@@ -245,6 +313,76 @@ export default function HeadDetailModal({
               ) : salaryMode ? (
                 value.subHeads.map(s => {
                   const openEd = openSalaryIds.has(s.id);
+                  const subIsSales =
+                    isSalesPayroll ||
+                    !!s.salesPayroll ||
+                    (salaryMode && resolvePayrollKind(value.title, [s]) !== "technical");
+                  if (subIsSales) {
+                    const role =
+                      payrollKind === "sales_lead" || s.salesPayroll?.role === "team_lead"
+                        ? "team_lead"
+                        : "sales";
+                    const sp = ensureSalesPayrollFromSub(s, role);
+                    const extra =
+                      payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0;
+                    const net = netFromSalesSub({ ...s, salesPayroll: sp }, role, extra);
+                    return (
+                      <div key={s.id} className="rounded-xl border border-emerald-200 overflow-hidden">
+                        <div className="flex items-center gap-2 px-2.5 py-2 bg-[#ECFDF3]">
+                          <button type="button" onClick={() => toggleSalary(s.id)} className="text-gray-500">
+                            {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </button>
+                          <input
+                            value={s.label}
+                            onChange={e => updateSub(s.id, { label: e.target.value })}
+                            className="flex-1 h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold"
+                            placeholder="Employee name"
+                          />
+                          <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                          <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        {openEd && (
+                          <div className="p-2 border-t border-emerald-100">
+                            <SalesPayrollEmployeeEditor
+                              employee={{ ...sp, name: s.label }}
+                              variant={payrollKind === "sales_lead" ? "team_lead" : "sales"}
+                              allData={salesPayrollContext()}
+                              embedded
+                              defaultOpen
+                              onChange={next => {
+                                const amount = netFromSalesSub(
+                                  { ...s, salesPayroll: next, label: next.name },
+                                  role,
+                                  payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0,
+                                );
+                                updateSub(s.id, {
+                                  label: next.name,
+                                  salesPayroll: next,
+                                  amount,
+                                  salary: undefined,
+                                });
+                              }}
+                              onAssignToLead={
+                                payrollKind === "sales"
+                                  ? () => {
+                                      const assigned = assignSalesSubToLead(s, HAMMAD_TEAM_LEAD_ID);
+                                      const sp2 = ensureSalesPayrollFromSub(assigned, "sales");
+                                      updateSub(s.id, {
+                                        salesPayroll: sp2,
+                                        amount: netFromSalesSub({ ...assigned, salesPayroll: sp2 }, "sales"),
+                                        salary: undefined,
+                                      });
+                                    }
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
                   const sal = ensureSalaryDetail(s.salary, s.amount);
                   const net = computeSalary(sal).totalSalary;
                   return (

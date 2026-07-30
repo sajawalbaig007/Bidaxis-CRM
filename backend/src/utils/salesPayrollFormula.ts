@@ -40,7 +40,7 @@ export function calcSalesCommission(commission: SalesCommissionFields, role: "sa
   const oldCount = Number(commission.oldClientProjects) || 0;
   const partial = Math.min(Number(commission.oldClientPartialCount) || 0, oldCount);
   const oldFull = oldCount - partial;
-  const oldComm = role === "sales" ? oldFull * OLD_RATE + partial * (OLD_RATE * 0.5) : 0;
+  const oldComm = oldFull * OLD_RATE + partial * (OLD_RATE * 0.5);
   const newComm = (Number(commission.newClientProjects) || 0) * NEW_RATE;
   const fixComm = (commission.fixClientProjects ?? []).reduce(
     (s, p) => s + (Number(p.projectPay) || 0) * 0.025,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useCallback } from "react";
+import { useEffect, useMemo, useRef, useCallback, useLayoutEffect } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
@@ -18,18 +18,22 @@ import { useAccountsPage } from "../hooks/useAccountsPage";
 import type { IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
 import { currency, lineAmount, newRowId, todayIso } from "../types";
 import { ensureIncomeStatementPeople, seededIncomeStatementData } from "../utils/incomeStatementSeed";
+import { normalizeSalesTeamSubs, isSalesTeamTitle } from "../utils/salesPayrollBridge";
 
 function defaultData(): IncomeStatementData {
-  return seededIncomeStatementData();
+  return ensureIncomeStatementPeople(seededIncomeStatementData());
 }
 
 function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
+  const subHeads = isSalesTeamTitle(t.team, t.subHeads)
+    ? normalizeSalesTeamSubs(t.subHeads, t.team)
+    : (t.subHeads ?? []);
   return {
     id: t.id,
     title: t.team,
-    amount: t.totalSalary,
+    amount: lineAmount({ subHeads }),
     filledAt: t.filledAt,
-    subHeads: t.subHeads ?? [],
+    subHeads,
     notes: t.notes ?? [],
   };
 }
@@ -69,23 +73,26 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
 
 export default function IncomeStatementPage() {
   const acc = useAccountsPage<IncomeStatementData>({ page: "income_statement", defaultData });
-  const seededRef = useRef(false);
+  const syncToastRef = useRef(false);
 
-  useEffect(() => {
-    if (acc.loading || seededRef.current) return;
-    const next = ensureIncomeStatementPeople(acc.data);
+  /** Always apply sales-team split + payroll migration */
+  const data = useMemo(() => ensureIncomeStatementPeople(acc.data), [acc.data]);
+
+  useLayoutEffect(() => {
+    if (acc.loading) return;
     const before = JSON.stringify(acc.data);
-    const after = JSON.stringify(next);
+    const after = JSON.stringify(data);
     if (before !== after) {
-      seededRef.current = true;
-      acc.setData(() => next);
-    } else {
-      seededRef.current = true;
+      acc.setData(() => data);
+      if (!syncToastRef.current) {
+        syncToastRef.current = true;
+        toast.success("Sales Team split updated — Hammad moved to Team Lead. Click Save to keep.");
+      }
     }
-  }, [acc.loading, acc.data, acc.setData]);
+  }, [acc.loading, acc.data, data, acc.setData]);
 
   useEffect(() => {
-    seededRef.current = false;
+    syncToastRef.current = false;
   }, [acc.recordDate]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
@@ -106,27 +113,27 @@ export default function IncomeStatementPage() {
   }, [acc.recordDate]);
 
   const payrollExpense = useMemo(
-    () => (acc.data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
-    [acc.data.teamSalaries],
+    () => (data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
+    [data.teamSalaries],
   );
   const operatingExpense = useMemo(
-    () => (acc.data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [acc.data.opexHeads],
+    () => (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.opexHeads],
   );
   const loanExpense = useMemo(
-    () => (acc.data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [acc.data.loanHeads],
+    () => (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.loanHeads],
   );
   const pfExpense = useMemo(
-    () => (acc.data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [acc.data.providentFundHeads],
+    () => (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.providentFundHeads],
   );
   const totalExpense = payrollExpense + operatingExpense + loanExpense + pfExpense;
-  const revenue = Number(acc.data.totalRevenue) || 0;
+  const revenue = Number(data.totalRevenue) || 0;
   const netProfit = revenue - totalExpense;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
-  const payrollChartData = (acc.data.teamSalaries ?? []).map(t => ({
+  const payrollChartData = (data.teamSalaries ?? []).map(t => ({
     name: t.team.replace(/ Salaries$/i, "").slice(0, 14),
     value: lineAmount(t),
   }));
@@ -144,7 +151,7 @@ export default function IncomeStatementPage() {
     { name: "Profit", amount: netProfit, fill: "#12B76A" },
   ];
 
-  const opexBars = (acc.data.opexHeads ?? [])
+  const opexBars = (data.opexHeads ?? [])
     .map(o => ({ name: o.label.slice(0, 18), value: lineAmount(o) }))
     .filter(d => d.value > 0)
     .sort((a, b) => b.value - a.value)
@@ -330,16 +337,16 @@ export default function IncomeStatementPage() {
               accent="#0B84F3"
               addLabel="Add Team"
               salaryMode
-              rows={(acc.data.teamSalaries ?? []).map(teamToHead)}
-              onChange={rows => acc.setData(prev => ({ ...prev, teamSalaries: rows.map(headToTeam) }))}
+              rows={(data.teamSalaries ?? []).map(teamToHead)}
+              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), teamSalaries: rows.map(headToTeam) }))}
             />
 
             <ExpandableHeadsTable
               title="Operating Expenses"
               accent="#F59E0B"
               addLabel="Add OPEX"
-              rows={(acc.data.opexHeads ?? []).map(opexToHead)}
-              onChange={rows => acc.setData(prev => ({ ...prev, opexHeads: rows.map(headToOpex) }))}
+              rows={(data.opexHeads ?? []).map(opexToHead)}
+              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), opexHeads: rows.map(headToOpex) }))}
               allowProofUpload
               onUploadProof={uploadOpexProof}
             />
@@ -348,16 +355,16 @@ export default function IncomeStatementPage() {
               title="Loans"
               accent="#EA580C"
               addLabel="Add Loan Head"
-              rows={(acc.data.loanHeads ?? []).map(opexToHead)}
-              onChange={rows => acc.setData(prev => ({ ...prev, loanHeads: rows.map(headToOpex) }))}
+              rows={(data.loanHeads ?? []).map(opexToHead)}
+              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), loanHeads: rows.map(headToOpex) }))}
             />
 
             <ExpandableHeadsTable
               title="Provident Fund"
               accent="#0D9488"
               addLabel="Add PF Head"
-              rows={(acc.data.providentFundHeads ?? []).map(opexToHead)}
-              onChange={rows => acc.setData(prev => ({ ...prev, providentFundHeads: rows.map(headToOpex) }))}
+              rows={(data.providentFundHeads ?? []).map(opexToHead)}
+              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), providentFundHeads: rows.map(headToOpex) }))}
             />
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1 text-sm font-bold">
