@@ -179,6 +179,63 @@ function seedOpex(label: string): OpexRow {
   };
 }
 
+const PF_SEED: Record<string, { amount: number; people: { label: string; amount: number }[] }> = {
+  "Sales Team PF": {
+    amount: 70_000,
+    people: [
+      { label: "Hammad", amount: 10_000 },
+      { label: "Huraira", amount: 10_000 },
+      { label: "Faris", amount: 10_000 },
+      { label: "Ali", amount: 10_000 },
+      { label: "Faizan", amount: 10_000 },
+      { label: "Asim", amount: 10_000 },
+      { label: "Anam", amount: 10_000 },
+    ],
+  },
+  "Administration PF": {
+    amount: 100_000,
+    people: [
+      { label: "Qasim (Admin)", amount: 10_000 },
+      { label: "Shakeela (HR)", amount: 10_000 },
+      { label: "Attiq Rehman (Account Officer)", amount: 10_000 },
+      { label: "Muhammad Bilal (Accounts Officer)", amount: 10_000 },
+      { label: "Hamza (Floor Manager)", amount: 10_000 },
+      { label: "Sajawal", amount: 10_000 },
+      { label: "Ahmer", amount: 10_000 },
+      { label: "Mahnoor", amount: 10_000 },
+      { label: "Office Boy", amount: 10_000 },
+      { label: "Guard", amount: 10_000 },
+    ],
+  },
+  "Technical Team PF": {
+    amount: 90_000,
+    people: [
+      { label: "Muhammad Abdullah", amount: 10_000 },
+      { label: "Rizwan Sabir", amount: 10_000 },
+      { label: "Usama Jameel", amount: 10_000 },
+      { label: "Muhammad Afaq Amin", amount: 10_000 },
+      { label: "Khaldoon Abrar", amount: 10_000 },
+      { label: "Muhammad Bariq", amount: 10_000 },
+      { label: "Ayesha Ashraf", amount: 10_000 },
+      { label: "Manal Younas", amount: 10_000 },
+      { label: "Zainab Khalil", amount: 10_000 },
+    ],
+  },
+};
+
+function seedPf(label: string): OpexRow {
+  const seed = PF_SEED[label];
+  const people = seed?.people ?? [];
+  const subHeads = people.map(p => sub(p.label, p.amount));
+  return {
+    id: newRowId("pf"),
+    label,
+    amount: seed?.amount ?? lineAmount({ subHeads }),
+    filledAt: todayIso(),
+    subHeads,
+  };
+}
+
 /** Full default Income Statement from payroll spreadsheet. */
 export function seededIncomeStatementData(): IncomeStatementData {
   return {
@@ -199,7 +256,7 @@ export function seededIncomeStatementData(): IncomeStatementData {
         ],
       },
     ],
-    providentFundHeads: [],
+    providentFundHeads: Object.keys(PF_SEED).map(seedPf),
   };
 }
 
@@ -269,11 +326,32 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
     });
   }
 
+  const existingPf = new Map((data.providentFundHeads ?? []).map(o => [o.label, o]));
+  const providentFundHeads = Object.keys(PF_SEED).map(label => {
+    const current = existingPf.get(label);
+    if (!current) return seedPf(label);
+    if (current.subHeads && current.subHeads.length > 0) {
+      return { ...current, amount: lineAmount(current) };
+    }
+    const seeded = seedPf(label);
+    return {
+      ...current,
+      subHeads: seeded.subHeads,
+      amount: lineAmount(seeded),
+    };
+  });
+
+  for (const pf of data.providentFundHeads ?? []) {
+    if (!PF_SEED[pf.label] && !providentFundHeads.some(x => x.id === pf.id)) {
+      providentFundHeads.push(pf);
+    }
+  }
+
   return {
     ...data,
     teamSalaries,
     opexHeads,
     loanHeads,
-    providentFundHeads: data.providentFundHeads ?? [],
+    providentFundHeads,
   };
 }

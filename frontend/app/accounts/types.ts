@@ -20,6 +20,9 @@ export type SubHeadEntry = {
   amount: number;
   /** Date this individual entry was filled (YYYY-MM-DD). */
   filledAt: string;
+  /** Optional payment-proof / screenshot URL (OPEX lines). */
+  proofUrl?: string;
+  proofName?: string;
 };
 
 /** Date-tagged note on a table row / head. */

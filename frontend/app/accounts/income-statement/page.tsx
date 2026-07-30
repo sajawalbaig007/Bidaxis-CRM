@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { PieChart as PieIcon, Users, Layers3, TrendingUp } from "lucide-react";
+import toast from "react-hot-toast";
+import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
@@ -84,6 +86,23 @@ export default function IncomeStatementPage() {
 
   useEffect(() => {
     seededRef.current = false;
+  }, [acc.recordDate]);
+
+  const uploadOpexProof = useCallback(async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await API.post(`/accounts/income_statement/${acc.recordDate}/upload`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const upload = res.data?.upload;
+      if (!upload?.fileUrl) throw new Error("No file URL returned");
+      toast.success("Screenshot uploaded.");
+      return { fileUrl: String(upload.fileUrl), fileName: String(upload.fileName ?? file.name) };
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Proof upload failed."));
+      throw err;
+    }
   }, [acc.recordDate]);
 
   const payrollExpense = useMemo(
@@ -320,6 +339,8 @@ export default function IncomeStatementPage() {
               addLabel="Add OPEX"
               rows={(acc.data.opexHeads ?? []).map(opexToHead)}
               onChange={rows => acc.setData(prev => ({ ...prev, opexHeads: rows.map(headToOpex) }))}
+              allowProofUpload
+              onUploadProof={uploadOpexProof}
             />
 
             <ExpandableHeadsTable

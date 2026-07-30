@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash2, X, Plus, StickyNote } from "lucide-react";
+import { useRef, useState } from "react";
+import { Trash2, X, Plus, StickyNote, Upload, ExternalLink, Loader2, ImageIcon } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
 
@@ -21,6 +22,9 @@ type HeadDetailModalProps = {
   onClose: () => void;
   onSave: (next: HeadDetailModel) => void;
   onDelete: () => void;
+  /** Enable per-line screenshot / payment proof upload (OPEX). */
+  allowProofUpload?: boolean;
+  onUploadProof?: (file: File) => Promise<{ fileUrl: string; fileName: string }>;
 };
 
 export default function HeadDetailModal({
@@ -30,7 +34,12 @@ export default function HeadDetailModal({
   onClose,
   onSave,
   onDelete,
+  allowProofUpload = false,
+  onUploadProof,
 }: HeadDetailModalProps) {
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+
   if (!open || !value) return null;
 
   const setField = <K extends keyof HeadDetailModel>(key: K, val: HeadDetailModel[K]) => {
@@ -65,6 +74,17 @@ export default function HeadDetailModal({
       subHeads,
       amount: subHeads.length > 0 ? sumSubHeads(subHeads) : value.amount,
     });
+  };
+
+  const handleProof = async (subId: string, file: File | undefined) => {
+    if (!file || !onUploadProof) return;
+    setUploadingId(subId);
+    try {
+      const uploaded = await onUploadProof(file);
+      updateSub(subId, { proofUrl: uploaded.fileUrl, proofName: uploaded.fileName });
+    } finally {
+      setUploadingId(null);
+    }
   };
 
   const addNote = () => {
@@ -140,7 +160,6 @@ export default function HeadDetailModal({
             </label>
           </div>
 
-          {/* Notes */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-700 inline-flex items-center gap-1.5">
@@ -157,24 +176,24 @@ export default function HeadDetailModal({
                 </p>
               ) : (
                 sortedNotes.map(n => (
-                  <div key={n.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-2 space-y-1.5">
+                  <div key={n.id} className="rounded-xl border border-amber-100 bg-amber-50/40 p-2 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <input
                         type="date"
                         value={n.date}
                         onChange={e => updateNote(n.id, { date: e.target.value })}
-                        className="h-8 rounded-lg border border-amber-200/80 bg-white px-2 text-[11px] flex-1"
+                        className="h-8 rounded-lg border border-amber-200 bg-white px-2 text-[11px]"
                       />
-                      <button type="button" onClick={() => removeNote(n.id)} className="text-red-500 w-7 h-7 flex items-center justify-center">
+                      <button type="button" onClick={() => removeNote(n.id)} className="ml-auto text-red-500">
                         <Trash2 size={13} />
                       </button>
                     </div>
                     <textarea
                       value={n.text}
                       onChange={e => updateNote(n.id, { text: e.target.value })}
-                      placeholder="Write note…"
                       rows={2}
-                      className="w-full rounded-lg border border-amber-200/80 bg-white px-2 py-1.5 text-xs outline-none resize-none focus:ring-2 focus:ring-amber-200"
+                      placeholder="Note…"
+                      className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs outline-none resize-none"
                     />
                   </div>
                 ))
@@ -189,35 +208,86 @@ export default function HeadDetailModal({
                 + Add person / line
               </button>
             </div>
-            <div className="space-y-2 max-h-52 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {value.subHeads.length === 0 ? (
                 <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed rounded-xl">
                   No people/lines yet — total uses the amount above.
                 </p>
               ) : (
                 value.subHeads.map(s => (
-                  <div key={s.id} className="grid grid-cols-12 gap-1.5 items-center bg-[#F8FAFC] rounded-xl p-2 border border-gray-100">
-                    <input
-                      value={s.label}
-                      onChange={e => updateSub(s.id, { label: e.target.value })}
-                      className="col-span-5 h-8 rounded-lg border border-gray-200 px-2 text-xs"
-                      placeholder="Label"
-                    />
-                    <input
-                      type="number"
-                      value={s.amount}
-                      onChange={e => updateSub(s.id, { amount: Number(e.target.value || 0) })}
-                      className="col-span-3 h-8 rounded-lg border border-gray-200 px-2 text-xs text-right"
-                    />
-                    <input
-                      type="date"
-                      value={s.filledAt}
-                      onChange={e => updateSub(s.id, { filledAt: e.target.value })}
-                      className="col-span-3 h-8 rounded-lg border border-gray-200 px-1 text-[10px]"
-                    />
-                    <button type="button" onClick={() => removeSub(s.id)} className="col-span-1 text-red-500 flex justify-center">
-                      <Trash2 size={13} />
-                    </button>
+                  <div key={s.id} className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-2 space-y-1.5">
+                    <div className="grid grid-cols-12 gap-1.5 items-center">
+                      <input
+                        value={s.label}
+                        onChange={e => updateSub(s.id, { label: e.target.value })}
+                        className="col-span-5 h-8 rounded-lg border border-gray-200 px-2 text-xs bg-white"
+                        placeholder="Label"
+                      />
+                      <input
+                        type="number"
+                        value={s.amount}
+                        onChange={e => updateSub(s.id, { amount: Number(e.target.value || 0) })}
+                        className="col-span-3 h-8 rounded-lg border border-gray-200 px-2 text-xs text-right bg-white"
+                      />
+                      <input
+                        type="date"
+                        value={s.filledAt}
+                        onChange={e => updateSub(s.id, { filledAt: e.target.value })}
+                        className="col-span-3 h-8 rounded-lg border border-gray-200 px-1 text-[10px] bg-white"
+                      />
+                      <button type="button" onClick={() => removeSub(s.id)} className="col-span-1 text-red-500 flex justify-center">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+
+                    {allowProofUpload && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input
+                          ref={el => { fileRefs.current[s.id] = el; }}
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            e.target.value = "";
+                            void handleProof(s.id, f);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={uploadingId === s.id || !onUploadProof}
+                          onClick={() => fileRefs.current[s.id]?.click()}
+                          className="h-7 px-2.5 rounded-lg bg-white border border-gray-200 text-[10px] font-bold text-gray-600 inline-flex items-center gap-1 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {uploadingId === s.id
+                            ? <Loader2 size={11} className="animate-spin" />
+                            : <Upload size={11} />}
+                          {s.proofUrl ? "Replace proof" : "Upload screenshot"}
+                        </button>
+                        {s.proofUrl && (
+                          <>
+                            <a
+                              href={s.proofUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="h-7 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 inline-flex items-center gap-1"
+                              title={s.proofName || "View proof"}
+                            >
+                              <ImageIcon size={11} />
+                              View
+                              <ExternalLink size={10} />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => updateSub(s.id, { proofUrl: undefined, proofName: undefined })}
+                              className="h-7 px-2 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))
               )}

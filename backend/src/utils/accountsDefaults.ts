@@ -251,7 +251,55 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
             ],
           },
         ],
-        providentFundHeads: [],
+        providentFundHeads: [
+          {
+            id: rid("pf", 1),
+            label: "Sales Team PF",
+            amount: 70_000,
+            subHeads: [
+              sub("pfs", 1, "Hammad", 10_000),
+              sub("pfs", 2, "Huraira", 10_000),
+              sub("pfs", 3, "Faris", 10_000),
+              sub("pfs", 4, "Ali", 10_000),
+              sub("pfs", 5, "Faizan", 10_000),
+              sub("pfs", 6, "Asim", 10_000),
+              sub("pfs", 7, "Anam", 10_000),
+            ],
+          },
+          {
+            id: rid("pf", 2),
+            label: "Administration PF",
+            amount: 100_000,
+            subHeads: [
+              sub("pfa", 1, "Qasim (Admin)", 10_000),
+              sub("pfa", 2, "Shakeela (HR)", 10_000),
+              sub("pfa", 3, "Attiq Rehman (Account Officer)", 10_000),
+              sub("pfa", 4, "Muhammad Bilal (Accounts Officer)", 10_000),
+              sub("pfa", 5, "Hamza (Floor Manager)", 10_000),
+              sub("pfa", 6, "Sajawal", 10_000),
+              sub("pfa", 7, "Ahmer", 10_000),
+              sub("pfa", 8, "Mahnoor", 10_000),
+              sub("pfa", 9, "Office Boy", 10_000),
+              sub("pfa", 10, "Guard", 10_000),
+            ],
+          },
+          {
+            id: rid("pf", 3),
+            label: "Technical Team PF",
+            amount: 90_000,
+            subHeads: [
+              sub("pft", 1, "Muhammad Abdullah", 10_000),
+              sub("pft", 2, "Rizwan Sabir", 10_000),
+              sub("pft", 3, "Usama Jameel", 10_000),
+              sub("pft", 4, "Muhammad Afaq Amin", 10_000),
+              sub("pft", 5, "Khaldoon Abrar", 10_000),
+              sub("pft", 6, "Muhammad Bariq", 10_000),
+              sub("pft", 7, "Ayesha Ashraf", 10_000),
+              sub("pft", 8, "Manal Younas", 10_000),
+              sub("pft", 9, "Zainab Khalil", 10_000),
+            ],
+          },
+        ],
       };
     }
 

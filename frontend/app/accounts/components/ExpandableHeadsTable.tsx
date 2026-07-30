@@ -24,6 +24,8 @@ type ExpandableHeadsTableProps = {
   onChange: (rows: ExpandableHeadRow[]) => void;
   addLabel?: string;
   emptyLabel?: string;
+  allowProofUpload?: boolean;
+  onUploadProof?: (file: File) => Promise<{ fileUrl: string; fileName: string }>;
 };
 
 export default function ExpandableHeadsTable({
@@ -33,6 +35,8 @@ export default function ExpandableHeadsTable({
   onChange,
   addLabel = "Add Head",
   emptyLabel = "No heads yet.",
+  allowProofUpload = false,
+  onUploadProof,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -209,6 +213,9 @@ export default function ExpandableHeadsTable({
                                   <tr className="border-b bg-gray-50/80 text-gray-400">
                                     <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-[10px]">Individual</th>
                                     <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[110px]">Filled date</th>
+                                    {allowProofUpload && (
+                                      <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[90px]">Proof</th>
+                                    )}
                                     <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[100px]">Amount</th>
                                   </tr>
                                 </thead>
@@ -217,6 +224,22 @@ export default function ExpandableHeadsTable({
                                     <tr key={s.id} className="border-b border-gray-50 last:border-0">
                                       <td className="px-3 py-2 text-gray-700 font-medium">{s.label}</td>
                                       <td className="px-3 py-2 text-center text-gray-500 tabular-nums">{s.filledAt || "—"}</td>
+                                      {allowProofUpload && (
+                                        <td className="px-3 py-2 text-center">
+                                          {s.proofUrl ? (
+                                            <a
+                                              href={s.proofUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="text-[10px] font-bold text-emerald-600 hover:underline"
+                                            >
+                                              View
+                                            </a>
+                                          ) : (
+                                            <span className="text-[10px] text-gray-300">—</span>
+                                          )}
+                                        </td>
+                                      )}
                                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-800">{currency(s.amount)}</td>
                                     </tr>
                                   ))}
@@ -251,6 +274,8 @@ export default function ExpandableHeadsTable({
         onClose={() => setEditing(null)}
         onSave={saveEditing}
         onDelete={deleteEditing}
+        allowProofUpload={allowProofUpload}
+        onUploadProof={onUploadProof}
       />
     </div>
   );
