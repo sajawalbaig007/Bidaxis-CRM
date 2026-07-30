@@ -27,6 +27,7 @@ type CsrPerf = {
   inHouse: number;
   noOwner: number;
   notInService: number;
+  scheduleCall: number;
 };
 
 type Totals = Omit<CsrPerf, "id" | "csrId" | "name" | "csrCode">;
@@ -45,6 +46,7 @@ type ReportPayload = {
   inHouse: number;
   noOwner: number;
   notInService: number;
+  scheduleCall: number;
   csrPerformance: CsrPerf[];
   timeChart: { label: string; leads: number; completed: number }[];
   reports: Awaited<ReturnType<typeof prisma.report.findMany>>;
@@ -148,6 +150,7 @@ function emptyCsrEntry(csrId: string, csrName: string, csrCode: string | null): 
     inHouse: 0,
     noOwner: 0,
     notInService: 0,
+    scheduleCall: 0,
   };
 }
 
@@ -155,18 +158,19 @@ function bumpCounts(
   target: Totals,
   lead: { status: string | null; important: boolean; interested: boolean },
 ) {
-  const s = (lead.status ?? "").toLowerCase();
+  const s = (lead.status ?? "").toLowerCase().trim();
   target.totalLeads++;
   if (s === "pending") target.pending++;
   if (s === "important" || lead.important) target.important++;
   if (s === "interested" || lead.interested) target.interested++;
   if (s === "not picked" || s === "not completed") target.notCompleted++;
-  if (s === "not interested") target.notInterested++;
-  // `completed` comes from CallLog status updates — not lead.status
-  if (s === "close client") target.projectWon++;
+  if (s === "not interested" || s === "completed") target.notInterested++;
+  // `completed` metric = CallLog status updates — not lead.status
+  if (s === "close client" || s === "closed") target.projectWon++;
   if (s === "in house") target.inHouse++;
   if (s === "no owner available") target.noOwner++;
   if (s === "not in service") target.notInService++;
+  if (s === "schedule call") target.scheduleCall++;
 }
 
 function buildTimeChart(
@@ -256,7 +260,7 @@ function buildTimeChart(
 }
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v2-status-updates`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v3-all-statuses`;
 }
 
 export const getReports = async (req: Request, res: Response) => {
@@ -364,6 +368,7 @@ export const getReports = async (req: Request, res: Response) => {
       inHouse: totals.inHouse,
       noOwner: totals.noOwner,
       notInService: totals.notInService,
+      scheduleCall: totals.scheduleCall,
       csrPerformance,
       timeChart: needsTimeChart
         ? buildTimeChart(timeRows, period, statusUpdates)

@@ -7,12 +7,16 @@ import {
 } from "recharts";
 
 const STATUS_PIE_COLORS: Record<string, string> = {
-  "Important":          "#F97316",
+  "Not Interested":     "#64748B",
+  "Not Picked":         "#F59E0B",
+  "No Owner Available": "#CA8A04",
+  "Not In Service":     "#8B5CF6",
+  "In House":           "#A855F7",
+  "Pending":            "#3B82F6",
+  "Important":          "#EF4444",
+  "Schedule Call":      "#0EA5E9",
+  "Interested":         "#F97316",
   "Close Client":       "#12B76A",
-  "Not Picked":         "#6B7280",
-  "Not Interested":     "#EF4444",
-  "In House":           "#8B5CF6",
-  "Interested Clients": "#3B82F6",
 };
 
 type ChartPoint = { day: string; calls: number; completed: number };
@@ -53,9 +57,9 @@ export default function ReportCharts({
                 <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
                 <Tooltip
                   contentStyle={{ borderRadius: "12px", border: "1px solid #eee", fontSize: "12px" }}
-                  formatter={(v, n) => [v, n === "calls" ? "Total Leads" : "Completed"]}
+                  formatter={(v, n) => [v, n === "calls" ? "Total Leads" : "Completed (status updates)"]}
                 />
-                <Legend formatter={v => v === "calls" ? "Total Leads" : "Completed"} wrapperStyle={{ fontSize: "11px" }} />
+                <Legend formatter={v => v === "calls" ? "Total Leads" : "Completed (updates)"} wrapperStyle={{ fontSize: "11px" }} />
                 <Bar dataKey="calls" fill="#B8112D" radius={[5, 5, 0, 0]} name="calls" />
                 <Bar dataKey="completed" fill="#12B76A" radius={[5, 5, 0, 0]} name="completed" />
               </BarChart>
