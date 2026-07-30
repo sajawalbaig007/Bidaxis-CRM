@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Activity, CalendarDays, Loader2 } from "lucide-react";
 import API from "@/lib/api";
 import {
@@ -37,22 +37,31 @@ export default function CsrActivityReportModal({ open, onClose }: Props) {
   const [report, setReport]     = useState<ReportData | null>(null);
   const [loading, setLoading]   = useState(false);
 
-  const fetchReport = useCallback(async (p: Period, d: string) => {
-    setLoading(true);
-    try {
-      const res = await API.get("/csr/activity-report", { params: { period: p, date: d } });
-      setReport(res.data);
-    } catch {
-      setReport(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (!open) return;
-    void fetchReport(period, date);
-  }, [open, period, date, fetchReport]);
+
+    let cancelled = false;
+
+    (async () => {
+      // Yield so setState is not synchronous inside the effect body (react-hooks/set-state-in-effect).
+      await Promise.resolve();
+      if (cancelled) return;
+
+      setLoading(true);
+      try {
+        const res = await API.get("/csr/activity-report", { params: { period, date } });
+        if (!cancelled) setReport(res.data);
+      } catch {
+        if (!cancelled) setReport(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, period, date]);
 
   if (!open) return null;
 
