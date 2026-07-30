@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
@@ -15,32 +15,19 @@ import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
 import type { IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
 import { currency, lineAmount, newRowId, todayIso } from "../types";
+import { ensureIncomeStatementPeople, seededIncomeStatementData } from "../utils/incomeStatementSeed";
 
 function defaultData(): IncomeStatementData {
-  return {
-    totalRevenue: 0,
-    teamSalaries: [],
-    opexHeads: [],
-    loanHeads: [],
-    providentFundHeads: [],
-  };
+  return seededIncomeStatementData();
 }
 
 function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
-  const subHeads = t.subHeads?.length
-    ? t.subHeads
-    : (t.headLabels ?? []).map((label, i) => ({
-        id: `${t.id}-legacy-${i}`,
-        label,
-        amount: 0,
-        filledAt: t.filledAt ?? todayIso(),
-      }));
   return {
     id: t.id,
     title: t.team,
     amount: t.totalSalary,
     filledAt: t.filledAt,
-    subHeads,
+    subHeads: t.subHeads ?? [],
     notes: t.notes ?? [],
   };
 }
@@ -63,7 +50,6 @@ function headToTeam(h: ExpandableHeadRow): TeamSalaryRow {
     totalSalary: lineAmount(h),
     filledAt: h.filledAt,
     subHeads: h.subHeads ?? [],
-    headLabels: (h.subHeads ?? []).map(s => s.label),
     notes: h.notes ?? [],
   };
 }
@@ -81,6 +67,24 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
 
 export default function IncomeStatementPage() {
   const acc = useAccountsPage<IncomeStatementData>({ page: "income_statement", defaultData });
+  const seededRef = useRef(false);
+
+  useEffect(() => {
+    if (acc.loading || seededRef.current) return;
+    const next = ensureIncomeStatementPeople(acc.data);
+    const before = JSON.stringify(acc.data);
+    const after = JSON.stringify(next);
+    if (before !== after) {
+      seededRef.current = true;
+      acc.setData(() => next);
+    } else {
+      seededRef.current = true;
+    }
+  }, [acc.loading, acc.data, acc.setData]);
+
+  useEffect(() => {
+    seededRef.current = false;
+  }, [acc.recordDate]);
 
   const payrollExpense = useMemo(
     () => (acc.data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
@@ -141,7 +145,7 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Totals on main rows — expand for individuals. Edit/delete opens a detail popup."
+          subtitle="Expand each team/expense for individual people & line items. Pencil opens editable detail."
           onAddNew={() => {
             acc.setData(prev => ({
               ...prev,
@@ -152,7 +156,7 @@ export default function IncomeStatementPage() {
                   team: "New Team Salaries",
                   totalSalary: 0,
                   filledAt: todayIso(),
-                  subHeads: [{ id: newRowId("sub"), label: "Basic Salary", amount: 0, filledAt: todayIso() }],
+                  subHeads: [{ id: newRowId("sub"), label: "New person", amount: 0, filledAt: todayIso() }],
                 },
               ],
             }));

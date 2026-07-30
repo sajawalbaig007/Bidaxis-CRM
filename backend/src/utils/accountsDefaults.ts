@@ -94,69 +94,166 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
         ],
       };
 
-    case "income_statement":
+    case "income_statement": {
+      const sub = (prefix: string, n: number, label: string, amount: number) => ({
+        id: rid(prefix, n),
+        label,
+        amount,
+        filledAt: "",
+      });
       return {
         totalRevenue: 2_659_822,
         teamSalaries: [
           {
             id: rid("t", 1),
             team: "Technical Team Salaries",
-            headLabels: [
-              "Basic Salary", "Week Days Overtime", "Weekend Overtime", "Total Overtime",
-              "Allowances", "Late Deduction", "Loan Deduction", "PF Deduction",
-              "Income Tax Deduction", "Total Salary",
-            ],
             totalSalary: 162_645,
+            subHeads: [
+              sub("ts", 1, "Noman Khan", 19_512),
+              sub("ts", 2, "Muhammad Abdullah", 18_458),
+              sub("ts", 3, "Rizwan Sabir", 19_682),
+              sub("ts", 4, "Usama Jameel", 20_849),
+              sub("ts", 5, "Khaldoon Abrar", 19_733),
+              sub("ts", 6, "Muhammad Zaid", 19_682),
+              sub("ts", 7, "Muhammad Bariq", 23_896),
+              sub("ts", 8, "Afaq", 20_833),
+            ],
           },
           {
             id: rid("t", 2),
             team: "Sales Team Salaries",
-            headLabels: [
-              "Basic Salary", "Project Closed", "TL Allowance", "Commission Per Project",
-              "Commission for Fixed Client", "Total Commission", "Late Deduction",
-              "PF Deduction", "Income Tax Deduction", "Total Salary",
-            ],
             totalSalary: 420_303,
+            subHeads: [
+              sub("ss", 1, "Hammad", 61_450),
+              sub("ss", 2, "Huraira", 71_055),
+              sub("ss", 3, "Faris", 43_763),
+              sub("ss", 4, "Ali", 71_979),
+              sub("ss", 5, "Faizan", 93_856),
+              sub("ss", 6, "Asim", 31_400),
+              sub("ss", 7, "Anam", 46_800),
+            ],
           },
           {
             id: rid("t", 3),
             team: "Email Marketing Team Salaries",
-            headLabels: [
-              "Basic Salary", "Project Closed", "Commission Per Project",
-              "Commission for Fixed Client", "Total Commission", "Allowances",
-              "Late Deduction", "Loan Deduction", "Total Deduction", "Total Salary",
-            ],
             totalSalary: 10_000,
+            subHeads: [
+              sub("es", 1, "Aftab", 10_000),
+            ],
           },
           {
             id: rid("t", 4),
             team: "Administration Salaries",
-            headLabels: [
-              "Basic Salary", "Allowances", "Income Tax Deduction", "Loan Deduction",
-              "Unpaid Leaves", "Late Arrival Deduction", "PF Deduction",
-              "Total Deduction", "Net Salary", "Comment",
-            ],
             totalSalary: 178_693,
+            subHeads: [
+              sub("as", 1, "Qasim (Admin)", 15_955),
+              sub("as", 2, "Shakeela (HR)", 19_864),
+              sub("as", 3, "Attiq Rehman (Account Officer)", 18_000),
+              sub("as", 4, "Muhammad Bilal (Accounts Officer)", 14_973),
+              sub("as", 5, "Mr. Noreed (Chartered)", 20_000),
+              sub("as", 6, "Hamza (Floor Manager)", 7_400),
+              sub("as", 7, "Sajawal", 16_000),
+              sub("as", 8, "Ahmer", 16_000),
+              sub("as", 9, "Mahnoor", 16_501),
+              sub("as", 10, "Office Boy", 14_000),
+              sub("as", 11, "Guard", 20_000),
+            ],
           },
           {
             id: rid("t", 5),
             team: "Executive Salaries",
-            headLabels: [
-              "Basic Salary", "Commission", "Loan (+ve)", "Loan (-ve)",
-              "Total Earning", "Transfer Date", "Comment",
-            ],
             totalSalary: 40_000,
+            subHeads: [
+              sub("xs", 1, "Mr. Mohsin Qayyum (80%)", 10_000),
+              sub("xs", 2, "Mr. Sharjeel Nasir (60%)", 10_000),
+              sub("xs", 3, "Mr. Talha Ahmed (60%)", 10_000),
+              sub("xs", 4, "Muhammad Irtaza (60%)", 10_000),
+            ],
           },
         ],
         opexHeads: [
-          { id: rid("o", 1), label: "Office Management Expenses", amount: 10_000 },
-          { id: rid("o", 2), label: "IT Equipments Expenses", amount: 0 },
-          { id: rid("o", 3), label: "Regular IT Expenses", amount: 90_000 },
-          { id: rid("o", 4), label: "Outsourcing Expenses", amount: 100_000 },
-          { id: rid("o", 5), label: "Asset Purchasing Expenses", amount: 0 },
-          { id: rid("o", 6), label: "Miscellaneous Expenses", amount: 50_000 },
+          {
+            id: rid("o", 1),
+            label: "Office Management Expenses",
+            amount: 10_000,
+            subHeads: [
+              sub("om", 1, "BEM Rent & Electricity Bill", 10_000),
+            ],
+          },
+          {
+            id: rid("o", 2),
+            label: "IT Equipments Expenses",
+            amount: 0,
+            subHeads: [],
+          },
+          {
+            id: rid("o", 3),
+            label: "Regular IT Expenses",
+            amount: 90_000,
+            subHeads: [
+              sub("it", 1, "Ptcl Bill payment", 10_000),
+              sub("it", 2, "Claude payment hamza bhai", 10_000),
+              sub("it", 3, "Devcon server", 10_000),
+              sub("it", 4, "Zoom payment devcon", 10_000),
+              sub("it", 5, "Zoom payment of two dialer", 10_000),
+              sub("it", 6, "Storm fibre bill payment", 10_000),
+              sub("it", 7, "LLC Tax Payment", 10_000),
+              sub("it", 8, "100 CAD shopdrawing structure review", 10_000),
+              sub("it", 9, "Gmails monthly payments", 10_000),
+            ],
+          },
+          {
+            id: rid("o", 4),
+            label: "Outsourcing Expenses",
+            amount: 100_000,
+            subHeads: [
+              sub("out", 1, "Payment to Sir shafaqat", 10_000),
+              sub("out", 2, "Mohsin Mughal", 10_000),
+              sub("out", 3, "Ayesha", 10_000),
+              sub("out", 4, "Irtiza (April)", 10_000),
+              sub("out", 5, "Ahmed's Reference", 10_000),
+              sub("out", 6, "Ahmed", 10_000),
+              sub("out", 7, "Irtaza (May)", 10_000),
+              sub("out", 8, "Ayesha (May)", 10_000),
+              sub("out", 9, "Mohsin Mughal (May)", 10_000),
+              sub("out", 10, "Outsourcing — other", 10_000),
+            ],
+          },
+          {
+            id: rid("o", 5),
+            label: "Asset Purchasing Expenses",
+            amount: 0,
+            subHeads: [],
+          },
+          {
+            id: rid("o", 6),
+            label: "Miscellaneous Expenses",
+            amount: 50_000,
+            subHeads: [
+              sub("misc", 1, "Kitchen Grocery", 10_000),
+              sub("misc", 2, "Miscellaneous — other", 10_000),
+              sub("misc", 3, "Notepad, Ballpen", 10_000),
+              sub("misc", 4, "Hand wash", 10_000),
+              sub("misc", 5, "Tissue boxes and rolls", 10_000),
+            ],
+          },
         ],
+        loanHeads: [
+          {
+            id: rid("ln", 1),
+            label: "Loan Issued",
+            amount: 8_000,
+            subHeads: [
+              sub("loan", 1, "Office Boy — Loan 1", 4_000),
+              sub("loan", 2, "Office Boy — Loan 2 (12/05/2026)", 1_000),
+              sub("loan", 3, "Office Boy — Loan 3 (16/05/2026)", 1_000),
+              sub("loan", 4, "Office Boy — Loan 4 (20/05/2026)", 2_000),
+            ],
+          },
+        ],
+        providentFundHeads: [],
       };
+    }
 
     case "cash_flow":
       return {
