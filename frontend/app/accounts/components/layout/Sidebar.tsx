@@ -14,7 +14,7 @@ const navItems = [
   { title: "Dashboard", href: `${BASE}`, icon: LayoutDashboard },
   { title: "Balance Sheet", href: `${BASE}/balance-sheet`, icon: Scale },
   { title: "Income Statement", href: `${BASE}/income-statement`, icon: TrendingUp },
-  { title: "CSR Payroll", href: `${BASE}/csr-payroll`, icon: Users },
+  { title: "Sales Team Payroll", href: `${BASE}/csr-payroll`, icon: Users },
   { title: "Cash Flow Statement", href: `${BASE}/cash-flow-statement`, icon: Landmark },
   { title: "Total Assets", href: `${BASE}/total-assets`, icon: Building2 },
 ];
