@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useCallback, useLayoutEffect } from "react";
+import { useMemo, useCallback, useLayoutEffect } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
@@ -73,7 +73,6 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
 
 export default function IncomeStatementPage() {
   const acc = useAccountsPage<IncomeStatementData>({ page: "income_statement", defaultData });
-  const syncToastRef = useRef(false);
 
   /** Always apply sales-team split + payroll migration */
   const data = useMemo(() => ensureIncomeStatementPeople(acc.data), [acc.data]);
@@ -84,16 +83,8 @@ export default function IncomeStatementPage() {
     const after = JSON.stringify(data);
     if (before !== after) {
       acc.setData(() => data);
-      if (!syncToastRef.current) {
-        syncToastRef.current = true;
-        toast.success("Sales Team split updated — Hammad moved to Team Lead. Click Save to keep.");
-      }
     }
   }, [acc.loading, acc.data, data, acc.setData]);
-
-  useEffect(() => {
-    syncToastRef.current = false;
-  }, [acc.recordDate]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
     const form = new FormData();

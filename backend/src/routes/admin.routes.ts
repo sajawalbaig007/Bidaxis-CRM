@@ -635,9 +635,9 @@ router.get(
         orderBy: { updatedAt: "desc" },
       });
 
-      const completed = leads.filter(
-        (l) => l.status?.toLowerCase() === "completed"
-      ).length;
+      const completed = await prisma.callLog.count({
+        where: { csrId: csr.id },
+      });
 
       const pending = leads.filter(
         (l) => l.status?.toLowerCase() === "pending"
@@ -661,6 +661,7 @@ router.get(
         csr,
         stats: {
           totalLeads: leads.length,
+          /** Status updates performed by this CSR */
           completed,
           pending,
           important,

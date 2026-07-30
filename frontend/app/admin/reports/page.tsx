@@ -108,8 +108,10 @@ export default function ReportsPage() {
 
   const stats = selectedCSR
     ? {
-        totalLeads:     csrActualStats?.totalLeads ?? selectedCSR.totalLeads,
-        completed:      csrActualStats?.completed ?? selectedCSR.completed,
+        // Prefer period report for completed (status updates in selected range).
+        // csr-history completed is all-time CallLog count — use as fallback only.
+        totalLeads:     selectedCSR.totalLeads,
+        completed:      selectedCSR.completed ?? csrActualStats?.completed ?? 0,
         pending:        csrActualStats?.pending ?? selectedCSR.pending,
         important:      csrActualStats?.important ?? selectedCSR.important,
         interested:     csrActualStats?.interested ?? selectedCSR.interested,
@@ -148,13 +150,13 @@ export default function ReportsPage() {
 
   const chartData = useMemo(() => {
     if (selectedCSR) {
-      return [{ day: selectedCSR.name, calls: selectedCSR.totalLeads, completed: selectedCSR.completed }];
+      return [{ day: selectedCSR.name, calls: stats.totalLeads, completed: stats.completed }];
     }
     if (activePeriod !== "all" && reportData?.timeChart?.length) {
       return reportData.timeChart.map(t => ({ day: t.label, calls: t.leads, completed: t.completed }));
     }
     return csrList.map(c => ({ day: c.name, calls: c.totalLeads, completed: c.completed }));
-  }, [selectedCSR, activePeriod, reportData, csrList]);
+  }, [selectedCSR, activePeriod, reportData, csrList, stats.totalLeads, stats.completed]);
 
   const chartPeriodLabel =
     activePeriod === "all"    ? "All leads" :
