@@ -178,8 +178,8 @@ export async function uploadAccountsFile(
     }
 
     const uploaded = await new Promise<{ secure_url: string }>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: "crm_accounts", resource_type: "raw" },
+        const stream = cloudinary.uploader.upload_stream(
+        { folder: "crm_accounts", resource_type: "auto" },
         (error, result) => {
           if (error || !result) reject(error ?? new Error("Upload failed"));
           else resolve(result as { secure_url: string });
