@@ -1,5 +1,24 @@
 import API from "./api";
 
+export type ReportsCsrRow = {
+  id: string;
+  csrId: string;
+  name: string;
+  csrCode?: string | null;
+  totalLeads: number;
+  completed: number;
+  pending: number;
+  important: number;
+  interested: number;
+  notCompleted: number;
+  notInterested?: number;
+  projectWon: number;
+  inHouse?: number;
+  noOwner?: number;
+  notInService?: number;
+  scheduleCall?: number;
+};
+
 export type ReportsData = {
   period: string;
   totalLeads: number;
@@ -13,21 +32,8 @@ export type ReportsData = {
   inHouse?: number;
   noOwner?: number;
   notInService?: number;
-  csrPerformance: {
-    id: string;
-    csrId: string;
-    name: string;
-    csrCode?: string | null;
-    totalLeads: number;
-    completed: number;
-    pending: number;
-    important: number;
-    interested: number;
-    notCompleted: number;
-    notInterested?: number;
-    projectWon: number;
-    inHouse?: number;
-  }[];
+  scheduleCall?: number;
+  csrPerformance: ReportsCsrRow[];
   timeChart: { label: string; leads: number; completed: number }[];
 };
 
@@ -39,7 +45,7 @@ let inflightKey = "";
 const TTL_MS = 300_000;
 
 function cacheKey(period: string, fromDate?: string, toDate?: string) {
-  return `${period}|${fromDate ?? ""}|${toDate ?? ""}`;
+  return `${period}|${fromDate ?? ""}|${toDate ?? ""}|v3`;
 }
 
 export function invalidateReportsCache() {

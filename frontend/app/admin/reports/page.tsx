@@ -108,19 +108,18 @@ export default function ReportsPage() {
 
   const stats = selectedCSR
     ? {
-        // Prefer period report for completed (status updates in selected range).
-        // csr-history completed is all-time CallLog count — use as fallback only.
         totalLeads:     selectedCSR.totalLeads,
         completed:      selectedCSR.completed ?? csrActualStats?.completed ?? 0,
-        pending:        csrActualStats?.pending ?? selectedCSR.pending,
-        important:      csrActualStats?.important ?? selectedCSR.important,
-        interested:     csrActualStats?.interested ?? selectedCSR.interested,
+        pending:        selectedCSR.pending ?? csrActualStats?.pending ?? 0,
+        important:      selectedCSR.important ?? csrActualStats?.important ?? 0,
+        interested:     selectedCSR.interested ?? csrActualStats?.interested ?? 0,
         notCompleted:   selectedCSR.notCompleted ?? 0,
         notInterested:  selectedCSR.notInterested ?? 0,
-        projectWon:     csrActualStats?.projectWon ?? selectedCSR.projectWon ?? 0,
-        inHouse:        selectedCSR.inHouse      ?? 0,
-        noOwner:        0,
-        notInService:   0,
+        projectWon:     selectedCSR.projectWon ?? csrActualStats?.projectWon ?? 0,
+        inHouse:        selectedCSR.inHouse ?? 0,
+        noOwner:        selectedCSR.noOwner ?? 0,
+        notInService:   selectedCSR.notInService ?? 0,
+        scheduleCall:   selectedCSR.scheduleCall ?? 0,
       }
     : {
         totalLeads:     reportData?.totalLeads     ?? 0,
@@ -134,16 +133,22 @@ export default function ReportsPage() {
         inHouse:        reportData?.inHouse        ?? 0,
         noOwner:        reportData?.noOwner        ?? 0,
         notInService:   reportData?.notInService   ?? 0,
+        scheduleCall:   reportData?.scheduleCall   ?? 0,
       };
 
+  /** Same options as CSR "Update Status" dropdown */
   const statusPieData = useMemo(() => {
     const slices = [
-      { name: "Important",          value: stats.important },
-      { name: "Close Client",       value: stats.projectWon },
-      { name: "Not Picked",         value: stats.notCompleted },
       { name: "Not Interested",     value: stats.notInterested },
+      { name: "Not Picked",         value: stats.notCompleted },
+      { name: "No Owner Available", value: stats.noOwner },
+      { name: "Not In Service",     value: stats.notInService },
       { name: "In House",           value: stats.inHouse },
-      { name: "Interested Clients", value: stats.interested },
+      { name: "Pending",            value: stats.pending },
+      { name: "Important",          value: stats.important },
+      { name: "Schedule Call",      value: stats.scheduleCall },
+      { name: "Interested",         value: stats.interested },
+      { name: "Close Client",       value: stats.projectWon },
     ];
     return slices.filter(s => s.value > 0);
   }, [stats]);
@@ -174,7 +179,13 @@ export default function ReportsPage() {
         pending: stats.pending,
         important: stats.important,
         interested: stats.interested,
+        notCompleted: stats.notCompleted,
+        notInterested: stats.notInterested,
         projectWon: stats.projectWon,
+        inHouse: stats.inHouse,
+        noOwner: stats.noOwner,
+        notInService: stats.notInService,
+        scheduleCall: stats.scheduleCall,
       }]
     : csrList;
 
@@ -358,10 +369,10 @@ export default function ReportsPage() {
             </div>
             <div className="grid grid-cols-4 gap-3 sm:gap-4 text-center flex-1">
               {[
-                { label:"Total",     value: stats.totalLeads,  color:"text-[#B8112D]"   },
-                { label:"Completed", value: stats.completed,   color:"text-green-600"   },
-                { label:"Pending",   value: stats.pending,     color:"text-yellow-600"  },
-                { label:"Important", value: stats.important,   color:"text-orange-600"  },
+                { label: "Total", value: stats.totalLeads, color: "text-[#B8112D]", hint: "Leads in period" },
+                { label: "Completed", value: stats.completed, color: "text-green-600", hint: "Status updates" },
+                { label: "Pending", value: stats.pending, color: "text-yellow-600", hint: "Pending leads" },
+                { label: "Important", value: stats.important, color: "text-orange-600", hint: "Important leads" },
               ].map(s => (
                 <div key={s.label}>
                   {loadingReport
@@ -369,6 +380,9 @@ export default function ReportsPage() {
                     : <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
                   }
                   <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
+                  {"hint" in s && s.hint ? (
+                    <p className="text-[9px] text-gray-300">{s.hint}</p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -376,10 +390,16 @@ export default function ReportsPage() {
           {!loadingReport && stats.totalLeads > 0 && (
             <div className="mt-4 h-[10px] bg-gray-100 rounded-full overflow-hidden flex">
               {[
-                { val: stats.completed, bg: "bg-green-500"  },
-                { val: stats.pending,   bg: "bg-yellow-400" },
-                { val: stats.important, bg: "bg-orange-500" },
-                { val: stats.interested,bg: "bg-blue-500"   },
+                { val: stats.notInterested, bg: "bg-slate-500" },
+                { val: stats.notCompleted,  bg: "bg-amber-500" },
+                { val: stats.noOwner,       bg: "bg-yellow-600" },
+                { val: stats.notInService,  bg: "bg-violet-500" },
+                { val: stats.inHouse,       bg: "bg-purple-500" },
+                { val: stats.pending,       bg: "bg-blue-500" },
+                { val: stats.important,     bg: "bg-red-500" },
+                { val: stats.scheduleCall,  bg: "bg-sky-500" },
+                { val: stats.interested,    bg: "bg-orange-500" },
+                { val: stats.projectWon,    bg: "bg-emerald-500" },
               ].map((b, i) => (
                 <div key={i} className={`${b.bg} h-full transition-all`} style={{ width: `${(b.val / stats.totalLeads) * 100}%` }}/>
               ))}
@@ -388,10 +408,17 @@ export default function ReportsPage() {
           {!loadingReport && stats.totalLeads > 0 && (
             <div className="flex flex-wrap gap-3 mt-2.5">
               {[
-                { label:"Completed",  val: stats.completed,  dot:"bg-green-500"  },
-                { label:"Pending",    val: stats.pending,    dot:"bg-yellow-400" },
-                { label:"Important",  val: stats.important,  dot:"bg-orange-500" },
-                { label:"Interested", val: stats.interested, dot:"bg-blue-500"   },
+                { label: "Completed (updates)", val: stats.completed,     dot: "bg-green-500" },
+                { label: "Not Interested",     val: stats.notInterested,  dot: "bg-slate-500" },
+                { label: "Not Picked",         val: stats.notCompleted,   dot: "bg-amber-500" },
+                { label: "No Owner Available", val: stats.noOwner,        dot: "bg-yellow-600" },
+                { label: "Not In Service",     val: stats.notInService,   dot: "bg-violet-500" },
+                { label: "In House",           val: stats.inHouse,        dot: "bg-purple-500" },
+                { label: "Pending",            val: stats.pending,        dot: "bg-blue-500" },
+                { label: "Important",          val: stats.important,      dot: "bg-red-500" },
+                { label: "Schedule Call",      val: stats.scheduleCall,   dot: "bg-sky-500" },
+                { label: "Interested",         val: stats.interested,     dot: "bg-orange-500" },
+                { label: "Close Client",       val: stats.projectWon,     dot: "bg-emerald-500" },
               ].map(b => (
                 <span key={b.label} className="flex items-center gap-1.5 text-[11px] text-gray-500">
                   <span className={`w-2 h-2 rounded-full ${b.dot}`}/>
@@ -434,31 +461,38 @@ export default function ReportsPage() {
                   <div key={i} className="h-12 sm:h-14 bg-gray-100 rounded-xl sm:rounded-2xl animate-pulse" />
                 ))}
               </div>
-            ) : stats.totalLeads === 0 ? (
+            ) : stats.totalLeads === 0 && stats.completed === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 sm:h-40">
                 <Database size={28} className="text-gray-200 mb-2 sm:mb-3 sm:w-8 sm:h-8" />
                 <p className="text-xs sm:text-sm text-gray-400">No data</p>
               </div>
             ) : (
               /* 2-col grid on mobile/sm for compact view; 1-col on xl */
-              <div className="grid grid-cols-2 xl:grid-cols-1 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 xl:grid-cols-1 gap-2 sm:gap-3 max-h-[520px] overflow-y-auto pr-0.5">
                 {[
-                  { label: "Total Leads",    value: stats.totalLeads,   bg: "bg-red-50",     color: "text-[#B8112D]",   icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Completed",      value: stats.completed,    bg: "bg-green-50",   color: "text-green-600",   icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Interested",     value: stats.interested,   bg: "bg-orange-50",  color: "text-orange-600",  icon: <TrendingUp size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Important",      value: stats.important,    bg: "bg-red-50",     color: "text-red-600",     icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
-                  ...(selectedCSR ? [
-                    { label: "Not Completed", value: stats.notCompleted, bg: "bg-gray-50",    color: "text-gray-500",    icon: <Clock3 size={14} className="sm:w-4 sm:h-4" /> },
-                    { label: "Close Client",  value: stats.projectWon,   bg: "bg-emerald-50", color: "text-emerald-600", icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" /> },
-                  ] : []),
+                  { label: "Total Leads",        value: stats.totalLeads,    bg: "bg-red-50",     color: "text-[#B8112D]",   icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" />, sub: "Leads in period" },
+                  { label: "Completed",          value: stats.completed,     bg: "bg-green-50",   color: "text-green-600",   icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" />, sub: "Status updates by CSR" },
+                  { label: "Not Interested",     value: stats.notInterested, bg: "bg-slate-50",   color: "text-slate-600",   icon: <Database size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Not Picked",         value: stats.notCompleted,  bg: "bg-amber-50",   color: "text-amber-600",   icon: <Clock3 size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "No Owner Available", value: stats.noOwner,       bg: "bg-yellow-50",  color: "text-yellow-700",  icon: <Users size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Not In Service",     value: stats.notInService,  bg: "bg-violet-50",  color: "text-violet-600",  icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "In House",           value: stats.inHouse,       bg: "bg-purple-50",  color: "text-purple-600",  icon: <Database size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Pending",            value: stats.pending,       bg: "bg-blue-50",    color: "text-blue-600",    icon: <Clock3 size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Important",          value: stats.important,     bg: "bg-red-50",     color: "text-red-600",     icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Schedule Call",      value: stats.scheduleCall,  bg: "bg-sky-50",     color: "text-sky-600",     icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Interested",         value: stats.interested,    bg: "bg-orange-50",  color: "text-orange-600",  icon: <TrendingUp size={14} className="sm:w-4 sm:h-4" /> },
+                  { label: "Close Client",       value: stats.projectWon,    bg: "bg-emerald-50", color: "text-emerald-600", icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" /> },
                 ].map((s, i) => (
                   <div key={i} className="flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl bg-gray-50 p-2.5 sm:p-3">
                     <div className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl shrink-0 ${s.bg} ${s.color}`}>
                       {s.icon}
                     </div>
-                    <div>
-                      <p className="text-[10px] sm:text-xs text-gray-400">{s.label}</p>
-                      <p className={`text-base sm:text-lg font-bold ${s.color}`}>{s.value}</p>
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-[11px] text-gray-400 leading-tight">{s.label}</p>
+                      <p className={`text-sm sm:text-base font-bold tabular-nums ${s.color}`}>{s.value}</p>
+                      {"sub" in s && s.sub ? (
+                        <p className="text-[9px] text-gray-300 truncate">{s.sub}</p>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -486,11 +520,15 @@ export default function ReportsPage() {
 
           {csrPerfOpen && (
           <div className="overflow-x-auto">
-            <table className="w-full" style={{ minWidth: "700px" }}>
+            <table className="w-full" style={{ minWidth: "1100px" }}>
               <thead>
                 <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                  {["CSR", "Total", "Completed", "Pending", "Important", "Interested", "Not Picked", "Close Client"].map(h => (
-                    <th key={h} className="px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                  {[
+                    "CSR", "Total", "Completed",
+                    "Not Interested", "Not Picked", "No Owner", "Not In Service", "In House",
+                    "Pending", "Important", "Schedule Call", "Interested", "Close Client",
+                  ].map(h => (
+                    <th key={h} className="px-2.5 sm:px-3 py-2.5 sm:py-3 text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -500,8 +538,8 @@ export default function ReportsPage() {
                 {loadingReport ? (
                   [1, 2, 3].map(i => (
                     <tr key={i} className="border-b border-gray-50">
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map(j => (
-                        <td key={j} className="px-3 sm:px-4 py-3 sm:py-4">
+                      {Array.from({ length: 13 }).map((_, j) => (
+                        <td key={j} className="px-2.5 sm:px-3 py-3 sm:py-4">
                           <div className="h-3.5 sm:h-4 w-8 sm:w-10 bg-gray-100 rounded animate-pulse" />
                         </td>
                       ))}
@@ -509,7 +547,7 @@ export default function ReportsPage() {
                   ))
                 ) : displayCsrRows.map(csr => (
                   <tr key={csr.id} className="border-b border-gray-50 hover:bg-[#FAFAFB] transition-all">
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4">
                       <div className="flex items-center gap-2 sm:gap-2.5">
                         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
                           {csr.name.charAt(0).toUpperCase()}
@@ -519,27 +557,18 @@ export default function ReportsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-bold text-[#111827]">{csr.totalLeads}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-semibold text-green-600">{csr.completed}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-semibold text-yellow-600">{csr.pending}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-semibold text-orange-600">{csr.important}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-semibold text-blue-600">{csr.interested ?? 0}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-semibold text-gray-500">{csr.notCompleted ?? 0}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="text-xs sm:text-sm font-semibold text-emerald-600">{csr.projectWon ?? 0}</span>
-                    </td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-bold text-[#111827]">{csr.totalLeads}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-green-600">{csr.completed}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-slate-600">{csr.notInterested ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-amber-600">{csr.notCompleted ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-yellow-700">{csr.noOwner ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-violet-600">{csr.notInService ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-purple-600">{csr.inHouse ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-blue-600">{csr.pending}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-red-600">{csr.important}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-sky-600">{csr.scheduleCall ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-orange-600">{csr.interested ?? 0}</span></td>
+                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-emerald-600">{csr.projectWon ?? 0}</span></td>
                   </tr>
                 ))}
 
