@@ -13,6 +13,7 @@ const db_1 = __importDefault(require("../config/db"));
 const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const accountsDefaults_1 = require("../utils/accountsDefaults");
 const accountsExcelImport_1 = require("../utils/accountsExcelImport");
+const incomeStatementNormalize_1 = require("../utils/incomeStatementNormalize");
 const salesPayrollDefaults_1 = require("../utils/salesPayrollDefaults");
 function todayIsoDate() {
     return new Date().toISOString().slice(0, 10);
@@ -81,6 +82,10 @@ async function getAccountsRecord(req, res) {
             return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
         }
         const record = await getOrCreateRecord(pageParam, recordDate, req.user?.id);
+        let responseData = record.data;
+        if (pageParam === "income_statement") {
+            responseData = (0, incomeStatementNormalize_1.normalizeIncomeStatementData)(responseData);
+        }
         const uploads = await db_1.default.accountsFileUpload.findMany({
             where: { page: (0, accountsDefaults_1.toPrismaAccountsPage)(pageParam), recordDate },
             orderBy: { createdAt: "desc" },
@@ -95,7 +100,7 @@ async function getAccountsRecord(req, res) {
         return res.json({
             success: true,
             recordDate,
-            data: record.data,
+            data: responseData,
             updatedAt: record.updatedAt,
             uploads,
         });
@@ -122,6 +127,9 @@ async function saveAccountsRecord(req, res) {
         let payload = data;
         if (pageParam === "sales_payroll") {
             payload = (0, salesPayrollDefaults_1.normalizeSalesPayrollData)(data);
+        }
+        if (pageParam === "income_statement") {
+            payload = (0, incomeStatementNormalize_1.normalizeIncomeStatementData)(data);
         }
         const prismaPage = (0, accountsDefaults_1.toPrismaAccountsPage)(pageParam);
         const record = await db_1.default.accountsRecord.upsert({

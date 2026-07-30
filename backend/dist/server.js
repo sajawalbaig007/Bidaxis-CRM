@@ -51,7 +51,7 @@ setInterval(async () => {
     }
 }, 60000);
 /* ═══════════════════════════════════════════════
-   AUTO DAILY REPORT — 3:30 
+   AUTO DAILY REPORT — 3:30 AM
 ═══════════════════════════════════════════════ */
 async function generateDailyReport() {
     try {
