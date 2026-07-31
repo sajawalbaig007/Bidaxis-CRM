@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo } from "react";
 import {
@@ -53,7 +53,7 @@ export default function CashFlowStatementPage() {
         credit += Number(b?.credit) || 0;
       }
       return {
-        name: bank.length > 14 ? `${bank.slice(0, 12)}â€¦` : bank,
+        name: bank.length > 14 ? `${bank.slice(0, 12)}…` : bank,
         full: bank,
         net: debit - credit,
         debit,
@@ -139,7 +139,7 @@ export default function CashFlowStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Cash Flow Statement"
-          subtitle="Tables are view-only â€” pencil opens edit popup for bank Dr/Cr & notes. Net auto-calculates from banks."
+          subtitle="Tables are view-only — pencil opens edit popup for bank Dr/Cr & notes. Net auto-calculates from banks."
           onAddNew={addRowToFirstMonth}
           addNewLabel="Add New Entry"
         >
@@ -195,7 +195,7 @@ export default function CashFlowStatementPage() {
               icon={<Activity size={16} />}
             >
               <RechartsBox height={250}>
-                <AreaChart data={monthChart.length ? monthChart : [{ name: "â€”", net: 0 }]}>
+                <AreaChart data={monthChart.length ? monthChart : [{ name: "—", net: 0 }]}>
                   <defs>
                     <linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#B8112D" stopOpacity={0.4} />

@@ -364,34 +364,48 @@ html.dark .accounts-page-bg {
   background: radial-gradient(ellipse at top, #181b22 0%, #13151a 55%, #101217 100%);
 }
 
-/* Near-white surfaces (tables, cards, sub-rows) */
-html.dark :is([class*="bg-[#FAFBFC]"], [class*="bg-[#FCFCFD]"], [class*="bg-[#F4F5F8]"], [class*="bg-[#F8FBFF]"], [class*="bg-[#F8FFFE]"], [class*="bg-[#FAFAFA]/"]) {
+/* Translucent white bars (topbars/headers with backdrop blur) — bg-white/70..95 */
+html.dark :is([class~="bg-white/70"], [class~="bg-white/75"], [class~="bg-white/80"], [class~="bg-white/85"], [class~="bg-white/90"], [class~="bg-white/95"]) {
+  background-color: rgba(26, 29, 36, 0.92) !important;
+}
+
+/* Near-white surfaces (tables, cards, sub-rows) — hover: variants excluded */
+html.dark
+  :is([class*="bg-[#FAFBFC]"], [class*="bg-[#FCFCFD]"], [class*="bg-[#F4F5F8]"], [class*="bg-[#F8FBFF]"], [class*="bg-[#F8FFFE]"], [class*="bg-[#FAFAFA]/"]):not(
+    [class*="hover:bg-[#F8FBFF]"],
+    [class*="hover:bg-[#F8FFFE]"]
+  ) {
   background-color: var(--crm-surface-muted) !important;
 }
 
-/* Soft pink/red tinted rows & section headers */
-html.dark :is([class*="bg-[#FFF6F8]"], [class*="bg-[#FFFBFC]"], [class*="bg-[#FFF8F2]"], [class*="bg-[#FFF1F3]/"]) {
+/* Soft pink/red tinted rows & section headers — hover: variants excluded */
+html.dark
+  :is([class*="bg-[#FFF6F8]"], [class*="bg-[#FFFBFC]"], [class*="bg-[#FFF8F2]"], [class*="bg-[#FFF1F3]/"]):not(
+    [class*="hover:bg-[#FFFBFC]"],
+    [class*="hover:bg-[#FFF6F8]"],
+    [class*="hover:bg-[#FFF8F2]"]
+  ) {
   background-color: rgba(184, 17, 45, 0.14) !important;
 }
-html.dark [class*="bg-[#FFE4E8]"] { background-color: rgba(244, 63, 94, 0.24) !important; }
+html.dark [class*="bg-[#FFE4E8]"]:not([class*="hover:bg-[#FFE4E8]"]) { background-color: rgba(244, 63, 94, 0.24) !important; }
 
-/* Tinted chips / icon tiles */
-html.dark :is([class*="bg-[#F3EEFF]"], [class*="bg-[#E9DEFF]"]) { background-color: rgba(139, 92, 246, 0.22) !important; }
-html.dark :is([class*="bg-[#D6EBFF]"], [class*="bg-[#EFF8FF]"], [class*="bg-[#EAF5FF]/"]) { background-color: rgba(14, 165, 233, 0.2) !important; }
-html.dark [class*="bg-[#D1FAE5]"] { background-color: rgba(16, 185, 129, 0.22) !important; }
-html.dark [class*="bg-[#F0FDFA]"] { background-color: rgba(20, 184, 166, 0.16) !important; }
+/* Tinted chips / icon tiles — hover: variants excluded */
+html.dark :is([class*="bg-[#F3EEFF]"], [class*="bg-[#E9DEFF]"]):not([class*="hover:bg-[#E9DEFF]"]) { background-color: rgba(139, 92, 246, 0.22) !important; }
+html.dark :is([class*="bg-[#D6EBFF]"], [class*="bg-[#EFF8FF]"], [class*="bg-[#EAF5FF]/"]):not([class*="hover:bg-[#D6EBFF]"]) { background-color: rgba(14, 165, 233, 0.2) !important; }
+html.dark [class*="bg-[#D1FAE5]"]:not([class*="hover:bg-[#D1FAE5]"]) { background-color: rgba(16, 185, 129, 0.22) !important; }
+html.dark [class*="bg-[#F0FDFA]"]:not([class*="hover:bg-[#F0FDFA]"]) { background-color: rgba(20, 184, 166, 0.16) !important; }
 
-/* Named -50 tints, incl. /30 /40 /60 opacity variants */
-html.dark :is([class~="bg-emerald-50"], [class*="bg-emerald-50/"]) { background-color: rgba(16, 185, 129, 0.16) !important; }
-html.dark :is([class~="bg-blue-50"], [class*="bg-blue-50/"]) { background-color: rgba(14, 165, 233, 0.16) !important; }
-html.dark :is([class~="bg-teal-50"], [class*="bg-teal-50/"]) { background-color: rgba(20, 184, 166, 0.16) !important; }
-html.dark :is([class~="bg-indigo-50"], [class*="bg-indigo-50/"]) { background-color: rgba(99, 102, 241, 0.18) !important; }
-html.dark :is([class~="bg-violet-50"], [class*="bg-violet-50/"]) { background-color: rgba(139, 92, 246, 0.16) !important; }
-html.dark :is([class~="bg-orange-50"], [class*="bg-orange-50/"]) { background-color: rgba(249, 115, 22, 0.16) !important; }
-html.dark :is([class~="bg-rose-50"], [class*="bg-rose-50/"]) { background-color: rgba(244, 63, 94, 0.16) !important; }
-html.dark [class*="bg-red-50/"] { background-color: rgba(244, 63, 94, 0.14) !important; }
-html.dark [class*="bg-amber-50/"] { background-color: rgba(245, 158, 11, 0.14) !important; }
-html.dark [class*="bg-gray-50/"] { background-color: var(--crm-surface-muted) !important; }
+/* Named -50 tints, incl. /30 /40 /60 opacity variants — hover: variants excluded */
+html.dark :is([class~="bg-emerald-50"], [class*="bg-emerald-50/"]):not([class*="hover:bg-emerald-50"]) { background-color: rgba(16, 185, 129, 0.16) !important; }
+html.dark :is([class~="bg-blue-50"], [class*="bg-blue-50/"]):not([class*="hover:bg-blue-50"]) { background-color: rgba(14, 165, 233, 0.16) !important; }
+html.dark :is([class~="bg-teal-50"], [class*="bg-teal-50/"]):not([class*="hover:bg-teal-50"]) { background-color: rgba(20, 184, 166, 0.16) !important; }
+html.dark :is([class~="bg-indigo-50"], [class*="bg-indigo-50/"]):not([class*="hover:bg-indigo-50"]) { background-color: rgba(99, 102, 241, 0.18) !important; }
+html.dark :is([class~="bg-violet-50"], [class*="bg-violet-50/"]):not([class*="hover:bg-violet-50"]) { background-color: rgba(139, 92, 246, 0.16) !important; }
+html.dark :is([class~="bg-orange-50"], [class*="bg-orange-50/"]):not([class*="hover:bg-orange-50"]) { background-color: rgba(249, 115, 22, 0.16) !important; }
+html.dark :is([class~="bg-rose-50"], [class*="bg-rose-50/"]):not([class*="hover:bg-rose-50"]) { background-color: rgba(244, 63, 94, 0.16) !important; }
+html.dark [class*="bg-red-50/"]:not([class*="hover:bg-red-50"]) { background-color: rgba(244, 63, 94, 0.14) !important; }
+html.dark [class*="bg-amber-50/"]:not([class*="hover:bg-amber-50"]) { background-color: rgba(245, 158, 11, 0.14) !important; }
+html.dark [class*="bg-gray-50/"]:not([class*="hover:bg-gray-50"]) { background-color: var(--crm-surface-muted) !important; }
 
 /* -100 tints */
 html.dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.24) !important; }
@@ -436,6 +450,10 @@ html.dark :is([class~="to-white"], [class*="to-[#FFFBFC]"], [class*="to-[#FFF8F9
 .dark .text-orange-700 { color: #fdba74 !important; }
 .dark .text-rose-600 { color: #fda4af !important; }
 .dark .text-\[\#B8112D\] { color: #f4657d !important; }
+.dark .text-\[\#334155\] { color: var(--crm-text-secondary) !important; }
+.dark .text-\[\#0369A1\] { color: #7dd3fc !important; }
+.dark .text-\[\#0F766E\] { color: #5eead4 !important; }
+.dark .text-\[\#12B76A\] { color: #34d399 !important; }
 
 /* CSR + login hardening */
 body.crm-secure-view {

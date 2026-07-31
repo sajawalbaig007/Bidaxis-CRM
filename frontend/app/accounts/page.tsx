@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -33,7 +33,7 @@ import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, Dashboard
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 
 const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
-  // Ahmed Hamza â€” USD/CAD Ã— 0.89 â†’ Ã— FX (example USD rate 285)
+  // Ahmed Hamza — USD/CAD × 0.89 → × FX (example USD rate 285)
   AH: {
     usdAmount: 0,
     cadAmount: 0,
@@ -43,7 +43,7 @@ const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
     usdTaxFactor: 0.89,
     cadTaxFactor: 0.89,
   },
-  // Sharjeel Nasir â€” CAD Ã— 0.945 â†’ Ã— 196
+  // Sharjeel Nasir — CAD × 0.945 → × 196
   SN: {
     usdAmount: 0,
     cadAmount: 0,
@@ -53,7 +53,7 @@ const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
     usdTaxFactor: 0.89,
     cadTaxFactor: 0.945,
   },
-  // Cheque payment â€” 25% tax deduction on PKR gross
+  // Cheque payment — 25% tax deduction on PKR gross
   CHQ: {
     usdAmount: 0,
     cadAmount: 0,
@@ -64,7 +64,7 @@ const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
     cadTaxFactor: 1,
     taxDeductionRate: 0.25,
   },
-  // Direct payment Habib Metro â€” 1% tax deduction on PKR gross
+  // Direct payment Habib Metro — 1% tax deduction on PKR gross
   HM: {
     usdAmount: 0,
     cadAmount: 0,
@@ -124,7 +124,7 @@ function normalizeCurrency(raw: DashboardCurrency | undefined): DashboardCurrenc
     };
   }
 
-  // Legacy flat shape â†’ put amounts on SN, keep others defaults
+  // Legacy flat shape → put amounts on SN, keep others defaults
   return {
     tabs: {
       SN: {
@@ -279,8 +279,8 @@ export default function AccountsDashboardPage() {
 
   const metrics = [
     { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
-    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} Â· Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
-    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A âˆ’ Eâˆ’L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
+    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
+    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
     { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", icon: <TrendingUp size={14} /> },
     { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", icon: <Waves size={14} /> },
   ];
@@ -331,7 +331,7 @@ export default function AccountsDashboardPage() {
     });
   };
 
-  /** Formula Book â€” edits save straight into the dashboard record */
+  /** Formula Book — edits save straight into the dashboard record */
   const formulasState: FormulasState = acc.data.formulas ?? {};
   const handleFormulasChange = (next: FormulasState) => {
     const nextData: DashboardData = { ...acc.data, formulas: next };
@@ -340,22 +340,22 @@ export default function AccountsDashboardPage() {
   };
 
   const formulaLiveNotes: Record<string, string> = {
-    "fx-ah": `Current: USD rate ${ah.usdToPkrRate} Â· CAD rate ${ah.cadToPkrRate} Â· factor ${ah.usdTaxFactor}`,
-    "fx-sn": `Current: CAD rate ${sn.cadToPkrRate} Â· factor ${sn.cadTaxFactor}`,
-    "fx-chq": `Current gross: ${currency(chq.pkrAmount)} â†’ net ${currency(chqCalc.pkrNet)}`,
-    "fx-hm": `Current gross: ${currency(hm.pkrAmount)} â†’ net ${currency(hmCalc.pkrNet)}`,
+    "fx-ah": `Current: USD rate ${ah.usdToPkrRate} · CAD rate ${ah.cadToPkrRate} · factor ${ah.usdTaxFactor}`,
+    "fx-sn": `Current: CAD rate ${sn.cadToPkrRate} · factor ${sn.cadTaxFactor}`,
+    "fx-chq": `Current gross: ${currency(chq.pkrAmount)} → net ${currency(chqCalc.pkrNet)}`,
+    "fx-hm": `Current gross: ${currency(hm.pkrAmount)} → net ${currency(hmCalc.pkrNet)}`,
     "is-net-profit": `Current (${acc.recordDate}): ${currency(summaries.incomeNetProfit ?? 0)}`,
   };
 
   const formulaNote =
     viewTab === "AH"
-      ? "Ahmed Hamza: USD/CAD Ã— 0.89 = after tax â†’ Ã— international FX rate = PKR received."
+      ? "Ahmed Hamza: USD/CAD × 0.89 = after tax → × international FX rate = PKR received."
       : viewTab === "SN"
-        ? "Sharjeel Nasir (CAD): CAD Ã— 0.945 = after tax â†’ Ã— exchange rate (record: 196) = PKR received."
+        ? "Sharjeel Nasir (CAD): CAD × 0.945 = after tax → × exchange rate (record: 196) = PKR received."
         : viewTab === "CHQ"
-          ? "Cheque payment: Gross PKR âˆ’ 25% tax = net received."
+          ? "Cheque payment: Gross PKR − 25% tax = net received."
           : viewTab === "HM"
-            ? "Direct payment Habib Metro: Gross PKR âˆ’ 1% tax = net received."
+            ? "Direct payment Habib Metro: Gross PKR − 1% tax = net received."
             : "Combined Ahmed + Sharjeel + Cheque + Habib Metro net totals.";
 
   return (
@@ -365,14 +365,14 @@ export default function AccountsDashboardPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Dashboard"
-          subtitle="Live totals from other pages. Currency formulas are view-only â€” open the eye to edit."
+          subtitle="Live totals from other pages. Currency formulas are view-only — open the eye to edit."
         >
           <div className="flex justify-end mb-3">
             <button
               type="button"
               onClick={() => setFormulaBookOpen(true)}
               className="h-10 px-4 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 inline-flex items-center gap-2 hover:border-[#B8112D] hover:text-[#B8112D] transition-colors shadow-sm"
-              title="Accounts ke tamam formulas â€” section-wise, editable"
+              title="Accounts ke tamam formulas — section-wise, editable"
             >
               <Sigma size={15} className="text-[#B8112D]" />
               All Formulas
@@ -386,7 +386,7 @@ export default function AccountsDashboardPage() {
             <div className="relative p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">Total Received â€” All Channels</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">Total Received — All Channels</p>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 border border-white/15 text-white/80 tabular-nums">
                     {acc.recordDate || todayIso()}
                   </span>
@@ -405,7 +405,7 @@ export default function AccountsDashboardPage() {
                   {currency(combinedTotal)}
                 </p>
                 <p className="mt-1.5 text-[11px] text-white/50 font-medium">
-                  Ahmed + Sharjeel + Cheque + Habib Metro â€” after tax, PKR net
+                  Ahmed + Sharjeel + Cheque + Habib Metro — after tax, PKR net
                 </p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-2 lg:ml-auto shrink-0">
@@ -455,7 +455,7 @@ export default function AccountsDashboardPage() {
               <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">View-only Â· eye to edit Â· {acc.recordDate}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">View-only · eye to edit · {acc.recordDate}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {viewTab !== "ALL" && (
@@ -499,8 +499,8 @@ export default function AccountsDashboardPage() {
               {viewTab === "ALL" ? (
                 <div className="p-3 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {([
-                    { key: "AH" as const, label: "Ahmed Hamza", accent: "text-[#B8112D]", calc: ahCalc, note: "FX Â· 11% tax keep 0.89" },
-                    { key: "SN" as const, label: "Sharjeel Nasir", accent: "text-[#0B84F3]", calc: snCalc, note: "CAD Â· tax 0.945" },
+                    { key: "AH" as const, label: "Ahmed Hamza", accent: "text-[#B8112D]", calc: ahCalc, note: "FX · 11% tax keep 0.89" },
+                    { key: "SN" as const, label: "Sharjeel Nasir", accent: "text-[#0B84F3]", calc: snCalc, note: "CAD · tax 0.945" },
                     { key: "CHQ" as const, label: "Cheque Payment", accent: "text-amber-700", calc: chqCalc, note: "25% tax deduction" },
                     { key: "HM" as const, label: "Direct Habib Metro", accent: "text-teal-700", calc: hmCalc, note: "1% tax deduction" },
                   ]).map(card => (
@@ -524,8 +524,8 @@ export default function AccountsDashboardPage() {
                         </>
                       ) : (
                         <>
-                          <p className="text-xs text-gray-600">USD â†’ PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.usdInPkr)}</span></p>
-                          <p className="text-xs text-gray-600">CAD â†’ PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.cadInPkr)}</span></p>
+                          <p className="text-xs text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.usdInPkr)}</span></p>
+                          <p className="text-xs text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.cadInPkr)}</span></p>
                           <p className="text-sm font-extrabold text-gray-900 mt-1.5 tabular-nums">Subtotal: {currency(card.calc.total)}</p>
                         </>
                       )}
@@ -550,7 +550,7 @@ export default function AccountsDashboardPage() {
                   </div>
                   <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-gray-600 font-mono leading-snug">
                     <p>
-                      {currency(activeCalc.pkrGross)} âˆ’ {((active.taxDeductionRate ?? 0) * 100).toFixed(0)}% tax ({currency(activeCalc.pkrTax)}) ={" "}
+                      {currency(activeCalc.pkrGross)} − {((active.taxDeductionRate ?? 0) * 100).toFixed(0)}% tax ({currency(activeCalc.pkrTax)}) ={" "}
                       <span className="font-bold text-[#B8112D]">{currency(activeCalc.pkrNet)}</span>
                     </p>
                   </div>
@@ -561,10 +561,10 @@ export default function AccountsDashboardPage() {
                     {([
                       ["USD Payment", active.usdAmount],
                       ["USD Tax", active.usdTaxFactor],
-                      ["USD â†’ PKR", active.usdToPkrRate],
+                      ["USD → PKR", active.usdToPkrRate],
                       ["CAD Payment", active.cadAmount],
                       ["CAD Tax", active.cadTaxFactor],
-                      ["CAD â†’ PKR", active.cadToPkrRate],
+                      ["CAD → PKR", active.cadToPkrRate],
                       ["Direct PKR", active.pkrAmount],
                     ] as const).map(([label, val]) => (
                       <div
@@ -577,8 +577,8 @@ export default function AccountsDashboardPage() {
                     ))}
                   </div>
                   <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-gray-600 space-y-0.5 font-mono leading-snug sm:flex sm:gap-8 sm:space-y-0">
-                    <p>USD: {currency(active.usdAmount)} Ã— {active.usdTaxFactor} Ã— {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
-                    <p>CAD: {currency(active.cadAmount)} Ã— {active.cadTaxFactor} Ã— {active.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.cadInPkr)}</span></p>
+                    <p>USD: {currency(active.usdAmount)} × {active.usdTaxFactor} × {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
+                    <p>CAD: {currency(active.cadAmount)} × {active.cadTaxFactor} × {active.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.cadInPkr)}</span></p>
                   </div>
                 </div>
               )}
@@ -604,8 +604,8 @@ export default function AccountsDashboardPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 w-full">
               <AccountsChartCard
-                title={`Payment Split â€” ${viewTab !== "ALL" ? CURRENCY_TAB_LABELS[viewTab] : "All"}`}
-                subtitle={viewTab === "ALL" ? "All channels" : isLocalPaymentTab(viewTab) ? "Gross Â· Tax Â· Net" : "USD Â· CAD Â· PKR"}
+                title={`Payment Split — ${viewTab !== "ALL" ? CURRENCY_TAB_LABELS[viewTab] : "All"}`}
+                subtitle={viewTab === "ALL" ? "All channels" : isLocalPaymentTab(viewTab) ? "Gross · Tax · Net" : "USD · CAD · PKR"}
                 accent="#B8112D"
                 icon={<PieIcon size={16} />}
               >
@@ -684,7 +684,7 @@ export default function AccountsDashboardPage() {
             <div className="flex items-center gap-2.5 mb-3 px-0.5">
               <span className="w-1 h-6 rounded-full bg-[#B8112D] shrink-0" />
               <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Quick Access</h2>
-              <span className="text-[11px] text-gray-400 font-medium">Jump to any accounts page â€” live totals as of {acc.recordDate}</span>
+              <span className="text-[11px] text-gray-400 font-medium">Jump to any accounts page — live totals as of {acc.recordDate}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {quickPages.map(p => (
@@ -714,7 +714,7 @@ export default function AccountsDashboardPage() {
                       {currency(Number(p.stat) || 0)}
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-lg font-extrabold text-gray-300">â€”</p>
+                    <p className="mt-0.5 text-lg font-extrabold text-gray-300">—</p>
                   )}
                   <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">{p.hint}</p>
                 </Link>
