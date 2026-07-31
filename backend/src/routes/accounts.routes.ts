@@ -15,12 +15,14 @@ import {
   lookupPayrollLoan,
   upsertPayrollLoan,
 } from "../controllers/payrollLoan.controller";
+import { getMonthlyAccountsReport } from "../controllers/accountsReport.controller";
 
 const router = express.Router();
 
 router.use(verifyToken, allowRoles("accounts", "admin"));
 
 router.get("/dashboard/summary", getAccountsDashboardSummary);
+router.get("/reports/monthly", getMonthlyAccountsReport);
 router.get("/payroll-loans/lookup", lookupPayrollLoan);
 router.get("/payroll-loans", listPayrollLoans);
 router.post("/payroll-loans", upsertPayrollLoan);

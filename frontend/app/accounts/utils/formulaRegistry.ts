@@ -1,0 +1,179 @@
+/**
+ * Central formula registry — har code-defined formula yahan register hota hai.
+ * Naya formula code mai add karo to is list mai entry daal do; Formula Book
+ * (Dashboard → All Formulas) mai wo khud show ho jayega.
+ */
+
+export type FormulaDef = {
+  id: string;
+  section: string;
+  title: string;
+  /** Canonical formula text (editable override dashboard record mai save hota hai) */
+  expression: string;
+  /** Kis jagah / kis calculation pe lagta hai */
+  appliesTo: string;
+};
+
+export const BUILTIN_FORMULAS: FormulaDef[] = [
+  // ---- Dashboard — Currency Payments ----
+  {
+    id: "fx-ah",
+    section: "Dashboard — Currency Payments",
+    title: "Ahmed Hamza (PayPal)",
+    expression: "USD × 0.89 (after tax) × USD→PKR rate = PKR · CAD × 0.89 × CAD→PKR rate = PKR",
+    appliesTo: "Dashboard → Currency Payment Formula → Ahmed tab (values eye button se editable)",
+  },
+  {
+    id: "fx-sn",
+    section: "Dashboard — Currency Payments",
+    title: "Sharjeel Nasir (PayPal)",
+    expression: "CAD × 0.945 (after tax) × CAD→PKR rate (record: 196) = PKR received",
+    appliesTo: "Dashboard → Currency Payment Formula → Sharjeel tab",
+  },
+  {
+    id: "fx-chq",
+    section: "Dashboard — Currency Payments",
+    title: "Cheque Payment",
+    expression: "Net = Gross PKR − 25% tax",
+    appliesTo: "Dashboard → Currency Payment Formula → Cheque tab",
+  },
+  {
+    id: "fx-hm",
+    section: "Dashboard — Currency Payments",
+    title: "Direct Habib Metro",
+    expression: "Net = Gross PKR − 1% tax",
+    appliesTo: "Dashboard → Currency Payment Formula → Habib Metro tab",
+  },
+
+  // ---- Income Statement ----
+  {
+    id: "is-net-profit",
+    section: "Income Statement",
+    title: "Net Profit",
+    expression: "Net Profit = Total Revenue − (Team Salaries + OPEX + Loans + Provident Fund)",
+    appliesTo: "Income Statement → KPI cards & Revenue·Expense·Profit chart",
+  },
+  {
+    id: "is-margin",
+    section: "Income Statement",
+    title: "Net Margin %",
+    expression: "Net Margin = Net Profit ÷ Revenue × 100",
+    appliesTo: "Income Statement → tables ke neeche footer line",
+  },
+
+  // ---- Payroll — Common ----
+  {
+    id: "pay-day",
+    section: "Payroll — Common",
+    title: "Day / Hour Salary",
+    expression: "1 Day Salary = (Basic + Allowance) ÷ 30 · 1 Hour Salary = Day ÷ 8",
+    appliesTo: "Sab payroll calculations (late, unpaid leave, overtime)",
+  },
+  {
+    id: "pay-pf",
+    section: "Payroll — Common",
+    title: "Provident Fund",
+    expression: "PF = 8% of Basic (auto) — manual override possible",
+    appliesTo: "Har employee ki deduction (Technical / Admin / Sales)",
+  },
+  {
+    id: "pay-deduction",
+    section: "Payroll — Common",
+    title: "Total Deduction & Net",
+    expression:
+      "Total Deduction = Late + (Unpaid Leaves × Day Salary) + Loan (this month) + PF + Income Tax · Net Salary = Total Earning − Total Deduction",
+    appliesTo: "Har employee ka net salary",
+  },
+
+  // ---- Payroll — Technical Team ----
+  {
+    id: "tech-earning",
+    section: "Payroll — Technical Team",
+    title: "Total Earning",
+    expression: "Total Earning = Basic + Allowance + Overtime",
+    appliesTo: "Income Statement → Team Salaries → Technical Team / Email Marketing",
+  },
+  {
+    id: "tech-ot",
+    section: "Payroll — Technical Team",
+    title: "Overtime",
+    expression: "Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2",
+    appliesTo: "Technical team employee editor → Overtime section",
+  },
+  {
+    id: "tech-late",
+    section: "Payroll — Technical Team",
+    title: "Late Arrival (7 AM shift)",
+    expression:
+      "Shift 07:00–16:00 · relief ≤ 07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = ½ day · late lekin ≥ 9h kaam → waived",
+    appliesTo: "Technical team late deduction",
+  },
+
+  // ---- Payroll — Administration ----
+  {
+    id: "admin-earning",
+    section: "Payroll — Administration",
+    title: "Total Earning",
+    expression: "Total Earning = Basic + Allowance (no overtime)",
+    appliesTo: "Income Statement → Team Salaries → Administration Salaries",
+  },
+  {
+    id: "admin-late",
+    section: "Payroll — Administration",
+    title: "Late Arrival (6 PM shift)",
+    expression:
+      "Shift 18:00 · relief ≤ 18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = ½ day",
+    appliesTo: "Administration late deduction",
+  },
+
+  // ---- Payroll — Sales Team ----
+  {
+    id: "sales-comm",
+    section: "Payroll — Sales Team",
+    title: "Project Commission",
+    expression:
+      "Old client = 1,000/project (partial = 500) · New client = 3,000/project · Fix client = 2.5% of project pay",
+    appliesTo: "Sales team members ki commission",
+  },
+  {
+    id: "sales-earning",
+    section: "Payroll — Sales Team",
+    title: "Total Earning",
+    expression: "Total Earning = Basic + Allowance + Total Commission · 6 PM shift · no overtime",
+    appliesTo: "Income Statement → Team Salaries → Sales Team Salaries",
+  },
+  {
+    id: "sales-tl",
+    section: "Payroll — Sales Team",
+    title: "Team Lead Commission",
+    expression: "TL extra = assigned members ke projects × 1,000 + un ke fix-client pay ka 0.5%",
+    appliesTo: "Sales Team Lead Salaries (Hammad)",
+  },
+
+  // ---- Payroll — Executive ----
+  {
+    id: "exec-total",
+    section: "Payroll — Executive",
+    title: "Total Salary",
+    expression: "Total Salary = Basic Salary + Commission",
+    appliesTo: "Income Statement → Team Salaries → Executive Salaries",
+  },
+  {
+    id: "exec-comm",
+    section: "Payroll — Executive",
+    title: "Commission (Net Profit se)",
+    expression:
+      "Commission = % of Net Profit · Mohsin 15% · Sharjeel 7.5% · Talha 7.5% · Irtaza 7.5% · loss ho to commission 0 · baqi profit company ka",
+    appliesTo: "Executive employees ki commission",
+  },
+  {
+    id: "exec-base",
+    section: "Payroll — Executive",
+    title: "Commission Base",
+    expression: "Base = Revenue − (Executive Salaries ke ilawa tamam expenses) — circular calculation se bachne ke liye",
+    appliesTo: "Executive commission ka net profit base",
+  },
+];
+
+/** Section order — builtins ke sections, registry order mai unique. */
+export const FORMULA_SECTIONS: string[] = [...new Set(BUILTIN_FORMULAS.map(f => f.section))];

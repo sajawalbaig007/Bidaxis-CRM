@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, LogOut } from "lucide-react";
+import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, FileText, LogOut } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import API from "@/lib/api";
 import ThemeToggle from "@/app/components/ThemeToggle";
@@ -16,6 +16,7 @@ const navItems = [
   { title: "Income Statement", href: `${BASE}/income-statement`, icon: TrendingUp },
   { title: "Cash Flow Statement", href: `${BASE}/cash-flow-statement`, icon: Landmark },
   { title: "Total Assets", href: `${BASE}/total-assets`, icon: Building2 },
+  { title: "Reports", href: `${BASE}/reports`, icon: FileText },
 ];
 
 export default function AccountsSidebar() {

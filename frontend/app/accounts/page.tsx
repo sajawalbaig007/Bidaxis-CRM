@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   PieChart as PieIcon,
   Scale,
+  Sigma,
   TrendingUp,
   UserCog,
   Wallet,
@@ -24,10 +25,11 @@ import AccountsSidebar from "./components/layout/Sidebar";
 import AccountsPageShell from "./components/AccountsPageShell";
 import AccountsChartCard from "./components/AccountsChartCard";
 import CurrencyFormulaModal from "./components/CurrencyFormulaModal";
+import FormulaBookModal from "./components/FormulaBookModal";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "./utils/accountsShellProps";
 import { useAccountsPage } from "./hooks/useAccountsPage";
-import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData } from "./types";
+import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 
 const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
@@ -204,6 +206,7 @@ export default function AccountsDashboardPage() {
   const [summaries, setSummaries] = useState<Summary>({});
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
+  const [formulaBookOpen, setFormulaBookOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -328,6 +331,22 @@ export default function AccountsDashboardPage() {
     });
   };
 
+  /** Formula Book — edits save straight into the dashboard record */
+  const formulasState: FormulasState = acc.data.formulas ?? {};
+  const handleFormulasChange = (next: FormulasState) => {
+    const nextData: DashboardData = { ...acc.data, formulas: next };
+    acc.setData(() => nextData);
+    void acc.save(nextData);
+  };
+
+  const formulaLiveNotes: Record<string, string> = {
+    "fx-ah": `Current: USD rate ${ah.usdToPkrRate} · CAD rate ${ah.cadToPkrRate} · factor ${ah.usdTaxFactor}`,
+    "fx-sn": `Current: CAD rate ${sn.cadToPkrRate} · factor ${sn.cadTaxFactor}`,
+    "fx-chq": `Current gross: ${currency(chq.pkrAmount)} → net ${currency(chqCalc.pkrNet)}`,
+    "fx-hm": `Current gross: ${currency(hm.pkrAmount)} → net ${currency(hmCalc.pkrNet)}`,
+    "is-net-profit": `Current (${acc.recordDate}): ${currency(summaries.incomeNetProfit ?? 0)}`,
+  };
+
   const formulaNote =
     viewTab === "AH"
       ? "Ahmed Hamza: USD/CAD × 0.89 = after tax → × international FX rate = PKR received."
@@ -348,6 +367,18 @@ export default function AccountsDashboardPage() {
           title="Dashboard"
           subtitle="Live totals from other pages. Currency formulas are view-only — open the eye to edit."
         >
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={() => setFormulaBookOpen(true)}
+              className="h-10 px-4 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 inline-flex items-center gap-2 hover:border-[#B8112D] hover:text-[#B8112D] transition-colors shadow-sm"
+              title="Accounts ke tamam formulas — section-wise, editable"
+            >
+              <Sigma size={15} className="text-[#B8112D]" />
+              All Formulas
+            </button>
+          </div>
+
           <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#0B1220] text-white shadow-2xl shadow-black/20">
             <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-[#B8112D]/35 blur-3xl" />
             <div className="absolute -bottom-28 left-1/4 w-80 h-80 rounded-full bg-[#0B84F3]/25 blur-3xl" />
@@ -698,6 +729,14 @@ export default function AccountsDashboardPage() {
           value={active}
           onClose={() => setFormulaOpen(false)}
           onChange={(key, val) => setTabField(activeKey, key, val)}
+        />
+
+        <FormulaBookModal
+          open={formulaBookOpen}
+          onClose={() => setFormulaBookOpen(false)}
+          value={formulasState}
+          onChange={handleFormulasChange}
+          liveNotes={formulaLiveNotes}
         />
       </main>
     </div>
