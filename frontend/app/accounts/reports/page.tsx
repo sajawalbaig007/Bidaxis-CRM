@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
@@ -76,7 +76,7 @@ function monthShort(m: string): string {
 }
 
 const pkr = (n: number) => `PKR ${currency(n)}`;
-const signed = (n: number) => `${n >= 0 ? "+" : "â€“"}PKR ${currency(Math.abs(n))}`;
+const signed = (n: number) => `${n >= 0 ? "+" : "–"}PKR ${currency(Math.abs(n))}`;
 
 /** Auto commentary: streak + month-over-month movement. */
 function buildInsights(report: MonthlyReport) {
@@ -113,93 +113,11 @@ function buildInsights(report: MonthlyReport) {
   };
 }
 
-/** On-page recharts SVG ko high-res PNG (base64, bina prefix) mai capture karta hai. */
-async function captureChartPng(containerId: string): Promise<string | null> {
-  const svg = document.querySelector<SVGSVGElement>(`#${containerId} svg.recharts-surface`);
-  if (!svg) return null;
-  try {
-    const rect = svg.getBoundingClientRect();
-    const w = Math.max(rect.width, 320);
-    const h = Math.max(rect.height, 160);
-    const clone = svg.cloneNode(true) as SVGSVGElement;
-    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    clone.setAttribute("width", String(w));
-    clone.setAttribute("height", String(h));
-    const xml = new XMLSerializer().serializeToString(clone);
-    const img = new Image();
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("svg load failed"));
-      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
-    });
-    const scale = 2;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(scale, scale);
-    ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/png").split(",")[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function b64EncodeUtf8(str: string): string {
-  const bytes = new TextEncoder().encode(str);
-  let bin = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(bin);
-}
-
-const chunk76 = (b64: string) => b64.replace(/(.{76})/g, "$1\r\n");
-
 /**
- * MHTML (.doc) builder â€” Word data-URI images support nahi karta, lekin
- * multipart MHT ke andar base64 PNG parts perfectly render hote hain.
+ * Word-compatible HTML document — KPI cards, shaded status cells, trend arrows,
+ * aur table-based bar charts (Word mai reliably render hote hain).
  */
-function buildMht(html: string, images: { name: string; base64: string }[]): string {
-  const boundary = "----=_NextPart_BEM_REPORT";
-  const parts: string[] = [
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/html; charset="utf-8"',
-    "Content-Transfer-Encoding: base64",
-    "Content-Location: file:///C:/bem-report/report.htm",
-    "",
-    chunk76(b64EncodeUtf8(html)),
-    "",
-  ];
-  for (const img of images) {
-    parts.push(
-      `--${boundary}`,
-      "Content-Type: image/png",
-      "Content-Transfer-Encoding: base64",
-      `Content-Location: file:///C:/bem-report/${img.name}`,
-      "",
-      chunk76(img.base64),
-      "",
-    );
-  }
-  parts.push(`--${boundary}--`, "");
-  return parts.join("\r\n");
-}
-
-type WordChartImages = { net?: string; revcost?: string; costmix?: string };
-
-/**
- * Word-compatible HTML document â€” KPI cards, shaded status cells, trend arrows,
- * aur asli chart images (page ke recharts se capture ki hui PNGs).
- */
-function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): string {
+function buildWordHtml(report: MonthlyReport): string {
   const label = monthLabel(report.month);
   const ins = buildInsights(report);
   const net = report.totals.netProfit;
@@ -225,7 +143,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
   const tdEmpty = (cols: number, text: string) =>
     `<tr><td colspan="${cols}" style="padding:9px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">${text}</td></tr>`;
 
-  /** Highlighted status cell â€” poora cell shade hota hai (Word mai spans ki background unreliable hai). */
+  /** Highlighted status cell — poora cell shade hota hai (Word mai spans ki background unreliable hai). */
   const statusCell = (text: string, bg: string, color: string) =>
     `<td style="padding:4px 9px;border:1px solid #E2E8F0;text-align:center;background:${bg};"><b style="color:${color};font-size:8.5px;letter-spacing:0.5px;">${text.toUpperCase()}</b></td>`;
 
@@ -236,16 +154,16 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
   const badge = (text: string, bg: string, color: string) =>
     `<table cellspacing="0" cellpadding="0" align="right"><tr><td style="background:${bg};color:${color};font-size:8px;font-weight:bold;padding:3px 9px;letter-spacing:0.6px;">${text.toUpperCase()}</td></tr></table>`;
 
-  /** MoM trend arrow â€” direction + color (goodWhenUp: revenue up = green, cost up = red). */
+  /** MoM trend arrow — direction + color (goodWhenUp: revenue up = green, cost up = red). */
   const trendArrow = (v: number | null, goodWhenUp: boolean) => {
-    if (v == null) return `<span style="color:#94A3B8;font-size:9px;">â€”</span>`;
+    if (v == null) return `<span style="color:#94A3B8;font-size:9px;">—</span>`;
     const up = v >= 0;
     const good = goodWhenUp ? up : !up;
     const color = good ? GREEN_D : RED_TXT;
-    return `<span style="color:${color};font-size:9px;font-weight:bold;">${up ? "â–²" : "â–¼"} ${signed(v)}</span>`;
+    return `<span style="color:${color};font-size:9px;font-weight:bold;">${up ? "▲" : "▼"} ${signed(v)}</span>`;
   };
 
-  /** KPI card cell â€” solid brand color, big number, note. */
+  /** KPI card cell — solid brand color, big number, note. */
   const kpiCard = (title: string, value: string, note: string, bg: string) => `
     <td width="33%" valign="top" style="background:${bg};padding:11px 13px;">
       <p style="margin:0;font-size:7.5px;color:#E2E8F0;font-weight:bold;letter-spacing:1.2px;">${title.toUpperCase()}</p>
@@ -262,7 +180,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
       </tr>
     </table>`;
 
-  /** Horizontal bar row â€” Word-safe chart (nested table, % widths). */
+  /** Horizontal bar row — Word-safe chart (nested table, % widths). */
   const barRow = (rowLabel: string, pct: number, color: string, valueTxt: string, valueColor: string) => {
     const width = Math.max(Math.min(Math.round(pct), 100), pct > 0 ? 2 : 0);
     return `<tr>
@@ -282,7 +200,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
   const netTrendBars = report.history
     .map(h =>
       barRow(
-        monthShort(h.month) + (h.month === report.month ? " â—" : ""),
+        monthShort(h.month) + (h.month === report.month ? " ●" : ""),
         (Math.abs(h.net) / maxNet) * 100,
         h.net >= 0 ? GREEN : "#EF4444",
         signed(h.net),
@@ -318,7 +236,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
       const prev = i > 0 ? report.history[i - 1] : null;
       const isThis = h.month === report.month;
       return `<tr style="background:${isThis ? "#FFF6F8" : "#FFFFFF"};">
-        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <b style="color:${RED};font-size:8px;letter-spacing:0.5px;">&nbsp;â— THIS REPORT</b>` : ""}</td>
+        <td ${td}><b>${monthShort(h.month)}</b>${isThis ? ` <b style="color:${RED};font-size:8px;letter-spacing:0.5px;">&nbsp;● THIS REPORT</b>` : ""}</td>
         <td ${tdR}>${currency(h.revenue)}<br/>${trendArrow(prev ? h.revenue - prev.revenue : null, true)}</td>
         <td ${tdR}>${currency(h.cost)}<br/>${trendArrow(prev ? h.cost - prev.cost : null, false)}</td>
         <td ${tdR}><b style="color:${h.net >= 0 ? GREEN_D : RED_TXT};">${signed(h.net)}</b></td>
@@ -342,7 +260,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
     </tr>`;
   };
   const movementsTable = ins.prev
-    ? `${section(3, `Key Movements â€” vs ${monthShort(ins.prev.month)}`)}
+    ? `${section(3, `Key Movements — vs ${monthShort(ins.prev.month)}`)}
       <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
         <tr><th ${th}>Metric</th><th ${thR}>Change (PKR)</th><th ${thC}>Direction</th></tr>
         ${movement("Revenue", ins.revenueVsPrev, true)}
@@ -360,7 +278,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
           <td ${tdR}><b>${currency(g.total)}</b></td>
         </tr>`;
         const lines = g.lines
-          .map(l => `<tr><td ${sub}>â€“ ${l.label}</td><td ${subR}>${currency(l.amount)}</td></tr>`)
+          .map(l => `<tr><td ${sub}>– ${l.label}</td><td ${subR}>${currency(l.amount)}</td></tr>`)
           .join("");
         return head + lines;
       })
@@ -411,7 +329,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
         <td ${tdR}><b style="color:${RED};">${currency(e.total)}</b></td>
         <td ${tdR}>${currency(e.loanPositive)}</td>
         <td ${tdR}><span style="color:${RED_TXT};">${currency(e.loanNegative)}</span></td>
-        <td ${td}>${e.remarks || "â€”"}</td>
+        <td ${td}>${e.remarks || "—"}</td>
       </tr>`,
     )
     .join("");
@@ -481,7 +399,7 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
     </tr>
   </table>
 
-  ${section(1, "Financial Performance â€” Month by Month")}
+  ${section(1, "Financial Performance — Month by Month")}
   <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
     <tr><th ${th}>Month</th><th ${thR}>Revenue (PKR)</th><th ${thR}>Total Cost (PKR)</th><th ${thR}>Net P/L (PKR)</th><th ${thC}>Status</th></tr>
     ${historyRows || tdEmpty(5, "No income statement records yet.")}
@@ -496,15 +414,11 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
 
   ${section(2, "Net Profit / Loss Trend")}
   <table cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #E2E8F0;">
-    <tr><td style="padding:10px 12px;" align="center">
-      ${
-        chartImgs.net
-          ? `<img src="file:///C:/bem-report/${chartImgs.net}" width="640" alt="Net profit/loss trend chart"/>`
-          : `<table cellspacing="0" cellpadding="0" width="100%">${netTrendBars || tdEmpty(1, "No history data.")}</table>`
-      }
-      <p style="margin:8px 0 0;font-size:9.5px;color:#64748B;text-align:left;">
-        <b style="color:${GREEN_D};">â– </b> Profit &nbsp; <b style="color:#EF4444;">â– </b> Loss
-        ${ins.netVsPrev != null ? ` &nbsp;Â·&nbsp; Swing vs previous month: <b style="color:${ins.netVsPrev >= 0 ? GREEN_D : RED_TXT};">${signed(ins.netVsPrev)}</b>` : ""}
+    <tr><td style="padding:10px 12px;">
+      <table cellspacing="0" cellpadding="0" width="100%">${netTrendBars || tdEmpty(1, "No history data.")}</table>
+      <p style="margin:8px 0 0;font-size:9.5px;color:#64748B;">
+        <b style="color:${GREEN_D};">■</b> Profit &nbsp; <b style="color:#EF4444;">■</b> Loss &nbsp;·&nbsp; ● = this report month
+        ${ins.netVsPrev != null ? ` &nbsp;·&nbsp; Swing vs previous month: <b style="color:${ins.netVsPrev >= 0 ? GREEN_D : RED_TXT};">${signed(ins.netVsPrev)}</b>` : ""}
       </p>
     </td></tr>
   </table>
@@ -513,88 +427,58 @@ function buildWordHtml(report: MonthlyReport, chartImgs: WordChartImages = {}): 
 
   ${section(4, "Revenue vs Cost Trend")}
   <table cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #E2E8F0;">
-    <tr><td style="padding:10px 12px;" align="center">
-      ${
-        chartImgs.revcost
-          ? `<img src="file:///C:/bem-report/${chartImgs.revcost}" width="640" alt="Revenue vs cost chart"/>`
-          : `<table cellspacing="0" cellpadding="0" width="100%">${revCostBars || tdEmpty(1, "No history data.")}</table>`
-      }
-      <p style="margin:6px 0 0;font-size:9.5px;color:#64748B;text-align:left;"><b style="color:${BLUE};">â– </b> Revenue &nbsp; <b style="color:#F97066;">â– </b> Total Cost</p>
+    <tr><td style="padding:10px 12px;">
+      <table cellspacing="0" cellpadding="0" width="100%">${revCostBars || tdEmpty(1, "No history data.")}</table>
+      <p style="margin:6px 0 0;font-size:9.5px;color:#64748B;"><b style="color:${BLUE};">■</b> Revenue &nbsp; <b style="color:#F97066;">■</b> Total Cost</p>
     </td></tr>
   </table>
 
-  ${section(5, `Cash Position${report.cash.asOf ? ` â€” as of ${report.cash.asOf}` : ""}`)}
+  ${section(5, `Cash Position${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`)}
   <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
     <tr><th ${th}>Account</th><th ${thR}>Balance (PKR)</th></tr>
     ${cashRows || tdEmpty(2, "No cash flow entries recorded.")}
     <tr style="background:#E6F4F1;"><td ${td}><b>TOTAL AVAILABLE CASH (NET)</b></td><td ${tdR}><b style="color:${TEAL};">${currency(report.cash.closingNet)}</b></td></tr>
   </table>
 
-  ${section(6, `CSR Team Performance â€” ${label}`)}
+  ${section(6, `CSR Team Performance — ${label}`)}
   <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
     <tr><th ${th}>CSR</th><th ${thR}>Projects</th><th ${thR}>Share %</th><th ${th}>Share</th><th ${thC}>Status</th></tr>
     ${csrRows || tdEmpty(5, "No completed projects recorded this month.")}
     <tr style="background:#EEF2F6;"><td ${td}><b>TOTAL</b></td><td ${tdR}><b>${report.csr.totalProjects}</b></td><td ${tdR}><b>100%</b></td><td ${td}></td><td ${td}></td></tr>
   </table>
 
-  ${section(7, `Cost Mix â€” ${label} (${pkr(report.totals.totalCost)})`)}
+  ${section(7, `Cost Mix — ${label} (${pkr(report.totals.totalCost)})`)}
   <table cellspacing="0" cellpadding="0" width="100%" style="border:1px solid #E2E8F0;">
-    <tr><td style="padding:10px 12px;" align="center">
-      ${
-        chartImgs.costmix
-          ? `<img src="file:///C:/bem-report/${chartImgs.costmix}" width="420" alt="Cost mix chart"/>`
-          : `<table cellspacing="0" cellpadding="0" width="100%">${costMixBars}</table>`
-      }
-      <p style="margin:6px 0 0;font-size:9.5px;color:#64748B;text-align:left;">
-        <b style="color:${RED};">â– </b> Team Salaries &nbsp; <b style="color:${BLUE};">â– </b> OPEX &nbsp; <b style="color:#F59E0B;">â– </b> Loans &nbsp; <b style="color:${PURPLE};">â– </b> Provident Fund
+    <tr><td style="padding:10px 12px;">
+      <table cellspacing="0" cellpadding="0" width="100%">${costMixBars}</table>
+      <p style="margin:6px 0 0;font-size:9.5px;color:#64748B;">
+        <b style="color:${RED};">■</b> Team Salaries &nbsp; <b style="color:${BLUE};">■</b> OPEX &nbsp; <b style="color:#F59E0B;">■</b> Loans &nbsp; <b style="color:${PURPLE};">■</b> Provident Fund
       </p>
     </td></tr>
   </table>
 
-  ${catSection(8, `Team Salaries â€” Cost Breakdown (${pkr(report.totals.payroll)})`, report.salaryTeams, report.totals.payroll)}
+  ${catSection(8, `Team Salaries — Cost Breakdown (${pkr(report.totals.payroll)})`, report.salaryTeams, report.totals.payroll)}
   ${catSection(9, `Operating Expenses (${pkr(report.totals.opex)})`, report.opexHeads, report.totals.opex)}
   ${catSection(10, `Loans (${pkr(report.totals.loans)})`, report.loanHeads, report.totals.loans)}
   ${catSection(11, `Provident Fund (${pkr(report.totals.pf)})`, report.pfHeads, report.totals.pf)}
 
-  ${section(12, `Executive Salaries â€” ${label}`)}
+  ${section(12, `Executive Salaries — ${label}`)}
   <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-    <tr><th ${th}>Executive</th><th ${thR}>Basic (PKR)</th><th ${thR}>Comm. %</th><th ${thR}>Commission (PKR)</th><th ${thR}>Total (PKR)</th><th ${thR}>Loan +ve</th><th ${thR}>Loan âˆ’ve</th><th ${th}>Remarks</th></tr>
+    <tr><th ${th}>Executive</th><th ${thR}>Basic (PKR)</th><th ${thR}>Comm. %</th><th ${thR}>Commission (PKR)</th><th ${thR}>Total (PKR)</th><th ${thR}>Loan +ve</th><th ${thR}>Loan −ve</th><th ${th}>Remarks</th></tr>
     ${execRows || tdEmpty(8, "No executive salary entries this month.")}
     ${execRows ? `<tr style="background:#EEF2F6;"><td ${td}><b>TOTAL SALARY</b></td><td ${td} colspan="3"></td><td ${tdR}><b style="color:${RED};">${currency(execTotal)}</b></td><td ${td} colspan="3"></td></tr>` : ""}
   </table>
 
   <p style="font-size:9px;color:#94A3B8;margin-top:22px;text-align:center;">
-    BEM SOLUTIONS &nbsp;|&nbsp; Executive Summary &nbsp;|&nbsp; ${label} &nbsp;|&nbsp; Confidential â€” Generated from CRM Accounts daily records
+    BEM SOLUTIONS &nbsp;|&nbsp; Executive Summary &nbsp;|&nbsp; ${label} &nbsp;|&nbsp; Confidential — Generated from CRM Accounts daily records
   </p>
 </div>
 </body></html>`;
 }
 
-async function downloadWord(report: MonthlyReport) {
-  // Page pe render hue live charts ko PNG mai capture kar ke document mai embed karo
-  const [net, revcost, costmix] = await Promise.all([
-    captureChartPng("report-chart-net"),
-    captureChartPng("report-chart-revcost"),
-    captureChartPng("report-chart-costmix"),
-  ]);
-  const images: { name: string; base64: string }[] = [];
-  const chartImgs: WordChartImages = {};
-  if (net) {
-    images.push({ name: "chart-net.png", base64: net });
-    chartImgs.net = "chart-net.png";
-  }
-  if (revcost) {
-    images.push({ name: "chart-revcost.png", base64: revcost });
-    chartImgs.revcost = "chart-revcost.png";
-  }
-  if (costmix) {
-    images.push({ name: "chart-costmix.png", base64: costmix });
-    chartImgs.costmix = "chart-costmix.png";
-  }
-
-  const html = buildWordHtml(report, chartImgs);
-  const mht = buildMht(html, images);
-  const blob = new Blob([mht], { type: "application/msword" });
+function downloadWord(report: MonthlyReport) {
+  const html = buildWordHtml(report);
+  const blob = new Blob(["\ufeff", html], { type: "application/msword" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -605,9 +489,9 @@ async function downloadWord(report: MonthlyReport) {
   URL.revokeObjectURL(url);
 }
 
-/** MoM movement arrow â€” goodWhenUp: revenue up = green, cost up = red. */
+/** MoM movement arrow — goodWhenUp: revenue up = green, cost up = red. */
 function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }) {
-  if (v == null) return <span className="text-[9px] text-gray-300">â€”</span>;
+  if (v == null) return <span className="text-[9px] text-gray-300">—</span>;
   const up = v >= 0;
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
@@ -681,7 +565,7 @@ function FragmentRows({ group }: { group: CategoryGroup }) {
       </tr>
       {group.lines.map(l => (
         <tr key={`${group.name}-${l.label}`} className="border-b border-gray-50 bg-[#FCFCFD]">
-          <td className="px-3 py-1.5 pl-8 text-[11px] text-gray-500">â€“ {l.label}</td>
+          <td className="px-3 py-1.5 pl-8 text-[11px] text-gray-500">– {l.label}</td>
           <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-gray-500">{currency(l.amount)}</td>
         </tr>
       ))}
@@ -693,7 +577,7 @@ export default function AccountsReportsPage() {
   const [month, setMonth] = useState<string>(currentMonthIso());
   const [result, setResult] = useState<{ month: string; report: MonthlyReport | null } | null>(null);
 
-  // Loading is derived â€” true until the fetched result matches the selected month
+  // Loading is derived — true until the fetched result matches the selected month
   const loading = result?.month !== month;
   const report = result?.month === month ? result.report : null;
 
@@ -758,7 +642,7 @@ export default function AccountsReportsPage() {
                     Executive Summary Report
                   </h1>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    BEM Solutions Â· Month of {label} Â· Confidential
+                    BEM Solutions · Month of {label} · Confidential
                   </p>
                 </div>
               </div>
@@ -777,7 +661,7 @@ export default function AccountsReportsPage() {
               <button
                 type="button"
                 disabled={!report || loading}
-                onClick={() => report && void downloadWord(report)}
+                onClick={() => report && downloadWord(report)}
                 className="h-10 px-4 rounded-xl bg-[#2B579A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#1e4278] disabled:opacity-50 transition-colors shadow-md shadow-[#2B579A]/25"
                 title="Download as Word document"
               >
@@ -790,11 +674,11 @@ export default function AccountsReportsPage() {
           {loading ? (
             <div className="bg-white rounded-2xl border border-gray-100/90 py-24 flex flex-col items-center justify-center gap-3 text-gray-400">
               <Loader2 size={28} className="animate-spin text-[#B8112D]" />
-              <p className="text-sm font-semibold">Building {label} reportâ€¦</p>
+              <p className="text-sm font-semibold">Building {label} report…</p>
             </div>
           ) : !report ? (
             <div className="bg-white rounded-2xl border border-gray-100/90 py-24 text-center text-gray-400 text-sm">
-              Report load nahi hui â€” month select karein ya dobara try karein.
+              Report load nahi hui — month select karein ya dobara try karein.
             </div>
           ) : (
             <>
@@ -833,7 +717,7 @@ export default function AccountsReportsPage() {
                 </p>
               </section>
 
-              <SectionCard title="1. Financial Performance â€” Month by Month">
+              <SectionCard title="1. Financial Performance — Month by Month">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-160">
                     <thead className="bg-[#FAFBFC]">
@@ -916,7 +800,7 @@ export default function AccountsReportsPage() {
                     </RechartsBox>
                     <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
                       <TrendingUp size={13} className="text-[#B8112D] shrink-0" />
-                      {label}: {signed(report.totals.netProfit)} net â€” {ins?.profitNote}.
+                      {label}: {signed(report.totals.netProfit)} net — {ins?.profitNote}.
                       {ins?.netVsPrev != null && ` Swing vs previous month: ${signed(ins.netVsPrev)}.`}
                     </p>
                   </div>
@@ -939,7 +823,7 @@ export default function AccountsReportsPage() {
                       </BarChart>
                     </RechartsBox>
                     <p className="text-[11px] text-gray-500 mt-2">
-                      Jab blue bar coral se oopar ho â€” profit month. {monthShort(report.month)}:{" "}
+                      Jab blue bar coral se oopar ho — profit month. {monthShort(report.month)}:{" "}
                       {pkr(report.totals.revenue)} revenue vs {pkr(report.totals.totalCost)} cost.
                     </p>
                   </div>
@@ -947,7 +831,7 @@ export default function AccountsReportsPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SectionCard title={`4. Key Movements${ins?.prev ? ` â€” vs ${monthShort(ins.prev.month)}` : ""}`}>
+                <SectionCard title={`4. Key Movements${ins?.prev ? ` — vs ${monthShort(ins.prev.month)}` : ""}`}>
                   {ins?.prev ? (
                     <div className="divide-y divide-gray-50">
                       {[
@@ -972,11 +856,11 @@ export default function AccountsReportsPage() {
                       })}
                     </div>
                   ) : (
-                    <p className="px-4 py-8 text-center text-gray-400 text-xs">Previous month ka data nahi â€” comparison possible nahi.</p>
+                    <p className="px-4 py-8 text-center text-gray-400 text-xs">Previous month ka data nahi — comparison possible nahi.</p>
                   )}
                 </SectionCard>
 
-                <SectionCard title={`5. Cost Mix â€” ${pkr(report.totals.totalCost)}`}>
+                <SectionCard title={`5. Cost Mix — ${pkr(report.totals.totalCost)}`}>
                   {costMix.length === 0 ? (
                     <p className="px-4 py-8 text-center text-gray-400 text-xs">No cost entries this month.</p>
                   ) : (
@@ -1009,7 +893,7 @@ export default function AccountsReportsPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title={`6. Cash Position${report.cash.asOf ? ` â€” as of ${report.cash.asOf}` : ""}`}>
+              <SectionCard title={`6. Cash Position${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-100">
                     <thead className="bg-[#FAFBFC]">
@@ -1040,7 +924,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`7. CSR Team Performance â€” ${label}`}>
+              <SectionCard title={`7. CSR Team Performance — ${label}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-130">
                     <thead className="bg-[#FAFBFC]">
@@ -1095,7 +979,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`8. Team Salaries â€” Cost Breakdown (${pkr(report.totals.payroll)})`}>
+              <SectionCard title={`8. Team Salaries — Cost Breakdown (${pkr(report.totals.payroll)})`}>
                 <CategoryTable groups={report.salaryTeams} total={report.totals.payroll} />
               </SectionCard>
 
@@ -1112,7 +996,7 @@ export default function AccountsReportsPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title={`12. Executive Salaries â€” ${label}`}>
+              <SectionCard title={`12. Executive Salaries — ${label}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-200">
                     <thead className="bg-[#FAFBFC]">
@@ -1123,7 +1007,7 @@ export default function AccountsReportsPage() {
                         <th className={`${thCls} text-right`}>Commission (PKR)</th>
                         <th className={`${thCls} text-right`}>Total (PKR)</th>
                         <th className={`${thCls} text-right`}>Loan +ve</th>
-                        <th className={`${thCls} text-right`}>Loan âˆ’ve</th>
+                        <th className={`${thCls} text-right`}>Loan −ve</th>
                         <th className={`${thCls} text-left`}>Remarks</th>
                       </tr>
                     </thead>
@@ -1140,7 +1024,7 @@ export default function AccountsReportsPage() {
                             <td className={`${tdCls} text-right tabular-nums font-bold text-[#B8112D]`}>{currency(e.total)}</td>
                             <td className={`${tdCls} text-right tabular-nums`}>{currency(e.loanPositive)}</td>
                             <td className={`${tdCls} text-right tabular-nums text-red-600`}>{currency(e.loanNegative)}</td>
-                            <td className={`${tdCls} text-gray-500 max-w-45 truncate`} title={e.remarks || undefined}>{e.remarks || "â€”"}</td>
+                            <td className={`${tdCls} text-gray-500 max-w-45 truncate`} title={e.remarks || undefined}>{e.remarks || "—"}</td>
                           </tr>
                         ))
                       )}
@@ -1162,7 +1046,7 @@ export default function AccountsReportsPage() {
               </SectionCard>
 
               <p className="text-center text-[10px] text-gray-400 pb-6">
-                Generated from CRM Accounts daily records Â· {label} Â· Confidential
+                Generated from CRM Accounts daily records · {label} · Confidential
               </p>
             </>
           )}

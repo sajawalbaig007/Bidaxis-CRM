@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
@@ -135,7 +135,7 @@ export default function TotalAssetsPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Total Assets"
-          subtitle="Company-wise registers â€” BEM, GPS, BDS. Edit heads via pencil; sub-heads drive totals."
+          subtitle="Company-wise registers — BEM, GPS, BDS. Edit heads via pencil; sub-heads drive totals."
           onAddNew={() => addHeadToCompany("BEM")}
           addNewLabel="Add Head (BEM)"
         >
@@ -159,7 +159,7 @@ export default function TotalAssetsPage() {
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
             <AccountsChartCard
               title="Company Share"
-              subtitle="BEM Â· GPS Â· BDS mix"
+              subtitle="BEM · GPS · BDS mix"
               accent="#0D9488"
               icon={<Building2 size={16} />}
             >
@@ -225,7 +225,7 @@ export default function TotalAssetsPage() {
             {ASSETS_COMPANIES.map(c => (
               <ExpandableHeadsTable
                 key={c.key}
-                title={`${c.label} â€” Asset Heads`}
+                title={`${c.label} — Asset Heads`}
                 accent={c.accent}
                 addLabel={`Add Head (${c.label})`}
                 emptyLabel={`No heads for ${c.label} yet.`}

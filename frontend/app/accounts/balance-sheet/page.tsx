@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo } from "react";
 import {
@@ -77,7 +77,7 @@ export default function BalanceSheetPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Balance Sheet"
-          subtitle="Section totals on main rows â€” expand for individual heads with fill dates."
+          subtitle="Section totals on main rows — expand for individual heads with fill dates."
           onAddNew={() => {
             acc.setData(prev => {
               const sections = [...prev.assetSections];
@@ -113,12 +113,12 @@ export default function BalanceSheetPage() {
 
           {!balanced && totalAssets > 0 && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
-              Assets ({currency(totalAssets)}) â‰  Equity + Liabilities ({currency(totalEquity + totalLiabilities)}) â€” review totals.
+              Assets ({currency(totalAssets)}) ≠ Equity + Liabilities ({currency(totalEquity + totalLiabilities)}) — review totals.
             </div>
           )}
           {balanced && (
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-800">
-              Balanced â€” Assets ({currency(totalAssets)}) = Equity + Liabilities ({currency(totalEquity + totalLiabilities)}).
+              Balanced — Assets ({currency(totalAssets)}) = Equity + Liabilities ({currency(totalEquity + totalLiabilities)}).
             </div>
           )}
 
