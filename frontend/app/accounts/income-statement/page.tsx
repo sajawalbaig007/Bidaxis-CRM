@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useCallback, useLayoutEffect } from "react";
 import {
@@ -77,7 +77,7 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
 }
 
 export default function IncomeStatementPage() {
-  // Daily basis — one record per calendar day, defaults to today
+  // Daily basis â€” one record per calendar day, defaults to today
   const acc = useAccountsPage<IncomeStatementData>({
     page: "income_statement",
     defaultData,
@@ -90,7 +90,7 @@ export default function IncomeStatementPage() {
     [acc.data],
   );
 
-  /** Net profit before executive salaries — commission base for Executive payroll */
+  /** Net profit before executive salaries â€” commission base for Executive payroll */
   const execProfitBase = useMemo(() => executiveCommissionBase(data), [data]);
 
   useLayoutEffect(() => {
@@ -174,7 +174,7 @@ export default function IncomeStatementPage() {
   /** Apply a table change; persist right away when the table asks for it. */
   const commit = useCallback(
     (patch: Partial<IncomeStatementData>, opts?: { persist?: boolean }) => {
-      // Refresh executive commissions — they depend on revenue & other expenses
+      // Refresh executive commissions â€” they depend on revenue & other expenses
       const next = recomputeExecutiveTeam({ ...data, ...patch });
       acc.setData(() => next);
       if (opts?.persist) void acc.save(next);
@@ -183,13 +183,13 @@ export default function IncomeStatementPage() {
   );
 
   return (
-    <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_#F8FAFC_0%,_#EEF1F7_45%,_#E8ECF4_100%)]">
+    <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Daily record — pick a day, fill Team Salaries / OPEX / Loans / PF, and Save. Each day keeps its own entry."
+          subtitle="Daily record â€” pick a day, fill Team Salaries / OPEX / Loans / PF, and Save. Each day keeps its own entry."
           onAddNew={() =>
             commit(
               {
@@ -270,7 +270,7 @@ export default function IncomeStatementPage() {
               icon={<Users size={16} />}
             >
               <RechartsBox height={240}>
-                <BarChart data={payrollChartData.length ? payrollChartData : [{ name: "—", value: 0 }]} barSize={28}>
+                <BarChart data={payrollChartData.length ? payrollChartData : [{ name: "â€”", value: 0 }]} barSize={28}>
                   <defs>
                     <linearGradient id="payGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#0B84F3" stopOpacity={1} />
@@ -287,7 +287,7 @@ export default function IncomeStatementPage() {
             </AccountsChartCard>
 
             <AccountsChartCard
-              title="Revenue · Expense · Profit"
+              title="Revenue Â· Expense Â· Profit"
               subtitle="Saved revenue vs current expenses"
               accent="#12B76A"
               icon={<TrendingUp size={16} />}
@@ -312,14 +312,14 @@ export default function IncomeStatementPage() {
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
             <AccountsChartCard
               title="All Tables Summary"
-              subtitle="Team · OPEX · Loans · Provident Fund"
+              subtitle="Team Â· OPEX Â· Loans Â· Provident Fund"
               accent="#0B84F3"
               icon={<PieIcon size={16} />}
               className="lg:col-span-7"
             >
               <RechartsBox height={210}>
                 <BarChart
-                  data={tablesSummary.length ? tablesSummary : [{ name: "—", value: 0, fill: "#E2E8F0" }]}
+                  data={tablesSummary.length ? tablesSummary : [{ name: "â€”", value: 0, fill: "#E2E8F0" }]}
                   barSize={36}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -344,7 +344,7 @@ export default function IncomeStatementPage() {
             >
               <RechartsBox height={210}>
                 <BarChart
-                  data={opexBars.length ? opexBars : [{ name: "—", value: 0 }]}
+                  data={opexBars.length ? opexBars : [{ name: "â€”", value: 0 }]}
                   layout="vertical"
                   margin={{ left: 4, right: 8 }}
                 >
@@ -353,7 +353,7 @@ export default function IncomeStatementPage() {
                   <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 9, fontWeight: 600 }} />
                   <Tooltip formatter={v => currency(Number(v ?? 0))} />
                   <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={14}>
-                    {(opexBars.length ? opexBars : [{ name: "—" }]).map((_, i) => (
+                    {(opexBars.length ? opexBars : [{ name: "â€”" }]).map((_, i) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Bar>
