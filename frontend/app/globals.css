@@ -356,6 +356,87 @@ html.dark select.border-gray-200 {
   border-color: var(--crm-border) !important;
 }
 
+/* ── Accounts module — page background + dark-mode bridge ── */
+.accounts-page-bg {
+  background: radial-gradient(ellipse at top, #f8fafc 0%, #eef1f7 45%, #e8ecf4 100%);
+}
+html.dark .accounts-page-bg {
+  background: radial-gradient(ellipse at top, #181b22 0%, #13151a 55%, #101217 100%);
+}
+
+/* Near-white surfaces (tables, cards, sub-rows) */
+html.dark :is([class*="bg-[#FAFBFC]"], [class*="bg-[#FCFCFD]"], [class*="bg-[#F4F5F8]"], [class*="bg-[#F8FBFF]"], [class*="bg-[#F8FFFE]"], [class*="bg-[#FAFAFA]/"]) {
+  background-color: var(--crm-surface-muted) !important;
+}
+
+/* Soft pink/red tinted rows & section headers */
+html.dark :is([class*="bg-[#FFF6F8]"], [class*="bg-[#FFFBFC]"], [class*="bg-[#FFF8F2]"], [class*="bg-[#FFF1F3]/"]) {
+  background-color: rgba(184, 17, 45, 0.14) !important;
+}
+html.dark [class*="bg-[#FFE4E8]"] { background-color: rgba(244, 63, 94, 0.24) !important; }
+
+/* Tinted chips / icon tiles */
+html.dark :is([class*="bg-[#F3EEFF]"], [class*="bg-[#E9DEFF]"]) { background-color: rgba(139, 92, 246, 0.22) !important; }
+html.dark :is([class*="bg-[#D6EBFF]"], [class*="bg-[#EFF8FF]"], [class*="bg-[#EAF5FF]/"]) { background-color: rgba(14, 165, 233, 0.2) !important; }
+html.dark [class*="bg-[#D1FAE5]"] { background-color: rgba(16, 185, 129, 0.22) !important; }
+html.dark [class*="bg-[#F0FDFA]"] { background-color: rgba(20, 184, 166, 0.16) !important; }
+
+/* Named -50 tints, incl. /30 /40 /60 opacity variants */
+html.dark :is([class~="bg-emerald-50"], [class*="bg-emerald-50/"]) { background-color: rgba(16, 185, 129, 0.16) !important; }
+html.dark :is([class~="bg-blue-50"], [class*="bg-blue-50/"]) { background-color: rgba(14, 165, 233, 0.16) !important; }
+html.dark :is([class~="bg-teal-50"], [class*="bg-teal-50/"]) { background-color: rgba(20, 184, 166, 0.16) !important; }
+html.dark :is([class~="bg-indigo-50"], [class*="bg-indigo-50/"]) { background-color: rgba(99, 102, 241, 0.18) !important; }
+html.dark :is([class~="bg-violet-50"], [class*="bg-violet-50/"]) { background-color: rgba(139, 92, 246, 0.16) !important; }
+html.dark :is([class~="bg-orange-50"], [class*="bg-orange-50/"]) { background-color: rgba(249, 115, 22, 0.16) !important; }
+html.dark :is([class~="bg-rose-50"], [class*="bg-rose-50/"]) { background-color: rgba(244, 63, 94, 0.16) !important; }
+html.dark [class*="bg-red-50/"] { background-color: rgba(244, 63, 94, 0.14) !important; }
+html.dark [class*="bg-amber-50/"] { background-color: rgba(245, 158, 11, 0.14) !important; }
+html.dark [class*="bg-gray-50/"] { background-color: var(--crm-surface-muted) !important; }
+
+/* -100 tints */
+html.dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.24) !important; }
+html.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.24) !important; }
+html.dark .bg-red-100 { background-color: rgba(244, 63, 94, 0.24) !important; }
+
+/* Light borders → subtle / tinted */
+html.dark .border-gray-50 { border-color: var(--crm-border-subtle) !important; }
+html.dark :is([class*="border-gray-100/"], [class*="border-gray-200/"]) { border-color: var(--crm-border) !important; }
+html.dark :is([class*="border-emerald-1"], [class*="border-emerald-2"], [class*="border-emerald-3"]) { border-color: rgba(16, 185, 129, 0.35) !important; }
+html.dark :is([class*="border-blue-1"], [class*="border-blue-2"]) { border-color: rgba(14, 165, 233, 0.35) !important; }
+html.dark :is([class*="border-amber-1"], [class*="border-amber-2"], [class*="border-amber-3"]) { border-color: rgba(245, 158, 11, 0.35) !important; }
+html.dark :is([class*="border-indigo-1"], [class*="border-indigo-2"]) { border-color: rgba(99, 102, 241, 0.35) !important; }
+html.dark :is([class*="border-violet-1"], [class*="border-violet-2"]) { border-color: rgba(139, 92, 246, 0.35) !important; }
+html.dark :is([class*="border-teal-1"], [class*="border-teal-2"]) { border-color: rgba(20, 184, 166, 0.35) !important; }
+html.dark [class*="border-orange-1"] { border-color: rgba(249, 115, 22, 0.35) !important; }
+html.dark :is([class*="border-red-1"], [class*="border-rose-1"]) { border-color: rgba(244, 63, 94, 0.35) !important; }
+
+/* Light gradient stops → dark-friendly */
+html.dark :is([class*="from-[#FFF8F9]"], [class*="from-[#FFF6F8]"], [class*="from-[#FFF1F3]"]) { --tw-gradient-from: rgba(184, 17, 45, 0.14) !important; }
+html.dark :is([class*="from-[#EAF5FF]"], [class*="from-[#EFF8FF]"]) { --tw-gradient-from: rgba(14, 165, 233, 0.14) !important; }
+html.dark :is([class*="from-[#ECFDF3]"], [class*="from-[#F0FDFA]"]) { --tw-gradient-from: rgba(16, 185, 129, 0.14) !important; }
+html.dark [class*="from-[#F3EEFF]"] { --tw-gradient-from: rgba(139, 92, 246, 0.14) !important; }
+html.dark :is([class~="to-white"], [class*="to-[#FFFBFC]"], [class*="to-[#FFF8F9]"], [class*="to-[#F8FAFC]"], [class*="to-[#F0F9FF]"]) { --tw-gradient-to: var(--crm-surface) !important; }
+
+/* Mid-tone accent text → vivid, readable on dark */
+.dark .text-emerald-600,
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-red-500,
+.dark .text-red-600 { color: #fda4af !important; }
+.dark .text-blue-600,
+.dark .text-blue-700 { color: #93c5fd !important; }
+.dark .text-indigo-600,
+.dark .text-indigo-700 { color: #a5b4fc !important; }
+.dark .text-amber-600,
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-teal-600,
+.dark .text-teal-700 { color: #5eead4 !important; }
+.dark .text-violet-600,
+.dark .text-violet-700 { color: #c4b5fd !important; }
+.dark .text-orange-600,
+.dark .text-orange-700 { color: #fdba74 !important; }
+.dark .text-rose-600 { color: #fda4af !important; }
+.dark .text-\[\#B8112D\] { color: #f4657d !important; }
+
 /* CSR + login hardening */
 body.crm-secure-view {
   -webkit-user-select: none;

@@ -159,7 +159,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     const history = [...byMonth.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([m, v]) => ({ month: m, revenue: v.revenue, cost: v.cost, net: v.revenue - v.cost }))
-      .filter(h => h.revenue !== 0 || h.cost !== 0);
+      .filter(h => h.revenue !== 0 || h.cost !== 0 || h.month === month);
 
     const revenue = monthRecords.reduce((a, d) => a + (Number(d.totalRevenue) || 0), 0);
     const salaryTeams = aggregateCategory(monthRecords, "teamSalaries", "team");
