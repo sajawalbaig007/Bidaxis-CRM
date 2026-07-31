@@ -1,6 +1,6 @@
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
 import { lineAmount, newRowId, todayIso } from "../types";
-import { emptySalaryDetail } from "./payrollFormula";
+import { computeExecutiveSalary, emptySalaryDetail } from "./payrollFormula";
 import {
   emptySalesPayrollEmployee,
   ensureSalesPayrollFromSub,
@@ -58,14 +58,38 @@ function salesSub(label: string, amount: number, role: "sales" | "team_lead", id
   };
 }
 
-function sub(label: string, amount: number, withSalary = false): SubHeadEntry {
+/** Default executive commission % of net profit, matched by name. */
+const EXEC_COMMISSION_DEFAULTS: [RegExp, number][] = [
+  [/mohsin/i, 15],
+  [/sharjeel|sherjeel/i, 7.5],
+  [/talha/i, 7.5],
+  [/irtaza/i, 7.5],
+];
+
+export function execPctForLabel(label: string): number {
+  for (const [re, pct] of EXEC_COMMISSION_DEFAULTS) {
+    if (re.test(label)) return pct;
+  }
+  return 0;
+}
+
+function sub(label: string, amount: number, withSalary = false, teamName?: string): SubHeadEntry {
+  const kind = teamName ? resolvePayrollKind(teamName) : "technical";
   return {
     id: newRowId("sub"),
     label,
     amount,
     filledAt: todayIso(),
     ...(withSalary
-      ? { salary: emptySalaryDetail({ basic: amount }) }
+      ? {
+          salary: emptySalaryDetail({
+            basic: amount,
+            ...(kind === "admin" ? { checkIn: "18:00" } : {}),
+            ...(kind === "executive"
+              ? { commissionPct: execPctForLabel(label), loanPositive: 0, loanNegative: 0 }
+              : {}),
+          }),
+        }
       : {}),
   };
 }
@@ -75,9 +99,32 @@ function ensureTeamSalarySubs(subs: SubHeadEntry[] | undefined, teamName: string
   if (kind === "sales" || kind === "sales_lead") {
     return normalizeSalesTeamSubs(subs, teamName);
   }
+  if (kind === "executive") {
+    return (subs ?? []).map(s => {
+      const pct = execPctForLabel(s.label);
+      if (s.salary) {
+        if (s.salary.commissionPct == null && pct) {
+          return { ...s, salary: { ...s.salary, commissionPct: pct } };
+        }
+        return s;
+      }
+      return {
+        ...s,
+        salary: emptySalaryDetail({
+          basic: Number(s.amount) || 0,
+          commissionPct: pct,
+          loanPositive: 0,
+          loanNegative: 0,
+        }),
+      };
+    });
+  }
   return (subs ?? []).map(s => {
     if (s.salary) return s;
-    const salary = emptySalaryDetail({ basic: Number(s.amount) || 0 });
+    const salary = emptySalaryDetail({
+      basic: Number(s.amount) || 0,
+      ...(kind === "admin" ? { checkIn: "18:00" } : {}),
+    });
     return { ...s, salary };
   });
 }
@@ -89,7 +136,7 @@ function seedTeam(team: string): TeamSalaryRow {
     ? people.map(p => salesSub(p.label, p.amount, "sales"))
     : seed?.salesTeamLead
       ? people.map(p => salesSub(p.label, p.amount, "team_lead", p.id))
-      : people.map(p => sub(p.label, p.amount, true));
+      : people.map(p => sub(p.label, p.amount, true, team));
   return {
     id: newRowId("team"),
     team,
@@ -118,110 +165,95 @@ const TEAM_SEED: Record<
   }
 > = {
   "Technical Team Salaries": {
-    total: 162_645,
+    total: 0,
     people: [
-      { label: "Noman Khan", amount: 19_512 },
-      { label: "Muhammad Abdullah", amount: 18_458 },
-      { label: "Rizwan Sabir", amount: 19_682 },
-      { label: "Usama Jameel", amount: 20_849 },
-      { label: "Khaldoon Abrar", amount: 19_733 },
-      { label: "Muhammad Zaid", amount: 19_682 },
-      { label: "Muhammad Bariq", amount: 23_896 },
-      { label: "Afaq", amount: 20_833 },
+      { label: "Noman Khan", amount: 0 },
+      { label: "Muhammad Abdullah", amount: 0 },
+      { label: "Rizwan Sabir", amount: 0 },
+      { label: "Usama Jameel", amount: 0 },
+      { label: "Khaldoon Abrar", amount: 0 },
+      { label: "Muhammad Zaid", amount: 0 },
+      { label: "Muhammad Bariq", amount: 0 },
+      { label: "Afaq", amount: 0 },
     ],
   },
   "Sales Team Salaries": {
-    total: 358_853,
+    total: 0,
     people: [
-      { label: "Huraira", amount: 71_055 },
-      { label: "Faris", amount: 43_763 },
-      { label: "Ali", amount: 71_979 },
-      { label: "Faizan", amount: 93_856 },
-      { label: "Asim", amount: 31_400 },
-      { label: "Anam", amount: 46_800 },
+      { label: "Huraira", amount: 0 },
+      { label: "Faris", amount: 0 },
+      { label: "Ali", amount: 0 },
+      { label: "Faizan", amount: 0 },
+      { label: "Asim", amount: 0 },
+      { label: "Anam", amount: 0 },
     ],
     salesTeam: true,
   },
   "Sales Team Lead Salaries": {
-    total: 61_450,
-    people: [{ label: "Hammad", amount: 61_450, id: HAMMAD_TEAM_LEAD_ID }],
+    total: 0,
+    people: [{ label: "Hammad", amount: 0, id: HAMMAD_TEAM_LEAD_ID }],
     salesTeamLead: true,
   },
   "Email Marketing Team Salaries": {
-    total: 10_000,
-    people: [{ label: "Aftab", amount: 10_000 }],
+    total: 0,
+    people: [{ label: "Aftab", amount: 0 }],
   },
   "Administration Salaries": {
-    total: 178_693,
+    total: 0,
     people: [
-      { label: "Qasim (Admin)", amount: 15_955 },
-      { label: "Shakeela (HR)", amount: 19_864 },
-      { label: "Attiq Rehman (Account Officer)", amount: 18_000 },
-      { label: "Muhammad Bilal (Accounts Officer)", amount: 14_973 },
-      { label: "Mr. Noreed (Chartered)", amount: 20_000 },
-      { label: "Hamza (Floor Manager)", amount: 7_400 },
-      { label: "Sajawal", amount: 16_000 },
-      { label: "Ahmer", amount: 16_000 },
-      { label: "Mahnoor", amount: 16_501 },
-      { label: "Office Boy", amount: 14_000 },
-      { label: "Guard", amount: 20_000 },
+      { label: "Qasim (Admin)", amount: 0 },
+      { label: "Shakeela (HR)", amount: 0 },
+      { label: "Attiq Rehman (Account Officer)", amount: 0 },
+      { label: "Muhammad Bilal (Accounts Officer)", amount: 0 },
+      { label: "Mr. Noreed (Chartered)", amount: 0 },
+      { label: "Hamza (Floor Manager)", amount: 0 },
+      { label: "Sajawal", amount: 0 },
+      { label: "Ahmer", amount: 0 },
+      { label: "Mahnoor", amount: 0 },
+      { label: "Office Boy", amount: 0 },
+      { label: "Guard", amount: 0 },
     ],
   },
   "Executive Salaries": {
-    total: 40_000,
+    total: 0,
     people: [
-      { label: "Mr. Mohsin Qayyum (80%)", amount: 10_000 },
-      { label: "Mr. Sharjeel Nasir (60%)", amount: 10_000 },
-      { label: "Mr. Talha Ahmed (60%)", amount: 10_000 },
-      { label: "Muhammad Irtaza (60%)", amount: 10_000 },
+      { label: "Mr. Mohsin Qayyum", amount: 0 },
+      { label: "Mr. Sharjeel Nasir", amount: 0 },
+      { label: "Mr. Talha Ahmed", amount: 0 },
+      { label: "Irtaza Hassan", amount: 0 },
     ],
   },
 };
 
 const OPEX_SEED: Record<string, { amount: number; lines: { label: string; amount: number }[] }> = {
   "Office Management Expenses": {
-    amount: 10_000,
-    lines: [{ label: "BEM Rent & Electricity Bill", amount: 10_000 }],
+    amount: 0,
+    lines: [{ label: "BEM Rent & Electricity Bill", amount: 0 }],
   },
   "IT Equipments Expenses": { amount: 0, lines: [] },
   "Regular IT Expenses": {
-    amount: 90_000,
+    amount: 0,
     lines: [
-      { label: "Ptcl Bill payment", amount: 10_000 },
-      { label: "Claude payment hamza bhai", amount: 10_000 },
-      { label: "Devcon server", amount: 10_000 },
-      { label: "Zoom payment devcon", amount: 10_000 },
-      { label: "Zoom payment of two dialer", amount: 10_000 },
-      { label: "Storm fibre bill payment", amount: 10_000 },
-      { label: "LLC Tax Payment", amount: 10_000 },
-      { label: "100 CAD shopdrawing structure review", amount: 10_000 },
-      { label: "Gmails monthly payments", amount: 10_000 },
+      { label: "Ptcl Bill payment", amount: 0 },
+      { label: "Claude payment hamza bhai", amount: 0 },
+      { label: "Devcon server", amount: 0 },
+      { label: "Zoom payment devcon", amount: 0 },
+      { label: "Zoom payment of two dialer", amount: 0 },
+      { label: "Storm fibre bill payment", amount: 0 },
+      { label: "LLC Tax Payment", amount: 0 },
+      { label: "100 CAD shopdrawing structure review", amount: 0 },
+      { label: "Gmails monthly payments", amount: 0 },
     ],
   },
-  "Outsourcing Expenses": {
-    amount: 100_000,
-    lines: [
-      { label: "Payment to Sir shafaqat", amount: 10_000 },
-      { label: "Mohsin Mughal", amount: 10_000 },
-      { label: "Ayesha", amount: 10_000 },
-      { label: "Irtiza (April)", amount: 10_000 },
-      { label: "Ahmed's Reference", amount: 10_000 },
-      { label: "Ahmed", amount: 10_000 },
-      { label: "Irtaza (May)", amount: 10_000 },
-      { label: "Ayesha (May)", amount: 10_000 },
-      { label: "Mohsin Mughal (May)", amount: 10_000 },
-      { label: "Outsourcing — other", amount: 10_000 },
-    ],
-  },
+  "Outsourcing Expenses": { amount: 0, lines: [] },
   "Asset Purchasing Expenses": { amount: 0, lines: [] },
   "Miscellaneous Expenses": {
-    amount: 50_000,
+    amount: 0,
     lines: [
-      { label: "Kitchen Grocery", amount: 10_000 },
-      { label: "Miscellaneous — other", amount: 10_000 },
-      { label: "Notepad, Ballpen", amount: 10_000 },
-      { label: "Hand wash", amount: 10_000 },
-      { label: "Tissue boxes and rolls", amount: 10_000 },
+      { label: "Kitchen Grocery", amount: 0 },
+      { label: "Notepad, Ballpen", amount: 0 },
+      { label: "Hand wash", amount: 0 },
+      { label: "Tissue boxes and rolls", amount: 0 },
     ],
   },
 };
@@ -241,44 +273,44 @@ function seedOpex(label: string): OpexRow {
 
 const PF_SEED: Record<string, { amount: number; people: { label: string; amount: number }[] }> = {
   "Sales Team PF": {
-    amount: 70_000,
+    amount: 0,
     people: [
-      { label: "Hammad", amount: 10_000 },
-      { label: "Huraira", amount: 10_000 },
-      { label: "Faris", amount: 10_000 },
-      { label: "Ali", amount: 10_000 },
-      { label: "Faizan", amount: 10_000 },
-      { label: "Asim", amount: 10_000 },
-      { label: "Anam", amount: 10_000 },
+      { label: "Hammad", amount: 0 },
+      { label: "Huraira", amount: 0 },
+      { label: "Faris", amount: 0 },
+      { label: "Ali", amount: 0 },
+      { label: "Faizan", amount: 0 },
+      { label: "Asim", amount: 0 },
+      { label: "Anam", amount: 0 },
     ],
   },
   "Administration PF": {
-    amount: 100_000,
+    amount: 0,
     people: [
-      { label: "Qasim (Admin)", amount: 10_000 },
-      { label: "Shakeela (HR)", amount: 10_000 },
-      { label: "Attiq Rehman (Account Officer)", amount: 10_000 },
-      { label: "Muhammad Bilal (Accounts Officer)", amount: 10_000 },
-      { label: "Hamza (Floor Manager)", amount: 10_000 },
-      { label: "Sajawal", amount: 10_000 },
-      { label: "Ahmer", amount: 10_000 },
-      { label: "Mahnoor", amount: 10_000 },
-      { label: "Office Boy", amount: 10_000 },
-      { label: "Guard", amount: 10_000 },
+      { label: "Qasim (Admin)", amount: 0 },
+      { label: "Shakeela (HR)", amount: 0 },
+      { label: "Attiq Rehman (Account Officer)", amount: 0 },
+      { label: "Muhammad Bilal (Accounts Officer)", amount: 0 },
+      { label: "Hamza (Floor Manager)", amount: 0 },
+      { label: "Sajawal", amount: 0 },
+      { label: "Ahmer", amount: 0 },
+      { label: "Mahnoor", amount: 0 },
+      { label: "Office Boy", amount: 0 },
+      { label: "Guard", amount: 0 },
     ],
   },
   "Technical Team PF": {
-    amount: 90_000,
+    amount: 0,
     people: [
-      { label: "Muhammad Abdullah", amount: 10_000 },
-      { label: "Rizwan Sabir", amount: 10_000 },
-      { label: "Usama Jameel", amount: 10_000 },
-      { label: "Muhammad Afaq Amin", amount: 10_000 },
-      { label: "Khaldoon Abrar", amount: 10_000 },
-      { label: "Muhammad Bariq", amount: 10_000 },
-      { label: "Ayesha Ashraf", amount: 10_000 },
-      { label: "Manal Younas", amount: 10_000 },
-      { label: "Zainab Khalil", amount: 10_000 },
+      { label: "Muhammad Abdullah", amount: 0 },
+      { label: "Rizwan Sabir", amount: 0 },
+      { label: "Usama Jameel", amount: 0 },
+      { label: "Muhammad Afaq Amin", amount: 0 },
+      { label: "Khaldoon Abrar", amount: 0 },
+      { label: "Muhammad Bariq", amount: 0 },
+      { label: "Ayesha Ashraf", amount: 0 },
+      { label: "Manal Younas", amount: 0 },
+      { label: "Zainab Khalil", amount: 0 },
     ],
   },
 };
@@ -306,14 +338,9 @@ export function seededIncomeStatementData(): IncomeStatementData {
       {
         id: newRowId("loan"),
         label: "Loan Issued",
-        amount: 8_000,
+        amount: 0,
         filledAt: todayIso(),
-        subHeads: [
-          sub("Office Boy — Loan 1", 4_000),
-          sub("Office Boy — Loan 2 (12/05/2026)", 1_000),
-          sub("Office Boy — Loan 3 (16/05/2026)", 1_000),
-          sub("Office Boy — Loan 4 (20/05/2026)", 2_000),
-        ],
+        subHeads: [],
       },
     ],
     providentFundHeads: Object.keys(PF_SEED).map(seedPf),
@@ -326,7 +353,7 @@ export function seededIncomeStatementData(): IncomeStatementData {
  */
 export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeStatementData {
   // Migrate legacy: Hammad / team-lead subs under Sales Team → Sales Team Lead
-  let teamSalariesIn = [...(data.teamSalaries ?? [])];
+  const teamSalariesIn = [...(data.teamSalaries ?? [])];
   const salesIdx = teamSalariesIn.findIndex(t => t.team === "Sales Team Salaries");
   let leadIdx = teamSalariesIn.findIndex(t => t.team === "Sales Team Lead Salaries");
 
@@ -467,5 +494,53 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
     opexHeads,
     loanHeads,
     providentFundHeads,
+  };
+}
+
+/**
+ * Commission base for Executive Salaries = net profit BEFORE executive salaries:
+ * revenue − (all payroll except the executive team + OPEX + loans + PF).
+ * Keeps the % calculation non-circular (executive pay is itself an expense).
+ */
+export function executiveCommissionBase(data: IncomeStatementData): number {
+  const teams = data.teamSalaries ?? [];
+  const nonExecPayroll = teams
+    .filter(t => resolvePayrollKind(t.team, t.subHeads) !== "executive")
+    .reduce((a, t) => a + lineAmount(t), 0);
+  const opex = (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0);
+  const loans = (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0);
+  const pf = (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0);
+  return (Number(data.totalRevenue) || 0) - (nonExecPayroll + opex + loans + pf);
+}
+
+/**
+ * Keep executive sub-head amounts in sync: amount = basic + (commission % × net profit base).
+ * Runs on every load / edit so commissions follow revenue & expense changes.
+ */
+export function recomputeExecutiveTeam(data: IncomeStatementData): IncomeStatementData {
+  const teams = data.teamSalaries ?? [];
+  const idx = teams.findIndex(t => resolvePayrollKind(t.team, t.subHeads) === "executive");
+  if (idx < 0) return data;
+
+  const base = executiveCommissionBase(data);
+  const team = teams[idx];
+  let changed = false;
+  const subHeads = (team.subHeads ?? []).map(s => {
+    if (!s.salary) return s;
+    const total = computeExecutiveSalary(s.salary, base).totalSalary;
+    if (Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
+    changed = true;
+    return { ...s, amount: total };
+  });
+  if (!changed) return data;
+
+  const nextTeam = {
+    ...team,
+    subHeads,
+    totalSalary: subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+  };
+  return {
+    ...data,
+    teamSalaries: teams.map((t, i) => (i === idx ? nextTeam : t)),
   };
 }

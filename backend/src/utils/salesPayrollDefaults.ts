@@ -83,19 +83,19 @@ export function defaultSalesPayrollData(): SalesPayrollData {
   return {
     salesTeamLeads: [
       {
-        ...salesMember(hammadId, "Hammad", "STL-01", 55000, 12000),
+        ...salesMember(hammadId, "Hammad", "STL-01", 0, 0),
         role: "team_lead",
-        basic: 55000,
-        allowance: 12000,
+        basic: 0,
+        allowance: 0,
       },
     ],
     salesTeamMembers: [
-      salesMember("sal-huraira", "Huraira", "SAL-01", 48000, 8000),
-      salesMember("sal-faris", "Faris", "SAL-02", 42000, 6000),
-      salesMember("sal-ali", "Ali", "SAL-03", 50000, 9000),
-      salesMember("sal-faizan", "Faizan", "SAL-04", 52000, 10000),
-      salesMember("sal-asim", "Asim", "SAL-05", 38000, 5000),
-      salesMember("sal-anam", "Anam", "SAL-06", 44000, 7000),
+      salesMember("sal-huraira", "Huraira", "SAL-01", 0, 0),
+      salesMember("sal-faris", "Faris", "SAL-02", 0, 0),
+      salesMember("sal-ali", "Ali", "SAL-03", 0, 0),
+      salesMember("sal-faizan", "Faizan", "SAL-04", 0, 0),
+      salesMember("sal-asim", "Asim", "SAL-05", 0, 0),
+      salesMember("sal-anam", "Anam", "SAL-06", 0, 0),
     ].map(m => ({ ...m, assignedTeamLeadId: null })),
   };
 }

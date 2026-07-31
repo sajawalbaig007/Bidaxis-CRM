@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import API from "@/lib/api";
-import { computeSalary, emptySalaryDetail, type EmployeeSalaryDetail } from "../utils/payrollFormula";
+import { computeAdminSalary, computeSalary, emptySalaryDetail, type EmployeeSalaryDetail } from "../utils/payrollFormula";
 import { currency } from "../types";
 
 type Props = {
@@ -12,6 +12,8 @@ type Props = {
   teamHint?: string;
   /** Auto-lookup loan ledger by employee name */
   enableLoanLookup?: boolean;
+  /** "admin" — Administration formula: no overtime, 6 PM late slabs. */
+  variant?: "technical" | "admin";
 };
 
 function Num({
@@ -57,9 +59,11 @@ export default function EmployeeSalaryEditor({
   onChange,
   teamHint,
   enableLoanLookup = true,
+  variant = "technical",
 }: Props) {
   const d = value;
-  const b = computeSalary(d);
+  const isAdmin = variant === "admin";
+  const b = isAdmin ? computeAdminSalary(d) : computeSalary(d);
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
     onChange({ ...d, [key]: val });
   };
@@ -104,43 +108,50 @@ export default function EmployeeSalaryEditor({
         <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
       </div>
 
-      <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">Overtime</p>
-        <p className="text-[10px] text-blue-600/80">Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Num label="Weekday OT Hours" value={d.weekdayOtHours} onChange={v => set("weekdayOtHours", v)} step="0.25" />
-          <Num label="Weekend OT Hours" value={d.weekendOtHours} onChange={v => set("weekendOtHours", v)} step="0.25" />
-          <Read label="Weekday OT Pay" value={currency(b.weekdayOtPay)} accent="text-blue-700" />
-          <Read label="Weekend OT Pay" value={currency(b.weekendOtPay)} accent="text-blue-700" />
-          <Read label="Total Overtime" value={currency(b.totalOvertime)} accent="text-blue-800" />
+      {!isAdmin && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2.5 space-y-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">Overtime</p>
+          <p className="text-[10px] text-blue-600/80">Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Num label="Weekday OT Hours" value={d.weekdayOtHours} onChange={v => set("weekdayOtHours", v)} step="0.25" />
+            <Num label="Weekend OT Hours" value={d.weekendOtHours} onChange={v => set("weekendOtHours", v)} step="0.25" />
+            <Read label="Weekday OT Pay" value={currency(b.weekdayOtPay)} accent="text-blue-700" />
+            <Read label="Weekend OT Pay" value={currency(b.weekendOtPay)} accent="text-blue-700" />
+            <Read label="Total Overtime" value={currency(b.totalOvertime)} accent="text-blue-800" />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">Late Arrival (Tech shift 7:00–16:00)</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
+          {isAdmin ? "Late Arrival (Admin shift 6:00 PM)" : "Late Arrival (Tech shift 7:00–16:00)"}
+        </p>
         <p className="text-[10px] text-amber-700/80">
-          Relief ≤07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = half day.
-          If worked ≥9h after late check-in → waived.
+          {isAdmin
+            ? "1-day salary = (Basic + Allowance) ÷ 30. Relief ≤18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = half day."
+            : "Relief ≤07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = half day. If worked ≥9h after late check-in → waived."}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
             Check In
             <input
               type="time"
-              value={d.checkIn || "07:00"}
+              value={d.checkIn || (isAdmin ? "18:00" : "07:00")}
               onChange={e => set("checkIn", e.target.value)}
               className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
             />
           </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-            Check Out
-            <input
-              type="time"
-              value={d.checkOut || "16:00"}
-              onChange={e => set("checkOut", e.target.value)}
-              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
-            />
-          </label>
+          {!isAdmin && (
+            <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+              Check Out
+              <input
+                type="time"
+                value={d.checkOut || "16:00"}
+                onChange={e => set("checkOut", e.target.value)}
+                className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
+              />
+            </label>
+          )}
           <Num
             label="Late Override (optional)"
             value={d.lateDeductionOverride ?? 0}
@@ -206,7 +217,9 @@ export default function EmployeeSalaryEditor({
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">Totals</p>
         <p className="text-[10px] text-gray-500">
-          Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction
+          {isAdmin
+            ? "Basic + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"
+            : "Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Read label="Total Earning" value={currency(b.totalEarning)} accent="text-emerald-700" />

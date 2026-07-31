@@ -32,6 +32,13 @@ export type EmployeeSalaryDetail = {
   pfOverride?: number | null;
 
   remarks: string;
+
+  /** Executive only — commission % of net profit (before executive salaries) */
+  commissionPct?: number;
+  /** Executive only — loan the company owes to the executive */
+  loanPositive?: number;
+  /** Executive only — loan the executive owes to the company */
+  loanNegative?: number;
 };
 
 export type SalaryBreakdown = {
@@ -128,6 +135,125 @@ export function calcLateDeduction(
     return { amount: daySalary / 3, rule: "08:00–09:00 → ⅓ day" };
   }
   return { amount: daySalary / 2, rule: "09:00+ → half day" };
+}
+
+/**
+ * Late deduction for Administration (evening shift 18:00).
+ * 18:00–18:15 none | 18:15–18:30 ⅕ day | 18:30–19:00 ¼ day |
+ * 19:00–20:00 ⅓ day | 20:00 onwards half day.
+ */
+export function calcAdminLateDeduction(
+  daySalary: number,
+  checkIn: string,
+  override?: number | null,
+): { amount: number; rule: string } {
+  if (override != null && Number.isFinite(override) && override >= 0) {
+    return { amount: Number(override) || 0, rule: "Manual late override" };
+  }
+
+  const inMin = timeToMinutes(checkIn);
+  if (inMin == null) return { amount: 0, rule: "No check-in — no late cut" };
+
+  const t = (h: number, m: number) => h * 60 + m;
+  if (inMin <= t(18, 15)) return { amount: 0, rule: "On time / relief (≤ 18:15)" };
+  if (inMin <= t(18, 30)) return { amount: daySalary / 5, rule: "18:15–18:30 → ⅕ day" };
+  if (inMin <= t(19, 0)) return { amount: daySalary / 4, rule: "18:30–19:00 → ¼ day" };
+  if (inMin < t(20, 0)) return { amount: daySalary / 3, rule: "19:00–20:00 → ⅓ day" };
+  return { amount: daySalary / 2, rule: "20:00 onwards → half day" };
+}
+
+/**
+ * Administration payroll:
+ * Basic + Allowance = Total Earning (no overtime).
+ * Late (6 PM slabs) + Unpaid leaves + Loan (this month) + PF (8% of basic) + Tax = Total Deduction.
+ * Total Earning − Total Deduction = Total Salary.
+ */
+export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
+  const basic = Number(detail.basic) || 0;
+  const allowance = Number(detail.allowance) || 0;
+  const monthlySalary = basic + allowance;
+  const daySalary = monthlySalary / 30;
+  const hourSalary = daySalary / 8;
+
+  const totalEarning = monthlySalary;
+
+  const late = calcAdminLateDeduction(daySalary, detail.checkIn, detail.lateDeductionOverride);
+
+  const unpaidLeaveDays = Number(detail.unpaidLeaveDays) || 0;
+  const unpaidLeaveDeduction = unpaidLeaveDays * daySalary;
+  const paidLeaveDays = Number(detail.paidLeaveDays) || 0;
+
+  const loanTotal = Number(detail.loanTotal) || 0;
+  const loanPaid = Number(detail.loanPaid) || 0;
+  const loanThisMonth = Number(detail.loanThisMonth) || 0;
+  const loanRemaining = Math.max(0, loanTotal - loanPaid);
+
+  const pf = detail.pfAuto ? basic * 0.08 : Number(detail.pfOverride) || 0;
+  const incomeTax = Number(detail.incomeTax) || 0;
+
+  const totalDeduction =
+    late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
+  const totalSalary = totalEarning - totalDeduction;
+
+  return {
+    monthlySalary,
+    daySalary,
+    hourSalary,
+    weekdayOtPay: 0,
+    weekendOtPay: 0,
+    totalOvertime: 0,
+    totalEarning,
+    lateDeduction: late.amount,
+    unpaidLeaveDeduction,
+    paidLeaveDays,
+    unpaidLeaveDays,
+    loanThisMonth,
+    loanRemaining,
+    pf,
+    incomeTax,
+    totalDeduction,
+    totalSalary,
+    lateRuleApplied: late.rule,
+  };
+}
+
+export type ExecutiveBreakdown = {
+  basic: number;
+  commissionPct: number;
+  /** Net profit (before executive salaries) used as commission base */
+  commissionBase: number;
+  commission: number;
+  /** Basic + Commission */
+  totalSalary: number;
+  /** Loan the company owes to the executive */
+  loanPositive: number;
+  /** Loan the executive owes to the company */
+  loanNegative: number;
+};
+
+/**
+ * Executive payroll:
+ * Commission = % of net profit (profit before executive salaries; no commission on loss).
+ * Basic Salary + Commission = Total Salary.
+ * Loan +ve / −ve are tracked as a ledger and do not change the total salary.
+ */
+export function computeExecutiveSalary(
+  detail: Partial<EmployeeSalaryDetail>,
+  profitBase: number,
+): ExecutiveBreakdown {
+  const basic = Number(detail.basic) || 0;
+  const commissionPct = Number(detail.commissionPct) || 0;
+  const commissionBase = Math.max(0, Number(profitBase) || 0);
+  const commission = (commissionBase * commissionPct) / 100;
+  return {
+    basic,
+    commissionPct,
+    commissionBase,
+    commission,
+    totalSalary: basic + commission,
+    loanPositive: Number(detail.loanPositive) || 0,
+    loanNegative: Number(detail.loanNegative) || 0,
+  };
 }
 
 export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {

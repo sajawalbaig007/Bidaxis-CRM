@@ -40,18 +40,18 @@ export function defaultSalesPayrollData(): SalesPayrollData {
   return {
     salesTeamLeads: [
       {
-        ...member("Hammad", "STL-01", 55000, 12000),
+        ...member("Hammad", "STL-01", 0, 0),
         id: hammadId,
         role: "team_lead" as const,
       },
     ],
     salesTeamMembers: [
-      { ...member("Huraira", "SAL-01", 48000, 8000), id: "sal-huraira" },
-      { ...member("Faris", "SAL-02", 42000, 6000), id: "sal-faris" },
-      { ...member("Ali", "SAL-03", 50000, 9000), id: "sal-ali" },
-      { ...member("Faizan", "SAL-04", 52000, 10000), id: "sal-faizan" },
-      { ...member("Asim", "SAL-05", 38000, 5000), id: "sal-asim" },
-      { ...member("Anam", "SAL-06", 44000, 7000), id: "sal-anam" },
+      { ...member("Huraira", "SAL-01", 0, 0), id: "sal-huraira" },
+      { ...member("Faris", "SAL-02", 0, 0), id: "sal-faris" },
+      { ...member("Ali", "SAL-03", 0, 0), id: "sal-ali" },
+      { ...member("Faizan", "SAL-04", 0, 0), id: "sal-faizan" },
+      { ...member("Asim", "SAL-05", 0, 0), id: "sal-asim" },
+      { ...member("Anam", "SAL-06", 0, 0), id: "sal-anam" },
     ],
   };
 }

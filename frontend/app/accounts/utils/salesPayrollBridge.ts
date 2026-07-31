@@ -7,7 +7,7 @@ import {
 } from "./salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "./salesPayrollDefaults";
 
-export type PayrollKind = "technical" | "sales" | "sales_lead";
+export type PayrollKind = "technical" | "sales" | "sales_lead" | "admin" | "executive";
 
 const SALES_REP_NAMES = new Set(["huraira", "faris", "ali", "faizan", "asim", "anam"]);
 const SALES_LEAD_NAMES = new Set(["hammad"]);
@@ -41,6 +41,8 @@ export function payrollKindForTeamTitle(title: string): PayrollKind {
     return "sales";
   }
   if (t.includes("sales") && t.includes("sal") && !t.includes("technical")) return "sales";
+  if (t.includes("admin")) return "admin";
+  if (t.includes("executive")) return "executive";
   return "technical";
 }
 

@@ -1,5 +1,6 @@
 export type AccountsPeriodPreset =
   | "all_time"
+  | "daily"
   | "month"
   | "date_range"
   /** @deprecated migrated to date_range */
@@ -10,13 +11,14 @@ export type AccountsPeriodPreset =
   | "h1"
   | "h2";
 
-export const PERIOD_PRESET_LABELS: Record<"all_time" | "month" | "date_range", string> = {
+export const PERIOD_PRESET_LABELS: Record<"all_time" | "daily" | "month" | "date_range", string> = {
   all_time: "All Time",
+  daily: "Daily",
   month: "Month",
   date_range: "Date Range",
 };
 
-export const QUICK_PERIOD_PRESETS = ["all_time", "month", "date_range"] as const;
+export const QUICK_PERIOD_PRESETS = ["all_time", "daily", "month", "date_range"] as const;
 
 export function currentYear(): number {
   return new Date().getFullYear();
@@ -32,8 +34,9 @@ function lastDayOfMonth(year: number, month: number): number {
 }
 
 /** Normalize legacy quarter / half presets to the new set. */
-export function normalizePeriodPreset(preset: AccountsPeriodPreset): "all_time" | "month" | "date_range" {
+export function normalizePeriodPreset(preset: AccountsPeriodPreset): "all_time" | "daily" | "month" | "date_range" {
   if (preset === "all_time") return "all_time";
+  if (preset === "daily") return "daily";
   if (preset === "month") return "month";
   return "date_range";
 }
@@ -45,7 +48,8 @@ export function periodDateRange(
 ): { from: string; to: string } {
   const normalized = normalizePeriodPreset(preset);
 
-  if (normalized === "all_time") {
+  if (normalized === "all_time" || normalized === "daily") {
+    // daily — from/to follow the picked day; caller owns it
     return { from: "", to: "" };
   }
 
@@ -72,9 +76,18 @@ export function formatPeriodSummary(
   from: string,
   to: string,
   filterMonth: string,
+  recordDate?: string,
 ): string {
   const normalized = normalizePeriodPreset(preset);
   if (normalized === "all_time") return "Showing all saved records (no date filter)";
+  if (normalized === "daily") {
+    if (!recordDate) return "Pick a day";
+    const [y, m, d] = recordDate.split("-");
+    const label = y && m && d
+      ? new Date(Number(y), Number(m) - 1, Number(d)).toLocaleString("en-US", { weekday: "short", day: "numeric", month: "long", year: "numeric" })
+      : recordDate;
+    return `Day: ${label}`;
+  }
   if (normalized === "date_range") {
     if (from && to) return `${from} → ${to}`;
     if (from) return `From ${from}`;

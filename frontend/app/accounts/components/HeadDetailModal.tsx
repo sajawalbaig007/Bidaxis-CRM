@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { Trash2, X, Plus, StickyNote, Upload, ExternalLink, Loader2, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
-import { computeSalary } from "../utils/payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
 import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
+import ExecutiveSalaryEditor from "./ExecutiveSalaryEditor";
 import SalesPayrollEmployeeEditor from "./salesPayroll/SalesPayrollEmployeeEditor";
 import {
   type PayrollKind,
@@ -49,6 +50,8 @@ type HeadDetailModalProps = {
   payrollKind?: PayrollKind;
   /** All team rows (for sales assign / TL commission). */
   peerTeamRows?: HeadDetailModel[];
+  /** Net profit before executive salaries — commission base for executive payroll. */
+  execProfitBase?: number;
 };
 
 export default function HeadDetailModal({
@@ -63,19 +66,26 @@ export default function HeadDetailModal({
   salaryMode = false,
   payrollKind: payrollKindProp,
   peerTeamRows = [],
+  execProfitBase = 0,
 }: HeadDetailModalProps) {
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [openSalaryIds, setOpenSalaryIds] = useState<Set<string>>(new Set());
+  const [expandedForId, setExpandedForId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open && value?.subHeads.length && salaryMode) {
+  // Adjust-during-render: auto-expand sales employees once per opened head
+  if (!open && expandedForId !== null) {
+    setExpandedForId(null);
+  }
+  if (open && value && value.id !== expandedForId) {
+    setExpandedForId(value.id);
+    if (value.subHeads.length && salaryMode) {
       const kind = value.payrollKind ?? resolvePayrollKind(value.title, value.subHeads);
       if (kind === "sales" || kind === "sales_lead") {
         setOpenSalaryIds(new Set(value.subHeads.map(s => s.id)));
       }
     }
-  }, [open, value?.id, salaryMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   if (!open || !value) return null;
 
@@ -124,8 +134,20 @@ export default function HeadDetailModal({
       setOpenSalaryIds(prev => new Set(prev).add(id));
       return;
     }
-    const salary = salaryMode ? ensureSalaryDetail(undefined, 0) : undefined;
-    const amount = salary ? computeSalary(salary).totalSalary : 0;
+    const isAdminKind = payrollKind === "admin";
+    const isExecKind = payrollKind === "executive";
+    const salary = salaryMode
+      ? isExecKind
+        ? emptySalaryDetail({ commissionPct: 0, loanPositive: 0, loanNegative: 0 })
+        : isAdminKind
+          ? emptySalaryDetail({ checkIn: "18:00" })
+          : ensureSalaryDetail(undefined, 0)
+      : undefined;
+    const amount = salary
+      ? isExecKind
+        ? computeExecutiveSalary(salary, execProfitBase).totalSalary
+        : (isAdminKind ? computeAdminSalary(salary) : computeSalary(salary)).totalSalary
+      : 0;
     const subHeads = [
       ...value.subHeads,
       {
@@ -209,6 +231,11 @@ export default function HeadDetailModal({
             {isSalesPayroll && salaryMode && (
               <p className="text-[10px] font-bold text-emerald-700 mt-0.5">
                 Sales payroll — project commission · 6 PM shift · no overtime
+              </p>
+            )}
+            {payrollKind === "executive" && salaryMode && (
+              <p className="text-[10px] font-bold text-indigo-700 mt-0.5">
+                Executive payroll — Basic + commission (% of net profit) = total salary
               </p>
             )}
           </div>
@@ -313,10 +340,12 @@ export default function HeadDetailModal({
               ) : salaryMode ? (
                 value.subHeads.map(s => {
                   const openEd = openSalaryIds.has(s.id);
+                  const subKind = salaryMode ? resolvePayrollKind(value.title, [s]) : "technical";
                   const subIsSales =
                     isSalesPayroll ||
                     !!s.salesPayroll ||
-                    (salaryMode && resolvePayrollKind(value.title, [s]) !== "technical");
+                    subKind === "sales" ||
+                    subKind === "sales_lead";
                   if (subIsSales) {
                     const role =
                       payrollKind === "sales_lead" || s.salesPayroll?.role === "team_lead"
@@ -383,8 +412,54 @@ export default function HeadDetailModal({
                       </div>
                     );
                   }
-                  const sal = ensureSalaryDetail(s.salary, s.amount);
-                  const net = computeSalary(sal).totalSalary;
+                  if (payrollKind === "executive") {
+                    const sal = emptySalaryDetail({
+                      ...(s.salary ?? { basic: s.amount }),
+                    });
+                    const exec = computeExecutiveSalary(sal, execProfitBase);
+                    return (
+                      <div key={s.id} className="rounded-xl border border-indigo-200 overflow-hidden">
+                        <div className="flex items-center gap-2 px-2.5 py-2 bg-indigo-50/60">
+                          <button type="button" onClick={() => toggleSalary(s.id)} className="text-gray-500">
+                            {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </button>
+                          <input
+                            value={s.label}
+                            onChange={e => updateSub(s.id, { label: e.target.value })}
+                            className="flex-1 h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold"
+                            placeholder="Executive name"
+                          />
+                          <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">{exec.commissionPct}%</span>
+                          <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(exec.totalSalary)}</span>
+                          <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        {openEd && (
+                          <div className="p-2 border-t border-indigo-100">
+                            <ExecutiveSalaryEditor
+                              name={s.label}
+                              teamHint={value.title}
+                              value={sal}
+                              profitBase={execProfitBase}
+                              onChange={next => {
+                                const total = computeExecutiveSalary(next, execProfitBase).totalSalary;
+                                updateSub(s.id, { salary: next, amount: total });
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  const isAdminSub = payrollKind === "admin";
+                  const sal = isAdminSub
+                    ? emptySalaryDetail({
+                        ...(s.salary ?? { basic: s.amount }),
+                        checkIn: s.salary?.checkIn || "18:00",
+                      })
+                    : ensureSalaryDetail(s.salary, s.amount);
+                  const net = (isAdminSub ? computeAdminSalary(sal) : computeSalary(sal)).totalSalary;
                   return (
                     <div key={s.id} className="rounded-xl border border-gray-200 overflow-hidden">
                       <div className="flex items-center gap-2 px-2.5 py-2 bg-[#F8FAFC]">
@@ -408,8 +483,9 @@ export default function HeadDetailModal({
                             name={s.label}
                             teamHint={value.title}
                             value={sal}
+                            variant={isAdminSub ? "admin" : "technical"}
                             onChange={next => {
-                              const total = computeSalary(next).totalSalary;
+                              const total = (isAdminSub ? computeAdminSalary(next) : computeSalary(next)).totalSalary;
                               updateSub(s.id, { salary: next, amount: total });
                             }}
                           />

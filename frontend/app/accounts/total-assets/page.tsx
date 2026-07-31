@@ -86,42 +86,46 @@ export default function TotalAssetsPage() {
 
   const grandTotal = companyTotals.BEM + companyTotals.GPS + companyTotals.BDS;
 
-  const setCompanySections = (key: AssetsCompanyKey, rows: ExpandableHeadRow[]) => {
-    acc.setData(prev => {
-      const next = normalizeCompanies(prev);
-      return {
-        ...prev,
-        companies: { ...next, [key]: rows.map(headToSection) },
-        sections: [],
-      };
-    });
+  const setCompanySections = (
+    key: AssetsCompanyKey,
+    rows: ExpandableHeadRow[],
+    opts?: { persist?: boolean },
+  ) => {
+    const base = normalizeCompanies(acc.data);
+    const next: TotalAssetsData = {
+      ...acc.data,
+      companies: { ...base, [key]: rows.map(headToSection) },
+      sections: [],
+    };
+    acc.setData(() => next);
+    if (opts?.persist) void acc.save(next);
   };
 
   const addHeadToCompany = (key: AssetsCompanyKey) => {
-    acc.setData(prev => {
-      const next = normalizeCompanies(prev);
-      return {
-        ...prev,
-        companies: {
-          ...next,
-          [key]: [
-            ...next[key],
-            {
-              id: newRowId("s"),
-              title: "New Head",
-              heads: [],
-              total: 0,
-              filledAt: todayIso(),
-              subHeads: [
-                { id: newRowId("sub"), label: "Item 1", amount: 0, filledAt: todayIso() },
-              ],
-              notes: [],
-            },
-          ],
-        },
-        sections: [],
-      };
-    });
+    const base = normalizeCompanies(acc.data);
+    const next: TotalAssetsData = {
+      ...acc.data,
+      companies: {
+        ...base,
+        [key]: [
+          ...base[key],
+          {
+            id: newRowId("s"),
+            title: "New Head",
+            heads: [],
+            total: 0,
+            filledAt: todayIso(),
+            subHeads: [
+              { id: newRowId("sub"), label: "Item 1", amount: 0, filledAt: todayIso() },
+            ],
+            notes: [],
+          },
+        ],
+      },
+      sections: [],
+    };
+    acc.setData(() => next);
+    void acc.save(next);
   };
 
   return (
@@ -226,7 +230,9 @@ export default function TotalAssetsPage() {
                 addLabel={`Add Head (${c.label})`}
                 emptyLabel={`No heads for ${c.label} yet.`}
                 rows={(companies[c.key] ?? []).map(sectionToHead)}
-                onChange={rows => setCompanySections(c.key, rows)}
+                onChange={(rows, opts) => setCompanySections(c.key, rows, opts)}
+                onPersist={() => void acc.save()}
+                saving={acc.saving}
               />
             ))}
             <p className="text-right font-extrabold text-[#0F172A] pt-2">

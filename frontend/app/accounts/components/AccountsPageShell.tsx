@@ -17,6 +17,8 @@ type AccountsPageShellProps = {
   title: string;
   subtitle: string;
   recordDate: string;
+  /** Daily mode — pick the calendar day this record belongs to */
+  onRecordDateChange?: (v: string) => void;
   filterFrom: string;
   filterTo: string;
   onFilterFromChange: (v: string) => void;
@@ -47,6 +49,7 @@ export default function AccountsPageShell({
   title,
   subtitle,
   recordDate,
+  onRecordDateChange,
   filterFrom,
   filterTo,
   onFilterFromChange,
@@ -55,6 +58,7 @@ export default function AccountsPageShell({
   onPeriodPresetChange,
   filterMonth,
   onFilterMonthChange,
+  savedDates = [],
   onSave,
   onAddNew,
   addNewLabel = "Add New Row",
@@ -68,7 +72,9 @@ export default function AccountsPageShell({
 }: AccountsPageShellProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const activePreset = normalizePeriodPreset(periodPreset);
-  const periodSummary = formatPeriodSummary(periodPreset, filterFrom, filterTo, filterMonth);
+  const periodSummary = formatPeriodSummary(periodPreset, filterFrom, filterTo, filterMonth, recordDate);
+  /** Recent saved days shown as quick chips in Daily mode */
+  const recentSavedDays = [...savedDates].sort().reverse().slice(0, 7);
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-7 space-y-5">
@@ -167,6 +173,41 @@ export default function AccountsPageShell({
               ))}
             </div>
           </div>
+
+          {activePreset === "daily" && onRecordDateChange && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <label className="text-xs font-semibold text-gray-600">
+                  <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Day</span>
+                  <input
+                    type="date"
+                    value={recordDate}
+                    onChange={e => onRecordDateChange(e.target.value)}
+                    className={inputCls}
+                  />
+                </label>
+              </div>
+              {recentSavedDays.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mr-1">Saved days</span>
+                  {recentSavedDays.map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => onRecordDateChange(d)}
+                      className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                        d === recordDate
+                          ? "bg-[#B8112D] text-white"
+                          : "bg-[#F4F5F8] text-gray-600 hover:bg-[#FFF1F3] hover:text-[#B8112D]"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {(activePreset === "month" || activePreset === "date_range") && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
