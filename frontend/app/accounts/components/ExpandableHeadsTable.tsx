@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, Fragment } from "react";
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
-import { computeSalary } from "../utils/payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
 import {
   resolvePayrollKind,
   payrollKindForTeamTitle,
   ensureSalesPayrollFromSub,
-  netFromSalesSub,
   tlExtraFromPeers,
   salesSubsFromPeerRows,
   normalizeSalesTeamSubs,
@@ -34,13 +33,19 @@ type ExpandableHeadsTableProps = {
   title: string;
   accent?: string;
   rows: ExpandableHeadRow[];
-  onChange: (rows: ExpandableHeadRow[]) => void;
+  /** `opts.persist` asks the page to immediately save these rows to the DB. */
+  onChange: (rows: ExpandableHeadRow[], opts?: { persist?: boolean }) => void;
+  /** Save the whole record now (per-head / sub-head Save buttons). */
+  onPersist?: () => void;
+  saving?: boolean;
   addLabel?: string;
   emptyLabel?: string;
   allowProofUpload?: boolean;
   onUploadProof?: (file: File) => Promise<{ fileUrl: string; fileName: string }>;
   /** Team Salaries — full payroll editor in the edit modal. */
   salaryMode?: boolean;
+  /** Net profit before executive salaries — commission base for Executive payroll. */
+  execProfitBase?: number;
 };
 
 export default function ExpandableHeadsTable({
@@ -48,11 +53,14 @@ export default function ExpandableHeadsTable({
   accent = "#0B84F3",
   rows,
   onChange,
+  onPersist,
+  saving = false,
   addLabel = "Add Head",
   emptyLabel = "No heads yet.",
   allowProofUpload = false,
   onUploadProof,
   salaryMode = false,
+  execProfitBase = 0,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -67,17 +75,21 @@ export default function ExpandableHeadsTable({
   };
 
   const addRow = () => {
-    onChange([
-      ...rows,
-      {
-        id: newRowId("h"),
-        title: "New Head",
-        amount: 0,
-        filledAt: todayIso(),
-        subHeads: [],
-        notes: [],
-      },
-    ]);
+    // Persist immediately so newly added heads survive reloads
+    onChange(
+      [
+        ...rows,
+        {
+          id: newRowId("h"),
+          title: "New Head",
+          amount: 0,
+          filledAt: todayIso(),
+          subHeads: [],
+          notes: [],
+        },
+      ],
+      { persist: true },
+    );
   };
 
   const saveEditing = (next: HeadDetailModel) => {
@@ -98,12 +110,13 @@ export default function ExpandableHeadsTable({
             }
           : r,
       ),
+      { persist: true },
     );
   };
 
   const deleteEditing = () => {
     if (!editing) return;
-    onChange(rows.filter(r => r.id !== editing.id));
+    onChange(rows.filter(r => r.id !== editing.id), { persist: true });
     setEditing(null);
   };
 
@@ -222,6 +235,17 @@ export default function ExpandableHeadsTable({
                       <td className="px-3 py-2.5 text-right font-bold tabular-nums text-gray-900">{currency(amt)}</td>
                       <td className="px-2 py-2 text-center">
                         <div className="inline-flex items-center gap-1">
+                          {onPersist && (
+                            <button
+                              type="button"
+                              onClick={onPersist}
+                              disabled={saving}
+                              className="w-8 h-8 rounded-lg text-emerald-600 hover:bg-emerald-50 inline-flex items-center justify-center transition-colors disabled:opacity-50"
+                              title="Save this head to the record"
+                            >
+                              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => openEdit(row)}
@@ -232,7 +256,7 @@ export default function ExpandableHeadsTable({
                           </button>
                           <button
                             type="button"
-                            onClick={() => onChange(rows.filter(r => r.id !== row.id))}
+                            onClick={() => onChange(rows.filter(r => r.id !== row.id), { persist: true })}
                             className="w-8 h-8 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
                             title="Delete"
                           >
@@ -246,6 +270,51 @@ export default function ExpandableHeadsTable({
                         <td colSpan={6} className="px-4 py-2.5">
                           {subs.length === 0 ? (
                             <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add sub-heads.</p>
+                          ) : salaryMode && rowPayrollKind === "executive" ? (
+                            <div className="rounded-xl border border-indigo-100 overflow-x-auto bg-white shadow-sm">
+                              <table className="w-full text-xs min-w-[860px]">
+                                <thead>
+                                  <tr className="border-b bg-indigo-50/60 text-gray-400">
+                                    <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Executive</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Basic</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Comm. %</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Commission</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Total Salary</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan +ve</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan −ve</th>
+                                    <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Remarks</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {subs.map(s => {
+                                    const sal = emptySalaryDetail(s.salary ?? { basic: s.amount });
+                                    const ex = computeExecutiveSalary(sal, execProfitBase);
+                                    return (
+                                      <tr key={s.id} className="border-b border-gray-50 last:border-0">
+                                        <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{currency(ex.basic)}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-indigo-700">{ex.commissionPct}%</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{currency(ex.commission)}</td>
+                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(ex.totalSalary)}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{currency(ex.loanPositive)}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(ex.loanNegative)}</td>
+                                        <td className="px-2 py-2 text-gray-500 max-w-[180px] truncate" title={sal.remarks || undefined}>{sal.remarks || "—"}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
+                                {(() => {
+                                  const base = Math.max(0, execProfitBase);
+                                  const distributed = subs.reduce(
+                                    (a, s) => a + computeExecutiveSalary(emptySalaryDetail(s.salary ?? { basic: s.amount }), execProfitBase).commission,
+                                    0,
+                                  );
+                                  return `Net profit base: ${currency(base)} · Commissions distributed: ${currency(distributed)} · Remaining (company): ${currency(base - distributed)}`;
+                                })()}
+                              </p>
+                            </div>
                           ) : salaryMode ? (
                             <div className="rounded-xl border border-gray-100 overflow-x-auto bg-white shadow-sm">
                               <table className="w-full text-xs min-w-[980px]">
@@ -299,7 +368,11 @@ export default function ExpandableHeadsTable({
                                       );
                                     }
                                     const sal = s.salary ? ensureSalaryDetail(s.salary, s.amount) : null;
-                                    const b = sal ? computeSalary(sal) : null;
+                                    const b = sal
+                                      ? rowPayrollKind === "admin"
+                                        ? computeAdminSalary(sal)
+                                        : computeSalary(sal)
+                                      : null;
                                     return (
                                       <tr key={s.id} className="border-b border-gray-50 last:border-0">
                                         <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
@@ -366,6 +439,20 @@ export default function ExpandableHeadsTable({
                               </table>
                             </div>
                           )}
+                          {onPersist && subs.length > 0 && (
+                            <div className="flex justify-end mt-2">
+                              <button
+                                type="button"
+                                onClick={onPersist}
+                                disabled={saving}
+                                className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+                                title="Save these sub-heads to the record"
+                              >
+                                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                Save Sub-heads
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -396,6 +483,7 @@ export default function ExpandableHeadsTable({
         allowProofUpload={allowProofUpload}
         onUploadProof={onUploadProof}
         salaryMode={salaryMode}
+        execProfitBase={execProfitBase}
         payrollKind={editing?.payrollKind ?? (editing ? resolvePayrollKind(editing.title, editing.subHeads) : undefined)}
         peerTeamRows={rows.map(r => ({
           id: r.id,

@@ -16,17 +16,22 @@ import {
 type UseAccountsPageOpts<T> = {
   page: AccountsPageKey;
   defaultData: () => T;
+  /** Initial quick-period mode (e.g. "daily" for day-wise pages). Default: "all_time". */
+  defaultPreset?: AccountsPeriodPreset;
 };
 
 export function useAccountsPage<T extends Record<string, unknown>>({
   page,
   defaultData,
+  defaultPreset = "all_time",
 }: UseAccountsPageOpts<T>) {
   const defaultRef = useRef(defaultData);
-  defaultRef.current = defaultData;
+  useEffect(() => {
+    defaultRef.current = defaultData;
+  }, [defaultData]);
 
   const [recordDate, setRecordDate] = useState(todayIso);
-  const [periodPreset, setPeriodPresetState] = useState<AccountsPeriodPreset>("all_time");
+  const [periodPreset, setPeriodPresetState] = useState<AccountsPeriodPreset>(defaultPreset);
   const [filterYear, setFilterYearState] = useState(currentYear);
   const [filterMonth, setFilterMonthState] = useState(currentMonthValue);
   const [filterFrom, setFilterFromState] = useState("");
@@ -34,10 +39,17 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   const [data, setData] = useState<T>(() => defaultData());
   const [uploads, setUploads] = useState<AccountsUpload[]>([]);
   const [savedDates, setSavedDates] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dirty, setDirty] = useState(false);
+
+  // Loading is derived: the record effect stamps `loadedKey` when a fetch
+  // for the current page/date/version settles. Bumping `loadVersion` forces a reload.
+  const [loadVersion, setLoadVersion] = useState(0);
+  const [loadedKey, setLoadedKey] = useState("");
+  const loadKey = `${page}|${recordDate}|${loadVersion}`;
+  const loading = loadedKey !== loadKey;
+  const [datesVersion, setDatesVersion] = useState(0);
 
   const setFilterMonth = useCallback((month: string) => {
     setFilterMonthState(month);
@@ -49,12 +61,31 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     if (range.from) setRecordDate(range.from);
   }, []);
 
+  /** Daily mode — one record per calendar day */
+  const setFilterDay = useCallback((day: string) => {
+    if (!day) return;
+    setPeriodPresetState("daily");
+    setRecordDate(day);
+    setFilterFromState(day);
+    setFilterToState(day);
+  }, []);
+
   const setPeriodPreset = useCallback((preset: AccountsPeriodPreset) => {
     const next = normalizePeriodPreset(preset);
     setPeriodPresetState(next);
     if (next === "all_time") {
       setFilterFromState("");
       setFilterToState("");
+      return;
+    }
+    if (next === "daily") {
+      // Scope to the currently selected day (defaults to today)
+      setRecordDate(prev => {
+        const day = prev || todayIso();
+        setFilterFromState(day);
+        setFilterToState(day);
+        return day;
+      });
       return;
     }
     if (next === "month") {
@@ -83,45 +114,54 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     if (to) setRecordDate(to);
   }, []);
 
-  const refreshDates = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      const mode = normalizePeriodPreset(periodPreset);
-      // All Time → no date filter params
-      if (mode !== "all_time") {
-        if (filterFrom) params.set("from", filterFrom);
-        if (filterTo) params.set("to", filterTo);
-      }
-      const qs = params.toString();
-      const res = await API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`);
-      setSavedDates(res.data.dates ?? []);
-    } catch {
-      /* ignore */
-    }
-  }, [page, filterFrom, filterTo, periodPreset]);
-
-  const loadRecord = useCallback(async (date: string) => {
-    setLoading(true);
-    try {
-      const res = await API.get(`/accounts/${page}/${date}`);
-      setData((res.data.data as T) ?? defaultRef.current());
-      setUploads(res.data.uploads ?? []);
-      setDirty(false);
-    } catch {
-      toast.error("Failed to load data for selected date.");
-      setData(defaultRef.current());
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+  /** Re-fetch the saved-dates list (safe to call from event handlers). */
+  const refreshDates = useCallback(() => {
+    setDatesVersion(v => v + 1);
+  }, []);
 
   useEffect(() => {
-    void refreshDates();
-  }, [refreshDates]);
+    let cancelled = false;
+    const params = new URLSearchParams();
+    const mode = normalizePeriodPreset(periodPreset);
+    // All Time → no date filter params
+    if (mode !== "all_time") {
+      if (filterFrom) params.set("from", filterFrom);
+      if (filterTo) params.set("to", filterTo);
+    }
+    const qs = params.toString();
+    API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`)
+      .then(res => {
+        if (!cancelled) setSavedDates(res.data.dates ?? []);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, filterFrom, filterTo, periodPreset, datesVersion]);
 
   useEffect(() => {
-    void loadRecord(recordDate);
-  }, [recordDate, loadRecord]);
+    let cancelled = false;
+    API.get(`/accounts/${page}/${recordDate}`)
+      .then(res => {
+        if (cancelled) return;
+        setData((res.data.data as T) ?? defaultRef.current());
+        setUploads(res.data.uploads ?? []);
+        setDirty(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        toast.error("Failed to load data for selected date.");
+        setData(defaultRef.current());
+      })
+      .finally(() => {
+        if (!cancelled) setLoadedKey(loadKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, recordDate, loadKey]);
 
   const patchData = useCallback((updater: (prev: T) => T) => {
     setData(prev => {
@@ -130,14 +170,16 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     });
   }, []);
 
-  const save = useCallback(async () => {
+  /** Persist to DB. Pass `override` to save just-updated data without waiting for state. */
+  const save = useCallback(async (override?: T) => {
     setSaving(true);
     try {
-      const res = await API.put(`/accounts/${page}/${recordDate}`, { data });
-      setData((res.data.data as T) ?? data);
+      const payload = override ?? data;
+      const res = await API.put(`/accounts/${page}/${recordDate}`, { data: payload });
+      setData((res.data.data as T) ?? payload);
       setDirty(false);
       toast.success(`Saved for ${recordDate}`);
-      void refreshDates();
+      refreshDates();
     } catch {
       toast.error("Save failed.");
     } finally {
@@ -161,7 +203,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         toast.success("File uploaded for this date.");
       }
       setUploads(res.data.uploads ?? []);
-      void refreshDates();
+      refreshDates();
     } catch {
       toast.error("Upload failed.");
     } finally {
@@ -172,6 +214,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
   return {
     recordDate,
     setRecordDate,
+    setFilterDay,
     periodPreset,
     setPeriodPreset,
     filterYear,
@@ -192,6 +235,6 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     dirty,
     save,
     uploadFile,
-    reload: () => void loadRecord(recordDate),
+    reload: () => setLoadVersion(v => v + 1),
   };
 }

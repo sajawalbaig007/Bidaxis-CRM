@@ -11,14 +11,14 @@ function rid(prefix: string, n: number) {
 }
 
 const TECH_SEED: { name: string; code: string; basic: number }[] = [
-  { name: "Noman Khan", code: "TECH-01", basic: 19_512 },
-  { name: "Muhammad Abdullah", code: "TECH-02", basic: 18_458 },
-  { name: "Rizwan Sabir", code: "TECH-03", basic: 19_682 },
-  { name: "Usama Jameel", code: "TECH-04", basic: 20_849 },
-  { name: "Khaldoon Abrar", code: "TECH-05", basic: 19_733 },
-  { name: "Muhammad Zaid", code: "TECH-06", basic: 19_682 },
-  { name: "Muhammad Bariq", code: "TECH-07", basic: 23_896 },
-  { name: "Afaq", code: "TECH-08", basic: 20_833 },
+  { name: "Noman Khan", code: "TECH-01", basic: 0 },
+  { name: "Muhammad Abdullah", code: "TECH-02", basic: 0 },
+  { name: "Rizwan Sabir", code: "TECH-03", basic: 0 },
+  { name: "Usama Jameel", code: "TECH-04", basic: 0 },
+  { name: "Khaldoon Abrar", code: "TECH-05", basic: 0 },
+  { name: "Muhammad Zaid", code: "TECH-06", basic: 0 },
+  { name: "Muhammad Bariq", code: "TECH-07", basic: 0 },
+  { name: "Afaq", code: "TECH-08", basic: 0 },
 ];
 
 function makeEmployee(

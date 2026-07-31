@@ -17,7 +17,7 @@ import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, t
 const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
   // Ahmed Hamza — USD/CAD × 0.89 → × FX (example USD rate 285)
   AH: {
-    usdAmount: 100000,
+    usdAmount: 0,
     cadAmount: 0,
     pkrAmount: 0,
     usdToPkrRate: 285,
@@ -28,7 +28,7 @@ const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
   // Sharjeel Nasir — CAD × 0.945 → × 196
   SN: {
     usdAmount: 0,
-    cadAmount: 100000,
+    cadAmount: 0,
     pkrAmount: 0,
     usdToPkrRate: 285,
     cadToPkrRate: 196,
@@ -39,7 +39,7 @@ const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
   CHQ: {
     usdAmount: 0,
     cadAmount: 0,
-    pkrAmount: 100000,
+    pkrAmount: 0,
     usdToPkrRate: 1,
     cadToPkrRate: 1,
     usdTaxFactor: 1,
@@ -50,7 +50,7 @@ const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
   HM: {
     usdAmount: 0,
     cadAmount: 0,
-    pkrAmount: 100000,
+    pkrAmount: 0,
     usdToPkrRate: 1,
     cadToPkrRate: 1,
     usdTaxFactor: 1,

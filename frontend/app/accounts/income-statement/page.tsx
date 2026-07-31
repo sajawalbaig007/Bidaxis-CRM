@@ -17,7 +17,12 @@ import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
 import type { IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
 import { currency, lineAmount, newRowId, todayIso } from "../types";
-import { ensureIncomeStatementPeople, seededIncomeStatementData } from "../utils/incomeStatementSeed";
+import {
+  ensureIncomeStatementPeople,
+  executiveCommissionBase,
+  recomputeExecutiveTeam,
+  seededIncomeStatementData,
+} from "../utils/incomeStatementSeed";
 import { normalizeSalesTeamSubs, isSalesTeamTitle } from "../utils/salesPayrollBridge";
 
 function defaultData(): IncomeStatementData {
@@ -72,10 +77,21 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
 }
 
 export default function IncomeStatementPage() {
-  const acc = useAccountsPage<IncomeStatementData>({ page: "income_statement", defaultData });
+  // Daily basis — one record per calendar day, defaults to today
+  const acc = useAccountsPage<IncomeStatementData>({
+    page: "income_statement",
+    defaultData,
+    defaultPreset: "daily",
+  });
 
-  /** Always apply sales-team split + payroll migration */
-  const data = useMemo(() => ensureIncomeStatementPeople(acc.data), [acc.data]);
+  /** Always apply sales-team split + payroll migration + executive commission recompute */
+  const data = useMemo(
+    () => recomputeExecutiveTeam(ensureIncomeStatementPeople(acc.data)),
+    [acc.data],
+  );
+
+  /** Net profit before executive salaries — commission base for Executive payroll */
+  const execProfitBase = useMemo(() => executiveCommissionBase(data), [data]);
 
   useLayoutEffect(() => {
     if (acc.loading) return;
@@ -155,6 +171,17 @@ export default function IncomeStatementPage() {
     { name: "Provident Fund", value: pfExpense, fill: "#0D9488" },
   ].filter(d => d.value > 0);
 
+  /** Apply a table change; persist right away when the table asks for it. */
+  const commit = useCallback(
+    (patch: Partial<IncomeStatementData>, opts?: { persist?: boolean }) => {
+      // Refresh executive commissions — they depend on revenue & other expenses
+      const next = recomputeExecutiveTeam({ ...data, ...patch });
+      acc.setData(() => next);
+      if (opts?.persist) void acc.save(next);
+    },
+    [data, acc],
+  );
+
   return (
     <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_#F8FAFC_0%,_#EEF1F7_45%,_#E8ECF4_100%)]">
       <AccountsSidebar />
@@ -162,25 +189,38 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Team Salaries (Technical / Sales / Sales Lead) — expand a team, open Edit for full payroll fields."
-          onAddNew={() => {
-            acc.setData(prev => ({
-              ...prev,
-              teamSalaries: [
-                ...prev.teamSalaries,
-                {
-                  id: newRowId("t"),
-                  team: "New Team Salaries",
-                  totalSalary: 0,
-                  filledAt: todayIso(),
-                  subHeads: [{ id: newRowId("sub"), label: "New person", amount: 0, filledAt: todayIso() }],
-                },
-              ],
-            }));
-          }}
+          subtitle="Daily record — pick a day, fill Team Salaries / OPEX / Loans / PF, and Save. Each day keeps its own entry."
+          onAddNew={() =>
+            commit(
+              {
+                teamSalaries: [
+                  ...(data.teamSalaries ?? []),
+                  {
+                    id: newRowId("t"),
+                    team: "New Team Salaries",
+                    totalSalary: 0,
+                    filledAt: todayIso(),
+                    subHeads: [{ id: newRowId("sub"), label: "New person", amount: 0, filledAt: todayIso() }],
+                  },
+                ],
+              },
+              { persist: true },
+            )
+          }
           addNewLabel="Add Team"
         >
-          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
+            <div className="bg-gradient-to-br from-[#6D28D9] to-[#4C1D95] rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">Total Revenue</p>
+              <input
+                type="number"
+                value={revenue}
+                onChange={e => commit({ totalRevenue: Number(e.target.value || 0) })}
+                onBlur={() => void acc.save()}
+                className="mt-1 h-8 w-full rounded-lg bg-white/15 border border-white/25 px-2 text-lg sm:text-xl font-extrabold tabular-nums text-white outline-none placeholder:text-white/50 focus:border-white/60"
+                placeholder="0"
+              />
+            </div>
             {[
               { label: "Payroll", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]" },
               { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]" },
@@ -328,8 +368,11 @@ export default function IncomeStatementPage() {
               accent="#0B84F3"
               addLabel="Add Team"
               salaryMode
+              execProfitBase={execProfitBase}
               rows={(data.teamSalaries ?? []).map(teamToHead)}
-              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), teamSalaries: rows.map(headToTeam) }))}
+              onChange={(rows, opts) => commit({ teamSalaries: rows.map(headToTeam) }, opts)}
+              onPersist={() => void acc.save()}
+              saving={acc.saving}
             />
 
             <ExpandableHeadsTable
@@ -337,7 +380,9 @@ export default function IncomeStatementPage() {
               accent="#F59E0B"
               addLabel="Add OPEX"
               rows={(data.opexHeads ?? []).map(opexToHead)}
-              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), opexHeads: rows.map(headToOpex) }))}
+              onChange={(rows, opts) => commit({ opexHeads: rows.map(headToOpex) }, opts)}
+              onPersist={() => void acc.save()}
+              saving={acc.saving}
               allowProofUpload
               onUploadProof={uploadOpexProof}
             />
@@ -347,7 +392,9 @@ export default function IncomeStatementPage() {
               accent="#EA580C"
               addLabel="Add Loan Head"
               rows={(data.loanHeads ?? []).map(opexToHead)}
-              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), loanHeads: rows.map(headToOpex) }))}
+              onChange={(rows, opts) => commit({ loanHeads: rows.map(headToOpex) }, opts)}
+              onPersist={() => void acc.save()}
+              saving={acc.saving}
             />
 
             <ExpandableHeadsTable
@@ -355,7 +402,9 @@ export default function IncomeStatementPage() {
               accent="#0D9488"
               addLabel="Add PF Head"
               rows={(data.providentFundHeads ?? []).map(opexToHead)}
-              onChange={rows => acc.setData(prev => ({ ...ensureIncomeStatementPeople(prev), providentFundHeads: rows.map(headToOpex) }))}
+              onChange={(rows, opts) => commit({ providentFundHeads: rows.map(headToOpex) }, opts)}
+              onPersist={() => void acc.save()}
+              saving={acc.saving}
             />
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1 text-sm font-bold">
