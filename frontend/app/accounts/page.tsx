@@ -1,7 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Eye, PieChart as PieIcon, LayoutDashboard } from "lucide-react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  ArrowUpRight,
+  BadgeDollarSign,
+  Boxes,
+  CheckCircle2,
+  Cpu,
+  Eye,
+  Headset,
+  LayoutDashboard,
+  PieChart as PieIcon,
+  Scale,
+  TrendingUp,
+  UserCog,
+  Wallet,
+  Waves,
+} from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import API from "@/lib/api";
 import AccountsSidebar from "./components/layout/Sidebar";
@@ -230,28 +246,25 @@ export default function AccountsDashboardPage() {
       }
     : { ...activeCalc, pkrAmount: activeCalc.pkrNet };
 
-  const paymentSummary = useMemo(() => {
-    if (viewTab === "ALL") {
-      return [
-        { name: "Ahmed", amount: ahCalc.total, color: "#B8112D" },
-        { name: "Sharjeel", amount: snCalc.total, color: "#0B84F3" },
-        { name: "Cheque", amount: chqCalc.total, color: "#F59E0B" },
-        { name: "Habib", amount: hmCalc.total, color: "#0D9488" },
-      ];
-    }
-    if (isLocalPaymentTab(viewTab)) {
-      return [
-        { name: "Gross", amount: activeCalc.pkrGross, color: "#64748B" },
-        { name: "Tax", amount: activeCalc.pkrTax, color: "#EF4444" },
-        { name: "Net", amount: activeCalc.pkrNet, color: "#12B76A" },
-      ];
-    }
-    return [
-      { name: "USD", amount: displayCalc.usdInPkr, color: "#0B84F3" },
-      { name: "CAD", amount: displayCalc.cadInPkr, color: "#0D9488" },
-      { name: "PKR", amount: displayCalc.pkrAmount, color: "#12B76A" },
-    ];
-  }, [viewTab, ahCalc.total, snCalc.total, chqCalc.total, hmCalc.total, activeCalc, displayCalc.usdInPkr, displayCalc.cadInPkr, displayCalc.pkrAmount]);
+  const paymentSummary =
+    viewTab === "ALL"
+      ? [
+          { name: "Ahmed", amount: ahCalc.total, color: "#B8112D" },
+          { name: "Sharjeel", amount: snCalc.total, color: "#0B84F3" },
+          { name: "Cheque", amount: chqCalc.total, color: "#F59E0B" },
+          { name: "Habib", amount: hmCalc.total, color: "#0D9488" },
+        ]
+      : isLocalPaymentTab(viewTab)
+        ? [
+            { name: "Gross", amount: activeCalc.pkrGross, color: "#64748B" },
+            { name: "Tax", amount: activeCalc.pkrTax, color: "#EF4444" },
+            { name: "Net", amount: activeCalc.pkrNet, color: "#12B76A" },
+          ]
+        : [
+            { name: "USD", amount: displayCalc.usdInPkr, color: "#0B84F3" },
+            { name: "CAD", amount: displayCalc.cadInPkr, color: "#0D9488" },
+            { name: "PKR", amount: displayCalc.pkrAmount, color: "#12B76A" },
+          ];
 
   const bsAssets = summaries.balanceSheetTotalAssets ?? 0;
   const bsEquityLiab = summaries.balanceSheetEquityLiabilities
@@ -259,13 +272,33 @@ export default function AccountsDashboardPage() {
   const bsDiff = summaries.balanceSheetDifference ?? (bsAssets - bsEquityLiab);
   const bsBalanced = Math.abs(bsDiff) < 1 && bsAssets > 0;
 
+  const combinedTotal = ahCalc.total + snCalc.total + chqCalc.total + hmCalc.total;
+
   const metrics = [
-    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: "Must equal Equity + Liabilities" },
-    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}` },
-    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced" },
-    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]" },
-    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]" },
+    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
+    { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
+    { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
+    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", icon: <TrendingUp size={14} /> },
+    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", icon: <Waves size={14} /> },
   ];
+
+  const channelChips = [
+    { key: "AH", label: "Ahmed Hamza", amount: ahCalc.total, dot: "#F87171" },
+    { key: "SN", label: "Sharjeel Nasir", amount: snCalc.total, dot: "#60A5FA" },
+    { key: "CHQ", label: "Cheque", amount: chqCalc.total, dot: "#FBBF24" },
+    { key: "HM", label: "Habib Metro", amount: hmCalc.total, dot: "#2DD4BF" },
+  ];
+
+  const quickPages = [
+    { href: "/accounts/income-statement", label: "Income Statement", hint: "Net Profit", stat: summaries.incomeNetProfit, icon: <TrendingUp size={17} />, from: "#12B76A", to: "#027A48" },
+    { href: "/accounts/balance-sheet", label: "Balance Sheet", hint: "Total Assets", stat: summaries.balanceSheetTotalAssets, icon: <Scale size={17} />, from: "#0B84F3", to: "#0369A1" },
+    { href: "/accounts/cash-flow-statement", label: "Cash Flow", hint: "Net Amount", stat: summaries.cashFlowNet, icon: <Waves size={17} />, from: "#B8112D", to: "#8b0d22" },
+    { href: "/accounts/total-assets", label: "Total Assets", hint: "Register Sum", stat: summaries.totalAssetsRegister, icon: <Boxes size={17} />, from: "#0D9488", to: "#0F766E" },
+    { href: "/accounts/technical-team-payroll", label: "Technical Payroll", hint: "Team salaries", icon: <Cpu size={17} />, from: "#6D28D9", to: "#4C1D95" },
+    { href: "/accounts/sales-team-payroll", label: "Sales Payroll", hint: "Commission based", icon: <BadgeDollarSign size={17} />, from: "#F59E0B", to: "#B45309" },
+    { href: "/accounts/sales-team-lead-payroll", label: "Team Lead Payroll", hint: "TL commission", icon: <UserCog size={17} />, from: "#0EA5E9", to: "#0369A1" },
+    { href: "/accounts/csr-payroll", label: "CSR Payroll", hint: "CSR salaries", icon: <Headset size={17} />, from: "#EC4899", to: "#9D174D" },
+  ] as const;
 
   const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
     normalizeCurrency(prev.currency);
@@ -315,15 +348,69 @@ export default function AccountsDashboardPage() {
           title="Dashboard"
           subtitle="Live totals from other pages. Currency formulas are view-only — open the eye to edit."
         >
-          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#0B1220] text-white shadow-2xl shadow-black/20">
+            <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-[#B8112D]/35 blur-3xl" />
+            <div className="absolute -bottom-28 left-1/4 w-80 h-80 rounded-full bg-[#0B84F3]/25 blur-3xl" />
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            <div className="relative p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">Total Received — All Channels</p>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 border border-white/15 text-white/80 tabular-nums">
+                    {acc.recordDate || todayIso()}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      bsBalanced
+                        ? "bg-emerald-400/15 border-emerald-300/30 text-emerald-300"
+                        : "bg-amber-400/15 border-amber-300/30 text-amber-300"
+                    }`}
+                  >
+                    <CheckCircle2 size={11} />
+                    {bsBalanced ? "Balance Sheet balanced" : "Balance Sheet not balanced"}
+                  </span>
+                </div>
+                <p className="mt-2 text-3xl sm:text-4xl xl:text-5xl font-extrabold tabular-nums tracking-tight bg-gradient-to-r from-white via-white to-white/70 bg-clip-text text-transparent">
+                  {currency(combinedTotal)}
+                </p>
+                <p className="mt-1.5 text-[11px] text-white/50 font-medium">
+                  Ahmed + Sharjeel + Cheque + Habib Metro — after tax, PKR net
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-2 lg:ml-auto shrink-0">
+                {channelChips.map(c => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => { setViewTab(c.key as ViewTab); setFormulaOpen(false); }}
+                    className="text-left rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2.5 hover:bg-white/[0.12] transition-colors backdrop-blur-sm"
+                    title={`View ${c.label} formula`}
+                  >
+                    <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-white/55">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.dot }} />
+                      {c.label}
+                    </p>
+                    <p className="mt-1 text-sm font-extrabold tabular-nums">{currency(c.amount)}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mt-4">
             {metrics.map(m => (
               <div
                 key={m.label}
-                className={`relative overflow-hidden rounded-2xl p-3.5 sm:p-4 text-white shadow-lg shadow-black/10 bg-gradient-to-br ${m.color}`}
+                className={`group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 text-white shadow-lg shadow-black/10 bg-gradient-to-br ${m.color} transition-transform duration-200 hover:-translate-y-0.5`}
               >
-                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10" />
+                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 transition-transform duration-300 group-hover:scale-125" />
                 <div className="absolute -right-2 bottom-0 w-16 h-16 rounded-full bg-white/5" />
-                <p className="relative text-[10px] font-bold uppercase tracking-wider text-white/80 leading-snug">{m.label}</p>
+                <div className="relative flex items-start justify-between gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 leading-snug">{m.label}</p>
+                  <span className="shrink-0 w-6 h-6 rounded-lg bg-white/15 border border-white/20 inline-flex items-center justify-center">
+                    {m.icon}
+                  </span>
+                </div>
                 <p className="relative text-lg sm:text-2xl font-extrabold mt-2 tabular-nums tracking-tight">{currency(m.value)}</p>
                 <p className="relative text-[10px] text-white/65 mt-1.5 font-medium">
                   {"hint" in m && m.hint ? m.hint : `As of ${acc.recordDate || todayIso()}`}
@@ -562,41 +649,45 @@ export default function AccountsDashboardPage() {
             </div>
           </section>
 
-          <section className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden mt-5">
-            <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#F8FAFC] to-white">
-              <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Combined Snapshot — {acc.recordDate}</h2>
+          <section className="mt-5">
+            <div className="flex items-center gap-2.5 mb-3 px-0.5">
+              <span className="w-1 h-6 rounded-full bg-[#B8112D] shrink-0" />
+              <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Quick Access</h2>
+              <span className="text-[11px] text-gray-400 font-medium">Jump to any accounts page — live totals as of {acc.recordDate}</span>
             </div>
-            <div className="overflow-x-auto overflow-y-auto max-h-[420px]">
-              <table className="w-full text-sm" style={{ minWidth: "860px" }}>
-                <thead className="bg-[#FAFBFC] sticky top-0 z-10">
-                  <tr className="border-b border-gray-200/80">
-                    <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Page</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Primary Heads</th>
-                    <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400">Total (this date)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ["Balance Sheet — Assets", "Must equal Equity + Liabilities", summaries.balanceSheetTotalAssets],
-                    ["Balance Sheet — Equity + Liab.", `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, bsEquityLiab],
-                    ["Balance Sheet — Difference", bsBalanced ? "Balanced" : "Assets − (Equity + Liabilities)", bsDiff],
-                    ["Income Statement", "Revenue, Payroll, OPEX, Net Profit", summaries.incomeNetProfit],
-                    ["Cash Flow Statement", "AH Paypal, SN Paypal, CO. Habib Metro, Qasim Habib Metro", summaries.cashFlowNet],
-                    ["Total Assets Register", "BEM, GPS, BDS company registers", summaries.totalAssetsRegister],
-                    [
-                      "Balance Sheet + Total Assets",
-                      "Combined register sum",
-                      (summaries.balanceSheetTotalAssets ?? 0) + (summaries.totalAssetsRegister ?? 0),
-                    ],
-                  ].map(([page, heads, total], i) => (
-                    <tr key={String(page)} className={`border-b border-gray-50 ${i % 2 ? "bg-[#FCFCFD]" : "bg-white"} hover:bg-[#F8FAFC]`}>
-                      <td className="px-4 py-2.5 font-semibold text-gray-800">{page}</td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs">{heads}</td>
-                      <td className="px-4 py-2.5 text-right font-bold tabular-nums text-gray-900">{currency(Number(total) || 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              {quickPages.map(p => (
+                <Link
+                  key={p.href}
+                  href={p.href}
+                  className="group relative overflow-hidden bg-white rounded-2xl border border-gray-100/90 p-4 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]"
+                >
+                  <div
+                    className="absolute inset-x-0 top-0 h-0.5 opacity-70 group-hover:opacity-100 transition-opacity"
+                    style={{ background: `linear-gradient(90deg, ${p.from}, ${p.to})` }}
+                  />
+                  <div className="flex items-start justify-between gap-2">
+                    <span
+                      className="w-10 h-10 rounded-xl inline-flex items-center justify-center text-white shadow-md"
+                      style={{ background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
+                    >
+                      {p.icon}
+                    </span>
+                    <span className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-100 text-gray-400 inline-flex items-center justify-center transition-all duration-200 group-hover:bg-[#B8112D] group-hover:border-[#B8112D] group-hover:text-white group-hover:rotate-45">
+                      <ArrowUpRight size={14} />
+                    </span>
+                  </div>
+                  <p className="mt-3 font-extrabold text-gray-800 text-sm tracking-tight">{p.label}</p>
+                  {"stat" in p && p.stat != null ? (
+                    <p className="mt-0.5 text-lg font-extrabold tabular-nums tracking-tight" style={{ color: p.from }}>
+                      {currency(Number(p.stat) || 0)}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-lg font-extrabold text-gray-300">—</p>
+                  )}
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">{p.hint}</p>
+                </Link>
+              ))}
             </div>
           </section>
         </AccountsPageShell>

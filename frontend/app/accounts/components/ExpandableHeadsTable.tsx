@@ -283,6 +283,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan +ve</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan −ve</th>
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Remarks</th>
+                                    {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -299,6 +300,19 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{currency(ex.loanPositive)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(ex.loanNegative)}</td>
                                         <td className="px-2 py-2 text-gray-500 max-w-[180px] truncate" title={sal.remarks || undefined}>{sal.remarks || "—"}</td>
+                                        {onPersist && (
+                                          <td className="px-1 py-2 text-center">
+                                            <button
+                                              type="button"
+                                              onClick={onPersist}
+                                              disabled={saving}
+                                              className="w-7 h-7 rounded-lg text-emerald-600 hover:bg-emerald-50 inline-flex items-center justify-center disabled:opacity-50"
+                                              title="Save this row"
+                                            >
+                                              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                            </button>
+                                          </td>
+                                        )}
                                       </tr>
                                     );
                                   })}
@@ -342,6 +356,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Tax</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduct</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Net</th>
+                                    {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -364,6 +379,19 @@ export default function ExpandableHeadsTable({
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.incomeTax)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(b.totalDeduction)}</td>
                                           <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                          {onPersist && (
+                                            <td className="px-1 py-2 text-center">
+                                              <button
+                                                type="button"
+                                                onClick={onPersist}
+                                                disabled={saving}
+                                                className="w-7 h-7 rounded-lg text-emerald-600 hover:bg-emerald-50 inline-flex items-center justify-center disabled:opacity-50"
+                                                title="Save this row"
+                                              >
+                                                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                              </button>
+                                            </td>
+                                          )}
                                         </tr>
                                       );
                                     }
@@ -387,6 +415,19 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.incomeTax) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{b ? currency(b.totalDeduction) : "—"}</td>
                                         <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                        {onPersist && (
+                                          <td className="px-1 py-2 text-center">
+                                            <button
+                                              type="button"
+                                              onClick={onPersist}
+                                              disabled={saving}
+                                              className="w-7 h-7 rounded-lg text-emerald-600 hover:bg-emerald-50 inline-flex items-center justify-center disabled:opacity-50"
+                                              title="Save this row"
+                                            >
+                                              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                            </button>
+                                          </td>
+                                        )}
                                       </tr>
                                     );
                                   })}
@@ -409,6 +450,7 @@ export default function ExpandableHeadsTable({
                                       <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[90px]">Proof</th>
                                     )}
                                     <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[100px]">Amount</th>
+                                    {onPersist && <th className="px-2 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[50px]">Save</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -433,6 +475,19 @@ export default function ExpandableHeadsTable({
                                         </td>
                                       )}
                                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-800">{currency(s.amount)}</td>
+                                      {onPersist && (
+                                        <td className="px-2 py-2 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={onPersist}
+                                            disabled={saving}
+                                            className="w-7 h-7 rounded-lg text-emerald-600 hover:bg-emerald-50 inline-flex items-center justify-center disabled:opacity-50"
+                                            title="Save this row"
+                                          >
+                                            {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                          </button>
+                                        </td>
+                                      )}
                                     </tr>
                                   ))}
                                 </tbody>
@@ -483,6 +538,7 @@ export default function ExpandableHeadsTable({
         allowProofUpload={allowProofUpload}
         onUploadProof={onUploadProof}
         salaryMode={salaryMode}
+        saving={saving}
         execProfitBase={execProfitBase}
         payrollKind={editing?.payrollKind ?? (editing ? resolvePayrollKind(editing.title, editing.subHeads) : undefined)}
         peerTeamRows={rows.map(r => ({
