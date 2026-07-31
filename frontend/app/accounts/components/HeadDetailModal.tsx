@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Trash2, X, Plus, StickyNote, Upload, ExternalLink, Loader2, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { Trash2, X, Plus, Save, StickyNote, Upload, ExternalLink, Loader2, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
@@ -52,6 +52,8 @@ type HeadDetailModalProps = {
   peerTeamRows?: HeadDetailModel[];
   /** Net profit before executive salaries — commission base for executive payroll. */
   execProfitBase?: number;
+  /** Record is currently saving — per-row Save buttons show a spinner. */
+  saving?: boolean;
 };
 
 export default function HeadDetailModal({
@@ -67,6 +69,7 @@ export default function HeadDetailModal({
   payrollKind: payrollKindProp,
   peerTeamRows = [],
   execProfitBase = 0,
+  saving = false,
 }: HeadDetailModalProps) {
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -206,6 +209,19 @@ export default function HeadDetailModal({
   const removeNote = (id: string) => {
     onSave({ ...value, notes: value.notes.filter(n => n.id !== id) });
   };
+
+  /** Re-persist the current head (each sub-head row gets its own Save button). */
+  const rowSaveBtn = (
+    <button
+      type="button"
+      onClick={() => onSave(value)}
+      disabled={saving}
+      className="text-emerald-600 px-1 disabled:opacity-50"
+      title="Save this row"
+    >
+      {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+    </button>
+  );
 
   const sortedNotes = [...value.notes].sort((a, b) => b.date.localeCompare(a.date));
   const toggleSalary = (id: string) => {
@@ -368,6 +384,7 @@ export default function HeadDetailModal({
                             placeholder="Employee name"
                           />
                           <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                          {rowSaveBtn}
                           <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                             <Trash2 size={13} />
                           </button>
@@ -431,6 +448,7 @@ export default function HeadDetailModal({
                           />
                           <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">{exec.commissionPct}%</span>
                           <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(exec.totalSalary)}</span>
+                          {rowSaveBtn}
                           <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                             <Trash2 size={13} />
                           </button>
@@ -473,6 +491,7 @@ export default function HeadDetailModal({
                           placeholder="Employee name"
                         />
                         <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                        {rowSaveBtn}
                         <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                           <Trash2 size={13} />
                         </button>
@@ -501,7 +520,7 @@ export default function HeadDetailModal({
                       <input
                         value={s.label}
                         onChange={e => updateSub(s.id, { label: e.target.value })}
-                        className="col-span-5 h-8 rounded-lg border border-gray-200 px-2 text-xs bg-white"
+                        className="col-span-4 h-8 rounded-lg border border-gray-200 px-2 text-xs bg-white"
                         placeholder="Label"
                       />
                       <input
@@ -516,6 +535,15 @@ export default function HeadDetailModal({
                         onChange={e => updateSub(s.id, { filledAt: e.target.value })}
                         className="col-span-3 h-8 rounded-lg border border-gray-200 px-1 text-[10px] bg-white"
                       />
+                      <button
+                        type="button"
+                        onClick={() => onSave(value)}
+                        disabled={saving}
+                        className="col-span-1 text-emerald-600 flex justify-center disabled:opacity-50"
+                        title="Save this row"
+                      >
+                        {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                      </button>
                       <button type="button" onClick={() => removeSub(s.id)} className="col-span-1 text-red-500 flex justify-center">
                         <Trash2 size={13} />
                       </button>
