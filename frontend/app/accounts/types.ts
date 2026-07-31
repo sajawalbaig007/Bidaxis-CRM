@@ -181,8 +181,31 @@ export type DashboardCurrency = {
   tabs: Record<CurrencyTabKey, DashboardCurrencyTab>;
 };
 
+/** User edit on a built-in (code-defined) formula — sirf text/note override hota hai. */
+export type FormulaOverride = {
+  expression?: string;
+  note?: string;
+};
+
+/** User ka apna banaya hua formula. */
+export type CustomFormula = {
+  id: string;
+  section: string;
+  title: string;
+  expression: string;
+  appliesTo?: string;
+  note?: string;
+};
+
+export type FormulasState = {
+  overrides?: Record<string, FormulaOverride>;
+  custom?: CustomFormula[];
+};
+
 export type DashboardData = {
   currency: DashboardCurrency;
+  /** Formula Book — overrides + custom formulas (dashboard record ke saath save hote hain) */
+  formulas?: FormulasState;
 };
 
 export function isLocalPaymentTab(tab: CurrencyTabKey): boolean {
