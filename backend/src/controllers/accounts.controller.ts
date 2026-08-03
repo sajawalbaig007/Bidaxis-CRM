@@ -22,6 +22,7 @@ import {
   recomputeTechnicalTeamInIncomeStatement,
 } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
+import { accountsUploadFolder } from "../utils/accountsStorage";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -217,8 +218,15 @@ export async function uploadAccountsFile(
     }
 
     const uploaded = await new Promise<{ secure_url: string }>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-        { folder: "crm_accounts", resource_type: "auto" },
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: accountsUploadFolder({
+            page: pageParam,
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+          }),
+          resource_type: "auto",
+        },
         (error, result) => {
           if (error || !result) reject(error ?? new Error("Upload failed"));
           else resolve(result as { secure_url: string });
