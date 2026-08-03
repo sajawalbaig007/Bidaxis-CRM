@@ -394,6 +394,7 @@ model AccountsRecord {
 
   @@unique([page, recordDate])
   @@index([recordDate])
+  @@map("accounts_dashboard_records")
 }
 
 model AccountsFileUpload {
@@ -407,6 +408,7 @@ model AccountsFileUpload {
   createdAt  DateTime     @default(now())
 
   @@index([page, recordDate])
+  @@map("accounts_dashboard_uploads")
 }
 
 /** Archived Word executive summaries (one or more versions per month). */
@@ -424,4 +426,5 @@ model AccountsMonthlyReport {
 
   @@index([month])
   @@index([createdAt])
+  @@map("accounts_dashboard_monthly_reports")
 }

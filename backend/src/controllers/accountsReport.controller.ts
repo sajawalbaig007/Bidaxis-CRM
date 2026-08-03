@@ -10,6 +10,7 @@ import {
 } from "../utils/incomeStatementNormalize";
 import { recomputeTechnicalTeamInIncomeStatement } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
+import { ACCOUNTS_CLOUDINARY_FOLDERS } from "../utils/accountsStorage";
 
 /**
  * Monthly Executive Summary — aggregates ALL daily income_statement records
@@ -371,7 +372,7 @@ export async function saveMonthlyAccountsReport(
     const uploaded = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: "crm_accounts/monthly_reports",
+          folder: ACCOUNTS_CLOUDINARY_FOLDERS.monthlyReports,
           resource_type: "raw",
           public_id: publicId,
           format: "doc",
