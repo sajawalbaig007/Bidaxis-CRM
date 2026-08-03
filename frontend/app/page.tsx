@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   LayoutDashboard,
   Headphones,
   BarChart3,
@@ -18,6 +15,7 @@ import type { PortalRole } from "@/lib/loginRole";
 import { PORTAL_LOGIN_COPY } from "@/lib/loginRole";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import BrandLogo from "@/app/components/BrandLogo";
 
 type LandingPortal = {
   value: PortalRole;
@@ -109,23 +107,13 @@ export default function HomeLandingPage() {
         </div>
 
         <div className="relative z-10 w-full max-w-[560px] sm:max-w-[640px] md:max-w-[720px] mx-auto">
-          <div className="text-center mb-5 sm:mb-7">
-            <div className="inline-flex items-center justify-center bg-white dark:bg-crm-surface rounded-2xl px-4 sm:px-7 py-2.5 sm:py-3.5 shadow-2xl mb-3 sm:mb-5 animate-[fadeUp_0.6s_ease-out]">
-              <Image
-                src="/images/logo.jpeg"
-                alt="BEM Solutions"
-                width={180}
-                height={52}
-                className="object-contain h-8 sm:h-11 md:h-12 w-auto max-w-[min(100%,200px)]"
-                style={{ width: "auto", height: "auto" }}
-                priority
-              />
-            </div>
-            <h1 className="text-white text-[1.5rem] leading-tight sm:text-3xl md:text-4xl font-black tracking-tight drop-shadow-md px-1">
-              BEM Solutions
-            </h1>
-            <p className="text-white/75 text-[11px] sm:text-sm mt-1.5 sm:mt-2 max-w-md mx-auto px-1 leading-relaxed">
-              Slide through dashboards — pick yours and sign in securely.
+          <div className="text-center mb-5 sm:mb-7 animate-[fadeUp_0.6s_ease-out]">
+            <BrandLogo size="lg" className="mb-4 sm:mb-5" priority />
+            <p className="text-white/50 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] mb-1.5">
+              Secure portals
+            </p>
+            <p className="text-white/80 text-[12px] sm:text-sm md:text-[15px] max-w-sm mx-auto px-2 leading-relaxed">
+              Slide through dashboards — pick yours and sign in.
             </p>
           </div>
 
@@ -225,9 +213,8 @@ export default function HomeLandingPage() {
                 })}
               </div>
 
-              {/* Controls */}
-              <div className="mt-7 sm:mt-8 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5">
+              {/* Dot indicators */}
+              <div className="mt-7 sm:mt-8 flex items-center justify-center gap-2">
                   {PORTALS.map((p, i) => (
                     <button
                       key={p.value}
@@ -241,25 +228,6 @@ export default function HomeLandingPage() {
                       }}
                     />
                   ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Previous dashboard"
-                    onClick={() => go(index - 1)}
-                    className="w-10 h-10 rounded-xl border border-white/20 bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center transition-colors"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Next dashboard"
-                    onClick={() => go(index + 1)}
-                    className="w-10 h-10 rounded-xl border border-white/20 bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center transition-colors"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
               </div>
             </div>
 
