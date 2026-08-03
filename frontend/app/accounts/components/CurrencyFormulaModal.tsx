@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import type { CurrencyTabKey, DashboardCurrencyTab } from "../types";
 import { CURRENCY_TAB_LABELS, currency, isLocalPaymentTab } from "../types";
+import AmountInput from "./AmountInput";
 
 type CurrencyFormulaModalProps = {
   open: boolean;
@@ -28,14 +29,14 @@ function calcLocal(t: DashboardCurrencyTab) {
   return { gross, tax, net, rate };
 }
 
-const FX_FIELDS: { label: string; key: keyof DashboardCurrencyTab; step: string; readOnly?: boolean }[] = [
-  { label: "USD Payment (actual cash)", key: "usdAmount", step: "1" },
-  { label: "USD Tax Factor", key: "usdTaxFactor", step: "0.001", readOnly: true },
-  { label: "USD to PKR Rate", key: "usdToPkrRate", step: "1" },
-  { label: "CAD Payment (actual cash)", key: "cadAmount", step: "1" },
-  { label: "CAD Tax Factor", key: "cadTaxFactor", step: "0.001", readOnly: true },
-  { label: "CAD to PKR Rate", key: "cadToPkrRate", step: "1" },
-  { label: "Direct PKR Payment", key: "pkrAmount", step: "1" },
+const FX_FIELDS: { label: string; key: keyof DashboardCurrencyTab; readOnly?: boolean }[] = [
+  { label: "USD Payment (actual cash)", key: "usdAmount" },
+  { label: "USD Tax Factor", key: "usdTaxFactor", readOnly: true },
+  { label: "USD to PKR Rate", key: "usdToPkrRate" },
+  { label: "CAD Payment (actual cash)", key: "cadAmount" },
+  { label: "CAD Tax Factor", key: "cadTaxFactor", readOnly: true },
+  { label: "CAD to PKR Rate", key: "cadToPkrRate" },
+  { label: "Direct PKR Payment", key: "pkrAmount" },
 ];
 
 export default function CurrencyFormulaModal({
@@ -70,11 +71,9 @@ export default function CurrencyFormulaModal({
             <>
               <label className="text-xs font-semibold text-gray-600 block">
                 Gross payment (PKR)
-                <input
-                  type="number"
-                  step="1"
-                  value={value.pkrAmount}
-                  onChange={e => onChange("pkrAmount", Number(e.target.value || 0))}
+                <AmountInput
+                  value={Number(value.pkrAmount) || 0}
+                  onChange={n => onChange("pkrAmount", n)}
                   className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                 />
               </label>
@@ -96,22 +95,23 @@ export default function CurrencyFormulaModal({
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {FX_FIELDS.map(({ label, key, step, readOnly }) => (
+                {FX_FIELDS.map(({ label, key, readOnly }) => (
                   <label key={key} className={`text-xs font-semibold text-gray-600 ${key === "pkrAmount" ? "sm:col-span-2" : ""}`}>
                     {label}{readOnly ? " (fixed)" : ""}
-                    <input
-                      type="number"
-                      step={step}
-                      value={value[key] as number}
-                      readOnly={readOnly}
-                      onChange={e => {
-                        if (readOnly) return;
-                        onChange(key, Number(e.target.value || 0));
-                      }}
-                      className={`mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30 ${
-                        readOnly ? "bg-[#F8FAFC] text-gray-500 cursor-default" : ""
-                      }`}
-                    />
+                    {readOnly ? (
+                      <input
+                        type="text"
+                        readOnly
+                        value={String(value[key] as number)}
+                        className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-500 cursor-default"
+                      />
+                    ) : (
+                      <AmountInput
+                        value={Number(value[key]) || 0}
+                        onChange={n => onChange(key, n)}
+                        className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                      />
+                    )}
                   </label>
                 ))}
               </div>

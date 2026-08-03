@@ -4,6 +4,7 @@ import { Trash2, X, Plus, StickyNote } from "lucide-react";
 import type { CashFlowRow, DatedNote } from "../types";
 import { currency, newRowId, normalizeNotes, todayIso } from "../types";
 import { bankColor } from "./accountsTheme";
+import AmountInput from "./AmountInput";
 
 export type CashFlowEditModel = CashFlowRow & { monthId: string };
 
@@ -90,18 +91,20 @@ export default function CashFlowRowModal({
             </label>
             <label className="text-xs font-semibold text-gray-600 block">
               Net {isAutoNet ? "(auto)" : ""}
-              <input
-                type="number"
-                value={net}
-                readOnly={isAutoNet}
-                onChange={e => {
-                  if (isAutoNet) return;
-                  setField("netAmount", Number(e.target.value || 0));
-                }}
-                className={`mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30 ${
-                  isAutoNet ? "bg-[#F8FAFC] text-gray-600 cursor-default" : ""
-                }`}
-              />
+              {isAutoNet ? (
+                <input
+                  type="text"
+                  readOnly
+                  value={String(net)}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-600 cursor-default"
+                />
+              ) : (
+                <AmountInput
+                  value={Number(net) || 0}
+                  onChange={n => setField("netAmount", n)}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                />
+              )}
             </label>
           </div>
 
@@ -125,19 +128,17 @@ export default function CashFlowRowModal({
                     <div className="grid grid-cols-2 gap-2">
                       <label className="text-[10px] font-semibold text-gray-500">
                         Debit
-                        <input
-                          type="number"
-                          value={b.debit}
-                          onChange={e => setBank(bank, "debit", Number(e.target.value || 0))}
+                        <AmountInput
+                          value={Number(b.debit) || 0}
+                          onChange={n => setBank(bank, "debit", n)}
                           className="mt-0.5 h-8 w-full rounded-lg border border-gray-200 px-2 text-xs text-right"
                         />
                       </label>
                       <label className="text-[10px] font-semibold text-gray-500">
                         Credit
-                        <input
-                          type="number"
-                          value={b.credit}
-                          onChange={e => setBank(bank, "credit", Number(e.target.value || 0))}
+                        <AmountInput
+                          value={Number(b.credit) || 0}
+                          onChange={n => setBank(bank, "credit", n)}
                           className="mt-0.5 h-8 w-full rounded-lg border border-gray-200 px-2 text-xs text-right"
                         />
                       </label>

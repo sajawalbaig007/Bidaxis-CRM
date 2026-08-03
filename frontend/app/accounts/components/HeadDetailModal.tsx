@@ -25,6 +25,7 @@ import { HAMMAD_TEAM_LEAD_ID } from "../utils/salesPayrollDefaults";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
+import AmountInput from "./AmountInput";
 
 export type HeadDetailModel = {
   id: string;
@@ -282,18 +283,20 @@ export default function HeadDetailModal({
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs font-semibold text-gray-600 block">
               {value.subHeads.length > 0 ? "Total (auto from people / lines)" : "Total (add people/lines or set here)"}
-              <input
-                type="number"
-                value={value.subHeads.length > 0 ? sumSubHeads(value.subHeads) : value.amount}
-                readOnly={value.subHeads.length > 0}
-                onChange={e => {
-                  if (value.subHeads.length > 0) return;
-                  setField("amount", Number(e.target.value || 0));
-                }}
-                className={`mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30 ${
-                  value.subHeads.length > 0 ? "bg-[#F8FAFC] text-gray-600 cursor-default" : ""
-                }`}
-              />
+              {value.subHeads.length > 0 ? (
+                <input
+                  type="text"
+                  readOnly
+                  value={String(sumSubHeads(value.subHeads))}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-600 cursor-default"
+                />
+              ) : (
+                <AmountInput
+                  value={Number(value.amount) || 0}
+                  onChange={n => setField("amount", n)}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                />
+              )}
             </label>
             <label className="text-xs font-semibold text-gray-600 block">
               Filled date
@@ -552,10 +555,9 @@ export default function HeadDetailModal({
                         className="col-span-4 h-8 rounded-lg border border-gray-200 px-2 text-xs bg-white"
                         placeholder="Label"
                       />
-                      <input
-                        type="number"
-                        value={s.amount}
-                        onChange={e => updateSub(s.id, { amount: Number(e.target.value || 0) })}
+                      <AmountInput
+                        value={Number(s.amount) || 0}
+                        onChange={n => updateSub(s.id, { amount: n })}
                         className="col-span-3 h-8 rounded-lg border border-gray-200 px-2 text-xs text-right bg-white"
                       />
                       <input
