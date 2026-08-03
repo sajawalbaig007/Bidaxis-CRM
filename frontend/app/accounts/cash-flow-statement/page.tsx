@@ -13,6 +13,7 @@ import { bankColor, TABLE_VARIANT } from "../components/accountsTheme";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
+import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { CashFlowData, CashFlowRow } from "../types";
 import { currency, newRowId } from "../types";
 
@@ -25,6 +26,7 @@ function defaultData(): CashFlowData {
 
 export default function CashFlowStatementPage() {
   const acc = useAccountsPage<CashFlowData>({ page: "cash_flow", defaultData });
+  useScrollToHash(!acc.loading);
   const theme = TABLE_VARIANT.cashflow;
   const bankHeads = acc.data.bankHeads ?? [];
 
@@ -273,7 +275,7 @@ export default function CashFlowStatementPage() {
             </section>
           )}
 
-          <div className="mt-5">
+          <div id="cash-tables" className="mt-5 scroll-mt-24">
             <CashFlowTable
               months={acc.data.months ?? []}
               bankHeads={bankHeads}

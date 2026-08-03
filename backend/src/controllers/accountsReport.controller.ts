@@ -9,6 +9,7 @@ import {
   recomputeExecutiveTeamInIncomeStatement,
 } from "../utils/incomeStatementNormalize";
 import { recomputeTechnicalTeamInIncomeStatement } from "../utils/technicalPayrollDefaults";
+import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 
 /**
  * Monthly Executive Summary — aggregates ALL daily income_statement records
@@ -167,21 +168,31 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       orderBy: { recordDate: "asc" },
     });
 
+    const dashRecords = await prisma.accountsRecord.findMany({
+      where: { page: "dashboard" },
+      select: { recordDate: true, data: true },
+    });
+    const dashByDate = new Map(
+      dashRecords.map(r => [r.recordDate, r.data as Record<string, unknown>]),
+    );
+
     const byMonth = new Map<string, { revenue: number; cost: number; days: number; lastDate: string }>();
     const monthRecords: Record<string, unknown>[] = [];
     let lastDateInMonth: string | null = null;
 
     for (const rec of isRecords) {
       const data = prepareIncomeStatementData(rec.data as Record<string, unknown>);
+      const revenue = currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
+      const synced = { ...data, totalRevenue: revenue };
       const m = rec.recordDate.slice(0, 7);
       const entry = byMonth.get(m) ?? { revenue: 0, cost: 0, days: 0, lastDate: rec.recordDate };
-      entry.revenue += Number(data.totalRevenue) || 0;
-      entry.cost += isRowExpense(data);
+      entry.revenue += revenue;
+      entry.cost += isRowExpense(synced);
       entry.days += 1;
       if (rec.recordDate > entry.lastDate) entry.lastDate = rec.recordDate;
       byMonth.set(m, entry);
       if (m === month) {
-        monthRecords.push(data);
+        monthRecords.push(synced);
         if (!lastDateInMonth || rec.recordDate > lastDateInMonth) lastDateInMonth = rec.recordDate;
       }
     }

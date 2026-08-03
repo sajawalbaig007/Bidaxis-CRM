@@ -3,6 +3,8 @@
 export type EmployeeSalaryDetail = {
   basic: number;
   allowance: number;
+  /** Optional home allowance line on salary slip (Misc = allowance). */
+  homeAllowance?: number;
 
   /** Weekday overtime hours */
   weekdayOtHours: number;
@@ -32,6 +34,12 @@ export type EmployeeSalaryDetail = {
   pfOverride?: number | null;
 
   remarks: string;
+
+  /** Salary slip / HR profile (optional — fill before month-end download) */
+  employeeId?: string;
+  address?: string;
+  phone?: string;
+  cnic?: string;
 
   /** Executive only — commission % of net profit (before executive salaries) */
   commissionPct?: number;
@@ -171,7 +179,8 @@ export function calcAdminLateDeduction(
 export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
   const allowance = Number(detail.allowance) || 0;
-  const monthlySalary = basic + allowance;
+  const homeAllowance = Number(detail.homeAllowance) || 0;
+  const monthlySalary = basic + allowance + homeAllowance;
   const daySalary = monthlySalary / 30;
   const hourSalary = daySalary / 8;
 
@@ -259,7 +268,8 @@ export function computeExecutiveSalary(
 export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
   const allowance = Number(detail.allowance) || 0;
-  const monthlySalary = basic + allowance;
+  const homeAllowance = Number(detail.homeAllowance) || 0;
+  const monthlySalary = basic + allowance + homeAllowance;
   const daySalary = monthlySalary / 30;
   const hourSalary = daySalary / 8;
 
@@ -269,7 +279,7 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const weekendOtPay = weekendOtHours * hourSalary * 2;
   const totalOvertime = weekdayOtPay + weekendOtPay;
 
-  const totalEarning = basic + totalOvertime + allowance;
+  const totalEarning = basic + allowance + homeAllowance + totalOvertime;
 
   const late = calcLateDeduction(
     daySalary,

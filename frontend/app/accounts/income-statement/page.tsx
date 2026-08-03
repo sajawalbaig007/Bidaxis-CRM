@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useLayoutEffect } from "react";
+import { useMemo, useCallback, useLayoutEffect, useEffect, useState } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
@@ -15,7 +15,8 @@ import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/Expa
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
-import type { IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
+import { useScrollToHash } from "../hooks/useScrollToHash";
+import type { DashboardData, IncomeStatementData, OpexRow, TeamSalaryRow } from "../types";
 import { currency, lineAmount, newRowId, todayIso } from "../types";
 import {
   ensureIncomeStatementPeople,
@@ -24,6 +25,7 @@ import {
   seededIncomeStatementData,
 } from "../utils/incomeStatementSeed";
 import { normalizeSalesTeamSubs, isSalesTeamTitle } from "../utils/salesPayrollBridge";
+import { currencyFormulaTotal } from "../utils/currencyFormula";
 
 function defaultData(): IncomeStatementData {
   return ensureIncomeStatementPeople(seededIncomeStatementData());
@@ -83,11 +85,36 @@ export default function IncomeStatementPage() {
     defaultData,
     defaultPreset: "daily",
   });
+  useScrollToHash(!acc.loading);
+
+  /** Total Revenue = Currency Formula merged tabs (AH+SN+CHQ+HM) for same date — not editable. */
+  const [currencyTotal, setCurrencyTotal] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    API.get(`/accounts/dashboard/${acc.recordDate}`)
+      .then(res => {
+        if (cancelled) return;
+        const dash = (res.data.data as DashboardData | undefined) ?? null;
+        setCurrencyTotal(currencyFormulaTotal(dash?.currency));
+      })
+      .catch(() => {
+        if (!cancelled) setCurrencyTotal(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [acc.recordDate]);
 
   /** Always apply sales-team split + payroll migration + executive commission recompute */
   const data = useMemo(
-    () => recomputeExecutiveTeam(ensureIncomeStatementPeople(acc.data)),
-    [acc.data],
+    () =>
+      recomputeExecutiveTeam(
+        ensureIncomeStatementPeople({
+          ...acc.data,
+          totalRevenue: currencyTotal,
+        }),
+      ),
+    [acc.data, currencyTotal],
   );
 
   /** Net profit before executive salaries — commission base for Executive payroll */
@@ -96,11 +123,17 @@ export default function IncomeStatementPage() {
   useLayoutEffect(() => {
     if (acc.loading) return;
     const before = JSON.stringify(acc.data);
-    const after = JSON.stringify(data);
-    if (before !== after) {
-      acc.setData(() => data);
+    const synced = recomputeExecutiveTeam(
+      ensureIncomeStatementPeople({
+        ...acc.data,
+        totalRevenue: currencyTotal,
+      }),
+    );
+    if (JSON.stringify(synced) !== before) {
+      acc.setData(() => synced);
     }
-  }, [acc.loading, acc.data, data, acc.setData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
+  }, [acc.loading, acc.recordDate, currencyTotal]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
     const form = new FormData();
@@ -136,7 +169,7 @@ export default function IncomeStatementPage() {
     [data.providentFundHeads],
   );
   const totalExpense = payrollExpense + operatingExpense + loanExpense + pfExpense;
-  const revenue = Number(data.totalRevenue) || 0;
+  const revenue = currencyTotal;
   const netProfit = revenue - totalExpense;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
@@ -174,12 +207,16 @@ export default function IncomeStatementPage() {
   /** Apply a table change; persist right away when the table asks for it. */
   const commit = useCallback(
     (patch: Partial<IncomeStatementData>, opts?: { persist?: boolean }) => {
-      // Refresh executive commissions — they depend on revenue & other expenses
-      const next = recomputeExecutiveTeam({ ...data, ...patch });
+      // Revenue always from Currency Formula; refresh executive commissions
+      const next = recomputeExecutiveTeam({
+        ...data,
+        ...patch,
+        totalRevenue: currencyTotal,
+      });
       acc.setData(() => next);
       if (opts?.persist) void acc.save(next);
     },
-    [data, acc],
+    [data, acc, currencyTotal],
   );
 
   return (
@@ -210,27 +247,18 @@ export default function IncomeStatementPage() {
           addNewLabel="Add Team"
         >
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
-            <div className="bg-gradient-to-br from-[#6D28D9] to-[#4C1D95] rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">Total Revenue</p>
-              <input
-                type="number"
-                value={revenue}
-                onChange={e => commit({ totalRevenue: Number(e.target.value || 0) })}
-                onBlur={() => void acc.save()}
-                className="mt-1 h-8 w-full rounded-lg bg-white/15 border border-white/25 px-2 text-lg sm:text-xl font-extrabold tabular-nums text-white outline-none placeholder:text-white/50 focus:border-white/60"
-                placeholder="0"
-              />
-            </div>
             {[
-              { label: "Payroll", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]" },
-              { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]" },
-              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]" },
-              { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]" },
-              { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]" },
+              { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: "Currency Formula" },
+              { label: "Payroll", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: "Team Salaries" },
+              { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]", hint: "Loans table" },
+              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "PF table" },
+              { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "All tables" },
+              { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]", hint: "Revenue − Expense" },
             ].map(c => (
               <div key={c.label} className={`bg-gradient-to-br ${c.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{c.label}</p>
                 <p className="text-lg sm:text-xl font-extrabold mt-1 tabular-nums">{currency(Number(c.value) || 0)}</p>
+                <p className="text-[9px] text-white/55 font-medium mt-0.5">{c.hint}</p>
               </div>
             ))}
           </section>
@@ -363,18 +391,23 @@ export default function IncomeStatementPage() {
           </section>
 
           <section className="mt-5 space-y-5">
+            <div id="team-salaries" className="scroll-mt-24">
             <ExpandableHeadsTable
               title="Team Salaries"
               accent="#0B84F3"
               addLabel="Add Team"
               salaryMode
               execProfitBase={execProfitBase}
+              recordDate={acc.recordDate}
+              salarySlipCompany="BEM"
               rows={(data.teamSalaries ?? []).map(teamToHead)}
               onChange={(rows, opts) => commit({ teamSalaries: rows.map(headToTeam) }, opts)}
               onPersist={() => void acc.save()}
               saving={acc.saving}
             />
+            </div>
 
+            <div id="opex" className="scroll-mt-24">
             <ExpandableHeadsTable
               title="Operating Expenses"
               accent="#F59E0B"
@@ -386,7 +419,9 @@ export default function IncomeStatementPage() {
               allowProofUpload
               onUploadProof={uploadOpexProof}
             />
+            </div>
 
+            <div id="loans" className="scroll-mt-24">
             <ExpandableHeadsTable
               title="Loans"
               accent="#EA580C"
@@ -396,7 +431,9 @@ export default function IncomeStatementPage() {
               onPersist={() => void acc.save()}
               saving={acc.saving}
             />
+            </div>
 
+            <div id="provident-fund" className="scroll-mt-24">
             <ExpandableHeadsTable
               title="Provident Fund"
               accent="#0D9488"
@@ -406,6 +443,7 @@ export default function IncomeStatementPage() {
               onPersist={() => void acc.save()}
               saving={acc.saving}
             />
+            </div>
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1 text-sm font-bold">
               <span className="text-gray-600">Total Expense: {currency(totalExpense)}</span>

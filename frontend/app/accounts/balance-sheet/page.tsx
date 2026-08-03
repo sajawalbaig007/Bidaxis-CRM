@@ -12,6 +12,7 @@ import BalanceSheetTable, { sumItems } from "../components/BalanceSheetTable";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
+import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { BalanceSheetData, BalanceLineItem } from "../types";
 import { currency, newRowId, todayIso } from "../types";
 
@@ -25,6 +26,7 @@ function sumSections(sections: BalanceSheetData["assetSections"]) {
 
 export default function BalanceSheetPage() {
   const acc = useAccountsPage<BalanceSheetData>({ page: "balance_sheet", defaultData });
+  useScrollToHash(!acc.loading);
 
   const { totalAssets, currentAssets, nonCurrentAssets, totalEquity, totalLiabilities, balanced } = useMemo(() => {
     const assetSections = acc.data.assetSections ?? [];
@@ -164,6 +166,7 @@ export default function BalanceSheetPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
+            <div id="bs-assets" className="scroll-mt-24">
             <BalanceSheetTable
               variant="assets"
               groupTitle="Assets"
@@ -196,7 +199,9 @@ export default function BalanceSheetPage() {
                 assetSections: [...prev.assetSections, { id: newRowId("as"), title: "New Asset Section", items: [] }],
               }))}
             />
+            </div>
 
+            <div id="bs-equity" className="scroll-mt-24">
             <BalanceSheetTable
               variant="liability"
               groupTitle="Equity & Liabilities"
@@ -229,6 +234,7 @@ export default function BalanceSheetPage() {
                 equityLiabilitySections: [...prev.equityLiabilitySections, { id: newRowId("es"), title: "New Section", items: [] }],
               }))}
             />
+            </div>
           </div>
         </AccountsPageShell>
       </main>

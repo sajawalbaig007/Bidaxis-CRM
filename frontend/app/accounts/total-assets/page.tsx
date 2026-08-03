@@ -10,6 +10,7 @@ import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/Expa
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
+import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { AssetSectionRow, AssetsCompanyKey, TotalAssetsData } from "../types";
 import { ASSETS_COMPANIES, currency, lineAmount, newRowId, todayIso } from "../types";
 
@@ -71,6 +72,7 @@ function headToSection(h: ExpandableHeadRow): AssetSectionRow {
 
 export default function TotalAssetsPage() {
   const acc = useAccountsPage<TotalAssetsData>({ page: "total_assets", defaultData });
+  useScrollToHash(!acc.loading);
   const companies = normalizeCompanies(acc.data);
 
   const companyTotals = useMemo(() => {
@@ -221,7 +223,7 @@ export default function TotalAssetsPage() {
             </AccountsChartCard>
           </section>
 
-          <section className="mt-5 space-y-5">
+          <section id="assets-register" className="mt-5 space-y-5 scroll-mt-24">
             {ASSETS_COMPANIES.map(c => (
               <ExpandableHeadsTable
                 key={c.key}

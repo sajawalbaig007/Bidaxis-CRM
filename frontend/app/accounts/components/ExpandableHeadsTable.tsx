@@ -18,6 +18,9 @@ import { computeSalesEmployeePayroll } from "../utils/salesPayrollFormula";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
+import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
+import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
+import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 
 export type ExpandableHeadRow = {
   id: string;
@@ -46,6 +49,10 @@ type ExpandableHeadsTableProps = {
   salaryMode?: boolean;
   /** Net profit before executive salaries — commission base for Executive payroll. */
   execProfitBase?: number;
+  /** Record date (YYYY-MM-DD) — salary slip month label. */
+  recordDate?: string;
+  /** Which company slip format to download (default BEM Solutions). */
+  salarySlipCompany?: SalarySlipCompanyKey;
 };
 
 export default function ExpandableHeadsTable({
@@ -61,6 +68,8 @@ export default function ExpandableHeadsTable({
   onUploadProof,
   salaryMode = false,
   execProfitBase = 0,
+  recordDate = todayIso(),
+  salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -283,6 +292,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan +ve</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan −ve</th>
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Remarks</th>
+                                    <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
                                     {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
                                   </tr>
                                 </thead>
@@ -300,6 +310,16 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{currency(ex.loanPositive)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(ex.loanNegative)}</td>
                                         <td className="px-2 py-2 text-gray-500 max-w-[180px] truncate" title={sal.remarks || undefined}>{sal.remarks || "—"}</td>
+                                        <td className="px-1 py-2 text-center">
+                                          <SalarySlipDownloadButton
+                                            compact
+                                            sub={s}
+                                            kind="executive"
+                                            recordDate={recordDate}
+                                            companyKey={salarySlipCompany}
+                                            execProfitBase={execProfitBase}
+                                          />
+                                        </td>
                                         {onPersist && (
                                           <td className="px-1 py-2 text-center">
                                             <button
@@ -356,6 +376,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Tax</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduct</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Net</th>
+                                    <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
                                     {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
                                   </tr>
                                 </thead>
@@ -379,6 +400,16 @@ export default function ExpandableHeadsTable({
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.incomeTax)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(b.totalDeduction)}</td>
                                           <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                          <td className="px-1 py-2 text-center">
+                                            <SalarySlipDownloadButton
+                                              compact
+                                              sub={s}
+                                              kind={rowPayrollKind === "sales_lead" ? "sales_lead" : "sales"}
+                                              recordDate={recordDate}
+                                              companyKey={salarySlipCompany}
+                                              salesExtra={extra}
+                                            />
+                                          </td>
                                           {onPersist && (
                                             <td className="px-1 py-2 text-center">
                                               <button
@@ -415,6 +446,15 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.incomeTax) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{b ? currency(b.totalDeduction) : "—"}</td>
                                         <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                        <td className="px-1 py-2 text-center">
+                                          <SalarySlipDownloadButton
+                                            compact
+                                            sub={s}
+                                            kind={rowPayrollKind === "admin" ? "admin" : "technical"}
+                                            recordDate={recordDate}
+                                            companyKey={salarySlipCompany}
+                                          />
+                                        </td>
                                         {onPersist && (
                                           <td className="px-1 py-2 text-center">
                                             <button
@@ -435,8 +475,8 @@ export default function ExpandableHeadsTable({
                               </table>
                               <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
                                 {isSalesRow
-                                  ? "Sales team: project commission · 6 PM shift · no overtime. Open Edit for full fields."
-                                  : "Open Edit to fill all payroll fields (OT hours, check-in/out, leaves, loan, PF, tax, remarks)."}
+                                  ? "Sales team: project commission · 6 PM shift · no overtime. Slip download = BEM Solutions format (more companies later)."
+                                  : "Open Edit to fill payroll + Employee ID / CNIC for slips. Download = BEM Solutions format (more companies later)."}
                               </p>
                             </div>
                           ) : (
@@ -540,6 +580,8 @@ export default function ExpandableHeadsTable({
         salaryMode={salaryMode}
         saving={saving}
         execProfitBase={execProfitBase}
+        recordDate={recordDate}
+        salarySlipCompany={salarySlipCompany}
         payrollKind={editing?.payrollKind ?? (editing ? resolvePayrollKind(editing.title, editing.subHeads) : undefined)}
         peerTeamRows={rows.map(r => ({
           id: r.id,

@@ -102,10 +102,55 @@ export default function EmployeeSalaryEditor({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
-        <Num label="Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
+        <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
+        <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
         <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
         <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
         <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
+          Salary slip profile (BEM Solutions)
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+            Employee ID
+            <input
+              value={d.employeeId || ""}
+              onChange={e => set("employeeId", e.target.value)}
+              placeholder="BEM-DEV-002"
+              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </label>
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+            Phone
+            <input
+              value={d.phone || ""}
+              onChange={e => set("phone", e.target.value)}
+              placeholder="03xx-xxxxxxx"
+              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </label>
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+            CNIC
+            <input
+              value={d.cnic || ""}
+              onChange={e => set("cnic", e.target.value)}
+              placeholder="xxxxx-xxxxxxx-x"
+              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </label>
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 col-span-2 sm:col-span-1">
+            Address
+            <input
+              value={d.address || ""}
+              onChange={e => set("address", e.target.value)}
+              placeholder="City / area"
+              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </label>
+        </div>
       </div>
 
       {!isAdmin && (
