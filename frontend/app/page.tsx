@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -69,10 +69,54 @@ export default function HomeLandingPage() {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const active = PORTALS[index]!;
+  const chipTrackRef = useRef<HTMLDivElement>(null);
+  const chipBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [capsule, setCapsule] = useState({ left: 0, width: 0, ready: false });
 
   const go = useCallback((next: number) => {
     setIndex(((next % PORTALS.length) + PORTALS.length) % PORTALS.length);
   }, []);
+
+  /** Measure active chip — works for any future portal count. */
+  const measureCapsule = useCallback(() => {
+    const track = chipTrackRef.current;
+    const btn = chipBtnRefs.current[index];
+    if (!track || !btn) return;
+    setCapsule({
+      left: btn.offsetLeft,
+      width: btn.offsetWidth,
+      ready: true,
+    });
+    // Keep active chip visible when many portals overflow horizontally
+    const btnLeft = btn.offsetLeft;
+    const btnRight = btnLeft + btn.offsetWidth;
+    const viewLeft = track.scrollLeft;
+    const viewRight = viewLeft + track.clientWidth;
+    if (btnLeft < viewLeft + 8) {
+      track.scrollTo({ left: Math.max(0, btnLeft - 16), behavior: "smooth" });
+    } else if (btnRight > viewRight - 8) {
+      track.scrollTo({ left: btnRight - track.clientWidth + 16, behavior: "smooth" });
+    }
+  }, [index]);
+
+  useLayoutEffect(() => {
+    measureCapsule();
+  }, [measureCapsule]);
+
+  useEffect(() => {
+    const track = chipTrackRef.current;
+    if (!track) return;
+    const onResize = () => measureCapsule();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
+    ro?.observe(track);
+    window.addEventListener("resize", onResize);
+    track.addEventListener("scroll", onResize, { passive: true });
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", onResize);
+      track.removeEventListener("scroll", onResize);
+    };
+  }, [measureCapsule]);
 
   useEffect(() => {
     if (paused) return;
@@ -231,9 +275,24 @@ export default function HomeLandingPage() {
               </div>
             </div>
 
-            {/* Quick jump chips */}
-            <div className="border-t border-white/10 bg-black/20 px-3 sm:px-4 py-3 overflow-x-auto">
-              <div className="flex items-center gap-2 min-w-max sm:min-w-0 sm:justify-between">
+            {/* Quick jump chips — sliding glass capsule (scales with future portals) */}
+            <div className="border-t border-white/10 bg-black/25 px-2.5 sm:px-3 py-2.5 sm:py-3">
+              <div
+                ref={chipTrackRef}
+                className="relative flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto scrollbar-none py-0.5"
+                style={{ scrollbarWidth: "none" }}
+              >
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute top-0.5 bottom-0.5 rounded-full border border-white/25 backdrop-blur-md transition-[transform,width,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,width]"
+                  style={{
+                    width: capsule.width,
+                    transform: `translateX(${capsule.left}px)`,
+                    opacity: capsule.ready ? 1 : 0,
+                    background: `linear-gradient(135deg, ${active.accent}ee, ${active.accent}99)`,
+                    boxShadow: `0 4px 18px ${active.accent}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
+                  }}
+                />
                 {PORTALS.map((portal, i) => {
                   const ChipIcon = portal.icon;
                   const on = i === index;
@@ -241,13 +300,15 @@ export default function HomeLandingPage() {
                     <button
                       key={portal.value}
                       type="button"
+                      ref={el => {
+                        chipBtnRefs.current[i] = el;
+                      }}
                       onClick={() => go(i)}
-                      className={`inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
-                        on ? "text-white shadow-md" : "text-white/55 hover:text-white hover:bg-white/10"
+                      className={`relative z-[1] inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3.5 rounded-full text-[11px] sm:text-xs font-bold whitespace-nowrap transition-colors duration-300 shrink-0 ${
+                        on ? "text-white" : "text-white/55 hover:text-white/90"
                       }`}
-                      style={on ? { background: portal.accent } : undefined}
                     >
-                      <ChipIcon size={13} />
+                      <ChipIcon size={13} className="shrink-0" />
                       {portal.label}
                     </button>
                   );
