@@ -69,34 +69,32 @@ export default function HomeLandingPage() {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const active = PORTALS[index]!;
+  const CHIPS_PER_ROW = 5;
   const chipTrackRef = useRef<HTMLDivElement>(null);
   const chipBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [capsule, setCapsule] = useState({ left: 0, width: 0, ready: false });
+  const [capsule, setCapsule] = useState({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    ready: false,
+  });
 
   const go = useCallback((next: number) => {
     setIndex(((next % PORTALS.length) + PORTALS.length) % PORTALS.length);
   }, []);
 
-  /** Measure active chip — works for any future portal count. */
+  /** Measure active chip — works across wrapped rows when portals > 5. */
   const measureCapsule = useCallback(() => {
-    const track = chipTrackRef.current;
     const btn = chipBtnRefs.current[index];
-    if (!track || !btn) return;
+    if (!btn) return;
     setCapsule({
       left: btn.offsetLeft,
+      top: btn.offsetTop,
       width: btn.offsetWidth,
+      height: btn.offsetHeight,
       ready: true,
     });
-    // Keep active chip visible when many portals overflow horizontally
-    const btnLeft = btn.offsetLeft;
-    const btnRight = btnLeft + btn.offsetWidth;
-    const viewLeft = track.scrollLeft;
-    const viewRight = viewLeft + track.clientWidth;
-    if (btnLeft < viewLeft + 8) {
-      track.scrollTo({ left: Math.max(0, btnLeft - 16), behavior: "smooth" });
-    } else if (btnRight > viewRight - 8) {
-      track.scrollTo({ left: btnRight - track.clientWidth + 16, behavior: "smooth" });
-    }
   }, [index]);
 
   useLayoutEffect(() => {
@@ -110,11 +108,9 @@ export default function HomeLandingPage() {
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
     ro?.observe(track);
     window.addEventListener("resize", onResize);
-    track.addEventListener("scroll", onResize, { passive: true });
     return () => {
       ro?.disconnect();
       window.removeEventListener("resize", onResize);
-      track.removeEventListener("scroll", onResize);
     };
   }, [measureCapsule]);
 
@@ -275,19 +271,20 @@ export default function HomeLandingPage() {
               </div>
             </div>
 
-            {/* Quick jump chips — sliding glass capsule (scales with future portals) */}
+            {/* Quick jump chips — max 5 per row; extras wrap; capsule slides across rows */}
             <div className="border-t border-white/10 bg-black/25 px-2.5 sm:px-3 py-2.5 sm:py-3">
               <div
                 ref={chipTrackRef}
-                className="relative flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto scrollbar-none py-0.5"
-                style={{ scrollbarWidth: "none" }}
+                className="relative grid gap-1 sm:gap-1.5"
+                style={{ gridTemplateColumns: `repeat(${CHIPS_PER_ROW}, minmax(0, 1fr))` }}
               >
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute top-0.5 bottom-0.5 rounded-full border border-white/25 backdrop-blur-md transition-[transform,width,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,width]"
+                  className="pointer-events-none absolute rounded-full border border-white/25 backdrop-blur-md transition-[transform,width,height,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,width,height]"
                   style={{
                     width: capsule.width,
-                    transform: `translateX(${capsule.left}px)`,
+                    height: capsule.height,
+                    transform: `translate(${capsule.left}px, ${capsule.top}px)`,
                     opacity: capsule.ready ? 1 : 0,
                     background: `linear-gradient(135deg, ${active.accent}ee, ${active.accent}99)`,
                     boxShadow: `0 4px 18px ${active.accent}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
@@ -304,12 +301,12 @@ export default function HomeLandingPage() {
                         chipBtnRefs.current[i] = el;
                       }}
                       onClick={() => go(i)}
-                      className={`relative z-[1] inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3.5 rounded-full text-[11px] sm:text-xs font-bold whitespace-nowrap transition-colors duration-300 shrink-0 ${
+                      className={`relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 px-1.5 sm:px-2 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap transition-colors duration-300 min-w-0 ${
                         on ? "text-white" : "text-white/55 hover:text-white/90"
                       }`}
                     >
                       <ChipIcon size={13} className="shrink-0" />
-                      {portal.label}
+                      <span className="truncate">{portal.label}</span>
                     </button>
                   );
                 })}
