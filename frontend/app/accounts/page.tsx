@@ -4,23 +4,23 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
-  BadgeDollarSign,
   Boxes,
   CheckCircle2,
   Cpu,
   Eye,
-  Headset,
+  FileText,
   LayoutDashboard,
   PieChart as PieIcon,
+  RefreshCw,
   Scale,
   Sigma,
   TrendingUp,
-  UserCog,
   Wallet,
   Waves,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
-import API from "@/lib/api";
+import toast from "react-hot-toast";
+import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "./components/layout/Sidebar";
 import AccountsPageShell from "./components/AccountsPageShell";
 import AccountsChartCard from "./components/AccountsChartCard";
@@ -87,6 +87,7 @@ function defaultData(): DashboardData {
         HM: { ...TAB_DEFAULTS.HM },
       },
     },
+    formulas: { overrides: {}, custom: [] },
   };
 }
 
@@ -201,12 +202,26 @@ type Summary = {
 
 type ViewTab = CurrencyTabKey | "ALL";
 
+type LiveFxRates = {
+  usdToPkr: number;
+  cadToPkr: number;
+  source: string;
+  fetchedAt: string;
+  usdSource?: string;
+  cadSource?: string;
+};
+
 export default function AccountsDashboardPage() {
   const acc = useAccountsPage<DashboardData>({ page: "dashboard", defaultData });
   const [summaries, setSummaries] = useState<Summary>({});
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaBookOpen, setFormulaBookOpen] = useState(false);
+  const [fxRates, setFxRates] = useState<LiveFxRates | null>(null);
+  const [fxError, setFxError] = useState("");
+  const [fxVersion, setFxVersion] = useState(0);
+  const [fxLoadedVersion, setFxLoadedVersion] = useState(-1);
+  const fxLoading = fxLoadedVersion !== fxVersion;
 
   useEffect(() => {
     let cancelled = false;
@@ -220,6 +235,34 @@ export default function AccountsDashboardPage() {
     })();
     return () => { cancelled = true; };
   }, [acc.recordDate, acc.dirty, acc.saving]);
+
+  useEffect(() => {
+    let cancelled = false;
+    API.get("/accounts/fx-rates")
+      .then(res => {
+        if (cancelled) return;
+        setFxRates({
+          usdToPkr: Number(res.data.usdToPkr) || 0,
+          cadToPkr: Number(res.data.cadToPkr) || 0,
+          source: String(res.data.source ?? "market"),
+          fetchedAt: String(res.data.fetchedAt ?? new Date().toISOString()),
+          usdSource: res.data.usdSource,
+          cadSource: res.data.cadSource,
+        });
+        setFxError("");
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setFxRates(null);
+        setFxError(apiErrorMessage(err, "Live rates load nahi ho saki."));
+      })
+      .finally(() => {
+        if (!cancelled) setFxLoadedVersion(fxVersion);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fxVersion]);
 
   const currencyData = normalizeCurrency(acc.data.currency);
   const sn = currencyData.tabs.SN;
@@ -297,10 +340,8 @@ export default function AccountsDashboardPage() {
     { href: "/accounts/balance-sheet", label: "Balance Sheet", hint: "Total Assets", stat: summaries.balanceSheetTotalAssets, icon: <Scale size={17} />, from: "#0B84F3", to: "#0369A1" },
     { href: "/accounts/cash-flow-statement", label: "Cash Flow", hint: "Net Amount", stat: summaries.cashFlowNet, icon: <Waves size={17} />, from: "#B8112D", to: "#8b0d22" },
     { href: "/accounts/total-assets", label: "Total Assets", hint: "Register Sum", stat: summaries.totalAssetsRegister, icon: <Boxes size={17} />, from: "#0D9488", to: "#0F766E" },
-    { href: "/accounts/technical-team-payroll", label: "Technical Payroll", hint: "Team salaries", icon: <Cpu size={17} />, from: "#6D28D9", to: "#4C1D95" },
-    { href: "/accounts/sales-team-payroll", label: "Sales Payroll", hint: "Commission based", icon: <BadgeDollarSign size={17} />, from: "#F59E0B", to: "#B45309" },
-    { href: "/accounts/sales-team-lead-payroll", label: "Team Lead Payroll", hint: "TL commission", icon: <UserCog size={17} />, from: "#0EA5E9", to: "#0369A1" },
-    { href: "/accounts/csr-payroll", label: "CSR Payroll", hint: "CSR salaries", icon: <Headset size={17} />, from: "#EC4899", to: "#9D174D" },
+    { href: "/accounts/reports", label: "Monthly Reports", hint: "Executive summary", icon: <FileText size={17} />, from: "#0F172A", to: "#334155" },
+    { href: "/accounts/income-statement", label: "Team Payroll", hint: "Tech · Sales · Admin · Exec", icon: <Cpu size={17} />, from: "#6D28D9", to: "#4C1D95" },
   ] as const;
 
   const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
@@ -329,6 +370,27 @@ export default function AccountsDashboardPage() {
         },
       };
     });
+  };
+
+  /** Apply live Google/market rates into AH and/or SN conversion formula fields. */
+  const applyLiveRates = (target: "AH" | "SN" | "both") => {
+    if (!fxRates) return;
+    const usd = fxRates.usdToPkr;
+    const cad = fxRates.cadToPkr;
+    acc.setData(prev => {
+      const tabs = ensureNormalized(prev).tabs;
+      const next = { ...tabs };
+      if (target === "AH" || target === "both") {
+        next.AH = { ...next.AH, usdToPkrRate: usd, cadToPkrRate: cad, usdTaxFactor: 0.89, cadTaxFactor: 0.89 };
+      }
+      if (target === "SN" || target === "both") {
+        next.SN = { ...next.SN, usdToPkrRate: usd, cadToPkrRate: cad, cadTaxFactor: 0.945 };
+      }
+      return { ...prev, currency: { tabs: next } };
+    });
+    const label =
+      target === "both" ? "Ahmed + Sharjeel" : target === "AH" ? "Ahmed Hamza" : "Sharjeel Nasir";
+    toast.success(`Live rates ${label} formula mai apply ho gaye — Save dabao taake persist ho.`);
   };
 
   /** Formula Book — edits save straight into the dashboard record */
@@ -451,6 +513,95 @@ export default function AccountsDashboardPage() {
           </section>
 
           <section className="mt-5 w-full space-y-4">
+            <div className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
+              <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Google Finance se fetch · yeh rates dekh kar apne conversion formula mai apply karo
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={fxLoading}
+                  onClick={() => setFxVersion(v => v + 1)}
+                  className="h-9 px-3 rounded-xl bg-[#EAF5FF] border border-[#D6EBFF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-[#D6EBFF] disabled:opacity-50"
+                  title="Rates dobara fetch karo"
+                >
+                  <RefreshCw size={13} className={fxLoading ? "animate-spin" : ""} />
+                  Refresh
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5">
+                {fxLoading && !fxRates ? (
+                  <p className="text-xs text-gray-400 font-medium flex items-center gap-2">
+                    <RefreshCw size={14} className="animate-spin text-[#0B84F3]" />
+                    Google se live rates load ho rahi hain…
+                  </p>
+                ) : fxError && !fxRates ? (
+                  <p className="text-xs text-red-500 font-medium">{fxError}</p>
+                ) : fxRates ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-[#D6EBFF] bg-[#F8FBFF] p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">1 USD → PKR</p>
+                        <p className="text-2xl font-extrabold tabular-nums text-gray-900 mt-1">{fxRates.usdToPkr.toFixed(4)}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{fxRates.usdSource ?? "Google Finance"}</p>
+                        <p className="text-[10px] text-gray-500 mt-2">
+                          Ahmed formula abhi: <span className="font-bold text-gray-700 tabular-nums">{ah.usdToPkrRate}</span>
+                          {Math.abs(ah.usdToPkrRate - fxRates.usdToPkr) > 0.01 && (
+                            <span className="ml-1 text-amber-600 font-semibold">
+                              (diff {(fxRates.usdToPkr - ah.usdToPkrRate).toFixed(2)})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-teal-100 bg-[#F8FFFE] p-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">1 CAD → PKR</p>
+                        <p className="text-2xl font-extrabold tabular-nums text-gray-900 mt-1">{fxRates.cadToPkr.toFixed(4)}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{fxRates.cadSource ?? "Google Finance"}</p>
+                        <p className="text-[10px] text-gray-500 mt-2">
+                          Ahmed: <span className="font-bold text-gray-700 tabular-nums">{ah.cadToPkrRate}</span>
+                          {" · "}
+                          Sharjeel: <span className="font-bold text-gray-700 tabular-nums">{sn.cadToPkrRate}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => applyLiveRates("AH")}
+                        className="h-9 px-3 rounded-xl bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#9a0e26]"
+                      >
+                        Apply to Ahmed (AH)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyLiveRates("SN")}
+                        className="h-9 px-3 rounded-xl bg-[#0B84F3] text-white text-[11px] font-bold hover:bg-[#0a6fce]"
+                      >
+                        Apply to Sharjeel (SN)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyLiveRates("both")}
+                        className="h-9 px-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-[11px] font-bold hover:border-[#B8112D] hover:text-[#B8112D]"
+                      >
+                        Apply to both
+                      </button>
+                      <p className="text-[10px] text-gray-400 ml-auto">
+                        Source: {fxRates.source === "google" ? "Google Finance" : fxRates.source}
+                        {" · "}
+                        {new Date(fxRates.fetchedAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             <div className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
               <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>

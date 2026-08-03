@@ -15,13 +15,17 @@ import {
   lookupPayrollLoan,
   upsertPayrollLoan,
 } from "../controllers/payrollLoan.controller";
-import { getMonthlyAccountsReport } from "../controllers/accountsReport.controller";
+import { getMonthlyAccountsReport, listMonthlyAccountsReports, saveMonthlyAccountsReport } from "../controllers/accountsReport.controller";
+import { getLiveFxRates } from "../controllers/accountsFx.controller";
 
 const router = express.Router();
 
 router.use(verifyToken, allowRoles("accounts", "admin"));
 
 router.get("/dashboard/summary", getAccountsDashboardSummary);
+router.get("/fx-rates", getLiveFxRates);
+router.get("/reports/monthly/saved", listMonthlyAccountsReports);
+router.post("/reports/monthly/save", uploadReportFile.single("file"), saveMonthlyAccountsReport);
 router.get("/reports/monthly", getMonthlyAccountsReport);
 router.get("/payroll-loans/lookup", lookupPayrollLoan);
 router.get("/payroll-loans", listPayrollLoans);

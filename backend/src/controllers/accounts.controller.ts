@@ -12,7 +12,10 @@ import {
   type AccountsPageKey,
 } from "../utils/accountsDefaults";
 import { mergeAccountsExcel } from "../utils/accountsExcelImport";
-import { normalizeIncomeStatementData } from "../utils/incomeStatementNormalize";
+import {
+  normalizeIncomeStatementData,
+  recomputeExecutiveTeamInIncomeStatement,
+} from "../utils/incomeStatementNormalize";
 import { normalizeSalesPayrollData } from "../utils/salesPayrollDefaults";
 import {
   normalizeTechnicalPayrollData,
@@ -23,21 +26,44 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function getOrCreateRecord(page: AccountsPageKey, recordDate: string, userId?: string) {
-  const prismaPage = toPrismaAccountsPage(page);
-  const existing = await prisma.accountsRecord.findUnique({
-    where: { page_recordDate: { page: prismaPage, recordDate } },
+/** Full income-statement pipeline: sales-lead split → technical sync → executive commission. */
+function prepareIncomeStatement(data: Record<string, unknown>): Record<string, unknown> {
+  return recomputeExecutiveTeamInIncomeStatement(
+    recomputeTechnicalTeamInIncomeStatement(normalizeIncomeStatementData(data)),
+  );
+}
+
+/** Read existing record or return null — never auto-creates (avoids empty date pollution). */
+async function findRecord(page: AccountsPageKey, recordDate: string) {
+  return prisma.accountsRecord.findUnique({
+    where: { page_recordDate: { page: toPrismaAccountsPage(page), recordDate } },
   });
+}
+
+/** Create only when an explicit write needs a row (upload / save already upserts). */
+async function getOrCreateRecord(page: AccountsPageKey, recordDate: string, userId?: string) {
+  const existing = await findRecord(page, recordDate);
   if (existing) return existing;
 
   return prisma.accountsRecord.create({
     data: {
-      page: prismaPage,
+      page: toPrismaAccountsPage(page),
       recordDate,
       data: defaultAccountsData(page) as Prisma.InputJsonValue,
       updatedBy: userId ?? null,
     },
   });
+}
+
+function preparePageData(page: AccountsPageKey, data: Record<string, unknown>): Record<string, unknown> {
+  if (page === "income_statement") return prepareIncomeStatement(data);
+  if (page === "technical_payroll") {
+    return normalizeTechnicalPayrollData(data) as unknown as Record<string, unknown>;
+  }
+  if (page === "sales_payroll") {
+    return normalizeSalesPayrollData(data) as unknown as Record<string, unknown>;
+  }
+  return data;
 }
 
 export async function listAccountsDates(req: AuthRequest, res: Response) {
@@ -91,20 +117,9 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
     }
 
-    const record = await getOrCreateRecord(pageParam, recordDate, req.user?.id);
-
-    let responseData = record.data as Record<string, unknown>;
-    if (pageParam === "income_statement") {
-      responseData = recomputeTechnicalTeamInIncomeStatement(
-        normalizeIncomeStatementData(responseData),
-      );
-    }
-    if (pageParam === "technical_payroll") {
-      responseData = normalizeTechnicalPayrollData(responseData) as unknown as Record<string, unknown>;
-    }
-    if (pageParam === "sales_payroll") {
-      responseData = normalizeSalesPayrollData(responseData) as unknown as Record<string, unknown>;
-    }
+    const record = await findRecord(pageParam, recordDate);
+    const raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
+    const responseData = preparePageData(pageParam, raw);
 
     const uploads = await prisma.accountsFileUpload.findMany({
       where: { page: toPrismaAccountsPage(pageParam), recordDate },
@@ -121,8 +136,9 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     return res.json({
       success: true,
       recordDate,
+      persisted: !!record,
       data: responseData,
-      updatedAt: record.updatedAt,
+      updatedAt: record?.updatedAt ?? null,
       uploads,
     });
   } catch (err) {
@@ -147,16 +163,7 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Missing data payload." });
     }
 
-    let payload = data;
-    if (pageParam === "sales_payroll") {
-      payload = normalizeSalesPayrollData(data) as unknown as Record<string, unknown>;
-    }
-    if (pageParam === "technical_payroll") {
-      payload = normalizeTechnicalPayrollData(data) as unknown as Record<string, unknown>;
-    }
-    if (pageParam === "income_statement") {
-      payload = recomputeTechnicalTeamInIncomeStatement(normalizeIncomeStatementData(data));
-    }
+    const payload = preparePageData(pageParam, data);
 
     const prismaPage = toPrismaAccountsPage(pageParam);
     const record = await prisma.accountsRecord.upsert({
@@ -176,6 +183,7 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
     return res.json({
       success: true,
       recordDate,
+      persisted: true,
       data: record.data,
       updatedAt: record.updatedAt,
     });
@@ -235,10 +243,13 @@ export async function uploadAccountsFile(
 
     if (isSheet) {
       const record = await getOrCreateRecord(pageParam, recordDate, req.user.id);
-      mergedData = mergeAccountsExcel(
+      mergedData = preparePageData(
         pageParam,
-        (record.data as Record<string, unknown>) ?? defaultAccountsData(pageParam),
-        file.buffer,
+        mergeAccountsExcel(
+          pageParam,
+          (record.data as Record<string, unknown>) ?? defaultAccountsData(pageParam),
+          file.buffer,
+        ),
       );
       await prisma.accountsRecord.upsert({
         where: { page_recordDate: { page: toPrismaAccountsPage(pageParam), recordDate } },
@@ -288,10 +299,15 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     ];
 
     const summaries: Record<string, number> = {};
+    const persistedPages: Record<string, boolean> = {};
 
     for (const page of pages) {
-      const record = await getOrCreateRecord(page, recordDate, req.user?.id);
-      const data = record.data as Record<string, unknown>;
+      const record = await findRecord(page, recordDate);
+      persistedPages[page] = !!record;
+      const data = preparePageData(
+        page,
+        (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(page),
+      );
 
       if (page === "balance_sheet") {
         const sumItems = (
@@ -374,13 +390,17 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       }
     }
 
-    const dash = await getOrCreateRecord("dashboard", recordDate, req.user?.id);
+    const dash = await findRecord("dashboard", recordDate);
 
     return res.json({
       success: true,
       recordDate,
       summaries,
-      dashboard: dash.data,
+      dashboard: dash?.data ?? defaultAccountsData("dashboard"),
+      persisted: {
+        dashboard: !!dash,
+        ...persistedPages,
+      },
     });
   } catch (err) {
     console.log(err);
