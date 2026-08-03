@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
@@ -13,6 +12,7 @@ import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/li
 import { PORTAL_LOGIN_COPY, portalLabel, type PortalRole } from "@/lib/loginRole";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import BrandLogo from "@/app/components/BrandLogo";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number; captchaRequired?: boolean } };
@@ -305,10 +305,12 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px]">
-              <div className="bg-white rounded-2xl px-5 py-3 inline-flex items-center justify-center shadow-lg mb-5 md:mb-7">
-                <Image src="/images/logo.jpeg" alt="BEM Solutions" width={140} height={44} className="object-contain h-[38px] md:h-[44px] w-auto" style={{ width: "auto", height: "auto" }} />
-              </div>
-              <div className="relative min-h-[100px] md:min-h-[112px]">
+              <BrandLogo size="md" className="mb-5 md:mb-7 shadow-[0_10px_40px_rgba(0,0,0,0.35)]" />
+              <div
+                className="relative min-h-[108px] md:min-h-[120px] cursor-pointer"
+                onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}
+                role="presentation"
+              >
                 {loginSlides.map((slide, i) => (
                   <div
                     key={slide.title}
@@ -316,6 +318,9 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                       i === activeSlide ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
                     }`}
                   >
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50 mb-2">
+                      {copy.eyebrow}
+                    </p>
                     <h1 className="text-white text-[22px] md:text-[28px] font-black leading-tight tracking-tight mb-2 md:mb-3">
                       {slide.title}
                     </h1>
@@ -324,16 +329,8 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                 ))}
               </div>
 
-              <div className="mt-6 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  aria-label="Previous slide"
-                  onClick={() => setActiveSlide(s => (s - 1 + loginSlides.length) % loginSlides.length)}
-                  className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 text-white inline-flex items-center justify-center hover:bg-white/20"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div className="flex items-center gap-1.5">
+              <div className="mt-7 flex flex-col items-center gap-2.5">
+                <div className="flex items-center justify-center gap-2">
                   {loginSlides.map((slide, i) => (
                     <button
                       key={slide.title}
@@ -342,20 +339,15 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                       onClick={() => setActiveSlide(i)}
                       className="h-1.5 rounded-full transition-all duration-300"
                       style={{
-                        width: i === activeSlide ? 22 : 7,
+                        width: i === activeSlide ? 26 : 8,
                         background: i === activeSlide ? "#fff" : "rgba(255,255,255,0.35)",
                       }}
                     />
                   ))}
                 </div>
-                <button
-                  type="button"
-                  aria-label="Next slide"
-                  onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}
-                  className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 text-white inline-flex items-center justify-center hover:bg-white/20"
-                >
-                  <ChevronRight size={16} />
-                </button>
+                <p className="text-[10px] text-white/40 font-medium tabular-nums">
+                  {activeSlide + 1} / {loginSlides.length}
+                </p>
               </div>
             </div>
           </div>
