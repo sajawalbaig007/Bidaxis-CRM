@@ -22,6 +22,9 @@ import {
 } from "../utils/salesPayrollBridge";
 import type { SalesPayrollData } from "../utils/salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "../utils/salesPayrollDefaults";
+import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
+import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
+import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 
 export type HeadDetailModel = {
   id: string;
@@ -54,6 +57,10 @@ type HeadDetailModalProps = {
   execProfitBase?: number;
   /** Record is currently saving — per-row Save buttons show a spinner. */
   saving?: boolean;
+  /** Date used for salary-slip month label. */
+  recordDate?: string;
+  /** Company slip format (BEM Solutions now; GPS/BDS later). */
+  salarySlipCompany?: SalarySlipCompanyKey;
 };
 
 export default function HeadDetailModal({
@@ -70,6 +77,8 @@ export default function HeadDetailModal({
   peerTeamRows = [],
   execProfitBase = 0,
   saving = false,
+  recordDate = todayIso(),
+  salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
 }: HeadDetailModalProps) {
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -384,6 +393,13 @@ export default function HeadDetailModal({
                             placeholder="Employee name"
                           />
                           <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                          <SalarySlipDownloadButton
+                            sub={s}
+                            kind={payrollKind === "sales_lead" ? "sales_lead" : "sales"}
+                            recordDate={recordDate}
+                            companyKey={salarySlipCompany}
+                            salesExtra={extra}
+                          />
                           {rowSaveBtn}
                           <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                             <Trash2 size={13} />
@@ -448,6 +464,13 @@ export default function HeadDetailModal({
                           />
                           <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">{exec.commissionPct}%</span>
                           <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(exec.totalSalary)}</span>
+                          <SalarySlipDownloadButton
+                            sub={s}
+                            kind="executive"
+                            recordDate={recordDate}
+                            companyKey={salarySlipCompany}
+                            execProfitBase={execProfitBase}
+                          />
                           {rowSaveBtn}
                           <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                             <Trash2 size={13} />
@@ -491,6 +514,12 @@ export default function HeadDetailModal({
                           placeholder="Employee name"
                         />
                         <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
+                        <SalarySlipDownloadButton
+                          sub={s}
+                          kind={isAdminSub ? "admin" : "technical"}
+                          recordDate={recordDate}
+                          companyKey={salarySlipCompany}
+                        />
                         {rowSaveBtn}
                         <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                           <Trash2 size={13} />

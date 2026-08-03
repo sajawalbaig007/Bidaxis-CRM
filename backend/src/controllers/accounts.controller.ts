@@ -21,6 +21,7 @@ import {
   normalizeTechnicalPayrollData,
   recomputeTechnicalTeamInIncomeStatement,
 } from "../utils/technicalPayrollDefaults";
+import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -343,7 +344,11 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         summaries.balanceSheetEquityLiabilities = totalEquityLiabilities;
         summaries.balanceSheetDifference = totalAssets - totalEquityLiabilities;
       } else if (page === "income_statement") {
-        const revenue = Number(data.totalRevenue) || 0;
+        // Revenue = Currency Formula (AH+SN+CHQ+HM) for same date — not a manual field
+        const dashRec = await findRecord("dashboard", recordDate);
+        const revenue = currencyFormulaTotalFromDashboard(
+          (dashRec?.data as Record<string, unknown> | undefined) ?? undefined,
+        );
         const sumLines = (
           rows: Array<{ amount?: number; totalSalary?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
         ) =>
@@ -354,11 +359,17 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
             return a + (Number(row.amount ?? row.totalSalary) || 0);
           }, 0);
 
-        const expense =
-          sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>) +
-          sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>) +
-          sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>) +
-          sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        const payroll = sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
+        const opex = sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        const loans = sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        const pf = sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        const expense = payroll + opex + loans + pf;
+        summaries.incomeTotalRevenue = revenue;
+        summaries.incomePayroll = payroll;
+        summaries.incomeOpex = opex;
+        summaries.incomeLoans = loans;
+        summaries.incomeProvidentFund = pf;
+        summaries.incomeTotalExpense = expense;
         summaries.incomeNetProfit = revenue - expense;
       } else if (page === "cash_flow") {
         const months = (data.months as Array<{ rows: Array<{ netAmount: number }> }>) ?? [];

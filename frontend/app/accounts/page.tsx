@@ -17,6 +17,8 @@ import {
   TrendingUp,
   Wallet,
   Waves,
+  BadgeDollarSign,
+  Receipt,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import toast from "react-hot-toast";
@@ -29,6 +31,7 @@ import FormulaBookModal from "./components/FormulaBookModal";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "./utils/accountsShellProps";
 import { useAccountsPage } from "./hooks/useAccountsPage";
+import { useScrollToHash } from "./hooks/useScrollToHash";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 
@@ -195,6 +198,9 @@ type Summary = {
   balanceSheetTotalLiabilities?: number;
   balanceSheetEquityLiabilities?: number;
   balanceSheetDifference?: number;
+  incomeTotalRevenue?: number;
+  incomePayroll?: number;
+  incomeTotalExpense?: number;
   incomeNetProfit?: number;
   cashFlowNet?: number;
   totalAssetsRegister?: number;
@@ -213,6 +219,7 @@ type LiveFxRates = {
 
 export default function AccountsDashboardPage() {
   const acc = useAccountsPage<DashboardData>({ page: "dashboard", defaultData });
+  useScrollToHash(!acc.loading);
   const [summaries, setSummaries] = useState<Summary>({});
   const [viewTab, setViewTab] = useState<ViewTab>("AH");
   const [formulaOpen, setFormulaOpen] = useState(false);
@@ -321,10 +328,13 @@ export default function AccountsDashboardPage() {
   const combinedTotal = ahCalc.total + snCalc.total + chqCalc.total + hmCalc.total;
 
   const metrics = [
+    { label: "Currency Formula Total", value: combinedTotal, color: "from-[#F59E0B] to-[#B45309]", hint: "AH + SN + Cheque + Habib Metro (this date)", icon: <Receipt size={14} /> },
+    { label: "IS Total Revenue", value: summaries.incomeTotalRevenue ?? 0, color: "from-[#6D28D9] to-[#4C1D95]", hint: "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
+    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "from-[#0B84F3] to-[#0369A1]", hint: "Team Salaries total · same date", icon: <Cpu size={14} /> },
     { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
     { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
     { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
-    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", icon: <TrendingUp size={14} /> },
+    { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", hint: `Revenue − Expense (${currency(summaries.incomeTotalExpense ?? 0)})`, icon: <TrendingUp size={14} /> },
     { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", icon: <Waves size={14} /> },
   ];
 
@@ -336,12 +346,14 @@ export default function AccountsDashboardPage() {
   ];
 
   const quickPages = [
-    { href: "/accounts/income-statement", label: "Income Statement", hint: "Net Profit", stat: summaries.incomeNetProfit, icon: <TrendingUp size={17} />, from: "#12B76A", to: "#027A48" },
-    { href: "/accounts/balance-sheet", label: "Balance Sheet", hint: "Total Assets", stat: summaries.balanceSheetTotalAssets, icon: <Scale size={17} />, from: "#0B84F3", to: "#0369A1" },
-    { href: "/accounts/cash-flow-statement", label: "Cash Flow", hint: "Net Amount", stat: summaries.cashFlowNet, icon: <Waves size={17} />, from: "#B8112D", to: "#8b0d22" },
-    { href: "/accounts/total-assets", label: "Total Assets", hint: "Register Sum", stat: summaries.totalAssetsRegister, icon: <Boxes size={17} />, from: "#0D9488", to: "#0F766E" },
-    { href: "/accounts/reports", label: "Monthly Reports", hint: "Executive summary", icon: <FileText size={17} />, from: "#0F172A", to: "#334155" },
-    { href: "/accounts/income-statement", label: "Team Payroll", hint: "Tech · Sales · Admin · Exec", icon: <Cpu size={17} />, from: "#6D28D9", to: "#4C1D95" },
+    { href: "/accounts/income-statement#team-salaries", label: "Income Statement", hint: "Net Profit", stat: summaries.incomeNetProfit, icon: <TrendingUp size={17} />, from: "#12B76A", to: "#027A48" },
+    { href: "/accounts/balance-sheet#bs-assets", label: "Balance Sheet", hint: "Total Assets", stat: summaries.balanceSheetTotalAssets, icon: <Scale size={17} />, from: "#0B84F3", to: "#0369A1" },
+    { href: "/accounts/cash-flow-statement#cash-tables", label: "Cash Flow", hint: "Net Amount", stat: summaries.cashFlowNet, icon: <Waves size={17} />, from: "#B8112D", to: "#8b0d22" },
+    { href: "/accounts/total-assets#assets-register", label: "Total Assets", hint: "Register Sum", stat: summaries.totalAssetsRegister, icon: <Boxes size={17} />, from: "#0D9488", to: "#0F766E" },
+    { href: "/accounts/reports#monthly-report", label: "Monthly Reports", hint: "Executive summary", icon: <FileText size={17} />, from: "#0F172A", to: "#334155" },
+    { href: "/accounts/income-statement#team-salaries", label: "Team Payroll", hint: "Tech · Sales · Admin · Exec", icon: <Cpu size={17} />, from: "#6D28D9", to: "#4C1D95" },
+    { href: "/accounts#live-fx", label: "Live FX Rates", hint: "USD · CAD → PKR", icon: <BadgeDollarSign size={17} />, from: "#0EA5E9", to: "#0369A1" },
+    { href: "/accounts#currency-formula", label: "Currency Formula", hint: "Ahmed · Sharjeel · Cheque · Habib", icon: <Receipt size={17} />, from: "#F59E0B", to: "#B45309" },
   ] as const;
 
   const ensureNormalized = (prev: DashboardData): DashboardCurrency =>
@@ -513,7 +525,7 @@ export default function AccountsDashboardPage() {
           </section>
 
           <section className="mt-5 w-full space-y-4">
-            <div className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
+            <div id="live-fx" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-24">
               <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
@@ -602,7 +614,7 @@ export default function AccountsDashboardPage() {
               </div>
             </div>
 
-            <div className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden">
+            <div id="currency-formula" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-24">
               <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
@@ -840,8 +852,9 @@ export default function AccountsDashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {quickPages.map(p => (
                 <Link
-                  key={p.href}
+                  key={p.label}
                   href={p.href}
+                  prefetch={false}
                   className="group relative overflow-hidden bg-white rounded-2xl border border-gray-100/90 p-4 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]"
                 >
                   <div
