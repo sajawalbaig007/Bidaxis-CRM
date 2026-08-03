@@ -3,14 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
-import { portalLabel, type PortalRole } from "@/lib/loginRole";
+import { PORTAL_LOGIN_COPY, portalLabel, type PortalRole } from "@/lib/loginRole";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
@@ -19,11 +19,15 @@ interface APIError {
 }
 type Step = "credentials" | "otp";
 
-const LOGIN_SLIDES = [
-  { title: "CRM Dashboard", subtitle: "Customer Relationship Management — BEM Solutions" },
-  { title: "Track Every Lead", subtitle: "Monitor CSR calls, follow-ups, and client status in real time." },
-  { title: "Close More Deals", subtitle: "From first contact to project won — all in one secure platform." },
-] as const;
+const PORTAL_ACCENT: Record<PortalRole, string> = {
+  admin: "#B8112D",
+  manager: "#0F766E",
+  csr: "#0B84F3",
+  technical_manager: "#D97706",
+  accounts: "#12B76A",
+};
+
+const SLIDE_MS = 4500;
 
 declare global {
   interface Window {
@@ -32,6 +36,9 @@ declare global {
 }
 
 export default function LoginPortalForm({ portal: loginPortal }: { portal: PortalRole }) {
+  const copy = PORTAL_LOGIN_COPY[loginPortal];
+  const loginSlides = copy.slides;
+  const accent = PORTAL_ACCENT[loginPortal];
   const [step, setStep] = useState<Step>("credentials");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,11 +58,16 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [activeSlide, setActiveSlide] = useState(0);
+  const [slidePaused, setSlidePaused] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => setActiveSlide(s => (s + 1) % LOGIN_SLIDES.length), 4500);
+    if (slidePaused) return;
+    const timer = setInterval(
+      () => setActiveSlide(s => (s + 1) % loginSlides.length),
+      SLIDE_MS,
+    );
     return () => clearInterval(timer);
-  }, []);
+  }, [loginSlides.length, slidePaused, activeSlide]);
 
   useEffect(() => {
     API.get("/auth/captcha-config")
@@ -273,29 +285,77 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
 
         <div className="relative z-10 w-full max-w-[920px] bg-crm-surface/95 dark:bg-crm-surface/98 backdrop-blur-md rounded-2xl sm:rounded-[28px] overflow-hidden flex flex-col md:flex-row shadow-[0_24px_64px_rgba(0,0,0,0.35)] border border-white/10 my-4 sm:my-0">
           <div
-            className="flex md:w-[42%] relative flex-col items-center justify-center px-6 py-8 sm:px-8 sm:py-10 md:p-10 overflow-hidden select-none min-h-[180px] sm:min-h-[220px] md:min-h-0"
-            style={{ background: "linear-gradient(160deg, #B8112D 0%, #7A0B1E 55%, #4a0612 100%)" }}
+            className="flex md:w-[42%] relative flex-col items-center justify-center px-6 py-8 sm:px-8 sm:py-10 md:p-10 overflow-hidden select-none min-h-[200px] sm:min-h-[240px] md:min-h-0"
+            style={{
+              background: `linear-gradient(160deg, ${accent} 0%, ${accent}cc 42%, #0F172A 100%)`,
+            }}
+            onMouseEnter={() => setSlidePaused(true)}
+            onMouseLeave={() => setSlidePaused(false)}
           >
+            <div className="absolute top-0 inset-x-0 h-1 bg-white/15 overflow-hidden">
+              <div
+                key={activeSlide}
+                className="h-full origin-left bg-white/90"
+                style={{
+                  animation: slidePaused ? "none" : `loginSlideProgress ${SLIDE_MS}ms linear forwards`,
+                  width: slidePaused ? `${((activeSlide + 1) / loginSlides.length) * 100}%` : undefined,
+                }}
+              />
+            </div>
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
-            <div className="relative z-10 text-center w-full max-w-[260px]">
-              <div className="bg-white rounded-2xl px-5 py-3 inline-flex items-center justify-center shadow-lg mb-5 md:mb-8">
+            <div className="relative z-10 text-center w-full max-w-[280px]">
+              <div className="bg-white rounded-2xl px-5 py-3 inline-flex items-center justify-center shadow-lg mb-5 md:mb-7">
                 <Image src="/images/logo.jpeg" alt="BEM Solutions" width={140} height={44} className="object-contain h-[38px] md:h-[44px] w-auto" style={{ width: "auto", height: "auto" }} />
               </div>
-              <div className="relative min-h-[88px] md:min-h-[100px]">
-                {LOGIN_SLIDES.map((slide, i) => (
+              <div className="relative min-h-[100px] md:min-h-[112px]">
+                {loginSlides.map((slide, i) => (
                   <div
                     key={slide.title}
                     className={`absolute inset-x-0 top-0 transition-all duration-500 ${
-                      i === activeSlide ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"
+                      i === activeSlide ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
                     }`}
                   >
-                    <h1 className="text-white text-[24px] md:text-[32px] font-black leading-tight tracking-tight mb-2 md:mb-3">
+                    <h1 className="text-white text-[22px] md:text-[28px] font-black leading-tight tracking-tight mb-2 md:mb-3">
                       {slide.title}
                     </h1>
-                    <p className="text-white/60 text-[12px] md:text-[13px] leading-relaxed mx-auto">{slide.subtitle}</p>
+                    <p className="text-white/65 text-[12px] md:text-[13px] leading-relaxed mx-auto">{slide.subtitle}</p>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  aria-label="Previous slide"
+                  onClick={() => setActiveSlide(s => (s - 1 + loginSlides.length) % loginSlides.length)}
+                  className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 text-white inline-flex items-center justify-center hover:bg-white/20"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div className="flex items-center gap-1.5">
+                  {loginSlides.map((slide, i) => (
+                    <button
+                      key={slide.title}
+                      type="button"
+                      aria-label={`Slide ${i + 1}`}
+                      onClick={() => setActiveSlide(i)}
+                      className="h-1.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: i === activeSlide ? 22 : 7,
+                        background: i === activeSlide ? "#fff" : "rgba(255,255,255,0.35)",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Next slide"
+                  onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}
+                  className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 text-white inline-flex items-center justify-center hover:bg-white/20"
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           </div>
@@ -311,10 +371,10 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             {step === "credentials" && (
               <>
                 <div className="mb-6 sm:mb-8">
-                  <p className="text-[10px] sm:text-[11px] font-bold text-[#B8112D] uppercase tracking-[0.18em] mb-2">{portalLabel(loginPortal)} Login</p>
-                  <h2 className="text-[22px] sm:text-[28px] font-black text-crm-text tracking-tight leading-tight">Sign In</h2>
+                  <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] mb-2" style={{ color: accent }}>{copy.eyebrow}</p>
+                  <h2 className="text-[22px] sm:text-[28px] font-black text-crm-text tracking-tight leading-tight">{copy.heading}</h2>
                   <p className="text-crm-text-muted text-[12px] sm:text-[13px] mt-2">
-                    {portalLabel(loginPortal)} accounts only
+                    {copy.subheading}
                   </p>
                 </div>
 
@@ -372,7 +432,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                     type="submit"
                     disabled={loading}
                     className="w-full h-[48px] sm:h-[52px] rounded-xl text-white font-bold text-[13px] sm:text-[14px] tracking-wide transition-all disabled:opacity-60 flex items-center justify-center gap-2 active:scale-[0.99] hover:brightness-110"
-                    style={{ background: "linear-gradient(135deg, #B8112D 0%, #8c0d22 100%)", boxShadow: "0 6px 20px rgba(184,17,45,0.4)" }}
+                    style={{ background: `linear-gradient(135deg, ${accent} 0%, ${accent}cc 100%)`, boxShadow: `0 6px 20px ${accent}66` }}
                   >
                     {loading ? (
                       <>
