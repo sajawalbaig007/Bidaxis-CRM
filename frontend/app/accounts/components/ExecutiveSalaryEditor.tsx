@@ -2,6 +2,7 @@
 
 import { computeExecutiveSalary, type EmployeeSalaryDetail } from "../utils/payrollFormula";
 import { currency } from "../types";
+import AmountInput from "./AmountInput";
 
 type Props = {
   name: string;
@@ -16,7 +17,6 @@ function Num({
   label,
   value,
   onChange,
-  step = "any",
   hint,
 }: {
   label: string;
@@ -28,11 +28,9 @@ function Num({
   return (
     <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
       {label}
-      <input
-        type="number"
-        step={step}
+      <AmountInput
         value={Number.isFinite(value) ? value : 0}
-        onChange={e => onChange(Number(e.target.value || 0))}
+        onChange={onChange}
         className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
       />
       {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-gray-400">{hint}</span>}

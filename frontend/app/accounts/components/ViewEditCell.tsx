@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye, Check, Pencil } from "lucide-react";
 import { currency } from "../types";
+import AmountInput from "./AmountInput";
 
 type ViewEditCellProps = {
   value: string | number;
@@ -36,13 +37,22 @@ export default function ViewEditCell({
   if (editing) {
     return (
       <div className={`flex items-center gap-1 ${alignCls}`}>
-        <input
-          type={type}
-          value={value === undefined || value === null ? "" : String(value)}
-          onChange={e => onChange(type === "number" ? Number(e.target.value || 0) : e.target.value)}
-          className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 outline-none focus:ring-2 ${inputClass}`}
-          autoFocus
-        />
+        {type === "number" ? (
+          <AmountInput
+            value={Number(value) || 0}
+            onChange={n => onChange(n)}
+            className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 outline-none focus:ring-2 ${inputClass}`}
+            autoFocus
+          />
+        ) : (
+          <input
+            type={type}
+            value={value === undefined || value === null ? "" : String(value)}
+            onChange={e => onChange(e.target.value)}
+            className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 outline-none focus:ring-2 ${inputClass}`}
+            autoFocus
+          />
+        )}
         <button
           type="button"
           onClick={() => setEditing(false)}
