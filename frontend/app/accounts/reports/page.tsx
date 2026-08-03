@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDownRight, ArrowUpRight, CalendarDays, FileDown, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarDays, Cloud, ExternalLink, FileText, Loader2, Sparkles, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
@@ -17,6 +17,9 @@ type CategoryGroup = {
 
 type MonthlyReport = {
   month: string;
+  sourceDate?: string | null;
+  monthEnd?: string;
+  mode?: string;
   totals: {
     revenue: number;
     payroll: number;
@@ -26,7 +29,7 @@ type MonthlyReport = {
     totalCost: number;
     netProfit: number;
   };
-  history: { month: string; revenue: number; cost: number; net: number }[];
+  history: { month: string; revenue: number; cost: number; net: number; days?: number; lastDate?: string }[];
   salaryTeams: CategoryGroup[];
   opexHeads: CategoryGroup[];
   loanHeads: CategoryGroup[];
@@ -49,6 +52,16 @@ type MonthlyReport = {
   };
   csr: { totalProjects: number; rows: { name: string; projects: number; share: number }[] };
   daysRecorded: number;
+};
+
+type SavedMonthlyReport = {
+  id: string;
+  month: string;
+  fileName: string;
+  fileUrl: string;
+  sourceDate: string | null;
+  createdAt: string;
+  totals?: MonthlyReport["totals"] | null;
 };
 
 function currentMonthIso(): string {
@@ -470,23 +483,45 @@ function buildWordHtml(report: MonthlyReport): string {
   </table>
 
   <p style="font-size:9px;color:#94A3B8;margin-top:22px;text-align:center;">
-    BEM SOLUTIONS &nbsp;|&nbsp; Executive Summary &nbsp;|&nbsp; ${label} &nbsp;|&nbsp; Confidential — Generated from CRM Accounts daily records
+    BEM SOLUTIONS &nbsp;|&nbsp; Executive Summary &nbsp;|&nbsp; ${label} &nbsp;|&nbsp; Confidential — Daily aggregate (${report.daysRecorded} day${report.daysRecorded === 1 ? "" : "s"})
   </p>
 </div>
 </body></html>`;
 }
 
-function downloadWord(report: MonthlyReport) {
+function buildWordBlob(report: MonthlyReport): { blob: Blob; fileName: string } {
   const html = buildWordHtml(report);
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+  const fileName = `BEM-Executive-Summary-${monthLabel(report.month).replace(/\s+/g, "-")}.doc`;
+  return { blob, fileName };
+}
+
+function triggerLocalDownload(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `BEM-Executive-Summary-${monthLabel(report.month).replace(" ", "-")}.doc`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Download Word locally + archive the same file to Cloudinary. */
+async function saveAndDownloadWord(report: MonthlyReport): Promise<SavedMonthlyReport | null> {
+  const { blob, fileName } = buildWordBlob(report);
+  triggerLocalDownload(blob, fileName);
+
+  const form = new FormData();
+  form.append("file", blob, fileName);
+  form.append("month", report.month);
+  if (report.sourceDate) form.append("sourceDate", report.sourceDate);
+  form.append("totals", JSON.stringify(report.totals));
+
+  const res = await API.post("/accounts/reports/monthly/save", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return (res.data.report as SavedMonthlyReport) ?? null;
 }
 
 /** MoM movement arrow — goodWhenUp: revenue up = green, cost up = red. */
@@ -576,6 +611,9 @@ function FragmentRows({ group }: { group: CategoryGroup }) {
 export default function AccountsReportsPage() {
   const [month, setMonth] = useState<string>(currentMonthIso());
   const [result, setResult] = useState<{ month: string; report: MonthlyReport | null } | null>(null);
+  const [saved, setSaved] = useState<SavedMonthlyReport[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [savedVersion, setSavedVersion] = useState(0);
 
   // Loading is derived — true until the fetched result matches the selected month
   const loading = result?.month !== month;
@@ -597,6 +635,34 @@ export default function AccountsReportsPage() {
       cancelled = true;
     };
   }, [month]);
+
+  useEffect(() => {
+    let cancelled = false;
+    API.get(`/accounts/reports/monthly/saved?month=${month}`)
+      .then(res => {
+        if (!cancelled) setSaved((res.data.reports as SavedMonthlyReport[]) ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSaved([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month, savedVersion]);
+
+  const handleSaveReport = async () => {
+    if (!report) return;
+    setSaving(true);
+    try {
+      await saveAndDownloadWord(report);
+      toast.success("Report download + Cloudinary pe archive ho gayi.");
+      setSavedVersion(v => v + 1);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Word download ho gaya — Cloudinary save fail hui."));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const ins = report ? buildInsights(report) : null;
   const label = monthLabel(month);
@@ -622,7 +688,7 @@ export default function AccountsReportsPage() {
         { label: "Net Profit", value: signed(report.totals.netProfit), note: ins?.profitNote ?? "", cls: report.totals.netProfit >= 0 ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]" },
         { label: "Cash (Net)", value: pkr(report.cash.closingNet), note: report.cash.asOf ? `As of ${report.cash.asOf}` : "No cash flow entries", cls: "from-[#0D9488] to-[#0F766E]" },
         { label: "Cash Movement (Month)", value: signed(report.cash.monthNet), note: "Cash flow rows dated in this month", cls: "from-[#6D28D9] to-[#4C1D95]" },
-        { label: "Days Recorded", value: String(report.daysRecorded), note: `Daily entries in ${label}`, cls: "from-[#0F172A] to-[#334155]" },
+        { label: "Days Recorded", value: String(report.daysRecorded), note: report.sourceDate ? `Daily entries · last ${report.sourceDate}` : `No IS records in ${label}`, cls: "from-[#0F172A] to-[#334155]" },
       ]
     : [];
 
@@ -642,7 +708,9 @@ export default function AccountsReportsPage() {
                     Executive Summary Report
                   </h1>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    BEM Solutions · Month of {label} · Confidential
+                    BEM Solutions · Daily aggregate
+                    {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s)` : ""}
+                    {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · Confidential
                   </p>
                 </div>
               </div>
@@ -660,13 +728,13 @@ export default function AccountsReportsPage() {
               </label>
               <button
                 type="button"
-                disabled={!report || loading}
-                onClick={() => report && downloadWord(report)}
+                disabled={!report || loading || saving}
+                onClick={() => void handleSaveReport()}
                 className="h-10 px-4 rounded-xl bg-[#2B579A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#1e4278] disabled:opacity-50 transition-colors shadow-md shadow-[#2B579A]/25"
-                title="Download as Word document"
+                title="Download Word + archive to Cloudinary"
               >
-                <FileDown size={15} />
-                Save to Word
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Cloud size={15} />}
+                {saving ? "Saving…" : "Save Report"}
               </button>
             </div>
           </div>
@@ -682,6 +750,45 @@ export default function AccountsReportsPage() {
             </div>
           ) : (
             <>
+              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-gray-600 leading-relaxed">
+                <b className="text-gray-800">Daily mode:</b> Income Statement pe har din jo values add hoti hain,
+                woh is month ke sections (Team Salaries, OPEX, Loans, PF, Executives, Revenue) mai{" "}
+                <b>sum</b> ho kar aati hain — {report.daysRecorded} day(s) recorded
+                {report.sourceDate ? ` · last entry ${report.sourceDate}` : ""}.{" "}
+                <b>Save Report</b> Word download + Cloudinary archive karta hai.
+              </section>
+
+              {saved.length > 0 && (
+                <section className="bg-white rounded-2xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-[#EFF8FF] to-white flex items-center gap-2">
+                    <Cloud size={14} className="text-[#0B84F3]" />
+                    <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Cloudinary Archives — {label}</h2>
+                    <span className="text-[10px] text-gray-400 font-semibold">{saved.length} file(s)</span>
+                  </div>
+                  <ul className="divide-y divide-gray-50">
+                    {saved.map(s => (
+                      <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{s.fileName}</p>
+                          <p className="text-[10px] text-gray-400">
+                            {new Date(s.createdAt).toLocaleString()}
+                            {s.sourceDate ? ` · through ${s.sourceDate}` : ""}
+                          </p>
+                        </div>
+                        <a
+                          href={s.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="h-8 px-3 rounded-lg bg-[#EAF5FF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-[#D6EBFF] shrink-0"
+                        >
+                          <ExternalLink size={12} /> Open
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
                 {kpis.map(k => (
                   <div key={k.label} className={`bg-gradient-to-br ${k.cls} rounded-xl sm:rounded-2xl p-3 sm:p-3.5 text-white shadow-md`}>

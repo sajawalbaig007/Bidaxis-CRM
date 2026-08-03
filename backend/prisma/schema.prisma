@@ -408,3 +408,20 @@ model AccountsFileUpload {
 
   @@index([page, recordDate])
 }
+
+/** Archived Word executive summaries (one or more versions per month). */
+model AccountsMonthlyReport {
+  id                 String   @id @default(cuid()) @map("_id")
+  month              String
+  fileName           String
+  fileUrl            String
+  mimeType           String?
+  sourceDate         String?
+  cloudinaryPublicId String?
+  totals             Json?
+  uploadedBy         String
+  createdAt          DateTime @default(now())
+
+  @@index([month])
+  @@index([createdAt])
+}

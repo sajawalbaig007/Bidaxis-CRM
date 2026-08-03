@@ -35,12 +35,48 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
     case "dashboard":
       return {
         currency: {
-          usdAmount: 0,
-          cadAmount: 0,
-          pkrAmount: 0,
-          usdToPkrRate: 278,
-          cadToPkrRate: 204,
+          tabs: {
+            AH: {
+              usdAmount: 0,
+              cadAmount: 0,
+              pkrAmount: 0,
+              usdToPkrRate: 285,
+              cadToPkrRate: 204,
+              usdTaxFactor: 0.89,
+              cadTaxFactor: 0.89,
+            },
+            SN: {
+              usdAmount: 0,
+              cadAmount: 0,
+              pkrAmount: 0,
+              usdToPkrRate: 285,
+              cadToPkrRate: 196,
+              usdTaxFactor: 0.89,
+              cadTaxFactor: 0.945,
+            },
+            CHQ: {
+              usdAmount: 0,
+              cadAmount: 0,
+              pkrAmount: 0,
+              usdToPkrRate: 1,
+              cadToPkrRate: 1,
+              usdTaxFactor: 1,
+              cadTaxFactor: 1,
+              taxDeductionRate: 0.25,
+            },
+            HM: {
+              usdAmount: 0,
+              cadAmount: 0,
+              pkrAmount: 0,
+              usdToPkrRate: 1,
+              cadToPkrRate: 1,
+              usdTaxFactor: 1,
+              cadTaxFactor: 1,
+              taxDeductionRate: 0.01,
+            },
+          },
         },
+        formulas: { overrides: {}, custom: [] },
       };
 
     case "balance_sheet":
@@ -107,6 +143,19 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
         label,
         amount,
         filledAt: "",
+      });
+      const execSub = (prefix: string, n: number, label: string, commissionPct: number) => ({
+        id: rid(prefix, n),
+        label,
+        amount: 0,
+        filledAt: "",
+        salary: {
+          basic: 0,
+          commissionPct,
+          loanPositive: 0,
+          loanNegative: 0,
+          remarks: "",
+        },
       });
       return {
         totalRevenue: 0,
@@ -178,10 +227,10 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
             team: "Executive Salaries",
             totalSalary: 0,
             subHeads: [
-              sub("xs", 1, "Mr. Mohsin Qayyum", 0),
-              sub("xs", 2, "Mr. Sharjeel Nasir", 0),
-              sub("xs", 3, "Mr. Talha Ahmed", 0),
-              sub("xs", 4, "Irtaza Hassan", 0),
+              execSub("xs", 1, "Mr. Mohsin Qayyum", 15),
+              execSub("xs", 2, "Mr. Sharjeel Nasir", 7.5),
+              execSub("xs", 3, "Mr. Talha Ahmed", 7.5),
+              execSub("xs", 4, "Irtaza Hassan", 7.5),
             ],
           },
         ],

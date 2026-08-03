@@ -1,16 +1,137 @@
-/** Normalize saved Income Statement — split Sales Team vs Sales Team Lead (Hammad). */
+/** Normalize saved Income Statement — split Sales Team vs Sales Team Lead (Hammad)
+ *  + ensure executive commission defaults + recompute executive totals from net profit base.
+ */
 
 const HAMMAD_TEAM_LEAD_ID = "stl-hammad";
 const SALES_TEAM = "Sales Team Salaries";
 const SALES_TEAM_LEAD = "Sales Team Lead Salaries";
 
-type SubHead = { id?: string; label?: string; amount?: number; filledAt?: string; [key: string]: unknown };
-type TeamRow = { id?: string; team?: string; totalSalary?: number; subHeads?: SubHead[]; [key: string]: unknown };
+const EXEC_COMMISSION_DEFAULTS: [RegExp, number][] = [
+  [/mohsin/i, 15],
+  [/sharjeel|sherjeel/i, 7.5],
+  [/talha/i, 7.5],
+  [/irtaza/i, 7.5],
+];
 
-function lineTotal(row: { subHeads?: SubHead[]; totalSalary?: number }): number {
+type SubHead = {
+  id?: string;
+  label?: string;
+  amount?: number;
+  filledAt?: string;
+  salary?: {
+    basic?: number;
+    commissionPct?: number;
+    loanPositive?: number;
+    loanNegative?: number;
+    remarks?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+type TeamRow = { id?: string; team?: string; totalSalary?: number; subHeads?: SubHead[]; [key: string]: unknown };
+type HeadRow = { amount?: number; totalSalary?: number; subHeads?: SubHead[] };
+
+function lineTotal(row: { subHeads?: SubHead[]; amount?: number; totalSalary?: number }): number {
   const subs = row.subHeads ?? [];
   if (subs.length) return subs.reduce((a, s) => a + (Number(s.amount) || 0), 0);
-  return Number(row.totalSalary) || 0;
+  return Number(row.amount ?? row.totalSalary) || 0;
+}
+
+function isExecutiveTeam(team?: string): boolean {
+  return String(team ?? "").toLowerCase().includes("executive");
+}
+
+function execPctForLabel(label: string): number {
+  for (const [re, pct] of EXEC_COMMISSION_DEFAULTS) {
+    if (re.test(label)) return pct;
+  }
+  return 0;
+}
+
+/** Ensure executive subs have salary.commissionPct (defaults by name if missing). */
+function ensureExecutiveSalaryDefaults(data: Record<string, unknown>): Record<string, unknown> {
+  const teams = (data.teamSalaries as TeamRow[] | undefined) ?? [];
+  let changed = false;
+  const nextTeams = teams.map(t => {
+    if (!isExecutiveTeam(t.team)) return t;
+    const subHeads = (t.subHeads ?? []).map(s => {
+      const label = String(s.label ?? "");
+      const existing = s.salary;
+      const pct =
+        existing?.commissionPct != null && Number.isFinite(Number(existing.commissionPct))
+          ? Number(existing.commissionPct)
+          : execPctForLabel(label);
+      if (
+        existing &&
+        Number(existing.commissionPct) === pct &&
+        existing.basic != null
+      ) {
+        return s;
+      }
+      changed = true;
+      return {
+        ...s,
+        salary: {
+          ...(existing ?? {}),
+          basic: Number(existing?.basic) || 0,
+          commissionPct: pct,
+          loanPositive: Number(existing?.loanPositive) || 0,
+          loanNegative: Number(existing?.loanNegative) || 0,
+          remarks: String(existing?.remarks ?? ""),
+        },
+      };
+    });
+    return { ...t, subHeads };
+  });
+  return changed ? { ...data, teamSalaries: nextTeams } : data;
+}
+
+/**
+ * Commission base = revenue − (all expenses except executive team salaries).
+ * Avoids circular calc (executive pay is itself an expense).
+ */
+export function executiveCommissionBase(data: Record<string, unknown>): number {
+  const teams = (data.teamSalaries as TeamRow[] | undefined) ?? [];
+  const nonExecPayroll = teams
+    .filter(t => !isExecutiveTeam(t.team))
+    .reduce((a, t) => a + lineTotal(t), 0);
+  const sumCat = (key: string) =>
+    ((data[key] as HeadRow[] | undefined) ?? []).reduce((a, r) => a + lineTotal(r), 0);
+  return (Number(data.totalRevenue) || 0) - (nonExecPayroll + sumCat("opexHeads") + sumCat("loanHeads") + sumCat("providentFundHeads"));
+}
+
+/** amount = basic + (% × max(0, profit base)) for each executive sub-head. */
+export function recomputeExecutiveTeamInIncomeStatement(
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const withDefaults = ensureExecutiveSalaryDefaults(data);
+  const teams = [...((withDefaults.teamSalaries as TeamRow[] | undefined) ?? [])];
+  const idx = teams.findIndex(t => isExecutiveTeam(t.team));
+  if (idx < 0) return withDefaults;
+
+  const base = Math.max(0, executiveCommissionBase(withDefaults));
+  const team = teams[idx];
+  let changed = withDefaults !== data;
+  const subHeads = (team.subHeads ?? []).map(s => {
+    if (!s.salary) return s;
+    const basic = Number(s.salary.basic) || 0;
+    const pct = Number(s.salary.commissionPct) || 0;
+    const total = basic + (base * pct) / 100;
+    if (Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
+    changed = true;
+    return { ...s, amount: total };
+  });
+  if (!changed) return withDefaults;
+
+  const nextTeam = {
+    ...team,
+    subHeads,
+    totalSalary: subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+  };
+  return {
+    ...withDefaults,
+    teamSalaries: teams.map((t, i) => (i === idx ? nextTeam : t)),
+  };
 }
 
 function isHammadSub(sub: SubHead): boolean {
