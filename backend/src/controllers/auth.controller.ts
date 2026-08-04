@@ -29,6 +29,7 @@ import {
   otpResendCount,
   registerActiveSession,
   clearActiveSession,
+  recordLoginAttempt,
   getLoginAttemptAlert,
   clearLoginAttemptAlert,
 } from "../utils/sessions";
@@ -59,12 +60,8 @@ function userPayload(u: AuthUser) {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
-async function blockIfAlreadyLoggedIn(
-  _userId: string,
-  _userRole: string,
-  _res: Response,
-): Promise<boolean> {
-  /* Keep current behavior same as other dashboards: allow new login session. */
+async function blockIfAlreadyLoggedIn(_userId: string, _res: Response): Promise<boolean> {
+  /* Allow new login — registerActiveSession replaces the previous session. */
   return false;
 }
 
@@ -382,7 +379,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (user.twoFAEnabled && isSmtpConfigured()) {
-      if (await blockIfAlreadyLoggedIn(user.id, user.role, res)) return;
+      if (await blockIfAlreadyLoggedIn(user.id, res)) return;
 
       const existing = otpAttempts.get(user.id);
       if (existing?.blockedUntil && Date.now() < existing.blockedUntil) {
@@ -409,7 +406,7 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    if (await blockIfAlreadyLoggedIn(user.id, user.role, res)) return;
+    if (await blockIfAlreadyLoggedIn(user.id, res)) return;
 
     const dbUser = await prisma.user.findUnique({
       where:  { id: user.id },
@@ -484,6 +481,8 @@ export const verifyOTP = async (req: Request, res: Response) => {
     otpAttempts.delete(userId);
     otpResendCount.delete(userId);
 
+    if (await blockIfAlreadyLoggedIn(userId, res)) return;
+
     const user = await prisma.user.findUnique({
       where:  { id: userId },
       select: {
@@ -494,7 +493,6 @@ export const verifyOTP = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
-    if (await blockIfAlreadyLoggedIn(userId, user.role, res)) return;
 
     const loginRole = parsePortalRole(rawLoginRole) ?? parsePortalRole(stored.loginRole);
     if (!loginRole) {

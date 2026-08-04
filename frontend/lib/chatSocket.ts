@@ -44,7 +44,8 @@ function isLocalHost(): boolean {
 }
 
 function resolveWsUrl(): string | null {
-  if (typeof window === "undefined") return null;
+  const token = getClientAuthToken();
+  if (!token || typeof window === "undefined") return null;
 
   const direct =
     process.env.NEXT_PUBLIC_WS_URL ??
@@ -61,7 +62,7 @@ function resolveWsUrl(): string | null {
     return null;
   }
 
-  return `${base}/ws/chat`;
+  return `${base}/ws/chat?token=${encodeURIComponent(token)}`;
 }
 
 function dispatch(raw: string) {
@@ -100,9 +101,7 @@ function openSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
   try {
-    const token = getClientAuthToken();
-    const protocol = token ? `jwt.${token}` : undefined;
-    ws = protocol ? new WebSocket(url, protocol) : new WebSocket(url);
+    ws = new WebSocket(url);
   } catch {
     scheduleReconnect();
     return;
