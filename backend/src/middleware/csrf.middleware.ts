@@ -2,10 +2,10 @@ import { NextFunction, Request, Response } from "express";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const EXEMPT_PATHS = new Set([
-  "/api/auth/login",
-  "/api/auth/verify-otp",
-  "/api/auth/resend-otp",
-  "/api/auth/captcha-config",
+  "/auth/login",
+  "/auth/verify-otp",
+  "/auth/resend-otp",
+  "/auth/captcha-config",
 ]);
 
 /**

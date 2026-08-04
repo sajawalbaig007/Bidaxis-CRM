@@ -7,7 +7,7 @@ import SessionNotifierInit from "../components/SessionNotifierInit";
 export default function AccountsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <DevToolsGuard allowSelection />
+      <DevToolsGuard />
       <SessionNotifierInit />
       <StaffPresenceInit />
       <StaffChatNotifier />
