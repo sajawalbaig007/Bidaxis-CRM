@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-type AppRole = "admin" | "csr" | "manager";
+type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts";
 
 type TokenPayload = { role?: string; exp?: number; sid?: string };
 
@@ -17,7 +17,13 @@ function parseToken(token: string): { role: AppRole | null; ok: boolean } {
     if (payload.exp && payload.exp * 1000 < Date.now()) return { role: null, ok: false };
 
     const role = (payload.role ?? "").toLowerCase();
-    if (role === "admin" || role === "csr" || role === "manager") return { role, ok: true };
+    if (
+      role === "admin" ||
+      role === "csr" ||
+      role === "manager" ||
+      role === "technical_manager" ||
+      role === "accounts"
+    ) return { role, ok: true };
     return { role: null, ok: false };
   } catch {
     return { role: null, ok: false };
@@ -33,6 +39,8 @@ function redirectHomeClearCookie(request: NextRequest) {
 function homeForRole(role: AppRole) {
   if (role === "admin") return "/admin";
   if (role === "manager") return "/manager";
+  if (role === "technical_manager") return "/technical";
+  if (role === "accounts") return "/accounts";
   return "/csr";
 }
 
@@ -43,7 +51,9 @@ export function proxy(request: NextRequest) {
   const protectedPath =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/csr") ||
-    pathname.startsWith("/manager");
+    pathname.startsWith("/manager") ||
+    pathname.startsWith("/technical") ||
+    pathname.startsWith("/accounts");
 
   if (!token) {
     if (protectedPath) return NextResponse.redirect(new URL("/", request.url));
@@ -75,10 +85,24 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/manager") && role !== "manager") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
+  if (pathname.startsWith("/technical") && role !== "technical_manager") {
+    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+  }
+  if (pathname.startsWith("/accounts") && role !== "accounts" && role !== "admin") {
+    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+  }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/login/:path*", "/admin/:path*", "/csr/:path*", "/manager/:path*"],
+  matcher: [
+    "/",
+    "/login/:path*",
+    "/admin/:path*",
+    "/csr/:path*",
+    "/manager/:path*",
+    "/technical/:path*",
+    "/accounts/:path*",
+  ],
 };

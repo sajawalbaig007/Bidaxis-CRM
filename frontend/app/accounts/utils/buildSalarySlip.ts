@@ -84,17 +84,36 @@ export function buildSalarySlipFromSub(opts: {
       remarks: sp?.remarks || "",
     };
     const b = computeSalesEmployeePayroll(emp, salesExtra);
+    const projectBasedCommission = b.oldComm + b.newComm + (kind === "sales_lead" ? salesExtra : 0);
+    const fixedClientCommission = b.fixComm;
+    const useSalesLeadTemplate = kind === "sales_lead";
+    const useSalesTeamTemplate = kind === "sales";
     return {
       companyKey,
       monthLabel,
       employeeName: emp.name,
       employeeId: emp.code || undefined,
-      earnings: [
-        { label: "BasicSalary", amount: emp.basic },
-        { label: "MiscAllowance", amount: emp.allowance },
-        { label: "HomeAllowance", amount: 0 },
-        { label: "Commission", amount: b.totalCommission + salesExtra },
-      ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
+      earnings: useSalesLeadTemplate
+        ? [
+            { label: "Basic Salary", amount: emp.basic },
+            { label: "Misc Allowance", amount: emp.allowance },
+            { label: "Home Allowance", amount: 0 },
+            { label: "Project Based Comm", amount: projectBasedCommission },
+            { label: "Fixed Client Comm", amount: fixedClientCommission },
+          ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
+        : useSalesTeamTemplate
+          ? [
+              { label: "Basic Salary", amount: emp.basic },
+              { label: "Misc Allowance", amount: emp.allowance },
+              { label: "Project Based Comm", amount: projectBasedCommission },
+              { label: "Fixed Client Comm", amount: fixedClientCommission },
+            ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
+        : [
+            { label: "BasicSalary", amount: emp.basic },
+            { label: "MiscAllowance", amount: emp.allowance },
+            { label: "HomeAllowance", amount: 0 },
+            { label: "Commission", amount: b.totalCommission + salesExtra },
+          ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
       deductions: [
         { label: "Income Tax", amount: emp.incomeTax },
         { label: "Unpaid Leaves", amount: b.unpaidLeaveDeduction },
@@ -105,6 +124,7 @@ export function buildSalarySlipFromSub(opts: {
       comments: commentsFrom(emp, emp.unpaidLeaveDays, emp.paidLeaveDays),
       employeePf: b.pf,
       employerPf: b.pf,
+      ...(useSalesLeadTemplate || useSalesTeamTemplate ? { projectCount: b.totalProjects } : {}),
     };
   }
 

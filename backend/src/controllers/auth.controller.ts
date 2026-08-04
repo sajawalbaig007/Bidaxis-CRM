@@ -27,6 +27,7 @@ import {
   otpStore,
   otpAttempts,
   otpResendCount,
+  hasActiveSession,
   registerActiveSession,
   clearActiveSession,
   recordLoginAttempt,
@@ -61,8 +62,17 @@ function userPayload(u: AuthUser) {
 }
 
 async function blockIfAlreadyLoggedIn(_userId: string, _res: Response): Promise<boolean> {
-  /* Allow new login — registerActiveSession replaces the previous session. */
-  return false;
+  const alreadyLoggedIn = await hasActiveSession(_userId);
+  if (!alreadyLoggedIn) return false;
+
+  const attemptId = await recordLoginAttempt(_userId);
+  _res.status(409).json({
+    success: false,
+    code: "ALREADY_LOGGED_IN",
+    attemptId,
+    message: "Account already logged in on another device.",
+  });
+  return true;
 }
 
 async function issueSessionToken(

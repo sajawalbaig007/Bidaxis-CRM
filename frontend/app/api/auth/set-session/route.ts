@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
     }
 
     const isProd = process.env.NODE_ENV === "production";
+    const csrfToken = crypto.randomUUID();
     const res = NextResponse.json({ success: true });
     res.cookies.set("token", token, {
       httpOnly: true,
@@ -16,6 +17,13 @@ export async function POST(req: NextRequest) {
       sameSite: "lax",
       path:     "/",
       maxAge:   7 * 24 * 60 * 60,
+    });
+    res.cookies.set("csrf_token", csrfToken, {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
     });
     return res;
   } catch {
