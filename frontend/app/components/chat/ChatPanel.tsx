@@ -310,6 +310,7 @@ export default function ChatPanel({
 }) {
   const isStealthView = Boolean(viewAsCsr);
   const [me,             setMe]             = useState<ChatUser | null>(null);
+  const [chatAllowed,    setChatAllowed]    = useState(true);
   const [conversations,  setConversations]  = useState<Conversation[]>(() => {
     const cached = getChatConversations();
     return cached.length > 0 ? deduplicateConvs(cached) : [];
@@ -378,7 +379,13 @@ export default function ChatPanel({
   );
 
   useEffect(() => {
-    void getAuthMe().then(u => { if (u) { setMe(u); meRef.current = u; } });
+    void getAuthMe().then(u => {
+      if (u) {
+        setMe(u);
+        meRef.current = u;
+        setChatAllowed(u.chatEnabled !== false);
+      }
+    });
   }, []);
 
   const askNotif = async () => {
@@ -873,6 +880,36 @@ export default function ChatPanel({
   const directConvs = useMemo(() => sortedConvs.filter(c => c.type === "direct").sort((a, b) => { if (pinnedIds.has(a.id) !== pinnedIds.has(b.id)) return pinnedIds.has(a.id) ? -1 : 1; if (a.isOnline && !b.isOnline) return -1; if (!a.isOnline && b.isOnline) return 1; return 0; }), [sortedConvs, pinnedIds]);
   const groupConvs   = useMemo(() => sortedConvs.filter(c => c.type === "group"), [sortedConvs]);
   const onlineDirects = useMemo(() => conversations.filter(c => c.type === "direct" && c.isOnline), [conversations]);
+
+  /* ---- */
+  if (!isStealthView && !chatAllowed) {
+    return (
+      <div className="fixed inset-0 top-[64px] z-[45] pointer-events-none">
+        <div
+          className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[420px] sm:max-w-full sm:right-0"
+          onClick={onClose}
+          aria-hidden
+        />
+        <div className="absolute top-0 right-0 bottom-0 z-[46] flex flex-col bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[420px] max-w-full pointer-events-auto overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-800">Messages</p>
+            <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-cyan-50 text-cyan-700 flex items-center justify-center">
+              <MessageSquare size={24} />
+            </div>
+            <p className="text-base font-bold text-gray-900">Chat disabled</p>
+            <p className="text-sm text-gray-500">
+              An administrator has turned off messaging for your account. Contact admin if you need access.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   /* ---- */
   return (

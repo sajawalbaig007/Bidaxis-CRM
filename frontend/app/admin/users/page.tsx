@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw, User2, KeyRound, ChevronDown,
+  Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -46,6 +46,8 @@ type User = {
   temporaryAccessIp: string | null;
   temporaryAccessMac: string | null;
   temporaryAccessUntil: string | null;
+  chatEnabled: boolean;
+  chatAllowedUserIds: string[];
 };
 
 type AccessHistoryRow = {
@@ -119,6 +121,7 @@ const actionBtnStyles = {
   unblock: `${actionBtnBase} w-9 h-9 bg-green-100 text-green-600 hover:bg-green-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60`,
   reset:   `${actionBtnBase} w-9 h-9 bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:hover:bg-orange-900/60`,
   password:`${actionBtnBase} w-9 h-9 bg-violet-100 text-violet-600 hover:bg-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-900/60`,
+  chat:    `${actionBtnBase} w-9 h-9 bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:hover:bg-cyan-900/60`,
   delete:  `${actionBtnBase} w-9 h-9 bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60`,
 };
 
@@ -260,6 +263,12 @@ export default function UsersPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [editIpOpen, setEditIpOpen] = useState(false);
   const [detailIpOpen, setDetailIpOpen] = useState(false);
+  const [chatUser, setChatUser] = useState<User | null>(null);
+  const [chatEnabledForm, setChatEnabledForm] = useState(true);
+  const [chatRestrictMode, setChatRestrictMode] = useState<"all" | "selected">("all");
+  const [chatAllowedIds, setChatAllowedIds] = useState<string[]>([]);
+  const [chatSearch, setChatSearch] = useState("");
+  const [savingChat, setSavingChat] = useState(false);
 
   const [form, setForm] = useState({
     name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "",
@@ -295,6 +304,8 @@ export default function UsersPage() {
         temporaryAccessIp?: string | null;
         temporaryAccessMac?: string | null;
         temporaryAccessUntil?: string | null;
+        chatEnabled?: boolean;
+        chatAllowedUserIds?: string[];
       }) => ({
         id:         u.id,
         name:       u.name,
@@ -322,6 +333,8 @@ export default function UsersPage() {
         temporaryAccessIp: u.temporaryAccessIp ?? null,
         temporaryAccessMac: u.temporaryAccessMac ?? null,
         temporaryAccessUntil: u.temporaryAccessUntil ?? null,
+        chatEnabled: u.chatEnabled !== false,
+        chatAllowedUserIds: Array.isArray(u.chatAllowedUserIds) ? u.chatAllowedUserIds : [],
       }));
 
       setUsers(formatted);
@@ -597,8 +610,56 @@ export default function UsersPage() {
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || "Status update failed."); return; }
       toast.success(newActive ? "User activated." : "User blocked.");
-      fetchUsers();
-    } catch { toast.error("Something went wrong."); }
+      await fetchUsers(true);
+    } catch {
+      toast.error("Status update failed.");
+    }
+  };
+
+  const openChatRestrictions = (user: User) => {
+    setChatUser(user);
+    setChatEnabledForm(user.chatEnabled !== false);
+    const ids = user.chatAllowedUserIds ?? [];
+    setChatRestrictMode(ids.length > 0 ? "selected" : "all");
+    setChatAllowedIds(ids);
+    setChatSearch("");
+  };
+
+  const saveChatRestrictions = async () => {
+    if (!chatUser) return;
+    setSavingChat(true);
+    try {
+      const body = {
+        chatEnabled: chatEnabledForm,
+        chatAllowedUserIds:
+          chatEnabledForm && chatRestrictMode === "selected" ? chatAllowedIds : [],
+      };
+      const res = await fetch(`${apiBase()}/users/${chatUser.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "Failed to update chat restrictions.");
+        return;
+      }
+      invalidateAuthMeCache();
+      toast.success(
+        !chatEnabledForm
+          ? `Chat disabled for ${chatUser.name}.`
+          : chatRestrictMode === "selected"
+            ? `Chat limited to ${chatAllowedIds.length} contact(s) for ${chatUser.name}.`
+            : `Chat unrestricted for ${chatUser.name}.`,
+      );
+      setChatUser(null);
+      await fetchUsers(true);
+    } catch {
+      toast.error("Failed to update chat restrictions.");
+    } finally {
+      setSavingChat(false);
+    }
   };
 
   const openPasswordModal = (user: User) => {
@@ -878,6 +939,17 @@ export default function UsersPage() {
                           <KeyRound size={16}/>
                         </ActionTip>
                         <ActionTip
+                          label="Chat Restrictions"
+                          onClick={() => openChatRestrictions(u)}
+                          className={
+                            u.chatEnabled === false || (u.chatAllowedUserIds?.length ?? 0) > 0
+                              ? `${actionBtnStyles.chat} ring-2 ring-cyan-400/60`
+                              : actionBtnStyles.chat
+                          }
+                        >
+                          <MessageSquare size={16}/>
+                        </ActionTip>
+                        <ActionTip
                           label={u.status === "Active" ? "Block User" : "Unblock User"}
                           onClick={() => toggleStatus(u)}
                           className={u.status === "Active" ? actionBtnStyles.block : actionBtnStyles.unblock}
@@ -912,6 +984,7 @@ export default function UsersPage() {
                               { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
                               { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "", allowedIps: u.allowedIps?.length ? u.allowedIps : [""], allowedMacAddress: u.allowedMacAddress ?? "", temporaryAccessIp: u.temporaryAccessIp ?? "", temporaryAccessMac: u.temporaryAccessMac ?? "", temporaryAccessHours: "9" }); setShowModal(true); setOpenMenu(null); }},
                               { label:"Change Password", action:() => { openPasswordModal(u); setOpenMenu(null); }},
+                              { label:"Chat Restrictions", action:() => { openChatRestrictions(u); setOpenMenu(null); }},
                               { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
                             ].map(({ label, action }) => (
                               <button key={label} onClick={action} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all">{label}</button>
@@ -1475,6 +1548,156 @@ export default function UsersPage() {
                 <button onClick={handleSubmit}
                   className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] transition-all text-sm font-semibold">
                   {editingUser ? "Update User" : "Create User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CHAT RESTRICTIONS MODAL */}
+        {chatUser && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-gray-100 my-auto max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <MessageSquare size={18} className="text-cyan-600" />
+                    Chat Restrictions
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Control messaging for <span className="font-semibold text-gray-700">{chatUser.name}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatUser(null)}
+                  className="text-gray-400 hover:text-gray-600 text-sm font-semibold"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
+                <label className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-[#F8F9FC] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Enable chat</p>
+                    <p className="text-[11px] text-gray-500">Off = chatbox disabled for this user</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={chatEnabledForm}
+                    onChange={e => setChatEnabledForm(e.target.checked)}
+                    className="h-5 w-5 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                  />
+                </label>
+
+                {chatEnabledForm && (
+                  <>
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Who can they message?</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setChatRestrictMode("all")}
+                          className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
+                            chatRestrictMode === "all"
+                              ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] font-semibold"
+                              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Everyone
+                          <span className="block text-[10px] font-normal text-gray-400 mt-0.5">All active users</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setChatRestrictMode("selected")}
+                          className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
+                            chatRestrictMode === "selected"
+                              ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D] font-semibold"
+                              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Selected only
+                          <span className="block text-[10px] font-normal text-gray-400 mt-0.5">Pick contacts below</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {chatRestrictMode === "selected" && (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            value={chatSearch}
+                            onChange={e => setChatSearch(e.target.value)}
+                            placeholder="Search users…"
+                            className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-cyan-500"
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          {chatAllowedIds.length} contact{chatAllowedIds.length === 1 ? "" : "s"} selected
+                        </p>
+                        <div className="max-h-56 overflow-y-auto rounded-2xl border border-gray-100 divide-y divide-gray-50">
+                          {users
+                            .filter(u => u.id !== chatUser.id && u.status === "Active")
+                            .filter(u => {
+                              const q = chatSearch.trim().toLowerCase();
+                              if (!q) return true;
+                              return (
+                                u.name.toLowerCase().includes(q) ||
+                                u.email.toLowerCase().includes(q) ||
+                                (u.csrCode ?? "").toLowerCase().includes(q) ||
+                                u.role.toLowerCase().includes(q)
+                              );
+                            })
+                            .map(u => {
+                              const checked = chatAllowedIds.includes(u.id);
+                              return (
+                                <label
+                                  key={u.id}
+                                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setChatAllowedIds(prev =>
+                                        checked ? prev.filter(id => id !== u.id) : [...prev, u.id],
+                                      );
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-gray-800 truncate">{u.name}</p>
+                                    <p className="text-[11px] text-gray-400 truncate">
+                                      {u.role}{u.csrCode ? ` · ${u.csrCode}` : ""} · {u.email}
+                                    </p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="px-5 sm:px-6 py-4 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setChatUser(null)}
+                  className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-2xl hover:bg-gray-50 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingChat || (chatEnabledForm && chatRestrictMode === "selected" && chatAllowedIds.length === 0)}
+                  onClick={() => void saveChatRestrictions()}
+                  className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] text-sm font-semibold disabled:opacity-50"
+                >
+                  {savingChat ? "Saving…" : "Save Restrictions"}
                 </button>
               </div>
             </div>

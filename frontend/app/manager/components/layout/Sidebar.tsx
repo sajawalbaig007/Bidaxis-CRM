@@ -15,6 +15,7 @@ import { dismissNotification, getDismissedNotificationIds } from "@/lib/notifica
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
+import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
@@ -67,6 +68,7 @@ export default function ManagerSidebar() {
     Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL ? filterDismissedCalls(_cachedScheduledCalls) : [],
   );
   const totalUnread = useChatUnreadBadge();
+  const chatEnabled = useChatEnabled();
   const profileRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
 
@@ -192,11 +194,11 @@ export default function ManagerSidebar() {
             onClick={() => { setChatOpen(v => !v); setBellOpen(false); }}
             className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all shrink-0 ${
               chatOpen ? "bg-[#B8112D] text-white shadow-md" : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
-            }`}
-            title="Messages"
+            } ${!chatEnabled ? "opacity-50" : ""}`}
+            title={chatEnabled ? "Messages" : "Chat disabled by admin"}
           >
             <MessageSquare size={16} />
-            {totalUnread > 0 && (
+            {chatEnabled && totalUnread > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
                 {totalUnread > 9 ? "9+" : totalUnread}
               </span>

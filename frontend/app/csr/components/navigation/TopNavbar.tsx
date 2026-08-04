@@ -27,6 +27,7 @@ import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
+import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
@@ -116,6 +117,7 @@ export default function TopNavbar() {
   const [reportOpen,   setReportOpen]   = useState(false);
   const [chatOpen,     setChatOpen]     = useState(false);
   const totalUnread    = useChatUnreadBadge();
+  const chatEnabled    = useChatEnabled();
   const [loggingOut,   setLoggingOut]   = useState(false);
   const [notifPerm,    setNotifPerm]    = useState<NotificationPermission | "unsupported">(
     () => typeof Notification === "undefined" ? "unsupported" : Notification.permission
@@ -349,11 +351,11 @@ export default function TopNavbar() {
             chatOpen
               ? "bg-[#B8112D] text-white shadow-md"
               : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
-          }`}
-          title="Messages"
+          } ${!chatEnabled ? "opacity-50" : ""}`}
+          title={chatEnabled ? "Messages" : "Chat disabled by admin"}
         >
           <MessageSquare size={16} />
-          {totalUnread > 0 && (
+          {chatEnabled && totalUnread > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
               {totalUnread > 9 ? "9+" : totalUnread}
             </span>

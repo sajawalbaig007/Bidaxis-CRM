@@ -11,6 +11,7 @@ import ThemeToggle from "@/app/components/ThemeToggle";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
+import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
 import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
@@ -40,6 +41,7 @@ export default function AccountsSidebar() {
   const [chatOpen, setChatOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const totalUnread = useChatUnreadBadge();
+  const chatEnabled = useChatEnabled();
 
   useEffect(() => {
     void getAuthMe(false).then(u => {
@@ -146,11 +148,11 @@ export default function AccountsSidebar() {
             chatOpen
               ? "bg-[#B8112D] text-white shadow-md"
               : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
-          }`}
-          title="Messages"
+          } ${!chatEnabled ? "opacity-50" : ""}`}
+          title={chatEnabled ? "Messages" : "Chat disabled by admin"}
         >
           <MessageSquare size={16} />
-          {totalUnread > 0 && (
+          {chatEnabled && totalUnread > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-crm-surface">
               {totalUnread > 9 ? "9+" : totalUnread}
             </span>
