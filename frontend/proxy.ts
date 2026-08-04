@@ -5,12 +5,19 @@ type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts";
 
 type TokenPayload = { role?: string; exp?: number; sid?: string };
 
+function decodeBase64Url(input: string): string {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  return binary;
+}
+
 function parseToken(token: string): { role: AppRole | null; ok: boolean } {
   try {
     const part = token.split(".")[1];
     if (!part) return { role: null, ok: false };
     const payload = JSON.parse(
-      Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+      decodeBase64Url(part)
     ) as TokenPayload;
 
     if (!payload.sid) return { role: null, ok: false };
