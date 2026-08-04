@@ -131,7 +131,10 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
     totalEarning,
     totalDeduction,
     netSalary: totalEarning - totalDeduction,
-    loanRemaining: Math.max(0, (Number(emp.loanTotal) || 0) - (Number(emp.loanPaid) || 0)),
+    loanRemaining: Math.max(
+      0,
+      (Number(emp.loanTotal) || 0) - (Number(emp.loanPaid) || 0) - (Number(emp.loanThisMonth) || 0),
+    ),
   };
 }
 

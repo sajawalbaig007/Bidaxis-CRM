@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import API from "@/lib/api";
-import type { AccountsPageKey, AccountsUpload } from "../types";
+import type { AccountsPageKey, AccountsUpload, IncomeStatementData } from "../types";
 import { todayIso } from "../types";
 import {
   currentMonthValue,
@@ -12,6 +12,7 @@ import {
   periodDateRange,
   type AccountsPeriodPreset,
 } from "../utils/accountsPeriodFilters";
+import { syncLoansFromIncomeStatement } from "../utils/payrollLoanSync";
 
 type UseAccountsPageOpts<T> = {
   page: AccountsPageKey;
@@ -178,7 +179,26 @@ export function useAccountsPage<T extends Record<string, unknown>>({
       const res = await API.put(`/accounts/${page}/${recordDate}`, { data: payload });
       setData((res.data.data as T) ?? payload);
       setDirty(false);
-      toast.success(`Saved for ${recordDate}`);
+
+      // Income Statement payroll → shared loan ledger (so next month lookup stays correct)
+      if (page === "income_statement") {
+        try {
+          const n = await syncLoansFromIncomeStatement(
+            (res.data.data as IncomeStatementData) ?? (payload as unknown as IncomeStatementData),
+          );
+          toast.success(
+            n > 0
+              ? `Saved for ${recordDate} · ${n} loan(s) synced to ledger`
+              : `Saved for ${recordDate}`,
+          );
+        } catch {
+          toast.success(`Saved for ${recordDate}`);
+          toast.error("Payroll saved, but loan ledger sync failed.");
+        }
+      } else {
+        toast.success(`Saved for ${recordDate}`);
+      }
+
       refreshDates();
     } catch {
       toast.error("Save failed.");
