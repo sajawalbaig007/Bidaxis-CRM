@@ -26,6 +26,7 @@ export type SalarySlipPayload = {
   comments?: string;
   employeePf?: number;
   employerPf?: number;
+  projectCount?: number;
 };
 
 type JsPdfWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
@@ -44,6 +45,22 @@ function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   const n = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function signatureTimestamp(d: Date): string {
+  const pad = (n: number) => `${n}`.padStart(2, "0");
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  const offsetMinutes = -d.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMinutes);
+  const tzH = pad(Math.floor(abs / 60));
+  const tzM = pad(abs % 60);
+  return `${year}.${month}.${day} ${hh}:${mm}:${ss}${sign}${tzH}'${tzM}'`;
 }
 
 export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise<void> {
@@ -99,6 +116,10 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
     ["Employee Address", payload.address || "—"],
     ["Phone", payload.phone || "—"],
     ["CNIC", payload.cnic || "—"],
+    [
+      "No of projects",
+      payload.projectCount != null ? `${Math.max(0, Number(payload.projectCount) || 0)}` : "—",
+    ],
   ];
   for (const [k, v] of info) {
     doc.setFont("helvetica", "bold");
@@ -216,18 +237,28 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
 
   y += 12;
   doc.setTextColor(40, 40, 40);
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text("Regards,", margin, y);
-  doc.text("Approved by:", pageW - margin - 55, y);
+  doc.text("Approved by:", margin, y);
   y += 5;
+  doc.text("Account Officer", margin, y);
+  y += 5;
+  const accountOfficerName = company.accountOfficer || "Account Officer";
+  doc.text(accountOfficerName, margin, y);
+
+  const signedAt = signatureTimestamp(new Date());
+  doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
-  doc.text("HR Manager", margin, y);
-  doc.text("Account Officer", pageW - margin - 55, y);
-  y += 5;
-  doc.setFont("helvetica", "bold");
-  doc.text(company.hrManager || "—", margin, y);
-  doc.text(company.accountOfficer || "—", pageW - margin - 55, y);
+  doc.setTextColor(22, 85, 153);
+  const signatureLines = [
+    `Digitally signed by ${accountOfficerName}`,
+    "DN: C=PK,",
+    `E=${company.email || "accounts@bemsolutions.io"},`,
+    `O=${company.legalName}, OU=BEM,`,
+    `CN=${accountOfficerName}`,
+    `Date: ${signedAt}`,
+  ];
+  doc.text(signatureLines, margin + 48, y - 7);
 
   y += 14;
   doc.setDrawColor(230);

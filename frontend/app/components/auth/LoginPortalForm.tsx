@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -92,15 +92,17 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
   }, [captchaEnabled, showCaptcha]);
 
   useEffect(() => {
-    const token = getClientAuthToken();
-    if (!token) return;
-    try {
-      const part = token.split(".")[1];
-      if (!part) return;
-      const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))) as { role?: string };
-      const role = resolveLoginRole({ role: payload.role });
-      if (role) window.location.href = dashboardPathForRole(role);
-    } catch { /* ignore */ }
+    let cancelled = false;
+    API.get("/auth/me")
+      .then(res => {
+        if (cancelled) return;
+        const role = resolveLoginRole(res.data);
+        if (role) window.location.href = dashboardPathForRole(role);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function hardRedirect(path: string) {
