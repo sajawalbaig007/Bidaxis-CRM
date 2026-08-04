@@ -75,7 +75,10 @@ export function computeSalesEmployeePayroll(
   const totalEarning = basic + allowance + comm.totalCommission + extraEarning;
   const totalDeduction = late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
   const netSalary = totalEarning - totalDeduction;
-  const loanRemaining = Math.max(0, (Number(emp.loanTotal) || 0) - (Number(emp.loanPaid) || 0));
+  const loanRemaining = Math.max(
+    0,
+    (Number(emp.loanTotal) || 0) - (Number(emp.loanPaid) || 0) - (Number(emp.loanThisMonth) || 0),
+  );
 
   return {
     ...comm,

@@ -66,25 +66,29 @@ export default function EmployeeSalaryEditor({
     onChange({ ...d, [key]: val });
   };
 
-  const lookupLoan = useCallback(async () => {
+  const lookupLoan = useCallback(async (force = false) => {
     if (!enableLoanLookup || !name.trim()) return;
     try {
       const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(name)}`);
       const loan = res.data.loan;
-      if (loan) {
-        onChange({
-          ...d,
-          loanTotal: Number(loan.totalAmount) || 0,
-          loanPaid: Number(loan.paidAmount) || 0,
-        });
-      }
+      if (!loan) return;
+      const hasLocal = (Number(d.loanTotal) || 0) > 0 || (Number(d.loanPaid) || 0) > 0 || (Number(d.loanThisMonth) || 0) > 0;
+      // Auto-fill only when this employee has no loan fields yet (avoids double-count after save).
+      if (!force && hasLocal) return;
+      onChange({
+        ...d,
+        loanTotal: Number(loan.totalAmount) || 0,
+        loanPaid: Number(loan.paidAmount) || 0,
+        // Fresh pull from ledger = balance already paid; clear this-month cut so user re-enters if needed
+        ...(force ? { loanThisMonth: 0 } : {}),
+      });
     } catch {
       /* ignore */
     }
   }, [enableLoanLookup, name, d, onChange]);
 
   useEffect(() => {
-    void lookupLoan();
+    void lookupLoan(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when name changes
   }, [name]);
 
@@ -222,13 +226,16 @@ export default function EmployeeSalaryEditor({
           {enableLoanLookup && (
             <button
               type="button"
-              onClick={() => void lookupLoan()}
+              onClick={() => void lookupLoan(true)}
               className="text-[10px] font-bold text-orange-700 hover:underline"
             >
-              Lookup by name
+              Refresh from loan ledger
             </button>
           )}
         </div>
+        <p className="text-[10px] text-orange-700/80">
+          Remaining after this month&apos;s deduction. Save payroll to sync Total / Paid into the shared loan ledger.
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />
           <Num label="Amount Already Paid" value={d.loanPaid} onChange={v => set("loanPaid", v)} />

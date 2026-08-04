@@ -95,24 +95,29 @@ export default function SalesPayrollEmployeeEditor({
     [employee, onChange],
   );
 
-  const lookupLoan = useCallback(async () => {
+  const lookupLoan = useCallback(async (force = false) => {
     try {
       const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(employee.name)}`);
       const loan = res.data.loan;
-      if (loan) {
-        onChange({
-          ...employee,
-          loanTotal: Number(loan.totalAmount) || 0,
-          loanPaid: Number(loan.paidAmount) || 0,
-        });
-      }
+      if (!loan) return;
+      const hasLocal =
+        (Number(employee.loanTotal) || 0) > 0 ||
+        (Number(employee.loanPaid) || 0) > 0 ||
+        (Number(employee.loanThisMonth) || 0) > 0;
+      if (!force && hasLocal) return;
+      onChange({
+        ...employee,
+        loanTotal: Number(loan.totalAmount) || 0,
+        loanPaid: Number(loan.paidAmount) || 0,
+        ...(force ? { loanThisMonth: 0 } : {}),
+      });
     } catch {
       /* ignore */
     }
   }, [employee, onChange]);
 
   useEffect(() => {
-    if (open) void lookupLoan();
+    if (open) void lookupLoan(false);
   }, [open, employee.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const assignedReps = allData.salesTeamMembers.filter(
@@ -328,9 +333,12 @@ export default function SalesPayrollEmployeeEditor({
               <Read label="Remaining" value={currency(breakdown.loanRemaining)} accent="text-orange-800" />
               <Num label="This Month (optional)" value={employee.loanThisMonth} onChange={v => set("loanThisMonth", v)} />
             </div>
-            <button type="button" onClick={() => void lookupLoan()} className="text-[10px] font-bold text-[#0B84F3] hover:underline">
-              Refresh loan from registry
+            <button type="button" onClick={() => void lookupLoan(true)} className="text-[10px] font-bold text-[#0B84F3] hover:underline">
+              Refresh loan from ledger
             </button>
+            <p className="text-[10px] text-orange-700/80">
+              Remaining = Total − Paid − This month. Saving Income Statement syncs the ledger for next month.
+            </p>
           </div>
 
           {/* PF & Tax */}

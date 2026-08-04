@@ -149,7 +149,7 @@ export function computeTechnicalSalary(detail: TechnicalSalaryDetail): SalaryBre
   const loanTotal = Number(detail.loanTotal) || 0;
   const loanPaid = Number(detail.loanPaid) || 0;
   const loanThisMonth = Number(detail.loanThisMonth) || 0;
-  const loanRemaining = Math.max(0, loanTotal - loanPaid);
+  const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
   const pf = detail.pfAuto !== false
     ? basic * 0.08

@@ -55,17 +55,27 @@ export async function upsertPayrollLoan(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Employee name required." });
     }
 
+    const name = employeeName.trim();
     const payload = {
-      employeeName: employeeName.trim(),
+      employeeName: name,
       department: (department ?? "sales_team").trim(),
       totalAmount: Number(totalAmount) || 0,
       paidAmount: Number(paidAmount) || 0,
       updatedBy: req.user?.id ?? null,
     };
 
-    const loan = id
-      ? await prisma.payrollLoan.update({ where: { id }, data: payload })
-      : await prisma.payrollLoan.create({ data: payload });
+    let loan;
+    if (id) {
+      loan = await prisma.payrollLoan.update({ where: { id }, data: payload });
+    } else {
+      const all = await prisma.payrollLoan.findMany();
+      const existing =
+        all.find(l => normName(l.employeeName) === normName(name)) ??
+        all.find(l => normName(l.employeeName).includes(normName(name)));
+      loan = existing
+        ? await prisma.payrollLoan.update({ where: { id: existing.id }, data: payload })
+        : await prisma.payrollLoan.create({ data: payload });
+    }
 
     return res.json({ success: true, loan });
   } catch (err) {

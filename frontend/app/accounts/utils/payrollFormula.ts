@@ -195,7 +195,7 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
   const loanTotal = Number(detail.loanTotal) || 0;
   const loanPaid = Number(detail.loanPaid) || 0;
   const loanThisMonth = Number(detail.loanThisMonth) || 0;
-  const loanRemaining = Math.max(0, loanTotal - loanPaid);
+  const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
   const pf = detail.pfAuto ? basic * 0.08 : Number(detail.pfOverride) || 0;
   const incomeTax = Number(detail.incomeTax) || 0;
@@ -295,7 +295,7 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const loanTotal = Number(detail.loanTotal) || 0;
   const loanPaid = Number(detail.loanPaid) || 0;
   const loanThisMonth = Number(detail.loanThisMonth) || 0;
-  const loanRemaining = Math.max(0, loanTotal - loanPaid);
+  const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
   const pf = detail.pfAuto
     ? basic * 0.08
