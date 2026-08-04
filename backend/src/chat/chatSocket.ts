@@ -66,28 +66,6 @@ async function verifyWsToken(token: string): Promise<{ id: string; role: string;
   }
 }
 
-function getCookie(req: http.IncomingMessage, key: string): string {
-  const raw = req.headers.cookie ?? "";
-  const parts = raw.split(";").map(s => s.trim());
-  for (const part of parts) {
-    const idx = part.indexOf("=");
-    if (idx <= 0) continue;
-    const k = part.slice(0, idx);
-    if (k !== key) continue;
-    return decodeURIComponent(part.slice(idx + 1));
-  }
-  return "";
-}
-
-function tokenFromProtocols(req: http.IncomingMessage): string {
-  const raw = req.headers["sec-websocket-protocol"];
-  if (!raw) return "";
-  const joined = Array.isArray(raw) ? raw.join(",") : raw;
-  const parts = joined.split(",").map(p => p.trim());
-  const jwtProtocol = parts.find(p => p.startsWith("jwt."));
-  return jwtProtocol ? jwtProtocol.slice(4) : "";
-}
-
 function registerClient(ws: WebSocket, userId: string, role: string, name: string) {
   clients.set(ws, { userId, role, name, watchingConvId: null });
   if (!userSockets.has(userId)) userSockets.set(userId, new Set());
@@ -135,7 +113,8 @@ export function initChatSocket(server: http.Server): void {
   wss = new WebSocketServer({ server, path: "/ws/chat" });
 
   wss.on("connection", async (ws, req) => {
-    const token = tokenFromProtocols(req) || getCookie(req, "token");
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    const token = url.searchParams.get("token") ?? "";
     const auth = await verifyWsToken(token);
     if (!auth) {
       ws.close(4401, "Unauthorized");

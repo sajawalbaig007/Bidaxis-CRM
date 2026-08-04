@@ -2,15 +2,18 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { getClientDeviceMacLikeId } from "./deviceIdentity";
 
-let clientAuthToken: string | null = null;
+const TOKEN_STORAGE_KEY = "crm_api_token";
 
-/** Keep JWT in-memory only (no local/session storage persistence). */
+/** Mirror JWT for Authorization header (httpOnly cookie alone fails on cross-port dev). */
 export function setClientAuthToken(token: string | null): void {
-  clientAuthToken = token ?? null;
+  if (typeof window === "undefined") return;
+  if (token) sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
 }
 
 export function getClientAuthToken(): string | null {
-  return clientAuthToken;
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
 /** Current logged-in user id from JWT (client cache scoping). */
@@ -66,13 +69,6 @@ export function getApiBase(): string {
   return resolveBaseURL();
 }
 
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = document.cookie.match(new RegExp(`(?:^|; )${esc}=([^;]*)`));
-  return match ? decodeURIComponent(match[1] ?? "") : "";
-}
-
 const API = axios.create({
   withCredentials: true,
   timeout: 30_000,
@@ -82,11 +78,6 @@ let handling401 = false;
 
 API.interceptors.request.use((config) => {
   config.baseURL = resolveBaseURL();
-  const method = String(config.method ?? "get").toUpperCase();
-  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-    const csrf = readCookie("csrf_token");
-    if (csrf) config.headers["X-CSRF-Token"] = csrf;
-  }
   const token = getClientAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

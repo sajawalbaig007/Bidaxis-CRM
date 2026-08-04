@@ -8,17 +8,14 @@ type TokenPayload = { role?: string; exp?: number; sid?: string };
 function decodeBase64Url(input: string): string {
   const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-  const binary = atob(padded);
-  return binary;
+  return atob(padded);
 }
 
 function parseToken(token: string): { role: AppRole | null; ok: boolean } {
   try {
     const part = token.split(".")[1];
     if (!part) return { role: null, ok: false };
-    const payload = JSON.parse(
-      decodeBase64Url(part)
-    ) as TokenPayload;
+    const payload = JSON.parse(decodeBase64Url(part)) as TokenPayload;
 
     if (!payload.sid) return { role: null, ok: false };
     if (payload.exp && payload.exp * 1000 < Date.now()) return { role: null, ok: false };
@@ -30,7 +27,9 @@ function parseToken(token: string): { role: AppRole | null; ok: boolean } {
       role === "manager" ||
       role === "technical_manager" ||
       role === "accounts"
-    ) return { role, ok: true };
+    ) {
+      return { role, ok: true };
+    }
     return { role: null, ok: false };
   } catch {
     return { role: null, ok: false };
