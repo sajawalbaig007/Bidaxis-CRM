@@ -645,6 +645,7 @@ export const getMe = async (req: AuthRequest, res: Response) => {
         id: true, name: true, email: true, role: true,
         csrCode: true, cnic: true, profilePic: true,
         twoFAEnabled: true, createdAt: true,
+        chatEnabled: true, chatAllowedUserIds: true,
       },
     });
     if (!user) {

@@ -10,6 +10,8 @@ export type AuthUser = {
   profilePic?: string | null;
   twoFAEnabled?: boolean;
   createdAt?: string;
+  chatEnabled?: boolean;
+  chatAllowedUserIds?: string[];
 };
 
 const STORAGE_KEY = "crm_auth_me_v1";

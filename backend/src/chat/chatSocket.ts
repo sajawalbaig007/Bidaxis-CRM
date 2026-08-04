@@ -50,9 +50,13 @@ async function verifyWsToken(token: string): Promise<{ id: string; role: string;
 
     const user = await prisma.user.findUnique({
       where:  { id: decoded.id },
-      select: { activeSessionId: true, tokenVersion: true, isActive: true, role: true, name: true },
+      select: {
+        activeSessionId: true, tokenVersion: true, isActive: true, role: true, name: true,
+        chatEnabled: true,
+      },
     });
     if (!user?.isActive) return null;
+    if (user.chatEnabled === false) return null;
     if (
       !user.activeSessionId ||
       user.activeSessionId !== decoded.sid ||

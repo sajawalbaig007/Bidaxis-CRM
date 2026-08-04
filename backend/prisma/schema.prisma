@@ -39,6 +39,10 @@ model User {
   temporaryAccessIp  String?
   temporaryAccessMac String?
   temporaryAccessUntil DateTime?
+  /** When false, user cannot open chat / send messages. */
+  chatEnabled        Boolean  @default(true)
+  /** Empty = can message any active user. Non-empty = only these user IDs. */
+  chatAllowedUserIds String[] @default([])
 
   auditLogs      SecurityAuditLog[]
   accessHistory  AccessHistory[]

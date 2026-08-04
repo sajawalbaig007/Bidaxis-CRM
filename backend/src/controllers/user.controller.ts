@@ -35,6 +35,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const {
       name, email, role, isActive, csrCode, cnic, cnicPdfUrl, profilePic,
       allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
+      chatEnabled, chatAllowedUserIds,
     } = req.body;
 
     const data: Record<string, unknown> = {};
@@ -57,6 +58,13 @@ export const updateUser = async (req: Request, res: Response) => {
           ? new Date(Date.now() + h * 60 * 60 * 1000)
           : null;
     }
+    if (chatEnabled !== undefined) data.chatEnabled = Boolean(chatEnabled);
+    if (chatAllowedUserIds !== undefined) {
+      const ids = Array.isArray(chatAllowedUserIds)
+        ? chatAllowedUserIds.filter((x: unknown): x is string => typeof x === "string" && x.trim().length > 0)
+        : [];
+      data.chatAllowedUserIds = Array.from(new Set(ids.filter((uid: string) => uid !== id)));
+    }
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ message: "No fields to update" });
@@ -68,6 +76,7 @@ export const updateUser = async (req: Request, res: Response) => {
       select: {
         id: true, name: true, email: true, role: true, csrCode: true, cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true,
         allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
+        chatEnabled: true, chatAllowedUserIds: true,
       },
     });
     invalidateCache("users:list", "users:list:admin", "users:list:csr", "users:list:manager", "admin:csrs", `auth:me:${id}`);

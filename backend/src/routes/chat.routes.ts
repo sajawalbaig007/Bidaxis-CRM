@@ -20,6 +20,12 @@ import {
   emitPresence,
   emitTyping,
 } from "../chat/chatSocket";
+import {
+  assertCanMessageTarget,
+  assertSenderCanChat,
+  canMessageUser,
+  getChatAccess,
+} from "../utils/chatAccess";
 
 const router = express.Router();
 
@@ -203,8 +209,14 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
     const body = req.body as { type?: string; userId?: string; name?: string; memberIds?: string[] };
     const { type, userId: targetId, name, memberIds = [] } = body;
 
+    const chatGate = await assertSenderCanChat(meId);
+    if (!chatGate.ok) return res.status(chatGate.status).json({ message: chatGate.message });
+
     if (type === "direct") {
       if (!targetId) return res.status(400).json({ message: "userId required" });
+
+      const allowed = await assertCanMessageTarget(meId, targetId);
+      if (!allowed.ok) return res.status(allowed.status).json({ message: allowed.message });
 
       const targetUser = await prisma.user.findUnique({
         where: { id: targetId }, select: { name: true, isOnline: true },
@@ -247,7 +259,15 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
     if (type === "group") {
       if (!name?.trim()) return res.status(400).json({ message: "name required" });
 
-      const allIds: string[] = Array.from(new Set([meId, ...memberIds]));
+      const uniqueMembers = Array.from(new Set(memberIds.filter(id => id && id !== meId)));
+      for (const mid of uniqueMembers) {
+        const allowed = await assertCanMessageTarget(meId, mid);
+        if (!allowed.ok) {
+          return res.status(allowed.status).json({ message: allowed.message });
+        }
+      }
+
+      const allIds: string[] = Array.from(new Set([meId, ...uniqueMembers]));
       const conv = await prisma.conversation.create({
         data: {
           type: "group",
@@ -341,10 +361,28 @@ router.post(
         ? body.mentionIds.filter(id => typeof id === "string")
         : [];
 
+      const chatGate = await assertSenderCanChat(userId);
+      if (!chatGate.ok) return res.status(chatGate.status).json({ message: chatGate.message });
+
       const member = await prisma.conversationMember.findUnique({
         where: { conversationId_userId: { conversationId, userId } },
       });
       if (!member) return res.status(403).json({ message: "Not a member" });
+
+      /* Direct chats: enforce allowlist against the other member */
+      const conv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { type: true },
+      });
+      if (conv?.type === "direct") {
+        const other = await prisma.conversationMember.findFirst({
+          where: { conversationId, userId: { not: userId } },
+          select: { userId: true },
+        });
+        if (other && !canMessageUser(chatGate.access, other.userId)) {
+          return res.status(403).json({ message: "You are not allowed to message this user." });
+        }
+      }
 
       let fileUrl: string | undefined;
       let fileName: string | undefined;
@@ -590,12 +628,27 @@ router.post("/status", verifyToken, async (req: AuthRequest, res) => {
 router.get("/users", verifyToken, async (req: AuthRequest, res) => {
   try {
     const meId = req.user!.id;
+    const access = await getChatAccess(meId);
+    if (!access || access.chatEnabled === false) {
+      return res.json({ users: [] });
+    }
+
+    const allow = access.chatAllowedUserIds.filter(id => id !== meId);
     const users = await prisma.user.findMany({
-      where: { isActive: true, id: { not: meId } },
-      select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
+      where: allow.length
+        ? { isActive: true, id: { in: allow } }
+        : { isActive: true, id: { not: meId } },
+      select: {
+        id: true, name: true, email: true, role: true, csrCode: true, isOnline: true,
+        chatEnabled: true,
+      },
       orderBy: [{ name: "asc" }],
     });
-    return res.json({ users });
+    return res.json({
+      users: users
+        .filter(u => u.chatEnabled !== false)
+        .map(({ chatEnabled: _c, ...u }) => u),
+    });
   } catch (err) {
     console.error("[chat] GET /users", err);
     return res.status(500).json({ message: "Failed to fetch users" });
