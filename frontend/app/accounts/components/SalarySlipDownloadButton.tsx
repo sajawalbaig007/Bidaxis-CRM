@@ -42,7 +42,7 @@ export default function SalarySlipDownloadButton({
   const onClick = async (e: MouseEvent) => {
     e.stopPropagation();
     if (!company.slipReady) {
-      toast.error(`${company.label} slip format abhi ready nahi — pehle BEM Solutions use karein.`);
+      toast.error(`${company.label} salary-slip format is not ready yet — use BEM Solutions for now.`);
       return;
     }
     setBusy(true);
@@ -58,7 +58,7 @@ export default function SalarySlipDownloadButton({
       await downloadSalarySlipPdf(payload);
       toast.success(`Salary slip downloaded · ${company.label}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Salary slip download fail hui.");
+      toast.error(err instanceof Error ? err.message : "Salary slip download failed.");
     } finally {
       setBusy(false);
     }

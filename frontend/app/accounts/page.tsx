@@ -263,7 +263,7 @@ export default function AccountsDashboardPage() {
       .catch(err => {
         if (cancelled) return;
         setFxRates(null);
-        setFxError(apiErrorMessage(err, "Live rates load nahi ho saki."));
+        setFxError(apiErrorMessage(err, "Could not load live rates."));
       })
       .finally(() => {
         if (!cancelled) setFxLoadedVersion(fxVersion);
@@ -406,7 +406,7 @@ export default function AccountsDashboardPage() {
     });
     const label =
       target === "both" ? "Ahmed + Sharjeel" : target === "AH" ? "Ahmed Hamza" : "Sharjeel Nasir";
-    toast.success(`Live rates ${label} formula mai apply ho gaye — Save dabao taake persist ho.`);
+    toast.success(`Live rates applied to ${label} — click Save to persist.`);
   };
 
   /** Formula Book — edits save straight into the dashboard record */
@@ -534,7 +534,7 @@ export default function AccountsDashboardPage() {
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    Google Finance se fetch · yeh rates dekh kar apne conversion formula mai apply karo
+                    Fetched from Google Finance · review these rates, then apply them to your conversion formula
                   </p>
                 </div>
                 <button
@@ -542,7 +542,7 @@ export default function AccountsDashboardPage() {
                   disabled={fxLoading}
                   onClick={() => setFxVersion(v => v + 1)}
                   className="h-9 px-3 rounded-xl bg-[#EAF5FF] border border-[#D6EBFF] text-[#0B84F3] text-[11px] font-bold inline-flex items-center gap-1.5 hover:bg-[#D6EBFF] disabled:opacity-50"
-                  title="Rates dobara fetch karo"
+                  title="Fetch rates again"
                 >
                   <RefreshCw size={13} className={fxLoading ? "animate-spin" : ""} />
                   Refresh
@@ -553,7 +553,7 @@ export default function AccountsDashboardPage() {
                 {fxLoading && !fxRates ? (
                   <p className="text-xs text-gray-400 font-medium flex items-center gap-2">
                     <RefreshCw size={14} className="animate-spin text-[#0B84F3]" />
-                    Google se live rates load ho rahi hain…
+                    Loading live rates from Google…
                   </p>
                 ) : fxError && !fxRates ? (
                   <p className="text-xs text-red-500 font-medium">{fxError}</p>
@@ -565,7 +565,7 @@ export default function AccountsDashboardPage() {
                         <p className="text-2xl font-extrabold tabular-nums text-gray-900 mt-1">{fxRates.usdToPkr.toFixed(4)}</p>
                         <p className="text-[10px] text-gray-400 mt-1">{fxRates.usdSource ?? "Google Finance"}</p>
                         <p className="text-[10px] text-gray-500 mt-2">
-                          Ahmed formula abhi: <span className="font-bold text-gray-700 tabular-nums">{ah.usdToPkrRate}</span>
+                          Ahmed formula now: <span className="font-bold text-gray-700 tabular-nums">{ah.usdToPkrRate}</span>
                           {Math.abs(ah.usdToPkrRate - fxRates.usdToPkr) > 0.01 && (
                             <span className="ml-1 text-amber-600 font-semibold">
                               (diff {(fxRates.usdToPkr - ah.usdToPkrRate).toFixed(2)})

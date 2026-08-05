@@ -1,16 +1,16 @@
 /**
- * Central formula registry — har code-defined formula yahan register hota hai.
- * Naya formula code mai add karo to is list mai entry daal do; Formula Book
- * (Dashboard → All Formulas) mai wo khud show ho jayega.
+ * Central formula registry — every code-defined formula is registered here.
+ * Add a new formula in code, then add an entry to this list; it will show up
+ * automatically in Formula Book (Dashboard → All Formulas).
  */
 
 export type FormulaDef = {
   id: string;
   section: string;
   title: string;
-  /** Canonical formula text (editable override dashboard record mai save hota hai) */
+  /** Canonical formula text (editable override is saved on the dashboard record) */
   expression: string;
-  /** Kis jagah / kis calculation pe lagta hai */
+  /** Where / which calculation it applies to */
   appliesTo: string;
 };
 
@@ -175,5 +175,5 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
   },
 ];
 
-/** Section order — builtins ke sections, registry order mai unique. */
+/** Section order — unique sections from builtins, in registry order. */
 export const FORMULA_SECTIONS: string[] = [...new Set(BUILTIN_FORMULAS.map(f => f.section))];

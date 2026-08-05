@@ -130,7 +130,7 @@ function buildInsights(report: MonthlyReport) {
 
 /**
  * Word-compatible HTML document — KPI cards, shaded status cells, trend arrows,
- * aur table-based bar charts (Word mai reliably render hote hain).
+ * and table-based bar charts (these render reliably in Word).
  */
 function buildWordHtml(report: MonthlyReport): string {
   const label = monthLabel(report.month);
@@ -158,7 +158,7 @@ function buildWordHtml(report: MonthlyReport): string {
   const tdEmpty = (cols: number, text: string) =>
     `<tr><td colspan="${cols}" style="padding:9px;border:1px solid #E2E8F0;font-size:10px;color:#94A3B8;text-align:center;">${text}</td></tr>`;
 
-  /** Highlighted status cell — poora cell shade hota hai (Word mai spans ki background unreliable hai). */
+  /** Highlighted status cell — shades the whole cell (span backgrounds are unreliable in Word). */
   const statusCell = (text: string, bg: string, color: string) =>
     `<td style="padding:4px 9px;border:1px solid #E2E8F0;text-align:center;background:${bg};"><b style="color:${color};font-size:8.5px;letter-spacing:0.5px;">${text.toUpperCase()}</b></td>`;
 
@@ -658,10 +658,10 @@ export default function AccountsReportsPage() {
     setSaving(true);
     try {
       await saveAndDownloadWord(report);
-      toast.success("Report download + Cloudinary pe archive ho gayi.");
+      toast.success("Report downloaded and archived to Cloudinary.");
       setSavedVersion(v => v + 1);
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Word download ho gaya — Cloudinary save fail hui."));
+      toast.error(apiErrorMessage(err, "Word downloaded, but Cloudinary save failed."));
     } finally {
       setSaving(false);
     }
@@ -749,16 +749,16 @@ export default function AccountsReportsPage() {
             </div>
           ) : !report ? (
             <div className="bg-white rounded-2xl border border-gray-100/90 py-24 text-center text-gray-400 text-sm">
-              Report load nahi hui — month select karein ya dobara try karein.
+              Report did not load — select a month or try again.
             </div>
           ) : (
             <>
               <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-gray-600 leading-relaxed">
-                <b className="text-gray-800">Daily mode:</b> Income Statement pe har din jo values add hoti hain,
-                woh is month ke sections (Team Salaries, OPEX, Loans, PF, Executives, Revenue) mai{" "}
-                <b>sum</b> ho kar aati hain — {report.daysRecorded} day(s) recorded
+                <b className="text-gray-800">Daily mode:</b> Values added each day on the Income Statement
+                are <b>summed</b> into this month&apos;s sections (Team Salaries, OPEX, Loans, PF, Executives, Revenue)
+                — {report.daysRecorded} day(s) recorded
                 {report.sourceDate ? ` · last entry ${report.sourceDate}` : ""}.{" "}
-                <b>Save Report</b> Word download + Cloudinary archive karta hai.
+                <b>Save Report</b> downloads a Word file and archives it to Cloudinary.
               </section>
 
               {saved.length > 0 && (
@@ -966,7 +966,7 @@ export default function AccountsReportsPage() {
                       })}
                     </div>
                   ) : (
-                    <p className="px-4 py-8 text-center text-gray-400 text-xs">Previous month ka data nahi — comparison possible nahi.</p>
+                    <p className="px-4 py-8 text-center text-gray-400 text-xs">No previous-month data — comparison is not available.</p>
                   )}
                 </SectionCard>
 

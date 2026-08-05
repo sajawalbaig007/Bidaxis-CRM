@@ -143,7 +143,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         <input
           value={draft.appliesTo}
           onChange={e => setDraft(d => ({ ...d, appliesTo: e.target.value }))}
-          placeholder="Kis jagah lagta hai (e.g. Income Statement → Team Salaries)"
+          placeholder="Where it applies (e.g. Income Statement → Team Salaries)"
           className="w-full h-9 rounded-lg border border-gray-200 px-2.5 text-xs outline-none focus:border-[#B8112D]"
         />
       )}
@@ -179,7 +179,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
             <div className="min-w-0">
               <h3 className="font-extrabold text-gray-800 text-sm">Formula Book — All Accounts Formulas</h3>
               <p className="text-[10px] text-gray-400">
-                Section-wise · built-in formulas edit karo (text override) · apna naya formula add karo
+                Section-wise · edit built-in formulas (text override) · add your own formula
               </p>
             </div>
           </div>
@@ -200,7 +200,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
           {adding && (
             <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3 space-y-2">
-              <p className="text-[11px] font-extrabold text-blue-700 uppercase tracking-wide">Naya Formula</p>
+              <p className="text-[11px] font-extrabold text-blue-700 uppercase tracking-wide">New Formula</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
                   value={newSection}
@@ -234,7 +234,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
               <input
                 value={newDraft.appliesTo}
                 onChange={e => setNewDraft(d => ({ ...d, appliesTo: e.target.value }))}
-                placeholder="Kis jagah lagna hai (e.g. Reports page → Cash section)"
+                placeholder="Where it should apply (e.g. Reports page → Cash section)"
                 className="w-full h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0B84F3]"
               />
               <textarea
@@ -377,7 +377,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
 
         <div className="px-4 py-2.5 border-t bg-[#FAFAFA] flex items-center justify-between">
           <p className="text-[10px] text-gray-400">
-            Built-in formulas code se chalti hain — yahan edit sirf text/documentation override karta hai. Values (rates, %) apne apne editors mai editable hain.
+            Built-in formulas run from code — edits here only override text/documentation. Values (rates, %) stay editable in their own editors.
           </p>
           <button type="button" onClick={onClose} className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26] shrink-0 ml-3">
             Done
