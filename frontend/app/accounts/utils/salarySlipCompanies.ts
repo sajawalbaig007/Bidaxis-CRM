@@ -15,6 +15,8 @@ export type SalarySlipCompany = {
   hrManager: string;
   accountOfficer: string;
   accent: string;
+  /** When set, PDF header shows logo instead of brand text */
+  logoUrl?: string;
   /** When false, download shows “format coming soon” */
   slipReady: boolean;
 };
@@ -32,6 +34,7 @@ export const SALARY_SLIP_COMPANIES: Record<SalarySlipCompanyKey, SalarySlipCompa
     hrManager: "Shakeela Tabassum",
     accountOfficer: "Muhammad Bilal",
     accent: "#B8112D",
+    logoUrl: "/images/logo.jpeg",
     slipReady: true,
   },
   GPS: {
@@ -46,6 +49,7 @@ export const SALARY_SLIP_COMPANIES: Record<SalarySlipCompanyKey, SalarySlipCompa
     hrManager: "",
     accountOfficer: "Muhammad Bilal",
     accent: "#0B84F3",
+    logoUrl: "/images/image.png",
     slipReady: true,
   },
   BDS: {
@@ -66,10 +70,15 @@ export const SALARY_SLIP_COMPANIES: Record<SalarySlipCompanyKey, SalarySlipCompa
 
 export const DEFAULT_SALARY_SLIP_COMPANY: SalarySlipCompanyKey = "BEM";
 
-/** Technical team payroll is billed under GPS; every other team stays on the page default. */
+/** Technical payroll (team + manager) is billed under GPS. */
 export function salarySlipCompanyForKind(
   kind: string,
   fallback: SalarySlipCompanyKey = DEFAULT_SALARY_SLIP_COMPANY,
 ): SalarySlipCompanyKey {
-  return kind === "technical" ? "GPS" : fallback;
+  if (kind === "technical" || kind === "technical_manager") return "GPS";
+  return fallback;
+}
+
+export function isGpsSalarySlipKind(kind: string): boolean {
+  return kind === "technical" || kind === "technical_manager";
 }

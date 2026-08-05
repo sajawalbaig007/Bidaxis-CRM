@@ -14,7 +14,7 @@ type Props = {
   /** Auto-lookup loan ledger by employee name */
   enableLoanLookup?: boolean;
   /** "admin" — Administration formula: no overtime, 6 PM late slabs. */
-  variant?: "technical" | "admin";
+  variant?: "technical" | "technical_manager" | "admin";
 };
 
 function Num({
@@ -61,6 +61,7 @@ export default function EmployeeSalaryEditor({
 }: Props) {
   const d = value;
   const isAdmin = variant === "admin";
+  const isTechMgr = variant === "technical_manager";
   const b = isAdmin ? computeAdminSalary(d) : computeSalary(d);
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
     onChange({ ...d, [key]: val });
@@ -104,8 +105,21 @@ export default function EmployeeSalaryEditor({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
-        <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
-        <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+        {isTechMgr ? (
+          <>
+            <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+            <Num label="Medical Allowance" value={d.medicalAllowance ?? 0} onChange={v => set("medicalAllowance", v)} />
+            <Num label="Travel Allowance" value={d.travelAllowance ?? 0} onChange={v => set("travelAllowance", v)} />
+            {d.allowance > 0 && (
+              <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
+            )}
+          </>
+        ) : (
+          <>
+            <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
+            <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+          </>
+        )}
         <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
         <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
         <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
@@ -113,7 +127,7 @@ export default function EmployeeSalaryEditor({
 
       <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
-          Salary slip profile ({variant === "technical" ? "GPS" : "BEM Solutions"})
+          Salary slip profile ({variant === "technical" || variant === "technical_manager" ? "GPS · Global Pre Construction" : "BEM Solutions"})
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">

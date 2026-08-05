@@ -7,6 +7,7 @@ import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../typ
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
 import {
   resolvePayrollKind,
+  resolveSubPayrollKind,
   payrollKindForTeamTitle,
   ensureSalesPayrollFromSub,
   tlExtraFromPeers,
@@ -17,8 +18,9 @@ import {
 import { computeSalesEmployeePayroll } from "../utils/salesPayrollFormula";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
-import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
+import ProofUploadField from "./ProofUploadField";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
+import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 
@@ -127,6 +129,23 @@ export default function ExpandableHeadsTable({
     if (!editing) return;
     onChange(rows.filter(r => r.id !== editing.id), { persist: true });
     setEditing(null);
+  };
+
+  const patchSubProof = (
+    rowId: string,
+    subId: string,
+    proof: { proofUrl: string; proofName: string } | { proofUrl?: undefined; proofName?: undefined },
+  ) => {
+    onChange(
+      rows.map(r =>
+        r.id !== rowId
+          ? r
+          : {
+              ...r,
+              subHeads: (r.subHeads ?? []).map(s => (s.id === subId ? { ...s, ...proof } : s)),
+            },
+      ),
+    );
   };
 
   const openEdit = (row: ExpandableHeadRow) => {
@@ -426,12 +445,19 @@ export default function ExpandableHeadsTable({
                                         </tr>
                                       );
                                     }
+                                    const subKind = resolveSubPayrollKind(s, row.title, rowPayrollKind);
                                     const sal = s.salary ? ensureSalaryDetail(s.salary, s.amount) : null;
                                     const b = sal
-                                      ? rowPayrollKind === "admin"
+                                      ? subKind === "admin"
                                         ? computeAdminSalary(sal)
                                         : computeSalary(sal)
                                       : null;
+                                    const slipKind =
+                                      subKind === "admin"
+                                        ? "admin"
+                                        : subKind === "technical_manager"
+                                          ? "technical_manager"
+                                          : "technical";
                                     return (
                                       <tr key={s.id} className="border-b border-gray-50 last:border-0">
                                         <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
@@ -450,7 +476,7 @@ export default function ExpandableHeadsTable({
                                           <SalarySlipDownloadButton
                                             compact
                                             sub={s}
-                                            kind={rowPayrollKind === "admin" ? "admin" : "technical"}
+                                            kind={slipKind}
                                             recordDate={recordDate}
                                             companyKey={salarySlipCompany}
                                           />
@@ -474,9 +500,11 @@ export default function ExpandableHeadsTable({
                                 </tbody>
                               </table>
                               <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
-                                {isSalesRow
-                                  ? "Sales team: project commission · 6 PM shift · no overtime. Slip download = BEM Solutions format (more companies later)."
-                                  : "Open Edit to fill payroll + Employee ID / CNIC for slips. Download = BEM Solutions format (more companies later)."}
+                                {allowProofUpload
+                                  ? "Upload bill/screenshot per line · Preview anytime · Save record when done."
+                                  : isSalesRow
+                                    ? "Sales team: project commission · 6 PM shift · no overtime. Slip download = BEM Solutions format (more companies later)."
+                                    : "Open Edit to fill payroll + Employee ID / CNIC for slips. Download = BEM Solutions format (more companies later)."}
                               </p>
                             </div>
                           ) : (
@@ -487,7 +515,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-[10px]">Individual</th>
                                     <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[110px]">Filled date</th>
                                     {allowProofUpload && (
-                                      <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[90px]">Proof</th>
+                                      <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[120px]">Image</th>
                                     )}
                                     <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[100px]">Amount</th>
                                     {onPersist && <th className="px-2 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[50px]">Save</th>}
@@ -500,18 +528,20 @@ export default function ExpandableHeadsTable({
                                       <td className="px-3 py-2 text-center text-gray-500 tabular-nums">{s.filledAt || "—"}</td>
                                       {allowProofUpload && (
                                         <td className="px-3 py-2 text-center">
-                                          {s.proofUrl ? (
-                                            <a
-                                              href={s.proofUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="text-[10px] font-bold text-emerald-600 hover:underline"
-                                            >
-                                              View
-                                            </a>
-                                          ) : (
-                                            <span className="text-[10px] text-gray-300">—</span>
-                                          )}
+                                          <ProofUploadField
+                                            compact
+                                            proofUrl={s.proofUrl}
+                                            proofName={s.proofName}
+                                            disabled={!onUploadProof}
+                                            onUpload={async file => {
+                                              if (!onUploadProof) return;
+                                              const uploaded = await onUploadProof(file);
+                                              patchSubProof(row.id, s.id, {
+                                                proofUrl: uploaded.fileUrl,
+                                                proofName: uploaded.fileName,
+                                              });
+                                            }}
+                                          />
                                         </td>
                                       )}
                                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-800">{currency(s.amount)}</td>
@@ -532,6 +562,11 @@ export default function ExpandableHeadsTable({
                                   ))}
                                 </tbody>
                               </table>
+                              {allowProofUpload && (
+                                <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
+                                  Upload bill/screenshot per line · Preview anytime · Save record when done.
+                                </p>
+                              )}
                             </div>
                           )}
                           {onPersist && subs.length > 0 && (

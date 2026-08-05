@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Trash2, X, Plus, Save, StickyNote, Upload, ExternalLink, Loader2, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Trash2, X, Plus, StickyNote, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
@@ -12,6 +12,7 @@ import {
   type PayrollKind,
   payrollKindForTeamTitle,
   resolvePayrollKind,
+  resolveSubPayrollKind,
   ensureSalesPayrollFromSub,
   netFromSalesSub,
   tlExtraFromPeers,
@@ -26,6 +27,7 @@ import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import AmountInput from "./AmountInput";
+import ProofUploadField from "./ProofUploadField";
 
 export type HeadDetailModel = {
   id: string;
@@ -81,37 +83,41 @@ export default function HeadDetailModal({
   recordDate = todayIso(),
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
 }: HeadDetailModalProps) {
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [openSalaryIds, setOpenSalaryIds] = useState<Set<string>>(new Set());
-  const [expandedForId, setExpandedForId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<HeadDetailModel | null>(null);
 
-  // Adjust-during-render: auto-expand sales employees once per opened head
-  if (!open && expandedForId !== null) {
-    setExpandedForId(null);
-  }
-  if (open && value && value.id !== expandedForId) {
-    setExpandedForId(value.id);
+  useEffect(() => {
+    if (!open || !value) {
+      setDraft(null);
+      setOpenSalaryIds(new Set());
+      return;
+    }
+    setDraft({
+      ...value,
+      subHeads: value.subHeads.map(s => ({ ...s })),
+      notes: value.notes.map(n => ({ ...n })),
+    });
     if (value.subHeads.length && salaryMode) {
       const kind = value.payrollKind ?? resolvePayrollKind(value.title, value.subHeads);
       if (kind === "sales" || kind === "sales_lead") {
         setOpenSalaryIds(new Set(value.subHeads.map(s => s.id)));
       }
     }
-  }
+  }, [open, value?.id, salaryMode]);
 
-  if (!open || !value) return null;
+  if (!open || !value || !draft) return null;
 
   const payrollKind: PayrollKind =
-    value.payrollKind ??
+    draft.payrollKind ??
     payrollKindProp ??
-    (salaryMode ? resolvePayrollKind(value.title, value.subHeads) : "technical");
+    (salaryMode ? resolvePayrollKind(draft.title, draft.subHeads) : "technical");
   const isSalesPayroll =
     payrollKind === "sales" ||
     payrollKind === "sales_lead" ||
-    (salaryMode && isSalesTeamTitle(value.title, value.subHeads)) ||
-    (salaryMode && /sales team/i.test(value.title) && !/technical/i.test(value.title)) ||
-    value.subHeads.some(s => !!s.salesPayroll);
+    (salaryMode && isSalesTeamTitle(draft.title, draft.subHeads)) ||
+    (salaryMode && /sales team/i.test(draft.title) && !/technical/i.test(draft.title)) ||
+    draft.subHeads.some(s => !!s.salesPayroll);
   const salesPeers = salesSubsFromPeerRows(peerTeamRows.map(r => ({ title: r.title, subHeads: r.subHeads })));
 
   const salesPayrollContext = (): SalesPayrollData => ({
@@ -121,16 +127,23 @@ export default function HeadDetailModal({
       .flatMap(r => (r.subHeads ?? []).map(sh => ensureSalesPayrollFromSub(sh, "team_lead"))),
   });
 
+  const patchDraft = (patch: Partial<HeadDetailModel>) => {
+    setDraft(prev => (prev ? { ...prev, ...patch } : prev));
+  };
+
   const setField = <K extends keyof HeadDetailModel>(key: K, val: HeadDetailModel[K]) => {
-    onSave({ ...value, [key]: val });
+    patchDraft({ [key]: val });
   };
 
   const updateSub = (id: string, patch: Partial<SubHeadEntry>) => {
-    const subHeads = value.subHeads.map(s => (s.id === id ? { ...s, ...patch } : s));
-    onSave({
-      ...value,
-      subHeads,
-      amount: sumSubHeads(subHeads),
+    setDraft(prev => {
+      if (!prev) return prev;
+      const subHeads = prev.subHeads.map(s => (s.id === id ? { ...s, ...patch } : s));
+      return {
+        ...prev,
+        subHeads,
+        amount: sumSubHeads(subHeads),
+      };
     });
   };
 
@@ -139,57 +152,69 @@ export default function HeadDetailModal({
     if (isSalesPayroll) {
       const role = payrollKind === "sales_lead" ? "team_lead" : "sales";
       const sp = emptySalesPayrollEmployee("New employee", role, 0, 0, id);
-      const subHeads = [
-        ...value.subHeads,
-        { id, label: "New employee", amount: 0, filledAt: todayIso(), salesPayroll: sp },
-      ];
-      onSave({ ...value, subHeads, amount: sumSubHeads(subHeads) });
+      setDraft(prev => {
+        if (!prev) return prev;
+        const subHeads = [
+          ...prev.subHeads,
+          { id, label: "New employee", amount: 0, filledAt: todayIso(), salesPayroll: sp },
+        ];
+        return { ...prev, subHeads, amount: sumSubHeads(subHeads) };
+      });
       setOpenSalaryIds(prev => new Set(prev).add(id));
       return;
     }
     const isAdminKind = payrollKind === "admin";
     const isExecKind = payrollKind === "executive";
+    const isTechMgrKind = payrollKind === "technical_manager";
     const salary = salaryMode
       ? isExecKind
         ? emptySalaryDetail({ commissionPct: 0, loanPositive: 0, loanNegative: 0 })
         : isAdminKind
           ? emptySalaryDetail({ checkIn: "18:00" })
-          : ensureSalaryDetail(undefined, 0)
+          : isTechMgrKind
+            ? emptySalaryDetail({
+                homeAllowance: 0,
+                medicalAllowance: 0,
+                travelAllowance: 0,
+              })
+            : ensureSalaryDetail(undefined, 0)
       : undefined;
     const amount = salary
       ? isExecKind
         ? computeExecutiveSalary(salary, execProfitBase).totalSalary
         : (isAdminKind ? computeAdminSalary(salary) : computeSalary(salary)).totalSalary
       : 0;
-    const subHeads = [
-      ...value.subHeads,
-      {
-        id,
-        label: salaryMode ? "New employee" : "New person / line",
-        amount,
-        filledAt: todayIso(),
-        ...(salary ? { salary } : {}),
-      },
-    ];
-    onSave({
-      ...value,
-      subHeads,
-      amount: sumSubHeads(subHeads),
+    setDraft(prev => {
+      if (!prev) return prev;
+      const subHeads = [
+        ...prev.subHeads,
+        {
+          id,
+          label: salaryMode ? "New employee" : "New person / line",
+          amount,
+          filledAt: todayIso(),
+          ...(salary ? { salary } : {}),
+        },
+      ];
+      return { ...prev, subHeads, amount: sumSubHeads(subHeads) };
     });
     if (salaryMode) setOpenSalaryIds(prev => new Set(prev).add(id));
   };
 
   const removeSub = (id: string) => {
-    const subHeads = value.subHeads.filter(s => s.id !== id);
-    onSave({
-      ...value,
-      subHeads,
-      amount: subHeads.length > 0 ? sumSubHeads(subHeads) : value.amount,
+    setDraft(prev => {
+      if (!prev) return prev;
+      const subHeads = prev.subHeads.filter(s => s.id !== id);
+      return {
+        ...prev,
+        subHeads,
+        amount: subHeads.length > 0 ? sumSubHeads(subHeads) : prev.amount,
+      };
     });
   };
 
-  const handleProof = async (subId: string, file: File | undefined) => {
-    if (!file || !onUploadProof) return;
+  const handleProof = async (subId: string, file: File) => {
+    if (!onUploadProof) return;
     setUploadingId(subId);
     try {
       const uploaded = await onUploadProof(file);
@@ -200,40 +225,27 @@ export default function HeadDetailModal({
   };
 
   const addNote = () => {
-    onSave({
-      ...value,
-      notes: [
-        { id: newRowId("note"), text: "", date: todayIso() },
-        ...value.notes,
-      ],
+    patchDraft({
+      notes: [{ id: newRowId("note"), text: "", date: todayIso() }, ...draft.notes],
     });
   };
 
   const updateNote = (id: string, patch: Partial<DatedNote>) => {
-    onSave({
-      ...value,
-      notes: value.notes.map(n => (n.id === id ? { ...n, ...patch } : n)),
+    patchDraft({
+      notes: draft.notes.map(n => (n.id === id ? { ...n, ...patch } : n)),
     });
   };
 
   const removeNote = (id: string) => {
-    onSave({ ...value, notes: value.notes.filter(n => n.id !== id) });
+    patchDraft({ notes: draft.notes.filter(n => n.id !== id) });
   };
 
-  /** Re-persist the current head (each sub-head row gets its own Save button). */
-  const rowSaveBtn = (
-    <button
-      type="button"
-      onClick={() => onSave(value)}
-      disabled={saving}
-      className="text-emerald-600 px-1 disabled:opacity-50"
-      title="Save this row"
-    >
-      {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-    </button>
-  );
+  const handleDone = () => {
+    onSave(draft);
+    onClose();
+  };
 
-  const sortedNotes = [...value.notes].sort((a, b) => b.date.localeCompare(a.date));
+  const sortedNotes = [...draft.notes].sort((a, b) => b.date.localeCompare(a.date));
   const toggleSalary = (id: string) => {
     setOpenSalaryIds(prev => {
       const next = new Set(prev);
@@ -264,6 +276,11 @@ export default function HeadDetailModal({
                 Executive payroll — Basic + commission (% of net profit) = total salary
               </p>
             )}
+            {payrollKind === "technical_manager" && salaryMode && (
+              <p className="text-[10px] font-bold text-violet-700 mt-0.5">
+                Technical Manager — Basic · Home · Medical · Travel allowances · same deductions as technical team
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
             <X size={16} />
@@ -274,7 +291,7 @@ export default function HeadDetailModal({
           <label className="text-xs font-semibold text-gray-600 block">
             Title
             <input
-              value={value.title}
+              value={draft.title}
               onChange={e => setField("title", e.target.value)}
               className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
             />
@@ -282,17 +299,17 @@ export default function HeadDetailModal({
 
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs font-semibold text-gray-600 block">
-              {value.subHeads.length > 0 ? "Total (auto from people / lines)" : "Total (add people/lines or set here)"}
-              {value.subHeads.length > 0 ? (
+              {draft.subHeads.length > 0 ? "Total (auto from people / lines)" : "Total (add people/lines or set here)"}
+              {draft.subHeads.length > 0 ? (
                 <input
                   type="text"
                   readOnly
-                  value={String(sumSubHeads(value.subHeads))}
+                  value={String(sumSubHeads(draft.subHeads))}
                   className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-600 cursor-default"
                 />
               ) : (
                 <AmountInput
-                  value={Number(value.amount) || 0}
+                  value={Number(draft.amount) || 0}
                   onChange={n => setField("amount", n)}
                   className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                 />
@@ -302,7 +319,7 @@ export default function HeadDetailModal({
               Filled date
               <input
                 type="date"
-                value={value.filledAt ?? todayIso()}
+                value={draft.filledAt ?? todayIso()}
                 onChange={e => setField("filledAt", e.target.value)}
                 className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
               />
@@ -361,14 +378,14 @@ export default function HeadDetailModal({
             </div>
 
             <div className={`space-y-2 ${salaryMode ? "max-h-[55vh]" : "max-h-64"} overflow-y-auto`}>
-              {value.subHeads.length === 0 ? (
+              {draft.subHeads.length === 0 ? (
                 <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed rounded-xl">
                   No people yet — total uses the amount above.
                 </p>
               ) : salaryMode ? (
-                value.subHeads.map(s => {
+                draft.subHeads.map(s => {
                   const openEd = openSalaryIds.has(s.id);
-                  const subKind = salaryMode ? resolvePayrollKind(value.title, [s]) : "technical";
+                  const subKind = salaryMode ? resolvePayrollKind(draft.title, [s]) : "technical";
                   const subIsSales =
                     isSalesPayroll ||
                     !!s.salesPayroll ||
@@ -403,7 +420,6 @@ export default function HeadDetailModal({
                             companyKey={salarySlipCompany}
                             salesExtra={extra}
                           />
-                          {rowSaveBtn}
                           <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                             <Trash2 size={13} />
                           </button>
@@ -474,7 +490,6 @@ export default function HeadDetailModal({
                             companyKey={salarySlipCompany}
                             execProfitBase={execProfitBase}
                           />
-                          {rowSaveBtn}
                           <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                             <Trash2 size={13} />
                           </button>
@@ -483,7 +498,7 @@ export default function HeadDetailModal({
                           <div className="p-2 border-t border-indigo-100">
                             <ExecutiveSalaryEditor
                               name={s.label}
-                              teamHint={value.title}
+                              teamHint={draft.title}
                               value={sal}
                               profitBase={execProfitBase}
                               onChange={next => {
@@ -497,6 +512,7 @@ export default function HeadDetailModal({
                     );
                   }
                   const isAdminSub = payrollKind === "admin";
+                  const employeePayrollKind = resolveSubPayrollKind(s, draft.title, payrollKind);
                   const sal = isAdminSub
                     ? emptySalaryDetail({
                         ...(s.salary ?? { basic: s.amount }),
@@ -504,6 +520,10 @@ export default function HeadDetailModal({
                       })
                     : ensureSalaryDetail(s.salary, s.amount);
                   const net = (isAdminSub ? computeAdminSalary(sal) : computeSalary(sal)).totalSalary;
+                  const slipKind =
+                    isAdminSub ? "admin" : employeePayrollKind === "technical_manager" ? "technical_manager" : "technical";
+                  const editorVariant =
+                    isAdminSub ? "admin" : employeePayrollKind === "technical_manager" ? "technical_manager" : "technical";
                   return (
                     <div key={s.id} className="rounded-xl border border-gray-200 overflow-hidden">
                       <div className="flex items-center gap-2 px-2.5 py-2 bg-[#F8FAFC]">
@@ -519,11 +539,10 @@ export default function HeadDetailModal({
                         <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
                         <SalarySlipDownloadButton
                           sub={s}
-                          kind={isAdminSub ? "admin" : "technical"}
+                          kind={slipKind}
                           recordDate={recordDate}
                           companyKey={salarySlipCompany}
                         />
-                        {rowSaveBtn}
                         <button type="button" onClick={() => removeSub(s.id)} className="text-red-500 px-1">
                           <Trash2 size={13} />
                         </button>
@@ -532,9 +551,9 @@ export default function HeadDetailModal({
                         <div className="p-2 border-t border-gray-100">
                           <EmployeeSalaryEditor
                             name={s.label}
-                            teamHint={value.title}
+                            teamHint={draft.title}
                             value={sal}
-                            variant={isAdminSub ? "admin" : "technical"}
+                            variant={editorVariant}
                             onChange={next => {
                               const total = (isAdminSub ? computeAdminSalary(next) : computeSalary(next)).totalSalary;
                               updateSub(s.id, { salary: next, amount: total });
@@ -546,7 +565,7 @@ export default function HeadDetailModal({
                   );
                 })
               ) : (
-                value.subHeads.map(s => (
+                draft.subHeads.map(s => (
                   <div key={s.id} className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-2 space-y-1.5">
                     <div className="grid grid-cols-12 gap-1.5 items-center">
                       <input
@@ -566,75 +585,28 @@ export default function HeadDetailModal({
                         onChange={e => updateSub(s.id, { filledAt: e.target.value })}
                         className="col-span-3 h-8 rounded-lg border border-gray-200 px-1 text-[10px] bg-white"
                       />
-                      <button
-                        type="button"
-                        onClick={() => onSave(value)}
-                        disabled={saving}
-                        className="col-span-1 text-emerald-600 flex justify-center disabled:opacity-50"
-                        title="Save this row"
-                      >
-                        {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                      </button>
-                      <button type="button" onClick={() => removeSub(s.id)} className="col-span-1 text-red-500 flex justify-center">
+                        <button type="button" onClick={() => removeSub(s.id)} className="col-span-2 text-red-500 flex justify-center">
                         <Trash2 size={13} />
                       </button>
                     </div>
 
                     {allowProofUpload && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <input
-                          ref={el => { fileRefs.current[s.id] = el; }}
-                          type="file"
-                          accept="image/*,.pdf"
-                          className="hidden"
-                          onChange={e => {
-                            const f = e.target.files?.[0];
-                            e.target.value = "";
-                            void handleProof(s.id, f);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          disabled={uploadingId === s.id || !onUploadProof}
-                          onClick={() => fileRefs.current[s.id]?.click()}
-                          className="h-7 px-2.5 rounded-lg bg-white border border-gray-200 text-[10px] font-bold text-gray-600 inline-flex items-center gap-1 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          {uploadingId === s.id
-                            ? <Loader2 size={11} className="animate-spin" />
-                            : <Upload size={11} />}
-                          {s.proofUrl ? "Replace proof" : "Upload screenshot"}
-                        </button>
-                        {s.proofUrl && (
-                          <>
-                            <a
-                              href={s.proofUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="h-7 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700 inline-flex items-center gap-1"
-                              title={s.proofName || "View proof"}
-                            >
-                              <ImageIcon size={11} />
-                              View
-                              <ExternalLink size={10} />
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => updateSub(s.id, { proofUrl: undefined, proofName: undefined })}
-                              className="h-7 px-2 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50"
-                            >
-                              Remove
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <ProofUploadField
+                        proofUrl={s.proofUrl}
+                        proofName={s.proofName}
+                        disabled={uploadingId === s.id || !onUploadProof}
+                        onUpload={async file => handleProof(s.id, file)}
+                        onRemove={() => updateSub(s.id, { proofUrl: undefined, proofName: undefined })}
+                        label="Upload bill / screenshot"
+                      />
                     )}
                   </div>
                 ))
               )}
             </div>
-            {value.subHeads.length > 0 && (
+            {draft.subHeads.length > 0 && (
               <p className="text-[11px] text-gray-500 mt-2 font-semibold">
-                Team / section sum: {currency(value.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0))}
+                Team / section sum: {currency(draft.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0))}
               </p>
             )}
           </div>
@@ -648,13 +620,18 @@ export default function HeadDetailModal({
           >
             Delete
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26]"
-          >
-            Done
-          </button>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-gray-400 hidden sm:block">Changes save when you click Done</p>
+            <button
+              type="button"
+              onClick={handleDone}
+              disabled={saving}
+              className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26] disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+              Done
+            </button>
+          </div>
         </div>
       </div>
     </div>

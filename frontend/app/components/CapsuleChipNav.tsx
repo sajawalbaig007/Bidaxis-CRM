@@ -16,7 +16,7 @@ export type CapsuleChipItem = {
   title: string;
   href: string;
   icon: LucideIcon;
-  /** Shown on very narrow columns when `title` would truncate too aggressively */
+  /** Shown on very narrow columns when `title` would truncate too aggressively (grid layout only) */
   shortTitle?: string;
 };
 
@@ -24,9 +24,11 @@ type CapsuleChipNavProps = {
   items: CapsuleChipItem[];
   baseHref: string;
   accent?: string;
-  /** Tailwind grid column classes, e.g. `grid-cols-3 sm:grid-cols-6` */
+  /** Tailwind grid column classes — grid layout only */
   gridClassName?: string;
   className?: string;
+  /** `inline` = single-row toolbar nav (accounts #272 style); `grid` = second-row chip grid */
+  variant?: "inline" | "grid";
 };
 
 export default function CapsuleChipNav({
@@ -35,6 +37,7 @@ export default function CapsuleChipNav({
   accent = "#B8112D",
   gridClassName = "grid-cols-3 sm:grid-cols-6",
   className = "",
+  variant = "inline",
 }: CapsuleChipNavProps) {
   const pathname = usePathname();
   const trackRef = useRef<HTMLDivElement>(null);
@@ -81,26 +84,55 @@ export default function CapsuleChipNav({
     };
   }, [measureCapsule]);
 
+  const pillRadius = variant === "inline" ? "rounded-[13px]" : "rounded-full";
+  const pillClass =
+    `pointer-events-none absolute ${pillRadius} transition-[transform,width,height,box-shadow,opacity] duration-700 ease-[cubic-bezier(0.34,1.25,0.64,1)] will-change-[transform,width,height]`;
+
+  const pillStyle = {
+    width: capsule.width,
+    height: capsule.height,
+    transform: `translate3d(${capsule.left}px, ${capsule.top}px, 0)`,
+    opacity: capsule.ready ? 1 : 0,
+    background: accent,
+    boxShadow: `0 4px 14px ${accent}40`,
+  } as CSSProperties;
+
+  const trackClass =
+    variant === "inline"
+      ? `relative mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto border border-crm-border-subtle ${className}`
+      : `relative grid gap-1 sm:gap-1.5 ${gridClassName} ${className}`;
+
   return (
     <div
       ref={trackRef}
-      className={`relative grid gap-1 ${gridClassName} ${className}`}
+      className={trackClass}
+      style={variant === "inline" ? { scrollbarWidth: "none" } : undefined}
     >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute rounded-full border border-crm-border-subtle backdrop-blur-md transition-[transform,width,height,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[transform,width,height]"
-        style={{
-          width: capsule.width,
-          height: capsule.height,
-          transform: `translate(${capsule.left}px, ${capsule.top}px)`,
-          opacity: capsule.ready ? 1 : 0,
-          background: `linear-gradient(135deg, ${accent}, ${accent}dd)`,
-          boxShadow: `0 4px 14px ${accent}44, inset 0 1px 0 rgba(255,255,255,0.2)`,
-        } as CSSProperties}
-      />
+      <span aria-hidden className={pillClass} style={pillStyle} />
       {items.map((item, i) => {
         const Icon = item.icon;
         const active = i === index;
+        if (variant === "inline") {
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={false}
+              ref={el => {
+                chipRefs.current[i] = el;
+              }}
+              title={item.title}
+              className={`relative z-[1] h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap shrink-0 transition-colors duration-300 ${
+                active
+                  ? "text-white"
+                  : "text-crm-text-secondary hover:bg-crm-surface/80 hover:text-[#B8112D]"
+              }`}
+            >
+              <Icon size={15} className="shrink-0" />
+              <span className="hidden md:inline">{item.title}</span>
+            </Link>
+          );
+        }
         return (
           <Link
             key={item.href}
@@ -110,10 +142,10 @@ export default function CapsuleChipNav({
               chipRefs.current[i] = el;
             }}
             title={item.title}
-            className={`relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 px-1 sm:px-2 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-colors duration-300 min-w-0 ${
+            className={`relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 sm:h-10 px-1 sm:px-2 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-colors duration-300 min-w-0 ${
               active
                 ? "text-white"
-                : "text-crm-text-secondary hover:text-[#B8112D]"
+                : "text-crm-text-secondary hover:text-[#B8112D] hover:bg-white/50"
             }`}
           >
             <Icon size={13} className="shrink-0" />

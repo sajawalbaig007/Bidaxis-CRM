@@ -20,6 +20,8 @@ export function departmentForPayrollKind(kind: PayrollKind): string {
       return "administration";
     case "executive":
       return "executive";
+    case "technical_manager":
+      return "technical_manager";
     case "technical":
     default:
       return "technical_team";

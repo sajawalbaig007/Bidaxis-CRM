@@ -10,16 +10,23 @@ import {
 } from "./payrollFormula";
 import {
   computeSalesEmployeePayroll,
+  type SalesCommissionFields,
   type SalesPayrollEmployee,
 } from "./salesPayrollFormula";
-import { salarySlipMonthLabel, type SalarySlipPayload } from "./salarySlipPdf";
+import { salarySlipMonthLabel, type SalarySlipLine, type SalarySlipPayload } from "./salarySlipPdf";
 import {
   DEFAULT_SALARY_SLIP_COMPANY,
   salarySlipCompanyForKind,
   type SalarySlipCompanyKey,
 } from "./salarySlipCompanies";
 
-export type SlipPayrollKind = "technical" | "admin" | "sales" | "sales_lead" | "executive";
+export type SlipPayrollKind =
+  | "technical"
+  | "technical_manager"
+  | "admin"
+  | "sales"
+  | "sales_lead"
+  | "executive";
 
 function profileFromSalary(sal?: Partial<EmployeeSalaryDetail> | null) {
   return {
@@ -36,6 +43,133 @@ function commentsFrom(sal?: { remarks?: string }, unpaidDays = 0, paidDays = 0):
   if (paidDays > 0) bits.push(`Your ${paidDays} leave(s) considered as paid/casual leave.`);
   if (unpaidDays > 0) bits.push(`Unpaid leave days: ${unpaidDays}.`);
   return bits.join(" ") || "";
+}
+
+function commissionQtyLabels(c: SalesCommissionFields) {
+  const oldCount = Number(c.oldClientProjects) || 0;
+  const partial = Math.min(Number(c.oldClientPartialCount) || 0, oldCount);
+  const oldFull = oldCount - partial;
+  const newCount = Number(c.newClientProjects) || 0;
+  const fixCount = (c.fixClientProjects ?? []).length;
+  return {
+    old:
+      oldCount > 0
+        ? partial > 0
+          ? `${oldFull} full + ${partial} half`
+          : `${oldCount} proj`
+        : undefined,
+    new: newCount > 0 ? `${newCount} proj` : undefined,
+    fix: fixCount > 0 ? `${fixCount} client` : undefined,
+  };
+}
+
+function buildSalesSlipEarnings(
+  emp: SalesPayrollEmployee,
+  b: ReturnType<typeof computeSalesEmployeePayroll>,
+  kind: "sales" | "sales_lead",
+  salesExtra: number,
+): SalarySlipLine[] {
+  const qty = commissionQtyLabels(emp.commission);
+  const totalComm = b.oldComm + b.newComm + b.fixComm + (kind === "sales_lead" ? salesExtra : 0);
+
+  const lines: SalarySlipLine[] = [{ label: "Basic Salary", amount: emp.basic }];
+  if (emp.allowance > 0) {
+    lines.push({ label: "Misc Allowance", amount: emp.allowance });
+  }
+
+  lines.push({
+    label: "Old Project Commission",
+    amount: b.oldComm,
+    qty: qty.old ?? (b.oldComm > 0 ? "—" : undefined),
+  });
+  lines.push({
+    label: "New Project Commission",
+    amount: b.newComm,
+    qty: qty.new ?? (b.newComm > 0 ? "—" : undefined),
+  });
+  if (b.fixComm > 0 || qty.fix) {
+    lines.push({
+      label: "Fixed Client Commission",
+      amount: b.fixComm,
+      qty: qty.fix,
+    });
+  }
+  if (kind === "sales_lead" && salesExtra > 0) {
+    lines.push({
+      label: "Team Lead Commission",
+      amount: salesExtra,
+      qty: "Assigned reps",
+    });
+  }
+  lines.push({
+    label: "Total Commission",
+    amount: totalComm,
+    qty: `${b.totalProjects} project(s)`,
+    includeInTotal: false,
+  });
+
+  return lines.filter(
+    r =>
+      r.includeInTotal === false ||
+      r.amount !== 0 ||
+      r.label === "Basic Salary" ||
+      r.label === "Old Project Commission" ||
+      r.label === "New Project Commission",
+  );
+}
+
+function buildTechnicalManagerEarnings(
+  sal: EmployeeSalaryDetail,
+  b: ReturnType<typeof computeSalary>,
+): SalarySlipLine[] {
+  const home = Number(sal.homeAllowance) || 0;
+  const medical = Number(sal.medicalAllowance) || 0;
+  const travel = Number(sal.travelAllowance) || 0;
+  const lines: SalarySlipLine[] = [{ label: "Basic Salary", amount: sal.basic }];
+  if (home > 0) lines.push({ label: "Home Allowance", amount: home });
+  if (medical > 0) lines.push({ label: "Medical Allowance", amount: medical });
+  if (travel > 0) lines.push({ label: "Travel Allowance", amount: travel });
+  if (sal.allowance > 0) lines.push({ label: "Misc Allowance", amount: sal.allowance });
+  if (b.weekdayOtPay > 0) {
+    lines.push({
+      label: "Weekday Overtime (1.5x)",
+      amount: b.weekdayOtPay,
+      qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
+    });
+  }
+  if (b.weekendOtPay > 0) {
+    lines.push({
+      label: "Weekend Overtime (2x)",
+      amount: b.weekendOtPay,
+      qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
+    });
+  }
+  return lines;
+}
+
+function standardDeductions(
+  b: {
+    incomeTax: number;
+    unpaidLeaveDeduction: number;
+    lateDeduction: number;
+    pf: number;
+    loanThisMonth?: number;
+  },
+  sal: { unpaidLeaveDays?: number; loanThisMonth?: number },
+  loanThisMonth: number,
+): SalarySlipLine[] {
+  const unpaidDays = Number(sal.unpaidLeaveDays) || 0;
+  return [
+    { label: "Income Tax", amount: b.incomeTax },
+    {
+      label: "Unpaid Leaves",
+      amount: b.unpaidLeaveDeduction,
+      qty: unpaidDays > 0 ? `${unpaidDays} day(s)` : undefined,
+    },
+    { label: "Late Arrival Deduction", amount: b.lateDeduction },
+    { label: "Employee PF Share", amount: b.pf },
+    { label: "Loan Deduction", amount: loanThisMonth },
+  ];
 }
 
 export function buildSalarySlipFromSub(opts: {
@@ -85,47 +219,26 @@ export function buildSalarySlipFromSub(opts: {
       remarks: sp?.remarks || "",
     };
     const b = computeSalesEmployeePayroll(emp, salesExtra);
-    const projectBasedCommission = b.oldComm + b.newComm + (kind === "sales_lead" ? salesExtra : 0);
-    const fixedClientCommission = b.fixComm;
-    const useSalesLeadTemplate = kind === "sales_lead";
-    const useSalesTeamTemplate = kind === "sales";
     return {
       companyKey,
       monthLabel,
       employeeName: emp.name,
       employeeId: emp.code || undefined,
-      earnings: useSalesLeadTemplate
-        ? [
-            { label: "Basic Salary", amount: emp.basic },
-            { label: "Misc Allowance", amount: emp.allowance },
-            { label: "Home Allowance", amount: 0 },
-            { label: "Project Based Comm", amount: projectBasedCommission },
-            { label: "Fixed Client Comm", amount: fixedClientCommission },
-          ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
-        : useSalesTeamTemplate
-          ? [
-              { label: "Basic Salary", amount: emp.basic },
-              { label: "Misc Allowance", amount: emp.allowance },
-              { label: "Project Based Comm", amount: projectBasedCommission },
-              { label: "Fixed Client Comm", amount: fixedClientCommission },
-            ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
-        : [
-            { label: "BasicSalary", amount: emp.basic },
-            { label: "MiscAllowance", amount: emp.allowance },
-            { label: "HomeAllowance", amount: 0 },
-            { label: "Commission", amount: b.totalCommission + salesExtra },
-          ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
-      deductions: [
-        { label: "Income Tax", amount: emp.incomeTax },
-        { label: "Unpaid Leaves", amount: b.unpaidLeaveDeduction },
-        { label: "Late Arrival Deduction", amount: b.lateDeduction },
-        { label: "Employee PF Share", amount: b.pf },
-        { label: "Loan Deduction", amount: emp.loanThisMonth },
-      ],
+      earnings: buildSalesSlipEarnings(emp, b, kind, salesExtra),
+      deductions: standardDeductions(
+        {
+          incomeTax: emp.incomeTax,
+          unpaidLeaveDeduction: b.unpaidLeaveDeduction,
+          lateDeduction: b.lateDeduction,
+          pf: b.pf,
+        },
+        emp,
+        emp.loanThisMonth,
+      ),
       comments: commentsFrom(emp, emp.unpaidLeaveDays, emp.paidLeaveDays),
       employeePf: b.pf,
       employerPf: b.pf,
-      ...(useSalesLeadTemplate || useSalesTeamTemplate ? { projectCount: b.totalProjects } : {}),
+      projectCount: b.totalProjects,
     };
   }
 
@@ -158,44 +271,45 @@ export function buildSalarySlipFromSub(opts: {
   }
 
   const sal = emptySalaryDetail(sub.salary ?? { basic: sub.amount });
+  const isTechMgr = kind === "technical_manager";
+  const isTechnical = kind === "technical" || isTechMgr;
   const b = kind === "admin" ? computeAdminSalary(sal) : computeSalary(sal);
   const profile = profileFromSalary(sal);
   const home = Number(sal.homeAllowance) || 0;
-  const isTechnical = kind === "technical";
 
   return {
     companyKey: isTechnical ? salarySlipCompanyForKind(kind, companyKey) : companyKey,
     monthLabel,
     employeeName: sub.label,
     ...profile,
-    earnings: isTechnical
-      ? [
-          { label: "Basic Salary", amount: sal.basic },
-          { label: "Allowances", amount: sal.allowance + home },
-          {
-            label: "Weekday Overtime (1.5x)",
-            amount: b.weekdayOtPay,
-            qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
-          },
-          {
-            label: "Weekend Overtime (2x)",
-            amount: b.weekendOtPay,
-            qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
-          },
-        ]
-      : [
-          { label: "BasicSalary", amount: sal.basic },
-          { label: "MiscAllowance", amount: sal.allowance },
-          { label: "HomeAllowance", amount: home },
-          ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
-        ],
-    deductions: [
-      { label: "Income Tax", amount: b.incomeTax },
-      { label: "Unpaid Leaves", amount: b.unpaidLeaveDeduction },
-      { label: "Late Arrival Deduction", amount: b.lateDeduction },
-      { label: "Employee PF Share", amount: b.pf },
-      { label: "Loan Deduction", amount: b.loanThisMonth },
-    ],
+    earnings: isTechMgr
+      ? buildTechnicalManagerEarnings(sal, b)
+      : isTechnical
+        ? [
+            { label: "Basic Salary", amount: sal.basic },
+            { label: "Allowances", amount: sal.allowance + home },
+            {
+              label: "Weekday Overtime (1.5x)",
+              amount: b.weekdayOtPay,
+              qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
+            },
+            {
+              label: "Weekend Overtime (2x)",
+              amount: b.weekendOtPay,
+              qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
+            },
+          ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
+        : [
+            { label: "BasicSalary", amount: sal.basic },
+            { label: "MiscAllowance", amount: sal.allowance },
+            { label: "HomeAllowance", amount: home },
+            ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
+          ],
+    deductions: standardDeductions(
+      { ...b, loanThisMonth: b.loanThisMonth },
+      sal,
+      b.loanThisMonth,
+    ),
     comments: commentsFrom(sal, sal.unpaidLeaveDays, sal.paidLeaveDays),
     employeePf: b.pf,
     employerPf: b.pf,

@@ -5,6 +5,9 @@ export type EmployeeSalaryDetail = {
   allowance: number;
   /** Optional home allowance line on salary slip (Misc = allowance). */
   homeAllowance?: number;
+  /** Technical manager / itemized allowance lines */
+  medicalAllowance?: number;
+  travelAllowance?: number;
 
   /** Weekday overtime hours */
   weekdayOtHours: number;
@@ -180,7 +183,9 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
   const basic = Number(detail.basic) || 0;
   const allowance = Number(detail.allowance) || 0;
   const homeAllowance = Number(detail.homeAllowance) || 0;
-  const monthlySalary = basic + allowance + homeAllowance;
+  const medicalAllowance = Number(detail.medicalAllowance) || 0;
+  const travelAllowance = Number(detail.travelAllowance) || 0;
+  const monthlySalary = basic + allowance + homeAllowance + medicalAllowance + travelAllowance;
   const daySalary = monthlySalary / 30;
   const hourSalary = daySalary / 8;
 
@@ -269,7 +274,9 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
   const allowance = Number(detail.allowance) || 0;
   const homeAllowance = Number(detail.homeAllowance) || 0;
-  const monthlySalary = basic + allowance + homeAllowance;
+  const medicalAllowance = Number(detail.medicalAllowance) || 0;
+  const travelAllowance = Number(detail.travelAllowance) || 0;
+  const monthlySalary = basic + allowance + homeAllowance + medicalAllowance + travelAllowance;
   const daySalary = monthlySalary / 30;
   const hourSalary = daySalary / 8;
 
@@ -279,7 +286,7 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const weekendOtPay = weekendOtHours * hourSalary * 2;
   const totalOvertime = weekdayOtPay + weekendOtPay;
 
-  const totalEarning = basic + allowance + homeAllowance + totalOvertime;
+  const totalEarning = basic + allowance + homeAllowance + medicalAllowance + travelAllowance + totalOvertime;
 
   const late = calcLateDeduction(
     daySalary,

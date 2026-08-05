@@ -699,7 +699,7 @@ export default function AccountsReportsPage() {
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
       <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
-        <div id="monthly-report" className="max-w-[1200px] mx-auto px-3 sm:px-5 py-5 space-y-4 scroll-mt-[130px]">
+        <div id="monthly-report" className="max-w-[1200px] mx-auto px-3 sm:px-5 py-5 space-y-4 scroll-mt-[80px]">
           <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">

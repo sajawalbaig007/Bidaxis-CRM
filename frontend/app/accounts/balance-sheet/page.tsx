@@ -167,7 +167,7 @@ export default function BalanceSheetPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
-            <div id="bs-assets" className="scroll-mt-[130px]">
+            <div id="bs-assets" className="scroll-mt-[80px]">
             <BalanceSheetTable
               variant="assets"
               groupTitle="Assets"
@@ -202,7 +202,7 @@ export default function BalanceSheetPage() {
             />
             </div>
 
-            <div id="bs-equity" className="scroll-mt-[130px]">
+            <div id="bs-equity" className="scroll-mt-[80px]">
             <BalanceSheetTable
               variant="liability"
               groupTitle="Equity & Liabilities"

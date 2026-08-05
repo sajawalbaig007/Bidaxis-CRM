@@ -276,7 +276,7 @@ export default function CashFlowStatementPage() {
             </section>
           )}
 
-          <div id="cash-tables" className="mt-5 scroll-mt-[130px]">
+          <div id="cash-tables" className="mt-5 scroll-mt-[80px]">
             <CashFlowTable
               months={acc.data.months ?? []}
               bankHeads={bankHeads}
