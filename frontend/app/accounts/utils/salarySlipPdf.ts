@@ -76,22 +76,69 @@ function earningsTotal(lines: SalarySlipLine[]): number {
   );
 }
 
-async function loadLogoForPdf(url: string): Promise<{ dataUrl: string; format: "JPEG" | "PNG" } | null> {
+async function loadLogoForPdf(
+  url: string,
+  opts?: { stripWhite?: boolean },
+): Promise<{ dataUrl: string; format: "PNG" | "JPEG"; width: number; height: number } | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
     const blob = await res.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = objectUrl;
     });
-    const format: "JPEG" | "PNG" = blob.type.includes("png") ? "PNG" : "JPEG";
-    return { dataUrl, format };
+    URL.revokeObjectURL(objectUrl);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0);
+
+    const shouldStrip =
+      opts?.stripWhite ?? (blob.type.includes("jpeg") || blob.type.includes("jpg"));
+    if (shouldStrip) {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i];
+        const g = d[i + 1];
+        const b = d[i + 2];
+        const avg = (r + g + b) / 3;
+        const spread = Math.max(r, g, b) - Math.min(r, g, b);
+        if (avg > 248 && spread < 18) {
+          d[i + 3] = 0;
+        } else if (avg > 228 && spread < 28) {
+          d[i + 3] = Math.min(d[i + 3], Math.round((255 - avg) * 10));
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    const dataUrl = canvas.toDataURL(shouldStrip ? "image/png" : blob.type.includes("png") ? "image/png" : "image/jpeg");
+    const format: "PNG" | "JPEG" = shouldStrip || blob.type.includes("png") ? "PNG" : "JPEG";
+    return { dataUrl, format, width: canvas.width, height: canvas.height };
   } catch {
     return null;
   }
+}
+
+function fitLogoBox(imgW: number, imgH: number, maxW: number, maxH: number): { w: number; h: number } {
+  if (imgW <= 0 || imgH <= 0) return { w: maxW, h: maxH };
+  const ratio = imgW / imgH;
+  let w = maxW;
+  let h = w / ratio;
+  if (h > maxH) {
+    h = maxH;
+    w = h * ratio;
+  }
+  return { w, h };
 }
 
 export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise<void> {
@@ -106,37 +153,47 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
   const margin = 14;
   const [ar, ag, ab] = hexToRgb(company.accent);
 
-  doc.setFillColor(ar, ag, ab);
-  doc.rect(0, 0, pageW, 28, "F");
+  const headerH = 28;
+  const logoMaxW = key === "BEM" ? 36 : 22;
+  const logoMaxH = key === "BEM" ? 14 : 18;
 
-  const logo = company.logoUrl ? await loadLogoForPdf(company.logoUrl) : null;
+  doc.setFillColor(ar, ag, ab);
+  doc.rect(0, 0, pageW, headerH, "F");
+
+  const logo = company.logoUrl
+    ? await loadLogoForPdf(company.logoUrl, { stripWhite: key === "BEM" })
+    : null;
+
+  let logoEndX = margin;
   if (logo) {
-    doc.addImage(logo.dataUrl, logo.format, margin, 5, 42, 18);
+    const { w, h } = fitLogoBox(logo.width, logo.height, logoMaxW, logoMaxH);
+    const logoY = (headerH - h) / 2;
+    doc.addImage(logo.dataUrl, logo.format, margin, logoY, w, h);
+    logoEndX = margin + w + 5;
   } else {
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text(company.brandLine, margin, 12);
+    doc.setFontSize(14);
+    doc.text(company.brandLine, margin, 11);
+    logoEndX = margin + 42;
   }
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  if (!logo) {
-    doc.text("HEAD OFFICE", margin, 18);
-    const addr = doc.splitTextToSize(company.address || "—", pageW / 2 - margin);
-    doc.text(addr, margin, 23);
-  } else {
-    const addr = doc.splitTextToSize(company.address || "—", pageW / 2 - margin - 8);
-    doc.text(addr, margin + 46, 14);
-    doc.text("HEAD OFFICE", margin + 46, 20);
-  }
+  const addrMaxW = pageW / 2 - logoEndX + 4;
+  const addr = doc.splitTextToSize(company.address || "—", Math.max(40, addrMaxW));
+  doc.text(addr, logoEndX, 12);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.text("HEAD OFFICE", logoEndX, 19);
 
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text(`Tel: ${company.phone}`, pageW - margin, 12, { align: "right" });
-  doc.text(company.email, pageW - margin, 17, { align: "right" });
+  doc.text(`Tel: ${company.phone}`, pageW - margin, 11, { align: "right" });
+  doc.text(company.email, pageW - margin, 16, { align: "right" });
   if (company.website) {
-    doc.text(`Visit: ${company.website}`, pageW - margin, 22, { align: "right" });
+    doc.text(`Visit: ${company.website}`, pageW - margin, 21, { align: "right" });
   }
 
   let y = 36;
