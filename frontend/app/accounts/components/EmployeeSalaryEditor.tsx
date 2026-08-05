@@ -113,7 +113,7 @@ export default function EmployeeSalaryEditor({
 
       <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
-          Salary slip profile (BEM Solutions)
+          Salary slip profile ({variant === "technical" ? "GPS" : "BEM Solutions"})
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">

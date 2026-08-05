@@ -15,6 +15,7 @@ import {
 import { salarySlipMonthLabel, type SalarySlipPayload } from "./salarySlipPdf";
 import {
   DEFAULT_SALARY_SLIP_COMPANY,
+  salarySlipCompanyForKind,
   type SalarySlipCompanyKey,
 } from "./salarySlipCompanies";
 
@@ -160,18 +161,34 @@ export function buildSalarySlipFromSub(opts: {
   const b = kind === "admin" ? computeAdminSalary(sal) : computeSalary(sal);
   const profile = profileFromSalary(sal);
   const home = Number(sal.homeAllowance) || 0;
+  const isTechnical = kind === "technical";
 
   return {
-    companyKey,
+    companyKey: isTechnical ? salarySlipCompanyForKind(kind, companyKey) : companyKey,
     monthLabel,
     employeeName: sub.label,
     ...profile,
-    earnings: [
-      { label: "BasicSalary", amount: sal.basic },
-      { label: "MiscAllowance", amount: sal.allowance },
-      { label: "HomeAllowance", amount: home },
-      ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
-    ],
+    earnings: isTechnical
+      ? [
+          { label: "Basic Salary", amount: sal.basic },
+          { label: "Allowances", amount: sal.allowance + home },
+          {
+            label: "Weekday Overtime (1.5x)",
+            amount: b.weekdayOtPay,
+            qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
+          },
+          {
+            label: "Weekend Overtime (2x)",
+            amount: b.weekendOtPay,
+            qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
+          },
+        ]
+      : [
+          { label: "BasicSalary", amount: sal.basic },
+          { label: "MiscAllowance", amount: sal.allowance },
+          { label: "HomeAllowance", amount: home },
+          ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
+        ],
     deductions: [
       { label: "Income Tax", amount: b.incomeTax },
       { label: "Unpaid Leaves", amount: b.unpaidLeaveDeduction },

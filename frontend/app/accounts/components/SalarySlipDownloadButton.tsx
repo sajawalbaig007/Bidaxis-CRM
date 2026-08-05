@@ -9,6 +9,7 @@ import { downloadSalarySlipPdf } from "../utils/salarySlipPdf";
 import {
   DEFAULT_SALARY_SLIP_COMPANY,
   SALARY_SLIP_COMPANIES,
+  salarySlipCompanyForKind,
   type SalarySlipCompanyKey,
 } from "../utils/salarySlipCompanies";
 
@@ -35,7 +36,8 @@ export default function SalarySlipDownloadButton({
   className = "",
 }: Props) {
   const [busy, setBusy] = useState(false);
-  const company = SALARY_SLIP_COMPANIES[companyKey];
+  const resolvedKey = salarySlipCompanyForKind(kind, companyKey);
+  const company = SALARY_SLIP_COMPANIES[resolvedKey];
 
   const onClick = async (e: MouseEvent) => {
     e.stopPropagation();
@@ -49,7 +51,7 @@ export default function SalarySlipDownloadButton({
         sub,
         kind,
         recordDate,
-        companyKey,
+        companyKey: resolvedKey,
         execProfitBase,
         salesExtra,
       });
