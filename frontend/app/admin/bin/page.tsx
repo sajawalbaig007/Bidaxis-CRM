@@ -16,6 +16,7 @@ import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
+import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 
 const BinStatsChart = dynamic(() => import("./BinStatsChart"), {
   ssr: false,
@@ -141,11 +142,11 @@ export default function AdminBinPage() {
     });
   }, [currentList, search, stateFilter, phoneFilter]);
 
-  const tabs: { key: TabKey; label: string; count: number; Icon: typeof Trash2 }[] = [
-    { key: "all",           label: "All",            count: leads.length,              Icon: Trash2     },
-    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     Icon: PhoneOff   },
-    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, Icon: ThumbsDown },
-    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       Icon: Star       },
+  const tabs: CapsuleTabItem<TabKey>[] = [
+    { key: "all",           label: "All",            count: leads.length,               icon: Trash2     },
+    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     icon: PhoneOff   },
+    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, icon: ThumbsDown },
+    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       icon: Star       },
   ];
 
   return (
@@ -182,20 +183,12 @@ export default function AdminBinPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-4">
-            <div className="flex gap-2 overflow-x-auto pb-0.5 flex-1">
-              {tabs.map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => { setTab(t.key); setSearch(""); }}
-                  className={`h-10 px-3 sm:px-5 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap ${
-                    tab === t.key ? "bg-[#B8112D] text-white" : "bg-white text-[#B8112D] border border-[#B8112D]/20"
-                  }`}
-                >
-                  <t.Icon size={14} />{t.label}
-                  <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${tab === t.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>{t.count}</span>
-                </button>
-              ))}
-            </div>
+            <CapsuleTabs
+              className="flex-1"
+              tabs={tabs}
+              activeKey={tab}
+              onChange={key => { setTab(key); setSearch(""); }}
+            />
             <div className="relative w-full sm:w-auto">
               <User2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <select

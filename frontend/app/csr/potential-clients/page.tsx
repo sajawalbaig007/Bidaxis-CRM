@@ -35,6 +35,7 @@ import { useOpenLeadFromQuery } from "../hooks/useOpenLeadFromQuery";
 import { useQueryTab } from "../hooks/useQueryTab";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import API from "@/lib/api";
+import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { usTimezones } from "../constants/timezones";
 import { PAGE_SIZE, TODAY_STR } from "../constants";
 import { Lead } from "../types/lead";
@@ -383,29 +384,16 @@ export default function ImportantCallsPage() {
         </div>
 
         {/* ── TAB BUTTONS ── */}
-        <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7 overflow-x-auto pb-1">
-          {[
-            { key: "important",  label: "Important Calls",    count: stats.importantOnlyCount, Icon: CircleAlert },
-            { key: "schedule",   label: "Schedule Call",      count: stats.scheduledCount,     Icon: CalendarDays },
-            { key: "interested", label: "Interested Clients", count: stats.interestedCount,    Icon: PhoneCall   },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setSearchQuery(""); setFilterDate(""); setPage(1); }}
-              className={`h-10 sm:h-12 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2 shadow-sm whitespace-nowrap ${
-                activeTab === tab.key
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"
-              }`}
-            >
-              <tab.Icon size={14} className="sm:w-[17px] sm:h-[17px]" />
-              {tab.label}
-              <span className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] ${activeTab === tab.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
+        <CapsuleTabs
+          className="mt-4 sm:mt-7"
+          activeKey={activeTab}
+          onChange={key => { setActiveTab(key); setSearchQuery(""); setFilterDate(""); setPage(1); }}
+          tabs={[
+            { key: "important",  label: "Important Calls",    count: stats.importantOnlyCount, icon: CircleAlert  },
+            { key: "schedule",   label: "Schedule Call",      count: stats.scheduledCount,     icon: CalendarDays },
+            { key: "interested", label: "Interested Clients", count: stats.interestedCount,    icon: PhoneCall    },
+          ]}
+        />
 
         <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-4">
           <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
