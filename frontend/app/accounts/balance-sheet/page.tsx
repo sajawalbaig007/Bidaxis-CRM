@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { Scale, TrendingUp } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
+import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard from "../components/AccountsChartCard";
 import BalanceSheetTable, { sumItems } from "../components/BalanceSheetTable";
@@ -75,7 +76,7 @@ export default function BalanceSheetPage() {
   return (
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+      <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Balance Sheet"
@@ -166,7 +167,7 @@ export default function BalanceSheetPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
-            <div id="bs-assets" className="scroll-mt-24">
+            <div id="bs-assets" className="scroll-mt-[130px]">
             <BalanceSheetTable
               variant="assets"
               groupTitle="Assets"
@@ -201,7 +202,7 @@ export default function BalanceSheetPage() {
             />
             </div>
 
-            <div id="bs-equity" className="scroll-mt-24">
+            <div id="bs-equity" className="scroll-mt-[130px]">
             <BalanceSheetTable
               variant="liability"
               groupTitle="Equity & Liabilities"

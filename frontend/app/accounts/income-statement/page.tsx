@@ -9,6 +9,7 @@ import { PieChart as PieIcon, Users, Layers3, TrendingUp } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
+import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
 import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
@@ -222,7 +223,7 @@ export default function IncomeStatementPage() {
   return (
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+      <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
@@ -391,7 +392,7 @@ export default function IncomeStatementPage() {
           </section>
 
           <section className="mt-5 space-y-5">
-            <div id="team-salaries" className="scroll-mt-24">
+            <div id="team-salaries" className="scroll-mt-[130px]">
             <ExpandableHeadsTable
               title="Team Salaries"
               accent="#0B84F3"
@@ -407,7 +408,7 @@ export default function IncomeStatementPage() {
             />
             </div>
 
-            <div id="opex" className="scroll-mt-24">
+            <div id="opex" className="scroll-mt-[130px]">
             <ExpandableHeadsTable
               title="Operating Expenses"
               accent="#F59E0B"
@@ -421,7 +422,7 @@ export default function IncomeStatementPage() {
             />
             </div>
 
-            <div id="loans" className="scroll-mt-24">
+            <div id="loans" className="scroll-mt-[130px]">
             <ExpandableHeadsTable
               title="Loans"
               accent="#EA580C"
@@ -433,7 +434,7 @@ export default function IncomeStatementPage() {
             />
             </div>
 
-            <div id="provident-fund" className="scroll-mt-24">
+            <div id="provident-fund" className="scroll-mt-[130px]">
             <ExpandableHeadsTable
               title="Provident Fund"
               accent="#0D9488"

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import { Building2, BarChart3 } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
+import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard from "../components/AccountsChartCard";
 import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
@@ -133,7 +134,7 @@ export default function TotalAssetsPage() {
   return (
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+      <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Total Assets"
@@ -223,7 +224,7 @@ export default function TotalAssetsPage() {
             </AccountsChartCard>
           </section>
 
-          <section id="assets-register" className="mt-5 space-y-5 scroll-mt-24">
+          <section id="assets-register" className="mt-5 space-y-5 scroll-mt-[130px]">
             {ASSETS_COMPANIES.map(c => (
               <ExpandableHeadsTable
                 key={c.key}

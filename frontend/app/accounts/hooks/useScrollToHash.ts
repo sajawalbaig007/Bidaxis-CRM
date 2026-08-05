@@ -34,9 +34,9 @@ function ensureHistoryPatch() {
 /**
  * Scroll to `window.location.hash` after navigation / hash change.
  * `ready` — wait until page data finished loading so the section exists in DOM.
- * `offset` — clear fixed accounts top bar (~64px) + padding.
+ * `offset` — clear fixed accounts top bar (~117px) + padding.
  */
-export function useScrollToHash(ready = true, offset = 80) {
+export function useScrollToHash(ready = true, offset = 130) {
   const pathname = usePathname();
 
   useEffect(() => {

@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
 import { LayoutDashboard, Scale, TrendingUp, Landmark, Building2, FileText, LogOut, MessageSquare, ChevronDown } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import API from "@/lib/api";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import ChatPanel from "@/app/components/chat/ChatPanel";
+import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { useChatEnabled } from "@/lib/useChatEnabled";
@@ -19,12 +19,12 @@ import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 const BASE = "/accounts";
 
 const navItems = [
-  { title: "Dashboard", href: `${BASE}`, icon: LayoutDashboard },
-  { title: "Balance Sheet", href: `${BASE}/balance-sheet`, icon: Scale },
-  { title: "Income Statement", href: `${BASE}/income-statement`, icon: TrendingUp },
-  { title: "Cash Flow Statement", href: `${BASE}/cash-flow-statement`, icon: Landmark },
-  { title: "Total Assets", href: `${BASE}/total-assets`, icon: Building2 },
-  { title: "Reports", href: `${BASE}/reports`, icon: FileText },
+  { title: "Dashboard", shortTitle: "Home", href: `${BASE}`, icon: LayoutDashboard },
+  { title: "Balance Sheet", shortTitle: "Balance", href: `${BASE}/balance-sheet`, icon: Scale },
+  { title: "Income Statement", shortTitle: "Income", href: `${BASE}/income-statement`, icon: TrendingUp },
+  { title: "Cash Flow Statement", shortTitle: "Cash Flow", href: `${BASE}/cash-flow-statement`, icon: Landmark },
+  { title: "Total Assets", shortTitle: "Assets", href: `${BASE}/total-assets`, icon: Building2 },
+  { title: "Reports", shortTitle: "Reports", href: `${BASE}/reports`, icon: FileText },
 ];
 
 type UserInfo = {
@@ -35,7 +35,6 @@ type UserInfo = {
 };
 
 export default function AccountsSidebar() {
-  const pathname = usePathname();
   const [user, setUser] = useState<UserInfo | null>(() => peekAuthMe());
   const [profileOpen, setProfileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -93,8 +92,8 @@ export default function AccountsSidebar() {
     <>
     <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface/90 backdrop-blur-md border-b border-crm-border shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-2 sm:gap-3">
-        <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
-          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-md shadow-[#B8112D]/25 overflow-hidden p-1">
+        <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0 min-w-0">
+          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-md shadow-[#B8112D]/25 overflow-hidden p-1 shrink-0">
             <Image
               src="/images/image.png"
               alt="logo"
@@ -103,8 +102,8 @@ export default function AccountsSidebar() {
               className="object-cover w-full h-full rounded-[10px] bg-white"
             />
           </div>
-          <div className="hidden sm:block">
-            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
+          <div className="hidden sm:block min-w-0">
+            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight truncate">
               CRM Dashboard
             </h2>
             <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
@@ -113,28 +112,7 @@ export default function AccountsSidebar() {
           </div>
         </Link>
 
-        <div className="flex-1 min-w-0">
-          <nav className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto border border-crm-border-subtle" style={{ scrollbarWidth: "none" }}>
-            {navItems.map(({ title, href, icon: Icon }) => {
-              const active = href === BASE ? pathname === BASE : pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  prefetch={false}
-                  className={`h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
-                    active
-                      ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/25"
-                      : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
-                  }`}
-                >
-                  <Icon size={15} className="shrink-0" />
-                  <span className="hidden md:inline">{title}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+        <div className="flex-1" />
 
         <ThemeToggle />
 
@@ -219,7 +197,15 @@ export default function AccountsSidebar() {
             </div>
           )}
         </div>
+      </div>
 
+      <div className="border-t border-crm-border-subtle bg-crm-nav-pill/60 px-2 sm:px-3 py-2">
+        <CapsuleChipNav
+          items={navItems}
+          baseHref={BASE}
+          accent="#B8112D"
+          gridClassName="grid-cols-3 sm:grid-cols-6"
+        />
       </div>
     </header>
     {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
