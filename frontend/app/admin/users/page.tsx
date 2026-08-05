@@ -16,6 +16,7 @@ import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
+import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import {
@@ -895,37 +896,19 @@ export default function UsersPage() {
         </div>
 
         {/* ROLE TABS — view CSR / Admin / Manager separately */}
-        <div className="flex flex-wrap items-center gap-2 mb-5">
-          {([
-            { id: "All" as const, label: "All Users" },
-            { id: "CSR" as const, label: "CSR" },
-            { id: "Admin" as const, label: "Admin" },
-            { id: "Manager" as const, label: "Manager" },
-            { id: "Technical Manager" as const, label: "Technical Manager" },
-            { id: "Accounts" as const, label: "Accounts" },
-          ]).map(tab => {
-            const active = roleFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => { setRoleFilter(tab.id); setPage(1); }}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
-                  active
-                    ? "bg-[#B8112D] text-white border-[#B8112D] shadow-sm"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40 hover:text-[#B8112D]"
-                }`}
-              >
-                {tab.label}
-                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-                  active ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
-                }`}>
-                  {countByRole[tab.id]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <CapsuleTabs
+          className="mb-5"
+          activeKey={roleFilter}
+          onChange={key => { setRoleFilter(key); setPage(1); }}
+          tabs={[
+            { key: "All", label: "All Users", count: countByRole.All },
+            { key: "CSR", label: "CSR", count: countByRole.CSR },
+            { key: "Admin", label: "Admin", count: countByRole.Admin },
+            { key: "Manager", label: "Manager", count: countByRole.Manager },
+            { key: "Technical Manager", label: "Technical Manager", count: countByRole["Technical Manager"] },
+            { key: "Accounts", label: "Accounts", count: countByRole.Accounts },
+          ]}
+        />
 
         {/* TABLE */}
         <div className="bg-white border border-gray-100 rounded-3xl overflow-x-auto">

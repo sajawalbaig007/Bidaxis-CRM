@@ -26,6 +26,7 @@ import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterIn
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
+import CapsuleTabs from "@/app/components/CapsuleTabs";
 
 import { useNotInterested, NiLead } from "../hooks/useNotInterested";
 import { useCsrMiscStatusLeads } from "../hooks/useCsrMiscStatusLeads";
@@ -371,31 +372,18 @@ export default function NotInterestedPage() {
         </div>
 
         {/* ── TAB BUTTONS ── */}
-        <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7 overflow-x-auto pb-0.5">
-          {[
-            { key: "notinterested" as const, label: "Not Interested", count: notInterested.length, Icon: ThumbsDown },
-            { key: "notpicked" as const,     label: "Not Picked",     count: notPicked.length,     Icon: PhoneOff   },
-            { key: "noowner" as const,       label: "No Owner",       count: noOwner.length,       Icon: UserX      },
-            { key: "notinservice" as const,  label: "Not In Service", count: notInService.length,  Icon: Ban        },
-            { key: "inhouse" as const,       label: "In House",       count: inHouse.length,       Icon: Home       },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setSearch(""); setPage(1); }}
-              className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all whitespace-nowrap ${
-                activeTab === tab.key
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"
-              }`}
-            >
-              <tab.Icon size={14} className="sm:w-4 sm:h-4" />
-              {tab.label}
-              <span className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold ${activeTab === tab.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
+        <CapsuleTabs
+          className="mt-4 sm:mt-7"
+          activeKey={activeTab}
+          onChange={key => { setActiveTab(key); setSearch(""); setPage(1); }}
+          tabs={[
+            { key: "notinterested", label: "Not Interested", count: notInterested.length, icon: ThumbsDown },
+            { key: "notpicked",     label: "Not Picked",     count: notPicked.length,     icon: PhoneOff   },
+            { key: "noowner",       label: "No Owner",       count: noOwner.length,       icon: UserX      },
+            { key: "notinservice",  label: "Not In Service", count: notInService.length,  icon: Ban        },
+            { key: "inhouse",       label: "In House",       count: inHouse.length,       icon: Home       },
+          ]}
+        />
 
         {/* ── TABLE CARD ── */}
         <div className={CSR_TABLE_CARD}>

@@ -17,6 +17,7 @@ import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
+import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import API from "@/lib/api";
 
 const PAGE_SIZE = 30;
@@ -97,14 +98,14 @@ export default function CSRBinPage() {
     finally { setRestoringId(null); }
   };
 
-  const tabs: { key: TabKey; label: string; count: number; Icon: typeof Trash2 }[] = [
-    { key: "all",           label: "All",            count: leads.length,              Icon: Trash2     },
-    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     Icon: PhoneOff   },
-    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, Icon: ThumbsDown },
-    { key: "inhouse",       label: "In House",       count: byTab.inhouse.length,       Icon: Briefcase  },
-    { key: "noowner",       label: "No Owner",       count: byTab.noowner.length,       Icon: PhoneOff   },
-    { key: "notinservice",  label: "Not In Service", count: byTab.notinservice.length,  Icon: ThumbsDown },
-    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       Icon: Star       },
+  const tabs: CapsuleTabItem<TabKey>[] = [
+    { key: "all",           label: "All",            count: leads.length,               icon: Trash2     },
+    { key: "notpicked",     label: "Not Picked",     count: byTab.notpicked.length,     icon: PhoneOff   },
+    { key: "notinterested", label: "Not Interested", count: byTab.notinterested.length, icon: ThumbsDown },
+    { key: "inhouse",       label: "In House",       count: byTab.inhouse.length,       icon: Briefcase  },
+    { key: "noowner",       label: "No Owner",       count: byTab.noowner.length,       icon: PhoneOff   },
+    { key: "notinservice",  label: "Not In Service", count: byTab.notinservice.length,  icon: ThumbsDown },
+    { key: "deleted",       label: "Deleted",        count: byTab.deleted.length,       icon: Star       },
   ];
 
   return (
@@ -146,25 +147,12 @@ export default function CSRBinPage() {
           />
         </div>
 
-        <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 overflow-x-auto pb-0.5">
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              onClick={() => { setTab(t.key); setSearch(""); setPage(1); }}
-              className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all whitespace-nowrap ${
-                tab === t.key
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"
-              }`}
-            >
-              <t.Icon size={14} />
-              {t.label}
-              <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${tab === t.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>
-                {t.count}
-              </span>
-            </button>
-          ))}
-        </div>
+        <CapsuleTabs
+          className="mt-4 sm:mt-6"
+          tabs={tabs}
+          activeKey={tab}
+          onChange={key => { setTab(key); setSearch(""); setPage(1); }}
+        />
 
         <div className={CSR_TABLE_CARD}>
           <div className="p-4 sm:p-5 border-b border-[#F3F3F3]">

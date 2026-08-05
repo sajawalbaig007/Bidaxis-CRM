@@ -6,6 +6,7 @@ import API, { apiErrorMessage } from "@/lib/api";
 import { getAdminTabCounts } from "@/lib/adminSummaryCache";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
+import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import toast, { Toaster } from "react-hot-toast";
 import { formatAdminLead } from "../utils/formatAdminLead";
 import { adminLeadStatusBadgeClass, adminLeadStatusLabel } from "../utils/leadStatus";
@@ -334,14 +335,14 @@ function ClientsPageContent() {
     return { ...tabCounts, ...counts };
   }, [hasActiveFilters, colFilteredClients, tabCounts]);
 
-  const visibleTabs = useMemo(() => {
-    const all = [
-      { key: "important" as const, label: "Important", count: filteredTabCounts.important, Icon: CircleAlert },
-      { key: "schedule" as const, label: "Schedule Call", count: filteredTabCounts.schedule, Icon: CalendarDays },
-      { key: "interested" as const, label: "Interested", count: filteredTabCounts.interested, Icon: HeartHandshake },
-      { key: "closed" as const, label: "Closed", count: filteredTabCounts.closed, Icon: BadgeCheck },
+  const visibleTabs = useMemo<CapsuleTabItem<ClientView>[]>(() => {
+    const all: CapsuleTabItem<ClientView>[] = [
+      { key: "important", label: "Important", count: filteredTabCounts.important, icon: CircleAlert },
+      { key: "schedule", label: "Schedule Call", count: filteredTabCounts.schedule, icon: CalendarDays },
+      { key: "interested", label: "Interested", count: filteredTabCounts.interested, icon: HeartHandshake },
+      { key: "closed", label: "Closed", count: filteredTabCounts.closed, icon: BadgeCheck },
     ];
-    return hasActiveFilters ? all.filter(t => t.count > 0) : all;
+    return hasActiveFilters ? all.filter(t => (t.count ?? 0) > 0) : all;
   }, [filteredTabCounts, hasActiveFilters]);
 
   const paginatedClients  = colFilteredClients;
@@ -525,33 +526,15 @@ function ClientsPageContent() {
         {/* Horizontally scrollable on mobile, wraps on md+ */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-2 sm:px-3 py-2 sm:py-2.5 mb-4 sm:mb-5 overflow-x-auto">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
-            {visibleTabs.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => {
-                  setView(item.key as ClientView);
-                  setPage(1);
-                  router.replace(`${staffBase}/leads?tab=${item.key}`);
-                }}
-                className={`h-9 sm:h-10 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 transition-all whitespace-nowrap ${
-                  effectiveView === item.key
-                    ? "bg-[#B8112D] text-white shadow-md shadow-red-200"
-                    : "text-gray-600 hover:bg-[#FFF6F7] hover:text-[#B8112D]"
-                }`}
-              >
-                <item.Icon size={13} className="sm:w-[15px] sm:h-[15px]" />
-                {item.label}
-                <span
-                  className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold ${
-                    effectiveView === item.key
-                      ? "bg-white/20"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {item.count}
-                </span>
-              </button>
-            ))}
+            <CapsuleTabs
+              tabs={visibleTabs}
+              activeKey={effectiveView as ClientView}
+              onChange={key => {
+                setView(key);
+                setPage(1);
+                router.replace(`${staffBase}/leads?tab=${key}`);
+              }}
+            />
 
             <div className="w-px h-6 bg-gray-200 mx-0.5 sm:mx-1 shrink-0" />
 

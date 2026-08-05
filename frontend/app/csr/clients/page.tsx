@@ -19,6 +19,7 @@ import { isWonClientStatus } from "../constants/leadStatuses";
 import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead, clientIdentityKey, splitWonClientsByIdentity } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
+import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
@@ -415,28 +416,15 @@ export default function LeadsPage() {
         </div>
 
         {/* TABS */}
-        <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-7 overflow-x-auto pb-0.5">
-          {([
-            { key: "new", label: "New Clients", count: newLeads.length, Icon: UserPlus },
-            { key: "old", label: "Old Clients", count: oldLeads.length, Icon: User2   },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setPage(1); setSearch(""); }}
-              className={`h-10 sm:h-11 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all whitespace-nowrap ${
-                activeTab === tab.key
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-white text-[#B8112D] border border-[#B8112D]/20 hover:bg-[#FFF6F7]"
-              }`}
-            >
-              <tab.Icon size={14} className="sm:w-4 sm:h-4" />
-              {tab.label}
-              <span className={`px-1.5 sm:px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold ${activeTab === tab.key ? "bg-white/20" : "bg-[#FFF1F3]"}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
+        <CapsuleTabs
+          className="mt-4 sm:mt-7"
+          activeKey={activeTab}
+          onChange={key => { setActiveTab(key); setPage(1); setSearch(""); }}
+          tabs={[
+            { key: "new", label: "New Clients", count: newLeads.length, icon: UserPlus },
+            { key: "old", label: "Old Clients", count: oldLeads.length, icon: User2 },
+          ]}
+        />
 
         {/* TABLE CARD */}
         <div className="bg-white rounded-2xl sm:rounded-[28px] border border-white shadow-sm mt-4 sm:mt-7">
