@@ -25,6 +25,7 @@ import {
   assertSenderCanChat,
   canMessageUser,
   getChatAccess,
+  isVisibleToUser,
 } from "../utils/chatAccess";
 
 const router = express.Router();
@@ -61,13 +62,28 @@ async function getConversationMemberIds(conversationId: string): Promise<string[
 }
 
 async function fetchConversationsForUser(viewUserId: string, showArchived: boolean) {
+  const viewerAccess = await getChatAccess(viewUserId);
+  if (!viewerAccess?.chatEnabled) return [];
+
   const memberships = await prisma.conversationMember.findMany({
     where: { userId: viewUserId },
     include: {
       conversation: {
         include: {
           members: {
-            include: { user: { select: { id: true, name: true, isOnline: true } } },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  isOnline: true,
+                  isActive: true,
+                  chatEnabled: true,
+                  chatAllowedUserIds: true,
+                  chatVisibleToUserIds: true,
+                },
+              },
+            },
           },
           messages: {
             where: notDeletedMessageWhere(),
@@ -81,9 +97,15 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
     orderBy: { conversation: { updatedAt: "desc" } },
   });
 
-  const filteredMemberships = memberships.filter(m =>
-    showArchived ? Boolean(m.archivedAt) : !m.archivedAt
-  );
+  const filteredMemberships = memberships.filter(m => {
+    if (showArchived ? !m.archivedAt : Boolean(m.archivedAt)) return false;
+    const otherMembers = m.conversation.members.filter(member => member.userId !== viewUserId);
+    return otherMembers.every(member =>
+      member.user.isActive &&
+      canMessageUser(viewerAccess, member.userId) &&
+      isVisibleToUser(member.user, viewUserId)
+    );
+  });
 
   const unreadCounts = await Promise.all(
     filteredMemberships.map(m =>
@@ -334,6 +356,17 @@ router.get("/conversations/:id/messages", verifyToken, async (req: AuthRequest, 
     });
     if (!member) return res.status(403).json({ message: "Not a member" });
 
+    const otherMembers = await prisma.conversationMember.findMany({
+      where: { conversationId, userId: { not: userId } },
+      select: { userId: true },
+    });
+    for (const other of otherMembers) {
+      const allowed = await assertCanMessageTarget(userId, other.userId);
+      if (!allowed.ok) {
+        return res.status(allowed.status).json({ message: allowed.message });
+      }
+    }
+
     const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId);
     return res.json({ messages, pinnedMessage });
   } catch (err) {
@@ -369,18 +402,15 @@ router.post(
       });
       if (!member) return res.status(403).json({ message: "Not a member" });
 
-      /* Direct chats: enforce allowlist against the other member */
-      const conv = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        select: { type: true },
+      /* Existing DMs/groups must also respect current admin restrictions. */
+      const otherMembers = await prisma.conversationMember.findMany({
+        where: { conversationId, userId: { not: userId } },
+        select: { userId: true },
       });
-      if (conv?.type === "direct") {
-        const other = await prisma.conversationMember.findFirst({
-          where: { conversationId, userId: { not: userId } },
-          select: { userId: true },
-        });
-        if (other && !canMessageUser(chatGate.access, other.userId)) {
-          return res.status(403).json({ message: "You are not allowed to message this user." });
+      for (const other of otherMembers) {
+        const allowed = await assertCanMessageTarget(userId, other.userId);
+        if (!allowed.ok) {
+          return res.status(allowed.status).json({ message: allowed.message });
         }
       }
 
@@ -640,14 +670,21 @@ router.get("/users", verifyToken, async (req: AuthRequest, res) => {
         : { isActive: true, id: { not: meId } },
       select: {
         id: true, name: true, email: true, role: true, csrCode: true, isOnline: true,
-        chatEnabled: true,
+        chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
       },
       orderBy: [{ name: "asc" }],
     });
     return res.json({
       users: users
-        .filter(u => u.chatEnabled !== false)
-        .map(({ chatEnabled: _c, ...u }) => u),
+        .filter(u => isVisibleToUser(u, meId))
+        .map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          csrCode: u.csrCode,
+          isOnline: u.isOnline,
+        })),
     });
   } catch (err) {
     console.error("[chat] GET /users", err);

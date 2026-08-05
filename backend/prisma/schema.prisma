@@ -43,6 +43,8 @@ model User {
   chatEnabled        Boolean  @default(true)
   /** Empty = can message any active user. Non-empty = only these user IDs. */
   chatAllowedUserIds String[] @default([])
+  /** Empty = visible to every chat-enabled user. Non-empty = visible only to these user IDs. */
+  chatVisibleToUserIds String[] @default([])
 
   auditLogs      SecurityAuditLog[]
   accessHistory  AccessHistory[]

@@ -3,17 +3,19 @@ import prisma from "../config/db";
 export type ChatAccessProfile = {
   chatEnabled: boolean;
   chatAllowedUserIds: string[];
+  chatVisibleToUserIds: string[];
 };
 
 export async function getChatAccess(userId: string): Promise<ChatAccessProfile | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chatEnabled: true, chatAllowedUserIds: true },
+    select: { chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true },
   });
   if (!user) return null;
   return {
     chatEnabled: user.chatEnabled !== false,
     chatAllowedUserIds: Array.isArray(user.chatAllowedUserIds) ? user.chatAllowedUserIds : [],
+    chatVisibleToUserIds: Array.isArray(user.chatVisibleToUserIds) ? user.chatVisibleToUserIds : [],
   };
 }
 
@@ -38,6 +40,16 @@ export function canMessageUser(
   return list.includes(targetUserId);
 }
 
+/** Whether `viewerUserId` is allowed to discover/message this target account. */
+export function isVisibleToUser(
+  targetAccess: ChatAccessProfile | null | undefined,
+  viewerUserId: string,
+): boolean {
+  if (!isChatEnabled(targetAccess)) return false;
+  const list = targetAccess!.chatVisibleToUserIds;
+  return !list.length || list.includes(viewerUserId);
+}
+
 export async function assertSenderCanChat(userId: string): Promise<
   { ok: true; access: ChatAccessProfile } | { ok: false; status: number; message: string }
 > {
@@ -60,13 +72,21 @@ export async function assertCanMessageTarget(
   }
   const target = await prisma.user.findUnique({
     where: { id: targetId },
-    select: { chatEnabled: true, isActive: true },
+    select: {
+      chatEnabled: true,
+      chatAllowedUserIds: true,
+      chatVisibleToUserIds: true,
+      isActive: true,
+    },
   });
   if (!target?.isActive) {
     return { ok: false, status: 404, message: "User not found." };
   }
   if (target.chatEnabled === false) {
     return { ok: false, status: 403, message: "This user cannot receive messages." };
+  }
+  if (!isVisibleToUser(target, meId)) {
+    return { ok: false, status: 403, message: "This user is hidden from your messages." };
   }
   return { ok: true };
 }
