@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { Landmark, Wallet, Building2, Activity, PieChart as PieIcon } from "lucide-react";
 import AccountsSidebar from "../components/layout/Sidebar";
+import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
 import CashFlowTable, { computedNet } from "../components/CashFlowTable";
@@ -137,7 +138,7 @@ export default function CashFlowStatementPage() {
   return (
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+      <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Cash Flow Statement"
@@ -275,7 +276,7 @@ export default function CashFlowStatementPage() {
             </section>
           )}
 
-          <div id="cash-tables" className="mt-5 scroll-mt-24">
+          <div id="cash-tables" className="mt-5 scroll-mt-[130px]">
             <CashFlowTable
               months={acc.data.months ?? []}
               bankHeads={bankHeads}

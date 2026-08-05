@@ -6,6 +6,7 @@ import { ArrowDownRight, ArrowUpRight, CalendarDays, Cloud, ExternalLink, FileTe
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
+import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
@@ -697,8 +698,8 @@ export default function AccountsReportsPage() {
   return (
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
-        <div id="monthly-report" className="max-w-[1200px] mx-auto px-3 sm:px-5 py-5 space-y-4 scroll-mt-24">
+      <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
+        <div id="monthly-report" className="max-w-[1200px] mx-auto px-3 sm:px-5 py-5 space-y-4 scroll-mt-[130px]">
           <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
