@@ -48,6 +48,7 @@ type User = {
   temporaryAccessUntil: string | null;
   chatEnabled: boolean;
   chatAllowedUserIds: string[];
+  chatVisibleToUserIds: string[];
 };
 
 type AccessHistoryRow = {
@@ -268,6 +269,9 @@ export default function UsersPage() {
   const [chatRestrictMode, setChatRestrictMode] = useState<"all" | "selected">("all");
   const [chatAllowedIds, setChatAllowedIds] = useState<string[]>([]);
   const [chatSearch, setChatSearch] = useState("");
+  const [chatVisibilityMode, setChatVisibilityMode] = useState<"all" | "selected">("all");
+  const [chatVisibleToIds, setChatVisibleToIds] = useState<string[]>([]);
+  const [chatVisibilitySearch, setChatVisibilitySearch] = useState("");
   const [savingChat, setSavingChat] = useState(false);
 
   const [form, setForm] = useState({
@@ -306,6 +310,7 @@ export default function UsersPage() {
         temporaryAccessUntil?: string | null;
         chatEnabled?: boolean;
         chatAllowedUserIds?: string[];
+        chatVisibleToUserIds?: string[];
       }) => ({
         id:         u.id,
         name:       u.name,
@@ -335,6 +340,7 @@ export default function UsersPage() {
         temporaryAccessUntil: u.temporaryAccessUntil ?? null,
         chatEnabled: u.chatEnabled !== false,
         chatAllowedUserIds: Array.isArray(u.chatAllowedUserIds) ? u.chatAllowedUserIds : [],
+        chatVisibleToUserIds: Array.isArray(u.chatVisibleToUserIds) ? u.chatVisibleToUserIds : [],
       }));
 
       setUsers(formatted);
@@ -623,6 +629,10 @@ export default function UsersPage() {
     setChatRestrictMode(ids.length > 0 ? "selected" : "all");
     setChatAllowedIds(ids);
     setChatSearch("");
+    const visibleIds = user.chatVisibleToUserIds ?? [];
+    setChatVisibilityMode(visibleIds.length > 0 ? "selected" : "all");
+    setChatVisibleToIds(visibleIds);
+    setChatVisibilitySearch("");
   };
 
   const saveChatRestrictions = async () => {
@@ -633,6 +643,8 @@ export default function UsersPage() {
         chatEnabled: chatEnabledForm,
         chatAllowedUserIds:
           chatEnabledForm && chatRestrictMode === "selected" ? chatAllowedIds : [],
+        chatVisibleToUserIds:
+          chatEnabledForm && chatVisibilityMode === "selected" ? chatVisibleToIds : [],
       };
       const res = await fetch(`${apiBase()}/users/${chatUser.id}`, {
         method: "PUT",
@@ -645,13 +657,10 @@ export default function UsersPage() {
         toast.error(data.message || "Failed to update chat restrictions.");
         return;
       }
-      invalidateAuthMeCache();
       toast.success(
         !chatEnabledForm
           ? `Chat disabled for ${chatUser.name}.`
-          : chatRestrictMode === "selected"
-            ? `Chat limited to ${chatAllowedIds.length} contact(s) for ${chatUser.name}.`
-            : `Chat unrestricted for ${chatUser.name}.`,
+          : `Chat access updated for ${chatUser.name}.`,
       );
       setChatUser(null);
       await fetchUsers(true);
@@ -942,7 +951,9 @@ export default function UsersPage() {
                           label="Chat Restrictions"
                           onClick={() => openChatRestrictions(u)}
                           className={
-                            u.chatEnabled === false || (u.chatAllowedUserIds?.length ?? 0) > 0
+                            u.chatEnabled === false ||
+                            (u.chatAllowedUserIds?.length ?? 0) > 0 ||
+                            (u.chatVisibleToUserIds?.length ?? 0) > 0
                               ? `${actionBtnStyles.chat} ring-2 ring-cyan-400/60`
                               : actionBtnStyles.chat
                           }
@@ -1679,6 +1690,98 @@ export default function UsersPage() {
                         </div>
                       </div>
                     )}
+
+                    <div className="pt-4 border-t border-gray-100 space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                        Who can see this account in Messages?
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        This controls whose New DM/contact list will show {chatUser.name}.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setChatVisibilityMode("all")}
+                          className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
+                            chatVisibilityMode === "all"
+                              ? "border-cyan-600 bg-cyan-50 text-cyan-700 font-semibold"
+                              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Visible to everyone
+                          <span className="block text-[10px] font-normal text-gray-400 mt-0.5">All active users can find them</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setChatVisibilityMode("selected")}
+                          className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-all ${
+                            chatVisibilityMode === "selected"
+                              ? "border-cyan-600 bg-cyan-50 text-cyan-700 font-semibold"
+                              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          Visible to selected only
+                          <span className="block text-[10px] font-normal text-gray-400 mt-0.5">Pick viewers below</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {chatVisibilityMode === "selected" && (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            value={chatVisibilitySearch}
+                            onChange={e => setChatVisibilitySearch(e.target.value)}
+                            placeholder="Search users who may see this account…"
+                            className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-cyan-500"
+                          />
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Visible to {chatVisibleToIds.length} user{chatVisibleToIds.length === 1 ? "" : "s"}
+                        </p>
+                        <div className="max-h-56 overflow-y-auto rounded-2xl border border-gray-100 divide-y divide-gray-50">
+                          {users
+                            .filter(u => u.id !== chatUser.id && u.status === "Active")
+                            .filter(u => {
+                              const q = chatVisibilitySearch.trim().toLowerCase();
+                              if (!q) return true;
+                              return (
+                                u.name.toLowerCase().includes(q) ||
+                                u.email.toLowerCase().includes(q) ||
+                                (u.csrCode ?? "").toLowerCase().includes(q) ||
+                                u.role.toLowerCase().includes(q)
+                              );
+                            })
+                            .map(u => {
+                              const checked = chatVisibleToIds.includes(u.id);
+                              return (
+                                <label
+                                  key={u.id}
+                                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setChatVisibleToIds(prev =>
+                                        checked ? prev.filter(id => id !== u.id) : [...prev, u.id],
+                                      );
+                                    }}
+                                    className="h-4 w-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-600"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-gray-800 truncate">{u.name}</p>
+                                    <p className="text-[11px] text-gray-400 truncate">
+                                      {u.role}{u.csrCode ? ` · ${u.csrCode}` : ""} · {u.email}
+                                    </p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -1693,7 +1796,16 @@ export default function UsersPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={savingChat || (chatEnabledForm && chatRestrictMode === "selected" && chatAllowedIds.length === 0)}
+                  disabled={
+                    savingChat ||
+                    (
+                      chatEnabledForm &&
+                      (
+                        (chatRestrictMode === "selected" && chatAllowedIds.length === 0) ||
+                        (chatVisibilityMode === "selected" && chatVisibleToIds.length === 0)
+                      )
+                    )
+                  }
                   onClick={() => void saveChatRestrictions()}
                   className="flex-1 bg-[#B8112D] text-white py-3 rounded-2xl hover:bg-[#a30f27] text-sm font-semibold disabled:opacity-50"
                 >

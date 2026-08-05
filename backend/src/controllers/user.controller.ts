@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
-import { invalidateCache, flushAdminClientsCache } from "../utils/cache";
+import { invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
 import { notifyAdminSummaryStale } from "../chat/chatSocket";
 import { flushReportCache } from "./report.controller";
@@ -35,7 +35,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const {
       name, email, role, isActive, csrCode, cnic, cnicPdfUrl, profilePic,
       allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
-      chatEnabled, chatAllowedUserIds,
+      chatEnabled, chatAllowedUserIds, chatVisibleToUserIds,
     } = req.body;
 
     const data: Record<string, unknown> = {};
@@ -65,6 +65,12 @@ export const updateUser = async (req: Request, res: Response) => {
         : [];
       data.chatAllowedUserIds = Array.from(new Set(ids.filter((uid: string) => uid !== id)));
     }
+    if (chatVisibleToUserIds !== undefined) {
+      const ids = Array.isArray(chatVisibleToUserIds)
+        ? chatVisibleToUserIds.filter((x: unknown): x is string => typeof x === "string" && x.trim().length > 0)
+        : [];
+      data.chatVisibleToUserIds = Array.from(new Set(ids.filter((uid: string) => uid !== id)));
+    }
 
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ message: "No fields to update" });
@@ -76,10 +82,13 @@ export const updateUser = async (req: Request, res: Response) => {
       select: {
         id: true, name: true, email: true, role: true, csrCode: true, cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true,
         allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
-        chatEnabled: true, chatAllowedUserIds: true,
+        chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
       },
     });
     invalidateCache("users:list", "users:list:admin", "users:list:csr", "users:list:manager", "admin:csrs", `auth:me:${id}`);
+    if (chatEnabled !== undefined || chatAllowedUserIds !== undefined || chatVisibleToUserIds !== undefined) {
+      invalidatePattern("chat:convs:");
+    }
     return res.json(user);
   } catch {
     return res.status(500).json({ message: "Update failed" });

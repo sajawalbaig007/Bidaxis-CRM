@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import API from "@/lib/api";
 import { getAuthMe } from "@/lib/authMeCache";
+import { useChatEnabled } from "@/lib/useChatEnabled";
 import {
   fetchChatMessages,
   fetchConvMembers,
@@ -310,7 +311,7 @@ export default function ChatPanel({
 }) {
   const isStealthView = Boolean(viewAsCsr);
   const [me,             setMe]             = useState<ChatUser | null>(null);
-  const [chatAllowed,    setChatAllowed]    = useState(true);
+  const chatAllowed = useChatEnabled();
   const [conversations,  setConversations]  = useState<Conversation[]>(() => {
     const cached = getChatConversations();
     return cached.length > 0 ? deduplicateConvs(cached) : [];
@@ -383,7 +384,6 @@ export default function ChatPanel({
       if (u) {
         setMe(u);
         meRef.current = u;
-        setChatAllowed(u.chatEnabled !== false);
       }
     });
   }, []);

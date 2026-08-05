@@ -12,6 +12,7 @@ export type AuthUser = {
   createdAt?: string;
   chatEnabled?: boolean;
   chatAllowedUserIds?: string[];
+  chatVisibleToUserIds?: string[];
 };
 
 const STORAGE_KEY = "crm_auth_me_v1";
