@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Users, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare,
+  Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare, ArrowUpDown,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
@@ -49,7 +49,77 @@ type User = {
   chatEnabled: boolean;
   chatAllowedUserIds: string[];
   chatVisibleToUserIds: string[];
+  createdAt: string | null;
 };
+
+type UserSortKey =
+  | "name_asc"
+  | "name_desc"
+  | "created_desc"
+  | "created_asc"
+  | "last_active_desc"
+  | "last_active_asc"
+  | "role_asc"
+  | "status_asc"
+  | "online_first";
+
+const USER_SORT_OPTIONS: { value: UserSortKey; label: string }[] = [
+  { value: "name_asc", label: "Name (A → Z)" },
+  { value: "name_desc", label: "Name (Z → A)" },
+  { value: "created_desc", label: "Newest first" },
+  { value: "created_asc", label: "Oldest first" },
+  { value: "last_active_desc", label: "Last active (recent)" },
+  { value: "last_active_asc", label: "Last active (oldest)" },
+  { value: "role_asc", label: "Role (A → Z)" },
+  { value: "status_asc", label: "Status (Active first)" },
+  { value: "online_first", label: "Online first" },
+];
+
+function compareText(a: string, b: string) {
+  return a.localeCompare(b, undefined, { sensitivity: "base" });
+}
+
+function compareDateAsc(a: string | null | undefined, b: string | null | undefined) {
+  const ta = a ? new Date(a).getTime() : Number.POSITIVE_INFINITY;
+  const tb = b ? new Date(b).getTime() : Number.POSITIVE_INFINITY;
+  return ta - tb;
+}
+
+function compareDateDesc(a: string | null | undefined, b: string | null | undefined) {
+  const ta = a ? new Date(a).getTime() : Number.NEGATIVE_INFINITY;
+  const tb = b ? new Date(b).getTime() : Number.NEGATIVE_INFINITY;
+  return tb - ta;
+}
+
+function sortUsersList(list: User[], sortKey: UserSortKey): User[] {
+  const sorted = [...list];
+  sorted.sort((a, b) => {
+    switch (sortKey) {
+      case "name_asc":
+        return compareText(a.name, b.name) || compareText(a.email, b.email);
+      case "name_desc":
+        return compareText(b.name, a.name) || compareText(b.email, a.email);
+      case "created_asc":
+        return compareDateAsc(a.createdAt, b.createdAt) || compareText(a.name, b.name);
+      case "created_desc":
+        return compareDateDesc(a.createdAt, b.createdAt) || compareText(a.name, b.name);
+      case "last_active_asc":
+        return compareDateAsc(a.lastActive, b.lastActive) || compareText(a.name, b.name);
+      case "last_active_desc":
+        return compareDateDesc(a.lastActive, b.lastActive) || compareText(a.name, b.name);
+      case "role_asc":
+        return compareText(a.role, b.role) || compareText(a.name, b.name);
+      case "status_asc":
+        return compareText(a.status, b.status) || compareText(a.name, b.name);
+      case "online_first":
+        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        return compareText(a.name, b.name);
+      default:
+        return 0;
+    }
+  });
+  return sorted;
+}
 
 type AccessHistoryRow = {
   id: string;
@@ -249,6 +319,7 @@ export default function UsersPage() {
   const [search,       setSearch]       = useState("");
   const [page,         setPage]         = useState(1);
   const [roleFilter,   setRoleFilter]   = useState<"All" | UserRole>("All");
+  const [sortKey,      setSortKey]      = useState<UserSortKey>("name_asc");
   const [showModal,    setShowModal]    = useState(false);
   const [editingUser,  setEditingUser]  = useState<User | null>(null);
   const [detailUser,   setDetailUser]   = useState<User | null>(null);
@@ -311,6 +382,7 @@ export default function UsersPage() {
         chatEnabled?: boolean;
         chatAllowedUserIds?: string[];
         chatVisibleToUserIds?: string[];
+        createdAt?: string | null;
       }) => ({
         id:         u.id,
         name:       u.name,
@@ -341,6 +413,7 @@ export default function UsersPage() {
         chatEnabled: u.chatEnabled !== false,
         chatAllowedUserIds: Array.isArray(u.chatAllowedUserIds) ? u.chatAllowedUserIds : [],
         chatVisibleToUserIds: Array.isArray(u.chatVisibleToUserIds) ? u.chatVisibleToUserIds : [],
+        createdAt: u.createdAt ?? null,
       }));
 
       setUsers(formatted);
@@ -410,8 +483,13 @@ export default function UsersPage() {
   const { filters: userColFilters, setFilter: setUserColFilter, filtered: colFilteredUsers } =
     useColumnFilters(filteredUsers, userColPredicates);
 
-  const totalPagesUsers = Math.max(1, Math.ceil(colFilteredUsers.length / PAGE_SIZE));
-  const paginatedUsers  = colFilteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sortedUsers = useMemo(
+    () => sortUsersList(colFilteredUsers, sortKey),
+    [colFilteredUsers, sortKey],
+  );
+
+  const totalPagesUsers = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
+  const paginatedUsers  = sortedUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handlePicUpload = async (file: File) => {
     setUploadingPic(true);
@@ -786,13 +864,29 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* SEARCH + CREATE */}
+        {/* SEARCH + SORT + CREATE */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <div className="relative w-full sm:w-[300px]">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-            <input type="text" placeholder="Search users..." value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
-              className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:flex-1">
+            <div className="relative w-full sm:w-[300px]">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
+              <input type="text" placeholder="Search users..." value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
+            </div>
+            <div className="relative w-full sm:w-[240px]">
+              <ArrowUpDown size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+              <select
+                value={sortKey}
+                onChange={e => { setSortKey(e.target.value as UserSortKey); setPage(1); }}
+                aria-label="Sort users"
+                className="w-full appearance-none bg-white border border-gray-200 rounded-2xl pl-11 pr-9 py-3 text-sm outline-none focus:border-[#B8112D] cursor-pointer"
+              >
+                {USER_SORT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+            </div>
           </div>
           <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"", cnic:"", cnicPdfUrl:"", profilePic:"", allowedIps:[""], allowedMacAddress:"", temporaryAccessIp:"", temporaryAccessMac:"", temporaryAccessHours:"9" }); setShowModal(true); }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
@@ -1020,7 +1114,7 @@ export default function UsersPage() {
           {totalPagesUsers > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
               <p className="text-xs text-gray-400">
-                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, colFilteredUsers.length)} of {colFilteredUsers.length}
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sortedUsers.length)} of {sortedUsers.length}
               </p>
               <div className="flex items-center gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}

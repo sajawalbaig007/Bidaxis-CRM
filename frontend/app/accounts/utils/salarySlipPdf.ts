@@ -1,6 +1,6 @@
 /**
- * BEM Solutions salary-slip PDF (matches Ahmer Salary Slip April 2026 layout).
- * Company-specific — extend SALARY_SLIP_COMPANIES when GPS/BDS formats are ready.
+ * Salary-slip PDF shared by BEM Solutions and GPS (Global Pre Construction Solution).
+ * Company branding, officer and signature details come from SALARY_SLIP_COMPANIES.
  */
 
 import { jsPDF } from "jspdf";
@@ -254,7 +254,7 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
     `Digitally signed by ${accountOfficerName}`,
     "DN: C=PK,",
     `E=${company.email || "accounts@bemsolutions.io"},`,
-    `O=${company.legalName}, OU=BEM,`,
+    `O=${company.legalName}, OU=${company.key},`,
     `CN=${accountOfficerName}`,
     `Date: ${signedAt}`,
   ];

@@ -37,16 +37,16 @@ export const SALARY_SLIP_COMPANIES: Record<SalarySlipCompanyKey, SalarySlipCompa
   GPS: {
     key: "GPS",
     label: "GPS",
-    legalName: "GPS",
-    brandLine: "GPS",
-    address: "",
-    phone: "",
-    email: "",
-    website: "",
+    legalName: "Global Pre Construction Solution",
+    brandLine: "GLOBAL PRE CONSTRUCTION SOLUTION",
+    address: "Growth Co Working Space, Johar Town, Lahore",
+    phone: "0323-6431991",
+    email: "info@globalpreconstructionsolutions.com",
+    website: "www.globalpreconstructionsolutions.com",
     hrManager: "",
-    accountOfficer: "",
+    accountOfficer: "Muhammad Bilal",
     accent: "#0B84F3",
-    slipReady: false,
+    slipReady: true,
   },
   BDS: {
     key: "BDS",
@@ -65,3 +65,11 @@ export const SALARY_SLIP_COMPANIES: Record<SalarySlipCompanyKey, SalarySlipCompa
 };
 
 export const DEFAULT_SALARY_SLIP_COMPANY: SalarySlipCompanyKey = "BEM";
+
+/** Technical team payroll is billed under GPS; every other team stays on the page default. */
+export function salarySlipCompanyForKind(
+  kind: string,
+  fallback: SalarySlipCompanyKey = DEFAULT_SALARY_SLIP_COMPANY,
+): SalarySlipCompanyKey {
+  return kind === "technical" ? "GPS" : fallback;
+}
