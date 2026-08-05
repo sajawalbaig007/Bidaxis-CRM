@@ -39,6 +39,19 @@ type CapsuleRect = {
 const PILL_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const PILL_MS = 500;
 
+/** Darker companion of the accent so the active pill keeps depth on both light and dark tracks. */
+function shadeAccent(hex: string, factor: number): string {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map(c => c + c).join("") : h;
+  const n = Number.parseInt(full, 16);
+  if (Number.isNaN(n)) return hex;
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clamp(((n >> 16) & 255) * factor);
+  const g = clamp(((n >> 8) & 255) * factor);
+  const b = clamp((n & 255) * factor);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 function measureChip(el: HTMLAnchorElement): CapsuleRect {
   return {
     left: el.offsetLeft,
@@ -146,8 +159,8 @@ export default function CapsuleChipNav({
     transform: `translate3d(${capsule.left}px, ${capsule.top}px, 0)`,
     opacity: capsule.ready ? 1 : 0,
     transition: pillTransition,
-    background: `linear-gradient(135deg, ${accent}ee, ${accent}99)`,
-    boxShadow: `0 4px 18px ${accent}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
+    background: `linear-gradient(135deg, ${accent}, ${shadeAccent(accent, 0.78)})`,
+    boxShadow: `0 4px 16px ${accent}4d, inset 0 1px 0 rgba(255,255,255,0.28)`,
   } as CSSProperties;
 
   const renderLink = (
@@ -168,7 +181,11 @@ export default function CapsuleChipNav({
         }}
         title={item.title}
         onClick={() => setOptimisticIndex(i)}
-        className={`${linkClass} ${active ? "text-white" : "text-white/55 hover:text-white/90"}`}
+        className={`${linkClass} ${
+          active
+            ? "text-white"
+            : "text-crm-text-muted hover:text-crm-text hover:bg-crm-surface/60 dark:hover:bg-white/5"
+        }`}
       >
         <Icon size={13} className="shrink-0" />
         {label}
@@ -181,7 +198,7 @@ export default function CapsuleChipNav({
       <div ref={trackRef} className={`relative grid gap-1 sm:gap-1.5 ${gridClassName} ${className}`}>
         <span
           aria-hidden
-          className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/25 backdrop-blur-md will-change-[transform,width,height]"
+          className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/20 will-change-[transform,width,height]"
           style={pillStyle}
         />
         {items.map((item, i) =>
@@ -207,11 +224,11 @@ export default function CapsuleChipNav({
     >
       <div
         ref={trackRef}
-        className="relative inline-flex items-center gap-1 p-1 min-w-max rounded-full bg-[#0F172A]/92 backdrop-blur-md border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_20px_-6px_rgba(15,23,42,0.35)]"
+        className="relative inline-flex items-center gap-1 p-1 min-w-max rounded-full bg-crm-nav-pill border border-crm-border shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:bg-crm-surface-raised dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
       >
         <span
           aria-hidden
-          className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/25 backdrop-blur-md will-change-[transform,width,height]"
+          className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/20 will-change-[transform,width,height]"
           style={pillStyle}
         />
         {items.map((item, i) => {
