@@ -19,12 +19,12 @@ import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 const BASE = "/accounts";
 
 const navItems = [
-  { title: "Dashboard", href: `${BASE}`, icon: LayoutDashboard },
-  { title: "Balance Sheet", href: `${BASE}/balance-sheet`, icon: Scale },
-  { title: "Income Statement", href: `${BASE}/income-statement`, icon: TrendingUp },
-  { title: "Cash Flow Statement", href: `${BASE}/cash-flow-statement`, icon: Landmark },
-  { title: "Total Assets", href: `${BASE}/total-assets`, icon: Building2 },
-  { title: "Reports", href: `${BASE}/reports`, icon: FileText },
+  { title: "Dashboard", shortTitle: "Home", href: `${BASE}`, icon: LayoutDashboard },
+  { title: "Balance Sheet", shortTitle: "Balance", href: `${BASE}/balance-sheet`, icon: Scale },
+  { title: "Income Statement", shortTitle: "Income", href: `${BASE}/income-statement`, icon: TrendingUp },
+  { title: "Cash Flow Statement", shortTitle: "Cash Flow", href: `${BASE}/cash-flow-statement`, icon: Landmark },
+  { title: "Total Assets", shortTitle: "Assets", href: `${BASE}/total-assets`, icon: Building2 },
+  { title: "Reports", shortTitle: "Reports", href: `${BASE}/reports`, icon: FileText },
 ];
 
 type UserInfo = {
@@ -91,28 +91,28 @@ export default function AccountsSidebar() {
   return (
     <>
     <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface/90 backdrop-blur-md border-b border-crm-border shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
-      <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-2 sm:gap-3">
-        <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
-          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-md shadow-[#B8112D]/25 overflow-hidden p-1">
+      <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-1.5 sm:gap-2 lg:gap-3">
+        <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-[12px] sm:rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm shadow-[#B8112D]/20 overflow-hidden p-1 shrink-0">
             <Image
               src="/images/image.png"
               alt="logo"
-              width={44}
-              height={44}
-              className="object-cover w-full h-full rounded-[10px] bg-white"
+              width={40}
+              height={40}
+              className="object-cover w-full h-full rounded-[8px] sm:rounded-[10px] bg-white"
             />
           </div>
-          <div className="hidden sm:block">
-            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
+          <div className="hidden lg:block min-w-0">
+            <h2 className="text-[17px] xl:text-[19px] font-extrabold leading-none text-crm-text tracking-tight truncate">
               CRM Dashboard
             </h2>
-            <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
+            <p className="text-[10px] font-semibold text-[#B8112D] mt-0.5 tracking-wide uppercase">
               Accounts Panel
             </p>
           </div>
         </Link>
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 px-0.5 sm:px-1">
           <CapsuleChipNav
             items={navItems}
             baseHref={BASE}
@@ -121,6 +121,7 @@ export default function AccountsSidebar() {
           />
         </div>
 
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <ThemeToggle />
 
         <button
@@ -159,15 +160,15 @@ export default function AccountsSidebar() {
                 : initials
               }
             </div>
-            <div className="hidden lg:block text-left">
-              <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
+            <div className="hidden xl:block text-left min-w-0 max-w-[120px]">
+              <p className="text-[12px] font-bold leading-none text-crm-text truncate">
                 {user?.name ?? "Accounts User"}
               </p>
-              <p className="text-[10px] text-crm-text-muted mt-1 max-w-[90px] truncate">
+              <p className="text-[10px] text-crm-text-muted mt-0.5 truncate">
                 Accounts
               </p>
             </div>
-            <ChevronDown size={13} className={`hidden sm:block text-crm-text-faint transition-transform ${profileOpen ? "rotate-180" : ""}`} />
+            <ChevronDown size={13} className={`hidden xl:block text-crm-text-faint transition-transform shrink-0 ${profileOpen ? "rotate-180" : ""}`} />
           </button>
 
           {profileOpen && (
@@ -203,6 +204,7 @@ export default function AccountsSidebar() {
               </div>
             </div>
           )}
+        </div>
         </div>
 
       </div>

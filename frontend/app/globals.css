@@ -496,3 +496,7 @@ body.crm-secure-view-csr img {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.accounts-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
