@@ -16,7 +16,6 @@ export type CapsuleChipItem = {
   title: string;
   href: string;
   icon: LucideIcon;
-  /** Compact label for medium screens */
   shortTitle?: string;
 };
 
@@ -28,6 +27,27 @@ type CapsuleChipNavProps = {
   className?: string;
   variant?: "inline" | "grid";
 };
+
+type CapsuleRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+const PILL_INSET_Y = 6;
+const PILL_INSET_X = 2;
+const PILL_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const PILL_MS = 620;
+
+function measureChip(el: HTMLAnchorElement): CapsuleRect {
+  return {
+    left: el.offsetLeft + PILL_INSET_X,
+    top: el.offsetTop + PILL_INSET_Y,
+    width: el.offsetWidth - PILL_INSET_X * 2,
+    height: el.offsetHeight - PILL_INSET_Y * 2,
+  };
+}
 
 export default function CapsuleChipNav({
   items,
@@ -41,7 +61,8 @@ export default function CapsuleChipNav({
   const scrollRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<(HTMLAnchorElement | null)[]>([]);
-  const [capsule, setCapsule] = useState({
+  const [optimisticIndex, setOptimisticIndex] = useState<number | null>(null);
+  const [capsule, setCapsule] = useState<CapsuleRect & { ready: boolean }>({
     left: 0,
     top: 0,
     width: 0,
@@ -49,95 +70,133 @@ export default function CapsuleChipNav({
     ready: false,
   });
 
-  const activeIndex = items.findIndex(item =>
+  const routeIndex = items.findIndex(item =>
     item.href === baseHref ? pathname === baseHref : pathname.startsWith(item.href),
   );
-  const index = activeIndex >= 0 ? activeIndex : 0;
+  const resolvedRouteIndex = routeIndex >= 0 ? routeIndex : 0;
+  const index = optimisticIndex ?? resolvedRouteIndex;
 
-  const measureCapsule = useCallback(() => {
-    const track = trackRef.current;
-    const el = chipRefs.current[index];
-    if (!track || !el) return;
-    setCapsule({
-      left: el.offsetLeft,
-      top: el.offsetTop,
-      width: el.offsetWidth,
-      height: el.offsetHeight,
-      ready: true,
-    });
-  }, [index]);
+  useEffect(() => {
+    if (optimisticIndex === null) return;
+    if (optimisticIndex === resolvedRouteIndex) {
+      setOptimisticIndex(null);
+    }
+  }, [optimisticIndex, resolvedRouteIndex]);
+
+  const applyCapsule = useCallback((i: number) => {
+    const el = chipRefs.current[i];
+    if (!el) return;
+    setCapsule({ ...measureChip(el), ready: true });
+  }, []);
 
   useLayoutEffect(() => {
-    measureCapsule();
-  }, [measureCapsule, pathname]);
+    applyCapsule(index);
+    const id = requestAnimationFrame(() => {
+      applyCapsule(index);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [applyCapsule, index, pathname]);
 
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    const onResize = () => measureCapsule();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
+
+    const remeasure = () => applyCapsule(index);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(remeasure) : null;
     ro?.observe(track);
-    window.addEventListener("resize", onResize);
+    chipRefs.current.forEach(el => {
+      if (el) ro?.observe(el);
+    });
+    window.addEventListener("resize", remeasure);
+
     return () => {
       ro?.disconnect();
-      window.removeEventListener("resize", onResize);
+      window.removeEventListener("resize", remeasure);
     };
-  }, [measureCapsule]);
+  }, [applyCapsule, index, items.length]);
 
   useEffect(() => {
     const el = chipRefs.current[index];
     const scroller = scrollRef.current;
-    if (!el || !scroller) return;
-    const elLeft = el.offsetLeft;
-    const elRight = elLeft + el.offsetWidth;
-    const viewLeft = scroller.scrollLeft;
-    const viewRight = viewLeft + scroller.clientWidth;
-    if (elLeft < viewLeft + 8 || elRight > viewRight - 8) {
-      scroller.scrollTo({
-        left: elLeft - scroller.clientWidth / 2 + el.offsetWidth / 2,
-        behavior: "smooth",
-      });
-    }
-  }, [index]);
+    if (!el || !scroller || variant !== "inline") return;
 
-  const pillClass =
-    "pointer-events-none absolute rounded-[11px] transition-[transform,width,height,opacity] duration-500 ease-[cubic-bezier(0.34,1.2,0.64,1)] will-change-[transform,width,height]";
+    const timer = window.setTimeout(() => {
+      const elLeft = el.offsetLeft;
+      const elRight = elLeft + el.offsetWidth;
+      const viewLeft = scroller.scrollLeft;
+      const viewRight = viewLeft + scroller.clientWidth;
+      if (elLeft < viewLeft + 8 || elRight > viewRight - 8) {
+        scroller.scrollTo({
+          left: elLeft - scroller.clientWidth / 2 + el.offsetWidth / 2,
+          behavior: "smooth",
+        });
+      }
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [index, variant]);
+
+  const pillTransition = [
+    `left ${PILL_MS}ms ${PILL_EASE}`,
+    `top ${PILL_MS}ms ${PILL_EASE}`,
+    `width ${PILL_MS}ms ${PILL_EASE}`,
+    `height ${PILL_MS}ms ${PILL_EASE}`,
+    `opacity 220ms ease`,
+  ].join(", ");
 
   const pillStyle = {
+    left: capsule.left,
+    top: capsule.top,
     width: capsule.width,
     height: capsule.height,
-    transform: `translate3d(${capsule.left}px, ${capsule.top}px, 0)`,
     opacity: capsule.ready ? 1 : 0,
+    transition: pillTransition,
     background: `linear-gradient(180deg, ${accent} 0%, ${accent}e8 100%)`,
-    boxShadow: `0 2px 10px ${accent}30, inset 0 1px 0 rgba(255,255,255,0.18)`,
+    boxShadow: `0 1px 6px ${accent}28, inset 0 1px 0 rgba(255,255,255,0.15)`,
   } as CSSProperties;
+
+  const renderLink = (item: CapsuleChipItem, i: number, linkClass: string, label: React.ReactNode) => {
+    const Icon = item.icon;
+    const active = i === index;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        prefetch={false}
+        ref={el => {
+          chipRefs.current[i] = el;
+        }}
+        title={item.title}
+        onClick={() => setOptimisticIndex(i)}
+        className={`${linkClass} ${active ? "text-white" : "text-crm-text-secondary hover:text-[#B8112D]"}`}
+      >
+        <Icon size={13} className="shrink-0 opacity-90" />
+        {label}
+      </Link>
+    );
+  };
 
   if (variant === "grid") {
     return (
       <div ref={trackRef} className={`relative grid gap-1 sm:gap-1.5 ${gridClassName} ${className}`}>
-        <span aria-hidden className={`${pillClass} rounded-full`} style={pillStyle} />
-        {items.map((item, i) => {
-          const Icon = item.icon;
-          const active = i === index;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              ref={el => {
-                chipRefs.current[i] = el;
-              }}
-              title={item.title}
-              className={`relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 sm:h-10 px-1 sm:px-2 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-colors duration-300 min-w-0 ${
-                active ? "text-white" : "text-crm-text-secondary hover:text-[#B8112D] hover:bg-white/50"
-              }`}
-            >
-              <Icon size={13} className="shrink-0" />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute rounded-full will-change-[left,top,width,height]"
+          style={pillStyle}
+        />
+        {items.map((item, i) =>
+          renderLink(
+            item,
+            i,
+            `relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 sm:h-10 px-1 sm:px-2 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap min-w-0 transition-colors duration-300 ${
+              i === index ? "" : "hover:bg-white/50"
+            }`,
+            <>
               <span className="truncate sm:hidden">{item.shortTitle ?? item.title}</span>
               <span className="truncate hidden sm:inline">{item.title}</span>
-            </Link>
-          );
-        })}
+            </>,
+          ),
+        )}
       </div>
     );
   }
@@ -145,34 +204,27 @@ export default function CapsuleChipNav({
   return (
     <div
       ref={scrollRef}
-      className={`w-full max-w-full overflow-x-auto rounded-[16px] bg-crm-nav-pill border border-crm-border-subtle/70 accounts-nav-scroll ${className}`}
+      className={`w-full max-w-full overflow-x-auto rounded-full bg-crm-nav-pill border border-crm-border-subtle/70 accounts-nav-scroll ${className}`}
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
-      <div ref={trackRef} className="relative inline-flex items-center gap-0.5 p-1 min-w-max">
-        <span aria-hidden className={pillClass} style={pillStyle} />
+      <div ref={trackRef} className="relative inline-flex items-center gap-0.5 py-1.5 px-1.5 min-w-max">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute rounded-full will-change-[left,top,width,height]"
+          style={pillStyle}
+        />
         {items.map((item, i) => {
-          const Icon = item.icon;
-          const active = i === index;
           const short = item.shortTitle ?? item.title.split(" ")[0];
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              ref={el => {
-                chipRefs.current[i] = el;
-              }}
-              title={item.title}
-              className={`relative z-[1] h-9 sm:h-[38px] px-2.5 sm:px-3 xl:px-3.5 rounded-[11px] inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold whitespace-nowrap shrink-0 transition-colors duration-200 ${
-                active
-                  ? "text-white"
-                  : "text-crm-text-secondary hover:text-[#B8112D] hover:bg-crm-surface/70"
-              }`}
-            >
-              <Icon size={14} className="shrink-0 opacity-90" />
+          return renderLink(
+            item,
+            i,
+            `relative z-[1] py-1 px-2 sm:px-2.5 xl:px-3 rounded-full inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold whitespace-nowrap shrink-0 leading-none transition-colors duration-300 ${
+              i === index ? "" : "hover:bg-crm-surface/70"
+            }`,
+            <>
               <span className="hidden sm:inline xl:hidden">{short}</span>
               <span className="hidden xl:inline">{item.title}</span>
-            </Link>
+            </>,
           );
         })}
       </div>
