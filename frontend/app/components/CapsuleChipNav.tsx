@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import type { LucideIcon } from "lucide-react";
 
@@ -35,17 +36,15 @@ type CapsuleRect = {
   height: number;
 };
 
-const PILL_INSET_Y = 6;
-const PILL_INSET_X = 2;
 const PILL_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
-const PILL_MS = 620;
+const PILL_MS = 500;
 
 function measureChip(el: HTMLAnchorElement): CapsuleRect {
   return {
-    left: el.offsetLeft + PILL_INSET_X,
-    top: el.offsetTop + PILL_INSET_Y,
-    width: el.offsetWidth - PILL_INSET_X * 2,
-    height: el.offsetHeight - PILL_INSET_Y * 2,
+    left: el.offsetLeft,
+    top: el.offsetTop,
+    width: el.offsetWidth,
+    height: el.offsetHeight,
   };
 }
 
@@ -91,9 +90,7 @@ export default function CapsuleChipNav({
 
   useLayoutEffect(() => {
     applyCapsule(index);
-    const id = requestAnimationFrame(() => {
-      applyCapsule(index);
-    });
+    const id = requestAnimationFrame(() => applyCapsule(index));
     return () => cancelAnimationFrame(id);
   }, [applyCapsule, index, pathname]);
 
@@ -137,25 +134,28 @@ export default function CapsuleChipNav({
   }, [index, variant]);
 
   const pillTransition = [
-    `left ${PILL_MS}ms ${PILL_EASE}`,
-    `top ${PILL_MS}ms ${PILL_EASE}`,
+    `transform ${PILL_MS}ms ${PILL_EASE}`,
     `width ${PILL_MS}ms ${PILL_EASE}`,
     `height ${PILL_MS}ms ${PILL_EASE}`,
     `opacity 220ms ease`,
   ].join(", ");
 
   const pillStyle = {
-    left: capsule.left,
-    top: capsule.top,
     width: capsule.width,
     height: capsule.height,
+    transform: `translate3d(${capsule.left}px, ${capsule.top}px, 0)`,
     opacity: capsule.ready ? 1 : 0,
     transition: pillTransition,
-    background: `linear-gradient(180deg, ${accent} 0%, ${accent}e8 100%)`,
-    boxShadow: `0 1px 6px ${accent}28, inset 0 1px 0 rgba(255,255,255,0.15)`,
+    background: `linear-gradient(135deg, ${accent}ee, ${accent}99)`,
+    boxShadow: `0 4px 18px ${accent}55, inset 0 1px 0 rgba(255,255,255,0.25)`,
   } as CSSProperties;
 
-  const renderLink = (item: CapsuleChipItem, i: number, linkClass: string, label: React.ReactNode) => {
+  const renderLink = (
+    item: CapsuleChipItem,
+    i: number,
+    linkClass: string,
+    label: ReactNode,
+  ) => {
     const Icon = item.icon;
     const active = i === index;
     return (
@@ -168,9 +168,9 @@ export default function CapsuleChipNav({
         }}
         title={item.title}
         onClick={() => setOptimisticIndex(i)}
-        className={`${linkClass} ${active ? "text-white" : "text-crm-text-secondary hover:text-[#B8112D]"}`}
+        className={`${linkClass} ${active ? "text-white" : "text-white/55 hover:text-white/90"}`}
       >
-        <Icon size={13} className="shrink-0 opacity-90" />
+        <Icon size={13} className="shrink-0" />
         {label}
       </Link>
     );
@@ -181,16 +181,14 @@ export default function CapsuleChipNav({
       <div ref={trackRef} className={`relative grid gap-1 sm:gap-1.5 ${gridClassName} ${className}`}>
         <span
           aria-hidden
-          className="pointer-events-none absolute rounded-full will-change-[left,top,width,height]"
+          className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/25 backdrop-blur-md will-change-[transform,width,height]"
           style={pillStyle}
         />
         {items.map((item, i) =>
           renderLink(
             item,
             i,
-            `relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 sm:h-10 px-1 sm:px-2 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap min-w-0 transition-colors duration-300 ${
-              i === index ? "" : "hover:bg-white/50"
-            }`,
+            `relative z-[1] inline-flex w-full items-center justify-center gap-1 sm:gap-1.5 h-9 px-1.5 sm:px-2 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap min-w-0 transition-colors duration-300`,
             <>
               <span className="truncate sm:hidden">{item.shortTitle ?? item.title}</span>
               <span className="truncate hidden sm:inline">{item.title}</span>
@@ -204,13 +202,16 @@ export default function CapsuleChipNav({
   return (
     <div
       ref={scrollRef}
-      className={`w-full max-w-full overflow-x-auto rounded-full bg-crm-nav-pill border border-crm-border-subtle/70 accounts-nav-scroll ${className}`}
+      className={`w-full max-w-full overflow-x-auto accounts-nav-scroll ${className}`}
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     >
-      <div ref={trackRef} className="relative inline-flex items-center gap-0.5 py-1.5 px-1.5 min-w-max">
+      <div
+        ref={trackRef}
+        className="relative inline-flex items-center gap-1 p-1 min-w-max rounded-full bg-[#0F172A]/92 backdrop-blur-md border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_4px_20px_-6px_rgba(15,23,42,0.35)]"
+      >
         <span
           aria-hidden
-          className="pointer-events-none absolute rounded-full will-change-[left,top,width,height]"
+          className="pointer-events-none absolute top-0 left-0 rounded-full border border-white/25 backdrop-blur-md will-change-[transform,width,height]"
           style={pillStyle}
         />
         {items.map((item, i) => {
@@ -218,12 +219,11 @@ export default function CapsuleChipNav({
           return renderLink(
             item,
             i,
-            `relative z-[1] py-1 px-2 sm:px-2.5 xl:px-3 rounded-full inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold whitespace-nowrap shrink-0 leading-none transition-colors duration-300 ${
-              i === index ? "" : "hover:bg-crm-surface/70"
-            }`,
+            `relative z-[1] inline-flex items-center justify-center gap-1 sm:gap-1.5 h-9 px-2 sm:px-2.5 xl:px-3 rounded-full text-[10px] sm:text-[11px] xl:text-xs font-bold whitespace-nowrap shrink-0 transition-colors duration-300 min-w-0`,
             <>
-              <span className="hidden sm:inline xl:hidden">{short}</span>
-              <span className="hidden xl:inline">{item.title}</span>
+              <span className="truncate sm:hidden">{short}</span>
+              <span className="truncate hidden sm:inline xl:hidden">{short}</span>
+              <span className="truncate hidden xl:inline">{item.title}</span>
             </>,
           );
         })}
