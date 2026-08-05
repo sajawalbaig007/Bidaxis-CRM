@@ -74,12 +74,13 @@ export default function CapsuleChipNav({
   const trackRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [optimisticIndex, setOptimisticIndex] = useState<number | null>(null);
-  const [capsule, setCapsule] = useState<CapsuleRect & { ready: boolean }>({
+  const [capsule, setCapsule] = useState<CapsuleRect & { ready: boolean; animate: boolean }>({
     left: 0,
     top: 0,
     width: 0,
     height: 0,
     ready: false,
+    animate: false,
   });
 
   const routeIndex = items.findIndex(item =>
@@ -95,10 +96,23 @@ export default function CapsuleChipNav({
     }
   }, [optimisticIndex, resolvedRouteIndex]);
 
-  const applyCapsule = useCallback((i: number) => {
+  /** animate=false snaps the pill — used for first paint, resizes and font swaps. */
+  const applyCapsule = useCallback((i: number, animate = true) => {
     const el = chipRefs.current[i];
     if (!el) return;
-    setCapsule({ ...measureChip(el), ready: true });
+    const next = measureChip(el);
+    setCapsule(prev => {
+      if (
+        prev.ready &&
+        prev.left === next.left &&
+        prev.top === next.top &&
+        prev.width === next.width &&
+        prev.height === next.height
+      ) {
+        return prev;
+      }
+      return { ...next, ready: true, animate: animate && prev.ready };
+    });
   }, []);
 
   useLayoutEffect(() => {
@@ -108,10 +122,22 @@ export default function CapsuleChipNav({
   }, [applyCapsule, index, pathname]);
 
   useEffect(() => {
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (!fonts) return;
+    let cancelled = false;
+    void fonts.ready.then(() => {
+      if (!cancelled) applyCapsule(index, false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyCapsule, index]);
+
+  useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
 
-    const remeasure = () => applyCapsule(index);
+    const remeasure = () => applyCapsule(index, false);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(remeasure) : null;
     ro?.observe(track);
     chipRefs.current.forEach(el => {
@@ -158,7 +184,7 @@ export default function CapsuleChipNav({
     height: capsule.height,
     transform: `translate3d(${capsule.left}px, ${capsule.top}px, 0)`,
     opacity: capsule.ready ? 1 : 0,
-    transition: pillTransition,
+    transition: capsule.animate ? pillTransition : "opacity 160ms ease",
     background: `linear-gradient(135deg, ${accent}, ${shadeAccent(accent, 0.78)})`,
     boxShadow: `0 4px 16px ${accent}4d, inset 0 1px 0 rgba(255,255,255,0.28)`,
   } as CSSProperties;
@@ -224,7 +250,7 @@ export default function CapsuleChipNav({
     >
       <div
         ref={trackRef}
-        className="relative inline-flex items-center gap-1 p-1 min-w-max rounded-full bg-crm-nav-pill border border-crm-border shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:bg-crm-surface-raised dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+        className="relative mx-auto flex w-max items-center gap-1 p-1 rounded-full bg-crm-nav-pill border border-crm-border shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:bg-crm-surface-raised dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
       >
         <span
           aria-hidden

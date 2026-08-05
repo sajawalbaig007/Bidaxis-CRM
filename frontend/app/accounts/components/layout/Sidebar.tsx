@@ -92,7 +92,8 @@ export default function AccountsSidebar() {
     <>
     <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface/90 backdrop-blur-md border-b border-crm-border shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
       <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-1.5 sm:gap-2 lg:gap-3">
-        <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
+        <div className="flex-1 min-w-0 flex items-center">
+        <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-[12px] sm:rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm shadow-[#B8112D]/20 overflow-hidden p-1 shrink-0">
             <Image
               src="/images/image.png"
@@ -111,8 +112,9 @@ export default function AccountsSidebar() {
             </p>
           </div>
         </Link>
+        </div>
 
-        <div className="flex-1 min-w-0 px-0.5 sm:px-1">
+        <div className="min-w-0 shrink px-0.5 sm:px-1">
           <CapsuleChipNav
             items={navItems}
             baseHref={BASE}
@@ -121,7 +123,7 @@ export default function AccountsSidebar() {
           />
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <div className="flex-1 min-w-0 flex items-center justify-end gap-1 sm:gap-1.5">
         <ThemeToggle />
 
         <button
