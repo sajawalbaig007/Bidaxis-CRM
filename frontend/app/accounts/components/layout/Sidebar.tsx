@@ -19,12 +19,12 @@ import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 const BASE = "/accounts";
 
 const navItems = [
-  { title: "Dashboard", shortTitle: "Home", href: `${BASE}`, icon: LayoutDashboard },
-  { title: "Balance Sheet", shortTitle: "Balance", href: `${BASE}/balance-sheet`, icon: Scale },
-  { title: "Income Statement", shortTitle: "Income", href: `${BASE}/income-statement`, icon: TrendingUp },
-  { title: "Cash Flow Statement", shortTitle: "Cash Flow", href: `${BASE}/cash-flow-statement`, icon: Landmark },
-  { title: "Total Assets", shortTitle: "Assets", href: `${BASE}/total-assets`, icon: Building2 },
-  { title: "Reports", shortTitle: "Reports", href: `${BASE}/reports`, icon: FileText },
+  { title: "Dashboard", href: `${BASE}`, icon: LayoutDashboard },
+  { title: "Balance Sheet", href: `${BASE}/balance-sheet`, icon: Scale },
+  { title: "Income Statement", href: `${BASE}/income-statement`, icon: TrendingUp },
+  { title: "Cash Flow Statement", href: `${BASE}/cash-flow-statement`, icon: Landmark },
+  { title: "Total Assets", href: `${BASE}/total-assets`, icon: Building2 },
+  { title: "Reports", href: `${BASE}/reports`, icon: FileText },
 ];
 
 type UserInfo = {
@@ -92,8 +92,8 @@ export default function AccountsSidebar() {
     <>
     <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface/90 backdrop-blur-md border-b border-crm-border shadow-[0_1px_12px_-4px_rgba(15,23,42,0.08)]">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-2 sm:gap-3">
-        <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0 min-w-0">
-          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-md shadow-[#B8112D]/25 overflow-hidden p-1 shrink-0">
+        <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
+          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-md shadow-[#B8112D]/25 overflow-hidden p-1">
             <Image
               src="/images/image.png"
               alt="logo"
@@ -102,8 +102,8 @@ export default function AccountsSidebar() {
               className="object-cover w-full h-full rounded-[10px] bg-white"
             />
           </div>
-          <div className="hidden sm:block min-w-0">
-            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight truncate">
+          <div className="hidden sm:block">
+            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
               CRM Dashboard
             </h2>
             <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
@@ -112,7 +112,14 @@ export default function AccountsSidebar() {
           </div>
         </Link>
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-0">
+          <CapsuleChipNav
+            items={navItems}
+            baseHref={BASE}
+            accent="#B8112D"
+            variant="inline"
+          />
+        </div>
 
         <ThemeToggle />
 
@@ -197,15 +204,7 @@ export default function AccountsSidebar() {
             </div>
           )}
         </div>
-      </div>
 
-      <div className="border-t border-crm-border-subtle bg-crm-nav-pill/60 px-2 sm:px-3 py-2">
-        <CapsuleChipNav
-          items={navItems}
-          baseHref={BASE}
-          accent="#B8112D"
-          gridClassName="grid-cols-3 sm:grid-cols-6"
-        />
       </div>
     </header>
     {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}

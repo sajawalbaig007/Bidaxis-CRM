@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { ACCOUNTS_HASH_SCROLL_OFFSET } from "../components/layout/headerOffset";
 
 type ScrollFn = () => void;
 
@@ -34,9 +35,9 @@ function ensureHistoryPatch() {
 /**
  * Scroll to `window.location.hash` after navigation / hash change.
  * `ready` — wait until page data finished loading so the section exists in DOM.
- * `offset` — clear fixed accounts top bar (~117px) + padding.
+ * `offset` — clear fixed accounts top bar + padding.
  */
-export function useScrollToHash(ready = true, offset = 130) {
+export function useScrollToHash(ready = true, offset = ACCOUNTS_HASH_SCROLL_OFFSET) {
   const pathname = usePathname();
 
   useEffect(() => {

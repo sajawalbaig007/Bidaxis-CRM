@@ -11,7 +11,13 @@ import {
   type SalarySlipCompanyKey,
 } from "./salarySlipCompanies";
 
-export type SalarySlipLine = { label: string; amount: number; qty?: string };
+export type SalarySlipLine = {
+  label: string;
+  amount: number;
+  qty?: string;
+  /** Display-only rows (e.g. Total Commission) — excluded from earnings sum */
+  includeInTotal?: boolean;
+};
 
 export type SalarySlipPayload = {
   companyKey?: SalarySlipCompanyKey;
@@ -63,6 +69,31 @@ function signatureTimestamp(d: Date): string {
   return `${year}.${month}.${day} ${hh}:${mm}:${ss}${sign}${tzH}'${tzM}'`;
 }
 
+function earningsTotal(lines: SalarySlipLine[]): number {
+  return lines.reduce(
+    (a, r) => a + (r.includeInTotal === false ? 0 : Number(r.amount) || 0),
+    0,
+  );
+}
+
+async function loadLogoForPdf(url: string): Promise<{ dataUrl: string; format: "JPEG" | "PNG" } | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const format: "JPEG" | "PNG" = blob.type.includes("png") ? "PNG" : "JPEG";
+    return { dataUrl, format };
+  } catch {
+    return null;
+  }
+}
+
 export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise<void> {
   const key = payload.companyKey ?? DEFAULT_SALARY_SLIP_COMPANY;
   const company = SALARY_SLIP_COMPANIES[key];
@@ -77,15 +108,29 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
 
   doc.setFillColor(ar, ag, ab);
   doc.rect(0, 0, pageW, 28, "F");
+
+  const logo = company.logoUrl ? await loadLogoForPdf(company.logoUrl) : null;
+  if (logo) {
+    doc.addImage(logo.dataUrl, logo.format, margin, 5, 42, 18);
+  } else {
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(company.brandLine, margin, 12);
+  }
+
   doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(company.brandLine, margin, 12);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("HEAD OFFICE", margin, 18);
-  const addr = doc.splitTextToSize(company.address || "—", pageW / 2 - margin);
-  doc.text(addr, margin, 23);
+  if (!logo) {
+    doc.text("HEAD OFFICE", margin, 18);
+    const addr = doc.splitTextToSize(company.address || "—", pageW / 2 - margin);
+    doc.text(addr, margin, 23);
+  } else {
+    const addr = doc.splitTextToSize(company.address || "—", pageW / 2 - margin - 8);
+    doc.text(addr, margin + 46, 14);
+    doc.text("HEAD OFFICE", margin + 46, 20);
+  }
 
   doc.setFontSize(8);
   doc.text(`Tel: ${company.phone}`, pageW - margin, 12, { align: "right" });
@@ -131,9 +176,9 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
   }
 
   y += 3;
-  const earningsTotal = payload.earnings.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  const earningsSum = earningsTotal(payload.earnings);
   const deductionsTotal = payload.deductions.reduce((a, r) => a + (Number(r.amount) || 0), 0);
-  const netPay = earningsTotal - deductionsTotal;
+  const netPay = earningsSum - deductionsTotal;
   const empPf = Number(payload.employeePf) || 0;
   const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
 
@@ -147,7 +192,7 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
     head: [["Earnings", "Days/QTY", "Amount"]],
     body: [
       ...payload.earnings.map(r => [r.label, r.qty || "—", money(r.amount)]),
-      ["Total Earnings", "", money(earningsTotal)],
+      ["Total Earnings", "", money(earningsSum)],
     ],
     theme: "grid",
     headStyles: { fillColor: [ar, ag, ab], textColor: 255, fontSize: 8, fontStyle: "bold" },
@@ -158,8 +203,15 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
       2: { cellWidth: colW * 0.28, halign: "right" },
     },
     didParseCell: data => {
-      if (data.section === "body" && data.row.index === payload.earnings.length) {
-        data.cell.styles.fontStyle = "bold";
+      if (data.section === "body") {
+        const row = payload.earnings[data.row.index];
+        if (row?.includeInTotal === false) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = [ar, ag, ab];
+        }
+        if (data.row.index === payload.earnings.length) {
+          data.cell.styles.fontStyle = "bold";
+        }
       }
     },
   });
@@ -197,7 +249,7 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
     margin: { left: margin, right: margin },
     head: [["Summary", "Amount"]],
     body: [
-      ["Total Earnings", money(earningsTotal)],
+      ["Total Earnings", money(earningsSum)],
       ["Total Deduction", money(deductionsTotal)],
       ["Net Payment", money(netPay)],
       ["Net Employee PF Contribution", money(empPf)],

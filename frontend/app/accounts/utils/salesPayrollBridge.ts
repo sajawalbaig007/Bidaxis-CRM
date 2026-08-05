@@ -7,10 +7,45 @@ import {
 } from "./salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "./salesPayrollDefaults";
 
-export type PayrollKind = "technical" | "sales" | "sales_lead" | "admin" | "executive";
+export type PayrollKind =
+  | "technical"
+  | "technical_manager"
+  | "sales"
+  | "sales_lead"
+  | "admin"
+  | "executive";
 
 const SALES_REP_NAMES = new Set(["huraira", "faris", "ali", "faizan", "asim", "anam"]);
 const SALES_LEAD_NAMES = new Set(["hammad"]);
+
+export function isTechnicalManagerLabel(label: string): boolean {
+  const l = label.trim().toLowerCase();
+  return (
+    l.includes("technical manager") ||
+    l.includes("tech manager") ||
+    l.includes("tech mgr") ||
+    l.includes("(technical mgr)")
+  );
+}
+
+export function isTechnicalManagerTeam(title: string): boolean {
+  return title.trim().toLowerCase().includes("technical manager");
+}
+
+/** Per-employee kind — manager row inside a technical team still gets manager slip. */
+export function resolveSubPayrollKind(
+  sub: SubHeadEntry,
+  teamTitle: string,
+  teamKind: PayrollKind,
+): PayrollKind {
+  if (teamKind === "technical_manager" || isTechnicalManagerTeam(teamTitle)) {
+    return "technical_manager";
+  }
+  if (teamKind === "technical" && isTechnicalManagerLabel(sub.label)) {
+    return "technical_manager";
+  }
+  return teamKind;
+}
 
 export function isHammadSub(sub: { id?: string; label?: string }): boolean {
   const label = String(sub.label ?? "").trim().toLowerCase();
@@ -29,6 +64,7 @@ export function isSalesRepSub(sub: SubHeadEntry): boolean {
 
 export function payrollKindForTeamTitle(title: string): PayrollKind {
   const t = title.trim().toLowerCase();
+  if (t.includes("technical manager")) return "technical_manager";
   if (t.includes("sales team lead") || t.includes("team lead sal") || t.includes("csr team lead")) {
     return "sales_lead";
   }

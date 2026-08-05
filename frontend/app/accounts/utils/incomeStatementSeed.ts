@@ -85,6 +85,9 @@ function sub(label: string, amount: number, withSalary = false, teamName?: strin
           salary: emptySalaryDetail({
             basic: amount,
             ...(kind === "admin" ? { checkIn: "18:00" } : {}),
+            ...(kind === "technical_manager"
+              ? { homeAllowance: 0, medicalAllowance: 0, travelAllowance: 0 }
+              : {}),
             ...(kind === "executive"
               ? { commissionPct: execPctForLabel(label), loanPositive: 0, loanNegative: 0 }
               : {}),
@@ -115,6 +118,20 @@ function ensureTeamSalarySubs(subs: SubHeadEntry[] | undefined, teamName: string
           commissionPct: pct,
           loanPositive: 0,
           loanNegative: 0,
+        }),
+      };
+    });
+  }
+  if (kind === "technical_manager") {
+    return (subs ?? []).map(s => {
+      if (s.salary) return s;
+      return {
+        ...s,
+        salary: emptySalaryDetail({
+          basic: Number(s.amount) || 0,
+          homeAllowance: 0,
+          medicalAllowance: 0,
+          travelAllowance: 0,
         }),
       };
     });
@@ -193,6 +210,10 @@ const TEAM_SEED: Record<
     total: 0,
     people: [{ label: "Hammad", amount: 0, id: HAMMAD_TEAM_LEAD_ID }],
     salesTeamLead: true,
+  },
+  "Technical Manager Salaries": {
+    total: 0,
+    people: [{ label: "Ayesha", amount: 0 }],
   },
   "Email Marketing Team Salaries": {
     total: 0,

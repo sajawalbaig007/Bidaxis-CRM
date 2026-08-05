@@ -529,7 +529,7 @@ export default function AccountsDashboardPage() {
           </section>
 
           <section className="mt-5 w-full space-y-4">
-            <div id="live-fx" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[130px]">
+            <div id="live-fx" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
               <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
@@ -618,7 +618,7 @@ export default function AccountsDashboardPage() {
               </div>
             </div>
 
-            <div id="currency-formula" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[130px]">
+            <div id="currency-formula" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
               <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>

@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import { Building2, BarChart3 } from "lucide-react";
+import toast from "react-hot-toast";
+import { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
 import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
@@ -14,6 +16,7 @@ import { useAccountsPage } from "../hooks/useAccountsPage";
 import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { AssetSectionRow, AssetsCompanyKey, TotalAssetsData } from "../types";
 import { ASSETS_COMPANIES, currency, lineAmount, newRowId, todayIso } from "../types";
+import { uploadAccountsProof } from "../utils/uploadAccountsProof";
 
 function emptyCompanies(): Record<AssetsCompanyKey, AssetSectionRow[]> {
   return { BEM: [], GPS: [], BDS: [] };
@@ -88,6 +91,18 @@ export default function TotalAssetsPage() {
   }, [companies]);
 
   const grandTotal = companyTotals.BEM + companyTotals.GPS + companyTotals.BDS;
+
+  const uploadAssetProof = useCallback(
+    async (file: File) => {
+      try {
+        return await uploadAccountsProof("total_assets", acc.recordDate, file);
+      } catch (err) {
+        toast.error(apiErrorMessage(err, "Image upload failed."));
+        throw err;
+      }
+    },
+    [acc.recordDate],
+  );
 
   const setCompanySections = (
     key: AssetsCompanyKey,
@@ -224,7 +239,7 @@ export default function TotalAssetsPage() {
             </AccountsChartCard>
           </section>
 
-          <section id="assets-register" className="mt-5 space-y-5 scroll-mt-[130px]">
+          <section id="assets-register" className="mt-5 space-y-5 scroll-mt-[80px]">
             {ASSETS_COMPANIES.map(c => (
               <ExpandableHeadsTable
                 key={c.key}
@@ -236,6 +251,9 @@ export default function TotalAssetsPage() {
                 onChange={(rows, opts) => setCompanySections(c.key, rows, opts)}
                 onPersist={() => void acc.save()}
                 saving={acc.saving}
+                recordDate={acc.recordDate}
+                allowProofUpload
+                onUploadProof={uploadAssetProof}
               />
             ))}
             <p className="text-right font-extrabold text-[#0F172A] pt-2">

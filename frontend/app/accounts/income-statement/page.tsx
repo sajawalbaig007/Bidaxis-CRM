@@ -27,6 +27,7 @@ import {
 } from "../utils/incomeStatementSeed";
 import { normalizeSalesTeamSubs, isSalesTeamTitle } from "../utils/salesPayrollBridge";
 import { currencyFormulaTotal } from "../utils/currencyFormula";
+import { uploadAccountsProof } from "../utils/uploadAccountsProof";
 
 function defaultData(): IncomeStatementData {
   return ensureIncomeStatementPeople(seededIncomeStatementData());
@@ -137,18 +138,10 @@ export default function IncomeStatementPage() {
   }, [acc.loading, acc.recordDate, currencyTotal]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
     try {
-      const res = await API.post(`/accounts/income_statement/${acc.recordDate}/upload`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      const upload = res.data?.upload;
-      if (!upload?.fileUrl) throw new Error("No file URL returned");
-      toast.success("Screenshot uploaded.");
-      return { fileUrl: String(upload.fileUrl), fileName: String(upload.fileName ?? file.name) };
+      return await uploadAccountsProof("income_statement", acc.recordDate, file);
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Proof upload failed."));
+      toast.error(apiErrorMessage(err, "Image upload failed."));
       throw err;
     }
   }, [acc.recordDate]);
@@ -392,7 +385,7 @@ export default function IncomeStatementPage() {
           </section>
 
           <section className="mt-5 space-y-5">
-            <div id="team-salaries" className="scroll-mt-[130px]">
+            <div id="team-salaries" className="scroll-mt-[80px]">
             <ExpandableHeadsTable
               title="Team Salaries"
               accent="#0B84F3"
@@ -408,7 +401,7 @@ export default function IncomeStatementPage() {
             />
             </div>
 
-            <div id="opex" className="scroll-mt-[130px]">
+            <div id="opex" className="scroll-mt-[80px]">
             <ExpandableHeadsTable
               title="Operating Expenses"
               accent="#F59E0B"
@@ -417,12 +410,13 @@ export default function IncomeStatementPage() {
               onChange={(rows, opts) => commit({ opexHeads: rows.map(headToOpex) }, opts)}
               onPersist={() => void acc.save()}
               saving={acc.saving}
+              recordDate={acc.recordDate}
               allowProofUpload
               onUploadProof={uploadOpexProof}
             />
             </div>
 
-            <div id="loans" className="scroll-mt-[130px]">
+            <div id="loans" className="scroll-mt-[80px]">
             <ExpandableHeadsTable
               title="Loans"
               accent="#EA580C"
@@ -434,7 +428,7 @@ export default function IncomeStatementPage() {
             />
             </div>
 
-            <div id="provident-fund" className="scroll-mt-[130px]">
+            <div id="provident-fund" className="scroll-mt-[80px]">
             <ExpandableHeadsTable
               title="Provident Fund"
               accent="#0D9488"
