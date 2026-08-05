@@ -181,13 +181,13 @@ export type DashboardCurrency = {
   tabs: Record<CurrencyTabKey, DashboardCurrencyTab>;
 };
 
-/** User edit on a built-in (code-defined) formula — sirf text/note override hota hai. */
+/** User edit on a built-in (code-defined) formula — text/note override only. */
 export type FormulaOverride = {
   expression?: string;
   note?: string;
 };
 
-/** User ka apna banaya hua formula. */
+/** User-defined custom formula. */
 export type CustomFormula = {
   id: string;
   section: string;
@@ -204,7 +204,7 @@ export type FormulasState = {
 
 export type DashboardData = {
   currency: DashboardCurrency;
-  /** Formula Book — overrides + custom formulas (dashboard record ke saath save hote hain) */
+  /** Formula Book — overrides + custom formulas (saved with the dashboard record) */
   formulas?: FormulasState;
 };
 

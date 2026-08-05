@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   Link2,
@@ -40,14 +40,17 @@ import CsrActivityReportModal from "../shared/CsrActivityReportModal";
 import CsrCheckInControl from "../CsrCheckInControl";
 import CsrCheckInBanner from "../CsrCheckInBanner";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import CapsuleChipNav from "@/app/components/CapsuleChipNav";
+
+const BASE = "/csr";
 
 const navItems = [
-  { title: "Call Data",         href: "/csr",                      icon: Link2        },
-  { title: "Potential Clients", href: "/csr/potential-clients",    icon: AlertTriangle },
-  { title: "Not Interested",    href: "/csr/not-interested",       icon: ThumbsDown   },
-  { title: "Clients",           href: "/csr/clients",              icon: Users        },
-  { title: "Active Projects",   href: "/csr/active-projects",      icon: FolderKanban },
-  { title: "Bin",               href: "/csr/bin",                  icon: Trash2       },
+  { title: "Call Data",         shortTitle: "Call Data",         href: BASE,                       icon: Link2         },
+  { title: "Potential Clients", shortTitle: "Potential Clients", href: `${BASE}/potential-clients`, icon: AlertTriangle },
+  { title: "Not Interested",    shortTitle: "Not Interested",    href: `${BASE}/not-interested`,    icon: ThumbsDown    },
+  { title: "Clients",           shortTitle: "Clients",           href: `${BASE}/clients`,           icon: Users         },
+  { title: "Active Projects",   shortTitle: "Active Projects",   href: `${BASE}/active-projects`,   icon: FolderKanban  },
+  { title: "Bin",               shortTitle: "Bin",               href: `${BASE}/bin`,               icon: Trash2        },
 ];
 
 type UserInfo = {
@@ -100,7 +103,6 @@ function labelDate(d: string) {
 }
 
 export default function TopNavbar() {
-  const pathname = usePathname();
   const router = useRouter();
 
   const [user, setUser] = useState<UserInfo | null>(
@@ -287,7 +289,8 @@ export default function TopNavbar() {
     <>
     <header className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
       <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
-        <Link href="/csr" prefetch={false} className="flex items-center gap-3 shrink-0">
+        <div className="flex-1 min-w-0 flex items-center">
+        <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
             <Image
               src="/images/image.png"
@@ -307,35 +310,13 @@ export default function TopNavbar() {
             </p>
           </div>
         </Link>
-
-        <div className="flex-1 min-w-0">
-          <nav
-            className="mx-auto w-fit max-w-full flex items-center gap-1 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {navItems.map(({ title, href, icon: Icon }) => {
-              const active =
-                href === "/csr" ? pathname === "/csr" : pathname.startsWith(href);
-
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  prefetch={false}
-                  className={`h-10 px-3.5 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
-                    active
-                      ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                      : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
-                  }`}
-                >
-                  <Icon size={15} className="shrink-0" />
-                  <span className="hidden md:inline">{title}</span>
-                </Link>
-              );
-            })}
-          </nav>
         </div>
 
+        <div className="min-w-0 shrink">
+          <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
+        </div>
+
+        <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
         <CsrCheckInControl compact />
 
         <ThemeToggle />
@@ -600,6 +581,7 @@ export default function TopNavbar() {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </header>

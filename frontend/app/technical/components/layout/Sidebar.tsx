@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, FolderKanban, BarChart3, Users,
   GitBranch, FileText, LogOut, ChevronDown, MessageSquare,
@@ -17,23 +16,23 @@ import { forceStopChatStatusHeartbeat } from "@/lib/chatStatusHeartbeat";
 import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
+import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import API from "@/lib/api";
 
 const BASE = "/technical";
 
 const navItems = [
-  { title: "Dashboard",        href: `${BASE}`,                 icon: LayoutDashboard },
-  { title: "Active Projects",  href: `${BASE}/active-projects`, icon: FolderKanban    },
-  { title: "KPI",              href: `${BASE}/kpi`,             icon: BarChart3       },
-  { title: "Team",             href: `${BASE}/team`,            icon: Users           },
-  { title: "Revisions",        href: `${BASE}/revisions`,       icon: GitBranch       },
-  { title: "Reports",          href: `${BASE}/reports`,         icon: FileText        },
+  { title: "Dashboard",       shortTitle: "Dashboard",       href: `${BASE}`,                 icon: LayoutDashboard },
+  { title: "Active Projects", shortTitle: "Active Projects", href: `${BASE}/active-projects`, icon: FolderKanban    },
+  { title: "KPI",             shortTitle: "KPI",             href: `${BASE}/kpi`,             icon: BarChart3       },
+  { title: "Team",            shortTitle: "Team",            href: `${BASE}/team`,            icon: Users           },
+  { title: "Revisions",       shortTitle: "Revisions",       href: `${BASE}/revisions`,       icon: GitBranch       },
+  { title: "Reports",         shortTitle: "Reports",         href: `${BASE}/reports`,         icon: FileText        },
 ];
 
 type UserInfo = { name: string; email: string; role: string; profilePic?: string | null };
 
 export default function TechnicalSidebar() {
-  const pathname = usePathname();
   const [user, setUser] = useState<UserInfo | null>(() => peekAuthMe());
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -86,7 +85,8 @@ export default function TechnicalSidebar() {
     <>
       <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
-          <Link href={BASE} prefetch={false} className="flex items-center gap-3 shrink-0">
+          <div className="flex-1 min-w-0 flex items-center">
+          <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
               <Image
                 src="/images/image.png"
@@ -105,33 +105,13 @@ export default function TechnicalSidebar() {
               </p>
             </div>
           </Link>
-
-          <div className="flex-1 min-w-0">
-            <nav
-              className="mx-auto w-fit max-w-full flex items-center gap-0.5 bg-crm-nav-pill rounded-[18px] p-1 overflow-x-auto"
-              style={{ scrollbarWidth: "none" }}
-            >
-              {navItems.map(({ title, href, icon: Icon }) => {
-                const active = href === BASE ? pathname === BASE : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    prefetch={false}
-                    className={`h-10 px-3 md:px-4 rounded-[13px] flex items-center gap-2 text-[12px] md:text-[13px] font-semibold whitespace-nowrap transition-all shrink-0 ${
-                      active
-                        ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                        : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D]"
-                    }`}
-                  >
-                    <Icon size={15} className="shrink-0" />
-                    <span className="hidden md:inline">{title}</span>
-                  </Link>
-                );
-              })}
-            </nav>
           </div>
 
+          <div className="min-w-0 shrink">
+            <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
+          </div>
+
+          <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
           <ThemeToggle />
 
           <button
@@ -206,6 +186,7 @@ export default function TechnicalSidebar() {
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       </header>
