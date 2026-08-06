@@ -21,20 +21,10 @@ import {
   loadLogoForPdf,
   money,
   type JsPdfWithAutoTable,
-  type SalarySlipFooterConfig,
   type SalarySlipPayload,
 } from "./salarySlipShared";
 
 const margin = 14;
-
-const DEFAULT_FOOTER: SalarySlipFooterConfig = {
-  thankYouPrefix: "THANK YOU SO MUCH FOR YOUR ",
-  thankYouAccent: "EFFORTS!",
-  showApprovedBy: true,
-  approvedByLabel: "Approved by: Account Officer",
-  showContactBar: true,
-  socialLine: "YouTube · Facebook · Instagram · LinkedIn",
-};
 
 async function drawLogo(
   doc: JsPdfWithAutoTable,
@@ -58,32 +48,9 @@ async function drawSlipFooter(
   doc: JsPdfWithAutoTable,
   company: SalarySlipCompany,
   companyKey: string,
-  contentBottomY: number,
-  footerCfg?: SalarySlipFooterConfig,
 ) {
-  const footer = footerCfg ?? DEFAULT_FOOTER;
-  if (!footer.showContactBar && !footer.showApprovedBy) return;
-
   const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  let y = contentBottomY;
-
-  if (footer.showApprovedBy) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...BEM_BLACK);
-    doc.text(footer.approvedByLabel || "Approved by: Account Officer", margin, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.text(company.accountOfficer || "Muhammad Bilal", margin, y);
-    doc.setFillColor(...FIELD_LIGHT);
-    doc.rect(margin, y + 2, 52, 14, "F");
-    y += 20;
-  }
-
-  if (!footer.showContactBar) return;
-
-  const footerY = Math.max(y + 2, pageH - 18);
+  const footerY = doc.internal.pageSize.getHeight() - 18;
   doc.setFillColor(...FOOTER_BG);
   doc.rect(0, footerY, pageW, 18, "F");
   doc.setDrawColor(200, 200, 200);
@@ -104,28 +71,9 @@ async function drawSlipFooter(
 
   doc.setFont("helvetica", "normal");
   doc.setTextColor(80, 80, 80);
-  doc.text(footer.socialLine || "YouTube · Facebook · Instagram · LinkedIn", pageW / 2, footerY + 9, {
-    align: "center",
-  });
+  doc.text("YouTube · Facebook · Instagram · LinkedIn", pageW / 2, footerY + 9, { align: "center" });
 
   await drawLogo(doc, company, companyKey, pageW - margin - 16, footerY + 3, 14, 10);
-}
-
-function resolveEmployeeRows(payload: SalarySlipPayload): [string, string][] {
-  if (payload.employeeRows?.length) {
-    return payload.employeeRows.map(r => [r.label, r.value]);
-  }
-  const rows: [string, string][] = [
-    ["Employee Name", payload.employeeName || ""],
-    ["Employee ID", payload.employeeId || ""],
-    ["Employee address", payload.address || ""],
-    ["Phone", payload.phone || ""],
-    ["CNIC", payload.cnic || ""],
-  ];
-  if (payload.projectCount != null) {
-    rows.push(["No. of projects", `${Math.max(0, Number(payload.projectCount) || 0)}`]);
-  }
-  return rows;
 }
 
 function drawEmployeeFields(
@@ -138,7 +86,18 @@ function drawEmployeeFields(
   const labelW = 38;
   const valueX = margin + labelW;
   const valueW = pageW - margin * 2 - labelW;
-  const rows = resolveEmployeeRows(payload);
+  const rows: [string, string][] = [
+    ["Employee Name", payload.employeeName || ""],
+    ["Employee ID", payload.employeeId || ""],
+    ["Employee address", payload.address || ""],
+    ["Phone", payload.phone || ""],
+    ["CNIC", payload.cnic || ""],
+  ];
+
+  /** Only Sales Team slips carry projectCount */
+  if (payload.projectCount != null) {
+    rows.push(["No. of projects", `${Math.max(0, Number(payload.projectCount) || 0)}`]);
+  }
 
   let y = startY;
   doc.setFontSize(9);
@@ -289,46 +248,6 @@ function summaryRows(
   return (doc.lastAutoTable?.finalY ?? y) + 6;
 }
 
-function drawCustomSections(
-  doc: JsPdfWithAutoTable,
-  payload: SalarySlipPayload,
-  startY: number,
-  pageW: number,
-  headColor: [number, number, number],
-  headTextOnLight = false,
-): number {
-  const sections = payload.customSections ?? [];
-  if (!sections.length) return startY;
-  let y = startY;
-  for (const section of sections) {
-    if (!section.lines.length) continue;
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin },
-      head: [
-        [{ content: section.title || "Extra", colSpan: 3, styles: { halign: "center" } }],
-        ["Pays", "Days/QTY", "Amount"],
-      ],
-      body: section.lines.map(r => [r.label, r.qty || "—", money(r.amount)]),
-      theme: "grid",
-      headStyles: {
-        fillColor: headColor,
-        textColor: headTextOnLight ? GPS_INK : 255,
-        fontSize: 8,
-        fontStyle: "bold",
-      },
-      bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
-      columnStyles: {
-        0: { cellWidth: (pageW - margin * 2) * 0.5 },
-        1: { cellWidth: (pageW - margin * 2) * 0.2, halign: "center" },
-        2: { cellWidth: (pageW - margin * 2) * 0.3, halign: "right" },
-      },
-    });
-    y = (doc.lastAutoTable?.finalY ?? y) + 6;
-  }
-  return y;
-}
-
 /** Global / GPS — technical team */
 export async function renderGpsTechnicalSlip(
   doc: JsPdfWithAutoTable,
@@ -386,8 +305,6 @@ export async function renderGpsTechnicalSlip(
     FIELD_BLUE,
   );
 
-  y = drawCustomSections(doc, payload, y, pageW, GPS_PURPLE, true);
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(40, 40, 40);
@@ -396,7 +313,7 @@ export async function renderGpsTechnicalSlip(
   doc.setFontSize(8);
   doc.text(doc.splitTextToSize(payload.comments?.trim() || "—", pageW - margin * 2), margin, y + 5);
 
-  await drawSlipFooter(doc, company, "GPS", y + 14, payload.footer);
+  await drawSlipFooter(doc, company, "GPS");
 }
 
 /** BEM — sales team + sales team lead (red / black scheme) */
@@ -454,8 +371,6 @@ export async function renderBemSalesSlip(
     FIELD_LIGHT,
   );
 
-  y = drawCustomSections(doc, payload, y, pageW, BEM_BLACK);
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...BEM_BLACK);
@@ -465,23 +380,12 @@ export async function renderBemSalesSlip(
   doc.text(doc.splitTextToSize(payload.comments?.trim() || "—", pageW - margin * 2), margin, y + 5);
 
   y += 16;
-  const footer = payload.footer ?? DEFAULT_FOOTER;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  const prefix = footer.thankYouPrefix || "";
-  const accentWord = footer.thankYouAccent || "";
-  const prefixW = doc.getTextWidth(prefix);
-  const totalW = prefixW + doc.getTextWidth(accentWord);
-  const startX = (pageW - totalW) / 2;
-  doc.setTextColor(...BEM_BLACK);
-  doc.text(prefix, startX, y);
   doc.setTextColor(...BEM_RED);
-  doc.text(accentWord, startX + prefixW, y);
+  doc.text("THANK YOU SO MUCH FOR YOUR EFFORTS!", pageW / 2, y, { align: "center" });
 
-  await drawSlipFooter(doc, company, "BEM", y + 8, {
-    ...footer,
-    showApprovedBy: footer.showApprovedBy,
-  });
+  await drawSlipFooter(doc, company, "BEM");
 }
 
 /** BEM — CSR full invoice (legacy) — also red/black + footer */
@@ -541,8 +445,6 @@ export async function renderBemCsrFullSlip(
     BEM_RED,
   );
 
-  y = drawCustomSections(doc, payload, y, pageW, BEM_BLACK);
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...BEM_BLACK);
@@ -552,20 +454,28 @@ export async function renderBemCsrFullSlip(
   doc.text(doc.splitTextToSize(payload.comments?.trim() || " ", pageW - margin * 2), margin + 24, y);
 
   y += 14;
-  const footer = payload.footer ?? DEFAULT_FOOTER;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  const thanks = footer.thankYouPrefix || "THANK YOU SO MUCH FOR YOUR ";
-  const efforts = footer.thankYouAccent || "EFFORTS!";
+  doc.setTextColor(...BEM_BLACK);
+  const thanks = "THANK YOU SO MUCH FOR YOUR ";
+  const efforts = "EFFORTS!";
   const thanksW = doc.getTextWidth(thanks);
   const totalW = thanksW + doc.getTextWidth(efforts);
   const startX = (pageW - totalW) / 2;
-  doc.setTextColor(...BEM_BLACK);
   doc.text(thanks, startX, y);
   doc.setTextColor(...BEM_RED);
   doc.text(efforts, startX + thanksW, y);
 
-  await drawSlipFooter(doc, company, "BEM", y + 10, footer);
+  y += 12;
+  doc.setTextColor(...BEM_BLACK);
+  doc.setFontSize(9);
+  doc.text("Approved by: Account Officer", margin, y);
+  y += 5;
+  doc.text(company.accountOfficer || "Muhammad Bilal", margin, y);
+  doc.setFillColor(...FIELD_LIGHT);
+  doc.rect(margin, y + 2, 52, 14, "F");
+
+  await drawSlipFooter(doc, company, "BEM");
 }
 
 export async function renderSalarySlipByTemplate(
