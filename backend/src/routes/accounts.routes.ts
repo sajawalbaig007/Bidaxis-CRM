@@ -5,6 +5,7 @@ import { uploadReportFile } from "../middleware/upload.middleware";
 import {
   getAccountsDashboardSummary,
   getAccountsRecord,
+  getIncomeBudgetActuals,
   listAccountsDates,
   saveAccountsRecord,
   uploadAccountsFile,
@@ -24,6 +25,7 @@ router.use(verifyToken, allowRoles("accounts", "admin"));
 
 router.get("/dashboard/summary", getAccountsDashboardSummary);
 router.get("/fx-rates", getLiveFxRates);
+router.get("/income-budget/actuals", getIncomeBudgetActuals);
 router.get("/reports/monthly/saved", listMonthlyAccountsReports);
 router.post("/reports/monthly/save", uploadReportFile.single("file"), saveMonthlyAccountsReport);
 router.get("/reports/monthly", getMonthlyAccountsReport);

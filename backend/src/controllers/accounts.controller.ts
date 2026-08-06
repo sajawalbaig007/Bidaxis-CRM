@@ -23,6 +23,12 @@ import {
 } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import { accountsUploadFolder } from "../utils/accountsStorage";
+import {
+  accumulateIncomeStatementIntoBudget,
+  BUDGET_LINE_DEFS,
+  emptyBudgetActuals,
+  quarterMonths,
+} from "../utils/incomeBudget";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -548,5 +554,101 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
   } catch (err) {
     console.log(err);
     return res.status(500).json({ success: false, message: "Failed to load dashboard summary." });
+  }
+}
+
+/**
+ * Aggregate Income Statement actuals for a 3-month (or custom month) range,
+ * grouped into budget buckets (Sales combined, Technical combined, …).
+ * Query: ?quarter=2026-Q1  OR  ?start=2026-01&end=2026-03
+ */
+export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
+  try {
+    const quarter = String(req.query.quarter ?? "").trim();
+    let startMonth = String(req.query.start ?? "").trim();
+    let endMonth = String(req.query.end ?? "").trim();
+
+    if (quarter) {
+      const q = quarterMonths(quarter);
+      startMonth = q.startMonth;
+      endMonth = q.endMonth;
+    }
+
+    if (!/^\d{4}-\d{2}$/.test(startMonth) || !/^\d{4}-\d{2}$/.test(endMonth)) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide quarter=YYYY-Qn or start/end as YYYY-MM.",
+      });
+    }
+    if (startMonth > endMonth) {
+      return res.status(400).json({ success: false, message: "start must be ≤ end." });
+    }
+
+    const fromDate = `${startMonth}-01`;
+    const [ey, em] = endMonth.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(ey!, em!, 0)).getUTCDate();
+    const toDate = `${endMonth}-${String(lastDay).padStart(2, "0")}`;
+
+    const [isRecs, dashRecs] = await Promise.all([
+      prisma.accountsRecord.findMany({
+        where: {
+          page: "income_statement",
+          recordDate: { gte: fromDate, lte: toDate },
+        },
+        select: { recordDate: true, data: true },
+        orderBy: { recordDate: "asc" },
+      }),
+      prisma.accountsRecord.findMany({
+        where: {
+          page: "dashboard",
+          recordDate: { gte: fromDate, lte: toDate },
+        },
+        select: { recordDate: true, data: true },
+      }),
+    ]);
+
+    const dashByDate = new Map(
+      dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
+    );
+
+    const actuals = emptyBudgetActuals();
+    for (const rec of isRecs) {
+      const data = prepareIncomeStatement(rec.data as Record<string, unknown>);
+      const revenue = currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
+      accumulateIncomeStatementIntoBudget(data, actuals, revenue);
+    }
+
+    const payroll =
+      actuals.sales +
+      actuals.technical +
+      actuals.email_marketing +
+      actuals.administration +
+      actuals.executive +
+      actuals.other_payroll;
+    const totalExpense = payroll + actuals.opex;
+    const netProfit = actuals.revenue - totalExpense;
+
+    return res.json({
+      success: true,
+      startMonth,
+      endMonth,
+      fromDate,
+      toDate,
+      daysRecorded: isRecs.length,
+      actuals,
+      totals: {
+        payroll,
+        totalExpense,
+        netProfit,
+      },
+      lines: BUDGET_LINE_DEFS.map(d => ({
+        key: d.key,
+        label: d.label,
+        actual: actuals[d.key],
+      })),
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ success: false, message: "Failed to load budget actuals." });
   }
 }

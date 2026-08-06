@@ -15,6 +15,8 @@ export type SlipAmountSource =
   | "homeAllowance"
   | "medicalAllowance"
   | "travelAllowance"
+  | "utilityAllowance"
+  | "grossSalary"
   | "allowancesCombined"
   | "weekdayOt"
   | "weekendOt"
@@ -118,6 +120,8 @@ export const SLIP_AMOUNT_SOURCE_OPTIONS: { value: SlipAmountSource; label: strin
   { value: "homeAllowance", label: "Home allowance" },
   { value: "medicalAllowance", label: "Medical allowance" },
   { value: "travelAllowance", label: "Travel allowance" },
+  { value: "utilityAllowance", label: "Utility allowance" },
+  { value: "grossSalary", label: "Gross salary (tech manager)" },
   { value: "allowancesCombined", label: "Allowances (misc + home)" },
   { value: "weekdayOt", label: "Weekday overtime" },
   { value: "weekendOt", label: "Weekend overtime" },
@@ -243,15 +247,18 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
     layout: "gps_technical",
     employeeFields: standardEmployee(false),
     earnings: [
-      line("e-basic", "Basic Salary", "basic"),
-      line("e-home", "Home Allowance", "homeAllowance"),
-      line("e-med", "Medical Allowance", "medicalAllowance"),
-      line("e-trav", "Travel Allowance", "travelAllowance"),
-      line("e-misc", "Misc Allowance", "allowance"),
-      line("e-wot", "Weekday Overtime (1.5x)", "weekdayOt"),
-      line("e-weot", "Weekend Overtime (2x)", "weekendOt"),
+      line("e-gross", "Gross Salary", "grossSalary"),
+      line("e-basic", "Basic Salary (50%)", "basic"),
+      line("e-med", "Medical Allowance (10%)", "medicalAllowance"),
+      line("e-home", "Home Allowance (20%)", "homeAllowance"),
+      line("e-util", "Utility Allowance (10%)", "utilityAllowance"),
+      line("e-trav", "Travel Allowance (10%)", "travelAllowance"),
     ],
-    deductions: standardDeductions(),
+    deductions: [
+      line("d-pf", "PF Deduction (8% of Basic)", "employeePf"),
+      line("d-tax", "Tax Amount", "incomeTax"),
+      line("d-loan", "Loan Deduction", "loanDeduction"),
+    ],
     footer: gpsFooter(),
   }),
   admin: baseTemplate({

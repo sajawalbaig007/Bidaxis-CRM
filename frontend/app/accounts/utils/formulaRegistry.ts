@@ -109,6 +109,24 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     appliesTo: "Technical team late deduction",
   },
 
+  // ---- Payroll — Technical Manager ----
+  {
+    id: "tech-mgr-package",
+    section: "Payroll — Technical Manager",
+    title: "Gross package split",
+    expression:
+      "Basic = 50% · Medical = 10% · Home = 20% · Utility = 10% · Travel = 10% of Gross",
+    appliesTo: "Income Statement → Team Salaries → Technical Manager",
+  },
+  {
+    id: "tech-mgr-net",
+    section: "Payroll — Technical Manager",
+    title: "Net Salary",
+    expression:
+      "PF = 8% of Basic · Taxable Income = Gross − Medical · Net = Gross − PF − Tax (− loan this month)",
+    appliesTo: "Technical Manager employee editor",
+  },
+
   // ---- Payroll — Administration ----
   {
     id: "admin-earning",

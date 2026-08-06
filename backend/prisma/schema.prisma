@@ -373,6 +373,7 @@ enum AccountsPage {
   total_assets
   sales_payroll
   technical_payroll
+  income_budget
 }
 
 model PayrollLoan {

@@ -8,6 +8,10 @@ export type EmployeeSalaryDetail = {
   /** Technical manager / itemized allowance lines */
   medicalAllowance?: number;
   travelAllowance?: number;
+  /** Technical manager — utility allowance (10% of gross) */
+  utilityAllowance?: number;
+  /** Technical manager — package gross (drives % splits) */
+  grossSalary?: number;
 
   /** Weekday overtime hours */
   weekdayOtHours: number;
@@ -334,5 +338,119 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
     totalDeduction,
     totalSalary,
     lateRuleApplied: late.rule,
+  };
+}
+
+/** Technical Manager package splits of Gross Salary */
+export const TECH_MGR_GROSS_SPLITS = {
+  basic: 0.5,
+  medical: 0.1,
+  home: 0.2,
+  utility: 0.1,
+  travel: 0.1,
+} as const;
+
+export type TechManagerBreakdown = SalaryBreakdown & {
+  grossSalary: number;
+  basic: number;
+  medicalAllowance: number;
+  homeAllowance: number;
+  utilityAllowance: number;
+  travelAllowance: number;
+  /** Gross − Medical (medical treated as non-taxable) */
+  taxableIncome: number;
+};
+
+/** Gross = explicit field, else sum of stored package lines (legacy rows). */
+export function resolveTechnicalManagerGross(detail: EmployeeSalaryDetail): number {
+  const g = Number(detail.grossSalary) || 0;
+  if (g > 0) return g;
+  return (
+    (Number(detail.basic) || 0) +
+    (Number(detail.homeAllowance) || 0) +
+    (Number(detail.medicalAllowance) || 0) +
+    (Number(detail.utilityAllowance) || 0) +
+    (Number(detail.travelAllowance) || 0) +
+    (Number(detail.allowance) || 0)
+  );
+}
+
+/** Write Gross and auto-fill Basic / Medical / Home / Utility / Travel. */
+export function applyTechnicalManagerGross(
+  detail: EmployeeSalaryDetail,
+  gross: number,
+): EmployeeSalaryDetail {
+  const g = Math.max(0, Number(gross) || 0);
+  const s = TECH_MGR_GROSS_SPLITS;
+  return {
+    ...detail,
+    grossSalary: g,
+    basic: g * s.basic,
+    medicalAllowance: g * s.medical,
+    homeAllowance: g * s.home,
+    utilityAllowance: g * s.utility,
+    travelAllowance: g * s.travel,
+    allowance: 0,
+    pfAuto: true,
+  };
+}
+
+/**
+ * Technical Manager package salary (sheet formula):
+ * Basic 50% · Medical 10% · Home 20% · Utility 10% · Travel 10% of Gross
+ * PF = 8% of Basic · Taxable = Gross − Medical · Net = Gross − PF − Tax (− loan this month)
+ */
+export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): TechManagerBreakdown {
+  const gross = resolveTechnicalManagerGross(detail);
+  const s = TECH_MGR_GROSS_SPLITS;
+  const basic = gross * s.basic;
+  const medicalAllowance = gross * s.medical;
+  const homeAllowance = gross * s.home;
+  const utilityAllowance = gross * s.utility;
+  const travelAllowance = gross * s.travel;
+  const monthlySalary = gross;
+  const daySalary = monthlySalary / 30;
+  const hourSalary = daySalary / 8;
+
+  const pf =
+    detail.pfAuto !== false ? basic * 0.08 : Number(detail.pfOverride) || 0;
+  const incomeTax = Number(detail.incomeTax) || 0;
+  const loanThisMonth = Number(detail.loanThisMonth) || 0;
+  const loanRemaining = Math.max(
+    0,
+    (Number(detail.loanTotal) || 0) - (Number(detail.loanPaid) || 0) - loanThisMonth,
+  );
+
+  const taxableIncome = gross - medicalAllowance;
+  const totalEarning = gross;
+  const totalDeduction = pf + incomeTax + loanThisMonth;
+  const totalSalary = totalEarning - totalDeduction;
+
+  return {
+    grossSalary: gross,
+    basic,
+    medicalAllowance,
+    homeAllowance,
+    utilityAllowance,
+    travelAllowance,
+    taxableIncome,
+    monthlySalary,
+    daySalary,
+    hourSalary,
+    weekdayOtPay: 0,
+    weekendOtPay: 0,
+    totalOvertime: 0,
+    totalEarning,
+    lateDeduction: 0,
+    unpaidLeaveDeduction: 0,
+    paidLeaveDays: Number(detail.paidLeaveDays) || 0,
+    unpaidLeaveDays: Number(detail.unpaidLeaveDays) || 0,
+    loanThisMonth,
+    loanRemaining,
+    pf,
+    incomeTax,
+    totalDeduction,
+    totalSalary,
+    lateRuleApplied: "Package salary — no late slabs",
   };
 }
