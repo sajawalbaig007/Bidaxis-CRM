@@ -19,7 +19,7 @@ const SIZE = {
 
 /**
  * Landing / login brand mark — avoids the heavy white “sticker” card.
- * Soft glass capsule keeps the JPEG readable on dark gradients.
+ * Soft glass capsule keeps the PNG logo readable on dark gradients.
  */
 export default function BrandLogo({
   size = "md",
@@ -32,7 +32,7 @@ export default function BrandLogo({
   if (variant === "plain") {
     return (
       <Image
-        src="/images/logo.jpeg"
+        src="/images/LOGO.png"
         alt="BEM Solutions"
         width={s.w}
         height={s.h}
@@ -48,7 +48,7 @@ export default function BrandLogo({
       className={`inline-flex items-center justify-center rounded-2xl bg-white/92 dark:bg-white/95 backdrop-blur-md border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.25)] ring-1 ring-black/5 ${s.box} ${className}`}
     >
       <Image
-        src="/images/logo.jpeg"
+        src="/images/LOGO.png"
         alt="BEM Solutions"
         width={s.w}
         height={s.h}
