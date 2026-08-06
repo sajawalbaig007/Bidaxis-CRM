@@ -13,7 +13,14 @@ import {
   type SalesCommissionFields,
   type SalesPayrollEmployee,
 } from "./salesPayrollFormula";
-import { salarySlipMonthLabel, type SalarySlipLine, type SalarySlipPayload } from "./salarySlipPdf";
+import {
+  salarySlipMonthLabel,
+  salarySlipMonthCompact,
+  slipTemplateForKind,
+  type SalarySlipLine,
+  type SalarySlipPayload,
+  type SalarySlipTemplate,
+} from "./salarySlipShared";
 import {
   DEFAULT_SALARY_SLIP_COMPANY,
   salarySlipCompanyForKind,
@@ -68,32 +75,48 @@ function buildSalesSlipEarnings(
   b: ReturnType<typeof computeSalesEmployeePayroll>,
   kind: "sales" | "sales_lead",
   salesExtra: number,
+  template: SalarySlipTemplate,
 ): SalarySlipLine[] {
   const qty = commissionQtyLabels(emp.commission);
-  const totalComm = b.oldComm + b.newComm + b.fixComm + (kind === "sales_lead" ? salesExtra : 0);
-
+  const projectComm = b.oldComm + b.newComm;
   const lines: SalarySlipLine[] = [{ label: "Basic Salary", amount: emp.basic }];
+
   if (emp.allowance > 0) {
     lines.push({ label: "Misc Allowance", amount: emp.allowance });
   }
 
-  lines.push({
-    label: "Old Project Commission",
-    amount: b.oldComm,
-    qty: qty.old ?? (b.oldComm > 0 ? "—" : undefined),
-  });
-  lines.push({
-    label: "New Project Commission",
-    amount: b.newComm,
-    qty: qty.new ?? (b.newComm > 0 ? "—" : undefined),
-  });
-  if (b.fixComm > 0 || qty.fix) {
-    lines.push({
-      label: "Fixed Client Commission",
-      amount: b.fixComm,
-      qty: qty.fix,
-    });
+  if (template === "bem_sales") {
+    if (projectComm > 0) {
+      lines.push({
+        label: "Project Based Comm",
+        amount: projectComm,
+        qty: qty.old || qty.new ? [qty.old, qty.new].filter(Boolean).join(" · ") : undefined,
+      });
+    }
+    if (b.fixComm > 0 || qty.fix) {
+      lines.push({
+        label: "Fixed Client Comm",
+        amount: b.fixComm,
+        qty: qty.fix,
+      });
+    }
+  } else {
+    if (projectComm > 0) {
+      lines.push({
+        label: "Project Based Bonus",
+        amount: projectComm,
+        qty: `${b.totalProjects} project(s)`,
+      });
+    }
+    if (b.fixComm > 0 || qty.fix) {
+      lines.push({
+        label: "Hard Client Bonus",
+        amount: b.fixComm,
+        qty: qty.fix,
+      });
+    }
   }
+
   if (kind === "sales_lead" && salesExtra > 0) {
     lines.push({
       label: "Team Lead Commission",
@@ -101,21 +124,8 @@ function buildSalesSlipEarnings(
       qty: "Assigned reps",
     });
   }
-  lines.push({
-    label: "Total Commission",
-    amount: totalComm,
-    qty: `${b.totalProjects} project(s)`,
-    includeInTotal: false,
-  });
 
-  return lines.filter(
-    r =>
-      r.includeInTotal === false ||
-      r.amount !== 0 ||
-      r.label === "Basic Salary" ||
-      r.label === "Old Project Commission" ||
-      r.label === "New Project Commission",
-  );
+  return lines.filter(r => r.amount !== 0 || r.label === "Basic Salary");
 }
 
 function buildTechnicalManagerEarnings(
@@ -189,6 +199,8 @@ export function buildSalarySlipFromSub(opts: {
     salesExtra = 0,
   } = opts;
   const monthLabel = salarySlipMonthLabel(recordDate);
+  const monthCompact = salarySlipMonthCompact(recordDate);
+  const template = slipTemplateForKind(kind);
 
   if (kind === "sales" || kind === "sales_lead") {
     const sp = sub.salesPayroll as SalesPayrollEmployee | undefined;
@@ -221,10 +233,12 @@ export function buildSalarySlipFromSub(opts: {
     const b = computeSalesEmployeePayroll(emp, salesExtra);
     return {
       companyKey,
+      template,
       monthLabel,
+      monthCompact,
       employeeName: emp.name,
       employeeId: emp.code || undefined,
-      earnings: buildSalesSlipEarnings(emp, b, kind, salesExtra),
+      earnings: buildSalesSlipEarnings(emp, b, kind, salesExtra, template),
       deductions: standardDeductions(
         {
           incomeTax: emp.incomeTax,
@@ -248,7 +262,9 @@ export function buildSalarySlipFromSub(opts: {
     const profile = profileFromSalary(sal);
     return {
       companyKey,
+      template,
       monthLabel,
+      monthCompact,
       employeeName: sub.label,
       ...profile,
       earnings: [
@@ -279,7 +295,9 @@ export function buildSalarySlipFromSub(opts: {
 
   return {
     companyKey: isTechnical ? salarySlipCompanyForKind(kind, companyKey) : companyKey,
+    template: isTechnical ? slipTemplateForKind(kind) : template,
     monthLabel,
+    monthCompact,
     employeeName: sub.label,
     ...profile,
     earnings: isTechMgr
@@ -300,9 +318,9 @@ export function buildSalarySlipFromSub(opts: {
             },
           ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
         : [
-            { label: "BasicSalary", amount: sal.basic },
-            { label: "MiscAllowance", amount: sal.allowance },
-            { label: "HomeAllowance", amount: home },
+            { label: "Basic Salary", amount: sal.basic },
+            { label: "Misc Allowance", amount: sal.allowance },
+            { label: "Home Allowance", amount: home },
             ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
           ],
     deductions: standardDeductions(
