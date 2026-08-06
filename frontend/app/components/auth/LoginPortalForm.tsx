@@ -13,6 +13,7 @@ import { PORTAL_LOGIN_COPY, portalLabel, type PortalRole } from "@/lib/loginRole
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
+import BemWordmark from "@/app/components/BemWordmark";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number; captchaRequired?: boolean } };
@@ -306,6 +307,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px]">
               <BrandLogo size="md" className="mb-5 md:mb-7 shadow-[0_10px_40px_rgba(0,0,0,0.35)]" />
+              <BemWordmark className="text-[14px] md:text-[16px] mb-3 md:mb-4" onDark />
               <div
                 className="relative min-h-[108px] md:min-h-[120px] cursor-pointer"
                 onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}

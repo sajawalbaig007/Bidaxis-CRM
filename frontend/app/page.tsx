@@ -16,6 +16,7 @@ import { PORTAL_LOGIN_COPY } from "@/lib/loginRole";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
+import BemWordmark from "@/app/components/BemWordmark";
 
 type LandingPortal = {
   value: PortalRole;
@@ -149,6 +150,7 @@ export default function HomeLandingPage() {
         <div className="relative z-10 w-full max-w-[560px] sm:max-w-[640px] md:max-w-[720px] mx-auto">
           <div className="text-center mb-5 sm:mb-7 animate-[fadeUp_0.6s_ease-out]">
             <BrandLogo size="lg" className="mb-4 sm:mb-5" priority />
+            <BemWordmark className="text-[15px] sm:text-[17px] mb-2.5" onDark />
             <p className="text-white/50 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] mb-1.5">
               Secure portals
             </p>
@@ -314,9 +316,12 @@ export default function HomeLandingPage() {
             </div>
           </div>
 
-          <p className="text-center text-white/40 text-[10px] sm:text-[11px] mt-5 sm:mt-7 tracking-wide">
-            BEM Solutions · Secured access
-          </p>
+          <div className="mt-5 sm:mt-7 text-center">
+            <BemWordmark className="text-[12px] sm:text-[13px]" muted onDark />
+            <p className="text-white/35 text-[10px] sm:text-[11px] tracking-wide mt-1">
+              Secured access
+            </p>
+          </div>
         </div>
       </div>
     </>
