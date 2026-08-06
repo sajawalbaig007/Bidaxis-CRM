@@ -245,13 +245,16 @@ export function buildSalarySlipFromSub(opts: {
         { label: "MiscAllowance", amount: 0 },
         { label: "HomeAllowance", amount: 0 },
         { label: "Commission", amount: ex.commission, qty: `${ex.commissionPct}%` },
+        ...(ex.loanPositive > 0
+          ? [{ label: "Loan (company owes)", amount: ex.loanPositive }]
+          : []),
       ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
       deductions: [
         { label: "Income Tax", amount: 0 },
         { label: "Unpaid Leaves", amount: 0 },
         { label: "Late Arrival Deduction", amount: 0 },
         { label: "Employee PF Share", amount: 0 },
-        { label: "Loan Deduction", amount: 0 },
+        { label: "Loan Deduction", amount: ex.loanNegative },
       ],
       comments: commentsFrom(sal),
       employeePf: 0,

@@ -177,6 +177,14 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     appliesTo: "Income Statement → Team Salaries → Executive Salaries",
   },
   {
+    id: "exec-due",
+    section: "Payroll — Executive",
+    title: "Total Due (Head Amount)",
+    expression:
+      "Total Due = Total Salary + Loan+ve − Loan−ve · Loan+ve adds to head total · Loan−ve deducts from head total",
+    appliesTo: "Executive head / sub-head amount on Income Statement",
+  },
+  {
     id: "exec-comm",
     section: "Payroll — Executive",
     title: "Commission (from Net Profit)",

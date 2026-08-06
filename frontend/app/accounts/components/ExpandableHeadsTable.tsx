@@ -229,7 +229,28 @@ export default function ExpandableHeadsTable({
     });
   };
 
-  const total = rows.reduce((a, r) => a + lineAmount(r), 0);
+  const total = rows.reduce((a, r) => {
+    if (!salaryMode) return a + lineAmount(r);
+    const kind = resolvePayrollKind(r.title, r.subHeads);
+    if (kind === "executive") {
+      return (
+        a +
+        (r.subHeads ?? []).reduce((sum, s) => {
+          const ex = computeExecutiveSalary(
+            ensureExecutiveSalaryDetail(s.salary, s.amount),
+            execProfitBase,
+          );
+          return sum + ex.totalPayable;
+        }, 0)
+      );
+    }
+    if (kind === "sales" || kind === "sales_lead" || isSalesTeamTitle(r.title, r.subHeads)) {
+      const peers = salesSubsFromPeerRows(rows);
+      const subs = normalizeSalesTeamSubs(r.subHeads, r.title, peers);
+      return a + subs.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    }
+    return a + lineAmount(r);
+  }, 0);
 
   return (
     <div className="bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle overflow-hidden shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)]">
@@ -281,9 +302,18 @@ export default function ExpandableHeadsTable({
                 const subs = isSalesRow
                   ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers)
                   : (row.subHeads ?? []);
+                const isExecRow = salaryMode && rowPayrollKind === "executive";
                 const amt = isSalesRow
                   ? subs.reduce((a, s) => a + (Number(s.amount) || 0), 0)
-                  : lineAmount(row);
+                  : isExecRow
+                    ? subs.reduce((a, s) => {
+                        const ex = computeExecutiveSalary(
+                          ensureExecutiveSalaryDetail(s.salary, s.amount),
+                          execProfitBase,
+                        );
+                        return a + ex.totalPayable;
+                      }, 0)
+                    : lineAmount(row);
                 return (
                   <Fragment key={row.id}>
                     <tr className={`border-b border-crm-border-subtle transition-colors ${idx % 2 === 0 ? "bg-crm-surface" : "bg-crm-surface-muted"} hover:bg-crm-surface-raised`}>
