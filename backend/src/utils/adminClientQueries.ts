@@ -174,6 +174,8 @@ export const ADMIN_LEAD_LIST_SELECT = {
 
   clientCode:        true,
 
+  projectCode:       true,
+
   interestedService: true,
 
   comments:          true,

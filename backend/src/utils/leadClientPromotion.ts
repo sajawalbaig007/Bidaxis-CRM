@@ -237,10 +237,10 @@ export async function reconcileClientOldFlagsForCsr(csrId: string): Promise<void
     const unlocked = group.filter(l => uploadCategoryOldFlag(l.uploadFile?.uploadCategory) === undefined);
     if (unlocked.length === 0) continue;
 
+    /* Extra projects for the same client must NOT auto-promote New → Old */
     const shouldBeOld =
       group.some(l => l.isOldClient) ||
-      group.some(l => l.uploadFile?.uploadCategory === "old-client") ||
-      group.length >= 2;
+      group.some(l => l.uploadFile?.uploadCategory === "old-client");
 
     const ids = unlocked.filter(l => l.isOldClient !== shouldBeOld).map(l => l.id);
     if (ids.length > 0) {

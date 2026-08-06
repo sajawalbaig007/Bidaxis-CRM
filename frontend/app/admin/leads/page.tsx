@@ -62,6 +62,7 @@ type Client = {
   csr: string;
   csrCode?: string | null;
   clientCode: string | null;
+  projectCode: string | null;
   nextFollowup: string;
   time: string;
   timezone: string;
@@ -193,6 +194,7 @@ function ClientsPageContent() {
     isOldClient: false,
     state: "",
     clientCode: null,
+    projectCode: null,
     noteCount: 0,
     noteHistory: [],
   };
@@ -691,9 +693,9 @@ function ClientsPageContent() {
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  {client.clientCode && (
+                                  {(client.clientCode || client.projectCode) && (
                                     <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
-                                      {client.clientCode}
+                                      {client.clientCode || client.projectCode}
                                     </span>
                                   )}
                                   <h3 className="text-xs sm:text-sm font-semibold text-gray-700 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">

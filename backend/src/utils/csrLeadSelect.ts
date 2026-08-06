@@ -55,6 +55,7 @@ export const CSR_CLIENT_LIST_SELECT = {
   uploadFile:         { select: CSR_UPLOAD_FILE_SELECT },
   isOldClient:        true,
   clientCode:         true,
+  projectCode:        true,
   projectBudget:      true,
   paidAmount:         true,
   projectPayments:    true,

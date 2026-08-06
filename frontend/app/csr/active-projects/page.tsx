@@ -47,7 +47,7 @@ function csrToWorkbench(p: Project): ProjectWorkbenchData {
     email: p.email,
     ownerName: p.ownerName,
     state: p.state === "N/A" ? "" : p.state,
-    projectCode: p.projectCode,
+    projectCode: p.projectCode || p.clientCode || "",
     projectTitle: p.projectTitle,
     projectScope: p.projectScope,
     interestedService: p.service === "N/A" ? "" : p.service,
@@ -71,6 +71,7 @@ function projectAsRow(p: Project) {
     phone: p.phone,
     email: p.email,
     projectCode: p.projectCode,
+    clientCode: p.clientCode,
     projectTitle: p.projectTitle,
     projectScope: p.projectScope,
     interestedService: p.service,
@@ -379,58 +380,61 @@ export default function CSRProjectsPage() {
           />
         </div>
 
-        {/* ── FILTERS ── */}
-        <div className="bg-white rounded-2xl sm:rounded-[28px] shadow-sm p-4 sm:p-5 mt-4 sm:mt-7 border border-white">
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 sm:gap-4">
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center w-full xl:w-auto">
-              <div className="relative w-full xl:max-w-[320px]">
-                <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 sm:w-[18px] sm:h-[18px]" />
-                <input
-                  type="text"
-                  placeholder="Search name, code, project..."
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  className="w-full h-11 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-10 sm:pl-11 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
-                />
-              </div>
-              <ClientSortControls
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSortBy={v => { setSortBy(v); setPage(1); }}
-                onSortDir={v => { setSortDir(v); setPage(1); }}
+        {/* ── FILTERS — single row; scroll horizontally on narrow screens ── */}
+        <div className="bg-white rounded-2xl sm:rounded-[28px] shadow-sm p-3 sm:p-4 mt-4 sm:mt-7 border border-white">
+          <div className="flex flex-nowrap items-center gap-2 sm:gap-2.5 overflow-x-auto overscroll-x-contain pb-0.5 -mx-0.5 px-0.5 [scrollbar-width:thin]">
+            <div className="relative shrink-0 w-[min(100%,220px)] sm:w-[240px] lg:w-[260px] xl:w-[280px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search name, code, project..."
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                className="w-full h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
               />
+            </div>
+            <ClientSortControls
+              className="shrink-0 flex-nowrap"
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSortBy={v => { setSortBy(v); setPage(1); }}
+              onSortDir={v => { setSortDir(v); setPage(1); }}
+            />
+            <div className="shrink-0 min-w-[160px] sm:min-w-[180px]">
               <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-              <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <div className="flex items-center gap-1.5 sm:gap-2 text-[#B8112D] font-semibold text-xs sm:text-sm shrink-0">
-                <Filter size={13} className="sm:w-4 sm:h-4" />Filter by Deadline
-              </div>
-              <div className="flex items-center gap-2 flex-1 sm:max-w-md">
-                <CalendarDays size={15} className="text-gray-400 shrink-0" />
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                  className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-xs sm:text-sm outline-none focus:border-[#B8112D]"
-                />
-                <span className="text-xs text-gray-400 shrink-0">to</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                  className="flex-1 h-10 sm:h-[50px] rounded-xl sm:rounded-2xl border border-gray-200 px-3 sm:px-4 bg-[#FAFAFA] text-xs sm:text-sm outline-none focus:border-[#B8112D]"
-                />
-              </div>
-              {(dateFrom || dateTo) && (
-                <button
-                  onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
-                  className="h-10 sm:h-[50px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm text-gray-500 hover:text-[#B8112D] transition-all"
-                >
-                  Clear dates
-                </button>
-              )}
+            <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+            <div className="hidden sm:flex items-center gap-1 text-[#B8112D] font-semibold text-[11px] shrink-0 whitespace-nowrap pl-0.5">
+              <Filter size={12} />
+              <span>Deadline</span>
             </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <CalendarDays size={14} className="text-gray-400 shrink-0 sm:hidden" />
+              <input
+                type="date"
+                value={dateFrom}
+                title="Deadline from"
+                onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                className="h-10 sm:h-11 w-[132px] sm:w-[140px] rounded-xl border border-gray-200 px-2 sm:px-2.5 bg-[#FAFAFA] text-xs outline-none focus:border-[#B8112D]"
+              />
+              <span className="text-[10px] text-gray-400 shrink-0">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                title="Deadline to"
+                onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                className="h-10 sm:h-11 w-[132px] sm:w-[140px] rounded-xl border border-gray-200 px-2 sm:px-2.5 bg-[#FAFAFA] text-xs outline-none focus:border-[#B8112D]"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs text-gray-500 hover:text-[#B8112D] transition-all shrink-0 whitespace-nowrap"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
@@ -518,7 +522,7 @@ export default function CSRProjectsPage() {
 
                   <div className="pt-1">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <StickyNote size={9} />Notes
+                      <StickyNote size={9} />Bid Construction
                     </p>
                     <CommentCell id={project.id} noteHistory={project.noteHistory} onAddNote={addNote} />
                   </div>
@@ -530,7 +534,7 @@ export default function CSRProjectsPage() {
             <div className="hidden lg:block overflow-x-auto">
               <div className="min-w-[1180px]">
                 <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 ${CRM_GRID_HEAD_ROW} ${PROJECT_GRID_HEAD}`}>
-                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Fulfillment", "Notes", "Actions"].map(h => (
+                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "Bid Construction", "Actions"].map(h => (
                     <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                   ))}
                 </div>
@@ -740,9 +744,9 @@ export default function CSRProjectsPage() {
 
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Notes
+                      <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Bid Construction
                     </label>
-                    <textarea value={addForm.notes} placeholder="Any project notes..." rows={3}
+                    <textarea value={addForm.notes} placeholder="Bid Construction notes..." rows={3}
                       onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
                       className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
                     />

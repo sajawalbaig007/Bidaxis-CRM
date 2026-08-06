@@ -15,7 +15,7 @@ import {
   parseProjectPayments,
   paidTotalFromEntries,
 } from "../utils/projectPayments";
-import { buildBinWhere, filterActiveLeads } from "../utils/binLeads";
+import { buildBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { findDuplicateLead } from "../utils/leadDuplicateCheck";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
@@ -35,6 +35,7 @@ import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal } from "
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
+import { allocateNextProjectCode } from "../utils/nextProjectCode";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -824,12 +825,55 @@ router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_m
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
+    const sourceClientId = body.sourceClientId ? String(body.sourceClientId).trim() : "";
+    let source: {
+      id: string;
+      clientCode: string | null;
+      projectCode: string | null;
+      isOldClient: boolean;
+      assignedTo: string | null;
+      email: string | null;
+      state: string | null;
+      ownerName: string | null;
+      company: string | null;
+      phone: string | null;
+      name: string | null;
+    } | null = null;
+
+    if (sourceClientId) {
+      source = await prisma.lead.findFirst({
+        where: { id: sourceClientId, ...notInBinFilter() },
+        select: {
+          id: true,
+          clientCode: true,
+          projectCode: true,
+          isOldClient: true,
+          assignedTo: true,
+          email: true,
+          state: true,
+          ownerName: true,
+          company: true,
+          phone: true,
+          name: true,
+        },
+      });
+      if (!source) {
+        return res.status(404).json({ success: false, message: "Source client not found" });
+      }
+      if (!body.name) body.name = source.name;
+      if (body.company === undefined) body.company = source.company;
+      if (body.phone === undefined) body.phone = source.phone;
+      if (body.email === undefined) body.email = source.email;
+      if (body.state === undefined) body.state = source.state;
+      if (body.ownerName === undefined) body.ownerName = source.ownerName;
+    }
+
     const CSR_OTHER = "__other__";
     const rawCsrId = body.csrId ? String(body.csrId).trim() : "";
     const sourceText = typeof body.projectSource === "string" ? body.projectSource.trim() : "";
 
-    let assignTo = adminId;
-    let source: string | null = null;
+    let assignTo = source?.assignedTo || adminId;
+    let sourceLabel: string | null = null;
 
     if (rawCsrId && rawCsrId !== CSR_OTHER) {
       const csr = await prisma.user.findFirst({
@@ -847,23 +891,38 @@ router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_m
           message: "Please enter the external resource name for Other.",
         });
       }
-      source = sourceText;
+      sourceLabel = sourceText;
     } else if (sourceText) {
-      source = sourceText;
+      sourceLabel = sourceText;
     }
 
     const createData: Record<string, unknown> = {};
     applyProjectPayload(createData, body);
     createData.assignedTo = assignTo;
-    createData.projectSource = source;
+    createData.projectSource = sourceLabel;
     createData.status = body.status ?? "Close Client";
     createData.important = false;
     createData.interested = false;
+    createData.hiddenOnMain = true;
 
-    const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : null;
+    const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : (source?.phone ?? null);
     if (trimmedPhone) createData.phone = trimmedPhone;
-    const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
-    createData.isOldClient = existingLeads.length > 0;
+
+    if (source) {
+      createData.isOldClient = source.isOldClient;
+      const baseCode = (source.clientCode || source.projectCode || "").trim();
+      if (baseCode) {
+        createData.clientCode = source.clientCode || baseCode;
+        if (!createData.projectCode) {
+          createData.projectCode = await allocateNextProjectCode(baseCode, {
+            assignedTo: typeof assignTo === "string" ? assignTo : undefined,
+          });
+        }
+      }
+    } else {
+      const existingLeads = trimmedPhone ? await findLeadsByPhone(trimmedPhone) : [];
+      createData.isOldClient = existingLeads.length > 0;
+    }
 
     const lead = await prisma.lead.create({
       data: createData as Parameters<typeof prisma.lead.create>[0]["data"],

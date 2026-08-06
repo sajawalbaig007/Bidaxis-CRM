@@ -19,11 +19,11 @@ export default function ClientSortControls({
   className = "",
 }: ClientSortControlsProps) {
   return (
-    <div className={`flex items-center gap-2 flex-wrap ${className}`}>
+    <div className={`flex items-center gap-2 flex-nowrap ${className}`}>
       <select
         value={sortBy}
         onChange={e => onSortBy(e.target.value as ClientListSortBy)}
-        className="h-10 sm:h-[44px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] text-[#0F172A] font-medium"
+        className="h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] text-[#0F172A] font-medium shrink-0"
         title="Sort by"
       >
         <option value="clientCode">Client Code</option>
@@ -32,7 +32,7 @@ export default function ClientSortControls({
       <button
         type="button"
         onClick={() => onSortDir(sortDir === "asc" ? "desc" : "asc")}
-        className="h-10 sm:h-[44px] px-3 rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm font-semibold text-[#B8112D] hover:bg-[#FFF6F7] transition-colors inline-flex items-center gap-1.5"
+        className="h-10 sm:h-11 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm font-semibold text-[#B8112D] hover:bg-[#FFF6F7] transition-colors inline-flex items-center gap-1.5 shrink-0"
         title={sortDir === "asc" ? "Ascending — click for descending" : "Descending — click for ascending"}
       >
         {sortDir === "asc" ? <ArrowUpAZ size={14} /> : <ArrowDownAZ size={14} />}
