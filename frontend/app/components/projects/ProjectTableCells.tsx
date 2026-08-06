@@ -9,7 +9,6 @@ import {
   parseMoney,
   parsePayments,
   paymentPercent,
-  phaseLabel,
   ProjectPayment,
 } from "@/lib/projectFields";
 import { User2, Briefcase, Building2, Phone, Mail, MapPin, Calendar } from "lucide-react";
@@ -22,6 +21,7 @@ export type ProjectTableRow = {
   phone: string | null;
   email: string | null;
   projectCode?: string | null;
+  clientCode?: string | null;
   projectTitle: string | null;
   projectScope?: string | null;
   interestedService: string | null;
@@ -37,19 +37,6 @@ function cleanVal(v?: string | null): string | null {
   const s = v?.trim();
   if (!s || s === "N/A" || s === "—") return null;
   return s;
-}
-
-function regionLabel(state?: string | null, timezone?: string | null): string | null {
-  const st = cleanVal(state);
-  const tz = cleanVal(timezone);
-  let country = "";
-  if (tz) {
-    if (/halifax|st_johns|toronto|vancouver|winnipeg|edmonton|regina/i.test(tz)) country = "Canada";
-    else if (tz.startsWith("America/") || tz.startsWith("US/") || tz.startsWith("Pacific/")) country = "USA";
-    else if (/europe|london|paris|berlin/i.test(tz)) country = "Europe";
-  }
-  const parts = [st, country].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : st;
 }
 
 function DetailLine({
@@ -105,46 +92,50 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
 }
 
 export function ProjectDetailCell({ p }: { p: ProjectTableRow }) {
+  const code = cleanVal(p.projectCode) || cleanVal(p.clientCode);
   const title = cleanVal(p.projectTitle);
-  const address = cleanVal(p.projectScope);
-  const region = regionLabel(p.state, p.timezone);
+  const scope = cleanVal(p.projectScope);
+  const state = cleanVal(p.state);
 
   return (
-    <div className="min-w-0 bg-[#F8F9FC] dark:bg-crm-muted rounded-xl px-2.5 py-2 border border-gray-100/80 dark:border-crm-border-subtle space-y-0.5">
-      {p.projectCode && (
-        <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">
-          {p.projectCode}
-        </span>
+    <div className="min-w-0 bg-[#F8F9FC] dark:bg-crm-muted rounded-xl px-2.5 py-2 border border-gray-100/80 dark:border-crm-border-subtle space-y-1">
+      {code && (
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Project Code</p>
+          <span className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">
+            {code}
+          </span>
+        </div>
       )}
       {title && (
-        <p className="text-xs font-semibold text-[#0F172A] dark:text-crm-text truncate flex items-center gap-1">
-          <Briefcase size={10} className="text-[#B8112D] shrink-0" />
-          {title}
-        </p>
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Project Detail</p>
+          <p className="text-xs font-semibold text-[#0F172A] dark:text-crm-text truncate flex items-center gap-1">
+            <Briefcase size={10} className="text-[#B8112D] shrink-0" />
+            {title}
+          </p>
+        </div>
       )}
-      {address && (
-        <DetailLine icon={<MapPin size={9} className="text-gray-400 shrink-0" />}>
-          {address}
-        </DetailLine>
+      {state && (
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">State</p>
+          <p className="text-[10px] text-gray-600 dark:text-crm-text-muted truncate">{state}</p>
+        </div>
       )}
-      {region && (
-        <p className="text-[10px] text-gray-500 dark:text-crm-text-muted truncate">{region}</p>
+      {scope && (
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Scope</p>
+          <DetailLine icon={<MapPin size={9} className="text-gray-400 shrink-0" />}>
+            {scope}
+          </DetailLine>
+        </div>
       )}
-      {!p.projectCode && !title && !address && !region && (
+      {!code && !title && !state && !scope && (
         <span className="text-[10px] text-gray-400">—</span>
       )}
     </div>
   );
 }
-
-const phaseStyle: Record<string, string> = {
-  not_started:       "bg-gray-100 text-gray-600",
-  takeoff_started:   "bg-amber-50 text-amber-700 border border-amber-200",
-  takeoff_completed: "bg-orange-50 text-orange-700 border border-orange-200",
-  pricing_phase:     "bg-violet-50 text-violet-700 border border-violet-200",
-  qa_phase:          "bg-blue-50 text-blue-700 border border-blue-200",
-  delivery_phase:    "bg-[#ECFDF5] text-[#065F46] border border-emerald-200",
-};
 
 export function QuotedAmountCell({ p }: { p: ProjectTableRow }) {
   const amount = parseMoney(p.projectBudget);
@@ -195,19 +186,17 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
 
 export function FulfillmentCell({ p }: { p: ProjectTableRow }) {
   const deadline = p.projectDeadline?.split("T")[0];
-  const phase = p.projectPhase ?? "not_started";
-  const phaseCls = phaseStyle[phase] ?? phaseStyle.not_started;
 
   return (
     <div className="min-w-0">
-      <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg mb-1.5 ${phaseCls}`}>
-        {phaseLabel(phase)}
-      </span>
-      {deadline && deadline !== "N/A" && (
-        <p className="text-[10px] xl:text-xs text-gray-600 flex items-center gap-1">
+      <p className="text-[8px] font-bold uppercase tracking-wide text-gray-400 mb-1">Client Deadline</p>
+      {deadline && deadline !== "N/A" ? (
+        <p className="text-[10px] xl:text-xs text-gray-700 font-semibold flex items-center gap-1">
           <Calendar size={9} className="text-[#B8112D] shrink-0" />
           {deadline}
         </p>
+      ) : (
+        <span className="text-[10px] text-gray-400">—</span>
       )}
     </div>
   );

@@ -16,7 +16,7 @@ import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../compone
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { isWonClientStatus } from "../constants/leadStatuses";
-import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead, clientIdentityKey, splitWonClientsByIdentity } from "../hooks/useLeadsData";
+import { useLeadsData, mapClientLead, ClientLead, SubContact, NoteEntry, type RawClientLead, splitWonClientsByIdentity } from "../hooks/useLeadsData";
 import { useClientPhoneLookup } from "../hooks/useClientPhoneLookup";
 import API from "@/lib/api";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
@@ -32,12 +32,18 @@ import toast, { Toaster } from "react-hot-toast";
 import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import { apiErrorMessage } from "@/lib/api";
-import { formatQuotedAmount, parseMoney } from "@/lib/projectFields";
+import { formatQuotedAmount, parseMoney, emptyWorkbench, ProjectWorkbenchData } from "@/lib/projectFields";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { websiteHref } from "../components/LeadDetailModal";
+
+function clientDisplayCode(lead: Pick<ClientLead, "clientCode" | "projectCode">): string | null {
+  const code = (lead.clientCode || lead.projectCode || "").trim();
+  return code || null;
+}
 
 /* ─── Constants ─────────────────────────────────────────── */
 const EDIT_STATUSES = ["pending", "important", "interested", "Close Client", "completed"];
@@ -155,17 +161,16 @@ export default function LeadsPage() {
   const [contactSaving,   setContactSaving]     = useState(false);
   const [removingContactId, setRemovingContactId] = useState<string | null>(null);
   const [historyLead, setHistoryLead] = useState<ClientLead | null>(null);
+  const [addProjectFor, setAddProjectFor] = useState<ClientLead | null>(null);
+  const [addProjectSaving, setAddProjectSaving] = useState(false);
 
   /* ─── Derived ──────────────────────────────────────────── */
   const wonLeads = useMemo(() => leads.filter(l => isWonClientStatus(l.status)), [leads]);
-  const { newLeads, oldLeads, repeatKeys } = useMemo(
+  const { newLeads, oldLeads } = useMemo(
     () => splitWonClientsByIdentity(wonLeads),
     [wonLeads],
   );
-  const isRepeatClient = useCallback(
-    (lead: ClientLead) => repeatKeys.has(clientIdentityKey(lead)),
-    [repeatKeys],
-  );
+  const isOldTab = activeTab === "old";
   const baseList = activeTab === "new" ? newLeads : oldLeads;
 
   const importantCount  = stats.importantCount;
@@ -180,6 +185,7 @@ export default function LeadsPage() {
         l.name.toLowerCase().includes(q) ||
         l.company.toLowerCase().includes(q) ||
         (l.clientCode ?? "").toLowerCase().includes(q) ||
+        (l.projectCode ?? "").toLowerCase().includes(q) ||
         collectLeadPhones(l.phone, l.contacts).some(p => p.includes(q)) ||
         collectLeadEmails(l.email, l.contacts).some(e => e.toLowerCase().includes(q)) ||
         l.email.toLowerCase().includes(q)
@@ -484,20 +490,21 @@ export default function LeadsPage() {
             </div>
           ) : filtered.length > 0 ? (
             <>
-              <div className="overflow-x-hidden">
-              {/* Desktop header */}
-              <div className={`hidden lg:grid gap-2 px-4 lg:px-5 py-2.5 w-full ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
-                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Latest Note", ""].map(h => (
+              <div className="overflow-x-auto">
+              {/* Desktop header — min width so actions (3 buttons) never clip */}
+              <div className={`hidden lg:grid gap-2 px-4 lg:px-5 py-2.5 w-full min-w-[1100px] ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
+                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Latest Note", "Actions"].map(h => (
                   <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                 ))}
               </div>
 
-              <div className="divide-y divide-[#F3F3F3] w-full">
+              <div className="divide-y divide-[#F3F3F3] w-full min-w-[1100px] lg:min-w-[1100px]">
                 {paginated.map(lead => {
                   const latestNote = getLatestNote(lead);
                   const displayName = lead.name;
-                  const repeat = isRepeatClient(lead);
-                  const displaySub  = repeat && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
+                  /* Prefer clientCode from DB; fall back to projectCode only if client code missing */
+                  const displayCode = (lead.clientCode?.trim() || lead.projectCode?.trim() || null);
+                  const displaySub  = isOldTab && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
                   return (
                     <div
                       key={lead.id}
@@ -505,22 +512,22 @@ export default function LeadsPage() {
                     >
                       {/* Code column */}
                       <div className="hidden lg:block">
-                        {lead.clientCode
-                          ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate block">{lead.clientCode}</span>
+                        {displayCode
+                          ? <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-1 rounded-lg truncate block">{displayCode}</span>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
                       </div>
 
                       {/* Client */}
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${repeat ? "bg-amber-500" : "bg-[#15803D]"}`}>
+                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${isOldTab ? "bg-amber-500" : "bg-[#15803D]"}`}>
                           {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {/* show code badge inline on mobile */}
-                            {lead.clientCode && (
-                              <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{lead.clientCode}</span>
+                            {displayCode && (
+                              <span className="lg:hidden bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{displayCode}</span>
                             )}
                             <p className="text-xs sm:text-sm font-semibold text-[#0F172A] truncate">{displayName}</p>
                             {(() => {
@@ -538,8 +545,8 @@ export default function LeadsPage() {
                           {displaySub && (
                             <p className="text-[10px] text-gray-400 truncate mt-0.5">{displaySub}</p>
                           )}
-                          <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${repeat ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
-                            {repeat ? "Old Client" : "New Client"}
+                          <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${isOldTab ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                            {isOldTab ? "Old Client" : "New Client"}
                           </span>
                         </div>
                       </div>
@@ -607,7 +614,15 @@ export default function LeadsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex justify-end lg:justify-center gap-1.5">
+                      <div className="flex justify-end lg:justify-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setAddProjectFor(lead)}
+                          className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-[10px] sm:text-[11px] font-bold hover:bg-[#FFE4E8] transition-colors shrink-0"
+                          title="Add new project">
+                          <Plus size={13} strokeWidth={2.5} />
+                          <span className="hidden xl:inline">Project</span>
+                        </button>
                         <button onClick={() => void openNoteHistory(lead.id)}
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
                           title="Notes history">
@@ -618,7 +633,7 @@ export default function LeadsPage() {
                             ? setHistoryLead(lead)
                             : openDetail(lead)}
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
-                          title={repeat ? "All projects history" : "Client history"}
+                          title={isOldTab ? "All projects history" : "Client history"}
                         >
                           <Eye size={13} />
                         </button>
@@ -924,7 +939,7 @@ export default function LeadsPage() {
                   <X size={13} />
                 </button>
                 <div className="flex items-center gap-2.5 pr-10">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-bold text-white text-base sm:text-lg shrink-0 ${viewing && isRepeatClient(viewing) ? "bg-amber-500/40" : "bg-white/20"}`}>
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-bold text-white text-base sm:text-lg shrink-0 ${(viewing.isOldClient || isOldTab) ? "bg-amber-500/40" : "bg-white/20"}`}>
                     {viewing.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
@@ -935,13 +950,13 @@ export default function LeadsPage() {
                   </div>
                 </div>
                 <div className="mt-2 sm:mt-3 flex flex-wrap gap-1.5">
-                  {viewing.clientCode && (
+                  {clientDisplayCode(viewing) && (
                     <span className="inline-flex items-center bg-white/20 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
-                      {viewing.clientCode}
+                      {clientDisplayCode(viewing)}
                     </span>
                   )}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${viewing && isRepeatClient(viewing) ? "bg-amber-400/25 text-amber-100" : "bg-green-500/25 text-green-100"}`}>
-                    {viewing && isRepeatClient(viewing) ? "Old Client" : "New Client"}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${(viewing.isOldClient || isOldTab) ? "bg-amber-400/25 text-amber-100" : "bg-green-500/25 text-green-100"}`}>
+                    {(viewing.isOldClient || isOldTab) ? "Old Client" : "New Client"}
                   </span>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[viewing.status] ? "bg-white/15 text-white" : "bg-white/10 text-white/70"}`}>
                     {viewing.status}
@@ -1268,9 +1283,66 @@ export default function LeadsPage() {
           <ClientHistoryModal
             phone={historyLead.phone}
             clientName={historyLead.name}
+            sourceClientId={historyLead.id}
+            sourceClient={historyLead}
             editable
             onClose={() => setHistoryLead(null)}
             onProjectSaved={() => { void refetch(); }}
+            onAddProject={() => {
+              setAddProjectFor(historyLead);
+              setHistoryLead(null);
+            }}
+          />
+        )}
+
+        {addProjectFor && (
+          <ProjectWorkbenchModal
+            open
+            createMode
+            mode="csr"
+            sourceClientId={addProjectFor.id}
+            saving={addProjectSaving}
+            initial={{
+              ...emptyWorkbench(),
+              name: addProjectFor.name,
+              company: addProjectFor.company === "N/A" ? "" : addProjectFor.company,
+              phone: addProjectFor.phone === "N/A" ? "" : addProjectFor.phone,
+              email: addProjectFor.email,
+              state: addProjectFor.state,
+              interestedService: addProjectFor.interestedService,
+              projectCode: "",
+            }}
+            onClose={() => setAddProjectFor(null)}
+            onSave={async (data: ProjectWorkbenchData) => {
+              setAddProjectSaving(true);
+              try {
+                await API.post("/csr/project", {
+                  sourceClientId: addProjectFor.id,
+                  name: data.name.trim(),
+                  company: data.company.trim() || undefined,
+                  phone: data.phone.trim() || undefined,
+                  email: data.email.trim() || undefined,
+                  state: data.state.trim() || undefined,
+                  ownerName: data.ownerName.trim() || undefined,
+                  projectTitle: data.projectTitle.trim(),
+                  projectCode: data.projectCode.trim() || undefined,
+                  projectScope: data.projectScope.trim() || undefined,
+                  interestedService: data.interestedService,
+                  projectDeadline: data.projectDeadline,
+                  projectBudget: data.projectBudget.trim() || undefined,
+                  projectNotes: data.projectNotes?.trim() || undefined,
+                  status: "Close Client",
+                });
+                toast.success("Project added — now in Active Projects");
+                setAddProjectFor(null);
+                invalidateAllCsrListCaches();
+                void refetch(true);
+              } catch (err) {
+                toast.error(apiErrorMessage(err, "Failed to add project"));
+              } finally {
+                setAddProjectSaving(false);
+              }
+            }}
           />
         )}
       </main>

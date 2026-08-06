@@ -48,10 +48,10 @@ export function CsrColGroup({ widths }: { widths: readonly string[] }) {
 
 /** Desktop client list grid — min widths stop overlap (full class strings for Tailwind) */
 export const CLIENT_GRID_HEAD =
-  "grid-cols-[48px_1.15fr_0.95fr_0.85fr_0.75fr_0.85fr_0.75fr_1fr_52px]";
+  "grid-cols-[minmax(52px,64px)_minmax(150px,1.4fr)_minmax(110px,1fr)_minmax(120px,0.95fr)_minmax(90px,0.75fr)_minmax(130px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_minmax(124px,124px)]";
 
 export const CLIENT_GRID_ROW =
-  "lg:grid-cols-[48px_1.15fr_0.95fr_0.85fr_0.75fr_0.85fr_0.75fr_1fr_52px]";
+  "lg:grid-cols-[minmax(52px,64px)_minmax(150px,1.4fr)_minmax(110px,1fr)_minmax(120px,0.95fr)_minmax(90px,0.75fr)_minmax(130px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_minmax(124px,124px)]";
 
 export const CRM_GRID_HEAD_ROW =
   "crm-grid-head border-b border-crm-border-subtle bg-crm-surface-raised";

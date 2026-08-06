@@ -36,6 +36,7 @@ import {
   resolveDeleteBinReason,
   activeCsrLeadWhere,
   pendingLeadWhere,
+  notInBinFilter,
 } from "../utils/binLeads";
 import { CSR_UPLOAD_FILE_SELECT } from "../utils/uploadSourceSelect";
 import { CSR_CLIENT_LIST_SELECT, CSR_DASHBOARD_LEAD_SELECT, CSR_LIST_NOTES_SELECT } from "../utils/csrLeadSelect";
@@ -46,6 +47,7 @@ import {
   mapDashboardLead,
   type CsrTabKey,
 } from "../utils/csrDashboardQueries";
+import { allocateNextProjectCode } from "../utils/nextProjectCode";
 
 const router = express.Router();
 
@@ -388,13 +390,18 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       name,
       company,
       phone,
+      email,
+      state,
+      ownerName,
       projectTitle,
       projectCode,
+      projectScope,
       interestedService,
       projectDeadline,
       projectBudget,
       projectNotes,
       status,
+      sourceClientId,
     } = req.body;
 
     /* Validate required fields */
@@ -405,24 +412,76 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
       });
     }
 
-    const trimmedPhone = phone?.trim() || null;
+    let source: {
+      id: string;
+      clientCode: string | null;
+      projectCode: string | null;
+      isOldClient: boolean;
+      email: string | null;
+      state: string | null;
+      ownerName: string | null;
+      company: string | null;
+      phone: string | null;
+    } | null = null;
 
-    const isOldClient = trimmedPhone || company?.trim()
-      ? await hasPriorWonClient(trimmedPhone, company?.trim() ?? null)
-      : false;
+    if (sourceClientId) {
+      source = await prisma.lead.findFirst({
+        where: { id: String(sourceClientId), assignedTo: csrId, ...notInBinFilter() },
+        select: {
+          id: true,
+          clientCode: true,
+          projectCode: true,
+          isOldClient: true,
+          email: true,
+          state: true,
+          ownerName: true,
+          company: true,
+          phone: true,
+        },
+      });
+      if (!source) {
+        return res.status(404).json({ success: false, message: "Source client not found" });
+      }
+    }
+
+    const trimmedPhone = (phone?.trim() || source?.phone?.trim() || null) as string | null;
+    const baseCode = (source?.clientCode || source?.projectCode || "").trim();
+    let resolvedProjectCode = typeof projectCode === "string" && projectCode.trim()
+      ? projectCode.trim()
+      : null;
+    let clientCode: string | null = source?.clientCode ?? null;
+
+    if (source && baseCode) {
+      if (!clientCode) clientCode = baseCode;
+      if (!resolvedProjectCode) {
+        resolvedProjectCode = await allocateNextProjectCode(baseCode, { assignedTo: csrId });
+      }
+    }
+
+    /* From an existing client: keep their New/Old flag — do not promote via prior-win check */
+    const isOldClient = source
+      ? source.isOldClient
+      : (trimmedPhone || company?.trim()
+        ? await hasPriorWonClient(trimmedPhone, company?.trim() ?? null)
+        : false);
 
     const lead = await prisma.lead.create({
       data: {
         name,
-        company:           company           ?? null,
+        company:           company ?? source?.company ?? null,
         phone:             trimmedPhone,
-        status:            status            ?? "Close Client",
+        email:             email ?? source?.email ?? null,
+        state:             state ?? source?.state ?? null,
+        ownerName:         ownerName ?? source?.ownerName ?? null,
+        status:            status ?? "Close Client",
         projectTitle,
-        projectCode:       projectCode       ?? null,
+        projectCode:       resolvedProjectCode,
+        clientCode,
+        projectScope:      projectScope ?? null,
         interestedService,
         projectDeadline,
-        projectBudget:     projectBudget     ?? null,
-        projectNotes:      projectNotes      ?? null,
+        projectBudget:     projectBudget ?? null,
+        projectNotes:      projectNotes ?? null,
         assignedTo:        csrId,
         important:         false,
         interested:        false,
@@ -434,11 +493,13 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (trimmedPhone) {
       await clearPendingDuplicatesForPhone(trimmedPhone, csrId, lead.id);
     }
-    if (company?.trim()) {
-      await clearPendingDuplicatesForCompany(company.trim(), csrId, lead.id);
+    if ((company ?? source?.company)?.trim()) {
+      await clearPendingDuplicatesForCompany((company ?? source?.company)!.trim(), csrId, lead.id);
     }
 
-    await reconcileClientOldFlagsForCsr(csrId);
+    if (!source) {
+      await reconcileClientOldFlagsForCsr(csrId);
+    }
 
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();

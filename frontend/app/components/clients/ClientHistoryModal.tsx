@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Briefcase, DollarSign, History, Loader2, Pencil } from "lucide-react";
+import { X, Briefcase, DollarSign, History, Loader2, Pencil, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
@@ -50,10 +50,14 @@ type HistoryData = {
 interface ClientHistoryModalProps {
   phone: string;
   clientName?: string;
+  sourceClientId?: string;
+  /** Optional — used to prefill / identify when adding a project */
+  sourceClient?: { id: string; name: string };
   onClose: () => void;
   lookupPath?: string;
   editable?: boolean;
   onProjectSaved?: () => void;
+  onAddProject?: () => void;
 }
 
 function fmtDate(iso?: string | null) {
@@ -121,10 +125,13 @@ function leadToWorkbench(lead: Record<string, unknown>): ProjectWorkbenchData {
 export default function ClientHistoryModal({
   phone,
   clientName,
+  sourceClientId: _sourceClientId,
+  sourceClient: _sourceClient,
   onClose,
   lookupPath = "/csr/lookup-by-phone",
   editable = true,
   onProjectSaved,
+  onAddProject,
 }: ClientHistoryModalProps) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<HistoryData | null>(null);
@@ -198,7 +205,6 @@ export default function ClientHistoryModal({
         ownerName: form.ownerName,
         state: form.state,
         projectCode: form.projectCode,
-        clientCode: form.projectCode || undefined,
         projectTitle: form.projectTitle,
         projectScope: form.projectScope,
         interestedService: form.interestedService,
@@ -244,16 +250,28 @@ export default function ClientHistoryModal({
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[120] p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]">
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-          <div>
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+          <div className="min-w-0">
             <h2 className="text-lg font-bold text-[#0F172A]">{title}</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               Services, projects & business history{editable ? " — tap Edit to update any project" : ""}
             </p>
           </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {editable && onAddProject && (
+              <button
+                type="button"
+                onClick={onAddProject}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-[#B8112D] text-white text-xs font-bold hover:bg-[#9a0e26] transition-colors"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                Add Project
+              </button>
+            )}
+            <button onClick={onClose} className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -302,15 +320,21 @@ export default function ClientHistoryModal({
                     <History size={12} /> Project History
                   </h3>
                   <div className="space-y-2">
-                    {projects.map((p, idx) => (
+                    {projects.map((p, idx) => {
+                      const code = (p.projectCode || p.clientCode || "").trim();
+                      return (
                       <div key={p.id} className="bg-[#FAFAFA] rounded-2xl p-3 border border-gray-100">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[10px] font-bold text-gray-400">#{projects.length - idx}</span>
+                              {code && (
+                                <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                                  {code}
+                                </span>
+                              )}
                               <p className="text-sm font-semibold text-[#0F172A] truncate">{p.title}</p>
                             </div>
-                            {p.clientCode && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{p.clientCode}</p>}
                             {p.service && <p className="text-[11px] text-gray-500 mt-1">{p.service}</p>}
                             {(p.closedAt || p.deadline) && (
                               <p className="text-[10px] text-gray-400 mt-1">
@@ -333,8 +357,22 @@ export default function ClientHistoryModal({
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                </div>
+              )}
+
+              {projects.length === 0 && editable && onAddProject && (
+                <div className="text-center py-6">
+                  <p className="text-sm text-gray-400 mb-3">No projects yet</p>
+                  <button
+                    type="button"
+                    onClick={onAddProject}
+                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[#B8112D] text-white text-sm font-bold"
+                  >
+                    <Plus size={15} /> Add Project
+                  </button>
                 </div>
               )}
             </>

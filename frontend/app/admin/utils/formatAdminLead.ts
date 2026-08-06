@@ -10,6 +10,7 @@ export function formatAdminLead(lead: {
   company?: string;
   website?: string | null;
   clientCode?: string | null;
+  projectCode?: string | null;
   interestedService?: string;
   comments?: string;
   updatedAt?: string;
@@ -40,6 +41,7 @@ export function formatAdminLead(lead: {
   csr: string;
   csrCode?: string | null;
   clientCode: string | null;
+  projectCode: string | null;
   nextFollowup: string;
   time: string;
   timezone: string;
@@ -87,6 +89,7 @@ export function formatAdminLead(lead: {
     csr: lead.csr?.name || "Unassigned",
     csrCode: lead.csr?.csrCode ?? null,
     clientCode: lead.clientCode?.trim() || null,
+    projectCode: lead.projectCode?.trim() || null,
     nextFollowup,
     time: lead.nextTime || "N/A",
     timezone: lead.timezone || "N/A",

@@ -39,6 +39,7 @@ export type ClientLead = {
   interested: boolean;
   createdAt: string;
   clientCode: string | null;
+  projectCode: string | null;
   contacts: SubContact[];
   noteHistory: NoteEntry[];
 };
@@ -52,7 +53,8 @@ export type RawClientLead = {
   status?: string; interestedService?: string; comments?: string;
   followUpNotes?: string | null;
   projectBudget?: string | null; paidAmount?: string | null;
-  isOldClient?: boolean; createdAt?: string; updatedAt?: string; clientCode?: string | null;
+  isOldClient?: boolean; createdAt?: string; updatedAt?: string;
+  clientCode?: string | null; projectCode?: string | null;
   important?: boolean; interested?: boolean;
   contacts?: RawContact[];
   subContacts?: RawContact[];
@@ -93,10 +95,13 @@ export function splitWonClientsByIdentity(wonLeads: ClientLead[]): {
 
   for (const [key, group] of groups) {
     group.sort(byDate);
-    const latest = group[0]!;
     if (group.length >= 2) repeatKeys.add(key);
-    if (latest.isOldClient) oldLeads.push(latest);
-    else newLeads.push(latest);
+    /* Prefer oldest row so extra projects stay in Active Projects, not Clients */
+    const representative = [...group].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    )[0]!;
+    if (representative.isOldClient) oldLeads.push(representative);
+    else newLeads.push(representative);
   }
 
   newLeads.sort(byDate);
@@ -126,6 +131,7 @@ export function mapClientLead(l: RawClientLead): ClientLead {
     interested:        l.interested        ?? false,
     createdAt:         l.createdAt         ?? "",
     clientCode:        l.clientCode        ?? null,
+    projectCode:       l.projectCode       ?? null,
     contacts: (l.subContacts ?? l.contacts ?? []).map((c: RawContact) => ({
       id:          c.id          ?? String(Math.random()),
       name:        c.name        ?? "",

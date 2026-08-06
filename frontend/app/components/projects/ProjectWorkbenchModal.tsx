@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  X, ChevronDown, User2, Briefcase, DollarSign, Truck,
+  X, ChevronDown, User2, Briefcase, DollarSign,
   Plus, Trash2, Save, Loader2, Link2, StickyNote, Hash, Calendar,
 } from "lucide-react";
 import ServicePicker from "@/app/csr/components/shared/ServicePicker";
@@ -11,7 +11,6 @@ import { ReqLabel } from "@/app/components/form/RequiredMark";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import {
   PAYMENT_TYPE_OPTIONS,
-  PROJECT_PHASE_OPTIONS,
   ProjectPayment,
   ProjectWorkbenchData,
   CSR_ASSIGN_OTHER,
@@ -22,6 +21,7 @@ import {
   stripBudgetForInput,
 } from "@/lib/projectFields";
 import PaymentStatusCircle from "@/app/csr/components/shared/PaymentStatusCircle";
+import toast from "react-hot-toast";
 
 type CSROption = { id: string; name: string; csrCode?: string | null };
 
@@ -39,6 +39,8 @@ type Props = {
   initial: ProjectWorkbenchData;
   mode: "admin" | "csr";
   createMode?: boolean;
+  /** When set, project code is auto-allocated as `{clientCode}-N` on save */
+  sourceClientId?: string;
   csrs?: CSROption[];
   saving?: boolean;
   onSave: (data: ProjectWorkbenchData) => Promise<void>;
@@ -102,6 +104,7 @@ export default function ProjectWorkbenchModal({
   initial,
   mode,
   createMode = false,
+  sourceClientId,
   csrs = [],
   saving = false,
   onSave,
@@ -162,6 +165,36 @@ export default function ProjectWorkbenchModal({
 
   const toggleSection = (key: string) => setOpenSection((s) => (s === key ? "" : key));
 
+  const validateAndSave = async () => {
+    const req = (v: string | undefined | null) => !!v?.trim();
+    if (!hideClientFinanceSections) {
+      if (!req(data.name)) { toast.error("Client name is required"); return; }
+      if (!req(data.company)) { toast.error("Company name is required"); return; }
+      if (!req(data.ownerName)) { toast.error("Owner name is required"); return; }
+      if (!req(data.phone)) { toast.error("Phone is required"); return; }
+      if (!req(data.email)) { toast.error("Email is required"); return; }
+      if (mode === "admin" && data.assignedTo === CSR_ASSIGN_OTHER && !req(data.projectSource)) {
+        toast.error("Resource name is required");
+        return;
+      }
+    }
+    if (!sourceClientId && !req(data.projectCode)) { toast.error("Project code is required"); return; }
+    if (!req(data.projectTitle)) { toast.error("Project title is required"); return; }
+    if (!req(data.interestedService)) { toast.error("Service is required"); return; }
+    if (!req(data.state)) { toast.error("State is required"); return; }
+    if (!req(data.projectScope)) { toast.error("Scope is required"); return; }
+    if (!req(data.projectDeadline)) { toast.error("Project deadline is required"); return; }
+    if (!hideClientFinanceSections && !req(data.projectBudget)) {
+      toast.error("Quotation / budget is required");
+      return;
+    }
+    if (createMode && !req(data.projectNotes)) {
+        toast.error("Bid Construction notes are required");
+        return;
+      }
+    await onSave(data);
+  };
+
   return (
     <div className="fixed inset-0 z-[140] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-crm-surface w-full sm:max-w-2xl rounded-t-[24px] sm:rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
@@ -185,8 +218,8 @@ export default function ProjectWorkbenchModal({
               <p className="text-white/70 text-xs mt-0.5 truncate">
                 {createMode
                   ? hideClientFinanceSections
-                    ? "Fill in project & fulfillment details"
-                    : "Fill in client, project, payment & fulfillment details"
+                    ? "Fill in project details"
+                    : "Fill in client, project & payment details"
                   : hideClientFinanceSections
                     ? (data.projectCode ? `Code · ${data.projectCode}` : "Project details")
                     : `${data.name}${data.projectCode ? ` · ${data.projectCode}` : ""}`}
@@ -215,22 +248,22 @@ export default function ProjectWorkbenchModal({
                   onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Company Name</label>
+                <ReqLabel required>Company Name</ReqLabel>
                 <input className={inputCls} value={data.company} placeholder="Company name"
                   onChange={(e) => setData((d) => ({ ...d, company: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Owner Name</label>
+                <ReqLabel required>Owner Name</ReqLabel>
                 <input className={inputCls} value={data.ownerName} placeholder="If available"
                   onChange={(e) => setData((d) => ({ ...d, ownerName: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>
+                <ReqLabel required>
                   Phone
                   {createMode && phoneLookup && (
                     <span className="text-gray-300 normal-case font-normal"> (paste to auto-fill)</span>
                   )}
-                </label>
+                </ReqLabel>
                 <div className="relative">
                   <input
                     className={inputCls}
@@ -249,7 +282,7 @@ export default function ProjectWorkbenchModal({
                 </div>
               </div>
               <div className="sm:col-span-2">
-                <label className={labelCls}>Email</label>
+                <ReqLabel required>Email</ReqLabel>
                 <input className={inputCls} type="email" value={data.email}
                   onChange={(e) => setData((d) => ({ ...d, email: e.target.value }))} />
               </div>
@@ -322,9 +355,17 @@ export default function ProjectWorkbenchModal({
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Project Code</label>
-                <input className={inputCls} value={data.projectCode}
-                  onChange={(e) => setData((d) => ({ ...d, projectCode: e.target.value }))} />
+                <ReqLabel required={!sourceClientId}>Project Code</ReqLabel>
+                <input
+                  className={inputCls}
+                  value={data.projectCode}
+                  placeholder={sourceClientId ? "Auto: clientCode-N" : undefined}
+                  readOnly={!!sourceClientId && !data.projectCode}
+                  onChange={(e) => setData((d) => ({ ...d, projectCode: e.target.value }))}
+                />
+                {sourceClientId && !data.projectCode && (
+                  <p className="text-[10px] text-gray-400 mt-1">Assigned automatically from client code</p>
+                )}
               </div>
               <div>
                 <ReqLabel required>Project Title</ReqLabel>
@@ -339,12 +380,21 @@ export default function ProjectWorkbenchModal({
                 />
               </div>
               <div>
-                <label className={labelCls}>State</label>
+                <ReqLabel required>State</ReqLabel>
                 <input className={inputCls} value={data.state}
                   onChange={(e) => setData((d) => ({ ...d, state: e.target.value }))} />
               </div>
+              <div>
+                <ReqLabel required>Project Deadline</ReqLabel>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={data.projectDeadline}
+                  onChange={(e) => setData((d) => ({ ...d, projectDeadline: e.target.value }))}
+                />
+              </div>
               <div className="sm:col-span-2">
-                <label className={labelCls}>Scope</label>
+                <ReqLabel required>Scope</ReqLabel>
                 <textarea
                   className={`${inputCls} h-20 py-2.5 resize-none`}
                   value={data.projectScope}
@@ -384,7 +434,7 @@ export default function ProjectWorkbenchModal({
               </div>
 
               <div>
-                <label className={labelCls}>Quotation / Budget ($)</label>
+                <ReqLabel required>Quotation / Budget ($)</ReqLabel>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none select-none">$</span>
                   <input
@@ -482,54 +532,17 @@ export default function ProjectWorkbenchModal({
           </Section>
           )}
 
-          <Section
-            title="Fulfillment & Milestones"
-            icon={Truck}
-            open={openSection === "fulfillment"}
-            onToggle={() => toggleSection("fulfillment")}
-          >
-            <div>
-              <label className={labelCls}>Project Status</label>
-              <select
-                className={inputCls}
-                value={data.projectPhase}
-                onChange={(e) => setData((d) => ({ ...d, projectPhase: e.target.value }))}
-              >
-                {PROJECT_PHASE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {([
-                { key: "takeoffDeadline", label: "Takeoff Deadline" },
-                { key: "pricingDeadline", label: "Pricing Deadline" },
-                { key: "qaDeadline", label: "QA Deadline" },
-                { key: "projectDeadline", label: "Client Delivery Date *" },
-              ] as const).map(({ key, label }) => (
-                <div key={key}>
-                  <label className={labelCls}>{label}</label>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={data[key]}
-                    onChange={(e) => setData((d) => ({ ...d, [key]: e.target.value }))}
-                  />
-                </div>
-              ))}
-            </div>
-          </Section>
-
           {(createMode || (noteHistory && onAddNote)) && (
             <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <StickyNote size={12} className="text-[#B8112D]" /> Notes
+                <StickyNote size={12} className="text-[#B8112D]" /> Bid Construction
+                {createMode && <span className="text-[#B8112D] normal-case">*</span>}
               </p>
               {createMode ? (
                 <textarea
                   className={`${inputCls} h-24 py-2.5 resize-none`}
                   value={data.projectNotes ?? ""}
-                  placeholder="Project notes…"
+                  placeholder="Bid Construction notes…"
                   onChange={(e) => setData((d) => ({ ...d, projectNotes: e.target.value }))}
                 />
               ) : noteHistory && onAddNote ? (
@@ -595,7 +608,7 @@ export default function ProjectWorkbenchModal({
           <button
             type="button"
             disabled={saving}
-            onClick={() => void onSave(data)}
+            onClick={() => void validateAndSave()}
             className="flex-1 h-11 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#B8112D] to-[#d4173a] text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-red-200"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}

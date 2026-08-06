@@ -29,15 +29,21 @@ export function compareByName(a: string, b: string, dir: SortDir): number {
   return dir === "asc" ? cmp : -cmp;
 }
 
-export function sortClientRows<T extends { name?: string; client?: string; clientCode?: string | null }>(
+export function sortClientRows<T extends {
+  name?: string;
+  client?: string;
+  clientCode?: string | null;
+  projectCode?: string | null;
+}>(
   rows: T[],
   sortBy: ClientListSortBy,
   sortDir: SortDir,
 ): T[] {
+  const codeOf = (r: T) => r.clientCode || r.projectCode || null;
   const copy = [...rows];
   copy.sort((a, b) => {
     if (sortBy === "clientCode") {
-      const codeCmp = compareByClientCode(a.clientCode, b.clientCode, sortDir);
+      const codeCmp = compareByClientCode(codeOf(a), codeOf(b), sortDir);
       if (codeCmp !== 0) return codeCmp;
       const nameA = a.name ?? a.client ?? "";
       const nameB = b.name ?? b.client ?? "";
@@ -47,7 +53,7 @@ export function sortClientRows<T extends { name?: string; client?: string; clien
     const nameB = b.name ?? b.client ?? "";
     const nameCmp = compareByName(nameA, nameB, sortDir);
     if (nameCmp !== 0) return nameCmp;
-    return compareByClientCode(a.clientCode, b.clientCode, "asc");
+    return compareByClientCode(codeOf(a), codeOf(b), "asc");
   });
   return copy;
 }
