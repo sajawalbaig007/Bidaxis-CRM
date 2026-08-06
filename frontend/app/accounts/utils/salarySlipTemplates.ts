@@ -1,21 +1,23 @@
 /**
  * Three salary-slip PDF layouts matching company templates:
- * - gps_technical  → Global / GPS technical team (purple invoice style)
- * - bem_sales      → BEM sales team reps
- * - bem_csr_full   → BEM CSR / Hammad team-lead full invoice
+ * - gps_technical  → Global / GPS technical team
+ * - bem_sales      → BEM sales team + sales team lead (red/black)
+ * - bem_csr_full   → BEM CSR full invoice (legacy)
  */
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { SalarySlipCompany } from "./salarySlipCompanies";
 import {
-  BEM_NAVY,
+  BEM_BLACK,
+  BEM_RED,
   FIELD_BLUE,
+  FIELD_LIGHT,
+  FOOTER_BG,
   GPS_INK,
   GPS_PURPLE,
   earningsTotal,
   fitLogoBox,
-  hexToRgb,
   loadLogoForPdf,
   money,
   type JsPdfWithAutoTable,
@@ -41,12 +43,45 @@ async function drawLogo(
   return w;
 }
 
+/** Footer on every salary slip — phone, address, HEAD OFFICE, socials, small logo */
+async function drawSlipFooter(
+  doc: JsPdfWithAutoTable,
+  company: SalarySlipCompany,
+  companyKey: string,
+) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const footerY = doc.internal.pageSize.getHeight() - 18;
+  doc.setFillColor(...FOOTER_BG);
+  doc.rect(0, footerY, pageW, 18, "F");
+  doc.setDrawColor(200, 200, 200);
+  doc.line(0, footerY, pageW, footerY);
+
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(50, 50, 50);
+  if (company.phone) {
+    doc.text(`Tel: ${company.phone}`, margin, footerY + 6);
+  }
+  const addr = company.address || "";
+  if (addr) {
+    doc.text(addr, margin, footerY + 11);
+  }
+  doc.setFont("helvetica", "bold");
+  doc.text("HEAD OFFICE", margin + Math.min(56, doc.getTextWidth(addr) + 4), footerY + 11);
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(80, 80, 80);
+  doc.text("YouTube · Facebook · Instagram · LinkedIn", pageW / 2, footerY + 9, { align: "center" });
+
+  await drawLogo(doc, company, companyKey, pageW - margin - 16, footerY + 3, 14, 10);
+}
+
 function drawEmployeeFields(
   doc: JsPdfWithAutoTable,
   payload: SalarySlipPayload,
   startY: number,
   pageW: number,
-  withBlueFields: boolean,
+  withFieldBoxes: boolean,
 ): number {
   const labelW = 38;
   const valueX = margin + labelW;
@@ -57,11 +92,12 @@ function drawEmployeeFields(
     ["Employee address", payload.address || ""],
     ["Phone", payload.phone || ""],
     ["CNIC", payload.cnic || ""],
-    [
-      payload.projectCount != null ? "No. of projects" : "No of projects",
-      payload.projectCount != null ? `${Math.max(0, Number(payload.projectCount) || 0)}` : "",
-    ],
   ];
+
+  /** Only Sales Team slips carry projectCount */
+  if (payload.projectCount != null) {
+    rows.push(["No. of projects", `${Math.max(0, Number(payload.projectCount) || 0)}`]);
+  }
 
   let y = startY;
   doc.setFontSize(9);
@@ -71,8 +107,8 @@ function drawEmployeeFields(
     doc.text(`${label}:`, margin, y);
 
     const rowH = label.toLowerCase().includes("address") ? 10 : 7;
-    if (withBlueFields) {
-      doc.setFillColor(...FIELD_BLUE);
+    if (withFieldBoxes) {
+      doc.setFillColor(...FIELD_LIGHT);
       doc.rect(valueX, y - 4.5, valueW, rowH, "F");
     }
     doc.setFont("helvetica", "normal");
@@ -90,12 +126,14 @@ function earningsDeductionTables(
   y: number,
   pageW: number,
   headColor: [number, number, number],
-  deductionHeadColor: [number, number, number] = BEM_NAVY,
+  deductionHeadColor: [number, number, number],
+  headTextOnLight = false,
 ) {
   const earningsSum = earningsTotal(payload.earnings);
   const deductionsTotal = payload.deductions.reduce((a, r) => a + (Number(r.amount) || 0), 0);
   const mid = pageW / 2;
   const colW = mid - margin - 2;
+  const headText: [number, number, number] | 255 = headTextOnLight ? GPS_INK : 255;
 
   autoTable(doc, {
     startY: y,
@@ -112,7 +150,7 @@ function earningsDeductionTables(
     theme: "grid",
     headStyles: {
       fillColor: headColor,
-      textColor: headColor === GPS_PURPLE ? GPS_INK : 255,
+      textColor: headText,
       fontSize: 8,
       fontStyle: "bold",
     },
@@ -127,7 +165,7 @@ function earningsDeductionTables(
         data.cell.styles.fontStyle = "bold";
         if (data.column.index === 0) {
           data.cell.styles.fillColor = headColor;
-          data.cell.styles.textColor = headColor === GPS_PURPLE ? GPS_INK : 255;
+          data.cell.styles.textColor = headText;
         }
       }
     },
@@ -150,7 +188,7 @@ function earningsDeductionTables(
     theme: "grid",
     headStyles: {
       fillColor: deductionHeadColor,
-      textColor: deductionHeadColor === GPS_INK ? 255 : 255,
+      textColor: 255,
       fontSize: 8,
       fontStyle: "bold",
     },
@@ -182,6 +220,8 @@ function summaryRows(
   labelColor: [number, number, number],
   highlightRow?: number,
   highlightRgb?: [number, number, number],
+  labelTextOnLight = false,
+  valueFill: [number, number, number] = FIELD_LIGHT,
 ) {
   autoTable(doc, {
     startY: y,
@@ -193,10 +233,10 @@ function summaryRows(
       0: {
         cellWidth: pageW - margin * 2 - 45,
         fillColor: labelColor,
-        textColor: labelColor === GPS_PURPLE ? GPS_INK : 255,
+        textColor: labelTextOnLight ? GPS_INK : 255,
         fontStyle: "bold",
       },
-      1: { halign: "right", fontStyle: "bold", fillColor: FIELD_BLUE, textColor: [20, 32, 57] },
+      1: { halign: "right", fontStyle: "bold", fillColor: valueFill, textColor: [20, 20, 20] },
     },
     didParseCell: data => {
       if (highlightRow != null && data.row.index === highlightRow && highlightRgb) {
@@ -208,7 +248,7 @@ function summaryRows(
   return (doc.lastAutoTable?.finalY ?? y) + 6;
 }
 
-/** Global / GPS — technical team (purple invoice reference). */
+/** Global / GPS — technical team */
 export async function renderGpsTechnicalSlip(
   doc: JsPdfWithAutoTable,
   payload: SalarySlipPayload,
@@ -233,63 +273,16 @@ export async function renderGpsTechnicalSlip(
   doc.setTextColor(...GPS_INK);
   doc.text(payload.monthLabel, pageW - margin, 18, { align: "right" });
 
-  let y = drawEmployeeFields(doc, payload, 32, pageW, false);
+  const y0 = drawEmployeeFields(doc, payload, 32, pageW, false);
   const { y: tableY, earningsSum, deductionsTotal } = earningsDeductionTables(
     doc,
     payload,
-    y,
+    y0,
     pageW,
     GPS_PURPLE,
     GPS_INK,
+    true,
   );
-  const netPay = earningsSum - deductionsTotal;
-  const empPf = Number(payload.employeePf) || 0;
-  const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
-
-  summaryRows(
-    doc,
-    tableY,
-    pageW,
-    [
-      ["Net Employee PF Contribution", money(empPf)],
-      ["Net Employer PF Contribution", money(erPf)],
-      ["Total Earnings", money(earningsSum)],
-      ["Total Deduction", money(deductionsTotal)],
-      ["Net Payment", money(netPay)],
-    ],
-    GPS_PURPLE,
-    4,
-    GPS_INK,
-  );
-}
-
-/** BEM — sales team reps. */
-export async function renderBemSalesSlip(
-  doc: JsPdfWithAutoTable,
-  payload: SalarySlipPayload,
-  company: SalarySlipCompany,
-): Promise<void> {
-  const pageW = doc.internal.pageSize.getWidth();
-  const [ar, ag, ab] = hexToRgb(company.accent);
-
-  await drawLogo(doc, company, "BEM", margin, 10, 42, 20);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(13);
-  doc.setTextColor(30, 30, 30);
-  const titleMid = pageW / 2;
-  doc.text("Salary Slip ", titleMid - 16, 16, { align: "left" });
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(ar, ag, ab);
-  doc.text("INVOICE:", titleMid + 10, 16);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(ar, ag, ab);
-  doc.text(payload.monthLabel, pageW - margin, 16, { align: "right" });
-
-  const y0 = drawEmployeeFields(doc, payload, 28, pageW, false);
-  const { y: tableY, earningsSum, deductionsTotal } = earningsDeductionTables(doc, payload, y0, pageW, BEM_NAVY);
   const netPay = earningsSum - deductionsTotal;
   const empPf = Number(payload.employeePf) || 0;
   const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
@@ -305,9 +298,11 @@ export async function renderBemSalesSlip(
       ["Total Deduction", money(deductionsTotal)],
       ["Net Payment", money(netPay)],
     ],
-    BEM_NAVY,
+    GPS_PURPLE,
     4,
-    [ar, ag, ab],
+    GPS_INK,
+    true,
+    FIELD_BLUE,
   );
 
   doc.setFont("helvetica", "bold");
@@ -318,44 +313,42 @@ export async function renderBemSalesSlip(
   doc.setFontSize(8);
   doc.text(doc.splitTextToSize(payload.comments?.trim() || "—", pageW - margin * 2), margin, y + 5);
 
-  y += 16;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(ar, ag, ab);
-  doc.text("THANK YOU SO MUCH FOR YOUR EFFORTS!", pageW / 2, y, { align: "center" });
+  await drawSlipFooter(doc, company, "GPS");
 }
 
-/** BEM — CSR / Hammad team-lead full invoice. */
-export async function renderBemCsrFullSlip(
+/** BEM — sales team + sales team lead (red / black scheme) */
+export async function renderBemSalesSlip(
   doc: JsPdfWithAutoTable,
   payload: SalarySlipPayload,
   company: SalarySlipCompany,
 ): Promise<void> {
   const pageW = doc.internal.pageSize.getWidth();
-  const [ar, ag, ab] = hexToRgb(company.accent);
-  const monthBox = payload.monthCompact || payload.monthLabel;
 
-  await drawLogo(doc, company, "BEM", margin, 8, 44, 20);
+  await drawLogo(doc, company, "BEM", margin, 10, 42, 20);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(13);
-  doc.setTextColor(30, 30, 30);
-  const titleX = pageW / 2;
-  doc.text("Salary Slip ", titleX - 22, 14, { align: "left" });
+  doc.setTextColor(...BEM_BLACK);
+  const titleMid = pageW / 2;
+  doc.text("Salary Slip ", titleMid - 16, 16, { align: "left" });
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(ar, ag, ab);
-  doc.text("INVOICE:", titleX + 8, 14);
+  doc.setTextColor(...BEM_RED);
+  doc.text("INVOICE:", titleMid + 10, 16);
 
-  const boxW = Math.max(28, doc.getTextWidth(monthBox) + 8);
-  doc.setFillColor(...FIELD_BLUE);
-  doc.rect(pageW - margin - boxW, 8, boxW, 8, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(ar, ag, ab);
-  doc.text(monthBox, pageW - margin - boxW / 2, 13.5, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...BEM_RED);
+  doc.text(payload.monthLabel, pageW - margin, 16, { align: "right" });
 
-  const y0 = drawEmployeeFields(doc, payload, 26, pageW, true);
-  const { y: tableY, earningsSum, deductionsTotal } = earningsDeductionTables(doc, payload, y0, pageW, BEM_NAVY);
+  const y0 = drawEmployeeFields(doc, payload, 28, pageW, false);
+  const { y: tableY, earningsSum, deductionsTotal } = earningsDeductionTables(
+    doc,
+    payload,
+    y0,
+    pageW,
+    BEM_BLACK,
+    BEM_BLACK,
+  );
   const netPay = earningsSum - deductionsTotal;
   const empPf = Number(payload.employeePf) || 0;
   const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
@@ -371,14 +364,90 @@ export async function renderBemCsrFullSlip(
       ["Total Deduction", money(deductionsTotal)],
       ["Net Payment", money(netPay)],
     ],
-    BEM_NAVY,
+    BEM_BLACK,
     4,
-    [ar, ag, ab],
+    BEM_RED,
+    false,
+    FIELD_LIGHT,
   );
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.setTextColor(40, 40, 40);
+  doc.setTextColor(...BEM_BLACK);
+  doc.text("Comments:", margin, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(doc.splitTextToSize(payload.comments?.trim() || "—", pageW - margin * 2), margin, y + 5);
+
+  y += 16;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...BEM_RED);
+  doc.text("THANK YOU SO MUCH FOR YOUR EFFORTS!", pageW / 2, y, { align: "center" });
+
+  await drawSlipFooter(doc, company, "BEM");
+}
+
+/** BEM — CSR full invoice (legacy) — also red/black + footer */
+export async function renderBemCsrFullSlip(
+  doc: JsPdfWithAutoTable,
+  payload: SalarySlipPayload,
+  company: SalarySlipCompany,
+): Promise<void> {
+  const pageW = doc.internal.pageSize.getWidth();
+  const monthBox = payload.monthCompact || payload.monthLabel;
+
+  await drawLogo(doc, company, "BEM", margin, 8, 44, 20);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(13);
+  doc.setTextColor(...BEM_BLACK);
+  const titleX = pageW / 2;
+  doc.text("Salary Slip ", titleX - 22, 14, { align: "left" });
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...BEM_RED);
+  doc.text("INVOICE:", titleX + 8, 14);
+
+  const boxW = Math.max(28, doc.getTextWidth(monthBox) + 8);
+  doc.setFillColor(...FIELD_LIGHT);
+  doc.rect(pageW - margin - boxW, 8, boxW, 8, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...BEM_RED);
+  doc.text(monthBox, pageW - margin - boxW / 2, 13.5, { align: "center" });
+
+  const y0 = drawEmployeeFields(doc, payload, 26, pageW, true);
+  const { y: tableY, earningsSum, deductionsTotal } = earningsDeductionTables(
+    doc,
+    payload,
+    y0,
+    pageW,
+    BEM_BLACK,
+    BEM_BLACK,
+  );
+  const netPay = earningsSum - deductionsTotal;
+  const empPf = Number(payload.employeePf) || 0;
+  const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
+
+  let y = summaryRows(
+    doc,
+    tableY,
+    pageW,
+    [
+      ["Net Employee PF Contribution", money(empPf)],
+      ["Net Employer PF Contribution", money(erPf)],
+      ["Total Earnings", money(earningsSum)],
+      ["Total Deduction", money(deductionsTotal)],
+      ["Net Payment", money(netPay)],
+    ],
+    BEM_BLACK,
+    4,
+    BEM_RED,
+  );
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...BEM_BLACK);
   doc.text("Comments :", margin, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
@@ -387,43 +456,32 @@ export async function renderBemCsrFullSlip(
   y += 14;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(30, 30, 30);
+  doc.setTextColor(...BEM_BLACK);
   const thanks = "THANK YOU SO MUCH FOR YOUR ";
   const efforts = "EFFORTS!";
   const thanksW = doc.getTextWidth(thanks);
   const totalW = thanksW + doc.getTextWidth(efforts);
   const startX = (pageW - totalW) / 2;
   doc.text(thanks, startX, y);
-  doc.setTextColor(ar, ag, ab);
+  doc.setTextColor(...BEM_RED);
   doc.text(efforts, startX + thanksW, y);
 
   y += 12;
-  doc.setTextColor(40, 40, 40);
+  doc.setTextColor(...BEM_BLACK);
   doc.setFontSize(9);
   doc.text("Approved by: Account Officer", margin, y);
   y += 5;
   doc.text(company.accountOfficer || "Muhammad Bilal", margin, y);
-  doc.setFillColor(...FIELD_BLUE);
+  doc.setFillColor(...FIELD_LIGHT);
   doc.rect(margin, y + 2, 52, 14, "F");
 
-  const footerY = doc.internal.pageSize.getHeight() - 18;
-  doc.setFillColor(245, 242, 235);
-  doc.rect(0, footerY, pageW, 18, "F");
-  doc.setFontSize(7);
-  doc.setTextColor(50, 50, 50);
-  doc.text(`Tel: ${company.phone}`, margin, footerY + 6);
-  doc.text(company.address || "", margin, footerY + 11);
-  doc.setFont("helvetica", "bold");
-  doc.text("HEAD OFFICE", margin + 52, footerY + 11);
-  doc.setFont("helvetica", "normal");
-  doc.text("YouTube · Facebook · Instagram · LinkedIn", pageW / 2, footerY + 9, { align: "center" });
-  await drawLogo(doc, company, "BEM", pageW - margin - 16, footerY + 3, 14, 10);
+  await drawSlipFooter(doc, company, "BEM");
 }
 
 export async function renderSalarySlipByTemplate(
   payload: SalarySlipPayload,
   company: SalarySlipCompany,
-  key: string,
+  _key: string,
 ): Promise<JsPdfWithAutoTable> {
   const doc = new jsPDF({ unit: "mm", format: "a4" }) as JsPdfWithAutoTable;
   const template = payload.template ?? "bem_sales";
