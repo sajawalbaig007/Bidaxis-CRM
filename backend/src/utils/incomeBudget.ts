@@ -98,7 +98,17 @@ export type OpexHeadBucket = {
   amount: number;
 };
 
-/** Collect OPEX head totals (all sub-heads summed into the head). */
+/** Default OPEX heads (same as Income Statement seed) — always listed in budget even at 0. */
+export const DEFAULT_OPEX_HEAD_LABELS = [
+  "Office Management Expenses",
+  "IT Equipments Expenses",
+  "Regular IT Expenses",
+  "Outsourcing Expenses",
+  "Asset Purchasing Expenses",
+  "Miscellaneous Expenses",
+] as const;
+
+/** Collect OPEX head totals (all sub-heads summed into the head). Includes 0-amount heads. */
 export function collectOpexHeadAmounts(data: Record<string, unknown>): OpexHeadBucket[] {
   const out: OpexHeadBucket[] = [];
   const heads = (data.opexHeads as {
@@ -114,7 +124,6 @@ export function collectOpexHeadAmounts(data: Record<string, unknown>): OpexHeadB
       subs.length > 0
         ? subs.reduce((a, s) => a + (Number(s.amount) || 0), 0)
         : Number(head.amount) || 0;
-    if (amt === 0) continue;
     out.push({
       key: opexHeadKey(headLabel),
       headLabel,

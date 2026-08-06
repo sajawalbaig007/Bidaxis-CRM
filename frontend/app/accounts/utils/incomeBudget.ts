@@ -190,6 +190,26 @@ export function emptyCoreLines(monthKeys: string[]): BudgetLine[] {
   }));
 }
 
+/** Default Operating Expense heads (match Income Statement OPEX list). */
+export const DEFAULT_OPEX_HEAD_LABELS = [
+  "Office Management Expenses",
+  "IT Equipments Expenses",
+  "Regular IT Expenses",
+  "Outsourcing Expenses",
+  "Asset Purchasing Expenses",
+  "Miscellaneous Expenses",
+] as const;
+
+export function emptyOpexHeadLines(monthKeys: string[]): BudgetLine[] {
+  return DEFAULT_OPEX_HEAD_LABELS.map(label => ({
+    key: opexHeadKey(label),
+    label,
+    kind: "opex_head" as const,
+    headLabel: label,
+    months: emptyMonthMap(monthKeys, 0),
+  }));
+}
+
 function addMonthsInto(
   target: Record<string, number>,
   source: Record<string, number> | undefined,
@@ -273,9 +293,15 @@ function migrateLegacyPeriod(q: BudgetQuarterLegacy): BudgetPeriod {
   }
 
   const core = emptyCoreLines(monthKeys).map(c => byKey.get(c.key) ?? c);
-  const opex = [...byKey.values()]
-    .filter(l => l.kind === "opex_head")
-    .sort((a, b) => a.label.localeCompare(b.label));
+  const opexByKey = new Map<string, BudgetLine>(
+    [...byKey.values()]
+      .filter(l => l.kind === "opex_head")
+      .map(l => [String(l.key), l]),
+  );
+  for (const def of emptyOpexHeadLines(monthKeys)) {
+    if (!opexByKey.has(String(def.key))) opexByKey.set(String(def.key), def);
+  }
+  const opex = [...opexByKey.values()].sort((a, b) => a.label.localeCompare(b.label));
 
   return {
     id: q.id || periodId(fromDate, toDate),
@@ -314,7 +340,7 @@ export function ensurePeriod(
         months: { ...emptyMonthMap(monthKeys), ...prev.months },
       };
     });
-    const opex = existing.lines
+    const opexSaved = existing.lines
       .filter(l => l.kind === "opex_head" || isOpexHeadKey(l.key))
       .map(l => ({
         ...l,
@@ -322,8 +348,12 @@ export function ensurePeriod(
         key: isOpexHeadKey(String(l.key)) ? l.key : opexHeadKey(l.headLabel || l.label),
         label: l.headLabel || l.label,
         months: { ...emptyMonthMap(monthKeys), ...l.months },
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
+      }));
+    const opexByKey = new Map<string, BudgetLine>(opexSaved.map(l => [String(l.key), l]));
+    for (const def of emptyOpexHeadLines(monthKeys)) {
+      if (!opexByKey.has(String(def.key))) opexByKey.set(String(def.key), def);
+    }
+    const opex = [...opexByKey.values()].sort((a, b) => a.label.localeCompare(b.label));
     return {
       ...existing,
       id,
@@ -338,7 +368,7 @@ export function ensurePeriod(
     fromDate,
     toDate,
     monthKeys,
-    lines: emptyCoreLines(monthKeys),
+    lines: [...emptyCoreLines(monthKeys), ...emptyOpexHeadLines(monthKeys)],
     notes: "",
   };
 }
@@ -377,10 +407,13 @@ export function mergeOpexHeadsIntoPeriod(
     }
   }
   const core = emptyCoreLines(period.monthKeys).map(c => byKey.get(c.key) ?? c);
-  const opex = [...byKey.values()]
+  const opex: BudgetLine[] = [...byKey.values()]
     .filter(l => l.kind === "opex_head" || isOpexHeadKey(String(l.key)))
-    .map(l => ({ ...l, kind: "opex_head" as const }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .map(l => ({ ...l, kind: "opex_head" as const }));
+  for (const def of emptyOpexHeadLines(period.monthKeys)) {
+    if (!opex.some(l => l.key === def.key)) opex.push(def);
+  }
+  opex.sort((a, b) => a.label.localeCompare(b.label));
   return { ...period, lines: [...core, ...opex] };
 }
 

@@ -279,7 +279,7 @@ export default function EmployeeSalaryEditor({
           )}
         </div>
         <p className="text-[10px] text-orange-700/80">
-          Pending loan auto-fills from the shared ledger. Clearance: salary se deduct ya alag cash — Remaining = Total − Paid − This month.
+          Pending loan auto-fills from the shared ledger. Clearance: deduct from salary or pay separately in cash. Remaining = Total − Paid − This month.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />
@@ -302,7 +302,7 @@ export default function EmployeeSalaryEditor({
                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
             }`}
           >
-            Salary se deduct
+            Deduct from salary
           </button>
           <button
             type="button"
@@ -313,7 +313,7 @@ export default function EmployeeSalaryEditor({
                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
             }`}
           >
-            Separate cash diya
+            Paid separately in cash
           </button>
         </div>
         {(d.loanPaymentMode ?? "salary") === "salary" && (Number(d.loanThisMonth) || 0) > 0 ? (
@@ -323,7 +323,7 @@ export default function EmployeeSalaryEditor({
           </div>
         ) : d.loanPaymentMode === "cash" && (Number(d.loanThisMonth) || 0) > 0 ? (
           <p className="text-[10px] font-semibold text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">
-            Cash clearance — salary net mein loan deduct nahi hoga. Ledger paid amount update hogi.
+            Cash clearance — loan is not deducted from net salary. Ledger paid amount will update.
           </p>
         ) : null}
       </div>

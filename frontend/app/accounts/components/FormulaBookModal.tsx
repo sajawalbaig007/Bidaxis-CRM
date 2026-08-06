@@ -214,7 +214,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                 <input
                   value={customSectionName}
                   onChange={e => setCustomSectionName(e.target.value)}
-                  placeholder="…ya new section ka naam likho"
+                  placeholder="…or type a new section name"
                   className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0B84F3]"
                 />
               </div>
