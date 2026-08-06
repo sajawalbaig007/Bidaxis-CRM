@@ -1,6 +1,6 @@
 /**
  * Income Statement 3-month budget — From/To selects 3 months.
- * Sales+Lead / Technical+Manager combined. OPEX = sub-heads. No Loans/PF.
+ * Sales+Lead / Technical+Manager combined. OPEX = heads only (no sub-heads). No Loans/PF.
  */
 
 export type CoreBudgetKey =
@@ -12,15 +12,14 @@ export type CoreBudgetKey =
   | "executive"
   | "other_payroll";
 
-/** Core keys or dynamic `opex::Head::Sub` */
+/** Core keys or dynamic `opex_head::Head` */
 export type BudgetLineKey = CoreBudgetKey | string;
 
 export type BudgetLine = {
   key: BudgetLineKey;
   label: string;
-  kind: "core" | "opex_sub";
+  kind: "core" | "opex_head";
   headLabel?: string;
-  subLabel?: string;
   /** Per-month amounts keyed by YYYY-MM */
   months: Record<string, number>;
 };
@@ -45,7 +44,7 @@ export type BudgetQuarterLegacy = {
   lines: {
     key: string;
     label: string;
-    kind?: "core" | "opex_sub";
+    kind?: "core" | "opex_sub" | "opex_head";
     headLabel?: string;
     subLabel?: string;
     budget?: number;
@@ -73,8 +72,27 @@ export const CORE_BUDGET_LINE_DEFS: { key: CoreBudgetKey; label: string }[] = [
 
 const DROPPED_KEYS = new Set(["opex", "loans", "pf"]);
 
+export function isOpexHeadKey(key: string): boolean {
+  return key.startsWith("opex_head::");
+}
+
+/** Legacy sub-head keys `opex::Head::Sub` */
 export function isOpexSubKey(key: string): boolean {
   return key.startsWith("opex::");
+}
+
+export function opexHeadKey(headLabel: string): string {
+  return `opex_head::${headLabel.trim()}`;
+}
+
+/** Parse head name from opex_head::X or legacy opex::Head::Sub */
+export function headLabelFromOpexKey(key: string, fallback = ""): string {
+  if (isOpexHeadKey(key)) return key.slice("opex_head::".length) || fallback;
+  if (isOpexSubKey(key)) {
+    const parts = key.split("::");
+    return parts[1] || fallback;
+  }
+  return fallback;
 }
 
 export function monthLabel(ym: string): string {
@@ -172,16 +190,25 @@ export function emptyCoreLines(monthKeys: string[]): BudgetLine[] {
   }));
 }
 
+function addMonthsInto(
+  target: Record<string, number>,
+  source: Record<string, number> | undefined,
+  monthKeys: string[],
+) {
+  for (const mk of monthKeys) {
+    target[mk] = (Number(target[mk]) || 0) + (Number(source?.[mk]) || 0);
+  }
+}
+
 function migrateLine(
   old: BudgetQuarterLegacy["lines"][number],
   monthKeys: string[],
 ): BudgetLine | null {
-  if (DROPPED_KEYS.has(old.key) && !isOpexSubKey(old.key)) return null;
-  const kind: "core" | "opex_sub" =
-    old.kind ?? (isOpexSubKey(old.key) ? "opex_sub" : "core");
-  if (kind === "core" && !CORE_BUDGET_LINE_DEFS.some(d => d.key === old.key)) {
-    if (!isOpexSubKey(old.key)) return null;
-  }
+  if (DROPPED_KEYS.has(old.key) && !isOpexSubKey(old.key) && !isOpexHeadKey(old.key)) return null;
+
+  const isOpex = isOpexHeadKey(old.key) || isOpexSubKey(old.key) || old.kind === "opex_sub" || old.kind === "opex_head";
+  if (!isOpex && !CORE_BUDGET_LINE_DEFS.some(d => d.key === old.key)) return null;
+
   let months = emptyMonthMap(monthKeys, 0);
   if (old.months && Object.keys(old.months).length) {
     months = { ...months, ...old.months };
@@ -192,12 +219,25 @@ function migrateLine(
       months[k] = i === monthKeys.length - 1 ? total - each * (monthKeys.length - 1) : each;
     });
   }
+
+  if (isOpex) {
+    const head =
+      old.headLabel ||
+      headLabelFromOpexKey(old.key, old.label) ||
+      String(old.label ?? "OPEX").trim();
+    return {
+      key: opexHeadKey(head),
+      label: head,
+      kind: "opex_head",
+      headLabel: head,
+      months,
+    };
+  }
+
   return {
     key: old.key,
     label: old.label,
-    kind: isOpexSubKey(old.key) ? "opex_sub" : "core",
-    headLabel: old.headLabel,
-    subLabel: old.subLabel,
+    kind: "core",
     months,
   };
 }
@@ -217,9 +257,25 @@ function migrateLegacyPeriod(q: BudgetQuarterLegacy): BudgetPeriod {
     .map(l => migrateLine(l, monthKeys))
     .filter((l): l is BudgetLine => !!l);
 
-  const byKey = new Map(migrated.map(l => [l.key, l]));
+  // Roll legacy opex_sub rows that share a head into one opex_head line
+  const byKey = new Map<string, BudgetLine>();
+  for (const l of migrated) {
+    const prev = byKey.get(String(l.key));
+    if (!prev) {
+      byKey.set(String(l.key), { ...l, months: { ...emptyMonthMap(monthKeys), ...l.months } });
+      continue;
+    }
+    if (l.kind === "opex_head") {
+      const months = { ...prev.months };
+      addMonthsInto(months, l.months, monthKeys);
+      byKey.set(String(l.key), { ...prev, months });
+    }
+  }
+
   const core = emptyCoreLines(monthKeys).map(c => byKey.get(c.key) ?? c);
-  const opex = migrated.filter(l => l.kind === "opex_sub").sort((a, b) => a.label.localeCompare(b.label));
+  const opex = [...byKey.values()]
+    .filter(l => l.kind === "opex_head")
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   return {
     id: q.id || periodId(fromDate, toDate),
@@ -259,10 +315,12 @@ export function ensurePeriod(
       };
     });
     const opex = existing.lines
-      .filter(l => l.kind === "opex_sub" || isOpexSubKey(l.key))
+      .filter(l => l.kind === "opex_head" || isOpexHeadKey(l.key))
       .map(l => ({
         ...l,
-        kind: "opex_sub" as const,
+        kind: "opex_head" as const,
+        key: isOpexHeadKey(String(l.key)) ? l.key : opexHeadKey(l.headLabel || l.label),
+        label: l.headLabel || l.label,
         months: { ...emptyMonthMap(monthKeys), ...l.months },
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
@@ -285,47 +343,49 @@ export function ensurePeriod(
   };
 }
 
-/** Merge OPEX sub-head lines discovered from actuals into the period (keep existing budgets). */
-export function mergeOpexSubsIntoPeriod(
+/** Merge OPEX head lines from actuals into the period (keep existing budgets). */
+export function mergeOpexHeadsIntoPeriod(
   period: BudgetPeriod,
   opexFromActuals: {
     key: string;
     label: string;
     headLabel?: string;
-    subLabel?: string;
     months?: Record<string, number>;
   }[],
 ): BudgetPeriod {
   const byKey = new Map(period.lines.map(l => [l.key, l]));
   for (const row of opexFromActuals) {
-    const prev = byKey.get(row.key);
+    const head = row.headLabel || row.label || headLabelFromOpexKey(row.key, "OPEX");
+    const key = isOpexHeadKey(row.key) ? row.key : opexHeadKey(head);
+    const prev = byKey.get(key);
     if (prev) {
-      byKey.set(row.key, {
+      byKey.set(key, {
         ...prev,
-        label: row.label || prev.label,
-        headLabel: row.headLabel ?? prev.headLabel,
-        subLabel: row.subLabel ?? prev.subLabel,
-        kind: "opex_sub",
+        label: head,
+        headLabel: head,
+        kind: "opex_head",
         months: { ...emptyMonthMap(period.monthKeys), ...prev.months },
       });
     } else {
-      byKey.set(row.key, {
-        key: row.key,
-        label: row.label,
-        kind: "opex_sub",
-        headLabel: row.headLabel,
-        subLabel: row.subLabel,
+      byKey.set(key, {
+        key,
+        label: head,
+        kind: "opex_head",
+        headLabel: head,
         months: emptyMonthMap(period.monthKeys, 0),
       });
     }
   }
   const core = emptyCoreLines(period.monthKeys).map(c => byKey.get(c.key) ?? c);
   const opex = [...byKey.values()]
-    .filter(l => l.kind === "opex_sub" || isOpexSubKey(l.key))
-    .map(l => ({ ...l, kind: "opex_sub" as const }))
+    .filter(l => l.kind === "opex_head" || isOpexHeadKey(String(l.key)))
+    .map(l => ({ ...l, kind: "opex_head" as const }))
     .sort((a, b) => a.label.localeCompare(b.label));
   return { ...period, lines: [...core, ...opex] };
 }
+
+/** @deprecated use mergeOpexHeadsIntoPeriod */
+export const mergeOpexSubsIntoPeriod = mergeOpexHeadsIntoPeriod;
 
 export function upsertPeriod(data: IncomeBudgetData, period: BudgetPeriod): IncomeBudgetData {
   const rest = (data.quarters ?? []).filter(q => q.id !== period.id);
@@ -347,7 +407,7 @@ export function shiftPeriod(fromDate: string, _toDate: string, deltaQuarters: nu
 export type BudgetPredictionRow = {
   key: BudgetLineKey;
   label: string;
-  kind: "core" | "opex_sub";
+  kind: "core" | "opex_head";
   months: Record<string, number>;
   budgetTotal: number;
   actualTotal: number;
@@ -402,4 +462,9 @@ export function payrollKeys(): Set<string> {
     "executive",
     "other_payroll",
   ]);
+}
+
+/** Expense lines for TOTAL BUDGET (everything except revenue). */
+export function isBudgetExpenseLine(line: BudgetLine): boolean {
+  return line.key !== "revenue";
 }

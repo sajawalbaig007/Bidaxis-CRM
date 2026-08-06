@@ -117,8 +117,10 @@ export default function BudgetVsActualCharts({
         }))
         .filter(r => r.budget > 0 || r.actual > 0);
 
-      // Roll OPEX into one bar for main chart + detail chart for top subs
-      const opexLinesPeriod = period.lines.filter(l => l.kind === "opex_sub");
+      // Roll OPEX heads into one bar for main chart + detail chart for heads
+      const opexLinesPeriod = period.lines.filter(
+        l => l.kind === "opex_head" || String(l.key).startsWith("opex_head::"),
+      );
       const opexBudget = opexLinesPeriod.reduce(
         (a, l) => a + (Number(l.months?.[ym]) || 0),
         0,
@@ -330,8 +332,8 @@ export default function BudgetVsActualCharts({
             </AccountsChartCard>
 
             <AccountsChartCard
-              title="OPEX sub-heads"
-              subtitle={`${monthLabel(month)} · top lines budget vs spent`}
+              title="OPEX heads"
+              subtitle={`${monthLabel(month)} · category budget vs spent`}
               accent="#F59E0B"
               icon={<BarChart3 size={16} />}
             >
@@ -341,7 +343,7 @@ export default function BudgetVsActualCharts({
                 </div>
               ) : opexRows.length === 0 ? (
                 <div className="h-[280px] flex items-center justify-center text-gray-400 text-xs px-4 text-center">
-                  Is month mein OPEX budget/actual lines nahi mili.
+                  Is month mein OPEX budget/actual heads nahi mili.
                 </div>
               ) : (
                 <RechartsBox height={280}>

@@ -10,8 +10,9 @@ import {
   defaultPeriodFromToday,
   ensurePeriod,
   INCOME_BUDGET_STORE_DATE,
+  isBudgetExpenseLine,
   lineTotal,
-  mergeOpexSubsIntoPeriod,
+  mergeOpexHeadsIntoPeriod,
   monthLabel,
   normalizeBudgetData,
   payrollKeys,
@@ -35,7 +36,6 @@ type ActualsPayload = {
     key: string;
     label: string;
     headLabel?: string;
-    subLabel?: string;
     months?: Record<string, number>;
   }[];
   daysRecorded: number;
@@ -102,7 +102,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
       }
       setByMonthActuals(monthly);
       setDaysRecorded(Number(body.daysRecorded) || 0);
-      setPeriod(prev => mergeOpexSubsIntoPeriod(prev, body.opexLines ?? []));
+      setPeriod(prev => mergeOpexHeadsIntoPeriod(prev, body.opexLines ?? []));
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to load Income Statement actuals."));
       setByMonthActuals({});
@@ -169,10 +169,10 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
 
   const savePredictionAsNext = async () => {
     let nextPeriod = ensurePeriod(store, prediction.nextFrom, prediction.nextTo);
-    nextPeriod = mergeOpexSubsIntoPeriod(
+    nextPeriod = mergeOpexHeadsIntoPeriod(
       nextPeriod,
       prediction.rows
-        .filter(r => r.kind === "opex_sub")
+        .filter(r => r.kind === "opex_head")
         .map(r => ({ key: String(r.key), label: r.label })),
     );
     const withPred: BudgetPeriod = {
@@ -200,70 +200,28 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
   if (!open) return null;
 
   const pk = payrollKeys();
-  const coreLines = period.lines.filter(l => l.kind === "core");
-  const opexLines = period.lines.filter(l => l.kind === "opex_sub");
+  const tableLines = period.lines;
+
+  const monthExpenseBudget = (mk: string) =>
+    tableLines
+      .filter(isBudgetExpenseLine)
+      .reduce((a, l) => a + (Number(l.months[mk]) || 0), 0);
+  const monthRevenueBudget = (mk: string) =>
+    Number(tableLines.find(l => l.key === "revenue")?.months[mk]) || 0;
+  const monthProjectedNet = (mk: string) => monthRevenueBudget(mk) - monthExpenseBudget(mk);
 
   const sumBudgetKeys = (keys: Set<string>) =>
     period.lines.filter(l => keys.has(String(l.key))).reduce((a, l) => a + lineTotal(l), 0);
-  const sumActualKeys = (keys: Set<string>) =>
-    period.lines
-      .filter(l => keys.has(String(l.key)))
-      .reduce(
-        (a, l) =>
-          a + period.monthKeys.reduce((s, mk) => s + (Number(byMonthActuals[mk]?.[l.key]) || 0), 0),
-        0,
-      );
-
   const budgetPayroll = sumBudgetKeys(pk);
-  const actualPayroll = sumActualKeys(pk);
-  const budgetOpex = opexLines.reduce((a, l) => a + lineTotal(l), 0);
-  const actualOpex = opexLines.reduce(
-    (a, l) =>
-      a + period.monthKeys.reduce((s, mk) => s + (Number(byMonthActuals[mk]?.[l.key]) || 0), 0),
-    0,
-  );
-  const revLine = period.lines.find(l => l.key === "revenue");
-  const budgetRev = revLine ? lineTotal(revLine) : 0;
-  const actualRev = period.monthKeys.reduce((s, mk) => s + (Number(byMonthActuals[mk]?.revenue) || 0), 0);
-
-  const renderLineRows = (lines: typeof period.lines) =>
-    lines.map(line => {
-      const actualTotal = monthKeys.reduce(
-        (s, mk) => s + (Number(byMonthActuals[mk]?.[line.key]) || 0),
-        0,
-      );
-      return (
-        <tr key={line.key} className="border-b border-gray-50">
-          <td className="px-3 py-2 font-semibold text-gray-800 sticky left-0 bg-white z-10">
-            {line.label}
-            {(line.key === "sales" || line.key === "technical") && (
-              <span className="block text-[10px] font-normal text-gray-400">
-                {line.key === "sales" ? "Sales Team + Lead" : "Technical Team + Manager"}
-              </span>
-            )}
-            {line.kind === "opex_sub" && line.headLabel && line.subLabel !== line.headLabel && (
-              <span className="block text-[10px] font-normal text-gray-400">{line.headLabel}</span>
-            )}
-          </td>
-          {monthKeys.map(mk => (
-            <Fragment key={`${line.key}-${mk}`}>
-              <td className="px-1.5 py-1.5 align-top">
-                <AmountInput
-                  value={Number(line.months[mk]) || 0}
-                  onChange={n => setMonthBudget(line.key, mk, n)}
-                  className="h-8 w-[6.5rem] rounded-lg border border-gray-200 bg-white px-1.5 text-xs tabular-nums text-right outline-none focus:border-[#B8112D]"
-                />
-              </td>
-              <td className="px-2 py-1.5 text-right tabular-nums text-xs text-gray-600 align-middle">
-                {currency(Number(byMonthActuals[mk]?.[line.key]) || 0)}
-              </td>
-            </Fragment>
-          ))}
-          <td className="px-3 py-2 text-right font-bold tabular-nums">{currency(lineTotal(line))}</td>
-          <td className="px-3 py-2 text-right tabular-nums text-gray-600">{currency(actualTotal)}</td>
-        </tr>
-      );
-    });
+  const budgetOpex = period.lines
+    .filter(l => l.kind === "opex_head")
+    .reduce((a, l) => a + lineTotal(l), 0);
+  const budgetRev = lineTotal(period.lines.find(l => l.key === "revenue") ?? {
+    key: "revenue",
+    label: "",
+    kind: "core",
+    months: {},
+  });
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -278,7 +236,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
               Income Statement Budget Planner
             </h2>
             <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-              From date se pehla month choose karo — To date auto 3rd month end pe set hota hai. OPEX sub-heads included · Loans / PF excluded.
+              Ek table: revenue, team salaries, aur OPEX heads. Sub-heads nahi · Loans / PF excluded.
             </p>
           </div>
           <button
@@ -358,7 +316,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
             Fill from actuals
           </button>
           <span className="text-[10px] text-gray-400 font-medium ml-auto pb-2">
-            {daysRecorded} IS day(s) in range
+            {daysRecorded} IS day(s) · payroll {currency(budgetPayroll)} · OPEX {currency(budgetOpex)} · rev {currency(budgetRev)}
           </span>
         </div>
 
@@ -369,28 +327,13 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
             </div>
           ) : (
             <>
-              <section className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {[
-                  { label: "Budget revenue", value: budgetRev, cls: "text-violet-700" },
-                  { label: "Actual revenue", value: actualRev, cls: "text-violet-900" },
-                  { label: "Budget payroll", value: budgetPayroll, cls: "text-sky-700" },
-                  { label: "Actual payroll", value: actualPayroll, cls: "text-sky-900" },
-                  { label: "Budget OPEX", value: budgetOpex, cls: "text-amber-700" },
-                  { label: "Actual OPEX", value: actualOpex, cls: "text-amber-900" },
-                  { label: "Budget net*", value: budgetRev - budgetPayroll - budgetOpex, cls: "text-emerald-700" },
-                  { label: "Actual net*", value: actualRev - actualPayroll - actualOpex, cls: "text-emerald-900" },
-                ].map(c => (
-                  <div key={c.label} className="rounded-xl border border-gray-100 bg-[#F8FAFC] px-3 py-2.5">
-                    <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">{c.label}</p>
-                    <p className={`text-sm font-extrabold tabular-nums mt-0.5 ${c.cls}`}>{currency(c.value)}</p>
-                  </div>
-                ))}
-              </section>
-
               <section className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
                 <div className="px-3 py-2.5 bg-[#FAFBFC] border-b border-gray-100">
                   <p className="text-xs font-extrabold text-slate-800">
-                    Revenue & team salaries · {fromDate} → {toDate}
+                    Budget · {fromDate} → {toDate}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Salaries + OPEX heads — aik table. OPEX head = IS Operating Expenses category total.
                   </p>
                 </div>
                 <div className="overflow-x-auto">
@@ -418,55 +361,124 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                         <th />
                       </tr>
                     </thead>
-                    <tbody>{renderLineRows(coreLines)}</tbody>
+                    <tbody>
+                      {tableLines.map(line => {
+                        const actualTotal = monthKeys.reduce(
+                          (s, mk) => s + (Number(byMonthActuals[mk]?.[line.key]) || 0),
+                          0,
+                        );
+                        return (
+                          <tr
+                            key={line.key}
+                            className={`border-b border-gray-50 ${
+                              line.kind === "opex_head" ? "bg-amber-50/20" : ""
+                            } ${line.key === "revenue" ? "bg-violet-50/30" : ""}`}
+                          >
+                            <td className="px-3 py-2 font-semibold text-gray-800 sticky left-0 bg-inherit z-10">
+                              {line.label}
+                              {(line.key === "sales" || line.key === "technical") && (
+                                <span className="block text-[10px] font-normal text-gray-400">
+                                  {line.key === "sales" ? "Sales Team + Lead" : "Technical Team + Manager"}
+                                </span>
+                              )}
+                              {line.kind === "opex_head" && (
+                                <span className="ml-1 text-[9px] font-bold uppercase text-amber-600">OPEX</span>
+                              )}
+                            </td>
+                            {monthKeys.map(mk => (
+                              <Fragment key={`${line.key}-${mk}`}>
+                                <td className="px-1.5 py-1.5 align-top">
+                                  <AmountInput
+                                    value={Number(line.months[mk]) || 0}
+                                    onChange={n => setMonthBudget(line.key, mk, n)}
+                                    className="h-8 w-[6.5rem] rounded-lg border border-gray-200 bg-white px-1.5 text-xs tabular-nums text-right outline-none focus:border-[#B8112D]"
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5 text-right tabular-nums text-xs text-gray-600 align-middle">
+                                  {currency(Number(byMonthActuals[mk]?.[line.key]) || 0)}
+                                </td>
+                              </Fragment>
+                            ))}
+                            <td className="px-3 py-2 text-right font-bold tabular-nums">{currency(lineTotal(line))}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-gray-600">{currency(actualTotal)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-rose-200 bg-rose-50/70">
+                        <td className="px-3 py-2.5 font-black uppercase tracking-wide text-[#B8112D] sticky left-0 bg-rose-50/90 z-10 text-[11px]">
+                          Total Budget
+                        </td>
+                        {monthKeys.map(mk => (
+                          <Fragment key={`tb-${mk}`}>
+                            <td
+                              colSpan={2}
+                              className="px-2 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-sm"
+                            >
+                              {currency(monthExpenseBudget(mk))}
+                            </td>
+                          </Fragment>
+                        ))}
+                        <td className="px-3 py-2.5 text-right font-black tabular-nums text-[#B8112D]">
+                          {currency(monthKeys.reduce((a, mk) => a + monthExpenseBudget(mk), 0))}
+                        </td>
+                        <td className="px-3 py-2.5" />
+                      </tr>
+                      <tr className="bg-sky-50/80">
+                        <td className="px-3 py-2.5 font-bold text-sky-900 sticky left-0 bg-sky-50/90 z-10 text-[11px]">
+                          Revenue Target
+                        </td>
+                        {monthKeys.map(mk => (
+                          <Fragment key={`rt-${mk}`}>
+                            <td
+                              colSpan={2}
+                              className="px-2 py-2.5 text-right font-extrabold tabular-nums text-sky-800 text-sm"
+                            >
+                              {currency(monthRevenueBudget(mk))}
+                            </td>
+                          </Fragment>
+                        ))}
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-sky-800">
+                          {currency(monthKeys.reduce((a, mk) => a + monthRevenueBudget(mk), 0))}
+                        </td>
+                        <td className="px-3 py-2.5 text-[10px] font-bold text-sky-700/80 text-right">
+                          Survival minimum
+                        </td>
+                      </tr>
+                      <tr className="bg-emerald-50/80 border-b border-emerald-100">
+                        <td className="px-3 py-2.5 font-black uppercase tracking-wide text-emerald-800 sticky left-0 bg-emerald-50/90 z-10 text-[11px]">
+                          Projected Net
+                        </td>
+                        {monthKeys.map(mk => (
+                          <Fragment key={`pn-${mk}`}>
+                            <td
+                              colSpan={2}
+                              className={`px-2 py-2.5 text-right font-black tabular-nums text-sm ${
+                                monthProjectedNet(mk) >= 0 ? "text-emerald-700" : "text-rose-600"
+                              }`}
+                            >
+                              {currency(monthProjectedNet(mk))}
+                            </td>
+                          </Fragment>
+                        ))}
+                        <td
+                          className={`px-3 py-2.5 text-right font-black tabular-nums ${
+                            monthKeys.reduce((a, mk) => a + monthProjectedNet(mk), 0) >= 0
+                              ? "text-emerald-700"
+                              : "text-rose-600"
+                          }`}
+                        >
+                          {currency(monthKeys.reduce((a, mk) => a + monthProjectedNet(mk), 0))}
+                        </td>
+                        <td className="px-3 py-2.5 text-[10px] font-bold text-emerald-700/80 text-right">
+                          If target achieved
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
-              </section>
-
-              <section className="rounded-2xl border border-amber-100 overflow-hidden shadow-sm">
-                <div className="px-3 py-2.5 bg-amber-50/80 border-b border-amber-100">
-                  <p className="text-xs font-extrabold text-amber-900">
-                    Operating Expenses — sub-heads ({opexLines.length})
-                  </p>
-                  <p className="text-[10px] text-amber-800/70 mt-0.5">
-                    Har OPEX line Income Statement se aati hai. Loans / PF budget mein nahi.
-                  </p>
-                </div>
-                <div className="overflow-x-auto">
-                  {opexLines.length === 0 ? (
-                    <p className="px-3 py-8 text-center text-xs text-gray-400">
-                      Is range mein koi OPEX sub-head actual nahi mila — pehle Income Statement mein OPEX fill karo, phir Refresh actuals.
-                    </p>
-                  ) : (
-                    <table className="w-full text-sm min-w-[960px]">
-                      <thead>
-                        <tr className="border-b border-amber-100 text-[10px] uppercase tracking-wide text-amber-700/70">
-                          <th className="px-3 py-2 text-left font-bold sticky left-0 bg-amber-50/80 z-10">OPEX line</th>
-                          {monthKeys.map(mk => (
-                            <th key={mk} className="px-2 py-2 text-center font-bold" colSpan={2}>
-                              {monthLabel(mk)}
-                            </th>
-                          ))}
-                          <th className="px-3 py-2 text-right font-bold">Total budget</th>
-                          <th className="px-3 py-2 text-right font-bold">Total actual</th>
-                        </tr>
-                        <tr className="border-b border-amber-50 text-[9px] uppercase tracking-wide text-amber-700/50 bg-white">
-                          <th className="px-3 py-1.5 sticky left-0 bg-white z-10" />
-                          {monthKeys.map(mk => (
-                            <Fragment key={`oh-${mk}`}>
-                              <th className="px-1 py-1 text-center font-bold">Budget</th>
-                              <th className="px-1 py-1 text-center font-bold">Actual</th>
-                            </Fragment>
-                          ))}
-                          <th />
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>{renderLineRows(opexLines)}</tbody>
-                    </table>
-                  )}
-                </div>
-                <div className="px-3 py-3 border-t border-amber-50">
+                <div className="px-3 py-3 border-t border-gray-50">
                   <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
                     Notes
                     <textarea
@@ -517,7 +529,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                         <tr key={row.key} className="border-b border-violet-50/80">
                           <td className="px-3 py-2 font-semibold text-gray-800">
                             {row.label}
-                            {row.kind === "opex_sub" && (
+                            {row.kind === "opex_head" && (
                               <span className="ml-1 text-[9px] font-bold uppercase text-amber-600">OPEX</span>
                             )}
                           </td>

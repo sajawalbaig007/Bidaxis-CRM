@@ -198,6 +198,7 @@ export function buildSalarySlipFromSub(opts: {
       loanTotal: Number(sp?.loanTotal) || 0,
       loanPaid: Number(sp?.loanPaid) || 0,
       loanThisMonth: Number(sp?.loanThisMonth) || 0,
+      loanPaymentMode: sp?.loanPaymentMode === "cash" ? "cash" : "salary",
       incomeTax: Number(sp?.incomeTax) || 0,
       remarks: sp?.remarks || "",
     };
@@ -218,7 +219,7 @@ export function buildSalarySlipFromSub(opts: {
           pf: b.pf,
         },
         emp,
-        emp.loanThisMonth,
+        b.loanFromSalary,
       ),
       comments: commentsFrom(emp, emp.unpaidLeaveDays, emp.paidLeaveDays),
       employeePf: b.pf,
@@ -303,12 +304,12 @@ export function buildSalarySlipFromSub(opts: {
       ? [
           { label: "PF Deduction (8% of Basic)", amount: b.pf },
           { label: "Tax Amount", amount: b.incomeTax },
-          ...(b.loanThisMonth > 0 ? [{ label: "Loan Deduction", amount: b.loanThisMonth }] : []),
+          ...(b.loanFromSalary > 0 ? [{ label: "Loan Deduction", amount: b.loanFromSalary }] : []),
         ]
       : standardDeductions(
-          { ...b, loanThisMonth: b.loanThisMonth },
+          { ...b, loanThisMonth: b.loanFromSalary },
           sal,
-          b.loanThisMonth,
+          b.loanFromSalary,
         ),
     comments: commentsFrom(sal, sal.unpaidLeaveDays, sal.paidLeaveDays),
     employeePf: b.pf,

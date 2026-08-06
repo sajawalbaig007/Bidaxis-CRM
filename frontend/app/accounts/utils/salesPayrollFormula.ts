@@ -32,6 +32,8 @@ export type SalesPayrollEmployee = {
   loanTotal: number;
   loanPaid: number;
   loanThisMonth: number;
+  /** salary = deduct from net; cash = separate payment (net unchanged) */
+  loanPaymentMode?: "salary" | "cash";
   incomeTax: number;
   remarks: string;
 };
@@ -120,10 +122,12 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;
   const unpaidLeaveDeduction = unpaidDays * daySalary;
   const loanThisMonth = Number(emp.loanThisMonth) || 0;
+  const loanFromSalary = emp.loanPaymentMode === "cash" ? 0 : loanThisMonth;
   const pf = basic * 0.08;
   const incomeTax = Number(emp.incomeTax) || 0;
   const totalEarning = basic + allowance + homeAllowance + comm.totalCommission + extraEarning;
-  const totalDeduction = late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
+  const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
+  const totalDeduction = baseDeduction + loanFromSalary;
   return {
     ...comm,
     daySalary,
@@ -133,6 +137,8 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
     pf,
     totalEarning,
     totalDeduction,
+    loanFromSalary,
+    netBeforeLoan: totalEarning - baseDeduction,
     netSalary: totalEarning - totalDeduction,
     loanRemaining: Math.max(
       0,

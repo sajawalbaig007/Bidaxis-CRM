@@ -279,14 +279,53 @@ export default function EmployeeSalaryEditor({
           )}
         </div>
         <p className="text-[10px] text-orange-700/80">
-          Pending loan auto-fills from the shared ledger (Total / Paid). Remaining = Total − Paid − This month. Fully paid clears these fields.
+          Pending loan auto-fills from the shared ledger. Clearance: salary se deduct ya alag cash — Remaining = Total − Paid − This month.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />
           <Num label="Already Paid" value={d.loanPaid} onChange={v => set("loanPaid", v)} />
           <Read label="Remaining" value={currency(b.loanRemaining)} accent="text-orange-800" />
-          <Num label="This Month Deduction" value={d.loanThisMonth} onChange={v => set("loanThisMonth", v)} hint="Optional salary cut" />
+          <Num
+            label="This Month Amount"
+            value={d.loanThisMonth}
+            onChange={v => set("loanThisMonth", v)}
+            hint={d.loanPaymentMode === "cash" ? "Cash payment (not from salary)" : "Salary deduction"}
+          />
         </div>
+        <div className="flex flex-wrap gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={() => set("loanPaymentMode", "salary")}
+            className={`h-8 px-3 rounded-lg text-[11px] font-bold border transition-colors ${
+              (d.loanPaymentMode ?? "salary") === "salary"
+                ? "bg-[#B8112D] text-white border-[#B8112D]"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Salary se deduct
+          </button>
+          <button
+            type="button"
+            onClick={() => set("loanPaymentMode", "cash")}
+            className={`h-8 px-3 rounded-lg text-[11px] font-bold border transition-colors ${
+              d.loanPaymentMode === "cash"
+                ? "bg-amber-600 text-white border-amber-600"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Separate cash diya
+          </button>
+        </div>
+        {(d.loanPaymentMode ?? "salary") === "salary" && (Number(d.loanThisMonth) || 0) > 0 ? (
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Read label="Net before loan" value={currency(b.netBeforeLoan)} accent="text-gray-700" />
+            <Read label="Net after loan deduction" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
+          </div>
+        ) : d.loanPaymentMode === "cash" && (Number(d.loanThisMonth) || 0) > 0 ? (
+          <p className="text-[10px] font-semibold text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">
+            Cash clearance — salary net mein loan deduct nahi hoga. Ledger paid amount update hogi.
+          </p>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-teal-100 bg-teal-50/30 p-2.5 space-y-2">
@@ -336,7 +375,11 @@ export default function EmployeeSalaryEditor({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Read label={isTechMgr ? "Gross Salary" : "Total Earning"} value={currency(b.totalEarning)} accent="text-emerald-700" />
           <Read label="Total Deduction" value={currency(b.totalDeduction)} accent="text-red-600" />
-          <Read label="Net Salary" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
+          <Read
+            label={(d.loanPaymentMode ?? "salary") === "salary" && b.loanFromSalary > 0 ? "Net after loan" : "Net Salary"}
+            value={currency(b.totalSalary)}
+            accent="text-[#B8112D]"
+          />
         </div>
       </div>
 

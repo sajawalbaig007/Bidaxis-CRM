@@ -33,6 +33,7 @@ export function defaultSalesPayrollData(): SalesPayrollData {
     loanTotal: 0,
     loanPaid: 0,
     loanThisMonth: 0,
+    loanPaymentMode: "salary" as const,
     incomeTax: 0,
     remarks: "",
   });
