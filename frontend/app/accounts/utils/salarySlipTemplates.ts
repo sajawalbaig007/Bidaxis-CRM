@@ -125,7 +125,10 @@ function earningsDeductionTables(
     didParseCell: data => {
       if (data.section === "body" && data.row.index === payload.earnings.length) {
         data.cell.styles.fontStyle = "bold";
-        if (data.column.index === 0) data.cell.styles.fillColor = headColor;
+        if (data.column.index === 0) {
+          data.cell.styles.fillColor = headColor;
+          data.cell.styles.textColor = headColor === GPS_PURPLE ? GPS_INK : 255;
+        }
       }
     },
   });
@@ -145,7 +148,12 @@ function earningsDeductionTables(
       [{ content: "Total Deduction", styles: { fontStyle: "bold" } }, money(deductionsTotal)],
     ],
     theme: "grid",
-    headStyles: { fillColor: deductionHeadColor, textColor: 255, fontSize: 8, fontStyle: "bold" },
+    headStyles: {
+      fillColor: deductionHeadColor,
+      textColor: deductionHeadColor === GPS_INK ? 255 : 255,
+      fontSize: 8,
+      fontStyle: "bold",
+    },
     bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
     columnStyles: {
       0: { cellWidth: colW * 0.62 },
@@ -188,7 +196,7 @@ function summaryRows(
         textColor: labelColor === GPS_PURPLE ? GPS_INK : 255,
         fontStyle: "bold",
       },
-      1: { halign: "right", fontStyle: "bold", fillColor: FIELD_BLUE },
+      1: { halign: "right", fontStyle: "bold", fillColor: FIELD_BLUE, textColor: [20, 32, 57] },
     },
     didParseCell: data => {
       if (highlightRow != null && data.row.index === highlightRow && highlightRgb) {
@@ -211,7 +219,7 @@ export async function renderGpsTechnicalSlip(
   doc.setFillColor(...GPS_PURPLE);
   doc.circle(pageW - 8, 8, 22, "F");
 
-  await drawLogo(doc, company, "GPS", margin, 10, 28, 22);
+  await drawLogo(doc, company, "GPS", margin, 9, 54, 18);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
