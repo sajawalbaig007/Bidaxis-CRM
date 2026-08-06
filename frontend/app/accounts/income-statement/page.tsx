@@ -52,7 +52,7 @@ function normalizeIncomeStatement(
   );
 }
 
-function teamToHead(t: TeamSalaryRow, allTeams: TeamSalaryRow[] = []): ExpandableHeadProps {
+function teamToHead(t: TeamSalaryRow, allTeams: TeamSalaryRow[] = []): ExpandableHeadRow {
   const salesPeers =
     resolvePayrollKind(t.team, t.subHeads) === "sales_lead"
       ? (allTeams.find(x => resolvePayrollKind(x.team, x.subHeads) === "sales")?.subHeads ?? [])
