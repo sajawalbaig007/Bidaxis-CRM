@@ -156,12 +156,12 @@ export default function CashFlowStatementPage() {
               <p className="text-[11px] text-white/60 mt-2">{allRows.length} entries across {acc.data.months?.length ?? 0} sections</p>
             </div>
 
-            <div className={`lg:col-span-8 bg-white rounded-2xl border-2 p-4 sm:p-5 ${theme.card}`}>
+            <div className={`lg:col-span-8 bg-crm-surface rounded-2xl border-2 p-4 sm:p-5 ${theme.card}`}>
               <div className="flex items-center gap-2 mb-3">
                 <Building2 size={16} className="text-[#B8112D]" />
-                <h2 className="font-bold text-sm text-gray-800">Bank Accounts</h2>
+                <h2 className="font-bold text-sm text-crm-text">Bank Accounts</h2>
               </div>
-              <label className="text-xs font-semibold text-gray-600 block">
+              <label className="text-xs font-semibold text-crm-text-secondary block">
                 Bank heads (comma separated)
                 <input
                   value={bankHeads.join(", ")}
@@ -169,7 +169,7 @@ export default function CashFlowStatementPage() {
                     const heads = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
                     acc.setData(prev => ({ ...prev, bankHeads: heads }));
                   }}
-                  className={`mt-1.5 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 ${theme.input}`}
+                  className={`mt-1.5 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 ${theme.input}`}
                 />
               </label>
               <div className="flex flex-wrap gap-2 mt-3">

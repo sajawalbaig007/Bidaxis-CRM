@@ -30,14 +30,14 @@ export default function EditableDataTable<T extends { id: string }>({
   emptyLabel = "No rows yet — use Add New.",
 }: EditableDataTableProps<T>) {
   return (
-    <div className="overflow-x-auto overflow-y-auto max-h-[520px] rounded-2xl border border-gray-100">
+    <div className="overflow-x-auto overflow-y-auto max-h-[520px] rounded-2xl border border-crm-border-subtle">
       <table className="w-full text-sm" style={{ minWidth }}>
         <thead className="bg-[#F8FAFC] sticky top-0 z-10">
-          <tr className="border-b border-gray-200">
+          <tr className="border-b border-crm-border">
             {columns.map(col => (
               <th
                 key={col.key}
-                className={`px-3 py-2.5 font-semibold text-gray-700 ${
+                className={`px-3 py-2.5 font-semibold text-crm-text-secondary ${
                   col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
                 }`}
                 style={col.width ? { width: col.width } : undefined}
@@ -51,19 +51,19 @@ export default function EditableDataTable<T extends { id: string }>({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + (onDelete ? 1 : 0)} className="px-3 py-10 text-center text-gray-400 text-sm">
+              <td colSpan={columns.length + (onDelete ? 1 : 0)} className="px-3 py-10 text-center text-crm-text-faint text-sm">
                 {emptyLabel}
               </td>
             </tr>
           ) : (
             rows.map((row, idx) => (
-              <tr key={row.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-[#FCFCFD]"}`}>
+              <tr key={row.id} className={`border-b border-crm-border-subtle ${idx % 2 === 0 ? "bg-crm-surface" : "bg-crm-surface-muted"}`}>
                 {columns.map(col => {
                   const val = row[col.key as keyof T];
                   const align = col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left";
                   if (col.readOnly) {
                     return (
-                      <td key={col.key} className={`px-3 py-2 ${align} text-gray-700 font-medium`}>
+                      <td key={col.key} className={`px-3 py-2 ${align} text-crm-text-secondary font-medium`}>
                         {String(val ?? "")}
                       </td>
                     );
@@ -82,7 +82,7 @@ export default function EditableDataTable<T extends { id: string }>({
                             col.type === "number" ? Number(raw || 0) : raw,
                           );
                         }}
-                        className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2.5 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40"
+                        className="h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2.5 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40"
                       />
                     </td>
                   );

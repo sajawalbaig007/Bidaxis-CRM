@@ -39,7 +39,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
     employee.assignedReps?.filter(a => a.assigned).reduce((s, a) => s + a.tlCommission, 0) ?? 0;
 
   return (
-    <article className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+    <article className="rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -49,22 +49,22 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
           {employee.code.split("-").pop()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-extrabold text-gray-900 truncate">{employee.name}</p>
-          <p className="text-[11px] text-gray-500">
+          <p className="font-extrabold text-crm-text truncate">{employee.name}</p>
+          <p className="text-[11px] text-crm-text-muted">
             {employee.code} · {totalProjects} projects · Commission {fmt(totalCommission)}
           </p>
         </div>
         <div className="text-right shrink-0 hidden sm:block">
-          <p className="text-[10px] font-bold uppercase text-gray-400">Net Salary</p>
+          <p className="text-[10px] font-bold uppercase text-crm-text-faint">Net Salary</p>
           <p className="text-base font-extrabold text-[#B8112D] tabular-nums">
             {fmt(netSalary + (variant === "team_lead" ? assignedTlTotal : 0))}
           </p>
         </div>
-        <ChevronDown size={18} className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={18} className={`text-crm-text-faint shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="px-3 sm:px-5 pb-5 space-y-4 border-t border-gray-100 pt-4">
+        <div className="px-3 sm:px-5 pb-5 space-y-4 border-t border-crm-border-subtle pt-4">
           <SectionCard
             title="Project Commission"
             subtitle={
@@ -77,7 +77,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
             <div className="overflow-x-auto -mx-1 px-1">
               <table className="w-full min-w-[720px] text-xs border-collapse">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-wide text-gray-500">
+                  <tr className="text-[10px] uppercase tracking-wide text-crm-text-muted">
                     {isSales && (
                       <>
                         <th className="text-left py-2 pr-3 font-bold">Old Client Projects</th>
@@ -99,21 +99,21 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
                     {isSales && (
                       <>
                         <td className="py-2 pr-3">
-                          <input type="number" defaultValue={employee.oldClientProjects} className="h-8 w-16 rounded-lg border border-gray-200 px-2 tabular-nums" />
+                          <input type="number" defaultValue={employee.oldClientProjects} className="h-8 w-16 rounded-lg border border-crm-border px-2 tabular-nums" />
                         </td>
                         <td className="py-2 pr-3">
-                          <input type="number" defaultValue={employee.oldClientPartialCount} className="h-8 w-16 rounded-lg border border-gray-200 px-2 tabular-nums" />
+                          <input type="number" defaultValue={employee.oldClientPartialCount} className="h-8 w-16 rounded-lg border border-crm-border px-2 tabular-nums" />
                         </td>
                         <td className="py-2 pr-3 font-bold text-emerald-800 tabular-nums">{fmt(oldComm)}</td>
                       </>
                     )}
                     {!isSales && (
                       <td className="py-2 pr-3">
-                        <input type="number" defaultValue={employee.oldClientProjects} className="h-8 w-16 rounded-lg border border-gray-200 px-2 tabular-nums" />
+                        <input type="number" defaultValue={employee.oldClientProjects} className="h-8 w-16 rounded-lg border border-crm-border px-2 tabular-nums" />
                       </td>
                     )}
                     <td className="py-2 pr-3">
-                      <input type="number" defaultValue={employee.newClientProjects} className="h-8 w-16 rounded-lg border border-gray-200 px-2 tabular-nums" />
+                      <input type="number" defaultValue={employee.newClientProjects} className="h-8 w-16 rounded-lg border border-crm-border px-2 tabular-nums" />
                     </td>
                     <td className="py-2 pr-3 font-bold text-emerald-800 tabular-nums">{fmt(newComm)}</td>
                     <td className="py-2 pr-3 font-bold text-emerald-800 tabular-nums">{fmt(fixComm)}</td>
@@ -174,15 +174,15 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
                   <tbody>
                     {employee.assignedReps.map(row => (
                       <tr key={row.id} className="border-t border-indigo-100/60">
-                        <td className="py-2.5 pr-3 font-semibold text-gray-800">{row.repName}</td>
-                        <td className="py-2.5 pr-3 text-gray-500">{row.repCode}</td>
+                        <td className="py-2.5 pr-3 font-semibold text-crm-text">{row.repName}</td>
+                        <td className="py-2.5 pr-3 text-crm-text-muted">{row.repCode}</td>
                         <td className="py-2.5 pr-3 tabular-nums">{row.totalProjects}</td>
                         <td className="py-2.5 pr-3 tabular-nums">{fmt(row.fixClientAmount)}</td>
                         <td className="py-2.5 pr-3 font-bold text-indigo-800 tabular-nums">
                           {row.assigned ? fmt(row.totalProjects * TL_PER_PROJECT + row.fixClientAmount * (TL_FIX_PCT / 100)) : "—"}
                         </td>
                         <td className="py-2.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${row.assigned ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-500"}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${row.assigned ? "bg-indigo-100 text-indigo-700" : "bg-crm-muted text-crm-text-muted"}`}>
                             {row.assigned ? "Assigned" : "Not assigned"}
                           </span>
                         </td>
@@ -299,7 +299,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
                 <p className="text-[10px] font-extrabold uppercase text-emerald-800 flex items-center gap-1.5">
                   <DollarSign size={12} /> Total Earning
                 </p>
-                <div className="text-[11px] text-gray-600 space-y-1">
+                <div className="text-[11px] text-crm-text-secondary space-y-1">
                   <p>Basic Salary: <strong>{fmt(employee.basicSalary)}</strong></p>
                   <p>Allowance: <strong>{fmt(employee.allowance)}</strong></p>
                   <p>Total Commission: <strong>{fmt(totalCommission)}</strong></p>
@@ -316,7 +316,7 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
                 <p className="text-[10px] font-extrabold uppercase text-red-700 flex items-center gap-1.5">
                   <Receipt size={12} /> Total Deduction
                 </p>
-                <div className="text-[11px] text-gray-600 space-y-1">
+                <div className="text-[11px] text-crm-text-secondary space-y-1">
                   <p>Late Arrival: <strong>{fmt(employee.lateDeduction)}</strong></p>
                   <p>Unpaid Leaves: <strong>{fmt(employee.unpaidLeaveDeduction)}</strong></p>
                   <p>Loan (this month): <strong>{fmt(employee.loanThisMonth)}</strong></p>
@@ -336,15 +336,15 @@ export default function SalesPayrollEmployeePanel({ employee, variant, defaultOp
             </div>
           </SectionCard>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-3">
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 flex items-center gap-1.5 mb-1.5">
+          <div className="rounded-xl border border-crm-border bg-crm-surface p-3">
+            <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted flex items-center gap-1.5 mb-1.5">
               <MessageSquare size={12} /> Remarks
             </label>
             <textarea
               defaultValue={employee.remarks}
               rows={2}
               placeholder="Manual remarks…"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none resize-none focus:border-[#B8112D] focus:ring-2 focus:ring-[#B8112D]/15"
+              className="w-full rounded-lg border border-crm-border px-3 py-2 text-sm outline-none resize-none focus:border-[#B8112D] focus:ring-2 focus:ring-[#B8112D]/15"
             />
           </div>
         </div>

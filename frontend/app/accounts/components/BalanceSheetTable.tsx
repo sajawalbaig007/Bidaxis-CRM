@@ -50,7 +50,7 @@ export default function BalanceSheetTable({
   };
 
   return (
-    <div className={`bg-white rounded-2xl border-2 overflow-hidden ${theme.card}`}>
+    <div className={`bg-crm-surface rounded-2xl border-2 overflow-hidden ${theme.card}`}>
       <div className={`px-4 sm:px-5 py-3.5 border-b ${theme.header}`}>
         <div className="flex items-center justify-between gap-3">
           <h2 className={`text-sm sm:text-base font-extrabold tracking-tight ${theme.headerText}`}>
@@ -71,21 +71,21 @@ export default function BalanceSheetTable({
       <div className="overflow-x-auto overflow-y-auto max-h-[520px]">
         <table className="w-full text-sm min-w-[640px]">
           <thead className="sticky top-0 z-10">
-            <tr className="border-b border-gray-200/80 bg-[#FAFBFC]">
+            <tr className="border-b border-crm-border/80 bg-[#FAFBFC]">
               <th className="w-8 px-1 py-2.5" />
-              <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">Particulars</th>
-              <th className="px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 min-w-[140px]">Notes</th>
-              <th className="px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[100px]">Filled</th>
-              <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 w-[120px]">Amount</th>
-              <th className="w-16 px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">Edit</th>
+              <th className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-crm-text-muted">Particulars</th>
+              <th className="px-2 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-crm-text-muted min-w-[140px]">Notes</th>
+              <th className="px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-crm-text-muted w-[100px]">Filled</th>
+              <th className="px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wider text-crm-text-muted w-[120px]">Amount</th>
+              <th className="w-16 px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-crm-text-muted">Edit</th>
             </tr>
           </thead>
           <tbody>
             {sections.map(section => (
               <Fragment key={section.id}>
-                <tr className="bg-[#FAFAFA]/90 border-y border-gray-200/60">
+                <tr className="bg-[#FAFAFA]/90 border-y border-crm-border/60">
                   <td colSpan={4} className="px-3 py-2.5">
-                    <p className="text-sm font-bold text-gray-800">{section.title}</p>
+                    <p className="text-sm font-bold text-crm-text">{section.title}</p>
                   </td>
                   <td className="px-3 py-2 text-right font-bold text-[#475569] tabular-nums">
                     {currency(sumItems(section.items))}
@@ -107,12 +107,12 @@ export default function BalanceSheetTable({
                   const amt = lineAmount(item);
                   return (
                     <Fragment key={item.id}>
-                      <tr className={`border-b border-gray-100/80 ${theme.rowHover}`}>
+                      <tr className={`border-b border-crm-border-subtle/80 ${theme.rowHover}`}>
                         <td className="px-1 py-2 text-center">
                           <button
                             type="button"
                             onClick={() => toggleItem(item.id)}
-                            className="w-7 h-7 rounded-lg text-gray-500 hover:bg-gray-100 inline-flex items-center justify-center"
+                            className="w-7 h-7 rounded-lg text-crm-text-muted hover:bg-crm-muted inline-flex items-center justify-center"
                             title="Toggle individuals"
                           >
                             {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -121,7 +121,7 @@ export default function BalanceSheetTable({
                         <td className="px-3 py-2.5 text-sm text-[#334155] font-medium">
                           {item.label}
                           {subs.length > 0 && (
-                            <span className="ml-2 text-[10px] font-bold text-gray-400">{subs.length}</span>
+                            <span className="ml-2 text-[10px] font-bold text-crm-text-faint">{subs.length}</span>
                           )}
                         </td>
                         <td className="px-2 py-2.5 align-top">
@@ -131,8 +131,8 @@ export default function BalanceSheetTable({
                             fallbackDate={item.filledAt}
                           />
                         </td>
-                        <td className="px-2 py-2.5 text-center text-[11px] text-gray-500">{item.filledAt || "—"}</td>
-                        <td className="px-3 py-2.5 text-right text-sm font-semibold text-[#0F172A] tabular-nums">{currency(amt)}</td>
+                        <td className="px-2 py-2.5 text-center text-[11px] text-crm-text-muted">{item.filledAt || "—"}</td>
+                        <td className="px-3 py-2.5 text-right text-sm font-semibold text-crm-text tabular-nums">{currency(amt)}</td>
                         <td className="px-2 py-2 text-center">
                           <button
                             type="button"
@@ -156,12 +156,12 @@ export default function BalanceSheetTable({
                         <tr className="bg-[#F8FAFC]">
                           <td colSpan={6} className="px-4 py-2">
                             {subs.length === 0 ? (
-                              <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add.</p>
+                              <p className="text-[11px] text-crm-text-faint py-1">No individual heads — open Edit to add.</p>
                             ) : (
-                              <div className="rounded-xl border border-gray-100 overflow-hidden bg-white">
+                              <div className="rounded-xl border border-crm-border-subtle overflow-hidden bg-crm-surface">
                                 <table className="w-full text-xs">
                                   <thead>
-                                    <tr className="border-b bg-gray-50 text-gray-500">
+                                    <tr className="border-b bg-crm-surface-muted text-crm-text-muted">
                                       <th className="px-3 py-1.5 text-left font-semibold">Individual</th>
                                       <th className="px-3 py-1.5 text-center font-semibold w-[110px]">Filled date</th>
                                       <th className="px-3 py-1.5 text-right font-semibold w-[100px]">Amount</th>
@@ -169,9 +169,9 @@ export default function BalanceSheetTable({
                                   </thead>
                                   <tbody>
                                     {subs.map(s => (
-                                      <tr key={s.id} className="border-b border-gray-50">
-                                        <td className="px-3 py-1.5 text-gray-700">{s.label}</td>
-                                        <td className="px-3 py-1.5 text-center text-gray-500">{s.filledAt || "—"}</td>
+                                      <tr key={s.id} className="border-b border-crm-border-subtle">
+                                        <td className="px-3 py-1.5 text-crm-text-secondary">{s.label}</td>
+                                        <td className="px-3 py-1.5 text-center text-crm-text-muted">{s.filledAt || "—"}</td>
                                         <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{currency(s.amount)}</td>
                                       </tr>
                                     ))}
@@ -190,10 +190,10 @@ export default function BalanceSheetTable({
           </tbody>
           <tfoot>
             <tr className={theme.footer}>
-              <td colSpan={4} className="px-4 py-3 font-extrabold text-[#0F172A]">
+              <td colSpan={4} className="px-4 py-3 font-extrabold text-crm-text">
                 {grandLabel ?? "Total"}
               </td>
-              <td className="px-3 py-3 text-right font-extrabold text-[#0F172A] tabular-nums text-base">
+              <td className="px-3 py-3 text-right font-extrabold text-crm-text tabular-nums text-base">
                 {currency(grandTotal)}
               </td>
               <td />

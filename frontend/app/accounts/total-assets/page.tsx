@@ -256,7 +256,7 @@ export default function TotalAssetsPage() {
                 onUploadProof={uploadAssetProof}
               />
             ))}
-            <p className="text-right font-extrabold text-[#0F172A] pt-2">
+            <p className="text-right font-extrabold text-crm-text pt-2">
               Grand Total (all companies): {currency(grandTotal)}
             </p>
           </section>

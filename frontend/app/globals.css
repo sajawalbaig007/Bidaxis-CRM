@@ -119,6 +119,19 @@ body {
 .dark .text-\[\#374151\] { color: var(--crm-text-secondary) !important; }
 .dark .text-\[\#4B5563\] { color: var(--crm-text-muted) !important; }
 
+/* Slate — used heavily in Accounts; was unbridged (stayed dark-on-dark) */
+.dark .text-slate-900,
+.dark .text-slate-800 { color: var(--crm-text) !important; }
+.dark .text-slate-700,
+.dark .text-slate-600 { color: var(--crm-text-secondary) !important; }
+.dark .text-slate-500 { color: var(--crm-text-muted) !important; }
+.dark .text-slate-400,
+.dark .text-slate-300 { color: var(--crm-text-faint) !important; }
+.dark .bg-slate-50 { background-color: var(--crm-surface-muted) !important; }
+.dark .bg-slate-100 { background-color: var(--crm-muted) !important; }
+.dark .border-slate-100,
+.dark .border-slate-200 { border-color: var(--crm-border) !important; }
+
 .dark .border-gray-100,
 .dark .border-\[\#F3F3F3\],
 .dark .border-\[\#F7F7F7\] { border-color: var(--crm-border-subtle) !important; }
@@ -133,7 +146,9 @@ body {
 .dark .hover\:bg-\[\#FFFBF2\]:hover,
 .dark .hover\:bg-\[\#F9FAFB\]:hover,
 .dark .hover\:bg-\[\#F5F6FA\]:hover,
-.dark .hover\:bg-\[\#F0FFF4\]:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
+.dark .hover\:bg-\[\#F0FFF4\]:hover,
+.dark .hover\:bg-\[\#F8FAFC\]:hover,
+.dark .hover\:bg-\[\#FCFCFD\]:hover { background-color: rgba(255, 255, 255, 0.08) !important; }
 .dark .hover\:bg-gray-50:hover { background-color: var(--crm-surface-muted) !important; }
 .dark .hover\:bg-gray-100:hover { background-color: var(--crm-muted) !important; }
 .dark .hover\:bg-white:hover { background-color: var(--crm-surface-raised) !important; }
@@ -206,6 +221,17 @@ html.dark .hover\:bg-gray-200:hover { background-color: var(--crm-muted) !import
 .dark .focus\:bg-white:focus { background-color: var(--crm-input) !important; }
 .dark .placeholder\:text-gray-400::placeholder,
 .dark .placeholder\:text-gray-300::placeholder { color: var(--crm-text-faint) !important; }
+
+/* Form controls — readable typed text in dark (many inputs omit text-* classes) */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+html.dark textarea,
+html.dark select {
+  color: var(--crm-text);
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--crm-text-faint);
+}
 
 .dark .shadow-sm { box-shadow: var(--crm-shadow) !important; }
 .dark .shadow-md { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.04) !important; }
@@ -356,6 +382,14 @@ html.dark select.border-gray-200 {
   border-color: var(--crm-border) !important;
 }
 
+/* Native date/month inputs readable in dark mode */
+html.dark input[type="date"],
+html.dark input[type="month"],
+html.dark input[type="time"],
+html.dark input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
 /* ── Accounts module — page background + dark-mode bridge ── */
 .accounts-page-bg {
   background: radial-gradient(ellipse at top, #f8fafc 0%, #eef1f7 45%, #e8ecf4 100%);
@@ -433,27 +467,59 @@ html.dark :is([class~="to-white"], [class*="to-[#FFFBFC]"], [class*="to-[#FFF8F9
 
 /* Mid-tone accent text → vivid, readable on dark */
 .dark .text-emerald-600,
-.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-emerald-700,
+.dark .text-emerald-800,
+.dark .text-emerald-900 { color: #6ee7b7 !important; }
 .dark .text-red-500,
-.dark .text-red-600 { color: #fda4af !important; }
+.dark .text-red-600,
+.dark .text-red-700,
+.dark .text-red-800 { color: #fda4af !important; }
 .dark .text-blue-600,
-.dark .text-blue-700 { color: #93c5fd !important; }
+.dark .text-blue-700,
+.dark .text-blue-800,
+.dark .text-blue-900 { color: #93c5fd !important; }
 .dark .text-indigo-600,
-.dark .text-indigo-700 { color: #a5b4fc !important; }
+.dark .text-indigo-700,
+.dark .text-indigo-800,
+.dark .text-indigo-900 { color: #a5b4fc !important; }
 .dark .text-amber-600,
-.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-amber-700,
+.dark .text-amber-800,
+.dark .text-amber-900 { color: #fcd34d !important; }
 .dark .text-teal-600,
-.dark .text-teal-700 { color: #5eead4 !important; }
+.dark .text-teal-700,
+.dark .text-teal-800,
+.dark .text-teal-900 { color: #5eead4 !important; }
 .dark .text-violet-600,
-.dark .text-violet-700 { color: #c4b5fd !important; }
+.dark .text-violet-700,
+.dark .text-violet-800,
+.dark .text-violet-900 { color: #c4b5fd !important; }
 .dark .text-orange-600,
-.dark .text-orange-700 { color: #fdba74 !important; }
-.dark .text-rose-600 { color: #fda4af !important; }
+.dark .text-orange-700,
+.dark .text-orange-800,
+.dark .text-orange-900 { color: #fdba74 !important; }
+.dark .text-rose-600,
+.dark .text-rose-700,
+.dark .text-rose-800,
+.dark .text-rose-900 { color: #fda4af !important; }
+.dark .text-sky-600,
+.dark .text-sky-700,
+.dark .text-sky-800,
+.dark .text-sky-900 { color: #7dd3fc !important; }
 .dark .text-\[\#B8112D\] { color: #f4657d !important; }
 .dark .text-\[\#334155\] { color: var(--crm-text-secondary) !important; }
 .dark .text-\[\#0369A1\] { color: #7dd3fc !important; }
 .dark .text-\[\#0F766E\] { color: #5eead4 !important; }
 .dark .text-\[\#12B76A\] { color: #34d399 !important; }
+.dark .text-\[\#0B84F3\] { color: #7dd3fc !important; }
+.dark .text-\[\#7C3AED\] { color: #c4b5fd !important; }
+
+/* Soft pastel text opacities used in Accounts section headers */
+.dark .text-emerald-700\/80,
+.dark .text-orange-700\/80,
+.dark .text-violet-700\/80,
+.dark .text-amber-800\/70,
+.dark .text-\[\#B8112D\]\/80 { opacity: 0.9; }
 
 /* CSR + login hardening */
 body.crm-secure-view {

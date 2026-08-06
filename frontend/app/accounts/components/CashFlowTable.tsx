@@ -52,9 +52,9 @@ export default function CashFlowTable({
 
   if (months.length === 0) {
     return (
-      <div className={`bg-white rounded-2xl border-2 p-12 text-center ${theme.card}`}>
-        <Landmark size={32} className="mx-auto text-gray-300 mb-3" />
-        <p className="text-gray-500 text-sm">No cashflow entries yet. Add a month section or new entry.</p>
+      <div className={`bg-crm-surface rounded-2xl border-2 p-12 text-center ${theme.card}`}>
+        <Landmark size={32} className="mx-auto text-crm-text-faint mb-3" />
+        <p className="text-crm-text-muted text-sm">No cashflow entries yet. Add a month section or new entry.</p>
       </div>
     );
   }
@@ -67,7 +67,7 @@ export default function CashFlowTable({
         const sectionTotal = month.rows.reduce((a, r) => a + computedNet(r), 0);
         const renaming = renamingMonthId === month.id;
         return (
-          <div key={month.id} className={`bg-white rounded-2xl border-2 overflow-hidden ${theme.card}`}>
+          <div key={month.id} className={`bg-crm-surface rounded-2xl border-2 overflow-hidden ${theme.card}`}>
             <div className={`px-4 py-3 border-b flex items-center gap-3 ${theme.header}`}>
               {renaming ? (
                 <input
@@ -107,20 +107,20 @@ export default function CashFlowTable({
             <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
               <table className="w-full text-sm" style={{ minWidth: `${780 + bankHeads.length * 128}px` }}>
                 <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-gray-200 bg-[#FAFBFC]">
-                    <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 w-[118px]">Date</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 min-w-[160px]">Description</th>
+                  <tr className="border-b border-crm-border bg-[#FAFBFC]">
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-muted w-[118px]">Date</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-muted min-w-[160px]">Description</th>
                     {bankHeads.map((bank, bi) => (
                       <th key={bank} colSpan={2} className="px-1 py-2 text-center" style={{ borderBottom: `3px solid ${bankColor(bi)}` }}>
                         <span className="text-[10px] font-bold uppercase tracking-wide block" style={{ color: bankColor(bi) }}>{bank}</span>
-                        <div className="flex justify-between text-[9px] font-semibold text-gray-400 mt-1 px-1">
+                        <div className="flex justify-between text-[9px] font-semibold text-crm-text-faint mt-1 px-1">
                           <span>Dr</span><span>Cr</span>
                         </div>
                       </th>
                     ))}
-                    <th className="px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 min-w-[160px]">Notes</th>
+                    <th className="px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-muted min-w-[160px]">Notes</th>
                     <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-[#B8112D] w-[96px]">Net</th>
-                    <th className="w-14 px-1 py-2.5 text-center text-[10px] font-bold uppercase text-gray-400">Edit</th>
+                    <th className="w-14 px-1 py-2.5 text-center text-[10px] font-bold uppercase text-crm-text-faint">Edit</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -128,15 +128,15 @@ export default function CashFlowTable({
                     const net = computedNet(row);
                     const isAutoNet = bankActivity(row);
                     return (
-                      <tr key={row.id} className={`border-b border-gray-100 ${theme.rowHover} transition-colors`}>
+                      <tr key={row.id} className={`border-b border-crm-border-subtle ${theme.rowHover} transition-colors`}>
                         <td className="px-2 py-2">
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap px-1">
-                            <CalendarDays size={11} className="text-gray-400" />
+                          <span className="inline-flex items-center gap-1 text-xs text-crm-text-secondary whitespace-nowrap px-1">
+                            <CalendarDays size={11} className="text-crm-text-faint" />
                             {row.date?.slice(0, 10) || "—"}
                           </span>
                         </td>
                         <td className="px-2 py-2">
-                          <span className="text-sm text-[#0F172A] font-medium truncate block max-w-[200px]" title={row.description}>
+                          <span className="text-sm text-crm-text font-medium truncate block max-w-[200px]" title={row.description}>
                             {row.description || "—"}
                           </span>
                         </td>
@@ -147,12 +147,12 @@ export default function CashFlowTable({
                             <Fragment key={bank}>
                               <td className="px-1 py-2" style={{ borderLeft: `2px solid ${col}18` }}>
                                 <span className="block text-right text-xs tabular-nums text-[#334155] px-1">
-                                  {b.debit ? currency(b.debit) : <span className="text-gray-300">—</span>}
+                                  {b.debit ? currency(b.debit) : <span className="text-crm-text-faint">—</span>}
                                 </span>
                               </td>
                               <td className="px-1 py-2" style={{ borderRight: `2px solid ${col}18` }}>
                                 <span className="block text-right text-xs tabular-nums text-[#334155] px-1">
-                                  {b.credit ? currency(b.credit) : <span className="text-gray-300">—</span>}
+                                  {b.credit ? currency(b.credit) : <span className="text-crm-text-faint">—</span>}
                                 </span>
                               </td>
                             </Fragment>
@@ -163,7 +163,7 @@ export default function CashFlowTable({
                         </td>
                         <td className="px-2 py-2 text-right">
                           <span className="text-sm font-bold text-[#B8112D] tabular-nums">{currency(net)}</span>
-                          {isAutoNet && <span className="block text-[9px] text-gray-400 font-semibold">auto</span>}
+                          {isAutoNet && <span className="block text-[9px] text-crm-text-faint font-semibold">auto</span>}
                         </td>
                         <td className="px-2 py-2 text-center">
                           <button
@@ -186,7 +186,7 @@ export default function CashFlowTable({
                 </tbody>
                 <tfoot>
                   <tr className={theme.footer}>
-                    <td colSpan={footerColSpan} className="px-4 py-3 text-right text-sm font-bold text-[#0F172A]">
+                    <td colSpan={footerColSpan} className="px-4 py-3 text-right text-sm font-bold text-crm-text">
                       Section Total
                     </td>
                     <td className="px-3 py-3 text-right font-extrabold text-[#B8112D] tabular-nums">{currency(sectionTotal)}</td>

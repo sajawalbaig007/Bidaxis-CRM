@@ -100,7 +100,7 @@ export default function AccountsSidebar() {
               alt="logo"
               width={40}
               height={40}
-              className="object-cover w-full h-full rounded-[8px] sm:rounded-[10px] bg-white"
+              className="object-cover w-full h-full rounded-[8px] sm:rounded-[10px] bg-crm-surface"
             />
           </div>
           <div className="hidden lg:block min-w-0">

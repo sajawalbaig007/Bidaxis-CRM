@@ -271,13 +271,18 @@ export type ExecutiveBreakdown = {
   loanPositive: number;
   /** Loan the executive owes to the company */
   loanNegative: number;
+  /**
+   * Amount due to this executive this period:
+   * Total Salary + Loan+ve − Loan−ve
+   */
+  totalPayable: number;
 };
 
 /**
  * Executive payroll:
  * Commission = % of net profit (profit before executive salaries; no commission on loss).
  * Basic Salary + Commission = Total Salary.
- * Loan +ve / −ve are tracked as a ledger and do not change the total salary.
+ * Total Payable = Total Salary + Loan+ve − Loan−ve (what this executive should receive).
  */
 export function computeExecutiveSalary(
   detail: Partial<EmployeeSalaryDetail>,
@@ -287,15 +292,45 @@ export function computeExecutiveSalary(
   const commissionPct = Number(detail.commissionPct) || 0;
   const commissionBase = Math.max(0, Number(profitBase) || 0);
   const commission = (commissionBase * commissionPct) / 100;
+  const loanPositive = Number(detail.loanPositive) || 0;
+  const loanNegative = Number(detail.loanNegative) || 0;
+  const totalSalary = basic + commission;
   return {
     basic,
     commissionPct,
     commissionBase,
     commission,
-    totalSalary: basic + commission,
-    loanPositive: Number(detail.loanPositive) || 0,
-    loanNegative: Number(detail.loanNegative) || 0,
+    totalSalary,
+    loanPositive,
+    loanNegative,
+    totalPayable: totalSalary + loanPositive - loanNegative,
   };
+}
+
+/**
+ * Hydrate executive salary for editors / tables.
+ * Prefer salary.basic; fall back to the sub-head amount so totals never wipe to 0.
+ */
+export function ensureExecutiveSalaryDetail(
+  salary: Partial<EmployeeSalaryDetail> | undefined | null,
+  amountFallback = 0,
+  opts?: { commissionPct?: number },
+): EmployeeSalaryDetail {
+  const basicFromSalary = Number(salary?.basic);
+  const basic =
+    Number.isFinite(basicFromSalary) && basicFromSalary > 0
+      ? basicFromSalary
+      : Math.max(0, Number(amountFallback) || 0);
+  return emptySalaryDetail({
+    ...(salary ?? {}),
+    basic,
+    commissionPct:
+      salary?.commissionPct != null && Number.isFinite(Number(salary.commissionPct))
+        ? Number(salary.commissionPct)
+        : Number(opts?.commissionPct) || 0,
+    loanPositive: Number(salary?.loanPositive) || 0,
+    loanNegative: Number(salary?.loanNegative) || 0,
+  });
 }
 
 export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {

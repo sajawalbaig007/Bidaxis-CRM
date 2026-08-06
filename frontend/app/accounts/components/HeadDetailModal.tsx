@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Trash2, X, Plus, StickyNote, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
-import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "../utils/payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail, ensureExecutiveSalaryDetail } from "../utils/payrollFormula";
 import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import ExecutiveSalaryEditor from "./ExecutiveSalaryEditor";
 import SalesPayrollEmployeeEditor from "./salesPayroll/SalesPayrollEmployeeEditor";
@@ -264,14 +264,14 @@ export default function HeadDetailModal({
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-black/40" onClick={onClose}>
       <div
-        className={`bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col ${
+        className={`bg-crm-surface rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-crm-border ${
           salaryMode ? "max-w-3xl" : "max-w-lg"
         }`}
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-crm-border-subtle bg-crm-muted flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-gray-800 text-sm">{title}</h3>
+            <h3 className="font-bold text-crm-text text-sm">{title}</h3>
             {isSalesPayroll && salaryMode && (
               <p className="text-[10px] font-bold text-emerald-700 mt-0.5">
                 Sales payroll — project commission · 6 PM shift · no overtime
@@ -288,53 +288,53 @@ export default function HeadDetailModal({
               </p>
             )}
           </div>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-crm-muted flex items-center justify-center">
             <X size={16} />
           </button>
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
-          <label className="text-xs font-semibold text-gray-600 block">
+          <label className="text-xs font-semibold text-crm-text-secondary block">
             Title
             <input
               value={draft.title}
               onChange={e => setField("title", e.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+              className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
             />
           </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs font-semibold text-gray-600 block">
+            <label className="text-xs font-semibold text-crm-text-secondary block">
               {draft.subHeads.length > 0 ? "Total (auto from people / lines)" : "Total (add people/lines or set here)"}
               {draft.subHeads.length > 0 ? (
                 <input
                   type="text"
                   readOnly
                   value={String(sumSubHeads(draft.subHeads))}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-600 cursor-default"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-secondary cursor-default"
                 />
               ) : (
                 <AmountInput
                   value={Number(draft.amount) || 0}
                   onChange={n => setField("amount", n)}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                 />
               )}
             </label>
-            <label className="text-xs font-semibold text-gray-600 block">
+            <label className="text-xs font-semibold text-crm-text-secondary block">
               Filled date
               <input
                 type="date"
                 value={draft.filledAt ?? todayIso()}
                 onChange={e => setField("filledAt", e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
               />
             </label>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-gray-700 inline-flex items-center gap-1.5">
+              <p className="text-xs font-bold text-crm-text-secondary inline-flex items-center gap-1.5">
                 <StickyNote size={13} className="text-amber-500" /> Notes (by date)
               </p>
               <button type="button" onClick={addNote} className="text-[11px] font-bold text-amber-700 inline-flex items-center gap-1">
@@ -343,7 +343,7 @@ export default function HeadDetailModal({
             </div>
             <div className="space-y-2 max-h-36 overflow-y-auto">
               {sortedNotes.length === 0 ? (
-                <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
+                <p className="text-[11px] text-crm-text-faint py-3 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
                   No notes yet — add one with a date.
                 </p>
               ) : (
@@ -354,7 +354,7 @@ export default function HeadDetailModal({
                         type="date"
                         value={n.date}
                         onChange={e => updateNote(n.id, { date: e.target.value })}
-                        className="h-8 rounded-lg border border-amber-200 bg-white px-2 text-[11px]"
+                        className="h-8 rounded-lg border border-amber-200 bg-crm-surface px-2 text-[11px]"
                       />
                       <button type="button" onClick={() => removeNote(n.id)} className="ml-auto text-red-500">
                         <Trash2 size={13} />
@@ -365,7 +365,7 @@ export default function HeadDetailModal({
                       onChange={e => updateNote(n.id, { text: e.target.value })}
                       rows={2}
                       placeholder="Note…"
-                      className="w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs outline-none resize-none"
+                      className="w-full rounded-lg border border-amber-200 bg-crm-surface px-2 py-1.5 text-xs outline-none resize-none"
                     />
                   </div>
                 ))
@@ -375,7 +375,7 @@ export default function HeadDetailModal({
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-gray-700">
+              <p className="text-xs font-bold text-crm-text-secondary">
                 {salaryMode ? "Employees (full payroll)" : "People / line items"}
               </p>
               <button type="button" onClick={addSub} className="text-[11px] font-bold text-[#0B84F3]">
@@ -385,7 +385,7 @@ export default function HeadDetailModal({
 
             <div className={`space-y-2 ${salaryMode ? "max-h-[55vh]" : "max-h-64"} overflow-y-auto`}>
               {draft.subHeads.length === 0 ? (
-                <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed rounded-xl">
+                <p className="text-[11px] text-crm-text-faint py-3 text-center border border-dashed rounded-xl">
                   No people yet — total uses the amount above.
                 </p>
               ) : salaryMode ? (
@@ -409,13 +409,13 @@ export default function HeadDetailModal({
                     return (
                       <div key={s.id} className="rounded-xl border border-emerald-200 overflow-hidden">
                         <div className="flex items-center gap-2 px-2.5 py-2 bg-[#ECFDF3]">
-                          <button type="button" onClick={() => toggleSalary(s.id)} className="text-gray-500">
+                          <button type="button" onClick={() => toggleSalary(s.id)} className="text-crm-text-muted">
                             {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </button>
                           <input
                             value={s.label}
                             onChange={e => updateSub(s.id, { label: e.target.value })}
-                            className="flex-1 h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold"
+                            className="flex-1 h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-semibold"
                             placeholder="Employee name"
                           />
                           <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
@@ -471,24 +471,24 @@ export default function HeadDetailModal({
                     );
                   }
                   if (payrollKind === "executive") {
-                    const sal = emptySalaryDetail({
-                      ...(s.salary ?? { basic: s.amount }),
-                    });
+                    const sal = ensureExecutiveSalaryDetail(s.salary, s.amount);
                     const exec = computeExecutiveSalary(sal, execProfitBase);
                     return (
                       <div key={s.id} className="rounded-xl border border-indigo-200 overflow-hidden">
                         <div className="flex items-center gap-2 px-2.5 py-2 bg-indigo-50/60">
-                          <button type="button" onClick={() => toggleSalary(s.id)} className="text-gray-500">
+                          <button type="button" onClick={() => toggleSalary(s.id)} className="text-crm-text-muted">
                             {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </button>
                           <input
                             value={s.label}
                             onChange={e => updateSub(s.id, { label: e.target.value })}
-                            className="flex-1 h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold"
+                            className="flex-1 h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-semibold"
                             placeholder="Executive name"
                           />
                           <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">{exec.commissionPct}%</span>
-                          <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(exec.totalSalary)}</span>
+                          <span className="text-xs font-black tabular-nums text-[#B8112D] whitespace-nowrap" title="Total due = Salary + Loan+ve − Loan−ve">
+                            Due {currency(exec.totalPayable)}
+                          </span>
                           <SalarySlipDownloadButton
                             sub={s}
                             kind="executive"
@@ -508,8 +508,9 @@ export default function HeadDetailModal({
                               value={sal}
                               profitBase={execProfitBase}
                               onChange={next => {
-                                const total = computeExecutiveSalary(next, execProfitBase).totalSalary;
-                                updateSub(s.id, { salary: next, amount: total });
+                                const hydrated = ensureExecutiveSalaryDetail(next, next.basic || s.amount);
+                                const total = computeExecutiveSalary(hydrated, execProfitBase).totalSalary;
+                                updateSub(s.id, { salary: hydrated, amount: total });
                               }}
                             />
                           </div>
@@ -537,15 +538,15 @@ export default function HeadDetailModal({
                   const editorVariant =
                     isAdminSub ? "admin" : isTechMgrSub ? "technical_manager" : "technical";
                   return (
-                    <div key={s.id} className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div key={s.id} className="rounded-xl border border-crm-border overflow-hidden">
                       <div className="flex items-center gap-2 px-2.5 py-2 bg-[#F8FAFC]">
-                        <button type="button" onClick={() => toggleSalary(s.id)} className="text-gray-500">
+                        <button type="button" onClick={() => toggleSalary(s.id)} className="text-crm-text-muted">
                           {openEd ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                         <input
                           value={s.label}
                           onChange={e => updateSub(s.id, { label: e.target.value })}
-                          className="flex-1 h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold"
+                          className="flex-1 h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-semibold"
                           placeholder="Employee name"
                         />
                         <span className="text-xs font-bold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
@@ -560,7 +561,7 @@ export default function HeadDetailModal({
                         </button>
                       </div>
                       {openEd && (
-                        <div className="p-2 border-t border-gray-100">
+                        <div className="p-2 border-t border-crm-border-subtle">
                           <EmployeeSalaryEditor
                             name={s.label}
                             teamHint={draft.title}
@@ -582,24 +583,24 @@ export default function HeadDetailModal({
                 })
               ) : (
                 draft.subHeads.map(s => (
-                  <div key={s.id} className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-2 space-y-1.5">
+                  <div key={s.id} className="rounded-xl border border-crm-border-subtle bg-[#F8FAFC] p-2 space-y-1.5">
                     <div className="grid grid-cols-12 gap-1.5 items-center">
                       <input
                         value={s.label}
                         onChange={e => updateSub(s.id, { label: e.target.value })}
-                        className="col-span-4 h-8 rounded-lg border border-gray-200 px-2 text-xs bg-white"
+                        className="col-span-4 h-8 rounded-lg border border-crm-border px-2 text-xs bg-crm-surface"
                         placeholder="Label"
                       />
                       <AmountInput
                         value={Number(s.amount) || 0}
                         onChange={n => updateSub(s.id, { amount: n })}
-                        className="col-span-3 h-8 rounded-lg border border-gray-200 px-2 text-xs text-right bg-white"
+                        className="col-span-3 h-8 rounded-lg border border-crm-border px-2 text-xs text-right bg-crm-surface"
                       />
                       <input
                         type="date"
                         value={s.filledAt}
                         onChange={e => updateSub(s.id, { filledAt: e.target.value })}
-                        className="col-span-3 h-8 rounded-lg border border-gray-200 px-1 text-[10px] bg-white"
+                        className="col-span-3 h-8 rounded-lg border border-crm-border px-1 text-[10px] bg-crm-surface"
                       />
                         <button type="button" onClick={() => removeSub(s.id)} className="col-span-2 text-red-500 flex justify-center">
                         <Trash2 size={13} />
@@ -621,7 +622,7 @@ export default function HeadDetailModal({
               )}
             </div>
             {draft.subHeads.length > 0 && (
-              <p className="text-[11px] text-gray-500 mt-2 font-semibold">
+              <p className="text-[11px] text-crm-text-muted mt-2 font-semibold">
                 Team / section sum: {currency(draft.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0))}
               </p>
             )}
@@ -637,7 +638,7 @@ export default function HeadDetailModal({
             Delete
           </button>
           <div className="flex items-center gap-2">
-            <p className="text-[10px] text-gray-400 hidden sm:block">Changes save when you click Done</p>
+            <p className="text-[10px] text-crm-text-faint hidden sm:block">Changes save when you click Done</p>
             <button
               type="button"
               onClick={handleDone}

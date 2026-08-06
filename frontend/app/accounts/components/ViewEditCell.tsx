@@ -41,7 +41,7 @@ export default function ViewEditCell({
           <AmountInput
             value={Number(value) || 0}
             onChange={n => onChange(n)}
-            className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 outline-none focus:ring-2 ${inputClass}`}
+            className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 outline-none focus:ring-2 ${inputClass}`}
             autoFocus
           />
         ) : (
@@ -49,7 +49,7 @@ export default function ViewEditCell({
             type={type}
             value={value === undefined || value === null ? "" : String(value)}
             onChange={e => onChange(e.target.value)}
-            className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 outline-none focus:ring-2 ${inputClass}`}
+            className={`${compact ? "h-8 text-xs" : "h-9 text-sm"} flex-1 min-w-0 rounded-lg border border-crm-border bg-crm-surface px-2 outline-none focus:ring-2 ${inputClass}`}
             autoFocus
           />
         )}
@@ -67,7 +67,7 @@ export default function ViewEditCell({
 
   return (
     <div className={`group flex items-center gap-1.5 min-w-0 ${alignCls}`}>
-      <span className={`truncate ${compact ? "text-xs" : "text-sm"} text-[#0F172A] font-medium`}>
+      <span className={`truncate ${compact ? "text-xs" : "text-sm"} text-crm-text font-medium`}>
         {display || "—"}
       </span>
       <button

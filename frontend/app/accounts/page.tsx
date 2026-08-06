@@ -465,7 +465,7 @@ export default function AccountsDashboardPage() {
             <button
               type="button"
               onClick={() => setFormulaBookOpen(true)}
-              className="h-10 px-4 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 inline-flex items-center gap-2 hover:border-[#B8112D] hover:text-[#B8112D] transition-colors shadow-sm"
+              className="h-10 px-4 rounded-xl bg-crm-surface border border-crm-border text-xs font-bold text-crm-text-secondary inline-flex items-center gap-2 hover:border-[#B8112D] hover:text-[#B8112D] transition-colors shadow-sm"
               title="All Accounts formulas — by section, editable"
             >
               <Sigma size={15} className="text-[#B8112D]" />
@@ -545,11 +545,11 @@ export default function AccountsDashboardPage() {
           </section>
 
           <section className="mt-5 w-full space-y-4">
-            <div id="live-fx" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
-              <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div id="live-fx" className="w-full bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
+              <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
+                  <p className="text-[11px] text-crm-text-faint mt-0.5">
                     Fetched from Google Finance · review these rates, then apply them to your conversion formula
                   </p>
                 </div>
@@ -567,7 +567,7 @@ export default function AccountsDashboardPage() {
 
               <div className="p-4 sm:p-5">
                 {fxLoading && !fxRates ? (
-                  <p className="text-xs text-gray-400 font-medium flex items-center gap-2">
+                  <p className="text-xs text-crm-text-faint font-medium flex items-center gap-2">
                     <RefreshCw size={14} className="animate-spin text-[#0B84F3]" />
                     Loading live rates from Google…
                   </p>
@@ -578,10 +578,10 @@ export default function AccountsDashboardPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="rounded-xl border border-[#D6EBFF] bg-[#F8FBFF] p-3.5">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">1 USD → PKR</p>
-                        <p className="text-2xl font-extrabold tabular-nums text-gray-900 mt-1">{fxRates.usdToPkr.toFixed(4)}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">{fxRates.usdSource ?? "Google Finance"}</p>
-                        <p className="text-[10px] text-gray-500 mt-2">
-                          Ahmed formula now: <span className="font-bold text-gray-700 tabular-nums">{ah.usdToPkrRate}</span>
+                        <p className="text-2xl font-extrabold tabular-nums text-crm-text mt-1">{fxRates.usdToPkr.toFixed(4)}</p>
+                        <p className="text-[10px] text-crm-text-faint mt-1">{fxRates.usdSource ?? "Google Finance"}</p>
+                        <p className="text-[10px] text-crm-text-muted mt-2">
+                          Ahmed formula now: <span className="font-bold text-crm-text-secondary tabular-nums">{ah.usdToPkrRate}</span>
                           {Math.abs(ah.usdToPkrRate - fxRates.usdToPkr) > 0.01 && (
                             <span className="ml-1 text-amber-600 font-semibold">
                               (diff {(fxRates.usdToPkr - ah.usdToPkrRate).toFixed(2)})
@@ -591,12 +591,12 @@ export default function AccountsDashboardPage() {
                       </div>
                       <div className="rounded-xl border border-teal-100 bg-[#F8FFFE] p-3.5">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">1 CAD → PKR</p>
-                        <p className="text-2xl font-extrabold tabular-nums text-gray-900 mt-1">{fxRates.cadToPkr.toFixed(4)}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">{fxRates.cadSource ?? "Google Finance"}</p>
-                        <p className="text-[10px] text-gray-500 mt-2">
-                          Ahmed: <span className="font-bold text-gray-700 tabular-nums">{ah.cadToPkrRate}</span>
+                        <p className="text-2xl font-extrabold tabular-nums text-crm-text mt-1">{fxRates.cadToPkr.toFixed(4)}</p>
+                        <p className="text-[10px] text-crm-text-faint mt-1">{fxRates.cadSource ?? "Google Finance"}</p>
+                        <p className="text-[10px] text-crm-text-muted mt-2">
+                          Ahmed: <span className="font-bold text-crm-text-secondary tabular-nums">{ah.cadToPkrRate}</span>
                           {" · "}
-                          Sharjeel: <span className="font-bold text-gray-700 tabular-nums">{sn.cadToPkrRate}</span>
+                          Sharjeel: <span className="font-bold text-crm-text-secondary tabular-nums">{sn.cadToPkrRate}</span>
                         </p>
                       </div>
                     </div>
@@ -619,11 +619,11 @@ export default function AccountsDashboardPage() {
                       <button
                         type="button"
                         onClick={() => applyLiveRates("both")}
-                        className="h-9 px-3 rounded-xl border border-gray-200 bg-white text-gray-700 text-[11px] font-bold hover:border-[#B8112D] hover:text-[#B8112D]"
+                        className="h-9 px-3 rounded-xl border border-crm-border bg-crm-surface text-crm-text-secondary text-[11px] font-bold hover:border-[#B8112D] hover:text-[#B8112D]"
                       >
                         Apply to both
                       </button>
-                      <p className="text-[10px] text-gray-400 ml-auto">
+                      <p className="text-[10px] text-crm-text-faint ml-auto">
                         Source: {fxRates.source === "google" ? "Google Finance" : fxRates.source}
                         {" · "}
                         {new Date(fxRates.fetchedAt).toLocaleString()}
@@ -634,11 +634,11 @@ export default function AccountsDashboardPage() {
               </div>
             </div>
 
-            <div id="currency-formula" className="w-full bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
-              <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div id="currency-formula" className="w-full bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
+              <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Currency Payment Formula</h2>
-                  <p className="text-[11px] text-gray-400 mt-0.5">View-only · eye to edit · {acc.recordDate}</p>
+                  <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Currency Payment Formula</h2>
+                  <p className="text-[11px] text-crm-text-faint mt-0.5">View-only · eye to edit · {acc.recordDate}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {viewTab !== "ALL" && (
@@ -651,7 +651,7 @@ export default function AccountsDashboardPage() {
                       <Eye size={16} />
                     </button>
                   )}
-                  <div className="inline-flex rounded-xl border border-gray-200/80 bg-[#F4F5F8] p-0.5 overflow-x-auto max-w-[min(100vw-8rem,520px)]">
+                  <div className="inline-flex rounded-xl border border-crm-border/80 bg-[#F4F5F8] p-0.5 overflow-x-auto max-w-[min(100vw-8rem,520px)]">
                     {(["AH", "SN", "CHQ", "HM", "ALL"] as const).map(tab => {
                       const selected = viewTab === tab;
                       return (
@@ -665,7 +665,7 @@ export default function AccountsDashboardPage() {
                           className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap ${
                             selected
                               ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                              : "text-gray-600 hover:bg-white"
+                              : "text-crm-text-secondary hover:bg-crm-surface-raised"
                           }`}
                           title={CURRENCY_TAB_LABELS[tab]}
                         >
@@ -677,7 +677,7 @@ export default function AccountsDashboardPage() {
                 </div>
               </div>
 
-              <p className="px-4 sm:px-5 pt-2.5 text-[11px] text-gray-500 leading-snug">{formulaNote}</p>
+              <p className="px-4 sm:px-5 pt-2.5 text-[11px] text-crm-text-muted leading-snug">{formulaNote}</p>
 
               {viewTab === "ALL" ? (
                 <div className="p-3 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -687,7 +687,7 @@ export default function AccountsDashboardPage() {
                     { key: "CHQ" as const, label: "Cheque Payment", accent: "text-amber-700", calc: chqCalc, note: "25% tax deduction" },
                     { key: "HM" as const, label: "Direct Habib Metro", accent: "text-teal-700", calc: hmCalc, note: "1% tax deduction" },
                   ]).map(card => (
-                    <div key={card.key} className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3.5">
+                    <div key={card.key} className="rounded-xl border border-crm-border-subtle bg-[#FAFBFC] p-3.5">
                       <div className="flex items-center justify-between mb-1.5">
                         <p className={`text-[10px] font-bold uppercase tracking-wider ${card.accent}`}>{card.label}</p>
                         <button
@@ -701,18 +701,18 @@ export default function AccountsDashboardPage() {
                       </div>
                       {isLocalPaymentTab(card.key) ? (
                         <>
-                          <p className="text-xs text-gray-600">Gross: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.pkrGross)}</span></p>
-                          <p className="text-xs text-gray-600">Tax: <span className="font-semibold text-red-600 tabular-nums">{currency(card.calc.pkrTax)}</span></p>
-                          <p className="text-sm font-extrabold text-gray-900 mt-1.5 tabular-nums">Net: {currency(card.calc.total)}</p>
+                          <p className="text-xs text-crm-text-secondary">Gross: <span className="font-semibold text-crm-text tabular-nums">{currency(card.calc.pkrGross)}</span></p>
+                          <p className="text-xs text-crm-text-secondary">Tax: <span className="font-semibold text-red-600 tabular-nums">{currency(card.calc.pkrTax)}</span></p>
+                          <p className="text-sm font-extrabold text-crm-text mt-1.5 tabular-nums">Net: {currency(card.calc.total)}</p>
                         </>
                       ) : (
                         <>
-                          <p className="text-xs text-gray-600">USD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.usdInPkr)}</span></p>
-                          <p className="text-xs text-gray-600">CAD → PKR: <span className="font-semibold text-gray-800 tabular-nums">{currency(card.calc.cadInPkr)}</span></p>
-                          <p className="text-sm font-extrabold text-gray-900 mt-1.5 tabular-nums">Subtotal: {currency(card.calc.total)}</p>
+                          <p className="text-xs text-crm-text-secondary">USD → PKR: <span className="font-semibold text-crm-text tabular-nums">{currency(card.calc.usdInPkr)}</span></p>
+                          <p className="text-xs text-crm-text-secondary">CAD → PKR: <span className="font-semibold text-crm-text tabular-nums">{currency(card.calc.cadInPkr)}</span></p>
+                          <p className="text-sm font-extrabold text-crm-text mt-1.5 tabular-nums">Subtotal: {currency(card.calc.total)}</p>
                         </>
                       )}
-                      <p className="text-[10px] text-gray-400 mt-1">{card.note}</p>
+                      <p className="text-[10px] text-crm-text-faint mt-1">{card.note}</p>
                     </div>
                   ))}
                 </div>
@@ -725,13 +725,13 @@ export default function AccountsDashboardPage() {
                       ["Net received", activeCalc.pkrNet],
                       ["Keep factor", 1 - (active.taxDeductionRate ?? 0)],
                     ] as const).map(([label, val]) => (
-                      <div key={String(label)} className="rounded-lg border border-gray-100 bg-[#FAFBFC] px-2.5 py-2">
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-                        <p className="mt-0.5 text-sm font-semibold text-gray-800 tabular-nums">{currency(val)}</p>
+                      <div key={String(label)} className="rounded-lg border border-crm-border-subtle bg-[#FAFBFC] px-2.5 py-2">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">{label}</p>
+                        <p className="mt-0.5 text-sm font-semibold text-crm-text tabular-nums">{currency(val)}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-gray-600 font-mono leading-snug">
+                  <div className="rounded-xl border border-dashed border-crm-border bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-crm-text-secondary font-mono leading-snug">
                     <p>
                       {currency(activeCalc.pkrGross)} − {((active.taxDeductionRate ?? 0) * 100).toFixed(0)}% tax ({currency(activeCalc.pkrTax)}) ={" "}
                       <span className="font-bold text-[#B8112D]">{currency(activeCalc.pkrNet)}</span>
@@ -752,33 +752,33 @@ export default function AccountsDashboardPage() {
                     ] as const).map(([label, val]) => (
                       <div
                         key={label}
-                        className="rounded-lg border border-gray-100 bg-[#FAFBFC] px-2.5 py-2"
+                        className="rounded-lg border border-crm-border-subtle bg-[#FAFBFC] px-2.5 py-2"
                       >
-                        <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-                        <p className="mt-0.5 text-sm font-semibold text-gray-800 tabular-nums">{currency(val)}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-crm-text-faint">{label}</p>
+                        <p className="mt-0.5 text-sm font-semibold text-crm-text tabular-nums">{currency(val)}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="rounded-xl border border-dashed border-gray-200 bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-gray-600 space-y-0.5 font-mono leading-snug sm:flex sm:gap-8 sm:space-y-0">
-                    <p>USD: {currency(active.usdAmount)} × {active.usdTaxFactor} × {active.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.usdInPkr)}</span></p>
-                    <p>CAD: {currency(active.cadAmount)} × {active.cadTaxFactor} × {active.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(activeCalc.cadInPkr)}</span></p>
+                  <div className="rounded-xl border border-dashed border-crm-border bg-[#F8FAFC] px-3 py-2.5 text-[10px] sm:text-[11px] text-crm-text-secondary space-y-0.5 font-mono leading-snug sm:flex sm:gap-8 sm:space-y-0">
+                    <p>USD: {currency(active.usdAmount)} × {active.usdTaxFactor} × {active.usdToPkrRate} = <span className="font-bold text-crm-text">{currency(activeCalc.usdInPkr)}</span></p>
+                    <p>CAD: {currency(active.cadAmount)} × {active.cadTaxFactor} × {active.cadToPkrRate} = <span className="font-bold text-crm-text">{currency(activeCalc.cadInPkr)}</span></p>
                   </div>
                 </div>
               )}
 
-              <div className="mx-3 sm:mx-5 mb-4 rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white px-3 sm:px-4 py-2.5 text-xs text-gray-700 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="mx-3 sm:mx-5 mb-4 rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white px-3 sm:px-4 py-2.5 text-xs text-crm-text-secondary grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {viewTab !== "ALL" && isLocalPaymentTab(viewTab) ? (
                   <>
-                    <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">Gross</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrGross)}</span></p>
-                    <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">Tax</span><span className="tabular-nums font-semibold text-red-600">{currency(displayCalc.pkrTax)}</span></p>
-                    <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">Net</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrNet)}</span></p>
+                    <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Gross</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrGross)}</span></p>
+                    <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Tax</span><span className="tabular-nums font-semibold text-red-600">{currency(displayCalc.pkrTax)}</span></p>
+                    <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Net</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrNet)}</span></p>
                     <p><span className="font-extrabold text-[#B8112D] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
                   </>
                 ) : (
                   <>
-                    <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">USD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
-                    <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">CAD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
-                    <p><span className="font-bold text-gray-800 block text-[9px] uppercase tracking-wide">Local Net PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
+                    <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">USD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.usdInPkr)}</span></p>
+                    <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">CAD PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.cadInPkr)}</span></p>
+                    <p><span className="font-bold text-crm-text block text-[9px] uppercase tracking-wide">Local Net PKR</span><span className="tabular-nums font-semibold">{currency(displayCalc.pkrAmount)}</span></p>
                     <p><span className="font-extrabold text-[#B8112D] block text-[9px] uppercase tracking-wide">Total</span><span className="tabular-nums font-extrabold text-[#B8112D]">{currency(displayCalc.total)}</span></p>
                   </>
                 )}
@@ -866,8 +866,8 @@ export default function AccountsDashboardPage() {
           <section className="mt-5">
             <div className="flex items-center gap-2.5 mb-3 px-0.5">
               <span className="w-1 h-6 rounded-full bg-[#B8112D] shrink-0" />
-              <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Quick Access</h2>
-              <span className="text-[11px] text-gray-400 font-medium">Jump to any accounts page — live totals as of {acc.recordDate}</span>
+              <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Quick Access</h2>
+              <span className="text-[11px] text-crm-text-faint font-medium">Jump to any accounts page — live totals as of {acc.recordDate}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {quickPages.map(p => (
@@ -875,7 +875,7 @@ export default function AccountsDashboardPage() {
                   key={p.label}
                   href={p.href}
                   prefetch={false}
-                  className="group relative overflow-hidden bg-white rounded-2xl border border-gray-100/90 p-4 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]"
+                  className="group relative overflow-hidden bg-crm-surface rounded-2xl border border-crm-border-subtle/90 p-4 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]"
                 >
                   <div
                     className="absolute inset-x-0 top-0 h-0.5 opacity-70 group-hover:opacity-100 transition-opacity"
@@ -888,19 +888,19 @@ export default function AccountsDashboardPage() {
                     >
                       {p.icon}
                     </span>
-                    <span className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-100 text-gray-400 inline-flex items-center justify-center transition-all duration-200 group-hover:bg-[#B8112D] group-hover:border-[#B8112D] group-hover:text-white group-hover:rotate-45">
+                    <span className="w-7 h-7 rounded-lg bg-crm-surface-muted border border-crm-border-subtle text-crm-text-faint inline-flex items-center justify-center transition-all duration-200 group-hover:bg-[#B8112D] group-hover:border-[#B8112D] group-hover:text-white group-hover:rotate-45">
                       <ArrowUpRight size={14} />
                     </span>
                   </div>
-                  <p className="mt-3 font-extrabold text-gray-800 text-sm tracking-tight">{p.label}</p>
+                  <p className="mt-3 font-extrabold text-crm-text text-sm tracking-tight">{p.label}</p>
                   {"stat" in p && p.stat != null ? (
                     <p className="mt-0.5 text-lg font-extrabold tabular-nums tracking-tight" style={{ color: p.from }}>
                       {currency(Number(p.stat) || 0)}
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-lg font-extrabold text-gray-300">—</p>
+                    <p className="mt-0.5 text-lg font-extrabold text-crm-text-faint">—</p>
                   )}
-                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">{p.hint}</p>
+                  <p className="text-[10px] text-crm-text-faint font-semibold uppercase tracking-wider mt-0.5">{p.hint}</p>
                 </Link>
               ))}
             </div>

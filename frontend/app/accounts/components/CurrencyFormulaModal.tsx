@@ -56,12 +56,12 @@ export default function CurrencyFormulaModal({
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
+        className="bg-crm-surface rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
-          <h3 className="font-bold text-gray-800 text-sm">Edit payment formula — {CURRENCY_TAB_LABELS[tab]}</h3>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+          <h3 className="font-bold text-crm-text text-sm">Edit payment formula — {CURRENCY_TAB_LABELS[tab]}</h3>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-crm-muted flex items-center justify-center">
             <X size={16} />
           </button>
         </div>
@@ -69,25 +69,25 @@ export default function CurrencyFormulaModal({
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
           {local ? (
             <>
-              <label className="text-xs font-semibold text-gray-600 block">
+              <label className="text-xs font-semibold text-crm-text-secondary block">
                 Gross payment (PKR)
                 <AmountInput
                   value={Number(value.pkrAmount) || 0}
                   onChange={n => onChange("pkrAmount", n)}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                 />
               </label>
-              <label className="text-xs font-semibold text-gray-600 block">
+              <label className="text-xs font-semibold text-crm-text-secondary block">
                 Tax deduction (fixed)
                 <input
                   type="text"
                   readOnly
                   value={`${taxPct}%`}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-500 cursor-default"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-muted cursor-default"
                 />
               </label>
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
-                <p>Gross = <span className="font-bold text-gray-800">{currency(loc.gross)}</span></p>
+              <div className="rounded-2xl border border-dashed border-crm-border bg-[#F8FAFC] p-3.5 text-[11px] text-crm-text-secondary space-y-1.5 font-mono">
+                <p>Gross = <span className="font-bold text-crm-text">{currency(loc.gross)}</span></p>
                 <p>Tax ({taxPct}%) = <span className="font-bold text-red-600">{currency(loc.tax)}</span></p>
                 <p className="pt-1 font-bold text-[#B8112D]">Net received = {currency(loc.net)}</p>
               </div>
@@ -96,30 +96,30 @@ export default function CurrencyFormulaModal({
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {FX_FIELDS.map(({ label, key, readOnly }) => (
-                  <label key={key} className={`text-xs font-semibold text-gray-600 ${key === "pkrAmount" ? "sm:col-span-2" : ""}`}>
+                  <label key={key} className={`text-xs font-semibold text-crm-text-secondary ${key === "pkrAmount" ? "sm:col-span-2" : ""}`}>
                     {label}{readOnly ? " (fixed)" : ""}
                     {readOnly ? (
                       <input
                         type="text"
                         readOnly
                         value={String(value[key] as number)}
-                        className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-500 cursor-default"
+                        className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-muted cursor-default"
                       />
                     ) : (
                       <AmountInput
                         value={Number(value[key]) || 0}
                         onChange={n => onChange(key, n)}
-                        className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                        className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                       />
                     )}
                   </label>
                 ))}
               </div>
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-[#F8FAFC] p-3.5 text-[11px] text-gray-600 space-y-1.5 font-mono">
-                <p>USD After Tax = {currency(value.usdAmount)} × {value.usdTaxFactor} = <span className="font-bold text-gray-800">{currency(fx.usdAfterTax)}</span></p>
-                <p>USD → PKR = {currency(fx.usdAfterTax)} × {value.usdToPkrRate} = <span className="font-bold text-gray-800">{currency(fx.usdInPkr)}</span></p>
-                <p className="pt-1">CAD After Tax = {currency(value.cadAmount)} × {value.cadTaxFactor} = <span className="font-bold text-gray-800">{currency(fx.cadAfterTax)}</span></p>
-                <p>CAD → PKR = {currency(fx.cadAfterTax)} × {value.cadToPkrRate} = <span className="font-bold text-gray-800">{currency(fx.cadInPkr)}</span></p>
+              <div className="rounded-2xl border border-dashed border-crm-border bg-[#F8FAFC] p-3.5 text-[11px] text-crm-text-secondary space-y-1.5 font-mono">
+                <p>USD After Tax = {currency(value.usdAmount)} × {value.usdTaxFactor} = <span className="font-bold text-crm-text">{currency(fx.usdAfterTax)}</span></p>
+                <p>USD → PKR = {currency(fx.usdAfterTax)} × {value.usdToPkrRate} = <span className="font-bold text-crm-text">{currency(fx.usdInPkr)}</span></p>
+                <p className="pt-1">CAD After Tax = {currency(value.cadAmount)} × {value.cadTaxFactor} = <span className="font-bold text-crm-text">{currency(fx.cadAfterTax)}</span></p>
+                <p>CAD → PKR = {currency(fx.cadAfterTax)} × {value.cadToPkrRate} = <span className="font-bold text-crm-text">{currency(fx.cadInPkr)}</span></p>
                 <p className="pt-1 font-bold text-[#B8112D]">Total = {currency(fx.total)}</p>
               </div>
             </>

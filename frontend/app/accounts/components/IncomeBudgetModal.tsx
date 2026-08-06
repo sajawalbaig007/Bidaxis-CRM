@@ -226,45 +226,45 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={onClose} aria-label="Close" />
-      <div className="relative w-full max-w-6xl max-h-[94vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
-        <header className="flex items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-[#FFF6F8] to-white">
+      <div className="relative w-full max-w-6xl max-h-[94vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-crm-surface shadow-2xl border border-crm-border overflow-hidden">
+        <header className="flex items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF6F8] to-white dark:from-rose-500/10 dark:to-crm-surface">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]/80 flex items-center gap-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]/80 dark:text-rose-300 flex items-center gap-1.5">
               <PiggyBank size={12} /> 3-Month Budget
             </p>
-            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5">
+            <h2 className="text-lg sm:text-xl font-extrabold text-crm-text mt-0.5">
               Income Statement Budget Planner
             </h2>
-            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+            <p className="text-[11px] text-crm-text-muted mt-1 leading-relaxed">
               One table for revenue, team salaries, and OPEX heads. Sub-heads excluded · Loans / PF excluded.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl hover:bg-gray-100 inline-flex items-center justify-center text-gray-500 shrink-0"
+            className="w-9 h-9 rounded-xl hover:bg-crm-muted inline-flex items-center justify-center text-crm-text-muted shrink-0"
           >
             <X size={18} />
           </button>
         </header>
 
-        <div className="px-4 sm:px-5 py-3 border-b border-gray-50 flex flex-wrap items-end gap-3 bg-[#FAFBFC]">
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle flex flex-wrap items-end gap-3 bg-crm-muted">
+          <label className="text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
             From date (month 1 start)
             <input
               type="date"
               value={fromDate}
               onChange={e => applyThreeMonthsFrom(e.target.value)}
-              className="mt-1 h-10 block rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-10 block rounded-xl border border-crm-border bg-crm-surface px-3 text-sm outline-none focus:border-[#B8112D]"
             />
           </label>
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
             To date (month 3 end · auto)
             <input
               type="date"
               value={toDate}
               readOnly
-              className="mt-1 h-10 block rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 cursor-default"
+              className="mt-1 h-10 block rounded-xl border border-crm-border bg-crm-surface-muted px-3 text-sm text-crm-text-secondary cursor-default"
               title="Auto-set to end of the 3rd month from From date"
             />
           </label>
@@ -284,7 +284,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
               const s = shiftPeriod(fromDate, toDate, -1);
               applyThreeMonthsFrom(s.fromDate);
             }}
-            className="h-10 px-3 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-white"
+            className="h-10 px-3 rounded-xl border border-crm-border text-xs font-bold text-crm-text-secondary hover:bg-crm-surface-raised"
           >
             ← Prev 3 mo
           </button>
@@ -294,7 +294,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
               const s = shiftPeriod(fromDate, toDate, 1);
               applyThreeMonthsFrom(s.fromDate);
             }}
-            className="h-10 px-3 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-white"
+            className="h-10 px-3 rounded-xl border border-crm-border text-xs font-bold text-crm-text-secondary hover:bg-crm-surface-raised"
           >
             Next 3 mo →
           </button>
@@ -302,7 +302,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
             type="button"
             onClick={() => void loadActuals(fromDate, toDate)}
             disabled={loadingActuals}
-            className="h-10 px-3 rounded-xl border border-gray-200 text-xs font-bold text-sky-700 hover:bg-sky-50 inline-flex items-center gap-1.5 disabled:opacity-50"
+            className="h-10 px-3 rounded-xl border border-crm-border text-xs font-bold text-sky-700 hover:bg-sky-50 inline-flex items-center gap-1.5 disabled:opacity-50"
           >
             {loadingActuals ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             Refresh actuals
@@ -315,31 +315,31 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
           >
             Fill from actuals
           </button>
-          <span className="text-[10px] text-gray-400 font-medium ml-auto pb-2">
+          <span className="text-[10px] text-crm-text-faint font-medium ml-auto pb-2">
             {daysRecorded} IS day(s) · payroll {currency(budgetPayroll)} · OPEX {currency(budgetOpex)} · rev {currency(budgetRev)}
           </span>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
           {loading ? (
-            <div className="py-16 text-center text-gray-400 text-sm inline-flex items-center gap-2 justify-center w-full">
+            <div className="py-16 text-center text-crm-text-faint text-sm inline-flex items-center gap-2 justify-center w-full">
               <Loader2 size={16} className="animate-spin" /> Loading budgets…
             </div>
           ) : (
             <>
-              <section className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                <div className="px-3 py-2.5 bg-[#FAFBFC] border-b border-gray-100">
-                  <p className="text-xs font-extrabold text-slate-800">
+              <section className="rounded-2xl border border-crm-border-subtle overflow-hidden shadow-sm">
+                <div className="px-3 py-2.5 bg-[#FAFBFC] border-b border-crm-border-subtle">
+                  <p className="text-xs font-extrabold text-crm-text">
                     Budget · {fromDate} → {toDate}
                   </p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
+                  <p className="text-[10px] text-crm-text-faint mt-0.5">
                     Salaries + OPEX heads in one table. Each OPEX row is an Income Statement Operating Expenses category total.
                   </p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[960px]">
                     <thead>
-                      <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wide text-gray-400">
+                      <tr className="border-b border-crm-border-subtle text-[10px] uppercase tracking-wide text-crm-text-faint">
                         <th className="px-3 py-2 text-left font-bold sticky left-0 bg-[#FAFBFC] z-10">Category</th>
                         {monthKeys.map(mk => (
                           <th key={mk} className="px-2 py-2 text-center font-bold" colSpan={2}>
@@ -349,8 +349,8 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                         <th className="px-3 py-2 text-right font-bold">Total budget</th>
                         <th className="px-3 py-2 text-right font-bold">Total actual</th>
                       </tr>
-                      <tr className="border-b border-gray-100 text-[9px] uppercase tracking-wide text-gray-400 bg-white">
-                        <th className="px-3 py-1.5 sticky left-0 bg-white z-10" />
+                      <tr className="border-b border-crm-border-subtle text-[9px] uppercase tracking-wide text-crm-text-faint bg-crm-surface">
+                        <th className="px-3 py-1.5 sticky left-0 bg-crm-surface z-10" />
                         {monthKeys.map(mk => (
                           <Fragment key={`h-${mk}`}>
                             <th className="px-1 py-1 text-center font-bold">Budget</th>
@@ -370,14 +370,14 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                         return (
                           <tr
                             key={line.key}
-                            className={`border-b border-gray-50 ${
+                            className={`border-b border-crm-border-subtle ${
                               line.kind === "opex_head" ? "bg-amber-50/20" : ""
                             } ${line.key === "revenue" ? "bg-violet-50/30" : ""}`}
                           >
-                            <td className="px-3 py-2 font-semibold text-gray-800 sticky left-0 bg-inherit z-10">
+                            <td className="px-3 py-2 font-semibold text-crm-text sticky left-0 bg-inherit z-10">
                               {line.label}
                               {(line.key === "sales" || line.key === "technical") && (
-                                <span className="block text-[10px] font-normal text-gray-400">
+                                <span className="block text-[10px] font-normal text-crm-text-faint">
                                   {line.key === "sales" ? "Sales Team + Lead" : "Technical Team + Manager"}
                                 </span>
                               )}
@@ -391,16 +391,16 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                                   <AmountInput
                                     value={Number(line.months[mk]) || 0}
                                     onChange={n => setMonthBudget(line.key, mk, n)}
-                                    className="h-8 w-[6.5rem] rounded-lg border border-gray-200 bg-white px-1.5 text-xs tabular-nums text-right outline-none focus:border-[#B8112D]"
+                                    className="h-8 w-[6.5rem] rounded-lg border border-crm-border bg-crm-surface px-1.5 text-xs tabular-nums text-right outline-none focus:border-[#B8112D]"
                                   />
                                 </td>
-                                <td className="px-2 py-1.5 text-right tabular-nums text-xs text-gray-600 align-middle">
+                                <td className="px-2 py-1.5 text-right tabular-nums text-xs text-crm-text-secondary align-middle">
                                   {currency(Number(byMonthActuals[mk]?.[line.key]) || 0)}
                                 </td>
                               </Fragment>
                             ))}
                             <td className="px-3 py-2 text-right font-bold tabular-nums">{currency(lineTotal(line))}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-gray-600">{currency(actualTotal)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-crm-text-secondary">{currency(actualTotal)}</td>
                           </tr>
                         );
                       })}
@@ -478,14 +478,14 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     </tfoot>
                   </table>
                 </div>
-                <div className="px-3 py-3 border-t border-gray-50">
-                  <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                <div className="px-3 py-3 border-t border-crm-border-subtle">
+                  <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
                     Notes
                     <textarea
                       value={period.notes ?? ""}
                       onChange={e => setPeriod(p => ({ ...p, notes: e.target.value }))}
                       rows={2}
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D] resize-none"
+                      className="mt-1 w-full rounded-xl border border-crm-border px-3 py-2 text-sm outline-none focus:border-[#B8112D] resize-none"
                       placeholder="Optional notes…"
                     />
                   </label>
@@ -509,7 +509,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                       step="0.5"
                       value={growthPct}
                       onChange={e => setGrowthPct(Number(e.target.value) || 0)}
-                      className="h-8 w-20 rounded-lg border border-violet-200 bg-white px-2 text-sm tabular-nums outline-none"
+                      className="h-8 w-20 rounded-lg border border-violet-200 bg-crm-surface px-2 text-sm tabular-nums outline-none"
                     />
                   </label>
                 </div>
@@ -527,7 +527,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     <tbody>
                       {prediction.rows.map(row => (
                         <tr key={row.key} className="border-b border-violet-50/80">
-                          <td className="px-3 py-2 font-semibold text-gray-800">
+                          <td className="px-3 py-2 font-semibold text-crm-text">
                             {row.label}
                             {row.kind === "opex_head" && (
                               <span className="ml-1 text-[9px] font-bold uppercase text-amber-600">OPEX</span>
@@ -551,11 +551,11 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
           )}
         </div>
 
-        <footer className="px-4 sm:px-5 py-3 border-t border-gray-100 bg-white flex flex-wrap items-center justify-end gap-2">
+        <footer className="px-4 sm:px-5 py-3 border-t border-crm-border-subtle bg-crm-surface flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="h-10 px-4 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50"
+            className="h-10 px-4 rounded-xl border border-crm-border text-sm font-bold text-crm-text-secondary hover:bg-crm-surface-muted"
           >
             Close
           </button>

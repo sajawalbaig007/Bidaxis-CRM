@@ -28,13 +28,13 @@ export default function SalesPayrollDesignView() {
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 space-y-5">
-      <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/60 bg-white shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]">
+      <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/60 bg-crm-surface shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]">
         <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-[#12B76A] via-[#0B84F3] to-[#7C3AED]" />
         <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 sm:px-6 py-5">
           <div className="min-w-0 pl-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#12B76A]/90 mb-1">Accounts · Payroll Design</p>
-            <h1 className="text-xl sm:text-2xl md:text-[28px] font-extrabold text-[#0F172A] tracking-tight">Sales Team Payroll</h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1.5 max-w-2xl leading-relaxed">
+            <h1 className="text-xl sm:text-2xl md:text-[28px] font-extrabold text-crm-text tracking-tight">Sales Team Payroll</h1>
+            <p className="text-xs sm:text-sm text-crm-text-muted mt-1.5 max-w-2xl leading-relaxed">
               Sales team = project commission only (no overtime). Basic + allowance + commission = total earning.
             </p>
           </div>
@@ -49,19 +49,19 @@ export default function SalesPayrollDesignView() {
         </div>
       </header>
 
-      <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-4 sm:p-5 space-y-4">
+      <section className="rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <label className="text-xs font-semibold text-gray-600">
+          <label className="text-xs font-semibold text-crm-text-secondary">
             <span className="inline-flex items-center gap-1 mb-1"><Calendar size={12} /> Payroll Month</span>
-            <input type="month" defaultValue="2026-07" className="mt-1 h-10 w-full sm:w-48 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20" />
+            <input type="month" defaultValue="2026-07" className="mt-1 h-10 w-full sm:w-48 rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20" />
           </label>
 
-          <div className="inline-flex p-1 rounded-2xl bg-[#F4F5F8] border border-gray-100">
+          <div className="inline-flex p-1 rounded-2xl bg-[#F4F5F8] border border-crm-border-subtle">
             <button
               type="button"
               onClick={() => setTab("sales")}
               className={`h-10 px-4 sm:px-5 rounded-xl text-sm font-bold inline-flex items-center gap-2 transition-all ${
-                tab === "sales" ? "bg-[#12B76A] text-white shadow-md shadow-[#12B76A]/25" : "text-gray-600 hover:bg-white"
+                tab === "sales" ? "bg-[#12B76A] text-white shadow-md shadow-[#12B76A]/25" : "text-crm-text-secondary hover:bg-crm-surface-raised"
               }`}
             >
               <Users size={16} /> Sales Team
@@ -70,7 +70,7 @@ export default function SalesPayrollDesignView() {
               type="button"
               onClick={() => setTab("team_lead")}
               className={`h-10 px-4 sm:px-5 rounded-xl text-sm font-bold inline-flex items-center gap-2 transition-all ${
-                tab === "team_lead" ? "bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/25" : "text-gray-600 hover:bg-white"
+                tab === "team_lead" ? "bg-[#7C3AED] text-white shadow-md shadow-[#7C3AED]/25" : "text-crm-text-secondary hover:bg-crm-surface-raised"
               }`}
             >
               <UserCog size={16} /> Sales Team Lead
@@ -95,8 +95,8 @@ export default function SalesPayrollDesignView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-200 px-3 py-2 text-[11px] text-gray-600">
-          <Ban size={14} className="text-gray-400 shrink-0" />
+        <div className="flex items-center gap-2 rounded-xl bg-crm-surface-muted border border-crm-border px-3 py-2 text-[11px] text-crm-text-secondary">
+          <Ban size={14} className="text-crm-text-faint shrink-0" />
           <span><strong>Overtime not applicable</strong> for Sales Team — variable pay is project commission only.</span>
         </div>
       </section>
@@ -117,7 +117,7 @@ export default function SalesPayrollDesignView() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2 px-1">
-          <h2 className="text-sm font-extrabold text-gray-800">
+          <h2 className="text-sm font-extrabold text-crm-text">
             {tab === "sales" ? "Sales Team Members" : "Sales Team Leads"}
           </h2>
           <button type="button" className="h-9 px-3 rounded-xl bg-[#ECFDF3] text-[#12B76A] text-xs font-bold opacity-60 cursor-not-allowed">

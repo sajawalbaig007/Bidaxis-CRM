@@ -112,9 +112,9 @@ export default function TechnicalPayrollPageContent() {
           const open = openIds.has(emp.id);
           const net = computeSalary(emp).totalSalary;
           return (
-            <article key={emp.id} className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <article key={emp.id} className="rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm overflow-hidden">
               <div className="flex items-center gap-2 px-3 sm:px-4 py-3 hover:bg-[#FAFAFA]">
-                <button type="button" onClick={() => toggle(emp.id)} className="text-gray-500 p-1">
+                <button type="button" onClick={() => toggle(emp.id)} className="text-crm-text-muted p-1">
                   {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
                 <div className="w-9 h-9 rounded-xl bg-[#EFF8FF] text-[#0B84F3] flex items-center justify-center shrink-0 font-extrabold text-[10px]">
@@ -123,7 +123,7 @@ export default function TechnicalPayrollPageContent() {
                 <input
                   value={emp.name}
                   onChange={e => updateEmployee(emp.id, { ...emp, name: e.target.value })}
-                  className="flex-1 min-w-0 h-9 rounded-lg border border-transparent hover:border-gray-200 focus:border-[#B8112D] px-2 text-sm font-extrabold text-gray-900 outline-none"
+                  className="flex-1 min-w-0 h-9 rounded-lg border border-transparent hover:border-crm-border focus:border-[#B8112D] px-2 text-sm font-extrabold text-crm-text outline-none"
                 />
                 <span className="text-sm font-extrabold tabular-nums text-[#B8112D] whitespace-nowrap">{currency(net)}</span>
                 <button
@@ -135,7 +135,7 @@ export default function TechnicalPayrollPageContent() {
                 </button>
               </div>
               {open && (
-                <div className="px-3 sm:px-4 pb-4 border-t border-gray-50">
+                <div className="px-3 sm:px-4 pb-4 border-t border-crm-border-subtle">
                   <EmployeeSalaryEditor
                     name={emp.name}
                     teamHint="Technical Team · formulas saved via /accounts/technical_payroll"

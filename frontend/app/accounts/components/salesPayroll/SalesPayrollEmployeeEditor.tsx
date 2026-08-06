@@ -39,23 +39,23 @@ function Num({
   step?: string;
 }) {
   return (
-    <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+    <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
       {label}
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
       />
-      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case text-gray-400">{hint}</span>}
+      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case text-crm-text-faint">{hint}</span>}
     </label>
   );
 }
 
 function Read({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-[#F8FAFC] px-2.5 py-2">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
-      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-gray-800"}`}>{value}</p>
+    <div className="rounded-lg border border-crm-border-subtle bg-[#F8FAFC] px-2.5 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">{label}</p>
+      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-crm-text"}`}>{value}</p>
     </div>
   );
 }
@@ -119,7 +119,7 @@ export default function SalesPayrollEmployeeEditor({
   );
 
   return (
-    <article className={`rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden ${embedded ? "border-0 shadow-none rounded-none" : ""}`}>
+    <article className={`rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm overflow-hidden ${embedded ? "border-0 shadow-none rounded-none" : ""}`}>
       {!embedded && (
       <button
         type="button"
@@ -130,20 +130,20 @@ export default function SalesPayrollEmployeeEditor({
           {employee.code.split("-").pop()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-extrabold text-gray-900 truncate">{employee.name}</p>
-          <p className="text-[11px] text-gray-500">
+          <p className="font-extrabold text-crm-text truncate">{employee.name}</p>
+          <p className="text-[11px] text-crm-text-muted">
             {employee.code} · {comm.totalProjects} projects · Commission {currency(comm.totalCommission)}
           </p>
         </div>
         <div className="text-right shrink-0 hidden sm:block">
-          <p className="text-[10px] font-bold uppercase text-gray-400">Net Salary</p>
+          <p className="text-[10px] font-bold uppercase text-crm-text-faint">Net Salary</p>
           <p className="text-base font-extrabold text-[#B8112D] tabular-nums">{currency(breakdown.netSalary)}</p>
         </div>
       </button>
       )}
 
       {(embedded || open) && (
-        <div className="px-3 sm:px-5 pb-5 space-y-4 border-t border-gray-100 pt-4">
+        <div className="px-3 sm:px-5 pb-5 space-y-4 border-t border-crm-border-subtle pt-4">
           {/* Project Commission */}
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 space-y-3">
             <p className="text-[11px] font-extrabold uppercase text-emerald-800">Project Commission</p>
@@ -172,7 +172,7 @@ export default function SalesPayrollEmployeeEditor({
 
             {employee.commission.fixClientProjects.map(p => (
               <div key={p.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-                <label className="block text-[10px] font-bold uppercase text-gray-500">
+                <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
                   Client
                   <input
                     value={p.clientName}
@@ -181,7 +181,7 @@ export default function SalesPayrollEmployeeEditor({
                         x.id === p.id ? { ...x, clientName: e.target.value } : x,
                       ),
                     })}
-                    className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-2 text-sm"
+                    className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm"
                   />
                 </label>
                 <Num
@@ -235,7 +235,7 @@ export default function SalesPayrollEmployeeEditor({
               <p className="text-[11px] font-extrabold uppercase text-indigo-800">Assigned Sales Reps — TL Commission</p>
               <p className="text-[10px] text-indigo-700">$1,000 × projects · Fix client 0.5% for TL</p>
               {assignedReps.length === 0 ? (
-                <p className="text-xs text-gray-500">No sales reps assigned yet.</p>
+                <p className="text-xs text-crm-text-muted">No sales reps assigned yet.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[480px] text-xs">
@@ -295,13 +295,13 @@ export default function SalesPayrollEmployeeEditor({
               <p>≤18:15 none · 18:15–18:30 ⅕ day · 18:30–19:00 ¼ · 19:00–20:00 ⅓ · 20:00+ half</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <label className="block text-[10px] font-bold uppercase text-gray-500">
+              <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
                 Check In
                 <input
                   type="time"
                   value={employee.checkIn}
                   onChange={e => set("checkIn", e.target.value)}
-                  className="mt-1 h-9 w-full rounded-lg border border-gray-200 px-2 text-sm"
+                  className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm"
                 />
               </label>
               <Read label="Day Salary (/30)" value={currency(breakdown.daySalary)} />
@@ -343,7 +343,7 @@ export default function SalesPayrollEmployeeEditor({
                 className={`h-8 px-3 rounded-lg text-[11px] font-bold border ${
                   (employee.loanPaymentMode ?? "salary") === "salary"
                     ? "bg-[#B8112D] text-white border-[#B8112D]"
-                    : "bg-white text-gray-600 border-gray-200"
+                    : "bg-crm-surface text-crm-text-secondary border-crm-border"
                 }`}
               >
                 Deduct from salary
@@ -354,7 +354,7 @@ export default function SalesPayrollEmployeeEditor({
                 className={`h-8 px-3 rounded-lg text-[11px] font-bold border ${
                   employee.loanPaymentMode === "cash"
                     ? "bg-amber-600 text-white border-amber-600"
-                    : "bg-white text-gray-600 border-gray-200"
+                    : "bg-crm-surface text-crm-text-secondary border-crm-border"
                 }`}
               >
                 Paid separately in cash
@@ -393,13 +393,13 @@ export default function SalesPayrollEmployeeEditor({
             <Read label="Net Total Salary" value={currency(breakdown.netSalary)} accent="text-[#B8112D]" />
           </div>
 
-          <label className="block text-[10px] font-bold uppercase text-gray-500">
+          <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
             Remarks
             <textarea
               value={employee.remarks}
               onChange={e => set("remarks", e.target.value)}
               rows={2}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm resize-none focus:border-[#B8112D]"
+              className="mt-1 w-full rounded-lg border border-crm-border px-2 py-1.5 text-sm resize-none focus:border-[#B8112D]"
             />
           </label>
         </div>

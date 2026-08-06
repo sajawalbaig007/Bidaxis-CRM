@@ -86,7 +86,7 @@ export default function ProofUploadField({
                 type="button"
                 disabled={busy || disabled}
                 onClick={() => inputRef.current?.click()}
-                className="h-7 px-2 rounded-lg border border-gray-200 text-[10px] font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="h-7 px-2 rounded-lg border border-crm-border text-[10px] font-bold text-crm-text-secondary hover:bg-crm-surface-muted disabled:opacity-50"
               >
                 {busy ? <Loader2 size={11} className="animate-spin" /> : "Replace"}
               </button>
@@ -144,7 +144,7 @@ export default function ProofUploadField({
           type="button"
           disabled={busy || disabled}
           onClick={() => inputRef.current?.click()}
-          className="h-8 px-3 rounded-xl bg-white border border-gray-200 text-[11px] font-bold text-gray-700 inline-flex items-center gap-1.5 hover:border-[#0B84F3] hover:text-[#0B84F3] disabled:opacity-50 transition-colors"
+          className="h-8 px-3 rounded-xl bg-crm-surface border border-crm-border text-[11px] font-bold text-crm-text-secondary inline-flex items-center gap-1.5 hover:border-[#0B84F3] hover:text-[#0B84F3] disabled:opacity-50 transition-colors"
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
           {proofUrl ? "Replace image" : label}
