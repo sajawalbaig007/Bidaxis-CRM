@@ -234,7 +234,8 @@ export function buildSalarySlipFromSub(opts: {
       comments: commentsFrom(emp, emp.unpaidLeaveDays, emp.paidLeaveDays),
       employeePf: b.pf,
       employerPf: b.pf,
-      projectCount: b.totalProjects,
+      /** No. of projects — only on Sales Team slips (not team lead / technical) */
+      projectCount: kind === "sales" ? b.totalProjects : undefined,
     };
   }
 
