@@ -79,7 +79,10 @@ export function formatPeriodSummary(
   recordDate?: string,
 ): string {
   const normalized = normalizePeriodPreset(preset);
-  if (normalized === "all_time") return "Showing all saved records (no date filter)";
+  if (normalized === "all_time") {
+    if (recordDate) return `All Time · viewing ${recordDate}`;
+    return "All Time · all saved records";
+  }
   if (normalized === "daily") {
     if (!recordDate) return "Pick a day";
     const [y, m, d] = recordDate.split("-");

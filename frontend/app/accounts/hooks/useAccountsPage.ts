@@ -21,6 +21,11 @@ type UseAccountsPageOpts<T> = {
   defaultPreset?: AccountsPeriodPreset;
 };
 
+function latestDate(dates: string[]): string | null {
+  if (!dates.length) return null;
+  return [...dates].sort().reverse()[0] ?? null;
+}
+
 export function useAccountsPage<T extends Record<string, unknown>>({
   page,
   defaultData,
@@ -58,7 +63,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     const range = periodDateRange("month", { month });
     setFilterFromState(range.from);
     setFilterToState(range.to);
-    // Month mode has no day picker — save under 1st of selected month
+    // Prefer a real saved day in this month once dates load; seed to month start for now
     if (range.from) setRecordDate(range.from);
   }, []);
 
@@ -69,6 +74,22 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     setRecordDate(day);
     setFilterFromState(day);
     setFilterToState(day);
+  }, []);
+
+  /**
+   * Pick a saved record without leaving the current period mode.
+   * Used by All Time / Month / Date Range saved-date chips.
+   */
+  const selectRecordDate = useCallback((day: string) => {
+    if (!day) return;
+    setRecordDate(day);
+    setPeriodPresetState(prev => {
+      if (normalizePeriodPreset(prev) === "daily") {
+        setFilterFromState(day);
+        setFilterToState(day);
+      }
+      return prev;
+    });
   }, []);
 
   const setPeriodPreset = useCallback((preset: AccountsPeriodPreset) => {
@@ -124,7 +145,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     let cancelled = false;
     const params = new URLSearchParams();
     const mode = normalizePeriodPreset(periodPreset);
-    // All Time → no date filter params
+    // All Time → no date filter params (full history)
     if (mode !== "all_time") {
       if (filterFrom) params.set("from", filterFrom);
       if (filterTo) params.set("to", filterTo);
@@ -132,7 +153,13 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     const qs = params.toString();
     API.get(`/accounts/${page}${qs ? `?${qs}` : ""}`)
       .then(res => {
-        if (!cancelled) setSavedDates(res.data.dates ?? []);
+        if (cancelled) return;
+        const dates: string[] = res.data.dates ?? [];
+        setSavedDates(dates);
+        // All Time / Month / Date Range: open a real saved day, not an empty today
+        if (mode !== "daily" && dates.length > 0) {
+          setRecordDate(prev => (dates.includes(prev) ? prev : (latestDate(dates) ?? prev)));
+        }
       })
       .catch(() => {
         /* ignore */
@@ -235,6 +262,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     recordDate,
     setRecordDate,
     setFilterDay,
+    selectRecordDate,
     periodPreset,
     setPeriodPreset,
     filterYear,

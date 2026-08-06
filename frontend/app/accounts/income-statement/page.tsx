@@ -25,12 +25,28 @@ import {
   recomputeExecutiveTeam,
   seededIncomeStatementData,
 } from "../utils/incomeStatementSeed";
+import { syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
 import { normalizeSalesTeamSubs, isSalesTeamTitle } from "../utils/salesPayrollBridge";
 import { currencyFormulaTotal } from "../utils/currencyFormula";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
 
 function defaultData(): IncomeStatementData {
   return ensureIncomeStatementPeople(seededIncomeStatementData());
+}
+
+/** People seed + executive commission + PF auto-sync from Team Salaries. */
+function normalizeIncomeStatement(
+  raw: IncomeStatementData,
+  totalRevenue: number,
+): IncomeStatementData {
+  return syncProvidentFundFromSalaries(
+    recomputeExecutiveTeam(
+      ensureIncomeStatementPeople({
+        ...raw,
+        totalRevenue,
+      }),
+    ),
+  );
 }
 
 function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
@@ -107,15 +123,9 @@ export default function IncomeStatementPage() {
     };
   }, [acc.recordDate]);
 
-  /** Always apply sales-team split + payroll migration + executive commission recompute */
+  /** Always apply sales-team split + payroll migration + executive commission + PF sync */
   const data = useMemo(
-    () =>
-      recomputeExecutiveTeam(
-        ensureIncomeStatementPeople({
-          ...acc.data,
-          totalRevenue: currencyTotal,
-        }),
-      ),
+    () => normalizeIncomeStatement(acc.data, currencyTotal),
     [acc.data, currencyTotal],
   );
 
@@ -125,12 +135,7 @@ export default function IncomeStatementPage() {
   useLayoutEffect(() => {
     if (acc.loading) return;
     const before = JSON.stringify(acc.data);
-    const synced = recomputeExecutiveTeam(
-      ensureIncomeStatementPeople({
-        ...acc.data,
-        totalRevenue: currencyTotal,
-      }),
-    );
+    const synced = normalizeIncomeStatement(acc.data, currencyTotal);
     if (JSON.stringify(synced) !== before) {
       acc.setData(() => synced);
     }
@@ -201,12 +206,15 @@ export default function IncomeStatementPage() {
   /** Apply a table change; persist right away when the table asks for it. */
   const commit = useCallback(
     (patch: Partial<IncomeStatementData>, opts?: { persist?: boolean }) => {
-      // Revenue always from Currency Formula; refresh executive commissions
-      const next = recomputeExecutiveTeam({
-        ...data,
-        ...patch,
-        totalRevenue: currencyTotal,
-      });
+      // Revenue from Currency Formula; refresh executive commissions + PF from salaries
+      const next = normalizeIncomeStatement(
+        {
+          ...data,
+          ...patch,
+          totalRevenue: currencyTotal,
+        },
+        currencyTotal,
+      );
       acc.setData(() => next);
       if (opts?.persist) void acc.save(next);
     },
@@ -220,7 +228,7 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Daily record — pick a day, fill Team Salaries / OPEX / Loans / PF, and Save. Each day keeps its own entry."
+          subtitle="Daily record — pick a day, fill Team Salaries / OPEX / Loans, and Save. Provident Fund auto-fills from salary PF."
           onAddNew={() =>
             commit(
               {
@@ -245,7 +253,7 @@ export default function IncomeStatementPage() {
               { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: "Currency Formula" },
               { label: "Payroll", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: "Team Salaries" },
               { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]", hint: "Loans table" },
-              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "PF table" },
+              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "Auto from salaries" },
               { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "All tables" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]", hint: "Revenue − Expense" },
             ].map(c => (
@@ -433,6 +441,7 @@ export default function IncomeStatementPage() {
               title="Provident Fund"
               accent="#0D9488"
               addLabel="Add PF Head"
+              emptyLabel="PF fills automatically from Team Salaries (employee name + this period’s PF)."
               rows={(data.providentFundHeads ?? []).map(opexToHead)}
               onChange={(rows, opts) => commit({ providentFundHeads: rows.map(headToOpex) }, opts)}
               onPersist={() => void acc.save()}
