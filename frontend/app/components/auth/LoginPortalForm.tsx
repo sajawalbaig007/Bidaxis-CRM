@@ -306,7 +306,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px]">
-              <BrandLogo size="md" className="mb-5 md:mb-7 shadow-[0_10px_40px_rgba(0,0,0,0.35)]" />
+              <BrandLogo size="md" className="mb-5 md:mb-7" />
               <BemWordmark className="text-[14px] md:text-[16px] mb-3 md:mb-4" onDark />
               <div
                 className="relative min-h-[108px] md:min-h-[120px] cursor-pointer"

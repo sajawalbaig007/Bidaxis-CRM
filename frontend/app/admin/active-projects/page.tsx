@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, X, Eye,
@@ -19,7 +20,7 @@ import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeF
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
-import { ADMIN_PROJECT_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { ADMIN_PROJECT_COLS, TECHNICAL_PROJECT_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ClientDetailCell,
   FulfillmentCell,
@@ -176,21 +177,31 @@ function ProjectCard({
   onView,
   onReassign,
   onAddNote,
+  hideClientFinanceCols = false,
 }: {
   p: Project;
   onView: () => void;
   onReassign: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  hideClientFinanceCols?: boolean;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1"><ClientDetailCell p={projectAsRow(p)} /></div>
+        <div className="min-w-0 flex-1">
+          {hideClientFinanceCols ? (
+            <ProjectDetailCell p={projectAsRow(p)} />
+          ) : (
+            <ClientDetailCell p={projectAsRow(p)} />
+          )}
+        </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={onReassign}
-            className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100">
-            <ArrowRightLeft size={13} />
-          </button>
+          {!hideClientFinanceCols && (
+            <button onClick={onReassign}
+              className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100">
+              <ArrowRightLeft size={13} />
+            </button>
+          )}
           <button onClick={onView}
             className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80">
             <Eye size={13} />
@@ -198,12 +209,14 @@ function ProjectCard({
         </div>
       </div>
 
-      <ProjectDetailCell p={projectAsRow(p)} />
+      {!hideClientFinanceCols && <ProjectDetailCell p={projectAsRow(p)} />}
 
-      <div className="grid grid-cols-2 gap-3">
-        <QuotedAmountCell p={projectAsRow(p)} />
-        <PaymentDetailCell p={projectAsRow(p)} />
-      </div>
+      {!hideClientFinanceCols && (
+        <div className="grid grid-cols-2 gap-3">
+          <QuotedAmountCell p={projectAsRow(p)} />
+          <PaymentDetailCell p={projectAsRow(p)} />
+        </div>
+      )}
       <FulfillmentCell p={projectAsRow(p)} />
 
       <div className="pt-1">
@@ -229,15 +242,17 @@ function ProjectCard({
         )}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
-        <span className="font-medium text-[#065F46] truncate flex items-center gap-1.5">
-          {p.csr?.csrCode && !p.projectSource && (
-            <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
-          )}
-          {projectAssigneeLabel(p)}
-        </span>
-        {p.email && <span className="text-gray-400 truncate max-w-[140px]">{p.email}</span>}
-      </div>
+      {!hideClientFinanceCols && (
+        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
+          <span className="font-medium text-[#065F46] truncate flex items-center gap-1.5">
+            {p.csr?.csrCode && !p.projectSource && (
+              <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
+            )}
+            {projectAssigneeLabel(p)}
+          </span>
+          {p.email && <span className="text-gray-400 truncate max-w-[140px]">{p.email}</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -252,6 +267,7 @@ function ProjectsSection({
   onView,
   onReassign,
   onAddNote,
+  hideClientFinanceCols = false,
 }: {
   projects: Project[];
   page: number;
@@ -261,9 +277,15 @@ function ProjectsSection({
   onView: (p: Project) => void;
   onReassign: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  hideClientFinanceCols?: boolean;
 }) {
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const headers = hideClientFinanceCols
+    ? ["Project Detail", "Fulfillment", "Notes", ""]
+    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Fulfillment", "CSR", "Notes", ""];
+  const colCount = headers.length;
+  const colWidths = hideClientFinanceCols ? TECHNICAL_PROJECT_COLS : ADMIN_PROJECT_COLS;
 
   return (
     <div>
@@ -280,6 +302,7 @@ function ProjectsSection({
               onView={() => onView(p)}
               onReassign={() => void onReassign(p)}
               onAddNote={onAddNote}
+              hideClientFinanceCols={hideClientFinanceCols}
             />
           ))
         ) : (
@@ -306,24 +329,18 @@ function ProjectsSection({
 
       <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed border-collapse" style={{ minWidth: "1280px" }}>
-            <CsrColGroup widths={ADMIN_PROJECT_COLS} />
+          <table
+            className="w-full table-fixed border-collapse"
+            style={{ minWidth: hideClientFinanceCols ? "720px" : "1280px" }}
+          >
+            <CsrColGroup widths={colWidths} />
             <thead className={CSR_THEAD}>
               <tr className="text-left">
-                {[
-                  "Client Detail",
-                  "Project Detail",
-                  "Quoted",
-                  "Payment Detail",
-                  "Fulfillment",
-                  "CSR",
-                  "Notes",
-                  "",
-                ].map((h, i) => (
+                {headers.map((h, i) => (
                   <th
                     key={i}
                     className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD} ${
-                      i === 7 ? "text-right" : ""
+                      i === colCount - 1 ? "text-right" : ""
                     }`}
                   >
                     {h}
@@ -335,7 +352,7 @@ function ProjectsSection({
               {loading ? (
                 [1, 2, 3, 4, 5].map((i) => (
                   <tr key={i} className="border-b border-[#F3F3F3]">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
+                    {Array.from({ length: colCount }, (_, j) => (
                       <td key={j} className="px-3 xl:px-4 py-4 xl:py-5">
                         <div className="h-4 bg-gray-100 rounded animate-pulse w-16 xl:w-20" />
                       </td>
@@ -345,19 +362,27 @@ function ProjectsSection({
               ) : projects.length > 0 ? (
                 paginated.map((p) => (
                   <tr key={p.id} className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top">
-                    <td className="px-3 xl:px-4 py-3 xl:py-4"><ClientDetailCell p={projectAsRow(p)} /></td>
+                    {!hideClientFinanceCols && (
+                      <td className="px-3 xl:px-4 py-3 xl:py-4"><ClientDetailCell p={projectAsRow(p)} /></td>
+                    )}
                     <td className="px-3 xl:px-4 py-3 xl:py-4"><ProjectDetailCell p={projectAsRow(p)} /></td>
-                    <td className="px-3 xl:px-4 py-3 xl:py-4"><QuotedAmountCell p={projectAsRow(p)} /></td>
-                    <td className="px-3 xl:px-4 py-3 xl:py-4"><PaymentDetailCell p={projectAsRow(p)} /></td>
+                    {!hideClientFinanceCols && (
+                      <>
+                        <td className="px-3 xl:px-4 py-3 xl:py-4"><QuotedAmountCell p={projectAsRow(p)} /></td>
+                        <td className="px-3 xl:px-4 py-3 xl:py-4"><PaymentDetailCell p={projectAsRow(p)} /></td>
+                      </>
+                    )}
                     <td className="px-3 xl:px-4 py-3 xl:py-4"><FulfillmentCell p={projectAsRow(p)} /></td>
-                    <td className="px-3 xl:px-4 py-3 xl:py-4">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {p.csr?.csrCode && !p.projectSource && (
-                          <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{p.csr.csrCode}</span>
-                        )}
-                        <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate">{projectAssigneeLabel(p)}</span>
-                      </div>
-                    </td>
+                    {!hideClientFinanceCols && (
+                      <td className="px-3 xl:px-4 py-3 xl:py-4">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {p.csr?.csrCode && !p.projectSource && (
+                            <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{p.csr.csrCode}</span>
+                          )}
+                          <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate">{projectAssigneeLabel(p)}</span>
+                        </div>
+                      </td>
+                    )}
                     <td className="px-3 xl:px-4 py-3 xl:py-4">
                       <CommentCell
                         id={p.id}
@@ -368,13 +393,15 @@ function ProjectsSection({
                     </td>
                     <td className="px-3 xl:px-4 py-3 xl:py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => void onReassign(p)}
-                          className="px-2.5 py-1.5 rounded-xl bg-blue-100 text-blue-700 text-[10px] xl:text-xs font-medium hover:bg-blue-200 flex items-center gap-1 shrink-0"
-                        >
-                          <ArrowRightLeft size={11} />
-                          <span className="hidden xl:inline">Reassign</span>
-                        </button>
+                        {!hideClientFinanceCols && (
+                          <button
+                            onClick={() => void onReassign(p)}
+                            className="px-2.5 py-1.5 rounded-xl bg-blue-100 text-blue-700 text-[10px] xl:text-xs font-medium hover:bg-blue-200 flex items-center gap-1 shrink-0"
+                          >
+                            <ArrowRightLeft size={11} />
+                            <span className="hidden xl:inline">Reassign</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => onView(p)}
                           className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
@@ -387,7 +414,7 @@ function ProjectsSection({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-16 xl:py-20 text-center">
+                  <td colSpan={colCount} className="py-16 xl:py-20 text-center">
                     <FolderKanban size={36} className="text-gray-200 mx-auto mb-3 xl:w-10 xl:h-10" />
                     <p className="font-semibold text-gray-400 text-sm xl:text-base">No projects found</p>
                     <p className="text-xs xl:text-sm text-gray-300 mt-1">
@@ -427,6 +454,8 @@ function projectAssigneeLabel(p: Project): string {
 }
 
 export default function AdminProjectsPage() {
+  const pathname = usePathname();
+  const hideClientFinanceCols = pathname?.startsWith("/technical") ?? false;
   const StaffSidebar = useStaffSidebar();
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [stats,     setStats]     = useState<Stats>({ total: 0, withBudget: 0, thisMonth: 0 });
@@ -722,17 +751,21 @@ export default function AdminProjectsPage() {
               Project DB
             </h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-              All CSR projects — filter by date, view all or active only.
+              {hideClientFinanceCols
+                ? "Active projects — filter by date, view all or active only."
+                : "All CSR projects — filter by date, view all or active only."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors"
-            >
-              <Plus size={14} /> Add New Project
-            </button>
+            {!hideClientFinanceCols && (
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors"
+              >
+                <Plus size={14} /> Add New Project
+              </button>
+            )}
             <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
               <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
               Live Data
@@ -759,20 +792,22 @@ export default function AdminProjectsPage() {
               />
             </div>
 
-            <div className="relative w-full sm:w-auto">
-              <User2 size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={filterCSR}
-                onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
-                className="appearance-none w-full sm:min-w-[200px] lg:min-w-[220px] h-10 sm:h-12 bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D]"
-              >
-                <option value="all">All CSRs</option>
-                {csrList.map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
-                ))}
-              </select>
-              <ChevronDown size={15} className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
+            {!hideClientFinanceCols && (
+              <div className="relative w-full sm:w-auto">
+                <User2 size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <select
+                  value={filterCSR}
+                  onChange={(e) => { setFilterCSR(e.target.value); setPage(1); }}
+                  className="appearance-none w-full sm:min-w-[200px] lg:min-w-[220px] h-10 sm:h-12 bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-9 sm:pr-10 text-sm outline-none focus:border-[#B8112D]"
+                >
+                  <option value="all">All CSRs</option>
+                  {csrList.map(([id, name]) => (
+                    <option key={id} value={id}>{name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={15} className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            )}
 
             <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
             <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
@@ -849,6 +884,7 @@ export default function AdminProjectsPage() {
           onView={setWorkbenchProject}
           onReassign={openReassign}
           onAddNote={addAdminNote}
+          hideClientFinanceCols={hideClientFinanceCols}
         />
 
         <ProjectWorkbenchModal
@@ -862,6 +898,7 @@ export default function AdminProjectsPage() {
           onDelete={deleteWorkbenchProject}
           noteHistory={workbenchProject ? notesToHistory(workbenchProject.notes) : undefined}
           onAddNote={workbenchProject ? async (text) => { await addAdminNote(workbenchProject.id, text); } : undefined}
+          hideClientFinanceSections={hideClientFinanceCols}
         />
 
         <ProjectWorkbenchModal
@@ -873,6 +910,7 @@ export default function AdminProjectsPage() {
           csrs={allCsrs}
           saving={addSaving}
           onSave={saveNewProject}
+          hideClientFinanceSections={hideClientFinanceCols}
           phoneLookup={{
             phoneLookupLoading,
             returningClient,
@@ -883,7 +921,7 @@ export default function AdminProjectsPage() {
         />
 
       {/* ══ REASSIGN CSR MODAL ══ */}
-      {showReassign && reassignProj && (
+      {showReassign && reassignProj && !hideClientFinanceCols && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-5 sm:px-6 pt-5 pb-5">

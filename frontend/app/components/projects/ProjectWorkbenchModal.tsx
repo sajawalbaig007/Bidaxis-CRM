@@ -46,6 +46,8 @@ type Props = {
   noteHistory?: NoteEntry[];
   onAddNote?: (text: string) => Promise<void>;
   phoneLookup?: PhoneLookupProps;
+  /** Technical portal — hide Client / Quoted / Payment / CSR sections */
+  hideClientFinanceSections?: boolean;
 };
 
 const inputCls =
@@ -107,19 +109,22 @@ export default function ProjectWorkbenchModal({
   noteHistory,
   onAddNote,
   phoneLookup,
+  hideClientFinanceSections = false,
 }: Props) {
   const [data, setData] = useState<ProjectWorkbenchData>(initial);
-  const [openSection, setOpenSection] = useState<string>("client");
+  const [openSection, setOpenSection] = useState<string>(
+    hideClientFinanceSections ? "project" : "client",
+  );
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (open) {
       setData(initial);
-      setOpenSection("client");
+      setOpenSection(hideClientFinanceSections ? "project" : "client");
       setConfirmDelete(false);
     }
-  }, [open, initial]);
+  }, [open, initial, hideClientFinanceSections]);
 
   if (!open) return null;
 
@@ -179,8 +184,12 @@ export default function ProjectWorkbenchModal({
               </h2>
               <p className="text-white/70 text-xs mt-0.5 truncate">
                 {createMode
-                  ? "Fill in client, project, payment & fulfillment details"
-                  : `${data.name}${data.projectCode ? ` · ${data.projectCode}` : ""}`}
+                  ? hideClientFinanceSections
+                    ? "Fill in project & fulfillment details"
+                    : "Fill in client, project, payment & fulfillment details"
+                  : hideClientFinanceSections
+                    ? (data.projectCode ? `Code · ${data.projectCode}` : "Project details")
+                    : `${data.name}${data.projectCode ? ` · ${data.projectCode}` : ""}`}
               </p>
             </div>
           </div>
@@ -192,6 +201,7 @@ export default function ProjectWorkbenchModal({
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3 bg-[#F5F6FA] dark:bg-crm-bg-subtle">
+          {!hideClientFinanceSections && (
           <Section
             title="Client Detail"
             icon={User2}
@@ -302,6 +312,7 @@ export default function ProjectWorkbenchModal({
               )}
             </div>
           </Section>
+          )}
 
           <Section
             title="Project Detail"
@@ -344,6 +355,7 @@ export default function ProjectWorkbenchModal({
             </div>
           </Section>
 
+          {!hideClientFinanceSections && (
           <Section
             title="Payment Detail"
             icon={DollarSign}
@@ -468,6 +480,7 @@ export default function ProjectWorkbenchModal({
               <Plus size={14} /> Add payment entry
             </button>
           </Section>
+          )}
 
           <Section
             title="Fulfillment & Milestones"

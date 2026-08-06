@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Fragment } from "react";
-import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FilePenLine, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
@@ -14,15 +14,18 @@ import {
   salesSubsFromPeerRows,
   normalizeSalesTeamSubs,
   isSalesTeamTitle,
+  type PayrollKind,
 } from "../utils/salesPayrollBridge";
 import { computeSalesEmployeePayroll } from "../utils/salesPayrollFormula";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 import ProofUploadField from "./ProofUploadField";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
+import SalarySlipTemplateEditorModal from "./SalarySlipTemplateEditorModal";
 import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
+import { slipKindTitle } from "../utils/salarySlipFieldConfig";
 
 export type ExpandableHeadRow = {
   id: string;
@@ -75,6 +78,7 @@ export default function ExpandableHeadsTable({
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
+  const [slipEditorKind, setSlipEditorKind] = useState<PayrollKind | null>(null);
 
   const toggle = (id: string) => {
     setOpenIds(prev => {
@@ -204,7 +208,7 @@ export default function ExpandableHeadsTable({
               <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 min-w-[160px]">Notes</th>
               <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400 w-[100px]">Filled</th>
               <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 w-[110px]">Total</th>
-              <th className="w-24 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400">Actions</th>
+              <th className="w-32 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -263,6 +267,16 @@ export default function ExpandableHeadsTable({
                       <td className="px-3 py-2.5 text-right font-bold tabular-nums text-gray-900">{currency(amt)}</td>
                       <td className="px-2 py-2 text-center">
                         <div className="inline-flex items-center gap-1">
+                          {salaryMode && (
+                            <button
+                              type="button"
+                              onClick={() => setSlipEditorKind(rowPayrollKind)}
+                              className="w-8 h-8 rounded-lg text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center transition-colors"
+                              title={`Edit ${slipKindTitle(rowPayrollKind)} salary-slip template`}
+                            >
+                              <FilePenLine size={14} />
+                            </button>
+                          )}
                           {onPersist && (
                             <button
                               type="button"
@@ -626,6 +640,12 @@ export default function ExpandableHeadsTable({
           subHeads: r.subHeads ?? [],
           notes: normalizeNotes(r.notes, r.note, r.filledAt),
         }))}
+      />
+
+      <SalarySlipTemplateEditorModal
+        open={!!slipEditorKind}
+        kind={slipEditorKind}
+        onClose={() => setSlipEditorKind(null)}
       />
     </div>
   );

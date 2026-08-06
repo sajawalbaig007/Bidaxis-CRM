@@ -67,6 +67,11 @@ export const ADMIN_PROJECT_COLS = [
   "16%", "17%", "9%", "12%", "12%", "12%", "16%", "6%",
 ] as const;
 
+/** Technical Active Projects — no Client / Quoted / Payment / CSR columns */
+export const TECHNICAL_PROJECT_COLS = [
+  "34%", "22%", "28%", "16%",
+] as const;
+
 /** Table card — no inner vertical scroll; page scrolls instead */
 export const CSR_TABLE_CARD =
   "crm-table-card rounded-2xl sm:rounded-[30px] border shadow-sm mt-4 sm:mt-7 min-w-0 overflow-hidden";
