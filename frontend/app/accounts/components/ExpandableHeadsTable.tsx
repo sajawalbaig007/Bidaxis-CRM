@@ -55,6 +55,15 @@ type ExpandableHeadsTableProps = {
   recordDate?: string;
   /** Which company slip format to download (default BEM Solutions). */
   salarySlipCompany?: SalarySlipCompanyKey;
+  /**
+   * Custom sub-head delete. Return true if you already applied `nextRows`
+   * (and any related clears); otherwise the table calls onChange itself.
+   */
+  onDeleteSubHead?: (args: {
+    parent: ExpandableHeadRow;
+    sub: SubHeadEntry;
+    nextRows: ExpandableHeadRow[];
+  }) => boolean | void;
 };
 
 export default function ExpandableHeadsTable({
@@ -72,6 +81,7 @@ export default function ExpandableHeadsTable({
   execProfitBase = 0,
   recordDate = todayIso(),
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
+  onDeleteSubHead,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -174,6 +184,23 @@ export default function ExpandableHeadsTable({
             },
       ),
     );
+  };
+
+  const removeSubHead = (rowId: string, subId: string) => {
+    const parent = rows.find(r => r.id === rowId);
+    const removed = parent?.subHeads?.find(s => s.id === subId);
+    if (!parent || !removed) return;
+    const nextRows = rows.map(r => {
+      if (r.id !== rowId) return r;
+      const subHeads = (r.subHeads ?? []).filter(s => s.id !== subId);
+      return {
+        ...r,
+        subHeads,
+        amount: subHeads.length > 0 ? subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0) : 0,
+      };
+    });
+    const handled = onDeleteSubHead?.({ parent, sub: removed, nextRows });
+    if (!handled) onChange(nextRows, { persist: true });
   };
 
   const openEdit = (row: ExpandableHeadRow) => {
@@ -548,6 +575,7 @@ export default function ExpandableHeadsTable({
                                     )}
                                     <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[100px]">Amount</th>
                                     {onPersist && <th className="px-2 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[50px]">Save</th>}
+                                    <th className="px-2 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[50px]">Del</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -587,6 +615,16 @@ export default function ExpandableHeadsTable({
                                           </button>
                                         </td>
                                       )}
+                                      <td className="px-2 py-2 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSubHead(row.id, s.id)}
+                                          className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
+                                          title="Delete this line"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>

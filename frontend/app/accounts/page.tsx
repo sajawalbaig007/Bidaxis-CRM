@@ -34,6 +34,7 @@ import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "./utils/accountsShellProps";
 import { useAccountsPage } from "./hooks/useAccountsPage";
 import { useScrollToHash } from "./hooks/useScrollToHash";
+import { normalizePeriodPreset } from "./utils/accountsPeriodFilters";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
 
@@ -195,6 +196,7 @@ function calcTab(t: DashboardCurrencyTab): TabCalc {
 }
 
 type Summary = {
+  currencyFormulaTotal?: number;
   balanceSheetTotalAssets?: number;
   balanceSheetTotalEquity?: number;
   balanceSheetTotalLiabilities?: number;
@@ -202,6 +204,9 @@ type Summary = {
   balanceSheetDifference?: number;
   incomeTotalRevenue?: number;
   incomePayroll?: number;
+  incomeOpex?: number;
+  incomeLoans?: number;
+  incomeProvidentFund?: number;
   incomeTotalExpense?: number;
   incomeNetProfit?: number;
   cashFlowNet?: number;
@@ -236,14 +241,19 @@ export default function AccountsDashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await API.get(`/accounts/dashboard/summary?date=${acc.recordDate}`);
+        const mode = normalizePeriodPreset(acc.periodPreset);
+        const qs =
+          mode === "all_time"
+            ? `mode=all_time&to=${todayIso()}`
+            : `date=${acc.recordDate}`;
+        const res = await API.get(`/accounts/dashboard/summary?${qs}`);
         if (!cancelled) setSummaries(res.data.summaries ?? {});
       } catch {
         if (!cancelled) setSummaries({});
       }
     })();
     return () => { cancelled = true; };
-  }, [acc.recordDate, acc.dirty, acc.saving]);
+  }, [acc.recordDate, acc.periodPreset, acc.dirty, acc.saving]);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,17 +339,23 @@ export default function AccountsDashboardPage() {
 
   const combinedTotal = ahCalc.total + snCalc.total + chqCalc.total + hmCalc.total;
 
+  const isAllTime = normalizePeriodPreset(acc.periodPreset) === "all_time";
+  const scopeHint = isAllTime ? `All Time · through ${todayIso()}` : `As of ${acc.recordDate || todayIso()}`;
+  const currencyCardTotal = isAllTime
+    ? (summaries.currencyFormulaTotal ?? combinedTotal)
+    : combinedTotal;
+
   const metrics = [
-    { label: "Currency Formula Total", value: combinedTotal, color: "from-[#F59E0B] to-[#B45309]", hint: "AH + SN + Cheque + Habib Metro (this date)", icon: <Receipt size={14} /> },
-    { label: "IS Total Revenue", value: summaries.incomeTotalRevenue ?? 0, color: "from-[#6D28D9] to-[#4C1D95]", hint: "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
-    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "from-[#0B84F3] to-[#0369A1]", hint: "Team Salaries total · same date", icon: <Cpu size={14} /> },
-    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: "Payroll + OPEX + Loans + PF", icon: <Layers3 size={14} /> },
-    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
+    { label: "Currency Formula Total", value: currencyCardTotal, color: "from-[#F59E0B] to-[#B45309]", hint: isAllTime ? "Sum of all days through today" : "AH + SN + Cheque + Habib Metro (this date)", icon: <Receipt size={14} /> },
+    { label: "IS Total Revenue", value: summaries.incomeTotalRevenue ?? 0, color: "from-[#6D28D9] to-[#4C1D95]", hint: isAllTime ? "Sum of currency formula · all days" : "From Currency Formula (AH+SN+CHQ+HM)", icon: <TrendingUp size={14} /> },
+    { label: "IS Payroll", value: summaries.incomePayroll ?? 0, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Team Salaries · all days" : "Team Salaries total · same date", icon: <Cpu size={14} /> },
+    { label: "IS Total Expense", value: summaries.incomeTotalExpense ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: "Payroll + OPEX", icon: <Layers3 size={14} /> },
+    { label: "BS Total Assets", value: bsAssets, color: "from-[#0B84F3] to-[#0369A1]", hint: isAllTime ? "Latest balance sheet ≤ today" : "Must equal Equity + Liabilities", icon: <Scale size={14} /> },
     { label: "BS Equity + Liabilities", value: bsEquityLiab, color: "from-[#0D9488] to-[#0F766E]", hint: `Equity ${currency(summaries.balanceSheetTotalEquity ?? 0)} · Liab ${currency(summaries.balanceSheetTotalLiabilities ?? 0)}`, icon: <Wallet size={14} /> },
     { label: bsBalanced ? "BS Balanced (Diff 0)" : "BS Difference (A − E−L)", value: bsDiff, color: bsBalanced ? "from-[#12B76A] to-[#027A48]" : "from-[#F59E0B] to-[#B45309]", hint: bsBalanced ? "Assets = Equity + Liabilities" : "Should be zero when balanced", icon: <CheckCircle2 size={14} /> },
     { label: "Income Statement Net Profit", value: summaries.incomeNetProfit ?? 0, color: "from-[#12B76A] to-[#027A48]", hint: `Revenue − Expense (${currency(summaries.incomeTotalExpense ?? 0)})`, icon: <TrendingUp size={14} /> },
-    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: `As of ${acc.recordDate || todayIso()}`, icon: <Waves size={14} /> },
-    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]", hint: "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
+    { label: "Cash Flow Net Amount", value: summaries.cashFlowNet ?? 0, color: "from-[#B8112D] to-[#8b0d22]", hint: scopeHint, icon: <Waves size={14} /> },
+    { label: "Total Assets Register", value: summaries.totalAssetsRegister ?? 0, color: "from-[#0D9488] to-[#0F766E]", hint: isAllTime ? "Latest register ≤ today" : "BEM + GPS + BDS register sum", icon: <Boxes size={14} /> },
   ];
 
   const channelChips = [

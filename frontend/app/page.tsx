@@ -53,7 +53,7 @@ const PORTALS: LandingPortal[] = [
   },
   {
     value: "technical_manager",
-    label: "GPS",
+    label: "Technical",
     hint: "Projects, revisions, KPI & delivery",
     icon: Wrench,
     accent: "#D97706",

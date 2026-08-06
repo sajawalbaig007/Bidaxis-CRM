@@ -80,8 +80,8 @@ export function formatPeriodSummary(
 ): string {
   const normalized = normalizePeriodPreset(preset);
   if (normalized === "all_time") {
-    if (recordDate) return `All Time · viewing ${recordDate}`;
-    return "All Time · all saved records";
+    const today = new Date().toISOString().slice(0, 10);
+    return `All Time · through ${today}`;
   }
   if (normalized === "daily") {
     if (!recordDate) return "Pick a day";

@@ -100,3 +100,62 @@ export async function syncLoansFromIncomeStatement(data: IncomeStatementData): P
   await Promise.all(loans.map(l => upsertPayrollLoan(l)));
   return loans.length;
 }
+
+function normLoanName(n: string) {
+  return n.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Clear salary / salesPayroll loan fields for a person (so Loans table sync drops them). */
+export function clearPersonLoanFromTeamSalaries(
+  teams: IncomeStatementData["teamSalaries"],
+  employeeName: string,
+): IncomeStatementData["teamSalaries"] {
+  const q = normLoanName(employeeName);
+  if (!q) return teams;
+  return (teams ?? []).map(team => ({
+    ...team,
+    subHeads: (team.subHeads ?? []).map(sub => {
+      const name = normLoanName(sub.label || sub.salesPayroll?.name || "");
+      if (!name || (name !== q && !name.includes(q) && !q.includes(name))) return sub;
+      let next = sub;
+      if (sub.salesPayroll) {
+        next = {
+          ...next,
+          salesPayroll: {
+            ...sub.salesPayroll,
+            loanTotal: 0,
+            loanPaid: 0,
+            loanThisMonth: 0,
+          },
+        };
+      }
+      if (sub.salary) {
+        next = {
+          ...next,
+          salary: {
+            ...((next.salary ?? sub.salary)!),
+            loanTotal: 0,
+            loanPaid: 0,
+            loanThisMonth: 0,
+            loanPositive: 0,
+            loanNegative: 0,
+          },
+        };
+      }
+      return next;
+    }),
+  }));
+}
+
+/** Delete ledger row(s) matching employee name. */
+export async function deletePayrollLoanByName(employeeName: string): Promise<void> {
+  const q = employeeName.trim();
+  if (!q) return;
+  try {
+    const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(q)}`);
+    const loan = res.data.loan as { id?: string } | null;
+    if (loan?.id) await API.delete(`/accounts/payroll-loans/${loan.id}`);
+  } catch {
+    /* ignore */
+  }
+}

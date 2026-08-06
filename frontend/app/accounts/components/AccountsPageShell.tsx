@@ -282,37 +282,10 @@ export default function AccountsPageShell({
           )}
 
           {activePreset === "all_time" && (
-            <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                All saved records ({sortedSavedDays.length})
-              </p>
-              {pickSavedDate && sortedSavedDays.length > 0 ? (
-                <div className="min-h-10 max-h-36 overflow-y-auto rounded-xl border border-gray-100 bg-[#FAFAFA] p-2 flex flex-wrap gap-1.5">
-                  {sortedSavedDays.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => pickSavedDate(d)}
-                      className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
-                        d === recordDate
-                          ? "bg-[#B8112D] text-white"
-                          : "bg-white text-gray-600 border border-gray-100 hover:border-[#B8112D]/30 hover:text-[#B8112D]"
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-gray-400">No saved records yet — Save a day first, then it will appear here.</p>
-              )}
-              {recordDate && sortedSavedDays.length > 0 && (
-                <p className="mt-2 text-[11px] text-gray-500">
-                  Viewing <span className="font-semibold text-gray-700">{recordDate}</span>
-                  {sortedSavedDays[0] === recordDate ? " (latest)" : ""}
-                </p>
-              )}
-            </div>
+            <p className="text-[11px] text-gray-500">
+              Showing totals through <span className="font-semibold text-gray-700">{new Date().toISOString().slice(0, 10)}</span>
+              {" "}(all saved days up to today — no date chips).
+            </p>
           )}
         </div>
       </section>

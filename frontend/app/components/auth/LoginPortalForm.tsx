@@ -298,19 +298,8 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px] flex flex-col items-center">
               {loginPortal === "technical_manager" ? (
-                <div className="inline-flex flex-col items-center mb-5 md:mb-7">
-                  <div className="rounded-2xl bg-white p-3 shadow-lg mb-3">
-                    <GpsLogo size="md" className="drop-shadow-none" />
-                  </div>
-                  <p
-                    className="text-[18px] md:text-[20px] font-black tracking-[0.08em] text-white uppercase"
-                    style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-                  >
-                    GPS
-                  </p>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55 mt-1">
-                    Global Pre Construction
-                  </p>
+                <div className="rounded-2xl bg-white p-3 shadow-lg mb-5 md:mb-7">
+                  <GpsLogo size="md" className="drop-shadow-none" />
                 </div>
               ) : (
                 <>

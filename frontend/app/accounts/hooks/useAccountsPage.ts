@@ -98,6 +98,8 @@ export function useAccountsPage<T extends Record<string, unknown>>({
     if (next === "all_time") {
       setFilterFromState("");
       setFilterToState("");
+      // Anchor to today — cards aggregate through this date; no date chips
+      setRecordDate(todayIso());
       return;
     }
     if (next === "daily") {
@@ -156,8 +158,9 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         if (cancelled) return;
         const dates: string[] = res.data.dates ?? [];
         setSavedDates(dates);
-        // All Time / Month / Date Range: open a real saved day, not an empty today
-        if (mode !== "daily" && dates.length > 0) {
+        // Month / Date Range: open a real saved day in range.
+        // All Time keeps "today" as anchor — dashboard cards sum through today.
+        if (mode !== "daily" && mode !== "all_time" && dates.length > 0) {
           setRecordDate(prev => (dates.includes(prev) ? prev : (latestDate(dates) ?? prev)));
         }
       })

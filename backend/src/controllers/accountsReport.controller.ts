@@ -11,6 +11,8 @@ import {
 import { recomputeTechnicalTeamInIncomeStatement } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import { ACCOUNTS_CLOUDINARY_FOLDERS } from "../utils/accountsStorage";
+import { calcSalesCommission } from "../utils/salesPayrollFormula";
+import type { SalesCommissionFields } from "../utils/salesPayrollDefaults";
 
 /**
  * Monthly Executive Summary — aggregates ALL daily income_statement records
@@ -33,6 +35,18 @@ type SubHead = {
     loanPositive?: number;
     loanNegative?: number;
     remarks?: string;
+  };
+  salesPayroll?: {
+    name?: string;
+    code?: string;
+    role?: "sales" | "team_lead";
+    assignedToLead?: boolean;
+    commission?: {
+      oldClientProjects?: number;
+      oldClientPartialCount?: number;
+      newClientProjects?: number;
+      fixClientProjects?: { id?: string; clientName?: string; projectPay?: number }[];
+    };
   };
 };
 
@@ -147,6 +161,153 @@ function aggregateExecutives(records: Record<string, unknown>[]): ExecutiveLine[
     }
   }
   return [...map.values()];
+}
+
+function isSalesCsrTeam(teamTitle: string): boolean {
+  const t = teamTitle.trim().toLowerCase();
+  // Sales Team Salaries + Sales Team Lead Salaries (CSRs)
+  return t.includes("sales team");
+}
+
+export type CsrPerformanceRow = {
+  name: string;
+  code: string;
+  role: "sales" | "team_lead";
+  roleLabel: string;
+  assignedToLead: boolean;
+  oldProjects: number;
+  partialCount: number;
+  newProjects: number;
+  fixProjects: number;
+  fixPay: number;
+  projects: number;
+  oldComm: number;
+  newComm: number;
+  fixComm: number;
+  totalCommission: number;
+  share: number;
+};
+
+export type CsrPerformanceReport = {
+  totalProjects: number;
+  totals: {
+    oldProjects: number;
+    partialCount: number;
+    newProjects: number;
+    fixProjects: number;
+    fixPay: number;
+    oldComm: number;
+    newComm: number;
+    fixComm: number;
+    totalCommission: number;
+  };
+  rows: CsrPerformanceRow[];
+};
+
+function emptyCsrRow(name: string, teamTitle: string, sub: SubHead): CsrPerformanceRow {
+  const sp = sub.salesPayroll;
+  const role: "sales" | "team_lead" =
+    sp?.role === "team_lead" || /lead/i.test(teamTitle) ? "team_lead" : "sales";
+  return {
+    name,
+    code: String(sp?.code ?? "").trim(),
+    role,
+    roleLabel: role === "team_lead" ? "Team Lead" : "Sales",
+    assignedToLead: !!sp?.assignedToLead,
+    oldProjects: 0,
+    partialCount: 0,
+    newProjects: 0,
+    fixProjects: 0,
+    fixPay: 0,
+    projects: 0,
+    oldComm: 0,
+    newComm: 0,
+    fixComm: 0,
+    totalCommission: 0,
+    share: 0,
+  };
+}
+
+function csrRowFromSub(teamTitle: string, sub: SubHead): CsrPerformanceRow | null {
+  const name = String(sub.salesPayroll?.name || sub.label || "").trim();
+  if (!name) return null;
+  const row = emptyCsrRow(name, teamTitle, sub);
+  const raw = sub.salesPayroll?.commission;
+  const commission: SalesCommissionFields = {
+    oldClientProjects: Number(raw?.oldClientProjects) || 0,
+    oldClientPartialCount: Number(raw?.oldClientPartialCount) || 0,
+    newClientProjects: Number(raw?.newClientProjects) || 0,
+    fixClientProjects: (raw?.fixClientProjects ?? []).map((p, i) => ({
+      id: String(p.id ?? `fix-${i}`),
+      clientName: String(p.clientName ?? ""),
+      projectPay: Number(p.projectPay) || 0,
+    })),
+  };
+  const calc = calcSalesCommission(commission, row.role);
+  const fixPay = commission.fixClientProjects.reduce((s, p) => s + (Number(p.projectPay) || 0), 0);
+  return {
+    ...row,
+    oldProjects: Number(commission.oldClientProjects) || 0,
+    partialCount: Number(commission.oldClientPartialCount) || 0,
+    newProjects: Number(commission.newClientProjects) || 0,
+    fixProjects: commission.fixClientProjects.length,
+    fixPay,
+    projects: calc.totalProjects,
+    oldComm: calc.oldComm,
+    newComm: calc.newComm,
+    fixComm: calc.fixComm,
+    totalCommission: calc.totalCommission,
+  };
+}
+
+/**
+ * CSR Team Performance — every Sales Team + Sales Team Lead person as their own row,
+ * with separate columns for each project / commission field.
+ * Last daily entry in the month wins per person.
+ */
+function aggregateCsrFromSalesPayroll(records: Record<string, unknown>[]): CsrPerformanceReport {
+  const byName = new Map<string, CsrPerformanceRow>();
+  for (const data of records) {
+    const teams = (data.teamSalaries as HeadRow[]) ?? [];
+    for (const team of teams) {
+      const title = String(team.team ?? "");
+      if (!isSalesCsrTeam(title)) continue;
+      for (const s of team.subHeads ?? []) {
+        const row = csrRowFromSub(title, s);
+        if (!row) continue;
+        byName.set(row.name, row);
+      }
+    }
+  }
+
+  const rows = [...byName.values()].sort(
+    (a, b) =>
+      b.projects - a.projects ||
+      b.totalCommission - a.totalCommission ||
+      a.name.localeCompare(b.name),
+  );
+
+  const totalProjects = rows.reduce((a, r) => a + r.projects, 0);
+  const withShare = rows.map(r => ({
+    ...r,
+    share: totalProjects > 0 ? (r.projects / totalProjects) * 100 : 0,
+  }));
+
+  return {
+    totalProjects,
+    totals: {
+      oldProjects: withShare.reduce((a, r) => a + r.oldProjects, 0),
+      partialCount: withShare.reduce((a, r) => a + r.partialCount, 0),
+      newProjects: withShare.reduce((a, r) => a + r.newProjects, 0),
+      fixProjects: withShare.reduce((a, r) => a + r.fixProjects, 0),
+      fixPay: withShare.reduce((a, r) => a + r.fixPay, 0),
+      oldComm: withShare.reduce((a, r) => a + r.oldComm, 0),
+      newComm: withShare.reduce((a, r) => a + r.newComm, 0),
+      fixComm: withShare.reduce((a, r) => a + r.fixComm, 0),
+      totalCommission: withShare.reduce((a, r) => a + r.totalCommission, 0),
+    },
+    rows: withShare,
+  };
 }
 
 function monthEndIso(month: string): string {
@@ -275,38 +436,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       balance: bankTotals.get(bank) ?? 0,
     }));
 
-    const monthStart = new Date(`${month}-01T00:00:00.000Z`);
-    const nextMonth = new Date(monthStart);
-    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
-
-    const completedLogs = await prisma.callLog.findMany({
-      where: {
-        status: "completed",
-        createdAt: { gte: monthStart, lt: nextMonth },
-      },
-      select: {
-        leadId: true,
-        csr: { select: { name: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    const seenLeads = new Set<string>();
-    const csrCounts = new Map<string, number>();
-    for (const log of completedLogs) {
-      if (seenLeads.has(log.leadId)) continue;
-      seenLeads.add(log.leadId);
-      const name = log.csr?.name ?? "Unknown";
-      csrCounts.set(name, (csrCounts.get(name) ?? 0) + 1);
-    }
-    const totalProjects = [...csrCounts.values()].reduce((a, n) => a + n, 0);
-    const csrPerformance = [...csrCounts.entries()]
-      .map(([name, projects]) => ({
-        name,
-        projects,
-        share: totalProjects > 0 ? (projects / totalProjects) * 100 : 0,
-      }))
-      .sort((a, b) => b.projects - a.projects);
+    const csr = aggregateCsrFromSalesPayroll(monthRecords);
 
     return res.json({
       success: true,
@@ -327,7 +457,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
         closingNet,
         asOf: cfRecord?.recordDate ?? null,
       },
-      csr: { totalProjects, rows: csrPerformance },
+      csr,
       daysRecorded: monthRecords.length,
     });
   } catch (err) {
