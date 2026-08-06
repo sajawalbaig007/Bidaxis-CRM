@@ -15,22 +15,6 @@ export type SalarySlipLine = {
 
 export type SalarySlipTemplate = "gps_technical" | "bem_sales" | "bem_csr_full";
 
-export type SalarySlipEmployeeRow = { label: string; value: string };
-
-export type SalarySlipFooterConfig = {
-  thankYouPrefix: string;
-  thankYouAccent: string;
-  showApprovedBy: boolean;
-  approvedByLabel: string;
-  showContactBar: boolean;
-  socialLine: string;
-};
-
-export type SalarySlipCustomSection = {
-  title: string;
-  lines: SalarySlipLine[];
-};
-
 export type SalarySlipPayload = {
   companyKey?: SalarySlipCompanyKey;
   template?: SalarySlipTemplate;
@@ -41,17 +25,12 @@ export type SalarySlipPayload = {
   address?: string;
   phone?: string;
   cnic?: string;
-  /** When set, PDF uses these rows instead of the hardcoded employee block. */
-  employeeRows?: SalarySlipEmployeeRow[];
   earnings: SalarySlipLine[];
   deductions: SalarySlipLine[];
-  /** Extra amount sections from the editable template */
-  customSections?: SalarySlipCustomSection[];
   comments?: string;
   employeePf?: number;
   employerPf?: number;
   projectCount?: number;
-  footer?: SalarySlipFooterConfig;
 };
 
 export type JsPdfWithAutoTable = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } };
