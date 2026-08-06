@@ -150,12 +150,16 @@ function aggregateExecutives(records: Record<string, unknown>[]): ExecutiveLine[
       };
       const basic = Number(s.salary?.basic) || 0;
       const total = Number(s.amount) || 0;
+      const loanPositive = Number(s.salary?.loanPositive) || 0;
+      const loanNegative = Number(s.salary?.loanNegative) || 0;
+      // amount = basic + commission + loan+ − loan−
+      const commission = Math.max(0, total - basic - loanPositive + loanNegative);
       prev.basic += basic;
       prev.total += total;
-      prev.commission += Math.max(0, total - basic);
+      prev.commission += commission;
       if (s.salary?.commissionPct != null) prev.commissionPct = Number(s.salary.commissionPct) || 0;
-      prev.loanPositive += Number(s.salary?.loanPositive) || 0;
-      prev.loanNegative += Number(s.salary?.loanNegative) || 0;
+      prev.loanPositive += loanPositive;
+      prev.loanNegative += loanNegative;
       if (s.salary?.remarks?.trim()) prev.remarks = s.salary.remarks.trim();
       map.set(name, prev);
     }

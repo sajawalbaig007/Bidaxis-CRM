@@ -282,7 +282,9 @@ export type ExecutiveBreakdown = {
  * Executive payroll:
  * Commission = % of net profit (profit before executive salaries; no commission on loss).
  * Basic Salary + Commission = Total Salary.
- * Total Payable = Total Salary + Loan+ve − Loan−ve (what this executive should receive).
+ * Total Payable (head amount) = Total Salary + Loan+ve − Loan−ve
+ *   · Loan+ve (company owes them) → add to salary / head total
+ *   · Loan−ve (they owe company) → deduct from salary / head total
  */
 export function computeExecutiveSalary(
   detail: Partial<EmployeeSalaryDetail>,

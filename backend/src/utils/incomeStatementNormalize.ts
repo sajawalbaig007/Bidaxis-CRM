@@ -109,7 +109,10 @@ export function executiveCommissionBase(data: Record<string, unknown>): number {
   return (Number(data.totalRevenue) || 0) - (nonExecPayroll + sumCat("opexHeads"));
 }
 
-/** amount = basic + (% × max(0, profit base)) for each executive sub-head. */
+/**
+ * amount = Basic + Commission + Loan+ve − Loan−ve (total payable / head total)
+ * for each executive sub-head.
+ */
 export function recomputeExecutiveTeamInIncomeStatement(
   data: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -125,18 +128,22 @@ export function recomputeExecutiveTeamInIncomeStatement(
     const basic =
       Number(s.salary?.basic) > 0 ? Number(s.salary?.basic) : Number(s.amount) || 0;
     const pct = Number(s.salary?.commissionPct) || 0;
-    const total = basic + (base * pct) / 100;
+    const loanPositive = Number(s.salary?.loanPositive) || 0;
+    const loanNegative = Number(s.salary?.loanNegative) || 0;
+    const total = basic + (base * pct) / 100 + loanPositive - loanNegative;
     const nextSalary = {
       ...(s.salary ?? {}),
       basic,
       commissionPct: pct,
-      loanPositive: Number(s.salary?.loanPositive) || 0,
-      loanNegative: Number(s.salary?.loanNegative) || 0,
+      loanPositive,
+      loanNegative,
       remarks: String(s.salary?.remarks ?? ""),
     };
     if (
       Math.abs((Number(s.amount) || 0) - total) < 0.005 &&
       Number(s.salary?.basic) === basic &&
+      Number(s.salary?.loanPositive) === loanPositive &&
+      Number(s.salary?.loanNegative) === loanNegative &&
       s.salary
     ) {
       return s;

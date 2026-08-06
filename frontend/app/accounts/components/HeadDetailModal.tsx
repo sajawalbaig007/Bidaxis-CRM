@@ -183,7 +183,7 @@ export default function HeadDetailModal({
       : undefined;
     const amount = salary
       ? isExecKind
-        ? computeExecutiveSalary(salary, execProfitBase).totalSalary
+        ? computeExecutiveSalary(salary, execProfitBase).totalPayable
         : isAdminKind
           ? computeAdminSalary(salary).totalSalary
           : isTechMgrKind
@@ -509,7 +509,7 @@ export default function HeadDetailModal({
                               profitBase={execProfitBase}
                               onChange={next => {
                                 const hydrated = ensureExecutiveSalaryDetail(next, next.basic || s.amount);
-                                const total = computeExecutiveSalary(hydrated, execProfitBase).totalSalary;
+                                const total = computeExecutiveSalary(hydrated, execProfitBase).totalPayable;
                                 updateSub(s.id, { salary: hydrated, amount: total });
                               }}
                             />
