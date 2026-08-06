@@ -105,24 +105,52 @@ export default function ExpandableHeadsTable({
 
   const saveEditing = (next: HeadDetailModel) => {
     setEditing(next);
-    onChange(
-      rows.map(r =>
-        r.id === next.id
-          ? {
-              ...r,
-              title: next.title,
-              amount: next.subHeads.length > 0
-                ? next.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0)
-                : next.amount,
-              filledAt: next.filledAt,
-              note: next.notes[0]?.text ?? next.note,
-              subHeads: next.subHeads,
-              notes: next.notes,
-            }
-          : r,
+    const salesPeers = salesSubsFromPeerRows(
+      (next.payrollKind === "sales"
+        ? rows.map(r =>
+            r.id === next.id
+              ? { title: next.title, subHeads: next.subHeads }
+              : { title: r.title, subHeads: r.subHeads },
+          )
+        : rows.map(r => ({ title: r.title, subHeads: r.subHeads }))
       ),
-      { persist: true },
     );
+    // After sales / sales-lead edits, refresh lead nets so assigned TL commission lands in amount
+    const nextRows = rows.map(r => {
+      if (r.id === next.id) {
+        const subHeads =
+          next.payrollKind === "sales_lead"
+            ? normalizeSalesTeamSubs(next.subHeads, next.title, salesPeers)
+            : next.payrollKind === "sales"
+              ? normalizeSalesTeamSubs(next.subHeads, next.title)
+              : next.subHeads;
+        return {
+          ...r,
+          title: next.title,
+          amount: subHeads.length > 0
+            ? subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0)
+            : next.amount,
+          filledAt: next.filledAt,
+          note: next.notes[0]?.text ?? next.note,
+          subHeads,
+          notes: next.notes,
+        };
+      }
+      if (salaryMode && resolvePayrollKind(r.title, r.subHeads) === "sales_lead") {
+        const peers =
+          next.payrollKind === "sales"
+            ? next.subHeads
+            : salesSubsFromPeerRows(rows.map(x => ({ title: x.title, subHeads: x.subHeads })));
+        const subHeads = normalizeSalesTeamSubs(r.subHeads, r.title, peers);
+        return {
+          ...r,
+          subHeads,
+          amount: subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+        };
+      }
+      return r;
+    });
+    onChange(nextRows, { persist: true });
   };
 
   const deleteEditing = () => {
@@ -151,7 +179,8 @@ export default function ExpandableHeadsTable({
   const openEdit = (row: ExpandableHeadRow) => {
     const kind = salaryMode ? resolvePayrollKind(row.title, row.subHeads) : "technical";
     const isSales = kind === "sales" || kind === "sales_lead" || isSalesTeamTitle(row.title, row.subHeads);
-    const subHeads = isSales ? normalizeSalesTeamSubs(row.subHeads, row.title) : (row.subHeads ?? []);
+    const salesPeers = salesSubsFromPeerRows(rows.map(r => ({ title: r.title, subHeads: r.subHeads })));
+    const subHeads = isSales ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers) : (row.subHeads ?? []);
     if (isSales) {
       onChange(
         rows.map(r =>
@@ -221,10 +250,10 @@ export default function ExpandableHeadsTable({
                   (rowPayrollKind === "sales" ||
                     rowPayrollKind === "sales_lead" ||
                     isSalesTeamTitle(row.title, row.subHeads));
-                const subs = isSalesRow
-                  ? normalizeSalesTeamSubs(row.subHeads, row.title)
-                  : (row.subHeads ?? []);
                 const salesPeers = salesSubsFromPeerRows(rows);
+                const subs = isSalesRow
+                  ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers)
+                  : (row.subHeads ?? []);
                 const amt = isSalesRow
                   ? subs.reduce((a, s) => a + (Number(s.amount) || 0), 0)
                   : lineAmount(row);
@@ -418,7 +447,7 @@ export default function ExpandableHeadsTable({
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(b.pf)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.incomeTax)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(b.totalDeduction)}</td>
-                                          <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                          <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(b.netSalary)}</td>
                                           <td className="px-1 py-2 text-center">
                                             <SalarySlipDownloadButton
                                               compact

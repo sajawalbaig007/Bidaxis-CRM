@@ -12,6 +12,7 @@ import {
   type SalesPayrollData,
 } from "../../utils/salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "../../utils/salesPayrollDefaults";
+import { isRepAssignedToLead } from "../../utils/salesPayrollBridge";
 import AmountInput from "../AmountInput";
 
 type Props = {
@@ -74,7 +75,7 @@ export default function SalesPayrollEmployeeEditor({
   const assignedTlTotal =
     variant === "team_lead"
       ? allData.salesTeamMembers
-          .filter(m => m.assignedToLead && m.assignedTeamLeadId === employee.id)
+          .filter(m => isRepAssignedToLead(m, employee.id))
           .reduce((s, m) => s + calcTlAssignedCommission(m), 0)
       : 0;
 
@@ -120,8 +121,8 @@ export default function SalesPayrollEmployeeEditor({
     if (open) void lookupLoan(false);
   }, [open, employee.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const assignedReps = allData.salesTeamMembers.filter(
-    m => m.assignedToLead && m.assignedTeamLeadId === employee.id,
+  const assignedReps = allData.salesTeamMembers.filter(m =>
+    isRepAssignedToLead(m, employee.id),
   );
 
   return (
@@ -276,14 +277,20 @@ export default function SalesPayrollEmployeeEditor({
           {/* Salary */}
           <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
             <p className="text-[11px] font-extrabold uppercase text-blue-800">Total Earning</p>
-            <p className="text-[10px] text-blue-700">Basic + Allowance + Total Commission = Total Earning</p>
+            <p className="text-[10px] text-blue-700">
+              Basic + Allowance{variant === "team_lead" ? " + Home" : ""} + Own Commission
+              {variant === "team_lead" ? " + Assigned TL Commission" : ""} = Total Earning
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Num label="Basic Salary" value={employee.basic} onChange={v => set("basic", v)} />
               <Num label="Allowance" value={employee.allowance} onChange={v => set("allowance", v)} />
               {variant === "team_lead" && (
                 <Num label="Home Allowance" value={employee.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
               )}
-              <Read label="Total Commission" value={currency(comm.totalCommission)} accent="text-emerald-700" />
+              <Read label="Own Commission" value={currency(comm.totalCommission)} accent="text-emerald-700" />
+              {variant === "team_lead" && (
+                <Read label="Assigned TL Commission" value={currency(assignedTlTotal)} accent="text-indigo-800" />
+              )}
               <Read label="Total Earning" value={currency(breakdown.totalEarning)} accent="text-blue-800" />
             </div>
           </div>
@@ -340,7 +347,7 @@ export default function SalesPayrollEmployeeEditor({
               Refresh loan from ledger
             </button>
             <p className="text-[10px] text-orange-700/80">
-              Remaining = Total − Paid − This month. Saving Income Statement syncs the ledger for next month.
+              Remaining = Total − Paid − This month. Auto-fills Income Statement Loans table; Save syncs the shared ledger.
             </p>
           </div>
 

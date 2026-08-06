@@ -3,10 +3,7 @@ import { lineAmount, newRowId, todayIso } from "../types";
 import { computeExecutiveSalary, emptySalaryDetail } from "./payrollFormula";
 import {
   emptySalesPayrollEmployee,
-  ensureSalesPayrollFromSub,
-  netFromSalesSub,
   resolvePayrollKind,
-  tlExtraFromPeers,
   isHammadSub,
   isSalesLeadSub,
   normalizeSalesTeamSubs,
@@ -97,10 +94,14 @@ function sub(label: string, amount: number, withSalary = false, teamName?: strin
   };
 }
 
-function ensureTeamSalarySubs(subs: SubHeadEntry[] | undefined, teamName: string): SubHeadEntry[] {
+function ensureTeamSalarySubs(
+  subs: SubHeadEntry[] | undefined,
+  teamName: string,
+  salesPeers: SubHeadEntry[] = [],
+): SubHeadEntry[] {
   const kind = resolvePayrollKind(teamName, subs);
   if (kind === "sales" || kind === "sales_lead") {
-    return normalizeSalesTeamSubs(subs, teamName);
+    return normalizeSalesTeamSubs(subs, teamName, salesPeers);
   }
   if (kind === "executive") {
     return (subs ?? []).map(s => {
@@ -422,14 +423,7 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
         teamName === "Sales Team Lead Salaries"
           ? ensureTeamSalarySubs(existingTeams.get("Sales Team Salaries")?.subHeads, "Sales Team Salaries")
           : [];
-      let subHeads = ensureTeamSalarySubs(current.subHeads, teamName);
-      if (teamName === "Sales Team Lead Salaries") {
-        subHeads = subHeads.map(s => {
-          const extra = tlExtraFromPeers(s.id, salesPeers);
-          const amount = netFromSalesSub({ ...s, salesPayroll: ensureSalesPayrollFromSub(s, "team_lead") }, "team_lead", extra);
-          return { ...s, amount };
-        });
-      }
+      const subHeads = ensureTeamSalarySubs(current.subHeads, teamName, salesPeers);
       return {
         ...current,
         subHeads,
@@ -520,8 +514,8 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
 
 /**
  * Commission base for Executive Salaries = net profit BEFORE executive salaries:
- * revenue − (all payroll except the executive team + OPEX + loans + PF).
- * Keeps the % calculation non-circular (executive pay is itself an expense).
+ * revenue − (all payroll except executive team + OPEX).
+ * Loans/PF are already reflected inside net salaries — don't subtract again.
  */
 export function executiveCommissionBase(data: IncomeStatementData): number {
   const teams = data.teamSalaries ?? [];
@@ -529,9 +523,7 @@ export function executiveCommissionBase(data: IncomeStatementData): number {
     .filter(t => resolvePayrollKind(t.team, t.subHeads) !== "executive")
     .reduce((a, t) => a + lineAmount(t), 0);
   const opex = (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0);
-  const loans = (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0);
-  const pf = (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0);
-  return (Number(data.totalRevenue) || 0) - (nonExecPayroll + opex + loans + pf);
+  return (Number(data.totalRevenue) || 0) - (nonExecPayroll + opex);
 }
 
 /**

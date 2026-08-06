@@ -12,6 +12,7 @@ import {
 } from "../../utils/salesPayrollDefaults";
 import type { SalesPayrollData, SalesPayrollEmployee } from "../../utils/salesPayrollFormula";
 import { computeSalesEmployeePayroll, calcTlAssignedCommission } from "../../utils/salesPayrollFormula";
+import { isRepAssignedToLead } from "../../utils/salesPayrollBridge";
 import { currency } from "../../types";
 
 type Props = {
@@ -64,7 +65,7 @@ export default function SalesPayrollPageContent({ variant }: Props) {
     const extra =
       variant === "team_lead"
         ? data.salesTeamMembers
-            .filter(m => m.assignedToLead && m.assignedTeamLeadId === e.id)
+            .filter(m => isRepAssignedToLead(m, e.id))
             .reduce((x, m) => x + calcTlAssignedCommission(m), 0)
         : 0;
     return s + computeSalesEmployeePayroll(e, extra).netSalary;

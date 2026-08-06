@@ -102,7 +102,12 @@ export function resolvePayrollKind(title: string, subs?: SubHeadEntry[]): Payrol
 }
 
 /** Force-convert subs for sales teams (strip legacy technical salary + remove team lead from reps). */
-export function normalizeSalesTeamSubs(subs: SubHeadEntry[] | undefined, teamName: string): SubHeadEntry[] {
+export function normalizeSalesTeamSubs(
+  subs: SubHeadEntry[] | undefined,
+  teamName: string,
+  /** Sales Team reps — required so Sales Team Lead net includes assigned TL commission */
+  salesPeers: SubHeadEntry[] = [],
+): SubHeadEntry[] {
   const kind = resolvePayrollKind(teamName, subs);
   if (kind === "sales") {
     return (subs ?? [])
@@ -122,8 +127,10 @@ export function normalizeSalesTeamSubs(subs: SubHeadEntry[] | undefined, teamNam
       const sp = ensureSalesPayrollFromSub(s, "team_lead");
       if (isHammadSub(s)) sp.id = HAMMAD_TEAM_LEAD_ID;
       sp.role = "team_lead";
-      const amount = netFromSalesSub({ ...s, salesPayroll: sp, salary: undefined }, "team_lead");
-      return { ...s, id: sp.id, salesPayroll: sp, amount, salary: undefined };
+      const leadId = sp.id || s.id;
+      const extra = tlExtraFromPeers(leadId, salesPeers);
+      const amount = netFromSalesSub({ ...s, salesPayroll: sp, salary: undefined }, "team_lead", extra);
+      return { ...s, id: leadId, salesPayroll: sp, amount, salary: undefined };
     });
   }
   return subs ?? [];
@@ -200,16 +207,22 @@ export function netFromSalesSub(sub: SubHeadEntry, role: "sales" | "team_lead", 
   return computeSalesEmployeePayroll(emp, extraEarning).netSalary;
 }
 
-/** Assigned TL commission for a team-lead sub-head from all sales team subs. */
+/** Whether a sales rep’s assign-to-lead points at this team lead. */
+export function isRepAssignedToLead(rep: SalesPayrollEmployee, leadId: string): boolean {
+  if (!rep.assignedToLead || !rep.assignedTeamLeadId) return false;
+  // Match exact lead id, or default Hammad assign id (assign button always writes this)
+  return (
+    rep.assignedTeamLeadId === leadId ||
+    rep.assignedTeamLeadId === HAMMAD_TEAM_LEAD_ID
+  );
+}
+
 export function tlExtraFromPeers(
   leadSubId: string,
   salesTeamSubs: SubHeadEntry[],
 ): number {
   return salesTeamSubs
-    .filter(s => {
-      const sp = ensureSalesPayrollFromSub(s, "sales");
-      return sp.assignedToLead && (sp.assignedTeamLeadId === leadSubId || sp.assignedTeamLeadId === HAMMAD_TEAM_LEAD_ID);
-    })
+    .filter(s => isRepAssignedToLead(ensureSalesPayrollFromSub(s, "sales"), leadSubId))
     .reduce((sum, s) => sum + calcTlAssignedCommission(ensureSalesPayrollFromSub(s, "sales")), 0);
 }
 

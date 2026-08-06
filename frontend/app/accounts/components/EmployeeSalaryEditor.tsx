@@ -248,7 +248,7 @@ export default function EmployeeSalaryEditor({
           )}
         </div>
         <p className="text-[10px] text-orange-700/80">
-          Remaining after this month&apos;s deduction. Save payroll to sync Total / Paid into the shared loan ledger.
+          Remaining after this month&apos;s deduction. Fills the Income Statement Loans table automatically; Save also syncs Total / Paid into the shared loan ledger.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />

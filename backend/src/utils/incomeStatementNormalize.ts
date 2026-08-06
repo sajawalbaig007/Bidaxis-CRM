@@ -87,8 +87,8 @@ function ensureExecutiveSalaryDefaults(data: Record<string, unknown>): Record<st
 }
 
 /**
- * Commission base = revenue − (all expenses except executive team salaries).
- * Avoids circular calc (executive pay is itself an expense).
+ * Commission base = revenue − (non-executive payroll + OPEX).
+ * Loans/PF already sit inside net salaries — don't subtract again.
  */
 export function executiveCommissionBase(data: Record<string, unknown>): number {
   const teams = (data.teamSalaries as TeamRow[] | undefined) ?? [];
@@ -97,7 +97,7 @@ export function executiveCommissionBase(data: Record<string, unknown>): number {
     .reduce((a, t) => a + lineTotal(t), 0);
   const sumCat = (key: string) =>
     ((data[key] as HeadRow[] | undefined) ?? []).reduce((a, r) => a + lineTotal(r), 0);
-  return (Number(data.totalRevenue) || 0) - (nonExecPayroll + sumCat("opexHeads") + sumCat("loanHeads") + sumCat("providentFundHeads"));
+  return (Number(data.totalRevenue) || 0) - (nonExecPayroll + sumCat("opexHeads"));
 }
 
 /** amount = basic + (% × max(0, profit base)) for each executive sub-head. */
