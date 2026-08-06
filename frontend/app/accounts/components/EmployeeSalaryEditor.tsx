@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { computeAdminSalary, computeSalary, emptySalaryDetail, type EmployeeSalaryDetail } from "../utils/payrollFormula";
+import {
+  applyTechnicalManagerGross,
+  computeAdminSalary,
+  computeSalary,
+  computeTechnicalManagerSalary,
+  emptySalaryDetail,
+  type EmployeeSalaryDetail,
+} from "../utils/payrollFormula";
 import { fetchAndApplyPendingLoan } from "../utils/loanLedgerApply";
 import { currency } from "../types";
 import AmountInput from "./AmountInput";
@@ -62,9 +69,19 @@ export default function EmployeeSalaryEditor({
   const d = value;
   const isAdmin = variant === "admin";
   const isTechMgr = variant === "technical_manager";
-  const b = isAdmin ? computeAdminSalary(d) : computeSalary(d);
+  const b = isTechMgr
+    ? computeTechnicalManagerSalary(d)
+    : isAdmin
+      ? computeAdminSalary(d)
+      : computeSalary(d);
+  const tm = isTechMgr ? computeTechnicalManagerSalary(d) : null;
+
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
     onChange({ ...d, [key]: val });
+  };
+
+  const setGross = (gross: number) => {
+    onChange(applyTechnicalManagerGross(d, gross));
   };
 
   const lookupLoan = useCallback(async (force = false) => {
@@ -97,27 +114,44 @@ export default function EmployeeSalaryEditor({
         <p className="text-xs font-extrabold text-[#B8112D] tabular-nums">Net: {currency(b.totalSalary)}</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
-        {isTechMgr ? (
-          <>
-            <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
-            <Num label="Medical Allowance" value={d.medicalAllowance ?? 0} onChange={v => set("medicalAllowance", v)} />
-            <Num label="Travel Allowance" value={d.travelAllowance ?? 0} onChange={v => set("travelAllowance", v)} />
-            {d.allowance > 0 && (
-              <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
-            )}
-          </>
-        ) : (
-          <>
-            <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
-            <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
-          </>
-        )}
-        <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
-        <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
-        <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
-      </div>
+      {isTechMgr && tm ? (
+        <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-2.5 space-y-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-violet-800">
+            Package salary (Gross → %)
+          </p>
+          <p className="text-[10px] text-violet-700/80">
+            Basic 50% · Medical 10% · Home 20% · Utility 10% · Travel 10% · PF = 8% of Basic ·
+            Taxable = Gross − Medical · Net = Gross − PF − Tax
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <Num label="Gross Salary" value={tm.grossSalary} onChange={setGross} hint="Enter package total" />
+            <Num
+              label="Tax Amount"
+              value={d.incomeTax}
+              onChange={v => set("incomeTax", v)}
+              hint="Manual — editable"
+            />
+            <Read label="Basic (50%)" value={currency(tm.basic)} />
+            <Read label="Medical (10%)" value={currency(tm.medicalAllowance)} />
+            <Read label="Home (20%)" value={currency(tm.homeAllowance)} />
+            <Read label="Utility (10%)" value={currency(tm.utilityAllowance)} />
+            <Read label="Travel (10%)" value={currency(tm.travelAllowance)} />
+            <Read label="Taxable Income" value={currency(tm.taxableIncome)} accent="text-violet-800" />
+            <Read label="PF (8% of Basic)" value={currency(tm.pf)} accent="text-teal-800" />
+            <Read label="1 Day (/30)" value={currency(tm.daySalary)} />
+            <Read label="Net Salary" value={currency(tm.totalSalary)} accent="text-[#B8112D]" />
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
+          <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
+          <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+          <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
+          <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
+          <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
@@ -163,7 +197,7 @@ export default function EmployeeSalaryEditor({
         </div>
       </div>
 
-      {!isAdmin && (
+      {!isAdmin && !isTechMgr && (
         <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2.5 space-y-2">
           <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">Overtime</p>
           <p className="text-[10px] text-blue-600/80">Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2</p>
@@ -177,67 +211,70 @@ export default function EmployeeSalaryEditor({
         </div>
       )}
 
-      <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
-          {isAdmin ? "Late Arrival (Admin shift 6:00 PM)" : "Late Arrival (Tech shift 7:00–16:00)"}
-        </p>
-        <p className="text-[10px] text-amber-700/80">
-          {isAdmin
-            ? "1-day salary = (Basic + Allowance) ÷ 30. Relief ≤18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = half day."
-            : "Relief ≤07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = half day. If worked ≥9h after late check-in → waived."}
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-            Check In
-            <input
-              type="time"
-              value={d.checkIn || (isAdmin ? "18:00" : "07:00")}
-              onChange={e => set("checkIn", e.target.value)}
-              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
-            />
-          </label>
-          {!isAdmin && (
+      {!isTechMgr && (
+        <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-2.5 space-y-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
+            {isAdmin ? "Late Arrival (Admin shift 6:00 PM)" : "Late Arrival (Tech shift 7:00–16:00)"}
+          </p>
+          <p className="text-[10px] text-amber-700/80">
+            {isAdmin
+              ? "1-day salary = (Basic + Allowance) ÷ 30. Relief ≤18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = half day."
+              : "Relief ≤07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = half day. If worked ≥9h after late check-in → waived."}
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
-              Check Out
+              Check In
               <input
                 type="time"
-                value={d.checkOut || "16:00"}
-                onChange={e => set("checkOut", e.target.value)}
+                value={d.checkIn || (isAdmin ? "18:00" : "07:00")}
+                onChange={e => set("checkIn", e.target.value)}
                 className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
               />
             </label>
-          )}
-          <Num
-            label="Late Override (optional)"
-            value={d.lateDeductionOverride ?? 0}
-            onChange={v => set("lateDeductionOverride", v > 0 ? v : null)}
-            hint="Leave 0 for auto formula"
-          />
-          <Read label="Late Deduction" value={currency(b.lateDeduction)} accent="text-amber-800" />
+            {!isAdmin && (
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                Check Out
+                <input
+                  type="time"
+                  value={d.checkOut || "16:00"}
+                  onChange={e => set("checkOut", e.target.value)}
+                  className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
+                />
+              </label>
+            )}
+            <Num
+              label="Late Override (optional)"
+              value={d.lateDeductionOverride ?? 0}
+              onChange={v => set("lateDeductionOverride", v)}
+              hint="0 = use time rules"
+            />
+            <Read label="Late Deduction" value={currency(b.lateDeduction)} accent="text-amber-800" />
+            <Read label="Rule" value={b.lateRuleApplied} />
+          </div>
         </div>
-        <p className="text-[10px] text-amber-700 font-medium">{b.lateRuleApplied}</p>
-      </div>
+      )}
 
-      <div className="rounded-xl border border-violet-100 bg-violet-50/30 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-violet-800">Leaves</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Num label="Paid Leave Days" value={d.paidLeaveDays} onChange={v => set("paidLeaveDays", v)} hint="No salary cut" />
-          <Num label="Unpaid Leave Days" value={d.unpaidLeaveDays} onChange={v => set("unpaidLeaveDays", v)} hint="× 1-day salary" />
-          <Read label="Unpaid Deduction" value={currency(b.unpaidLeaveDeduction)} accent="text-violet-800" />
-          <Read label="Paid Leaves" value={`${b.paidLeaveDays} day(s)`} />
+      {!isTechMgr && (
+        <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-2.5 space-y-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-rose-800">Leaves</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Num label="Paid Leave Days" value={d.paidLeaveDays} onChange={v => set("paidLeaveDays", v)} />
+            <Num label="Unpaid Leave Days" value={d.unpaidLeaveDays} onChange={v => set("unpaidLeaveDays", v)} />
+            <Read label="Unpaid Leave Deduction" value={currency(b.unpaidLeaveDeduction)} accent="text-rose-700" />
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="rounded-xl border border-orange-100 bg-orange-50/30 p-2.5 space-y-2">
+      <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-extrabold uppercase tracking-wide text-orange-800">Loan</p>
           {enableLoanLookup && (
             <button
               type="button"
               onClick={() => void lookupLoan(true)}
-              className="text-[10px] font-bold text-orange-700 hover:underline"
+              className="text-[10px] font-bold text-[#0B84F3] hover:underline"
             >
-              Refresh from loan ledger
+              Refresh from ledger
             </button>
           )}
         </div>
@@ -246,7 +283,7 @@ export default function EmployeeSalaryEditor({
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />
-          <Num label="Amount Already Paid" value={d.loanPaid} onChange={v => set("loanPaid", v)} />
+          <Num label="Already Paid" value={d.loanPaid} onChange={v => set("loanPaid", v)} />
           <Read label="Remaining" value={currency(b.loanRemaining)} accent="text-orange-800" />
           <Num label="This Month Deduction" value={d.loanThisMonth} onChange={v => set("loanThisMonth", v)} hint="Optional salary cut" />
         </div>
@@ -255,34 +292,51 @@ export default function EmployeeSalaryEditor({
       <div className="rounded-xl border border-teal-100 bg-teal-50/30 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-teal-800">PF & Tax</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-          <label className="flex items-center gap-2 text-xs text-gray-700 h-9 col-span-2 sm:col-span-1">
-            <input
-              type="checkbox"
-              checked={d.pfAuto}
-              onChange={e => set("pfAuto", e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            PF auto 8% of basic
-          </label>
-          {!d.pfAuto && (
-            <Num label="PF Manual" value={d.pfOverride ?? 0} onChange={v => set("pfOverride", v)} />
+          {isTechMgr ? (
+            <>
+              <Read label="PF (8% of Basic)" value={currency(b.pf)} accent="text-teal-800" />
+              <Num
+                label="Tax Amount"
+                value={d.incomeTax}
+                onChange={v => set("incomeTax", v)}
+                hint="Type any amount — updates Net"
+              />
+              <Read label="Taxable Income" value={currency(tm?.taxableIncome ?? 0)} accent="text-violet-800" />
+            </>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-xs text-gray-700 h-9 col-span-2 sm:col-span-1">
+                <input
+                  type="checkbox"
+                  checked={d.pfAuto}
+                  onChange={e => set("pfAuto", e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                PF auto 8% of basic
+              </label>
+              {!d.pfAuto && (
+                <Num label="PF Manual" value={d.pfOverride ?? 0} onChange={v => set("pfOverride", v)} />
+              )}
+              <Read label="PF Deduction" value={currency(b.pf)} accent="text-teal-800" />
+              <Num label="Tax Amount" value={d.incomeTax} onChange={v => set("incomeTax", v)} />
+            </>
           )}
-          <Read label="PF Deduction" value={currency(b.pf)} accent="text-teal-800" />
-          <Num label="Income Tax (manual)" value={d.incomeTax} onChange={v => set("incomeTax", v)} />
         </div>
       </div>
 
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">Totals</p>
         <p className="text-[10px] text-gray-500">
-          {isAdmin
-            ? "Basic + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"
-            : "Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"}
+          {isTechMgr
+            ? "Gross − PF − Tax (− loan this month) = Net Salary"
+            : isAdmin
+              ? "Basic + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"
+              : "Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Read label="Total Earning" value={currency(b.totalEarning)} accent="text-emerald-700" />
+          <Read label={isTechMgr ? "Gross Salary" : "Total Earning"} value={currency(b.totalEarning)} accent="text-emerald-700" />
           <Read label="Total Deduction" value={currency(b.totalDeduction)} accent="text-red-600" />
-          <Read label="Total Salary (Net)" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
+          <Read label="Net Salary" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
         </div>
       </div>
 

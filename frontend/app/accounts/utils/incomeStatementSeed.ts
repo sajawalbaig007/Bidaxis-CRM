@@ -83,7 +83,7 @@ function sub(label: string, amount: number, withSalary = false, teamName?: strin
             basic: amount,
             ...(kind === "admin" ? { checkIn: "18:00" } : {}),
             ...(kind === "technical_manager"
-              ? { homeAllowance: 0, medicalAllowance: 0, travelAllowance: 0 }
+              ? { grossSalary: 0, homeAllowance: 0, medicalAllowance: 0, utilityAllowance: 0, travelAllowance: 0 }
               : {}),
             ...(kind === "executive"
               ? { commissionPct: execPctForLabel(label), loanPositive: 0, loanNegative: 0 }
@@ -130,8 +130,10 @@ function ensureTeamSalarySubs(
         ...s,
         salary: emptySalaryDetail({
           basic: Number(s.amount) || 0,
+          grossSalary: Number(s.amount) || 0,
           homeAllowance: 0,
           medicalAllowance: 0,
+          utilityAllowance: 0,
           travelAllowance: 0,
         }),
       };

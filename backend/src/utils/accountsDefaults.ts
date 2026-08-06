@@ -8,7 +8,8 @@ export type AccountsPageKey =
   | "cash_flow"
   | "total_assets"
   | "sales_payroll"
-  | "technical_payroll";
+  | "technical_payroll"
+  | "income_budget";
 
 export function isAccountsPageKey(v: string): v is AccountsPageKey {
   return (
@@ -18,7 +19,8 @@ export function isAccountsPageKey(v: string): v is AccountsPageKey {
     v === "cash_flow" ||
     v === "total_assets" ||
     v === "sales_payroll" ||
-    v === "technical_payroll"
+    v === "technical_payroll" ||
+    v === "income_budget"
   );
 }
 
@@ -380,6 +382,9 @@ export function defaultAccountsData(page: AccountsPageKey): Record<string, unkno
 
     case "technical_payroll":
       return defaultTechnicalPayrollData() as unknown as Record<string, unknown>;
+
+    case "income_budget":
+      return { quarters: [] };
 
     default:
       return {};

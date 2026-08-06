@@ -5,7 +5,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   Tooltip, XAxis, YAxis,
 } from "recharts";
-import { PieChart as PieIcon, Users, Layers3, TrendingUp } from "lucide-react";
+import { PieChart as PieIcon, Users, Layers3, TrendingUp, PiggyBank } from "lucide-react";
 import toast from "react-hot-toast";
 import API, { apiErrorMessage } from "@/lib/api";
 import AccountsSidebar from "../components/layout/Sidebar";
@@ -13,6 +13,7 @@ import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
 import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
+import IncomeBudgetModal from "../components/IncomeBudgetModal";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
@@ -128,6 +129,7 @@ export default function IncomeStatementPage() {
     expense: number;
     profit: number;
   } | null>(null);
+  const [budgetOpen, setBudgetOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -313,6 +315,17 @@ export default function IncomeStatementPage() {
           }
           addNewLabel="Add Team"
         >
+          <div className="flex flex-wrap items-center justify-end gap-2 -mt-1 mb-1">
+            <button
+              type="button"
+              onClick={() => setBudgetOpen(true)}
+              className="h-10 px-4 rounded-xl bg-violet-600 text-white text-sm font-bold inline-flex items-center gap-2 hover:bg-violet-700 shadow-sm shadow-violet-600/20"
+            >
+              <PiggyBank size={16} />
+              3-Month Budget
+            </button>
+          </div>
+
           <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 sm:gap-3">
             {[
               { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: periodRollup ? "All Time · sum" : "Currency Formula" },
@@ -535,6 +548,7 @@ export default function IncomeStatementPage() {
             </div>
           </section>
         </AccountsPageShell>
+        <IncomeBudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} />
       </main>
     </div>
   );

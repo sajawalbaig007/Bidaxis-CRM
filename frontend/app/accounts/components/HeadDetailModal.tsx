@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Trash2, X, Plus, StickyNote, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
-import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "../utils/payrollFormula";
 import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import ExecutiveSalaryEditor from "./ExecutiveSalaryEditor";
 import SalesPayrollEmployeeEditor from "./salesPayroll/SalesPayrollEmployeeEditor";
@@ -173,8 +173,10 @@ export default function HeadDetailModal({
           ? emptySalaryDetail({ checkIn: "18:00" })
           : isTechMgrKind
             ? emptySalaryDetail({
+                grossSalary: 0,
                 homeAllowance: 0,
                 medicalAllowance: 0,
+                utilityAllowance: 0,
                 travelAllowance: 0,
               })
             : ensureSalaryDetail(undefined, 0)
@@ -182,7 +184,11 @@ export default function HeadDetailModal({
     const amount = salary
       ? isExecKind
         ? computeExecutiveSalary(salary, execProfitBase).totalSalary
-        : (isAdminKind ? computeAdminSalary(salary) : computeSalary(salary)).totalSalary
+        : isAdminKind
+          ? computeAdminSalary(salary).totalSalary
+          : isTechMgrKind
+            ? computeTechnicalManagerSalary(salary).totalSalary
+            : computeSalary(salary).totalSalary
       : 0;
     setDraft(prev => {
       if (!prev) return prev;
@@ -278,7 +284,7 @@ export default function HeadDetailModal({
             )}
             {payrollKind === "technical_manager" && salaryMode && (
               <p className="text-[10px] font-bold text-violet-700 mt-0.5">
-                Technical Manager — Basic · Home · Medical · Travel allowances · same deductions as technical team
+                Technical Manager — Gross package: Basic 50% · Medical 10% · Home 20% · Utility 10% · Travel 10% · PF 8% of Basic · Net = Gross − PF − Tax
               </p>
             )}
           </div>
@@ -513,17 +519,23 @@ export default function HeadDetailModal({
                   }
                   const isAdminSub = payrollKind === "admin";
                   const employeePayrollKind = resolveSubPayrollKind(s, draft.title, payrollKind);
+                  const isTechMgrSub =
+                    employeePayrollKind === "technical_manager" || payrollKind === "technical_manager";
                   const sal = isAdminSub
                     ? emptySalaryDetail({
                         ...(s.salary ?? { basic: s.amount }),
                         checkIn: s.salary?.checkIn || "18:00",
                       })
                     : ensureSalaryDetail(s.salary, s.amount);
-                  const net = (isAdminSub ? computeAdminSalary(sal) : computeSalary(sal)).totalSalary;
+                  const net = isAdminSub
+                    ? computeAdminSalary(sal).totalSalary
+                    : isTechMgrSub
+                      ? computeTechnicalManagerSalary(sal).totalSalary
+                      : computeSalary(sal).totalSalary;
                   const slipKind =
-                    isAdminSub ? "admin" : employeePayrollKind === "technical_manager" ? "technical_manager" : "technical";
+                    isAdminSub ? "admin" : isTechMgrSub ? "technical_manager" : "technical";
                   const editorVariant =
-                    isAdminSub ? "admin" : employeePayrollKind === "technical_manager" ? "technical_manager" : "technical";
+                    isAdminSub ? "admin" : isTechMgrSub ? "technical_manager" : "technical";
                   return (
                     <div key={s.id} className="rounded-xl border border-gray-200 overflow-hidden">
                       <div className="flex items-center gap-2 px-2.5 py-2 bg-[#F8FAFC]">
@@ -555,7 +567,11 @@ export default function HeadDetailModal({
                             value={sal}
                             variant={editorVariant}
                             onChange={next => {
-                              const total = (isAdminSub ? computeAdminSalary(next) : computeSalary(next)).totalSalary;
+                              const total = isAdminSub
+                                ? computeAdminSalary(next).totalSalary
+                                : isTechMgrSub
+                                  ? computeTechnicalManagerSalary(next).totalSalary
+                                  : computeSalary(next).totalSalary;
                               updateSub(s.id, { salary: next, amount: total });
                             }}
                           />

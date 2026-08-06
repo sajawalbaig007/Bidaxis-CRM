@@ -6,7 +6,7 @@
 
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
 import { lineAmount, newRowId, todayIso } from "../types";
-import { computeAdminSalary, computeSalary, emptySalaryDetail } from "./payrollFormula";
+import { computeAdminSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "./payrollFormula";
 import {
   computeSalesEmployeePayroll,
   type SalesPayrollEmployee,
@@ -69,6 +69,7 @@ export function pfFromSalarySub(
 
   const sal = emptySalaryDetail(sub.salary ?? { basic: Number(sub.amount) || 0 });
   if (kind === "admin") return computeAdminSalary(sal).pf;
+  if (kind === "technical_manager") return computeTechnicalManagerSalary(sal).pf;
   return computeSalary(sal).pf;
 }
 

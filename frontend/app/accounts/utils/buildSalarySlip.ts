@@ -5,6 +5,7 @@ import {
   computeAdminSalary,
   computeExecutiveSalary,
   computeSalary,
+  computeTechnicalManagerSalary,
   emptySalaryDetail,
   type EmployeeSalaryDetail,
 } from "./payrollFormula";
@@ -114,27 +115,15 @@ function buildSalesSlipEarnings(
 
 function buildTechnicalManagerEarnings(
   sal: EmployeeSalaryDetail,
-  b: ReturnType<typeof computeSalary>,
 ): SalarySlipLine[] {
-  const home = Number(sal.homeAllowance) || 0;
-  const medical = Number(sal.medicalAllowance) || 0;
-  const travel = Number(sal.travelAllowance) || 0;
+  const tm = computeTechnicalManagerSalary(sal);
   return [
-    { label: "Basic Salary", amount: sal.basic },
-    { label: "Home Allowance", amount: home },
-    { label: "Medical Allowance", amount: medical },
-    { label: "Travel Allowance", amount: travel },
-    { label: "Misc Allowance", amount: sal.allowance },
-    {
-      label: "Weekday Overtime (1.5x)",
-      amount: b.weekdayOtPay,
-      qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
-    },
-    {
-      label: "Weekend Overtime (2x)",
-      amount: b.weekendOtPay,
-      qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
-    },
+    { label: "Gross Salary", amount: tm.grossSalary },
+    { label: "Basic Salary (50%)", amount: tm.basic },
+    { label: "Medical Allowance (10%)", amount: tm.medicalAllowance },
+    { label: "Home Allowance (20%)", amount: tm.homeAllowance },
+    { label: "Utility Allowance (10%)", amount: tm.utilityAllowance },
+    { label: "Travel Allowance (10%)", amount: tm.travelAllowance },
   ];
 }
 
@@ -272,7 +261,11 @@ export function buildSalarySlipFromSub(opts: {
   const sal = emptySalaryDetail(sub.salary ?? { basic: sub.amount });
   const isTechMgr = kind === "technical_manager";
   const isTechnical = kind === "technical" || isTechMgr;
-  const b = kind === "admin" ? computeAdminSalary(sal) : computeSalary(sal);
+  const b = isTechMgr
+    ? computeTechnicalManagerSalary(sal)
+    : kind === "admin"
+      ? computeAdminSalary(sal)
+      : computeSalary(sal);
   const profile = profileFromSalary(sal);
   const home = Number(sal.homeAllowance) || 0;
 
@@ -284,7 +277,7 @@ export function buildSalarySlipFromSub(opts: {
     employeeName: sub.label,
     ...profile,
     earnings: isTechMgr
-      ? buildTechnicalManagerEarnings(sal, b)
+      ? buildTechnicalManagerEarnings(sal)
       : isTechnical
         ? [
             { label: "Basic Salary", amount: sal.basic },
@@ -306,11 +299,17 @@ export function buildSalarySlipFromSub(opts: {
             { label: "Home Allowance", amount: home },
             ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
           ],
-    deductions: standardDeductions(
-      { ...b, loanThisMonth: b.loanThisMonth },
-      sal,
-      b.loanThisMonth,
-    ),
+    deductions: isTechMgr
+      ? [
+          { label: "PF Deduction (8% of Basic)", amount: b.pf },
+          { label: "Tax Amount", amount: b.incomeTax },
+          ...(b.loanThisMonth > 0 ? [{ label: "Loan Deduction", amount: b.loanThisMonth }] : []),
+        ]
+      : standardDeductions(
+          { ...b, loanThisMonth: b.loanThisMonth },
+          sal,
+          b.loanThisMonth,
+        ),
     comments: commentsFrom(sal, sal.unpaidLeaveDays, sal.paidLeaveDays),
     employeePf: b.pf,
     employerPf: b.pf,

@@ -4,7 +4,7 @@ import { useState, Fragment } from "react";
 import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
-import { computeAdminSalary, computeExecutiveSalary, computeSalary, emptySalaryDetail } from "../utils/payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "../utils/payrollFormula";
 import {
   resolvePayrollKind,
   resolveSubPayrollKind,
@@ -506,7 +506,9 @@ export default function ExpandableHeadsTable({
                                     const b = sal
                                       ? subKind === "admin"
                                         ? computeAdminSalary(sal)
-                                        : computeSalary(sal)
+                                        : subKind === "technical_manager"
+                                          ? computeTechnicalManagerSalary(sal)
+                                          : computeSalary(sal)
                                       : null;
                                     const slipKind =
                                       subKind === "admin"
