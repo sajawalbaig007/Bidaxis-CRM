@@ -24,10 +24,12 @@ import {
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import { accountsUploadFolder } from "../utils/accountsStorage";
 import {
-  accumulateIncomeStatementIntoBudget,
-  BUDGET_LINE_DEFS,
-  emptyBudgetActuals,
+  accumulateCoreBudget,
+  accumulateOpexSubs,
+  CORE_BUDGET_LINE_DEFS,
+  emptyCoreActuals,
   quarterMonths,
+  type OpexSubBucket,
 } from "../utils/incomeBudget";
 
 function todayIsoDate(): string {
@@ -558,17 +560,26 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
 }
 
 /**
- * Aggregate Income Statement actuals for a 3-month (or custom month) range,
+ * Aggregate Income Statement actuals for a date/month range,
  * grouped into budget buckets (Sales combined, Technical combined, …).
- * Query: ?quarter=2026-Q1  OR  ?start=2026-01&end=2026-03
+ * Query: ?from=YYYY-MM-DD&to=YYYY-MM-DD  OR  ?start=2026-01&end=2026-03  OR  ?quarter=2026-Q1
  */
 export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
   try {
     const quarter = String(req.query.quarter ?? "").trim();
+    const fromQ = String(req.query.from ?? "").trim();
+    const toQ = String(req.query.to ?? "").trim();
     let startMonth = String(req.query.start ?? "").trim();
     let endMonth = String(req.query.end ?? "").trim();
+    let fromDate = "";
+    let toDate = "";
 
-    if (quarter) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fromQ) && /^\d{4}-\d{2}-\d{2}$/.test(toQ)) {
+      fromDate = fromQ;
+      toDate = toQ;
+      startMonth = fromQ.slice(0, 7);
+      endMonth = toQ.slice(0, 7);
+    } else if (quarter) {
       const q = quarterMonths(quarter);
       startMonth = q.startMonth;
       endMonth = q.endMonth;
@@ -577,17 +588,19 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
     if (!/^\d{4}-\d{2}$/.test(startMonth) || !/^\d{4}-\d{2}$/.test(endMonth)) {
       return res.status(400).json({
         success: false,
-        message: "Provide quarter=YYYY-Qn or start/end as YYYY-MM.",
+        message: "Provide from/to (YYYY-MM-DD), quarter=YYYY-Qn, or start/end as YYYY-MM.",
       });
     }
     if (startMonth > endMonth) {
       return res.status(400).json({ success: false, message: "start must be ≤ end." });
     }
 
-    const fromDate = `${startMonth}-01`;
-    const [ey, em] = endMonth.split("-").map(Number);
-    const lastDay = new Date(Date.UTC(ey!, em!, 0)).getUTCDate();
-    const toDate = `${endMonth}-${String(lastDay).padStart(2, "0")}`;
+    if (!fromDate) {
+      fromDate = `${startMonth}-01`;
+      const [ey, em] = endMonth.split("-").map(Number);
+      const lastDay = new Date(Date.UTC(ey!, em!, 0)).getUTCDate();
+      toDate = `${endMonth}-${String(lastDay).padStart(2, "0")}`;
+    }
 
     const [isRecs, dashRecs] = await Promise.all([
       prisma.accountsRecord.findMany({
@@ -611,11 +624,21 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
     );
 
-    const actuals = emptyBudgetActuals();
+    const actuals = emptyCoreActuals();
+    const byMonth: Record<string, ReturnType<typeof emptyCoreActuals>> = {};
+    const opexSubsTotal: Record<string, OpexSubBucket> = {};
+    const opexSubsByMonth: Record<string, Record<string, OpexSubBucket>> = {};
+
     for (const rec of isRecs) {
+      const ym = rec.recordDate.slice(0, 7);
+      if (!byMonth[ym]) byMonth[ym] = emptyCoreActuals();
+      if (!opexSubsByMonth[ym]) opexSubsByMonth[ym] = {};
       const data = prepareIncomeStatement(rec.data as Record<string, unknown>);
       const revenue = currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
-      accumulateIncomeStatementIntoBudget(data, actuals, revenue);
+      accumulateCoreBudget(data, actuals, revenue);
+      accumulateCoreBudget(data, byMonth[ym]!, revenue);
+      accumulateOpexSubs(data, opexSubsTotal);
+      accumulateOpexSubs(data, opexSubsByMonth[ym]!);
     }
 
     const payroll =
@@ -625,8 +648,22 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       actuals.administration +
       actuals.executive +
       actuals.other_payroll;
-    const totalExpense = payroll + actuals.opex;
+    const opexTotal = Object.values(opexSubsTotal).reduce((a, r) => a + r.amount, 0);
+    const totalExpense = payroll + opexTotal;
     const netProfit = actuals.revenue - totalExpense;
+
+    const opexLines = Object.values(opexSubsTotal)
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(d => ({
+        key: d.key,
+        headLabel: d.headLabel,
+        subLabel: d.subLabel,
+        label: d.label,
+        actual: d.amount,
+        months: Object.fromEntries(
+          Object.entries(opexSubsByMonth).map(([ym, map]) => [ym, map[d.key]?.amount ?? 0]),
+        ),
+      }));
 
     return res.json({
       success: true,
@@ -636,16 +673,34 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       toDate,
       daysRecorded: isRecs.length,
       actuals,
+      byMonth,
+      opexLines,
       totals: {
         payroll,
+        opex: opexTotal,
         totalExpense,
         netProfit,
       },
-      lines: BUDGET_LINE_DEFS.map(d => ({
-        key: d.key,
-        label: d.label,
-        actual: actuals[d.key],
-      })),
+      lines: [
+        ...CORE_BUDGET_LINE_DEFS.map(d => ({
+          key: d.key,
+          label: d.label,
+          kind: "core" as const,
+          actual: actuals[d.key],
+          months: Object.fromEntries(
+            Object.entries(byMonth).map(([ym, vals]) => [ym, vals[d.key]]),
+          ),
+        })),
+        ...opexLines.map(d => ({
+          key: d.key,
+          label: d.label,
+          kind: "opex_sub" as const,
+          headLabel: d.headLabel,
+          subLabel: d.subLabel,
+          actual: d.actual,
+          months: d.months,
+        })),
+      ],
     });
   } catch (err) {
     console.log(err);

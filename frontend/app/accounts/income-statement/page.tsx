@@ -14,6 +14,7 @@ import AccountsPageShell from "../components/AccountsPageShell";
 import AccountsChartCard, { CHART_COLORS } from "../components/AccountsChartCard";
 import ExpandableHeadsTable, { type ExpandableHeadRow } from "../components/ExpandableHeadsTable";
 import IncomeBudgetModal from "../components/IncomeBudgetModal";
+import BudgetVsActualCharts from "../components/BudgetVsActualCharts";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { accountsShellProps } from "../utils/accountsShellProps";
 import { useAccountsPage } from "../hooks/useAccountsPage";
@@ -130,6 +131,7 @@ export default function IncomeStatementPage() {
     profit: number;
   } | null>(null);
   const [budgetOpen, setBudgetOpen] = useState(false);
+  const [budgetChartKey, setBudgetChartKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -344,6 +346,12 @@ export default function IncomeStatementPage() {
             ))}
           </section>
 
+          <BudgetVsActualCharts
+            defaultMonth={(acc.recordDate || todayIso()).slice(0, 7)}
+            refreshKey={budgetChartKey}
+            onOpenBudget={() => setBudgetOpen(true)}
+          />
+
           <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mt-5">
             <AccountsChartCard
               title="Expense Mix"
@@ -548,7 +556,13 @@ export default function IncomeStatementPage() {
             </div>
           </section>
         </AccountsPageShell>
-        <IncomeBudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} />
+        <IncomeBudgetModal
+          open={budgetOpen}
+          onClose={() => {
+            setBudgetOpen(false);
+            setBudgetChartKey(k => k + 1);
+          }}
+        />
       </main>
     </div>
   );
