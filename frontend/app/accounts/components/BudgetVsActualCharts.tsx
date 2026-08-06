@@ -90,7 +90,10 @@ export default function BudgetVsActualCharts({
         months?: Record<string, number>;
       }[];
 
-      const actualMap: Record<string, number> = { ...(byMonth[ym] ?? {}) };
+      const actualMap: Record<string, number> = {};
+      for (const [k, v] of Object.entries(byMonth[ym] ?? {})) {
+        actualMap[k] = Number(v) || 0;
+      }
       for (const o of opexLines) {
         actualMap[o.key] = Number(o.months?.[ym]) || Number(actualMap[o.key]) || 0;
       }
@@ -310,14 +313,14 @@ export default function BudgetVsActualCharts({
               ) : (
                 <RechartsBox height={280}>
                   <BarChart
-                    data={rows.length ? rows : [{ name: "—", budget: 0, actual: 0 }]}
+                    data={rows.length ? rows : [{ key: "_", name: "—", budget: 0, actual: 0 }]}
                     barGap={4}
                     barCategoryGap="18%"
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} interval={0} angle={-20} textAnchor="end" height={56} />
                     <YAxis tick={{ fontSize: 10 }} width={56} />
-                    <Tooltip formatter={(v: number | string) => currency(Number(v ?? 0))} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                     <Bar dataKey="budget" name="Budget" fill="#7C3AED" radius={[6, 6, 0, 0]} maxBarSize={28} />
                     <Bar dataKey="actual" name="Actual" fill="#0B84F3" radius={[6, 6, 0, 0]} maxBarSize={28} />
@@ -356,7 +359,7 @@ export default function BudgetVsActualCharts({
                       width={100}
                       tick={{ fontSize: 9, fontWeight: 600 }}
                     />
-                    <Tooltip formatter={(v: number | string) => currency(Number(v ?? 0))} />
+                    <Tooltip formatter={v => currency(Number(v ?? 0))} />
                     <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
                     <Bar dataKey="budget" name="Budget" fill="#D97706" radius={[0, 6, 6, 0]} maxBarSize={14} />
                     <Bar dataKey="actual" name="Actual" fill="#F59E0B" radius={[0, 6, 6, 0]} maxBarSize={14} />
