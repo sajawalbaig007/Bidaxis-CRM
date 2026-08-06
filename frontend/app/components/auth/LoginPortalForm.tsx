@@ -270,7 +270,7 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
   return (
     <>
       <DevToolsGuard />
-      <div className="min-h-[100dvh] relative flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-x-hidden overflow-y-auto">
+      <div className="h-[100dvh] relative flex items-center justify-center p-3 sm:p-4 md:p-5 overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center scale-105"
           style={{
@@ -284,32 +284,22 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
           <ThemeToggle className="!w-9 !h-9 sm:!w-10 sm:!h-10 rounded-xl shadow-sm bg-white/10 border border-white/20 text-white" />
         </div>
 
-        <div className="relative z-10 w-full max-w-[920px] bg-crm-surface/95 dark:bg-crm-surface/98 backdrop-blur-md rounded-2xl sm:rounded-[28px] overflow-hidden flex flex-col md:flex-row shadow-[0_24px_64px_rgba(0,0,0,0.35)] border border-white/10 my-4 sm:my-0">
+        <div className="relative z-10 w-full max-w-[920px] max-h-[calc(100dvh-1.5rem)] bg-crm-surface/95 dark:bg-crm-surface/98 backdrop-blur-md rounded-2xl sm:rounded-[28px] overflow-hidden flex flex-col md:flex-row shadow-[0_24px_64px_rgba(0,0,0,0.35)] border border-white/10">
           <div
-            className="flex md:w-[42%] relative flex-col items-center justify-center px-6 py-8 sm:px-8 sm:py-10 md:p-10 overflow-hidden select-none min-h-[200px] sm:min-h-[240px] md:min-h-0"
+            className="flex md:w-[42%] relative flex-col items-center justify-center px-5 py-6 sm:px-8 sm:py-8 md:p-9 overflow-hidden select-none min-h-[180px] sm:min-h-[200px] md:min-h-0"
             style={{
               background: `linear-gradient(160deg, ${accent} 0%, ${accent}cc 42%, #0F172A 100%)`,
             }}
             onMouseEnter={() => setSlidePaused(true)}
             onMouseLeave={() => setSlidePaused(false)}
           >
-            <div className="absolute top-0 inset-x-0 h-1 bg-white/15 overflow-hidden">
-              <div
-                key={activeSlide}
-                className="h-full origin-left bg-white/90"
-                style={{
-                  animation: slidePaused ? "none" : `loginSlideProgress ${SLIDE_MS}ms linear forwards`,
-                  width: slidePaused ? `${((activeSlide + 1) / loginSlides.length) * 100}%` : undefined,
-                }}
-              />
-            </div>
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
-            <div className="relative z-10 text-center w-full max-w-[280px]">
-              <BrandLogo size="md" className="mb-5 md:mb-7" />
-              <BemWordmark className="text-[14px] md:text-[16px] mb-3 md:mb-4" onDark />
+            <div className="relative z-10 text-center w-full max-w-[280px] flex flex-col items-center">
+              <BrandLogo size="md" className="mb-3 md:mb-4" />
+              <BemWordmark className="text-[15px] md:text-[17px] mb-3 md:mb-4" onDark />
               <div
-                className="relative min-h-[108px] md:min-h-[120px] cursor-pointer"
+                className="relative min-h-[100px] md:min-h-[110px] w-full cursor-pointer"
                 onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}
                 role="presentation"
               >
@@ -320,44 +310,23 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
                       i === activeSlide ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3 pointer-events-none"
                     }`}
                   >
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50 mb-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/80 mb-2">
                       {copy.eyebrow}
                     </p>
-                    <h1 className="text-white text-[22px] md:text-[28px] font-black leading-tight tracking-tight mb-2 md:mb-3">
+                    <h1 className="text-white text-[22px] md:text-[26px] font-black leading-tight tracking-tight mb-2 drop-shadow-sm">
                       {slide.title}
                     </h1>
-                    <p className="text-white/65 text-[12px] md:text-[13px] leading-relaxed mx-auto">{slide.subtitle}</p>
+                    <p className="text-white/85 text-[12px] md:text-[13px] leading-relaxed mx-auto">{slide.subtitle}</p>
                   </div>
                 ))}
-              </div>
-
-              <div className="mt-7 flex flex-col items-center gap-2.5">
-                <div className="flex items-center justify-center gap-2">
-                  {loginSlides.map((slide, i) => (
-                    <button
-                      key={slide.title}
-                      type="button"
-                      aria-label={`Slide ${i + 1}`}
-                      onClick={() => setActiveSlide(i)}
-                      className="h-1.5 rounded-full transition-all duration-300"
-                      style={{
-                        width: i === activeSlide ? 26 : 8,
-                        background: i === activeSlide ? "#fff" : "rgba(255,255,255,0.35)",
-                      }}
-                    />
-                  ))}
-                </div>
-                <p className="text-[10px] text-white/40 font-medium tabular-nums">
-                  {activeSlide + 1} / {loginSlides.length}
-                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col justify-center px-5 py-8 sm:px-8 sm:py-10 md:px-12 md:py-12 min-w-0">
+          <div className="flex-1 flex flex-col justify-center px-5 py-6 sm:px-8 sm:py-8 md:px-12 md:py-10 min-w-0 overflow-y-auto">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-crm-text-muted hover:text-[#B8112D] mb-5 sm:mb-6 transition-colors w-fit"
+              className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-crm-text-muted hover:text-[#B8112D] mb-4 sm:mb-5 transition-colors w-fit"
             >
               <ArrowLeft size={14} /> Back to portal selection
             </Link>
