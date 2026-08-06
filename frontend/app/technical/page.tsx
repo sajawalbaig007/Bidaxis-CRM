@@ -179,7 +179,6 @@ export default function TechnicalDashboardPage() {
                   <tr>
                     <th className="px-4 py-2.5 font-semibold">Code</th>
                     <th className="px-4 py-2.5 font-semibold">Project</th>
-                    <th className="px-4 py-2.5 font-semibold">Client</th>
                     <th className="px-4 py-2.5 font-semibold">Phase</th>
                     <th className="px-4 py-2.5 font-semibold">Deadline</th>
                   </tr>
@@ -188,14 +187,14 @@ export default function TechnicalDashboardPage() {
                   {loading ? (
                     [1, 2, 3, 4].map(i => (
                       <tr key={i} className="border-t border-gray-50">
-                        <td colSpan={5} className="px-4 py-3">
+                        <td colSpan={4} className="px-4 py-3">
                           <div className="h-4 bg-gray-100 rounded animate-pulse w-2/3" />
                         </td>
                       </tr>
                     ))
                   ) : recent.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400 font-medium">
+                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-400 font-medium">
                         No projects yet — they appear here from Admin Project DB.
                       </td>
                     </tr>
@@ -207,9 +206,6 @@ export default function TechnicalDashboardPage() {
                         </td>
                         <td className="px-4 py-3 text-sm font-semibold text-[#0F172A] truncate max-w-[220px]">
                           {p.projectTitle || p.name || "Untitled"}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 truncate max-w-[160px]">
-                          {p.company || "—"}
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {p.projectPhase || "—"}
