@@ -2,9 +2,9 @@ import { currency } from "../../types";
 
 export function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
   return (
-    <span className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+    <span className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
       {children}
-      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-gray-400">{hint}</span>}
+      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-crm-text-faint">{hint}</span>}
     </span>
   );
 }
@@ -34,8 +34,8 @@ export function MockInput({
         placeholder={placeholder}
         className={`mt-1 h-9 w-full rounded-lg border px-2.5 text-sm tabular-nums outline-none transition-colors ${
           readOnly
-            ? "border-gray-100 bg-[#F8FAFC] text-gray-700 cursor-default"
-            : "border-gray-200 bg-white focus:border-[#B8112D] focus:ring-2 focus:ring-[#B8112D]/15"
+            ? "border-crm-border-subtle bg-[#F8FAFC] text-crm-text-secondary cursor-default"
+            : "border-crm-border bg-crm-surface focus:border-[#B8112D] focus:ring-2 focus:ring-[#B8112D]/15"
         }`}
       />
     </label>
@@ -44,9 +44,9 @@ export function MockInput({
 
 export function MockReadout({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-[#F8FAFC] px-2.5 py-2">
+    <div className="rounded-lg border border-crm-border-subtle bg-[#F8FAFC] px-2.5 py-2">
       <FieldLabel>{label}</FieldLabel>
-      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-gray-800"}`}>{value}</p>
+      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-crm-text"}`}>{value}</p>
     </div>
   );
 }
@@ -77,7 +77,7 @@ export function SectionCard({
     <div className={`rounded-xl border p-3 sm:p-4 space-y-3 ${styles.split(" ").slice(1).join(" ")} border-current/10`}>
       <div>
         <p className={`text-[11px] font-extrabold uppercase tracking-wide ${styles.split(" ").pop()}`}>{title}</p>
-        {subtitle && <p className="text-[10px] text-gray-600/90 mt-0.5 leading-relaxed">{subtitle}</p>}
+        {subtitle && <p className="text-[10px] text-crm-text-secondary/90 mt-0.5 leading-relaxed">{subtitle}</p>}
       </div>
       {children}
     </div>

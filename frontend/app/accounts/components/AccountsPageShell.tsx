@@ -45,7 +45,7 @@ type AccountsPageShellProps = {
 };
 
 const inputCls =
-  "mt-1 h-10 w-full rounded-xl border border-gray-200/90 bg-white px-3 text-sm text-gray-800 outline-none transition-shadow focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40";
+  "mt-1 h-10 w-full rounded-xl border border-crm-border bg-crm-input px-3 text-sm text-crm-text outline-none transition-shadow focus:ring-2 focus:ring-[#B8112D]/20 focus:border-[#B8112D]/40";
 
 export default function AccountsPageShell({
   title,
@@ -84,21 +84,21 @@ export default function AccountsPageShell({
   return (
     <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-7 space-y-5">
       {/* Page hero */}
-      <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/60 bg-white shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]">
+      <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-crm-border bg-crm-surface shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]">
         <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-[#B8112D] via-[#E11D48] to-[#FB7185]" />
-        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#B8112D]/[0.04]" />
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#B8112D]/[0.04] dark:bg-[#B8112D]/10" />
         <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 sm:px-6 py-5">
           <div className="min-w-0 pl-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D]/80 mb-1">Accounts</p>
-            <h1 className="text-xl sm:text-2xl md:text-[28px] font-extrabold text-[#0F172A] tracking-tight">{title}</h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1.5 max-w-2xl leading-relaxed">{subtitle}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#B8112D] dark:text-rose-300 mb-1">Accounts</p>
+            <h1 className="text-xl sm:text-2xl md:text-[28px] font-extrabold text-crm-text tracking-tight">{title}</h1>
+            <p className="text-xs sm:text-sm text-crm-text-muted mt-1.5 max-w-2xl leading-relaxed">{subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 pl-2 lg:pl-0">
             {onAddNew && (
               <button
                 type="button"
                 onClick={onAddNew}
-                className="h-10 px-4 rounded-xl bg-[#EAF5FF] text-[#0B84F3] text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#D6EBFF] transition-all hover:shadow-sm"
+                className="h-10 px-4 rounded-xl bg-[#EAF5FF] dark:bg-sky-500/20 text-[#0B84F3] dark:text-sky-300 text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#D6EBFF] dark:hover:bg-sky-500/30 transition-all hover:shadow-sm"
               >
                 <Plus size={16} />
                 {addNewLabel}
@@ -108,7 +108,7 @@ export default function AccountsPageShell({
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading || loading}
-              className="h-10 px-4 rounded-xl bg-[#F3EEFF] text-[#7C3AED] text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#E9DEFF] disabled:opacity-50 transition-all hover:shadow-sm"
+              className="h-10 px-4 rounded-xl bg-[#F3EEFF] dark:bg-violet-500/20 text-[#7C3AED] dark:text-violet-300 text-sm font-semibold inline-flex items-center gap-2 hover:bg-[#E9DEFF] dark:hover:bg-violet-500/30 disabled:opacity-50 transition-all hover:shadow-sm"
             >
               {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
               Upload File
@@ -138,19 +138,19 @@ export default function AccountsPageShell({
       </header>
 
       {/* Filters */}
-      <section className="rounded-2xl sm:rounded-3xl border border-gray-100/80 bg-white shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
-        <div className="px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] via-white to-[#F8FAFC] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <section className="rounded-2xl sm:rounded-3xl border border-crm-border-subtle bg-crm-surface shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+        <div className="px-4 sm:px-5 py-3.5 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] via-white to-[#F8FAFC] dark:from-rose-500/10 dark:via-crm-surface dark:to-crm-muted flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-xl bg-[#FFF1F3] text-[#B8112D] inline-flex items-center justify-center">
+            <span className="w-8 h-8 rounded-xl bg-[#FFF1F3] dark:bg-rose-500/20 text-[#B8112D] dark:text-rose-300 inline-flex items-center justify-center">
               <Filter size={15} />
             </span>
             <div>
-              <h2 className="font-bold text-gray-800 text-sm">Date & Period Filters</h2>
-              <p className="text-[10px] text-gray-400 font-medium">Choose how records are scoped</p>
+              <h2 className="font-bold text-crm-text text-sm">Date & Period Filters</h2>
+              <p className="text-[10px] text-crm-text-faint font-medium">Choose how records are scoped</p>
             </div>
           </div>
           {periodSummary && (
-            <span className="text-[11px] sm:text-xs font-semibold text-[#B8112D] bg-[#FFF1F3] border border-[#F3D7DC]/60 px-3 py-1.5 rounded-full w-fit">
+            <span className="text-[11px] sm:text-xs font-semibold text-[#B8112D] dark:text-rose-300 bg-[#FFF1F3] dark:bg-rose-500/15 border border-[#F3D7DC]/60 dark:border-rose-500/30 px-3 py-1.5 rounded-full w-fit">
               {periodSummary}
             </span>
           )}
@@ -158,10 +158,10 @@ export default function AccountsPageShell({
 
         <div className="p-4 sm:p-5 space-y-4">
           <div>
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <p className="text-[11px] font-semibold text-crm-text-muted uppercase tracking-wide mb-2">
               Quick period
             </p>
-            <div className="inline-flex flex-wrap gap-1 p-1 rounded-2xl bg-[#F4F5F8] border border-gray-100">
+            <div className="inline-flex flex-wrap gap-1 p-1 rounded-2xl bg-crm-muted border border-crm-border-subtle">
               {QUICK_PERIOD_PRESETS.map(key => (
                 <button
                   key={key}
@@ -170,7 +170,7 @@ export default function AccountsPageShell({
                   className={`h-9 px-3.5 rounded-xl text-[11px] sm:text-xs font-semibold transition-all ${
                     activePreset === key
                       ? "bg-[#B8112D] text-white shadow-md shadow-[#B8112D]/20"
-                      : "text-gray-600 hover:bg-white hover:text-[#B8112D]"
+                      : "text-crm-text-secondary hover:bg-crm-surface hover:text-[#B8112D] dark:hover:text-rose-300"
                   }`}
                 >
                   {PERIOD_PRESET_LABELS[key]}
@@ -182,7 +182,7 @@ export default function AccountsPageShell({
           {activePreset === "daily" && onRecordDateChange && (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <label className="text-xs font-semibold text-gray-600">
+                <label className="text-xs font-semibold text-crm-text-secondary">
                   <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Day</span>
                   <input
                     type="date"
@@ -194,7 +194,7 @@ export default function AccountsPageShell({
               </div>
               {recentSavedDays.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mr-1">Saved days</span>
+                  <span className="text-[10px] font-semibold text-crm-text-faint uppercase tracking-wide mr-1">Saved days</span>
                   {recentSavedDays.map(d => (
                     <button
                       key={d}
@@ -203,7 +203,7 @@ export default function AccountsPageShell({
                       className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
                         d === recordDate
                           ? "bg-[#B8112D] text-white"
-                          : "bg-[#F4F5F8] text-gray-600 hover:bg-[#FFF1F3] hover:text-[#B8112D]"
+                          : "bg-crm-muted text-crm-text-secondary hover:bg-[#FFF1F3] dark:hover:bg-rose-500/15 hover:text-[#B8112D] dark:hover:text-rose-300"
                       }`}
                     >
                       {d}
@@ -218,7 +218,7 @@ export default function AccountsPageShell({
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {activePreset === "month" && (
-                  <label className="text-xs font-semibold text-gray-600">
+                  <label className="text-xs font-semibold text-crm-text-secondary">
                     <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Month</span>
                     <input
                       type="month"
@@ -231,7 +231,7 @@ export default function AccountsPageShell({
 
                 {activePreset === "date_range" && (
                   <>
-                    <label className="text-xs font-semibold text-gray-600">
+                    <label className="text-xs font-semibold text-crm-text-secondary">
                       From
                       <input
                         type="date"
@@ -240,7 +240,7 @@ export default function AccountsPageShell({
                         className={inputCls}
                       />
                     </label>
-                    <label className="text-xs font-semibold text-gray-600">
+                    <label className="text-xs font-semibold text-crm-text-secondary">
                       To
                       <input
                         type="date"
@@ -254,10 +254,10 @@ export default function AccountsPageShell({
               </div>
               {pickSavedDate && sortedSavedDays.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  <p className="text-[10px] font-semibold text-crm-text-faint uppercase tracking-wide mb-1.5">
                     Saved in this period ({sortedSavedDays.length})
                   </p>
-                  <div className="min-h-9 max-h-28 overflow-y-auto rounded-xl border border-gray-100 bg-[#FAFAFA] p-2 flex flex-wrap gap-1.5">
+                  <div className="min-h-9 max-h-28 overflow-y-auto rounded-xl border border-crm-border-subtle bg-crm-surface-raised p-2 flex flex-wrap gap-1.5">
                     {sortedSavedDays.map(d => (
                       <button
                         key={d}
@@ -266,7 +266,7 @@ export default function AccountsPageShell({
                         className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
                           d === recordDate
                             ? "bg-[#B8112D] text-white"
-                            : "bg-white text-gray-600 border border-gray-100 hover:border-[#B8112D]/30 hover:text-[#B8112D]"
+                            : "bg-crm-surface text-crm-text-secondary border border-crm-border-subtle hover:border-[#B8112D]/30 hover:text-[#B8112D] dark:hover:text-rose-300"
                         }`}
                       >
                         {d}
@@ -276,14 +276,14 @@ export default function AccountsPageShell({
                 </div>
               )}
               {pickSavedDate && sortedSavedDays.length === 0 && (
-                <p className="text-[11px] text-gray-400">No saved records in this period yet.</p>
+                <p className="text-[11px] text-crm-text-faint">No saved records in this period yet.</p>
               )}
             </div>
           )}
 
           {activePreset === "all_time" && (
-            <p className="text-[11px] text-gray-500">
-              Showing totals through <span className="font-semibold text-gray-700">{new Date().toISOString().slice(0, 10)}</span>
+            <p className="text-[11px] text-crm-text-muted">
+              Showing totals through <span className="font-semibold text-crm-text-secondary">{new Date().toISOString().slice(0, 10)}</span>
               {" "}(all saved days up to today — no date chips).
             </p>
           )}
@@ -291,12 +291,12 @@ export default function AccountsPageShell({
       </section>
 
       {uploads.length > 0 && (
-        <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-4">
+        <section className="rounded-2xl border border-crm-border-subtle bg-crm-surface shadow-sm p-4">
           <div className="flex items-center gap-2 mb-2">
-            <span className="w-7 h-7 rounded-lg bg-[#F3EEFF] text-[#7C3AED] inline-flex items-center justify-center">
+            <span className="w-7 h-7 rounded-lg bg-[#F3EEFF] dark:bg-violet-500/20 text-[#7C3AED] dark:text-violet-300 inline-flex items-center justify-center">
               <FileText size={14} />
             </span>
-            <h3 className="font-bold text-sm text-gray-800">Files for {recordDate}</h3>
+            <h3 className="font-bold text-sm text-crm-text">Files for {recordDate}</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             {uploads.map(u => (
@@ -305,7 +305,7 @@ export default function AccountsPageShell({
                 href={u.fileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-gray-100 text-xs font-semibold text-[#0B84F3] hover:bg-[#EAF5FF] transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-crm-muted border border-crm-border-subtle text-xs font-semibold text-[#0B84F3] dark:text-sky-300 hover:bg-[#EAF5FF] dark:hover:bg-sky-500/15 transition-colors"
               >
                 {u.fileName}
                 <ExternalLink size={12} />
@@ -316,9 +316,9 @@ export default function AccountsPageShell({
       )}
 
       {loading ? (
-        <div className="rounded-2xl border border-gray-100 bg-white p-14 flex flex-col items-center justify-center gap-3 shadow-sm">
-          <Loader2 size={28} className="animate-spin text-[#B8112D]" />
-          <p className="text-xs font-semibold text-gray-400">Loading record…</p>
+        <div className="rounded-2xl border border-crm-border-subtle bg-crm-surface p-14 flex flex-col items-center justify-center gap-3 shadow-sm">
+          <Loader2 size={28} className="animate-spin text-[#B8112D] dark:text-rose-300" />
+          <p className="text-xs font-semibold text-crm-text-faint">Loading record…</p>
         </div>
       ) : (
         children

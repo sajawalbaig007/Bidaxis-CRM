@@ -605,7 +605,7 @@ async function saveAndDownloadWord(report: MonthlyReport): Promise<SavedMonthlyR
 
 /** MoM movement arrow — goodWhenUp: revenue up = green, cost up = red. */
 function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }) {
-  if (v == null) return <span className="text-[9px] text-gray-300">—</span>;
+  if (v == null) return <span className="text-[9px] text-crm-text-faint">—</span>;
   const up = v >= 0;
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
@@ -620,7 +620,7 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
 /** Slim horizontal share bar. */
 function MiniBar({ pct, color }: { pct: number; color: string }) {
   return (
-    <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+    <div className="w-full h-2 rounded-full bg-crm-muted overflow-hidden">
       <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, pct > 0 ? 3 : 0), 100)}%`, background: color }} />
     </div>
   );
@@ -628,16 +628,16 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-[#FFF8F9] to-white">
-        <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">{title}</h2>
+    <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white">
+        <h2 className="font-extrabold text-crm-text text-sm tracking-tight">{title}</h2>
       </div>
       {children}
     </div>
   );
 }
 
-const thCls = "px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400";
+const thCls = "px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-crm-text-faint";
 const tdCls = "px-3 py-2 text-xs";
 
 function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: number }) {
@@ -645,14 +645,14 @@ function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: numb
     <div className="overflow-x-auto">
       <table className="w-full text-sm min-w-130">
         <thead className="bg-[#FAFBFC]">
-          <tr className="border-b border-gray-200/80">
+          <tr className="border-b border-crm-border/80">
             <th className={`${thCls} text-left`}>Head</th>
             <th className={`${thCls} text-right w-40`}>Amount (PKR)</th>
           </tr>
         </thead>
         <tbody>
           {groups.length === 0 ? (
-            <tr><td colSpan={2} className="px-3 py-6 text-center text-gray-400 text-xs">No entries this month.</td></tr>
+            <tr><td colSpan={2} className="px-3 py-6 text-center text-crm-text-faint text-xs">No entries this month.</td></tr>
           ) : (
             groups.map(g => (
               <FragmentRows key={g.name} group={g} />
@@ -661,7 +661,7 @@ function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: numb
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
-            <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs">TOTAL</td>
+            <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
             <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs">{currency(total)}</td>
           </tr>
         </tfoot>
@@ -673,14 +673,14 @@ function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: numb
 function FragmentRows({ group }: { group: CategoryGroup }) {
   return (
     <>
-      <tr className="border-b border-gray-50 bg-white">
-        <td className={`${tdCls} font-bold text-gray-800`}>{group.name}</td>
-        <td className={`${tdCls} text-right font-bold tabular-nums text-gray-900`}>{currency(group.total)}</td>
+      <tr className="border-b border-crm-border-subtle bg-crm-surface">
+        <td className={`${tdCls} font-bold text-crm-text`}>{group.name}</td>
+        <td className={`${tdCls} text-right font-bold tabular-nums text-crm-text`}>{currency(group.total)}</td>
       </tr>
       {group.lines.map(l => (
-        <tr key={`${group.name}-${l.label}`} className="border-b border-gray-50 bg-[#FCFCFD]">
-          <td className="px-3 py-1.5 pl-8 text-[11px] text-gray-500">– {l.label}</td>
-          <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-gray-500">{currency(l.amount)}</td>
+        <tr key={`${group.name}-${l.label}`} className="border-b border-crm-border-subtle bg-[#FCFCFD]">
+          <td className="px-3 py-1.5 pl-8 text-[11px] text-crm-text-muted">– {l.label}</td>
+          <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-crm-text-muted">{currency(l.amount)}</td>
         </tr>
       ))}
     </>
@@ -777,17 +777,17 @@ export default function AccountsReportsPage() {
       <AccountsSidebar />
       <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
         <div id="monthly-report" className="max-w-[1200px] mx-auto px-3 sm:px-5 py-5 space-y-4 scroll-mt-[80px]">
-          <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="w-9 h-9 rounded-xl bg-[#B8112D] text-white inline-flex items-center justify-center shadow-md shadow-[#B8112D]/25">
                   <FileText size={16} />
                 </span>
                 <div>
-                  <h1 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight leading-none">
+                  <h1 className="font-extrabold text-crm-text text-base sm:text-lg tracking-tight leading-none">
                     Executive Summary Report
                   </h1>
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-crm-text-faint mt-1">
                     BEM Solutions · Daily aggregate
                     {report?.daysRecorded != null ? ` · ${report.daysRecorded} day(s)` : ""}
                     {report?.sourceDate ? ` · last ${report.sourceDate}` : ""} · Confidential
@@ -796,14 +796,14 @@ export default function AccountsReportsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-gray-200 bg-[#F8FAFC] text-xs font-bold text-gray-600">
+              <label className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-[#F8FAFC] text-xs font-bold text-crm-text-secondary">
                 <CalendarDays size={14} className="text-[#B8112D]" />
                 <input
                   type="month"
                   value={month}
                   max={currentMonthIso()}
                   onChange={e => setMonth(e.target.value || currentMonthIso())}
-                  className="bg-transparent outline-none text-sm font-semibold text-gray-800"
+                  className="bg-transparent outline-none text-sm font-semibold text-crm-text"
                 />
               </label>
               <button
@@ -820,18 +820,18 @@ export default function AccountsReportsPage() {
           </div>
 
           {loading ? (
-            <div className="bg-white rounded-2xl border border-gray-100/90 py-24 flex flex-col items-center justify-center gap-3 text-gray-400">
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 py-24 flex flex-col items-center justify-center gap-3 text-crm-text-faint">
               <Loader2 size={28} className="animate-spin text-[#B8112D]" />
               <p className="text-sm font-semibold">Building {label} report…</p>
             </div>
           ) : !report ? (
-            <div className="bg-white rounded-2xl border border-gray-100/90 py-24 text-center text-gray-400 text-sm">
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 py-24 text-center text-crm-text-faint text-sm">
               Report did not load — select a month or try again.
             </div>
           ) : (
             <>
-              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-gray-600 leading-relaxed">
-                <b className="text-gray-800">Daily mode:</b> Values added each day on the Income Statement
+              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed">
+                <b className="text-crm-text">Daily mode:</b> Values added each day on the Income Statement
                 are <b>summed</b> into this month&apos;s sections (Team Salaries, OPEX, Loans, PF, Executives, Revenue)
                 — {report.daysRecorded} day(s) recorded
                 {report.sourceDate ? ` · last entry ${report.sourceDate}` : ""}.{" "}
@@ -839,18 +839,18 @@ export default function AccountsReportsPage() {
               </section>
 
               {saved.length > 0 && (
-                <section className="bg-white rounded-2xl border border-gray-100/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-[#EFF8FF] to-white flex items-center gap-2">
+                <section className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#EFF8FF] to-white flex items-center gap-2">
                     <Cloud size={14} className="text-[#0B84F3]" />
-                    <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">Cloudinary Archives — {label}</h2>
-                    <span className="text-[10px] text-gray-400 font-semibold">{saved.length} file(s)</span>
+                    <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Cloudinary Archives — {label}</h2>
+                    <span className="text-[10px] text-crm-text-faint font-semibold">{saved.length} file(s)</span>
                   </div>
                   <ul className="divide-y divide-gray-50">
                     {saved.map(s => (
                       <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-gray-800 truncate">{s.fileName}</p>
-                          <p className="text-[10px] text-gray-400">
+                          <p className="text-xs font-bold text-crm-text truncate">{s.fileName}</p>
+                          <p className="text-[10px] text-crm-text-faint">
                             {new Date(s.createdAt).toLocaleString()}
                             {s.sourceDate ? ` · through ${s.sourceDate}` : ""}
                           </p>
@@ -893,8 +893,8 @@ export default function AccountsReportsPage() {
                 >
                   <Sparkles size={15} />
                 </span>
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  <b className="text-gray-800">{label}</b> posted a net {report.totals.netProfit >= 0 ? "profit" : "loss"} of{" "}
+                <p className="text-xs text-crm-text-secondary leading-relaxed">
+                  <b className="text-crm-text">{label}</b> posted a net {report.totals.netProfit >= 0 ? "profit" : "loss"} of{" "}
                   <b className={report.totals.netProfit >= 0 ? "text-emerald-700" : "text-red-600"}>{signed(report.totals.netProfit)}</b>{" "}
                   ({ins?.profitNote.toLowerCase()}).
                   {ins?.revenueVsPrev != null && <> Revenue moved <b>{signed(ins.revenueVsPrev)}</b> vs previous month</>}
@@ -908,7 +908,7 @@ export default function AccountsReportsPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-160">
                     <thead className="bg-[#FAFBFC]">
-                      <tr className="border-b border-gray-200/80">
+                      <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>Month</th>
                         <th className={`${thCls} text-right`}>Revenue (PKR)</th>
                         <th className={`${thCls} text-right`}>Total Cost (PKR)</th>
@@ -918,16 +918,16 @@ export default function AccountsReportsPage() {
                     </thead>
                     <tbody>
                       {report.history.length === 0 ? (
-                        <tr><td colSpan={5} className="px-3 py-8 text-center text-gray-400 text-xs">No income statement records yet.</td></tr>
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-crm-text-faint text-xs">No income statement records yet.</td></tr>
                       ) : (
                         report.history.map((h, i) => {
                           const prev = i > 0 ? report.history[i - 1] : null;
                           return (
                             <tr
                               key={h.month}
-                              className={`border-b border-gray-50 ${h.month === report.month ? "bg-[#FFF6F8]" : "bg-white"}`}
+                              className={`border-b border-crm-border-subtle ${h.month === report.month ? "bg-[#FFF6F8]" : "bg-crm-surface"}`}
                             >
-                              <td className={`${tdCls} font-bold text-gray-800`}>
+                              <td className={`${tdCls} font-bold text-crm-text`}>
                                 {monthShort(h.month)}
                                 {h.month === report.month && <span className="ml-2 text-[9px] font-bold text-[#B8112D] uppercase">This report</span>}
                               </td>
@@ -952,8 +952,8 @@ export default function AccountsReportsPage() {
                     </tbody>
                     {report.history.length > 0 && (
                       <tfoot>
-                        <tr className="border-t-2 border-gray-200 bg-[#FAFBFC]">
-                          <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs">TOTAL</td>
+                        <tr className="border-t-2 border-crm-border bg-[#FAFBFC]">
+                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
                           <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(histTotals.revenue)}</td>
                           <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(histTotals.cost)}</td>
                           <td className={`px-3 py-2.5 text-right font-extrabold tabular-nums text-xs ${histTotals.net >= 0 ? "text-emerald-600" : "text-red-600"}`}>{signed(histTotals.net)}</td>
@@ -985,7 +985,7 @@ export default function AccountsReportsPage() {
                         </Bar>
                       </BarChart>
                     </RechartsBox>
-                    <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
+                    <p className="text-[11px] text-crm-text-muted mt-2 flex items-center gap-1.5">
                       <TrendingUp size={13} className="text-[#B8112D] shrink-0" />
                       {label}: {signed(report.totals.netProfit)} net — {ins?.profitNote}.
                       {ins?.netVsPrev != null && ` Swing vs previous month: ${signed(ins.netVsPrev)}.`}
@@ -1009,7 +1009,7 @@ export default function AccountsReportsPage() {
                         <Bar dataKey="cost" name="Total Cost" fill="#F97066" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </RechartsBox>
-                    <p className="text-[11px] text-gray-500 mt-2">
+                    <p className="text-[11px] text-crm-text-muted mt-2">
                       When the blue bar is above coral — profit month. {monthShort(report.month)}:{" "}
                       {pkr(report.totals.revenue)} revenue vs {pkr(report.totals.totalCost)} cost.
                     </p>
@@ -1029,7 +1029,7 @@ export default function AccountsReportsPage() {
                         const good = m.goodWhenUp ? m.v >= 0 : m.v < 0;
                         return (
                           <div key={m.name} className="px-4 py-3 flex items-center justify-between gap-3">
-                            <p className="text-xs font-bold text-gray-700">{m.name}</p>
+                            <p className="text-xs font-bold text-crm-text-secondary">{m.name}</p>
                             <div className="flex items-center gap-2.5">
                               <span className={`text-sm font-extrabold tabular-nums ${good ? "text-emerald-600" : "text-red-500"}`}>
                                 {signed(m.v)}
@@ -1043,13 +1043,13 @@ export default function AccountsReportsPage() {
                       })}
                     </div>
                   ) : (
-                    <p className="px-4 py-8 text-center text-gray-400 text-xs">No previous-month data — comparison is not available.</p>
+                    <p className="px-4 py-8 text-center text-crm-text-faint text-xs">No previous-month data — comparison is not available.</p>
                   )}
                 </SectionCard>
 
                 <SectionCard title={`5. Cost Mix — ${pkr(report.totals.totalCost)}`}>
                   {costMix.length === 0 ? (
-                    <p className="px-4 py-8 text-center text-gray-400 text-xs">No cost entries this month.</p>
+                    <p className="px-4 py-8 text-center text-crm-text-faint text-xs">No cost entries this month.</p>
                   ) : (
                     <div className="p-4" id="report-chart-costmix">
                       <RechartsBox height={200}>
@@ -1065,11 +1065,11 @@ export default function AccountsReportsPage() {
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
                         {costMix.map(c => (
                           <div key={c.name} className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
+                            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-crm-text-secondary">
                               <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: c.color }} />
                               {c.name}
                             </span>
-                            <span className="text-[11px] font-bold tabular-nums text-gray-800">
+                            <span className="text-[11px] font-bold tabular-nums text-crm-text">
                               {((c.value / Math.max(report.totals.totalCost, 1)) * 100).toFixed(1)}%
                             </span>
                           </div>
@@ -1084,18 +1084,18 @@ export default function AccountsReportsPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-100">
                     <thead className="bg-[#FAFBFC]">
-                      <tr className="border-b border-gray-200/80">
+                      <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>Account</th>
                         <th className={`${thCls} text-right w-44`}>Balance (PKR)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {report.cash.banks.length === 0 ? (
-                        <tr><td colSpan={2} className="px-3 py-6 text-center text-gray-400 text-xs">No cash flow entries recorded.</td></tr>
+                        <tr><td colSpan={2} className="px-3 py-6 text-center text-crm-text-faint text-xs">No cash flow entries recorded.</td></tr>
                       ) : (
                         report.cash.banks.map(b => (
-                          <tr key={b.bank} className="border-b border-gray-50">
-                            <td className={`${tdCls} font-semibold text-gray-700`}>{b.bank}</td>
+                          <tr key={b.bank} className="border-b border-crm-border-subtle">
+                            <td className={`${tdCls} font-semibold text-crm-text-secondary`}>{b.bank}</td>
                             <td className={`${tdCls} text-right tabular-nums font-semibold`}>{currency(b.balance)}</td>
                           </tr>
                         ))
@@ -1103,7 +1103,7 @@ export default function AccountsReportsPage() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-[#0D9488]/25 bg-[#0D9488]/5">
-                        <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs">TOTAL AVAILABLE CASH (NET)</td>
+                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL AVAILABLE CASH (NET)</td>
                         <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#0D9488] text-xs">{currency(report.cash.closingNet)}</td>
                       </tr>
                     </tfoot>
@@ -1115,7 +1115,7 @@ export default function AccountsReportsPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[1100px]">
                     <thead className="bg-[#FAFBFC]">
-                      <tr className="border-b border-gray-200/80">
+                      <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>CSR</th>
                         <th className={`${thCls} text-left`}>Role</th>
                         <th className={`${thCls} text-center`}>Assigned TL</th>
@@ -1136,19 +1136,19 @@ export default function AccountsReportsPage() {
                     <tbody>
                       {report.csr.rows.length === 0 ? (
                         <tr>
-                          <td colSpan={15} className="px-3 py-6 text-center text-gray-400 text-xs">
+                          <td colSpan={15} className="px-3 py-6 text-center text-crm-text-faint text-xs">
                             No sales / team-lead CSRs recorded this month.
                           </td>
                         </tr>
                       ) : (
                         report.csr.rows.map(r => (
-                          <tr key={`${r.code}-${r.name}`} className="border-b border-gray-50">
-                            <td className={`${tdCls} font-semibold text-gray-700`}>
+                          <tr key={`${r.code}-${r.name}`} className="border-b border-crm-border-subtle">
+                            <td className={`${tdCls} font-semibold text-crm-text-secondary`}>
                               {r.name}
-                              {r.code ? <span className="block text-[10px] font-normal text-gray-400">{r.code}</span> : null}
+                              {r.code ? <span className="block text-[10px] font-normal text-crm-text-faint">{r.code}</span> : null}
                             </td>
-                            <td className={`${tdCls} text-gray-600`}>{r.roleLabel}</td>
-                            <td className={`${tdCls} text-center text-gray-600`}>{r.assignedToLead ? "Yes" : "—"}</td>
+                            <td className={`${tdCls} text-crm-text-secondary`}>{r.roleLabel}</td>
+                            <td className={`${tdCls} text-center text-crm-text-secondary`}>{r.assignedToLead ? "Yes" : "—"}</td>
                             <td className={`${tdCls} text-right tabular-nums`}>{r.oldProjects}</td>
                             <td className={`${tdCls} text-right tabular-nums`}>{r.partialCount}</td>
                             <td className={`${tdCls} text-right tabular-nums`}>{r.newProjects}</td>
@@ -1176,8 +1176,8 @@ export default function AccountsReportsPage() {
                       )}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t-2 border-gray-200 bg-[#FAFBFC]">
-                        <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs" colSpan={3}>TOTAL</td>
+                      <tr className="border-t-2 border-crm-border bg-[#FAFBFC]">
+                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={3}>TOTAL</td>
                         <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.oldProjects ?? 0}</td>
                         <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.partialCount ?? 0}</td>
                         <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.newProjects ?? 0}</td>
@@ -1217,7 +1217,7 @@ export default function AccountsReportsPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-200">
                     <thead className="bg-[#FAFBFC]">
-                      <tr className="border-b border-gray-200/80">
+                      <tr className="border-b border-crm-border/80">
                         <th className={`${thCls} text-left`}>Executive</th>
                         <th className={`${thCls} text-right`}>Basic (PKR)</th>
                         <th className={`${thCls} text-right`}>Comm. %</th>
@@ -1230,18 +1230,18 @@ export default function AccountsReportsPage() {
                     </thead>
                     <tbody>
                       {report.executives.length === 0 ? (
-                        <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400 text-xs">No executive salary entries this month.</td></tr>
+                        <tr><td colSpan={8} className="px-3 py-6 text-center text-crm-text-faint text-xs">No executive salary entries this month.</td></tr>
                       ) : (
                         report.executives.map(e => (
-                          <tr key={e.name} className="border-b border-gray-50">
-                            <td className={`${tdCls} font-semibold text-gray-700`}>{e.name}</td>
+                          <tr key={e.name} className="border-b border-crm-border-subtle">
+                            <td className={`${tdCls} font-semibold text-crm-text-secondary`}>{e.name}</td>
                             <td className={`${tdCls} text-right tabular-nums`}>{currency(e.basic)}</td>
                             <td className={`${tdCls} text-right tabular-nums text-indigo-600 font-bold`}>{e.commissionPct}%</td>
                             <td className={`${tdCls} text-right tabular-nums text-emerald-700`}>{currency(e.commission)}</td>
                             <td className={`${tdCls} text-right tabular-nums font-bold text-[#B8112D]`}>{currency(e.total)}</td>
                             <td className={`${tdCls} text-right tabular-nums`}>{currency(e.loanPositive)}</td>
                             <td className={`${tdCls} text-right tabular-nums text-red-600`}>{currency(e.loanNegative)}</td>
-                            <td className={`${tdCls} text-gray-500 max-w-45 truncate`} title={e.remarks || undefined}>{e.remarks || "—"}</td>
+                            <td className={`${tdCls} text-crm-text-muted max-w-45 truncate`} title={e.remarks || undefined}>{e.remarks || "—"}</td>
                           </tr>
                         ))
                       )}
@@ -1249,7 +1249,7 @@ export default function AccountsReportsPage() {
                     {report.executives.length > 0 && (
                       <tfoot>
                         <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
-                          <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs">TOTAL SALARY</td>
+                          <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL SALARY</td>
                           <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.executives.reduce((s, e) => s + e.basic, 0))}</td>
                           <td />
                           <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-emerald-700">{currency(report.executives.reduce((s, e) => s + e.commission, 0))}</td>
@@ -1262,7 +1262,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <p className="text-center text-[10px] text-gray-400 pb-6">
+              <p className="text-center text-[10px] text-crm-text-faint pb-6">
                 Generated from CRM Accounts daily records · {label} · Confidential
               </p>
             </>

@@ -26,23 +26,24 @@ function Num({
   hint?: string;
 }) {
   return (
-    <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+    <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
       {label}
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
       />
-      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-gray-400">{hint}</span>}
+      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-crm-text-faint">{hint}</span>}
     </label>
   );
 }
 
-function Read({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Read({ label, value, accent, hint }: { label: string; value: string; accent?: string; hint?: string }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-[#F8FAFC] px-2.5 py-2">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
-      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-gray-800"}`}>{value}</p>
+    <div className="rounded-lg border border-crm-border-subtle bg-[#F8FAFC] px-2.5 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">{label}</p>
+      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-crm-text"}`}>{value}</p>
+      {hint && <p className="text-[9px] text-crm-text-faint mt-0.5 leading-snug">{hint}</p>}
     </div>
   );
 }
@@ -55,13 +56,44 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3">
+    <div className="space-y-3 rounded-xl border border-crm-border bg-crm-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-extrabold text-gray-800">{name || "Executive"}</p>
-          {teamHint && <p className="text-[10px] text-gray-400">{teamHint}</p>}
+          <p className="text-sm font-extrabold text-crm-text">{name || "Executive"}</p>
+          {teamHint && <p className="text-[10px] text-crm-text-faint">{teamHint}</p>}
         </div>
-        <p className="text-xs font-extrabold text-[#B8112D] tabular-nums">Total Salary: {currency(b.totalSalary)}</p>
+        <div className="text-right">
+          <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">Total due to {name || "executive"}</p>
+          <p className="text-base font-black tabular-nums text-[#B8112D]">{currency(b.totalPayable)}</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">
+          Total payable this period
+        </p>
+        <p className="text-[10px] text-crm-text-muted">
+          Basic + Commission + Loan+ve − Loan−ve = amount due to this executive
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Read label="Basic" value={currency(b.basic)} />
+          <Read label="+ Commission" value={currency(b.commission)} accent="text-emerald-700" />
+          <Read label="+ Loan owed to them" value={currency(b.loanPositive)} accent="text-orange-700" />
+          <Read label="− Loan they owe" value={currency(b.loanNegative)} accent="text-red-600" />
+        </div>
+        <div className="rounded-xl border border-[#B8112D]/25 bg-crm-surface px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#B8112D]/80">
+              Total due to {name || "this executive"}
+            </p>
+            <p className="text-[10px] text-crm-text-faint mt-0.5">
+              Salary {currency(b.totalSalary)}
+              {b.loanPositive > 0 ? ` · + loan ${currency(b.loanPositive)}` : ""}
+              {b.loanNegative > 0 ? ` · − recover ${currency(b.loanNegative)}` : ""}
+            </p>
+          </div>
+          <p className="text-xl font-black tabular-nums text-[#B8112D]">{currency(b.totalPayable)}</p>
+        </div>
       </div>
 
       <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-2.5 space-y-2">
@@ -74,12 +106,22 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           <Num label="Commission %" value={d.commissionPct ?? 0} onChange={v => set("commissionPct", v)} step="0.5" />
           <Read label="Commission Amount" value={currency(b.commission)} accent="text-emerald-700" />
         </div>
+        {b.commissionBase <= 0 && (
+          <p className="text-[10px] font-semibold text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
+            Net profit base is 0 for this day — commission stays 0. Fill Currency Formula revenue (and keep expenses below revenue) to unlock commission. Total salary still = Basic.
+          </p>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
         <Read label="Commission" value={currency(b.commission)} accent="text-emerald-700" />
-        <Read label="Total Salary (Basic + Commission)" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
+        <Read
+          label="Total Salary"
+          value={currency(b.totalSalary)}
+          accent="text-[#B8112D]"
+          hint="Basic + Commission"
+        />
       </div>
 
       <div className="rounded-xl border border-orange-100 bg-orange-50/30 p-2.5 space-y-2">
@@ -89,25 +131,25 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
             label="Loan +ve (company owes them)"
             value={d.loanPositive ?? 0}
             onChange={v => set("loanPositive", v)}
-            hint="Amount the company owes this executive"
+            hint="Added to total payable"
           />
           <Num
             label="Loan −ve (they owe company)"
             value={d.loanNegative ?? 0}
             onChange={v => set("loanNegative", v)}
-            hint="Amount this executive owes the company"
+            hint="Subtracted from total payable"
           />
         </div>
       </div>
 
-      <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+      <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
         Remarks
         <textarea
           value={d.remarks}
           onChange={e => set("remarks", e.target.value)}
           rows={2}
           placeholder="Manual remarks…"
-          className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm outline-none resize-none focus:border-[#B8112D]"
+          className="mt-1 w-full rounded-lg border border-crm-border bg-crm-surface px-2 py-1.5 text-sm outline-none resize-none focus:border-[#B8112D]"
         />
       </label>
     </div>

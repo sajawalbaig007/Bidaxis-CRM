@@ -26,7 +26,7 @@ export default function AccountsNotesCell({
   const older = sorted.slice(1);
 
   if (!latest) {
-    return <span className={`text-gray-300 text-xs ${className}`}>—</span>;
+    return <span className={`text-crm-text-faint text-xs ${className}`}>—</span>;
   }
 
   const preview =
@@ -37,7 +37,7 @@ export default function AccountsNotesCell({
       <div className="flex items-start gap-1.5">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold text-amber-700 tabular-nums leading-tight">{latest.date}</p>
-          <p className="text-xs text-gray-700 leading-snug line-clamp-2" title={latest.text}>
+          <p className="text-xs text-crm-text-secondary leading-snug line-clamp-2" title={latest.text}>
             {preview}
           </p>
         </div>
@@ -66,7 +66,7 @@ export default function AccountsNotesCell({
             {older.map(n => (
               <li key={n.id} className="px-2 py-1.5">
                 <p className="text-[10px] font-bold text-amber-700 tabular-nums">{n.date}</p>
-                <p className="text-[11px] text-gray-700 leading-snug whitespace-pre-wrap">{n.text || "—"}</p>
+                <p className="text-[11px] text-crm-text-secondary leading-snug whitespace-pre-wrap">{n.text || "—"}</p>
               </li>
             ))}
           </ul>

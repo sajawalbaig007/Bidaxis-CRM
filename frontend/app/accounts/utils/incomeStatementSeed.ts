@@ -1,6 +1,6 @@
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
 import { lineAmount, newRowId, todayIso } from "../types";
-import { computeExecutiveSalary, emptySalaryDetail } from "./payrollFormula";
+import { computeExecutiveSalary, emptySalaryDetail, ensureExecutiveSalaryDetail } from "./payrollFormula";
 import {
   emptySalesPayrollEmployee,
   resolvePayrollKind,
@@ -541,11 +541,17 @@ export function recomputeExecutiveTeam(data: IncomeStatementData): IncomeStateme
   const team = teams[idx];
   let changed = false;
   const subHeads = (team.subHeads ?? []).map(s => {
-    if (!s.salary) return s;
-    const total = computeExecutiveSalary(s.salary, base).totalSalary;
-    if (Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
+    const sal = ensureExecutiveSalaryDetail(s.salary, s.amount, {
+      commissionPct: s.salary?.commissionPct ?? execPctForLabel(s.label),
+    });
+    const total = computeExecutiveSalary(sal, base).totalSalary;
+    const salaryChanged =
+      !s.salary ||
+      Number(s.salary.basic) !== sal.basic ||
+      Number(s.salary.commissionPct) !== sal.commissionPct;
+    if (!salaryChanged && Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
     changed = true;
-    return { ...s, amount: total };
+    return { ...s, salary: sal, amount: total };
   });
   if (!changed) return data;
 

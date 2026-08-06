@@ -22,13 +22,13 @@ export default function AccountsChartCard({
 }: AccountsChartCardProps) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-100/90 bg-white shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] ${className}`}
+      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl border border-crm-border-subtle bg-crm-surface shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] ${className}`}
     >
       <div
         className="absolute inset-x-0 top-0 h-1 opacity-90"
         style={{ background: `linear-gradient(90deg, ${accent}, ${accent}55, transparent)` }}
       />
-      <div className="absolute -right-10 -top-10 w-36 h-36 rounded-full opacity-[0.07]" style={{ background: accent }} />
+      <div className="absolute -right-10 -top-10 w-36 h-36 rounded-full opacity-[0.07] dark:opacity-[0.12]" style={{ background: accent }} />
       <div className="relative px-4 sm:px-5 pt-4 pb-2 flex items-start gap-2.5">
         {icon && (
           <span
@@ -39,8 +39,8 @@ export default function AccountsChartCard({
           </span>
         )}
         <div className="min-w-0">
-          <h2 className="font-extrabold text-gray-800 text-sm tracking-tight">{title}</h2>
-          {subtitle && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{subtitle}</p>}
+          <h2 className="font-extrabold text-crm-text text-sm tracking-tight">{title}</h2>
+          {subtitle && <p className="text-[11px] text-crm-text-faint mt-0.5 leading-snug">{subtitle}</p>}
         </div>
       </div>
       <div className="relative px-2 sm:px-3 pb-4">{children}</div>

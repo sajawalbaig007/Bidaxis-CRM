@@ -549,7 +549,7 @@ export default function IncomeStatementPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1 text-sm font-bold">
-              <span className="text-gray-600">
+              <span className="text-crm-text-secondary">
                 Total Expense (Salaries + OPEX): {currency(totalExpense)}
               </span>
               <span className="text-[#12B76A]">Net Profit ({netMargin.toFixed(2)}%): {currency(netProfit)}</span>

@@ -61,10 +61,19 @@ function ensureExecutiveSalaryDefaults(data: Record<string, unknown>): Record<st
         existing?.commissionPct != null && Number.isFinite(Number(existing.commissionPct))
           ? Number(existing.commissionPct)
           : execPctForLabel(label);
+      const basic =
+        Number(existing?.basic) > 0
+          ? Number(existing?.basic)
+          : Number(s.amount) || 0;
+      const loanPositive = Number(existing?.loanPositive) || 0;
+      const loanNegative = Number(existing?.loanNegative) || 0;
+      const remarks = String(existing?.remarks ?? "");
       if (
         existing &&
         Number(existing.commissionPct) === pct &&
-        existing.basic != null
+        Number(existing.basic) === basic &&
+        Number(existing.loanPositive) === loanPositive &&
+        Number(existing.loanNegative) === loanNegative
       ) {
         return s;
       }
@@ -73,11 +82,11 @@ function ensureExecutiveSalaryDefaults(data: Record<string, unknown>): Record<st
         ...s,
         salary: {
           ...(existing ?? {}),
-          basic: Number(existing?.basic) || 0,
+          basic,
           commissionPct: pct,
-          loanPositive: Number(existing?.loanPositive) || 0,
-          loanNegative: Number(existing?.loanNegative) || 0,
-          remarks: String(existing?.remarks ?? ""),
+          loanPositive,
+          loanNegative,
+          remarks,
         },
       };
     });
@@ -113,13 +122,27 @@ export function recomputeExecutiveTeamInIncomeStatement(
   const team = teams[idx];
   let changed = withDefaults !== data;
   const subHeads = (team.subHeads ?? []).map(s => {
-    if (!s.salary) return s;
-    const basic = Number(s.salary.basic) || 0;
-    const pct = Number(s.salary.commissionPct) || 0;
+    const basic =
+      Number(s.salary?.basic) > 0 ? Number(s.salary?.basic) : Number(s.amount) || 0;
+    const pct = Number(s.salary?.commissionPct) || 0;
     const total = basic + (base * pct) / 100;
-    if (Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
+    const nextSalary = {
+      ...(s.salary ?? {}),
+      basic,
+      commissionPct: pct,
+      loanPositive: Number(s.salary?.loanPositive) || 0,
+      loanNegative: Number(s.salary?.loanNegative) || 0,
+      remarks: String(s.salary?.remarks ?? ""),
+    };
+    if (
+      Math.abs((Number(s.amount) || 0) - total) < 0.005 &&
+      Number(s.salary?.basic) === basic &&
+      s.salary
+    ) {
+      return s;
+    }
     changed = true;
-    return { ...s, amount: total };
+    return { ...s, salary: nextSalary, amount: total };
   });
   if (!changed) return withDefaults;
 

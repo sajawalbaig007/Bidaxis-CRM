@@ -27,7 +27,7 @@ const emptyDraft: Draft = { title: "", expression: "", appliesTo: "", note: "" }
 
 function Badge({ kind }: { kind: "builtin" | "edited" | "custom" }) {
   const map = {
-    builtin: "bg-gray-100 text-gray-500 border-gray-200",
+    builtin: "bg-crm-muted text-crm-text-muted border-crm-border",
     edited: "bg-amber-50 text-amber-700 border-amber-200",
     custom: "bg-blue-50 text-blue-600 border-blue-200",
   } as const;
@@ -129,7 +129,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
           value={draft.title}
           onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
           placeholder="Formula title"
-          className="w-full h-9 rounded-lg border border-gray-200 px-2.5 text-xs font-semibold outline-none focus:border-[#B8112D]"
+          className="w-full h-9 rounded-lg border border-crm-border px-2.5 text-xs font-semibold outline-none focus:border-[#B8112D]"
         />
       )}
       <textarea
@@ -137,14 +137,14 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         onChange={e => setDraft(d => ({ ...d, expression: e.target.value }))}
         rows={2}
         placeholder="Formula…"
-        className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-xs font-mono outline-none resize-none focus:border-[#B8112D]"
+        className="w-full rounded-lg border border-crm-border px-2.5 py-2 text-xs font-mono outline-none resize-none focus:border-[#B8112D]"
       />
       {showTitle && (
         <input
           value={draft.appliesTo}
           onChange={e => setDraft(d => ({ ...d, appliesTo: e.target.value }))}
           placeholder="Where it applies (e.g. Income Statement → Team Salaries)"
-          className="w-full h-9 rounded-lg border border-gray-200 px-2.5 text-xs outline-none focus:border-[#B8112D]"
+          className="w-full h-9 rounded-lg border border-crm-border px-2.5 text-xs outline-none focus:border-[#B8112D]"
         />
       )}
       <textarea
@@ -152,10 +152,10 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         onChange={e => setDraft(d => ({ ...d, note: e.target.value }))}
         rows={1}
         placeholder="Note (optional)…"
-        className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-xs outline-none resize-none focus:border-[#B8112D]"
+        className="w-full rounded-lg border border-crm-border px-2.5 py-2 text-xs outline-none resize-none focus:border-[#B8112D]"
       />
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => setEditingId(null)} className="h-8 px-3 rounded-lg text-[11px] font-bold text-gray-500 hover:bg-gray-100">
+        <button type="button" onClick={() => setEditingId(null)} className="h-8 px-3 rounded-lg text-[11px] font-bold text-crm-text-muted hover:bg-crm-muted">
           Cancel
         </button>
         <button type="button" onClick={onSave} className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1 hover:bg-emerald-700">
@@ -168,7 +168,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
   return (
     <div className="fixed inset-0 z-85 flex items-center justify-center p-3 sm:p-4 bg-black/45" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-crm-surface rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between gap-2">
@@ -177,8 +177,8 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
               <Sigma size={16} />
             </span>
             <div className="min-w-0">
-              <h3 className="font-extrabold text-gray-800 text-sm">Formula Book — All Accounts Formulas</h3>
-              <p className="text-[10px] text-gray-400">
+              <h3 className="font-extrabold text-crm-text text-sm">Formula Book — All Accounts Formulas</h3>
+              <p className="text-[10px] text-crm-text-faint">
                 Section-wise · edit built-in formulas (text override) · add your own formula
               </p>
             </div>
@@ -191,7 +191,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
             >
               <Plus size={13} /> Add Formula
             </button>
-            <button type="button" onClick={onClose} className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+            <button type="button" onClick={onClose} className="w-9 h-9 rounded-lg hover:bg-crm-muted flex items-center justify-center">
               <X size={16} />
             </button>
           </div>
@@ -205,7 +205,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                 <select
                   value={newSection}
                   onChange={e => setNewSection(e.target.value)}
-                  className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-xs font-semibold outline-none"
+                  className="h-9 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-semibold outline-none"
                 >
                   {sections.map(s => (
                     <option key={s} value={s}>{s}</option>
@@ -215,37 +215,37 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                   value={customSectionName}
                   onChange={e => setCustomSectionName(e.target.value)}
                   placeholder="…or type a new section name"
-                  className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0B84F3]"
+                  className="h-9 rounded-lg border border-crm-border bg-crm-surface px-2.5 text-xs outline-none focus:border-[#0B84F3]"
                 />
               </div>
               <input
                 value={newDraft.title}
                 onChange={e => setNewDraft(d => ({ ...d, title: e.target.value }))}
                 placeholder="Formula title (e.g. Cash Runway)"
-                className="w-full h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-semibold outline-none focus:border-[#0B84F3]"
+                className="w-full h-9 rounded-lg border border-crm-border bg-crm-surface px-2.5 text-xs font-semibold outline-none focus:border-[#0B84F3]"
               />
               <textarea
                 value={newDraft.expression}
                 onChange={e => setNewDraft(d => ({ ...d, expression: e.target.value }))}
                 rows={2}
                 placeholder="Formula (e.g. Runway = Net Cash ÷ Daily Burn Rate)"
-                className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs font-mono outline-none resize-none focus:border-[#0B84F3]"
+                className="w-full rounded-lg border border-crm-border bg-crm-surface px-2.5 py-2 text-xs font-mono outline-none resize-none focus:border-[#0B84F3]"
               />
               <input
                 value={newDraft.appliesTo}
                 onChange={e => setNewDraft(d => ({ ...d, appliesTo: e.target.value }))}
                 placeholder="Where it should apply (e.g. Reports page → Cash section)"
-                className="w-full h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs outline-none focus:border-[#0B84F3]"
+                className="w-full h-9 rounded-lg border border-crm-border bg-crm-surface px-2.5 text-xs outline-none focus:border-[#0B84F3]"
               />
               <textarea
                 value={newDraft.note}
                 onChange={e => setNewDraft(d => ({ ...d, note: e.target.value }))}
                 rows={1}
                 placeholder="Note (optional)"
-                className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs outline-none resize-none focus:border-[#0B84F3]"
+                className="w-full rounded-lg border border-crm-border bg-crm-surface px-2.5 py-2 text-xs outline-none resize-none focus:border-[#0B84F3]"
               />
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setAdding(false)} className="h-8 px-3 rounded-lg text-[11px] font-bold text-gray-500 hover:bg-white">
+                <button type="button" onClick={() => setAdding(false)} className="h-8 px-3 rounded-lg text-[11px] font-bold text-crm-text-muted hover:bg-crm-surface-raised">
                   Cancel
                 </button>
                 <button
@@ -268,22 +268,22 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
               <div key={section}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-1 h-5 rounded-full bg-[#B8112D] shrink-0" />
-                  <h4 className="text-xs font-extrabold text-gray-800 tracking-tight">{section}</h4>
-                  <span className="text-[10px] text-gray-400 font-semibold">{builtins.length + customs.length} formula(s)</span>
+                  <h4 className="text-xs font-extrabold text-crm-text tracking-tight">{section}</h4>
+                  <span className="text-[10px] text-crm-text-faint font-semibold">{builtins.length + customs.length} formula(s)</span>
                 </div>
                 <div className="space-y-2">
                   {builtins.map(f => {
                     const ov = overrides[f.id];
                     const isEditing = editingId === f.id;
                     return (
-                      <div key={f.id} className="rounded-xl border border-gray-100 bg-[#FAFBFC] p-3">
+                      <div key={f.id} className="rounded-xl border border-crm-border-subtle bg-[#FAFBFC] p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 flex items-center gap-2 flex-wrap">
+                            <p className="text-xs font-bold text-crm-text flex items-center gap-2 flex-wrap">
                               {f.title}
                               <Badge kind={ov ? "edited" : "builtin"} />
                             </p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{f.appliesTo}</p>
+                            <p className="text-[10px] text-crm-text-faint mt-0.5">{f.appliesTo}</p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {ov && (
@@ -310,7 +310,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                           editForm(() => saveBuiltin(f), false)
                         ) : (
                           <>
-                            <p className="mt-2 text-[11px] font-mono text-gray-700 bg-white border border-gray-100 rounded-lg px-2.5 py-2 leading-relaxed">
+                            <p className="mt-2 text-[11px] font-mono text-crm-text-secondary bg-crm-surface border border-crm-border-subtle rounded-lg px-2.5 py-2 leading-relaxed">
                               {ov?.expression ?? f.expression}
                             </p>
                             {ov?.note && <p className="mt-1.5 text-[10px] text-amber-700 font-medium">Note: {ov.note}</p>}
@@ -331,11 +331,11 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                       <div key={c.id} className="rounded-xl border border-blue-100 bg-blue-50/30 p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800 flex items-center gap-2 flex-wrap">
+                            <p className="text-xs font-bold text-crm-text flex items-center gap-2 flex-wrap">
                               {c.title}
                               <Badge kind="custom" />
                             </p>
-                            {c.appliesTo && <p className="text-[10px] text-gray-400 mt-0.5">{c.appliesTo}</p>}
+                            {c.appliesTo && <p className="text-[10px] text-crm-text-faint mt-0.5">{c.appliesTo}</p>}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
@@ -360,10 +360,10 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
                           editForm(() => saveCustom(c), true)
                         ) : (
                           <>
-                            <p className="mt-2 text-[11px] font-mono text-gray-700 bg-white border border-blue-100 rounded-lg px-2.5 py-2 leading-relaxed">
+                            <p className="mt-2 text-[11px] font-mono text-crm-text-secondary bg-crm-surface border border-blue-100 rounded-lg px-2.5 py-2 leading-relaxed">
                               {c.expression}
                             </p>
-                            {c.note && <p className="mt-1.5 text-[10px] text-gray-500">Note: {c.note}</p>}
+                            {c.note && <p className="mt-1.5 text-[10px] text-crm-text-muted">Note: {c.note}</p>}
                           </>
                         )}
                       </div>
@@ -376,7 +376,7 @@ export default function FormulaBookModal({ open, onClose, value, onChange, liveN
         </div>
 
         <div className="px-4 py-2.5 border-t bg-[#FAFAFA] flex items-center justify-between">
-          <p className="text-[10px] text-gray-400">
+          <p className="text-[10px] text-crm-text-faint">
             Built-in formulas run from code — edits here only override text/documentation. Values (rates, %) stay editable in their own editors.
           </p>
           <button type="button" onClick={onClose} className="h-9 px-4 rounded-xl text-xs font-bold bg-[#B8112D] text-white hover:bg-[#9a0e26] shrink-0 ml-3">

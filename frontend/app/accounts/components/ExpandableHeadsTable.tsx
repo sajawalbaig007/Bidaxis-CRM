@@ -4,7 +4,7 @@ import { useState, Fragment } from "react";
 import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
-import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "../utils/payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail, ensureExecutiveSalaryDetail } from "../utils/payrollFormula";
 import {
   resolvePayrollKind,
   resolveSubPayrollKind,
@@ -232,14 +232,14 @@ export default function ExpandableHeadsTable({
   const total = rows.reduce((a, r) => a + lineAmount(r), 0);
 
   return (
-    <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100/90 overflow-hidden shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)]">
+    <div className="bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle overflow-hidden shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)]">
       <div
-        className="px-4 py-3.5 border-b border-gray-100 flex items-center justify-between gap-2"
-        style={{ background: `linear-gradient(90deg, ${accent}12 0%, #ffffff 55%)` }}
+        className="px-4 py-3.5 border-b border-crm-border-subtle flex items-center justify-between gap-2"
+        style={{ background: `linear-gradient(90deg, ${accent}12 0%, transparent 55%)` }}
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="w-1 h-6 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-          <h2 className="font-extrabold text-gray-800 text-sm tracking-tight truncate">{title}</h2>
+          <h2 className="font-extrabold text-crm-text text-sm tracking-tight truncate">{title}</h2>
         </div>
         <button
           type="button"
@@ -253,20 +253,20 @@ export default function ExpandableHeadsTable({
 
       <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
         <table className="w-full text-sm min-w-[720px]">
-          <thead className="sticky top-0 z-10 bg-[#FAFBFC]/95 backdrop-blur-sm">
-            <tr className="border-b border-gray-200/80">
+          <thead className="sticky top-0 z-10 bg-crm-muted/95 backdrop-blur-sm">
+            <tr className="border-b border-crm-border">
               <th className="w-8 px-2 py-2.5" />
-              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">Head</th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 min-w-[160px]">Notes</th>
-              <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400 w-[100px]">Filled</th>
-              <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 w-[110px]">Total</th>
-              <th className="w-24 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-gray-400">Actions</th>
+              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-faint">Head</th>
+              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-faint min-w-[160px]">Notes</th>
+              <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[100px]">Filled</th>
+              <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[110px]">Total</th>
+              <th className="w-24 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-crm-text-faint">Actions</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-12 text-center text-gray-400 text-sm">{emptyLabel}</td>
+                <td colSpan={6} className="px-3 py-12 text-center text-crm-text-faint text-sm">{emptyLabel}</td>
               </tr>
             ) : (
               rows.map((row, idx) => {
@@ -286,18 +286,18 @@ export default function ExpandableHeadsTable({
                   : lineAmount(row);
                 return (
                   <Fragment key={row.id}>
-                    <tr className={`border-b border-gray-50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-[#FCFCFD]"} hover:bg-[#F8FAFC]`}>
+                    <tr className={`border-b border-crm-border-subtle transition-colors ${idx % 2 === 0 ? "bg-crm-surface" : "bg-crm-surface-muted"} hover:bg-crm-surface-raised`}>
                       <td className="px-2 py-2 text-center">
                         <button
                           type="button"
                           onClick={() => toggle(row.id)}
-                          className="w-7 h-7 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center transition-colors"
+                          className="w-7 h-7 rounded-lg text-crm-text-faint hover:text-crm-text-secondary hover:bg-crm-muted inline-flex items-center justify-center transition-colors"
                           title="Toggle individuals"
                         >
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                       </td>
-                      <td className="px-3 py-2.5 font-semibold text-gray-800">
+                      <td className="px-3 py-2.5 font-semibold text-crm-text">
                         {row.title}
                         {subs.length > 0 && (
                           <span
@@ -315,8 +315,8 @@ export default function ExpandableHeadsTable({
                           fallbackDate={row.filledAt}
                         />
                       </td>
-                      <td className="px-3 py-2.5 text-center text-xs text-gray-500 tabular-nums">{row.filledAt || "—"}</td>
-                      <td className="px-3 py-2.5 text-right font-bold tabular-nums text-gray-900">{currency(amt)}</td>
+                      <td className="px-3 py-2.5 text-center text-xs text-crm-text-muted tabular-nums">{row.filledAt || "—"}</td>
+                      <td className="px-3 py-2.5 text-right font-bold tabular-nums text-crm-text">{currency(amt)}</td>
                       <td className="px-2 py-2 text-center">
                         <div className="inline-flex items-center gap-1">
                           {onPersist && (
@@ -353,19 +353,20 @@ export default function ExpandableHeadsTable({
                       <tr className="bg-[#F8FAFC]">
                         <td colSpan={6} className="px-4 py-2.5">
                           {subs.length === 0 ? (
-                            <p className="text-[11px] text-gray-400 py-1">No individual heads — open Edit to add sub-heads.</p>
+                            <p className="text-[11px] text-crm-text-faint py-1">No individual heads — open Edit to add sub-heads.</p>
                           ) : salaryMode && rowPayrollKind === "executive" ? (
-                            <div className="rounded-xl border border-indigo-100 overflow-x-auto bg-white shadow-sm">
-                              <table className="w-full text-xs min-w-[860px]">
+                            <div className="rounded-xl border border-indigo-100 overflow-x-auto bg-crm-surface shadow-sm">
+                              <table className="w-full text-xs min-w-[960px]">
                                 <thead>
-                                  <tr className="border-b bg-indigo-50/60 text-gray-400">
+                                  <tr className="border-b bg-indigo-50/60 text-crm-text-faint">
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Executive</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Basic</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Comm. %</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Commission</th>
-                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Total Salary</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Salary</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan +ve</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan −ve</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] text-[#B8112D]">Total Due</th>
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Remarks</th>
                                     <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
                                     {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
@@ -373,18 +374,21 @@ export default function ExpandableHeadsTable({
                                 </thead>
                                 <tbody>
                                   {subs.map(s => {
-                                    const sal = emptySalaryDetail(s.salary ?? { basic: s.amount });
+                                    const sal = ensureExecutiveSalaryDetail(s.salary, s.amount);
                                     const ex = computeExecutiveSalary(sal, execProfitBase);
                                     return (
-                                      <tr key={s.id} className="border-b border-gray-50 last:border-0">
-                                        <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
+                                      <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
+                                        <td className="px-2 py-2 text-crm-text-secondary font-medium whitespace-nowrap">{s.label}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{currency(ex.basic)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-indigo-700">{ex.commissionPct}%</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{currency(ex.commission)}</td>
-                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(ex.totalSalary)}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums">{currency(ex.totalSalary)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{currency(ex.loanPositive)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(ex.loanNegative)}</td>
-                                        <td className="px-2 py-2 text-gray-500 max-w-[180px] truncate" title={sal.remarks || undefined}>{sal.remarks || "—"}</td>
+                                        <td className="px-2 py-2 text-right font-extrabold tabular-nums text-[#B8112D] bg-[#FFF6F8]/80">
+                                          {currency(ex.totalPayable)}
+                                        </td>
+                                        <td className="px-2 py-2 text-crm-text-muted max-w-[140px] truncate" title={sal.remarks || undefined}>{sal.remarks || "—"}</td>
                                         <td className="px-1 py-2 text-center">
                                           <SalarySlipDownloadButton
                                             compact
@@ -412,23 +416,47 @@ export default function ExpandableHeadsTable({
                                     );
                                   })}
                                 </tbody>
+                                <tfoot>
+                                  <tr className="border-t-2 border-indigo-100 bg-indigo-50/50">
+                                    <td colSpan={7} className="px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-indigo-900">
+                                      All executives — total due
+                                    </td>
+                                    <td className="px-2 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-sm">
+                                      {currency(
+                                        subs.reduce((a, s) => {
+                                          const ex = computeExecutiveSalary(
+                                            ensureExecutiveSalaryDetail(s.salary, s.amount),
+                                            execProfitBase,
+                                          );
+                                          return a + ex.totalPayable;
+                                        }, 0),
+                                      )}
+                                    </td>
+                                    <td colSpan={onPersist ? 3 : 2} />
+                                  </tr>
+                                </tfoot>
                               </table>
-                              <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
+                              <p className="px-3 py-1.5 text-[10px] text-crm-text-faint border-t">
                                 {(() => {
                                   const base = Math.max(0, execProfitBase);
                                   const distributed = subs.reduce(
-                                    (a, s) => a + computeExecutiveSalary(emptySalaryDetail(s.salary ?? { basic: s.amount }), execProfitBase).commission,
+                                    (a, s) =>
+                                      a +
+                                      computeExecutiveSalary(
+                                        ensureExecutiveSalaryDetail(s.salary, s.amount),
+                                        execProfitBase,
+                                      ).commission,
                                     0,
                                   );
-                                  return `Net profit base: ${currency(base)} · Commissions distributed: ${currency(distributed)} · Remaining (company): ${currency(base - distributed)}`;
+                                  return `Total Due = Salary + Loan+ve − Loan−ve · Net profit base: ${currency(base)} · Commissions: ${currency(distributed)} · Remaining (company): ${currency(base - distributed)}`;
                                 })()}
                               </p>
                             </div>
                           ) : salaryMode ? (
-                            <div className="rounded-xl border border-gray-100 overflow-x-auto bg-white shadow-sm">
+                            <div className="rounded-xl border border-crm-border-subtle overflow-x-auto bg-crm-surface shadow-sm">
                               <table className="w-full text-xs min-w-[980px]">
                                 <thead>
-                                  <tr className="border-b bg-gray-50/80 text-gray-400">
+                                  <tr className="border-b bg-crm-surface-muted text-crm-text-faint">
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Employee</th>
                                     {isSalesRow ? (
                                       <>
@@ -463,8 +491,8 @@ export default function ExpandableHeadsTable({
                                       const extra = rowPayrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0;
                                       const b = computeSalesEmployeePayroll(sp, extra);
                                       return (
-                                        <tr key={s.id} className="border-b border-gray-50 last:border-0">
-                                          <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
+                                        <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
+                                          <td className="px-2 py-2 text-crm-text-secondary font-medium whitespace-nowrap">{s.label}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-emerald-700">{currency(b.totalCommission + extra)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.basic)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.allowance)}</td>
@@ -517,8 +545,8 @@ export default function ExpandableHeadsTable({
                                           ? "technical_manager"
                                           : "technical";
                                     return (
-                                      <tr key={s.id} className="border-b border-gray-50 last:border-0">
-                                        <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">{s.label}</td>
+                                      <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
+                                        <td className="px-2 py-2 text-crm-text-secondary font-medium whitespace-nowrap">{s.label}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(sal!.basic) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(sal!.allowance) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.totalOvertime) : "—"}</td>
@@ -557,7 +585,7 @@ export default function ExpandableHeadsTable({
                                   })}
                                 </tbody>
                               </table>
-                              <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
+                              <p className="px-3 py-1.5 text-[10px] text-crm-text-faint border-t">
                                 {allowProofUpload
                                   ? "Upload bill/screenshot per line · Preview anytime · Save record when done."
                                   : isSalesRow
@@ -566,10 +594,10 @@ export default function ExpandableHeadsTable({
                               </p>
                             </div>
                           ) : (
-                            <div className="rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
+                            <div className="rounded-xl border border-crm-border-subtle overflow-hidden bg-crm-surface shadow-sm">
                               <table className="w-full text-xs">
                                 <thead>
-                                  <tr className="border-b bg-gray-50/80 text-gray-400">
+                                  <tr className="border-b bg-crm-surface-muted text-crm-text-faint">
                                     <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-[10px]">Individual</th>
                                     <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[110px]">Filled date</th>
                                     {allowProofUpload && (
@@ -582,9 +610,9 @@ export default function ExpandableHeadsTable({
                                 </thead>
                                 <tbody>
                                   {subs.map(s => (
-                                    <tr key={s.id} className="border-b border-gray-50 last:border-0">
-                                      <td className="px-3 py-2 text-gray-700 font-medium">{s.label}</td>
-                                      <td className="px-3 py-2 text-center text-gray-500 tabular-nums">{s.filledAt || "—"}</td>
+                                    <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
+                                      <td className="px-3 py-2 text-crm-text-secondary font-medium">{s.label}</td>
+                                      <td className="px-3 py-2 text-center text-crm-text-muted tabular-nums">{s.filledAt || "—"}</td>
                                       {allowProofUpload && (
                                         <td className="px-3 py-2 text-center">
                                           <ProofUploadField
@@ -603,7 +631,7 @@ export default function ExpandableHeadsTable({
                                           />
                                         </td>
                                       )}
-                                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-800">{currency(s.amount)}</td>
+                                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-crm-text">{currency(s.amount)}</td>
                                       {onPersist && (
                                         <td className="px-2 py-2 text-center">
                                           <button
@@ -632,7 +660,7 @@ export default function ExpandableHeadsTable({
                                 </tbody>
                               </table>
                               {allowProofUpload && (
-                                <p className="px-3 py-1.5 text-[10px] text-gray-400 border-t">
+                                <p className="px-3 py-1.5 text-[10px] text-crm-text-faint border-t">
                                   Upload bill/screenshot per line · Preview anytime · Save record when done.
                                 </p>
                               )}
@@ -662,7 +690,7 @@ export default function ExpandableHeadsTable({
           </tbody>
           <tfoot>
             <tr className="border-t-2" style={{ borderColor: `${accent}33`, background: `${accent}0D` }}>
-              <td colSpan={4} className="px-3 py-3.5 font-extrabold text-gray-800">Section Total</td>
+              <td colSpan={4} className="px-3 py-3.5 font-extrabold text-crm-text">Section Total</td>
               <td className="px-3 py-3.5 text-right font-extrabold tabular-nums text-base" style={{ color: accent }}>
                 {currency(total)}
               </td>

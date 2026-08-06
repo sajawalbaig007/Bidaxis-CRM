@@ -68,78 +68,78 @@ export default function CashFlowRowModal({
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
+        className="bg-crm-surface rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
-          <h3 className="font-bold text-gray-800 text-sm">Edit cash flow entry</h3>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+          <h3 className="font-bold text-crm-text text-sm">Edit cash flow entry</h3>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-crm-muted flex items-center justify-center">
             <X size={16} />
           </button>
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs font-semibold text-gray-600 block">
+            <label className="text-xs font-semibold text-crm-text-secondary block">
               Date
               <input
                 type="date"
                 value={value.date?.slice(0, 10) ?? ""}
                 onChange={e => setField("date", e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
               />
             </label>
-            <label className="text-xs font-semibold text-gray-600 block">
+            <label className="text-xs font-semibold text-crm-text-secondary block">
               Net {isAutoNet ? "(auto)" : ""}
               {isAutoNet ? (
                 <input
                   type="text"
                   readOnly
                   value={String(net)}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm bg-[#F8FAFC] text-gray-600 cursor-default"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-secondary cursor-default"
                 />
               ) : (
                 <AmountInput
                   value={Number(net) || 0}
                   onChange={n => setField("netAmount", n)}
-                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
                 />
               )}
             </label>
           </div>
 
-          <label className="text-xs font-semibold text-gray-600 block">
+          <label className="text-xs font-semibold text-crm-text-secondary block">
             Description
             <input
               value={value.description}
               onChange={e => setField("description", e.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+              className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
             />
           </label>
 
           <div>
-            <p className="text-xs font-bold text-gray-700 mb-2">Bank Dr / Cr</p>
+            <p className="text-xs font-bold text-crm-text-secondary mb-2">Bank Dr / Cr</p>
             <div className="space-y-2 max-h-52 overflow-y-auto">
               {bankHeads.map((bank, bi) => {
                 const b = value.bankAmounts?.[bank] ?? { debit: 0, credit: 0 };
                 return (
-                  <div key={bank} className="rounded-xl border border-gray-100 bg-[#F8FAFC] p-2.5">
+                  <div key={bank} className="rounded-xl border border-crm-border-subtle bg-[#F8FAFC] p-2.5">
                     <p className="text-[11px] font-bold mb-1.5" style={{ color: bankColor(bi) }}>{bank}</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="text-[10px] font-semibold text-gray-500">
+                      <label className="text-[10px] font-semibold text-crm-text-muted">
                         Debit
                         <AmountInput
                           value={Number(b.debit) || 0}
                           onChange={n => setBank(bank, "debit", n)}
-                          className="mt-0.5 h-8 w-full rounded-lg border border-gray-200 px-2 text-xs text-right"
+                          className="mt-0.5 h-8 w-full rounded-lg border border-crm-border px-2 text-xs text-right"
                         />
                       </label>
-                      <label className="text-[10px] font-semibold text-gray-500">
+                      <label className="text-[10px] font-semibold text-crm-text-muted">
                         Credit
                         <AmountInput
                           value={Number(b.credit) || 0}
                           onChange={n => setBank(bank, "credit", n)}
-                          className="mt-0.5 h-8 w-full rounded-lg border border-gray-200 px-2 text-xs text-right"
+                          className="mt-0.5 h-8 w-full rounded-lg border border-crm-border px-2 text-xs text-right"
                         />
                       </label>
                     </div>
@@ -147,14 +147,14 @@ export default function CashFlowRowModal({
                 );
               })}
             </div>
-            <p className="text-[11px] text-gray-500 mt-2 font-semibold">
+            <p className="text-[11px] text-crm-text-muted mt-2 font-semibold">
               Net preview: {currency(net)}
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-gray-700 inline-flex items-center gap-1.5">
+              <p className="text-xs font-bold text-crm-text-secondary inline-flex items-center gap-1.5">
                 <StickyNote size={13} className="text-amber-500" /> Notes (by date)
               </p>
               <button
@@ -167,7 +167,7 @@ export default function CashFlowRowModal({
             </div>
             <div className="space-y-2 max-h-44 overflow-y-auto">
               {sortedNotes.length === 0 ? (
-                <p className="text-[11px] text-gray-400 py-3 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
+                <p className="text-[11px] text-crm-text-faint py-3 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
                   No notes yet.
                 </p>
               ) : (
@@ -178,7 +178,7 @@ export default function CashFlowRowModal({
                         type="date"
                         value={n.date}
                         onChange={e => setNotes(notes.map(x => (x.id === n.id ? { ...x, date: e.target.value } : x)))}
-                        className="h-8 rounded-lg border border-amber-200/80 bg-white px-2 text-[11px] flex-1"
+                        className="h-8 rounded-lg border border-amber-200/80 bg-crm-surface px-2 text-[11px] flex-1"
                       />
                       <button
                         type="button"
@@ -193,7 +193,7 @@ export default function CashFlowRowModal({
                       onChange={e => setNotes(notes.map(x => (x.id === n.id ? { ...x, text: e.target.value } : x)))}
                       placeholder="Write note…"
                       rows={2}
-                      className="w-full rounded-lg border border-amber-200/80 bg-white px-2 py-1.5 text-xs outline-none resize-none focus:ring-2 focus:ring-amber-200"
+                      className="w-full rounded-lg border border-amber-200/80 bg-crm-surface px-2 py-1.5 text-xs outline-none resize-none focus:ring-2 focus:ring-amber-200"
                     />
                   </div>
                 ))

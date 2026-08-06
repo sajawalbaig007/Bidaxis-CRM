@@ -214,28 +214,28 @@ export default function BudgetVsActualCharts({
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">
             Budget vs Actual
           </p>
-          <p className="text-sm font-extrabold text-slate-800 mt-0.5">
+          <p className="text-sm font-extrabold text-crm-text mt-0.5">
             Month-wise comparison · {monthLabel(month)}
           </p>
-          <p className="text-[11px] text-gray-500 mt-0.5">
+          <p className="text-[11px] text-crm-text-muted mt-0.5">
             Budget vs Income Statement actuals for the selected month.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
             Filter month
             <input
               type="month"
               value={month}
               onChange={e => setMonth(e.target.value)}
-              className="mt-1 h-10 block rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-violet-500"
+              className="mt-1 h-10 block rounded-xl border border-crm-border bg-crm-input px-3 text-sm text-crm-text outline-none focus:border-violet-500"
             />
           </label>
           <button
             type="button"
             onClick={() => void load(month)}
             disabled={loading}
-            className="h-10 px-3 rounded-xl border border-gray-200 text-xs font-bold text-sky-700 hover:bg-sky-50 inline-flex items-center gap-1.5 disabled:opacity-50"
+            className="h-10 px-3 rounded-xl border border-crm-border text-xs font-bold text-sky-700 hover:bg-sky-50 inline-flex items-center gap-1.5 disabled:opacity-50"
           >
             {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             Refresh
@@ -253,11 +253,11 @@ export default function BudgetVsActualCharts({
       </div>
 
       {!loading && !hasBudget && (
-        <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-4 py-8 text-center">
-          <p className="text-sm font-semibold text-gray-600">
+        <div className="rounded-2xl border border-dashed border-violet-200 dark:border-violet-500/40 bg-crm-surface px-4 py-8 text-center">
+          <p className="text-sm font-semibold text-crm-text-secondary">
             No saved budget found for {monthLabel(month)}.
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-crm-text-faint mt-1">
             Save a 3-month period that includes this month in the Budget planner first.
           </p>
           {onOpenBudget && (
@@ -281,19 +281,19 @@ export default function BudgetVsActualCharts({
               { label: "Budget expense*", value: totals.budgetExpense, cls: "text-sky-700" },
               { label: "Actual expense*", value: totals.actualExpense, cls: "text-sky-900" },
             ].map(c => (
-              <div key={c.label} className="rounded-xl border border-gray-100 bg-white px-3 py-2.5 shadow-sm">
-                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">{c.label}</p>
+              <div key={c.label} className="rounded-xl border border-crm-border-subtle bg-crm-surface px-3 py-2.5 shadow-sm">
+                <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">{c.label}</p>
                 <p className={`text-sm font-extrabold tabular-nums mt-0.5 ${c.cls}`}>
                   {loading ? "…" : currency(c.value)}
                 </p>
               </div>
             ))}
           </div>
-          <p className="text-[10px] text-gray-400 -mt-1">
+          <p className="text-[10px] text-crm-text-faint -mt-1">
             * Expense = payroll categories + OPEX (Loans/PF excluded). Variance:{" "}
             <span
               className={`font-bold ${
-                totals.variance > 0 ? "text-amber-700" : totals.variance < 0 ? "text-emerald-700" : "text-gray-500"
+                totals.variance > 0 ? "text-amber-700" : totals.variance < 0 ? "text-emerald-700" : "text-crm-text-muted"
               }`}
             >
               {loading ? "…" : currency(totals.variance)}
@@ -309,7 +309,7 @@ export default function BudgetVsActualCharts({
               icon={<BarChart3 size={16} />}
             >
               {loading ? (
-                <div className="h-[280px] flex items-center justify-center text-gray-400 text-sm gap-2">
+                <div className="h-[280px] flex items-center justify-center text-crm-text-faint text-sm gap-2">
                   <Loader2 size={16} className="animate-spin" /> Loading…
                 </div>
               ) : (
@@ -338,11 +338,11 @@ export default function BudgetVsActualCharts({
               icon={<BarChart3 size={16} />}
             >
               {loading ? (
-                <div className="h-[280px] flex items-center justify-center text-gray-400 text-sm gap-2">
+                <div className="h-[280px] flex items-center justify-center text-crm-text-faint text-sm gap-2">
                   <Loader2 size={16} className="animate-spin" /> Loading…
                 </div>
               ) : opexRows.length === 0 ? (
-                <div className="h-[280px] flex items-center justify-center text-gray-400 text-xs px-4 text-center">
+                <div className="h-[280px] flex items-center justify-center text-crm-text-faint text-xs px-4 text-center">
                   No OPEX budget/actual heads for this month.
                 </div>
               ) : (

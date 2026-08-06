@@ -37,23 +37,23 @@ function Num({
   hint?: string;
 }) {
   return (
-    <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+    <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
       {label}
       <AmountInput
         value={Number.isFinite(value) ? value : 0}
         onChange={onChange}
-        className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
+        className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm tabular-nums outline-none focus:border-[#B8112D]"
       />
-      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-gray-400">{hint}</span>}
+      {hint && <span className="block mt-0.5 text-[9px] font-normal normal-case tracking-normal text-crm-text-faint">{hint}</span>}
     </label>
   );
 }
 
 function Read({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-[#F8FAFC] px-2.5 py-2">
-      <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
-      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-gray-800"}`}>{value}</p>
+    <div className="rounded-lg border border-crm-border-subtle bg-[#F8FAFC] px-2.5 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-crm-text-faint">{label}</p>
+      <p className={`mt-0.5 text-sm font-bold tabular-nums ${accent ?? "text-crm-text"}`}>{value}</p>
     </div>
   );
 }
@@ -105,11 +105,11 @@ export default function EmployeeSalaryEditor({
   }, [name]);
 
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3">
+    <div className="space-y-3 rounded-xl border border-crm-border bg-crm-surface p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-extrabold text-gray-800">{name || "Employee"}</p>
-          {teamHint && <p className="text-[10px] text-gray-400">{teamHint}</p>}
+          <p className="text-sm font-extrabold text-crm-text">{name || "Employee"}</p>
+          {teamHint && <p className="text-[10px] text-crm-text-faint">{teamHint}</p>}
         </div>
         <p className="text-xs font-extrabold text-[#B8112D] tabular-nums">Net: {currency(b.totalSalary)}</p>
       </div>
@@ -153,45 +153,45 @@ export default function EmployeeSalaryEditor({
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-600">
+      <div className="rounded-xl border border-crm-border bg-crm-surface-muted p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-crm-text-secondary">
           Salary slip profile ({variant === "technical" || variant === "technical_manager" ? "GPS · Global Pre Construction" : "BEM Solutions"})
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
             Employee ID
             <input
               value={d.employeeId || ""}
               onChange={e => set("employeeId", e.target.value)}
               placeholder="BEM-DEV-002"
-              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
             />
           </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
             Phone
             <input
               value={d.phone || ""}
               onChange={e => set("phone", e.target.value)}
               placeholder="03xx-xxxxxxx"
-              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
             />
           </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
             CNIC
             <input
               value={d.cnic || ""}
               onChange={e => set("cnic", e.target.value)}
               placeholder="xxxxx-xxxxxxx-x"
-              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
             />
           </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500 col-span-2 sm:col-span-1">
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted col-span-2 sm:col-span-1">
             Address
             <input
               value={d.address || ""}
               onChange={e => set("address", e.target.value)}
               placeholder="City / area"
-              className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none focus:border-[#B8112D]"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
             />
           </label>
         </div>
@@ -222,23 +222,23 @@ export default function EmployeeSalaryEditor({
               : "Relief ≤07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = half day. If worked ≥9h after late check-in → waived."}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+            <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
               Check In
               <input
                 type="time"
                 value={d.checkIn || (isAdmin ? "18:00" : "07:00")}
                 onChange={e => set("checkIn", e.target.value)}
-                className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
+                className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none"
               />
             </label>
             {!isAdmin && (
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
                 Check Out
                 <input
                   type="time"
                   value={d.checkOut || "16:00"}
                   onChange={e => set("checkOut", e.target.value)}
-                  className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm outline-none"
+                  className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none"
                 />
               </label>
             )}
@@ -299,7 +299,7 @@ export default function EmployeeSalaryEditor({
             className={`h-8 px-3 rounded-lg text-[11px] font-bold border transition-colors ${
               (d.loanPaymentMode ?? "salary") === "salary"
                 ? "bg-[#B8112D] text-white border-[#B8112D]"
-                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                : "bg-crm-surface text-crm-text-secondary border-crm-border hover:bg-crm-surface-muted"
             }`}
           >
             Deduct from salary
@@ -310,7 +310,7 @@ export default function EmployeeSalaryEditor({
             className={`h-8 px-3 rounded-lg text-[11px] font-bold border transition-colors ${
               d.loanPaymentMode === "cash"
                 ? "bg-amber-600 text-white border-amber-600"
-                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                : "bg-crm-surface text-crm-text-secondary border-crm-border hover:bg-crm-surface-muted"
             }`}
           >
             Paid separately in cash
@@ -318,7 +318,7 @@ export default function EmployeeSalaryEditor({
         </div>
         {(d.loanPaymentMode ?? "salary") === "salary" && (Number(d.loanThisMonth) || 0) > 0 ? (
           <div className="grid grid-cols-2 gap-2 pt-1">
-            <Read label="Net before loan" value={currency(b.netBeforeLoan)} accent="text-gray-700" />
+            <Read label="Net before loan" value={currency(b.netBeforeLoan)} accent="text-crm-text-secondary" />
             <Read label="Net after loan deduction" value={currency(b.totalSalary)} accent="text-[#B8112D]" />
           </div>
         ) : d.loanPaymentMode === "cash" && (Number(d.loanThisMonth) || 0) > 0 ? (
@@ -344,12 +344,12 @@ export default function EmployeeSalaryEditor({
             </>
           ) : (
             <>
-              <label className="flex items-center gap-2 text-xs text-gray-700 h-9 col-span-2 sm:col-span-1">
+              <label className="flex items-center gap-2 text-xs text-crm-text-secondary h-9 col-span-2 sm:col-span-1">
                 <input
                   type="checkbox"
                   checked={d.pfAuto}
                   onChange={e => set("pfAuto", e.target.checked)}
-                  className="rounded border-gray-300"
+                  className="rounded border-crm-border"
                 />
                 PF auto 8% of basic
               </label>
@@ -365,7 +365,7 @@ export default function EmployeeSalaryEditor({
 
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">Totals</p>
-        <p className="text-[10px] text-gray-500">
+        <p className="text-[10px] text-crm-text-muted">
           {isTechMgr
             ? "Gross − PF − Tax (− loan this month) = Net Salary"
             : isAdmin
@@ -383,14 +383,14 @@ export default function EmployeeSalaryEditor({
         </div>
       </div>
 
-      <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">
+      <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
         Remarks
         <textarea
           value={d.remarks}
           onChange={e => set("remarks", e.target.value)}
           rows={2}
           placeholder="Manual remarks…"
-          className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm outline-none resize-none focus:border-[#B8112D]"
+          className="mt-1 w-full rounded-lg border border-crm-border bg-crm-surface px-2 py-1.5 text-sm outline-none resize-none focus:border-[#B8112D]"
         />
       </label>
     </div>

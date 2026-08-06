@@ -32,7 +32,7 @@ export default function ProofImagePreview({ open, url, title, onClose }: ProofIm
             <X size={18} />
           </button>
         </div>
-        <div className="rounded-2xl overflow-hidden bg-white shadow-2xl border border-white/20">
+        <div className="rounded-2xl overflow-hidden bg-crm-surface shadow-2xl border border-white/20">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={url}
