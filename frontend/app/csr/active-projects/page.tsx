@@ -522,7 +522,7 @@ export default function CSRProjectsPage() {
 
                   <div className="pt-1">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <StickyNote size={9} />Bid Construction
+                      <StickyNote size={9} />Bid Instruction
                     </p>
                     <CommentCell id={project.id} noteHistory={project.noteHistory} onAddNote={addNote} />
                   </div>
@@ -534,7 +534,7 @@ export default function CSRProjectsPage() {
             <div className="hidden lg:block overflow-x-auto">
               <div className="min-w-[1180px]">
                 <div className={`grid gap-x-4 px-5 xl:px-6 py-3 xl:py-4 ${CRM_GRID_HEAD_ROW} ${PROJECT_GRID_HEAD}`}>
-                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "Bid Construction", "Actions"].map(h => (
+                  {["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "Bid Instruction", "Actions"].map(h => (
                     <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                   ))}
                 </div>
@@ -744,9 +744,9 @@ export default function CSRProjectsPage() {
 
                   <div>
                     <label className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5 sm:mb-2">
-                      <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Bid Construction
+                      <AlignLeft size={10} className="text-[#B8112D] sm:w-[11px] sm:h-[11px]" />Bid Instruction
                     </label>
-                    <textarea value={addForm.notes} placeholder="Bid Construction notes..." rows={3}
+                    <textarea value={addForm.notes} placeholder="Bid Instruction notes..." rows={3}
                       onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
                       className="w-full rounded-xl sm:rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300"
                     />

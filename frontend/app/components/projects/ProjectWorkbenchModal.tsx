@@ -189,7 +189,7 @@ export default function ProjectWorkbenchModal({
       return;
     }
     if (createMode && !req(data.projectNotes)) {
-        toast.error("Bid Construction notes are required");
+        toast.error("Bid Instruction notes are required");
         return;
       }
     await onSave(data);
@@ -535,14 +535,14 @@ export default function ProjectWorkbenchModal({
           {(createMode || (noteHistory && onAddNote)) && (
             <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <StickyNote size={12} className="text-[#B8112D]" /> Bid Construction
+                <StickyNote size={12} className="text-[#B8112D]" /> Bid Instruction
                 {createMode && <span className="text-[#B8112D] normal-case">*</span>}
               </p>
               {createMode ? (
                 <textarea
                   className={`${inputCls} h-24 py-2.5 resize-none`}
                   value={data.projectNotes ?? ""}
-                  placeholder="Bid Construction notes…"
+                  placeholder="Bid Instruction notes…"
                   onChange={(e) => setData((d) => ({ ...d, projectNotes: e.target.value }))}
                 />
               ) : noteHistory && onAddNote ? (
