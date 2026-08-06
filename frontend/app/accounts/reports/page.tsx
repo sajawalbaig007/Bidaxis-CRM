@@ -197,7 +197,7 @@ function buildWordHtml(report: MonthlyReport): string {
   const profitCell = (v: number) =>
     v >= 0 ? statusCell("Profit", "#D1FADF", GREEN_D) : statusCell("Loss", "#FEE4E2", RED_TXT);
 
-  /** Inline badge via single-cell shaded table (header banner ke liye). */
+  /** Inline badge via single-cell shaded table (for header banners). */
   const badge = (text: string, bg: string, color: string) =>
     `<table cellspacing="0" cellpadding="0" align="right"><tr><td style="background:${bg};color:${color};font-size:8px;font-weight:bold;padding:3px 9px;letter-spacing:0.6px;">${text.toUpperCase()}</td></tr></table>`;
 
@@ -1010,7 +1010,7 @@ export default function AccountsReportsPage() {
                       </BarChart>
                     </RechartsBox>
                     <p className="text-[11px] text-gray-500 mt-2">
-                      Jab blue bar coral se oopar ho — profit month. {monthShort(report.month)}:{" "}
+                      When the blue bar is above coral — profit month. {monthShort(report.month)}:{" "}
                       {pkr(report.totals.revenue)} revenue vs {pkr(report.totals.totalCost)} cost.
                     </p>
                   </div>

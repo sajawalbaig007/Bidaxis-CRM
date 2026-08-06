@@ -466,7 +466,7 @@ export default function AccountsDashboardPage() {
               type="button"
               onClick={() => setFormulaBookOpen(true)}
               className="h-10 px-4 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 inline-flex items-center gap-2 hover:border-[#B8112D] hover:text-[#B8112D] transition-colors shadow-sm"
-              title="Accounts ke tamam formulas — section-wise, editable"
+              title="All Accounts formulas — by section, editable"
             >
               <Sigma size={15} className="text-[#B8112D]" />
               All Formulas

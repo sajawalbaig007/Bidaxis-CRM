@@ -346,7 +346,7 @@ export default function SalesPayrollEmployeeEditor({
                     : "bg-white text-gray-600 border-gray-200"
                 }`}
               >
-                Salary se deduct
+                Deduct from salary
               </button>
               <button
                 type="button"
@@ -357,7 +357,7 @@ export default function SalesPayrollEmployeeEditor({
                     : "bg-white text-gray-600 border-gray-200"
                 }`}
               >
-                Separate cash diya
+                Paid separately in cash
               </button>
             </div>
             {(employee.loanPaymentMode ?? "salary") === "salary" && (Number(employee.loanThisMonth) || 0) > 0 ? (
@@ -367,7 +367,7 @@ export default function SalesPayrollEmployeeEditor({
               </div>
             ) : employee.loanPaymentMode === "cash" && (Number(employee.loanThisMonth) || 0) > 0 ? (
               <p className="text-[10px] font-semibold text-amber-800">
-                Cash clearance — salary net mein loan deduct nahi.
+                Cash clearance — loan is not deducted from net salary.
               </p>
             ) : null}
             <button type="button" onClick={() => void lookupLoan(true)} className="text-[10px] font-bold text-[#0B84F3] hover:underline">

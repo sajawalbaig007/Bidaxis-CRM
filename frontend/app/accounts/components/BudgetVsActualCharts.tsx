@@ -218,7 +218,7 @@ export default function BudgetVsActualCharts({
             Month-wise comparison · {monthLabel(month)}
           </p>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            Budgeted amount vs jitni amount is month mein lagi (Income Statement actuals).
+            Budget vs Income Statement actuals for the selected month.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -255,10 +255,10 @@ export default function BudgetVsActualCharts({
       {!loading && !hasBudget && (
         <div className="rounded-2xl border border-dashed border-violet-200 bg-white px-4 py-8 text-center">
           <p className="text-sm font-semibold text-gray-600">
-            Is month ({monthLabel(month)}) ka koi saved budget nahi mila.
+            No saved budget found for {monthLabel(month)}.
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Pehle 3-Month Budget modal se is month wala period save karo.
+            Save a 3-month period that includes this month in the Budget planner first.
           </p>
           {onOpenBudget && (
             <button
@@ -343,7 +343,7 @@ export default function BudgetVsActualCharts({
                 </div>
               ) : opexRows.length === 0 ? (
                 <div className="h-[280px] flex items-center justify-center text-gray-400 text-xs px-4 text-center">
-                  Is month mein OPEX budget/actual heads nahi mili.
+                  No OPEX budget/actual heads for this month.
                 </div>
               ) : (
                 <RechartsBox height={280}>

@@ -236,7 +236,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
               Income Statement Budget Planner
             </h2>
             <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-              Ek table: revenue, team salaries, aur OPEX heads. Sub-heads nahi · Loans / PF excluded.
+              One table for revenue, team salaries, and OPEX heads. Sub-heads excluded · Loans / PF excluded.
             </p>
           </div>
           <button
@@ -333,7 +333,7 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                     Budget · {fromDate} → {toDate}
                   </p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    Salaries + OPEX heads — aik table. OPEX head = IS Operating Expenses category total.
+                    Salaries + OPEX heads in one table. Each OPEX row is an Income Statement Operating Expenses category total.
                   </p>
                 </div>
                 <div className="overflow-x-auto">

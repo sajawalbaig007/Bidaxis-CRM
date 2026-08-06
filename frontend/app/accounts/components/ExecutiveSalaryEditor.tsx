@@ -89,13 +89,13 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
             label="Loan +ve (company owes them)"
             value={d.loanPositive ?? 0}
             onChange={v => set("loanPositive", v)}
-            hint="Loan jo company ne inhe dena hai"
+            hint="Amount the company owes this executive"
           />
           <Num
             label="Loan −ve (they owe company)"
             value={d.loanNegative ?? 0}
             onChange={v => set("loanNegative", v)}
-            hint="Loan jo inho ne company ko dena hai"
+            hint="Amount this executive owes the company"
           />
         </div>
       </div>

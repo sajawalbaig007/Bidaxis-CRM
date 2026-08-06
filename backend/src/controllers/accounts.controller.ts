@@ -27,7 +27,9 @@ import {
   accumulateCoreBudget,
   accumulateOpexHeads,
   CORE_BUDGET_LINE_DEFS,
+  DEFAULT_OPEX_HEAD_LABELS,
   emptyCoreActuals,
+  opexHeadKey,
   quarterMonths,
   type OpexHeadBucket,
 } from "../utils/incomeBudget";
@@ -651,6 +653,14 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
     const opexTotal = Object.values(opexHeadsTotal).reduce((a, r) => a + r.amount, 0);
     const totalExpense = payroll + opexTotal;
     const netProfit = actuals.revenue - totalExpense;
+
+    // Always expose default OPEX heads (even if no IS days / all zeros)
+    for (const label of DEFAULT_OPEX_HEAD_LABELS) {
+      const key = opexHeadKey(label);
+      if (!opexHeadsTotal[key]) {
+        opexHeadsTotal[key] = { key, headLabel: label, label, amount: 0 };
+      }
+    }
 
     const opexLines = Object.values(opexHeadsTotal)
       .sort((a, b) => a.label.localeCompare(b.label))

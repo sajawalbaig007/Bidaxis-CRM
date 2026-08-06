@@ -21,7 +21,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Dashboard — Currency Payments",
     title: "Ahmed Hamza (PayPal)",
     expression: "USD × 0.89 (after tax) × USD→PKR rate = PKR · CAD × 0.89 × CAD→PKR rate = PKR",
-    appliesTo: "Dashboard → Currency Payment Formula → Ahmed tab (values eye button se editable)",
+    appliesTo: "Dashboard → Currency Payment Formula → Ahmed tab (values editable via the eye button)",
   },
   {
     id: "fx-sn",
@@ -58,7 +58,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Income Statement",
     title: "Net Margin %",
     expression: "Net Margin = Net Profit ÷ Revenue × 100",
-    appliesTo: "Income Statement → tables ke neeche footer line",
+    appliesTo: "Income Statement → footer line below the tables",
   },
 
   // ---- Payroll — Common ----
@@ -67,14 +67,14 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Common",
     title: "Day / Hour Salary",
     expression: "1 Day Salary = (Basic + Allowance) ÷ 30 · 1 Hour Salary = Day ÷ 8",
-    appliesTo: "Sab payroll calculations (late, unpaid leave, overtime)",
+    appliesTo: "All payroll calculations (late, unpaid leave, overtime)",
   },
   {
     id: "pay-pf",
     section: "Payroll — Common",
     title: "Provident Fund",
     expression: "PF = 8% of Basic (auto) — manual override possible",
-    appliesTo: "Har employee ki deduction (Technical / Admin / Sales)",
+    appliesTo: "Every employee deduction (Technical / Admin / Sales)",
   },
   {
     id: "pay-deduction",
@@ -82,7 +82,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     title: "Total Deduction & Net",
     expression:
       "Total Deduction = Late + (Unpaid Leaves × Day Salary) + Loan (this month) + PF + Income Tax · Net Salary = Total Earning − Total Deduction",
-    appliesTo: "Har employee ka net salary",
+    appliesTo: "Every employee net salary",
   },
 
   // ---- Payroll — Technical Team ----
@@ -105,7 +105,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Technical Team",
     title: "Late Arrival (7 AM shift)",
     expression:
-      "Shift 07:00–16:00 · relief ≤ 07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = ½ day · late lekin ≥ 9h kaam → waived",
+      "Shift 07:00–16:00 · relief ≤ 07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = ½ day · late but worked ≥ 9h → waived",
     appliesTo: "Technical team late deduction",
   },
 
@@ -151,7 +151,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     title: "Project Commission",
     expression:
       "Old client = 1,000/project (partial = 500) · New client = 3,000/project · Fix client = 2.5% of project pay",
-    appliesTo: "Sales team members ki commission",
+    appliesTo: "Sales team member commissions",
   },
   {
     id: "sales-earning",
@@ -164,7 +164,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     id: "sales-tl",
     section: "Payroll — Sales Team",
     title: "Team Lead Commission",
-    expression: "TL extra = assigned members ke projects × 1,000 + un ke fix-client pay ka 0.5%",
+    expression: "TL extra = assigned members' projects × 1,000 + 0.5% of their fix-client pay",
     appliesTo: "Sales Team Lead Salaries (Hammad)",
   },
 
@@ -179,17 +179,18 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
   {
     id: "exec-comm",
     section: "Payroll — Executive",
-    title: "Commission (Net Profit se)",
+    title: "Commission (from Net Profit)",
     expression:
-      "Commission = % of Net Profit · Mohsin 15% · Sharjeel 7.5% · Talha 7.5% · Irtaza 7.5% · loss ho to commission 0 · baqi profit company ka",
-    appliesTo: "Executive employees ki commission",
+      "Commission = % of Net Profit · Mohsin 15% · Sharjeel 7.5% · Talha 7.5% · Irtaza 7.5% · commission is 0 on a loss · remaining profit stays with the company",
+    appliesTo: "Executive employee commissions",
   },
   {
     id: "exec-base",
     section: "Payroll — Executive",
     title: "Commission Base",
-    expression: "Base = Revenue − (Executive Salaries ke ilawa tamam expenses) — circular calculation se bachne ke liye",
-    appliesTo: "Executive commission ka net profit base",
+    expression:
+      "Base = Revenue − (all expenses except Executive Salaries) — avoids circular calculation",
+    appliesTo: "Net profit base for executive commission",
   },
 ];
 
