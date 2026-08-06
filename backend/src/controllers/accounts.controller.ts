@@ -295,130 +295,254 @@ export async function uploadAccountsFile(
 
 export async function getAccountsDashboardSummary(req: AuthRequest, res: Response) {
   try {
-    const recordDate = String(req.query.date ?? todayIsoDate()).trim();
-    if (!isValidRecordDate(recordDate)) {
+    const mode = String(req.query.mode ?? "day").trim().toLowerCase();
+    const toDate = String(req.query.to ?? req.query.date ?? todayIsoDate()).trim();
+    if (!isValidRecordDate(toDate)) {
       return res.status(400).json({ success: false, message: "Invalid date." });
     }
 
-    const pages: AccountsPageKey[] = [
-      "balance_sheet",
-      "income_statement",
-      "cash_flow",
-      "total_assets",
-    ];
+    const sumLines = (
+      rows: Array<{ amount?: number; totalSalary?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
+    ) =>
+      (rows ?? []).reduce((a, row) => {
+        if (row.subHeads && row.subHeads.length > 0) {
+          return a + row.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+        }
+        return a + (Number(row.amount ?? row.totalSalary) || 0);
+      }, 0);
+
+    const sumItems = (
+      items: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
+    ) =>
+      (items ?? []).reduce((a, i) => {
+        if (i.subHeads && i.subHeads.length > 0) {
+          return a + i.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+        }
+        return a + (Number(i.amount) || 0);
+      }, 0);
+
+    const summarizeBalanceSheet = (data: Record<string, unknown>) => {
+      const assetSections =
+        (data.assetSections as Array<{ items?: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }> }>) ??
+        [];
+      const eqSections =
+        (data.equityLiabilitySections as Array<{
+          title?: string;
+          items?: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>;
+        }>) ?? [];
+      const totalAssets = assetSections.reduce((a, s) => a + sumItems(s.items), 0);
+      const equityItems =
+        eqSections.find(s => (s.title ?? "").toLowerCase() === "equity")?.items ?? [];
+      const totalEquity = sumItems(equityItems);
+      const liabilitySections = eqSections.filter(s => (s.title ?? "").toLowerCase() !== "equity");
+      const totalLiabilities = liabilitySections.reduce((a, s) => a + sumItems(s.items), 0);
+      const totalEquityLiabilities = totalEquity + totalLiabilities;
+      return {
+        balanceSheetTotalAssets: totalAssets,
+        balanceSheetTotalEquity: totalEquity,
+        balanceSheetTotalLiabilities: totalLiabilities,
+        balanceSheetEquityLiabilities: totalEquityLiabilities,
+        balanceSheetDifference: totalAssets - totalEquityLiabilities,
+      };
+    };
+
+    const summarizeCashFlow = (data: Record<string, unknown>) => {
+      const months = (data.months as Array<{ rows: Array<{ netAmount: number }> }>) ?? [];
+      return months.reduce(
+        (acc, m) => acc + m.rows.reduce((a, r) => a + (Number(r.netAmount) || 0), 0),
+        0,
+      );
+    };
+
+    const summarizeTotalAssets = (data: Record<string, unknown>) => {
+      const sumSections = (sections: Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>) =>
+        sections.reduce((a, s) => {
+          if (s.subHeads && s.subHeads.length > 0) {
+            return a + s.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
+          }
+          return a + (Number(s.total) || 0);
+        }, 0);
+      const companies = data.companies as
+        | Record<string, Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>>
+        | undefined;
+      if (companies && (companies.BEM || companies.GPS || companies.BDS)) {
+        return (
+          sumSections(companies.BEM ?? []) +
+          sumSections(companies.GPS ?? []) +
+          sumSections(companies.BDS ?? [])
+        );
+      }
+      const sections = (data.sections as Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>) ?? [];
+      return sumSections(sections);
+    };
 
     const summaries: Record<string, number> = {};
     const persistedPages: Record<string, boolean> = {};
+    let recordDate = toDate;
+    let dashData: Record<string, unknown> = defaultAccountsData("dashboard");
 
-    for (const page of pages) {
-      const record = await findRecord(page, recordDate);
-      persistedPages[page] = !!record;
-      const data = preparePageData(
-        page,
-        (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(page),
+    if (mode === "all_time") {
+      // Flow statements: sum every saved day through `toDate`. Stock: latest snapshot ≤ toDate.
+      const [dashRecs, isRecs, bsRecs, cfRecs, taRecs] = await Promise.all([
+        prisma.accountsRecord.findMany({
+          where: { page: "dashboard", recordDate: { lte: toDate } },
+          orderBy: { recordDate: "asc" },
+        }),
+        prisma.accountsRecord.findMany({
+          where: { page: "income_statement", recordDate: { lte: toDate } },
+          orderBy: { recordDate: "asc" },
+        }),
+        prisma.accountsRecord.findMany({
+          where: { page: "balance_sheet", recordDate: { lte: toDate } },
+          orderBy: { recordDate: "desc" },
+          take: 1,
+        }),
+        prisma.accountsRecord.findMany({
+          where: { page: "cash_flow", recordDate: { lte: toDate } },
+          orderBy: { recordDate: "desc" },
+          take: 1,
+        }),
+        prisma.accountsRecord.findMany({
+          where: { page: "total_assets", recordDate: { lte: toDate } },
+          orderBy: { recordDate: "desc" },
+          take: 1,
+        }),
+      ]);
+
+      const dashByDate = new Map(
+        dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
       );
 
-      if (page === "balance_sheet") {
-        const sumItems = (
-          items: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
-        ) =>
-          (items ?? []).reduce((a, i) => {
-            if (i.subHeads && i.subHeads.length > 0) {
-              return a + i.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
-            }
-            return a + (Number(i.amount) || 0);
-          }, 0);
+      let revenue = 0;
+      let payroll = 0;
+      let opex = 0;
+      let loans = 0;
+      let pf = 0;
+      let currencyFormulaTotal = 0;
 
-        const assetSections =
-          (data.assetSections as Array<{ items?: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }> }>) ??
-          [];
-        const eqSections =
-          (data.equityLiabilitySections as Array<{
-            title?: string;
-            items?: Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>;
-          }>) ?? [];
+      for (const rec of dashRecs) {
+        const d = rec.data as Record<string, unknown>;
+        currencyFormulaTotal += currencyFormulaTotalFromDashboard(d);
+      }
 
-        const totalAssets = assetSections.reduce((a, s) => a + sumItems(s.items), 0);
-        const equityItems =
-          eqSections.find(s => (s.title ?? "").toLowerCase() === "equity")?.items ?? [];
-        const totalEquity = sumItems(equityItems);
-        const liabilitySections = eqSections.filter(s => (s.title ?? "").toLowerCase() !== "equity");
-        const totalLiabilities = liabilitySections.reduce((a, s) => a + sumItems(s.items), 0);
-        const totalEquityLiabilities = totalEquity + totalLiabilities;
+      for (const rec of isRecs) {
+        const data = preparePageData("income_statement", rec.data as Record<string, unknown>);
+        revenue += currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
+        payroll += sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
+        opex += sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        loans += sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+        pf += sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+      }
 
-        summaries.balanceSheetTotalAssets = totalAssets;
-        summaries.balanceSheetTotalEquity = totalEquity;
-        summaries.balanceSheetTotalLiabilities = totalLiabilities;
-        summaries.balanceSheetEquityLiabilities = totalEquityLiabilities;
-        summaries.balanceSheetDifference = totalAssets - totalEquityLiabilities;
-      } else if (page === "income_statement") {
-        // Revenue = Currency Formula (AH+SN+CHQ+HM) for same date — not a manual field
-        const dashRec = await findRecord("dashboard", recordDate);
-        const revenue = currencyFormulaTotalFromDashboard(
-          (dashRec?.data as Record<string, unknown> | undefined) ?? undefined,
+      // Total expense aligns with Income Statement cards: salaries + OPEX only
+      const expense = payroll + opex;
+      summaries.currencyFormulaTotal = currencyFormulaTotal;
+      summaries.incomeTotalRevenue = revenue;
+      summaries.incomePayroll = payroll;
+      summaries.incomeOpex = opex;
+      summaries.incomeLoans = loans;
+      summaries.incomeProvidentFund = pf;
+      summaries.incomeTotalExpense = expense;
+      summaries.incomeNetProfit = revenue - expense;
+
+      const bs = bsRecs[0];
+      persistedPages.balance_sheet = !!bs;
+      Object.assign(
+        summaries,
+        summarizeBalanceSheet(
+          preparePageData(
+            "balance_sheet",
+            (bs?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("balance_sheet"),
+          ),
+        ),
+      );
+
+      const cf = cfRecs[0];
+      persistedPages.cash_flow = !!cf;
+      summaries.cashFlowNet = summarizeCashFlow(
+        preparePageData(
+          "cash_flow",
+          (cf?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("cash_flow"),
+        ),
+      );
+
+      const ta = taRecs[0];
+      persistedPages.total_assets = !!ta;
+      summaries.totalAssetsRegister = summarizeTotalAssets(
+        preparePageData(
+          "total_assets",
+          (ta?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("total_assets"),
+        ),
+      );
+
+      persistedPages.income_statement = isRecs.length > 0;
+      persistedPages.dashboard = dashRecs.length > 0;
+      const latestDash = dashRecs[dashRecs.length - 1];
+      dashData = (latestDash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard");
+      recordDate = toDate;
+    } else {
+      const pages: AccountsPageKey[] = [
+        "balance_sheet",
+        "income_statement",
+        "cash_flow",
+        "total_assets",
+      ];
+
+      for (const page of pages) {
+        const record = await findRecord(page, toDate);
+        persistedPages[page] = !!record;
+        const data = preparePageData(
+          page,
+          (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(page),
         );
-        const sumLines = (
-          rows: Array<{ amount?: number; totalSalary?: number; subHeads?: Array<{ amount?: number }> }> | undefined,
-        ) =>
-          (rows ?? []).reduce((a, row) => {
-            if (row.subHeads && row.subHeads.length > 0) {
-              return a + row.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
-            }
-            return a + (Number(row.amount ?? row.totalSalary) || 0);
-          }, 0);
 
-        const payroll = sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
-        const opex = sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-        const loans = sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-        const pf = sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
-        const expense = payroll + opex + loans + pf;
-        summaries.incomeTotalRevenue = revenue;
-        summaries.incomePayroll = payroll;
-        summaries.incomeOpex = opex;
-        summaries.incomeLoans = loans;
-        summaries.incomeProvidentFund = pf;
-        summaries.incomeTotalExpense = expense;
-        summaries.incomeNetProfit = revenue - expense;
-      } else if (page === "cash_flow") {
-        const months = (data.months as Array<{ rows: Array<{ netAmount: number }> }>) ?? [];
-        summaries.cashFlowNet = months.reduce(
-          (acc, m) => acc + m.rows.reduce((a, r) => a + (Number(r.netAmount) || 0), 0),
-          0,
-        );
-      } else if (page === "total_assets") {
-        const sumSections = (sections: Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>) =>
-          sections.reduce((a, s) => {
-            if (s.subHeads && s.subHeads.length > 0) {
-              return a + s.subHeads.reduce((x, h) => x + (Number(h.amount) || 0), 0);
-            }
-            return a + (Number(s.total) || 0);
-          }, 0);
-
-        const companies = data.companies as
-          | Record<string, Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>>
-          | undefined;
-        if (companies && (companies.BEM || companies.GPS || companies.BDS)) {
-          summaries.totalAssetsRegister =
-            sumSections(companies.BEM ?? []) +
-            sumSections(companies.GPS ?? []) +
-            sumSections(companies.BDS ?? []);
-        } else {
-          const sections = (data.sections as Array<{ total?: number; subHeads?: Array<{ amount?: number }> }>) ?? [];
-          summaries.totalAssetsRegister = sumSections(sections);
+        if (page === "balance_sheet") {
+          Object.assign(summaries, summarizeBalanceSheet(data));
+        } else if (page === "income_statement") {
+          const dashRec = await findRecord("dashboard", toDate);
+          const revenue = currencyFormulaTotalFromDashboard(
+            (dashRec?.data as Record<string, unknown> | undefined) ?? undefined,
+          );
+          const payroll = sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
+          const opex = sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+          const loans = sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+          const pf = sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
+          // Align with Income Statement page: Total Expense = payroll + OPEX
+          const expense = payroll + opex;
+          summaries.currencyFormulaTotal = revenue;
+          summaries.incomeTotalRevenue = revenue;
+          summaries.incomePayroll = payroll;
+          summaries.incomeOpex = opex;
+          summaries.incomeLoans = loans;
+          summaries.incomeProvidentFund = pf;
+          summaries.incomeTotalExpense = expense;
+          summaries.incomeNetProfit = revenue - expense;
+        } else if (page === "cash_flow") {
+          summaries.cashFlowNet = summarizeCashFlow(data);
+        } else if (page === "total_assets") {
+          summaries.totalAssetsRegister = summarizeTotalAssets(data);
         }
       }
-    }
 
-    const dash = await findRecord("dashboard", recordDate);
+      const dash = await findRecord("dashboard", toDate);
+      dashData = (dash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard");
+      persistedPages.dashboard = !!dash;
+      recordDate = toDate;
+    }
 
     return res.json({
       success: true,
       recordDate,
+      mode: mode === "all_time" ? "all_time" : "day",
+      throughDate: toDate,
       summaries,
-      dashboard: dash?.data ?? defaultAccountsData("dashboard"),
+      dashboard: dashData,
       persisted: {
-        dashboard: !!dash,
-        ...persistedPages,
+        dashboard: !!persistedPages.dashboard,
+        balance_sheet: !!persistedPages.balance_sheet,
+        income_statement: !!persistedPages.income_statement,
+        cash_flow: !!persistedPages.cash_flow,
+        total_assets: !!persistedPages.total_assets,
       },
     });
   } catch (err) {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import API from "@/lib/api";
 import { currency } from "../../types";
 import {
   calcSalesCommission,
@@ -13,6 +12,7 @@ import {
 } from "../../utils/salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "../../utils/salesPayrollDefaults";
 import { isRepAssignedToLead } from "../../utils/salesPayrollBridge";
+import { fetchAndApplyPendingLoan } from "../../utils/loanLedgerApply";
 import AmountInput from "../AmountInput";
 
 type Props = {
@@ -97,29 +97,22 @@ export default function SalesPayrollEmployeeEditor({
   );
 
   const lookupLoan = useCallback(async (force = false) => {
-    try {
-      const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(employee.name)}`);
-      const loan = res.data.loan;
-      if (!loan) return;
-      const hasLocal =
-        (Number(employee.loanTotal) || 0) > 0 ||
-        (Number(employee.loanPaid) || 0) > 0 ||
-        (Number(employee.loanThisMonth) || 0) > 0;
-      if (!force && hasLocal) return;
-      onChange({
-        ...employee,
-        loanTotal: Number(loan.totalAmount) || 0,
-        loanPaid: Number(loan.paidAmount) || 0,
-        ...(force ? { loanThisMonth: 0 } : {}),
-      });
-    } catch {
-      /* ignore */
-    }
+    const patch = await fetchAndApplyPendingLoan(
+      employee.name,
+      {
+        loanTotal: Number(employee.loanTotal) || 0,
+        loanPaid: Number(employee.loanPaid) || 0,
+        loanThisMonth: Number(employee.loanThisMonth) || 0,
+      },
+      { force },
+    );
+    if (!patch) return;
+    onChange({ ...employee, ...patch });
   }, [employee, onChange]);
 
   useEffect(() => {
-    if (open) void lookupLoan(false);
-  }, [open, employee.name]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (open || embedded) void lookupLoan(false);
+  }, [open, embedded, employee.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const assignedReps = allData.salesTeamMembers.filter(m =>
     isRepAssignedToLead(m, employee.id),
@@ -347,7 +340,7 @@ export default function SalesPayrollEmployeeEditor({
               Refresh loan from ledger
             </button>
             <p className="text-[10px] text-orange-700/80">
-              Remaining = Total − Paid − This month. Auto-fills Income Statement Loans table; Save syncs the shared ledger.
+              Pending loan auto-fills from the ledger. Remaining = Total − Paid − This month. Save syncs back to ledger + Loans table.
             </p>
           </div>
 

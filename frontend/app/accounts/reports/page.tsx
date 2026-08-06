@@ -52,7 +52,38 @@ type MonthlyReport = {
     closingNet: number;
     asOf: string | null;
   };
-  csr: { totalProjects: number; rows: { name: string; projects: number; share: number }[] };
+  csr: {
+    totalProjects: number;
+    totals: {
+      oldProjects: number;
+      partialCount: number;
+      newProjects: number;
+      fixProjects: number;
+      fixPay: number;
+      oldComm: number;
+      newComm: number;
+      fixComm: number;
+      totalCommission: number;
+    };
+    rows: {
+      name: string;
+      code: string;
+      role: "sales" | "team_lead";
+      roleLabel: string;
+      assignedToLead: boolean;
+      oldProjects: number;
+      partialCount: number;
+      newProjects: number;
+      fixProjects: number;
+      fixPay: number;
+      projects: number;
+      oldComm: number;
+      newComm: number;
+      fixComm: number;
+      totalCommission: number;
+      share: number;
+    }[];
+  };
   daysRecorded: number;
 };
 
@@ -152,6 +183,7 @@ function buildWordHtml(report: MonthlyReport): string {
   const thC = `style="background:${NAVY};color:#fff;padding:6px 9px;text-align:center;font-size:10px;letter-spacing:0.5px;"`;
   const td = `style="padding:5px 9px;border:1px solid #E2E8F0;font-size:10.5px;"`;
   const tdR = `style="padding:5px 9px;border:1px solid #E2E8F0;font-size:10.5px;text-align:right;"`;
+  const tdC = `style="padding:5px 9px;border:1px solid #E2E8F0;font-size:10.5px;text-align:center;"`;
   const sub = `style="padding:3px 9px 3px 26px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;background:#FCFCFD;"`;
   const subR = `style="padding:3px 9px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;text-align:right;background:#FCFCFD;"`;
 
@@ -308,7 +340,7 @@ function buildWordHtml(report: MonthlyReport): string {
     </table>`;
 
   // ---------- CSR ----------
-  const maxShare = Math.max(...report.csr.rows.map(r => r.share), 1);
+  const csrColSpan = 15;
   const csrRows = report.csr.rows
     .map(r => {
       const status =
@@ -317,21 +349,36 @@ function buildWordHtml(report: MonthlyReport): string {
           : r.projects > 0
             ? statusCell("Active", "#DBEAFE", "#1D4ED8")
             : statusCell("Below Expectation", "#FEE4E2", RED_TXT);
-      const w = Math.max(Math.round((r.share / maxShare) * 100), r.share > 0 ? 3 : 0);
       return `<tr>
-        <td ${td}><b>${r.name}</b></td>
-        <td ${tdR}>${r.projects}</td>
+        <td ${td}><b>${r.name}</b>${r.code ? `<br/><span style="color:#64748B;font-size:9px;">${r.code}</span>` : ""}</td>
+        <td ${td}>${r.roleLabel}</td>
+        <td ${tdC}>${r.assignedToLead ? "Yes" : "—"}</td>
+        <td ${tdR}>${r.oldProjects}</td>
+        <td ${tdR}>${r.partialCount}</td>
+        <td ${tdR}>${r.newProjects}</td>
+        <td ${tdR}>${r.fixProjects}</td>
+        <td ${tdR}>${currency(r.fixPay)}</td>
+        <td ${tdR}><b>${r.projects}</b></td>
+        <td ${tdR}>${currency(r.oldComm)}</td>
+        <td ${tdR}>${currency(r.newComm)}</td>
+        <td ${tdR}>${currency(r.fixComm)}</td>
+        <td ${tdR}><b style="color:${GREEN_D};">${currency(r.totalCommission)}</b></td>
         <td ${tdR}>${r.share.toFixed(1)}%</td>
-        <td style="padding:5px 9px;border:1px solid #E2E8F0;" width="150">
-          <table cellspacing="0" cellpadding="0" width="100%"><tr>
-            ${w > 0 ? `<td width="${w}%" height="9" style="background:${BLUE};font-size:1px;line-height:9px;">&nbsp;</td>` : ""}
-            <td height="9" style="background:#F1F5F9;font-size:1px;line-height:9px;">&nbsp;</td>
-          </tr></table>
-        </td>
         ${status}
       </tr>`;
     })
     .join("");
+  const ct = report.csr.totals ?? {
+    oldProjects: 0,
+    partialCount: 0,
+    newProjects: 0,
+    fixProjects: 0,
+    fixPay: 0,
+    oldComm: 0,
+    newComm: 0,
+    fixComm: 0,
+    totalCommission: 0,
+  };
 
   // ---------- Executives ----------
   const execRows = report.executives
@@ -457,9 +504,39 @@ function buildWordHtml(report: MonthlyReport): string {
 
   ${section(6, `CSR Team Performance — ${label}`)}
   <table cellspacing="0" cellpadding="0" width="100%" style="border-collapse:collapse;">
-    <tr><th ${th}>CSR</th><th ${thR}>Projects</th><th ${thR}>Share %</th><th ${th}>Share</th><th ${thC}>Status</th></tr>
-    ${csrRows || tdEmpty(5, "No completed projects recorded this month.")}
-    <tr style="background:#EEF2F6;"><td ${td}><b>TOTAL</b></td><td ${tdR}><b>${report.csr.totalProjects}</b></td><td ${tdR}><b>100%</b></td><td ${td}></td><td ${td}></td></tr>
+    <tr>
+      <th ${th}>CSR</th>
+      <th ${th}>Role</th>
+      <th ${thC}>Assigned TL</th>
+      <th ${thR}>Old Proj</th>
+      <th ${thR}>Partial</th>
+      <th ${thR}>New Proj</th>
+      <th ${thR}>Fix Proj</th>
+      <th ${thR}>Fix Pay</th>
+      <th ${thR}>Total Proj</th>
+      <th ${thR}>Old Comm</th>
+      <th ${thR}>New Comm</th>
+      <th ${thR}>Fix Comm</th>
+      <th ${thR}>Total Comm</th>
+      <th ${thR}>Share %</th>
+      <th ${thC}>Status</th>
+    </tr>
+    ${csrRows || tdEmpty(csrColSpan, "No sales / team-lead CSRs recorded this month.")}
+    <tr style="background:#EEF2F6;">
+      <td ${td} colspan="3"><b>TOTAL</b></td>
+      <td ${tdR}><b>${ct.oldProjects}</b></td>
+      <td ${tdR}><b>${ct.partialCount}</b></td>
+      <td ${tdR}><b>${ct.newProjects}</b></td>
+      <td ${tdR}><b>${ct.fixProjects}</b></td>
+      <td ${tdR}><b>${currency(ct.fixPay)}</b></td>
+      <td ${tdR}><b>${report.csr.totalProjects}</b></td>
+      <td ${tdR}><b>${currency(ct.oldComm)}</b></td>
+      <td ${tdR}><b>${currency(ct.newComm)}</b></td>
+      <td ${tdR}><b>${currency(ct.fixComm)}</b></td>
+      <td ${tdR}><b style="color:${GREEN_D};">${currency(ct.totalCommission)}</b></td>
+      <td ${tdR}><b>100%</b></td>
+      <td ${td}></td>
+    </tr>
   </table>
 
   ${section(7, `Cost Mix — ${label} (${pkr(report.totals.totalCost)})`)}
@@ -1036,31 +1113,53 @@ export default function AccountsReportsPage() {
 
               <SectionCard title={`7. CSR Team Performance — ${label}`}>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-130">
+                  <table className="w-full text-sm min-w-[1100px]">
                     <thead className="bg-[#FAFBFC]">
                       <tr className="border-b border-gray-200/80">
                         <th className={`${thCls} text-left`}>CSR</th>
-                        <th className={`${thCls} text-right`}>Projects</th>
+                        <th className={`${thCls} text-left`}>Role</th>
+                        <th className={`${thCls} text-center`}>Assigned TL</th>
+                        <th className={`${thCls} text-right`}>Old Proj</th>
+                        <th className={`${thCls} text-right`}>Partial</th>
+                        <th className={`${thCls} text-right`}>New Proj</th>
+                        <th className={`${thCls} text-right`}>Fix Proj</th>
+                        <th className={`${thCls} text-right`}>Fix Pay</th>
+                        <th className={`${thCls} text-right`}>Total Proj</th>
+                        <th className={`${thCls} text-right`}>Old Comm</th>
+                        <th className={`${thCls} text-right`}>New Comm</th>
+                        <th className={`${thCls} text-right`}>Fix Comm</th>
+                        <th className={`${thCls} text-right`}>Total Comm</th>
                         <th className={`${thCls} text-right`}>Share %</th>
-                        <th className={`${thCls} text-left w-40`}>Share</th>
-                        <th className={`${thCls} text-center w-36`}>Status</th>
+                        <th className={`${thCls} text-center`}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {report.csr.rows.length === 0 ? (
-                        <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400 text-xs">No completed projects recorded this month.</td></tr>
+                        <tr>
+                          <td colSpan={15} className="px-3 py-6 text-center text-gray-400 text-xs">
+                            No sales / team-lead CSRs recorded this month.
+                          </td>
+                        </tr>
                       ) : (
                         report.csr.rows.map(r => (
-                          <tr key={r.name} className="border-b border-gray-50">
-                            <td className={`${tdCls} font-semibold text-gray-700`}>{r.name}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.projects}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.share.toFixed(1)}%</td>
-                            <td className={tdCls}>
-                              <MiniBar
-                                pct={(r.share / Math.max(...report.csr.rows.map(x => x.share), 1)) * 100}
-                                color={r.share >= 30 ? "#12B76A" : r.projects > 0 ? "#0B84F3" : "#EF4444"}
-                              />
+                          <tr key={`${r.code}-${r.name}`} className="border-b border-gray-50">
+                            <td className={`${tdCls} font-semibold text-gray-700`}>
+                              {r.name}
+                              {r.code ? <span className="block text-[10px] font-normal text-gray-400">{r.code}</span> : null}
                             </td>
+                            <td className={`${tdCls} text-gray-600`}>{r.roleLabel}</td>
+                            <td className={`${tdCls} text-center text-gray-600`}>{r.assignedToLead ? "Yes" : "—"}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{r.oldProjects}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{r.partialCount}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{r.newProjects}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{r.fixProjects}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.fixPay)}</td>
+                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{r.projects}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.oldComm)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.newComm)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.fixComm)}</td>
+                            <td className={`${tdCls} text-right tabular-nums font-bold text-emerald-700`}>{currency(r.totalCommission)}</td>
+                            <td className={`${tdCls} text-right tabular-nums`}>{r.share.toFixed(1)}%</td>
                             <td className={`${tdCls} text-center`}>
                               <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                 r.share >= 30
@@ -1078,10 +1177,18 @@ export default function AccountsReportsPage() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-gray-200 bg-[#FAFBFC]">
-                        <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs">TOTAL</td>
+                        <td className="px-3 py-2.5 font-extrabold text-gray-800 text-xs" colSpan={3}>TOTAL</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.oldProjects ?? 0}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.partialCount ?? 0}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.newProjects ?? 0}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.fixProjects ?? 0}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.fixPay ?? 0)}</td>
                         <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totalProjects}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.oldComm ?? 0)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.newComm ?? 0)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.fixComm ?? 0)}</td>
+                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-emerald-700">{currency(report.csr.totals?.totalCommission ?? 0)}</td>
                         <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">100%</td>
-                        <td />
                         <td />
                       </tr>
                     </tfoot>

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import API from "@/lib/api";
 import { computeAdminSalary, computeSalary, emptySalaryDetail, type EmployeeSalaryDetail } from "../utils/payrollFormula";
+import { fetchAndApplyPendingLoan } from "../utils/loanLedgerApply";
 import { currency } from "../types";
 import AmountInput from "./AmountInput";
 
@@ -69,28 +69,22 @@ export default function EmployeeSalaryEditor({
 
   const lookupLoan = useCallback(async (force = false) => {
     if (!enableLoanLookup || !name.trim()) return;
-    try {
-      const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(name)}`);
-      const loan = res.data.loan;
-      if (!loan) return;
-      const hasLocal = (Number(d.loanTotal) || 0) > 0 || (Number(d.loanPaid) || 0) > 0 || (Number(d.loanThisMonth) || 0) > 0;
-      // Auto-fill only when this employee has no loan fields yet (avoids double-count after save).
-      if (!force && hasLocal) return;
-      onChange({
-        ...d,
-        loanTotal: Number(loan.totalAmount) || 0,
-        loanPaid: Number(loan.paidAmount) || 0,
-        // Fresh pull from ledger = balance already paid; clear this-month cut so user re-enters if needed
-        ...(force ? { loanThisMonth: 0 } : {}),
-      });
-    } catch {
-      /* ignore */
-    }
+    const patch = await fetchAndApplyPendingLoan(
+      name,
+      {
+        loanTotal: Number(d.loanTotal) || 0,
+        loanPaid: Number(d.loanPaid) || 0,
+        loanThisMonth: Number(d.loanThisMonth) || 0,
+      },
+      { force },
+    );
+    if (!patch) return;
+    onChange({ ...d, ...patch });
   }, [enableLoanLookup, name, d, onChange]);
 
   useEffect(() => {
     void lookupLoan(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when name changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate when person opens / name changes
   }, [name]);
 
   return (
@@ -248,7 +242,7 @@ export default function EmployeeSalaryEditor({
           )}
         </div>
         <p className="text-[10px] text-orange-700/80">
-          Remaining after this month&apos;s deduction. Fills the Income Statement Loans table automatically; Save also syncs Total / Paid into the shared loan ledger.
+          Pending loan auto-fills from the shared ledger (Total / Paid). Remaining = Total − Paid − This month. Fully paid clears these fields.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />

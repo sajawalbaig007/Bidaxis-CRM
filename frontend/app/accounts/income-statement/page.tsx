@@ -27,7 +27,13 @@ import {
 } from "../utils/incomeStatementSeed";
 import { syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
 import { syncLoanHeadsFromSalaries } from "../utils/payrollLoanHeadsSync";
+import { hydrateIncomeStatementPendingLoans } from "../utils/loanLedgerApply";
+import {
+  clearPersonLoanFromTeamSalaries,
+  deletePayrollLoanByName,
+} from "../utils/payrollLoanSync";
 import { normalizeSalesTeamSubs, isSalesTeamTitle, resolvePayrollKind } from "../utils/salesPayrollBridge";
+import { normalizePeriodPreset } from "../utils/accountsPeriodFilters";
 import { currencyFormulaTotal } from "../utils/currencyFormula";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
 
@@ -111,10 +117,49 @@ export default function IncomeStatementPage() {
   });
   useScrollToHash(!acc.loading);
 
-  /** Total Revenue = Currency Formula merged tabs (AH+SN+CHQ+HM) for same date — not editable. */
+  /** Total Revenue = Currency Formula; All Time rolls up every day through today. */
   const [currencyTotal, setCurrencyTotal] = useState(0);
+  const [periodRollup, setPeriodRollup] = useState<{
+    revenue: number;
+    payroll: number;
+    opex: number;
+    loans: number;
+    pf: number;
+    expense: number;
+    profit: number;
+  } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
+    const mode = normalizePeriodPreset(acc.periodPreset);
+    if (mode === "all_time") {
+      API.get(`/accounts/dashboard/summary?mode=all_time&to=${todayIso()}`)
+        .then(res => {
+          if (cancelled) return;
+          const s = res.data.summaries ?? {};
+          setCurrencyTotal(Number(s.incomeTotalRevenue) || 0);
+          setPeriodRollup({
+            revenue: Number(s.incomeTotalRevenue) || 0,
+            payroll: Number(s.incomePayroll) || 0,
+            opex: Number(s.incomeOpex) || 0,
+            loans: Number(s.incomeLoans) || 0,
+            pf: Number(s.incomeProvidentFund) || 0,
+            expense: Number(s.incomeTotalExpense) || 0,
+            profit: Number(s.incomeNetProfit) || 0,
+          });
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCurrencyTotal(0);
+            setPeriodRollup(null);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setPeriodRollup(null);
     API.get(`/accounts/dashboard/${acc.recordDate}`)
       .then(res => {
         if (cancelled) return;
@@ -127,7 +172,7 @@ export default function IncomeStatementPage() {
     return () => {
       cancelled = true;
     };
-  }, [acc.recordDate]);
+  }, [acc.recordDate, acc.periodPreset, acc.dirty, acc.saving]);
 
   /** Always apply sales-team split + payroll migration + executive commission + PF sync */
   const data = useMemo(
@@ -148,6 +193,21 @@ export default function IncomeStatementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
   }, [acc.loading, acc.recordDate, currencyTotal]);
 
+  /** Pending loans from shared ledger → salary / salesPayroll loan fields */
+  useEffect(() => {
+    if (acc.loading) return;
+    let cancelled = false;
+    void (async () => {
+      const hydrated = await hydrateIncomeStatementPendingLoans(acc.data);
+      if (cancelled || hydrated === acc.data) return;
+      acc.setData(() => normalizeIncomeStatement(hydrated, currencyTotal));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per loaded record date
+  }, [acc.loading, acc.recordDate]);
+
   const uploadOpexProof = useCallback(async (file: File) => {
     try {
       return await uploadAccountsProof("income_statement", acc.recordDate, file);
@@ -158,25 +218,25 @@ export default function IncomeStatementPage() {
   }, [acc.recordDate]);
 
   const payrollExpense = useMemo(
-    () => (data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
-    [data.teamSalaries],
+    () => periodRollup?.payroll ?? (data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
+    [data.teamSalaries, periodRollup],
   );
   const operatingExpense = useMemo(
-    () => (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [data.opexHeads],
+    () => periodRollup?.opex ?? (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.opexHeads, periodRollup],
   );
   const loanExpense = useMemo(
-    () => (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [data.loanHeads],
+    () => periodRollup?.loans ?? (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.loanHeads, periodRollup],
   );
   const pfExpense = useMemo(
-    () => (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [data.providentFundHeads],
+    () => periodRollup?.pf ?? (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.providentFundHeads, periodRollup],
   );
   // Total Expense = Team Salaries + OPEX only (PF/loan already sit inside net salaries — don't double-count)
-  const totalExpense = payrollExpense + operatingExpense;
-  const revenue = currencyTotal;
-  const netProfit = revenue - totalExpense;
+  const totalExpense = periodRollup?.expense ?? payrollExpense + operatingExpense;
+  const revenue = periodRollup?.revenue ?? currencyTotal;
+  const netProfit = periodRollup?.profit ?? revenue - totalExpense;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
   const payrollChartData = (data.teamSalaries ?? []).map(t => ({
@@ -253,19 +313,20 @@ export default function IncomeStatementPage() {
           }
           addNewLabel="Add Team"
         >
-          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
+          <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 sm:gap-3">
             {[
-              { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: "Currency Formula" },
-              { label: "Team Salaries", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: "Payroll tables" },
-              { label: "Operating Expense", value: operatingExpense, cls: "from-[#F59E0B] to-[#D97706]", hint: "OPEX table" },
+              { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: periodRollup ? "All Time · sum" : "Currency Formula" },
+              { label: "Team Salaries", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: periodRollup ? "All Time · sum" : "Payroll tables" },
+              { label: "Operating Expense", value: operatingExpense, cls: "from-[#F59E0B] to-[#D97706]", hint: periodRollup ? "All Time · sum" : "OPEX table" },
               { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "Salaries + OPEX" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]", hint: "Revenue − Expense" },
-              { label: "Loans / PF", value: loanExpense + pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "Info only · in net salary" },
+              { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]", hint: "Pending only" },
+              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "Auto from salaries" },
             ].map(c => (
-              <div key={c.label} className={`bg-gradient-to-br ${c.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md`}>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{c.label}</p>
-                <p className="text-lg sm:text-xl font-extrabold mt-1 tabular-nums">{currency(Number(c.value) || 0)}</p>
-                <p className="text-[9px] text-white/55 font-medium mt-0.5">{c.hint}</p>
+              <div key={c.label} className={`bg-gradient-to-br ${c.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md min-w-0`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/80 truncate">{c.label}</p>
+                <p className="text-base sm:text-lg xl:text-xl font-extrabold mt-1 tabular-nums truncate">{currency(Number(c.value) || 0)}</p>
+                <p className="text-[9px] text-white/55 font-medium mt-0.5 truncate">{c.hint}</p>
               </div>
             ))}
           </section>
@@ -434,9 +495,20 @@ export default function IncomeStatementPage() {
               title="Loans"
               accent="#EA580C"
               addLabel="Add Loan Head"
-              emptyLabel="Loans fill automatically from Team Salaries (this month’s loan deduction)."
+              emptyLabel="Pending loans only — fully paid employees drop off automatically."
               rows={(data.loanHeads ?? []).map(opexToHead)}
               onChange={(rows, opts) => commit({ loanHeads: rows.map(headToOpex) }, opts)}
+              onDeleteSubHead={({ sub, nextRows }) => {
+                void deletePayrollLoanByName(sub.label);
+                commit(
+                  {
+                    loanHeads: nextRows.map(headToOpex),
+                    teamSalaries: clearPersonLoanFromTeamSalaries(data.teamSalaries, sub.label),
+                  },
+                  { persist: true },
+                );
+                return true;
+              }}
               onPersist={() => void acc.save()}
               saving={acc.saving}
             />

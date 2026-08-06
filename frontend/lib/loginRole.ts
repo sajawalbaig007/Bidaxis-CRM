@@ -4,7 +4,7 @@ export const PORTAL_OPTIONS: { value: PortalRole; label: string; hint: string }[
   { value: "admin", label: "Admin", hint: "Full admin dashboard" },
   { value: "csr", label: "CSR", hint: "Client calls & leads" },
   { value: "manager", label: "Manager", hint: "Leads, reports & projects" },
-  { value: "technical_manager", label: "GPS", hint: "Projects, KPI & delivery" },
+  { value: "technical_manager", label: "Technical", hint: "Projects, KPI & team" },
   { value: "accounts", label: "Accounts", hint: "Statements, payroll & assets" },
 ];
 
@@ -55,11 +55,11 @@ export const PORTAL_LOGIN_COPY: Record<
     ],
   },
   technical_manager: {
-    eyebrow: "GPS Portal",
-    heading: "GPS Sign In",
+    eyebrow: "Technical Portal",
+    heading: "Technical Sign In",
     subheading: "Monitor projects, revisions, KPI, and delivery teams.",
     slides: [
-      { title: "GPS Dashboard", subtitle: "Projects, revisions, and delivery status." },
+      { title: "Technical Dashboard", subtitle: "Projects, revisions, and delivery status." },
       { title: "Team & KPI", subtitle: "Track capacity, quality, and milestones." },
       { title: "Delivery Focus", subtitle: "Keep active work and revisions under control." },
     ],

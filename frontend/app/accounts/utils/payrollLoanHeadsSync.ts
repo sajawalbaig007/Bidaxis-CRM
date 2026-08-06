@@ -1,7 +1,6 @@
 /**
  * Sync Income Statement Loans table from Team Salaries payroll loan fields.
- * Employee name + this-period loan (deduction / outstanding) lands under the
- * matching loan head (Sales / Admin / Technical / Executive).
+ * Shows pending balance only (Total − Paid − This month). Fully paid → removed.
  */
 
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
@@ -40,43 +39,34 @@ function normName(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Period amount on the Loans table = this month’s salary loan deduction only. */
+/** Pending loan on the Loans table / cards.
+ *  Fully paid → 0 (deducted). Otherwise remaining = Total − Paid − This month.
+ */
 export function loanAmountFromSub(sub: SubHeadEntry, kind: PayrollKind): number {
   if (kind === "sales" || kind === "sales_lead") {
     const sp = sub.salesPayroll;
     if (!sp) return 0;
-    return Math.max(0, Number(sp.loanThisMonth) || 0);
+    const total = Math.max(0, Number(sp.loanTotal) || 0);
+    const paid = Math.max(0, Number(sp.loanPaid) || 0);
+    const thisMonth = Math.max(0, Number(sp.loanThisMonth) || 0);
+    return Math.max(0, total - paid - thisMonth);
   }
 
   const sal = emptySalaryDetail(sub.salary ?? { basic: Number(sub.amount) || 0 });
   if (kind === "executive") {
-    // They owe company (−ve ledger)
+    // Outstanding they still owe the company
     return Math.max(0, Number(sal.loanNegative) || 0);
   }
 
-  return Math.max(0, Number(sal.loanThisMonth) || 0);
+  const total = Math.max(0, Number(sal.loanTotal) || 0);
+  const paid = Math.max(0, Number(sal.loanPaid) || 0);
+  const thisMonth = Math.max(0, Number(sal.loanThisMonth) || 0);
+  return Math.max(0, total - paid - thisMonth);
 }
 
 function hasLoanActivity(sub: SubHeadEntry, kind: PayrollKind): boolean {
-  if (kind === "sales" || kind === "sales_lead") {
-    const sp = sub.salesPayroll;
-    if (!sp) return false;
-    return (
-      (Number(sp.loanTotal) || 0) > 0 ||
-      (Number(sp.loanPaid) || 0) > 0 ||
-      (Number(sp.loanThisMonth) || 0) > 0
-    );
-  }
-  const sal = sub.salary;
-  if (!sal) return false;
-  if (kind === "executive") {
-    return (Number(sal.loanNegative) || 0) > 0 || (Number(sal.loanPositive) || 0) > 0;
-  }
-  return (
-    (Number(sal.loanTotal) || 0) > 0 ||
-    (Number(sal.loanPaid) || 0) > 0 ||
-    (Number(sal.loanThisMonth) || 0) > 0
-  );
+  // Only surface loans that still have a pending balance (or executive −ve)
+  return loanAmountFromSub(sub, kind) > 0;
 }
 
 export type LoanContribution = {
