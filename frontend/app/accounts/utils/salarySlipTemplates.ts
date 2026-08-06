@@ -219,7 +219,7 @@ export async function renderGpsTechnicalSlip(
   doc.setFillColor(...GPS_PURPLE);
   doc.circle(pageW - 8, 8, 22, "F");
 
-  await drawLogo(doc, company, "GPS", margin, 9, 54, 18);
+  await drawLogo(doc, company, "GPS", margin, 8, 68, 22);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);

@@ -112,26 +112,23 @@ function buildTechnicalManagerEarnings(
   const home = Number(sal.homeAllowance) || 0;
   const medical = Number(sal.medicalAllowance) || 0;
   const travel = Number(sal.travelAllowance) || 0;
-  const lines: SalarySlipLine[] = [{ label: "Basic Salary", amount: sal.basic }];
-  if (home > 0) lines.push({ label: "Home Allowance", amount: home });
-  if (medical > 0) lines.push({ label: "Medical Allowance", amount: medical });
-  if (travel > 0) lines.push({ label: "Travel Allowance", amount: travel });
-  if (sal.allowance > 0) lines.push({ label: "Misc Allowance", amount: sal.allowance });
-  if (b.weekdayOtPay > 0) {
-    lines.push({
+  return [
+    { label: "Basic Salary", amount: sal.basic },
+    { label: "Home Allowance", amount: home },
+    { label: "Medical Allowance", amount: medical },
+    { label: "Travel Allowance", amount: travel },
+    { label: "Misc Allowance", amount: sal.allowance },
+    {
       label: "Weekday Overtime (1.5x)",
       amount: b.weekdayOtPay,
       qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
-    });
-  }
-  if (b.weekendOtPay > 0) {
-    lines.push({
+    },
+    {
       label: "Weekend Overtime (2x)",
       amount: b.weekendOtPay,
       qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
-    });
-  }
-  return lines;
+    },
+  ];
 }
 
 function standardDeductions(

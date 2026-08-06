@@ -134,7 +134,7 @@ export function fitLogoBox(imgW: number, imgH: number, maxW: number, maxH: numbe
 
 export function slipTemplateForKind(kind: string): SalarySlipTemplate {
   if (kind === "technical" || kind === "technical_manager") return "gps_technical";
-  if (kind === "sales_lead") return "bem_csr_full";
+  if (kind === "sales_lead") return "bem_sales";
   return "bem_sales";
 }
 
