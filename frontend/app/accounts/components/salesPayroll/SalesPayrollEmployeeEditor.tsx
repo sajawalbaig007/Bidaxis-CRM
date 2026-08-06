@@ -280,6 +280,9 @@ export default function SalesPayrollEmployeeEditor({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Num label="Basic Salary" value={employee.basic} onChange={v => set("basic", v)} />
               <Num label="Allowance" value={employee.allowance} onChange={v => set("allowance", v)} />
+              {variant === "team_lead" && (
+                <Num label="Home Allowance" value={employee.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+              )}
               <Read label="Total Commission" value={currency(comm.totalCommission)} accent="text-emerald-700" />
               <Read label="Total Earning" value={currency(breakdown.totalEarning)} accent="text-blue-800" />
             </div>
