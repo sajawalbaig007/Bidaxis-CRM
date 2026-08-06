@@ -6,7 +6,9 @@ export function accountsShellProps<T extends Record<string, unknown>>(
 ) {
   return {
     recordDate: acc.recordDate,
+    /** Daily picker switches to daily mode; chips in other modes keep the preset. */
     onRecordDateChange: acc.setFilterDay,
+    onSelectSavedDate: acc.selectRecordDate,
     filterFrom: acc.filterFrom,
     filterTo: acc.filterTo,
     onFilterFromChange: acc.setFilterFrom,

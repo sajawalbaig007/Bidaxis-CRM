@@ -19,6 +19,8 @@ type AccountsPageShellProps = {
   recordDate: string;
   /** Daily mode — pick the calendar day this record belongs to */
   onRecordDateChange?: (v: string) => void;
+  /** Browse a saved date without leaving All Time / Month / Date Range */
+  onSelectSavedDate?: (v: string) => void;
   filterFrom: string;
   filterTo: string;
   onFilterFromChange: (v: string) => void;
@@ -50,6 +52,7 @@ export default function AccountsPageShell({
   subtitle,
   recordDate,
   onRecordDateChange,
+  onSelectSavedDate,
   filterFrom,
   filterTo,
   onFilterFromChange,
@@ -73,8 +76,10 @@ export default function AccountsPageShell({
   const fileRef = useRef<HTMLInputElement>(null);
   const activePreset = normalizePeriodPreset(periodPreset);
   const periodSummary = formatPeriodSummary(periodPreset, filterFrom, filterTo, filterMonth, recordDate);
-  /** Recent saved days shown as quick chips in Daily mode */
-  const recentSavedDays = [...savedDates].sort().reverse().slice(0, 7);
+  /** Newest first — Daily shows a short strip; All Time / range show the full list */
+  const sortedSavedDays = [...savedDates].sort().reverse();
+  const recentSavedDays = sortedSavedDays.slice(0, 7);
+  const pickSavedDate = onSelectSavedDate ?? onRecordDateChange;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-7 space-y-5">
@@ -210,40 +215,102 @@ export default function AccountsPageShell({
           )}
 
           {(activePreset === "month" || activePreset === "date_range") && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {activePreset === "month" && (
-                <label className="text-xs font-semibold text-gray-600">
-                  <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Month</span>
-                  <input
-                    type="month"
-                    value={filterMonth}
-                    onChange={e => onFilterMonthChange(e.target.value)}
-                    className={inputCls}
-                  />
-                </label>
-              )}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {activePreset === "month" && (
+                  <label className="text-xs font-semibold text-gray-600">
+                    <span className="inline-flex items-center gap-1 mb-0.5"><CalendarDays size={12} /> Month</span>
+                    <input
+                      type="month"
+                      value={filterMonth}
+                      onChange={e => onFilterMonthChange(e.target.value)}
+                      className={inputCls}
+                    />
+                  </label>
+                )}
 
-              {activePreset === "date_range" && (
-                <>
-                  <label className="text-xs font-semibold text-gray-600">
-                    From
-                    <input
-                      type="date"
-                      value={filterFrom}
-                      onChange={e => onFilterFromChange(e.target.value)}
-                      className={inputCls}
-                    />
-                  </label>
-                  <label className="text-xs font-semibold text-gray-600">
-                    To
-                    <input
-                      type="date"
-                      value={filterTo}
-                      onChange={e => onFilterToChange(e.target.value)}
-                      className={inputCls}
-                    />
-                  </label>
-                </>
+                {activePreset === "date_range" && (
+                  <>
+                    <label className="text-xs font-semibold text-gray-600">
+                      From
+                      <input
+                        type="date"
+                        value={filterFrom}
+                        onChange={e => onFilterFromChange(e.target.value)}
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="text-xs font-semibold text-gray-600">
+                      To
+                      <input
+                        type="date"
+                        value={filterTo}
+                        onChange={e => onFilterToChange(e.target.value)}
+                        className={inputCls}
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+              {pickSavedDate && sortedSavedDays.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    Saved in this period ({sortedSavedDays.length})
+                  </p>
+                  <div className="min-h-9 max-h-28 overflow-y-auto rounded-xl border border-gray-100 bg-[#FAFAFA] p-2 flex flex-wrap gap-1.5">
+                    {sortedSavedDays.map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => pickSavedDate(d)}
+                        className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                          d === recordDate
+                            ? "bg-[#B8112D] text-white"
+                            : "bg-white text-gray-600 border border-gray-100 hover:border-[#B8112D]/30 hover:text-[#B8112D]"
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {pickSavedDate && sortedSavedDays.length === 0 && (
+                <p className="text-[11px] text-gray-400">No saved records in this period yet.</p>
+              )}
+            </div>
+          )}
+
+          {activePreset === "all_time" && (
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                All saved records ({sortedSavedDays.length})
+              </p>
+              {pickSavedDate && sortedSavedDays.length > 0 ? (
+                <div className="min-h-10 max-h-36 overflow-y-auto rounded-xl border border-gray-100 bg-[#FAFAFA] p-2 flex flex-wrap gap-1.5">
+                  {sortedSavedDays.map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => pickSavedDate(d)}
+                      className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                        d === recordDate
+                          ? "bg-[#B8112D] text-white"
+                          : "bg-white text-gray-600 border border-gray-100 hover:border-[#B8112D]/30 hover:text-[#B8112D]"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-400">No saved records yet — Save a day first, then it will appear here.</p>
+              )}
+              {recordDate && sortedSavedDays.length > 0 && (
+                <p className="mt-2 text-[11px] text-gray-500">
+                  Viewing <span className="font-semibold text-gray-700">{recordDate}</span>
+                  {sortedSavedDays[0] === recordDate ? " (latest)" : ""}
+                </p>
               )}
             </div>
           )}
