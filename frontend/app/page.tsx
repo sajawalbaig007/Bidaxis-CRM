@@ -17,6 +17,7 @@ import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
+import GpsLogo from "@/app/components/GpsLogo";
 
 type LandingPortal = {
   value: PortalRole;
@@ -24,6 +25,8 @@ type LandingPortal = {
   hint: string;
   icon: typeof LayoutDashboard;
   accent: string;
+  /** When set, show brand image instead of lucide icon */
+  brandMark?: "gps";
 };
 
 const PORTALS: LandingPortal[] = [
@@ -50,10 +53,11 @@ const PORTALS: LandingPortal[] = [
   },
   {
     value: "technical_manager",
-    label: "Technical",
+    label: "GPS",
     hint: "Projects, revisions, KPI & delivery",
     icon: Wrench,
     accent: "#D97706",
+    brandMark: "gps",
   },
   {
     value: "accounts",
@@ -146,13 +150,13 @@ export default function HomeLandingPage() {
           <ThemeToggle className="!w-10 !h-10 sm:!w-11 sm:!h-11 rounded-xl shadow-lg bg-white/10 border border-white/25 text-white backdrop-blur-sm" />
         </div>
 
-        <div className="relative z-10 w-full max-w-[560px] sm:max-w-[640px] md:max-w-[680px] mx-auto flex flex-col max-h-full">
-          <div className="text-center mb-3 sm:mb-4 animate-[fadeUp_0.6s_ease-out] shrink-0">
-            <div className="flex flex-col items-center">
-              <BrandLogo size="lg" className="mb-2.5 sm:mb-3" priority />
-              <BemWordmark className="text-[16px] sm:text-[18px] mb-2" onDark />
+        <div className="relative z-10 w-full max-w-[560px] sm:max-w-[640px] md:max-w-[720px] mx-auto flex flex-col max-h-full">
+          <div className="text-center mb-5 sm:mb-7 animate-[fadeUp_0.6s_ease-out] shrink-0">
+            <div className="inline-flex items-center justify-center gap-3 sm:gap-4 mb-2.5 sm:mb-3">
+              <BrandLogo size="md" className="shrink-0" priority />
+              <BemWordmark className="text-[20px] sm:text-[24px] md:text-[28px]" onDark />
             </div>
-            <p className="text-white/70 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.22em] mb-1">
+            <p className="text-white/50 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] mb-1.5">
               Secure portals
             </p>
             <p className="text-white/85 text-[12px] sm:text-[13px] max-w-sm mx-auto px-2 leading-relaxed">
@@ -193,14 +197,20 @@ export default function HomeLandingPage() {
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
                         <div
-                          className="w-14 h-14 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 transition-transform duration-500"
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 transition-transform duration-500 overflow-hidden"
                           style={{
-                            background: `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)`,
+                            background: portal.brandMark === "gps"
+                              ? "#fff"
+                              : `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)`,
                             boxShadow: `0 12px 32px ${portal.accent}55`,
                             transform: visible ? "scale(1)" : "scale(0.92)",
                           }}
                         >
-                          <PIcon size={28} />
+                          {portal.brandMark === "gps" ? (
+                            <GpsLogo size="md" className="!h-12 !w-12 sm:!h-14 sm:!w-14 drop-shadow-none" />
+                          ) : (
+                            <PIcon size={32} />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p
@@ -273,21 +283,19 @@ export default function HomeLandingPage() {
                         on ? "text-white" : "text-white/60 hover:text-white/95"
                       }`}
                     >
-                      <ChipIcon size={13} className="shrink-0" />
+                      {portal.brandMark === "gps" ? (
+                        <span className={`inline-flex shrink-0 rounded-full overflow-hidden ${on ? "bg-white/95" : "bg-white/80"}`}>
+                          <GpsLogo size="sm" className="!h-4 !w-4 sm:!h-[18px] sm:!w-[18px] drop-shadow-none" />
+                        </span>
+                      ) : (
+                        <ChipIcon size={13} className="shrink-0" />
+                      )}
                       <span className="truncate">{portal.label}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
-          </div>
-
-          <div className="mt-3 sm:mt-4 text-center shrink-0 flex flex-col items-center">
-            <BrandLogo size="sm" className="mb-1.5 opacity-95" />
-            <BemWordmark className="text-[12px] sm:text-[13px]" muted onDark />
-            <p className="text-white/55 text-[10px] sm:text-[11px] tracking-wide mt-1">
-              Secured access
-            </p>
           </div>
         </div>
       </div>

@@ -26,7 +26,8 @@ import {
   seededIncomeStatementData,
 } from "../utils/incomeStatementSeed";
 import { syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
-import { normalizeSalesTeamSubs, isSalesTeamTitle } from "../utils/salesPayrollBridge";
+import { syncLoanHeadsFromSalaries } from "../utils/payrollLoanHeadsSync";
+import { normalizeSalesTeamSubs, isSalesTeamTitle, resolvePayrollKind } from "../utils/salesPayrollBridge";
 import { currencyFormulaTotal } from "../utils/currencyFormula";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
 
@@ -34,24 +35,30 @@ function defaultData(): IncomeStatementData {
   return ensureIncomeStatementPeople(seededIncomeStatementData());
 }
 
-/** People seed + executive commission + PF auto-sync from Team Salaries. */
+/** People seed + executive commission + PF + Loans auto-sync from Team Salaries. */
 function normalizeIncomeStatement(
   raw: IncomeStatementData,
   totalRevenue: number,
 ): IncomeStatementData {
-  return syncProvidentFundFromSalaries(
-    recomputeExecutiveTeam(
-      ensureIncomeStatementPeople({
-        ...raw,
-        totalRevenue,
-      }),
+  return syncLoanHeadsFromSalaries(
+    syncProvidentFundFromSalaries(
+      recomputeExecutiveTeam(
+        ensureIncomeStatementPeople({
+          ...raw,
+          totalRevenue,
+        }),
+      ),
     ),
   );
 }
 
-function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
+function teamToHead(t: TeamSalaryRow, allTeams: TeamSalaryRow[] = []): ExpandableHeadProps {
+  const salesPeers =
+    resolvePayrollKind(t.team, t.subHeads) === "sales_lead"
+      ? (allTeams.find(x => resolvePayrollKind(x.team, x.subHeads) === "sales")?.subHeads ?? [])
+      : [];
   const subHeads = isSalesTeamTitle(t.team, t.subHeads)
-    ? normalizeSalesTeamSubs(t.subHeads, t.team)
+    ? normalizeSalesTeamSubs(t.subHeads, t.team, salesPeers)
     : (t.subHeads ?? []);
   return {
     id: t.id,
@@ -62,7 +69,6 @@ function teamToHead(t: TeamSalaryRow): ExpandableHeadRow {
     notes: t.notes ?? [],
   };
 }
-
 function opexToHead(o: OpexRow): ExpandableHeadRow {
   return {
     id: o.id,
@@ -167,7 +173,8 @@ export default function IncomeStatementPage() {
     () => (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
     [data.providentFundHeads],
   );
-  const totalExpense = payrollExpense + operatingExpense + loanExpense + pfExpense;
+  // Total Expense = Team Salaries + OPEX only (PF/loan already sit inside net salaries — don't double-count)
+  const totalExpense = payrollExpense + operatingExpense;
   const revenue = currencyTotal;
   const netProfit = revenue - totalExpense;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
@@ -178,10 +185,8 @@ export default function IncomeStatementPage() {
   }));
 
   const expenseMix = [
-    { name: "Payroll", value: payrollExpense, color: "#0B84F3" },
+    { name: "Team Salaries", value: payrollExpense, color: "#0B84F3" },
     { name: "OPEX", value: operatingExpense, color: "#F59E0B" },
-    { name: "Loans", value: loanExpense, color: "#EA580C" },
-    { name: "PF", value: pfExpense, color: "#0D9488" },
   ].filter(d => d.value > 0);
 
   const stackCompare = [
@@ -228,7 +233,7 @@ export default function IncomeStatementPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Income Statement"
-          subtitle="Daily record — pick a day, fill Team Salaries / OPEX / Loans, and Save. Provident Fund auto-fills from salary PF."
+          subtitle="Daily record — pick a day, fill Team Salaries / OPEX, and Save. Loans & Provident Fund auto-fill from salary."
           onAddNew={() =>
             commit(
               {
@@ -251,11 +256,11 @@ export default function IncomeStatementPage() {
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
             {[
               { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: "Currency Formula" },
-              { label: "Payroll", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: "Team Salaries" },
-              { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]", hint: "Loans table" },
-              { label: "Provident Fund", value: pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "Auto from salaries" },
-              { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "All tables" },
+              { label: "Team Salaries", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: "Payroll tables" },
+              { label: "Operating Expense", value: operatingExpense, cls: "from-[#F59E0B] to-[#D97706]", hint: "OPEX table" },
+              { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "Salaries + OPEX" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]", hint: "Revenue − Expense" },
+              { label: "Loans / PF", value: loanExpense + pfExpense, cls: "from-[#0D9488] to-[#0F766E]", hint: "Info only · in net salary" },
             ].map(c => (
               <div key={c.label} className={`bg-gradient-to-br ${c.cls} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md`}>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">{c.label}</p>
@@ -268,7 +273,7 @@ export default function IncomeStatementPage() {
           <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mt-5">
             <AccountsChartCard
               title="Expense Mix"
-              subtitle="Share of payroll, OPEX, loans & PF"
+              subtitle="Team Salaries + Operating Expense"
               accent="#B8112D"
               icon={<PieIcon size={16} />}
             >
@@ -342,7 +347,7 @@ export default function IncomeStatementPage() {
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-4">
             <AccountsChartCard
               title="All Tables Summary"
-              subtitle="Team · OPEX · Loans · Provident Fund"
+              subtitle="Team Salaries · OPEX (expense) · Loans/PF (info)"
               accent="#0B84F3"
               icon={<PieIcon size={16} />}
               className="lg:col-span-7"
@@ -402,7 +407,7 @@ export default function IncomeStatementPage() {
               execProfitBase={execProfitBase}
               recordDate={acc.recordDate}
               salarySlipCompany="BEM"
-              rows={(data.teamSalaries ?? []).map(teamToHead)}
+              rows={(data.teamSalaries ?? []).map(t => teamToHead(t, data.teamSalaries ?? []))}
               onChange={(rows, opts) => commit({ teamSalaries: rows.map(headToTeam) }, opts)}
               onPersist={() => void acc.save()}
               saving={acc.saving}
@@ -429,6 +434,7 @@ export default function IncomeStatementPage() {
               title="Loans"
               accent="#EA580C"
               addLabel="Add Loan Head"
+              emptyLabel="Loans fill automatically from Team Salaries (this month’s loan deduction)."
               rows={(data.loanHeads ?? []).map(opexToHead)}
               onChange={(rows, opts) => commit({ loanHeads: rows.map(headToOpex) }, opts)}
               onPersist={() => void acc.save()}
@@ -450,7 +456,9 @@ export default function IncomeStatementPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1 text-sm font-bold">
-              <span className="text-gray-600">Total Expense: {currency(totalExpense)}</span>
+              <span className="text-gray-600">
+                Total Expense (Salaries + OPEX): {currency(totalExpense)}
+              </span>
               <span className="text-[#12B76A]">Net Profit ({netMargin.toFixed(2)}%): {currency(netProfit)}</span>
             </div>
           </section>

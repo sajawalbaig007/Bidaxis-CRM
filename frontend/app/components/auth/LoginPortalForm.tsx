@@ -14,6 +14,7 @@ import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
+import GpsLogo from "@/app/components/GpsLogo";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number; captchaRequired?: boolean } };
@@ -296,8 +297,27 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px] flex flex-col items-center">
-              <BrandLogo size="md" className="mb-3 md:mb-4" />
-              <BemWordmark className="text-[15px] md:text-[17px] mb-3 md:mb-4" onDark />
+              {loginPortal === "technical_manager" ? (
+                <div className="inline-flex flex-col items-center mb-5 md:mb-7">
+                  <div className="rounded-2xl bg-white p-3 shadow-lg mb-3">
+                    <GpsLogo size="md" className="drop-shadow-none" />
+                  </div>
+                  <p
+                    className="text-[18px] md:text-[20px] font-black tracking-[0.08em] text-white uppercase"
+                    style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+                  >
+                    GPS
+                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55 mt-1">
+                    Global Pre Construction
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <BrandLogo size="md" className="mb-3 md:mb-4" />
+                  <BemWordmark className="text-[15px] md:text-[17px] mb-3 md:mb-4" onDark />
+                </>
+              )}
               <div
                 className="relative min-h-[100px] md:min-h-[110px] w-full cursor-pointer"
                 onClick={() => setActiveSlide(s => (s + 1) % loginSlides.length)}
