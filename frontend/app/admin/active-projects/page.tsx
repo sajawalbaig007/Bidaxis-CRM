@@ -222,7 +222,7 @@ function ProjectCard({
       <FulfillmentCell p={projectAsRow(p)} />
 
       <div className="pt-1">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Bid Construction</p>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Bid Instruction</p>
         <CommentCell
           id={p.id}
           apiRole="admin"
@@ -284,8 +284,8 @@ function ProjectsSection({
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const headers = hideClientFinanceCols
-    ? ["Project Detail", "Client Deadline", "Bid Construction", ""]
-    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Construction", ""];
+    ? ["Project Detail", "Client Deadline", "Bid Instruction", ""]
+    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", ""];
   const colCount = headers.length;
   const colWidths = hideClientFinanceCols ? TECHNICAL_PROJECT_COLS : ADMIN_PROJECT_COLS;
 
