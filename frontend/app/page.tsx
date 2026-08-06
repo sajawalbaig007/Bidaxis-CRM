@@ -17,7 +17,6 @@ import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
-import GpsLogo from "@/app/components/GpsLogo";
 
 type LandingPortal = {
   value: PortalRole;
@@ -25,8 +24,6 @@ type LandingPortal = {
   hint: string;
   icon: typeof LayoutDashboard;
   accent: string;
-  /** When set, show brand image instead of lucide icon */
-  brandMark?: "gps";
 };
 
 const PORTALS: LandingPortal[] = [
@@ -57,7 +54,6 @@ const PORTALS: LandingPortal[] = [
     hint: "Projects, revisions, KPI & delivery",
     icon: Wrench,
     accent: "#D97706",
-    brandMark: "gps",
   },
   {
     value: "accounts",
@@ -199,18 +195,12 @@ export default function HomeLandingPage() {
                         <div
                           className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 transition-transform duration-500 overflow-hidden"
                           style={{
-                            background: portal.brandMark === "gps"
-                              ? "#fff"
-                              : `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)`,
+                            background: `linear-gradient(145deg, ${portal.accent}, ${portal.accent}cc)`,
                             boxShadow: `0 12px 32px ${portal.accent}55`,
                             transform: visible ? "scale(1)" : "scale(0.92)",
                           }}
                         >
-                          {portal.brandMark === "gps" ? (
-                            <GpsLogo size="md" className="!h-12 !w-12 sm:!h-14 sm:!w-14 drop-shadow-none" />
-                          ) : (
-                            <PIcon size={32} />
-                          )}
+                          <PIcon size={32} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p
@@ -283,13 +273,7 @@ export default function HomeLandingPage() {
                         on ? "text-white" : "text-white/60 hover:text-white/95"
                       }`}
                     >
-                      {portal.brandMark === "gps" ? (
-                        <span className={`inline-flex shrink-0 rounded-full overflow-hidden ${on ? "bg-white/95" : "bg-white/80"}`}>
-                          <GpsLogo size="sm" className="!h-4 !w-4 sm:!h-[18px] sm:!w-[18px] drop-shadow-none" />
-                        </span>
-                      ) : (
-                        <ChipIcon size={13} className="shrink-0" />
-                      )}
+                      <ChipIcon size={13} className="shrink-0" />
                       <span className="truncate">{portal.label}</span>
                     </button>
                   );
