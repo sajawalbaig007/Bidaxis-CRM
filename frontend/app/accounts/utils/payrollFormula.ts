@@ -30,8 +30,14 @@ export type EmployeeSalaryDetail = {
   /** Loan ledger */
   loanTotal: number;
   loanPaid: number;
-  /** This month's loan installment deducted from salary (optional) */
+  /** This month's loan installment (salary cut or separate cash) */
   loanThisMonth: number;
+  /**
+   * How this month's loan amount was cleared:
+   * - salary → deduct from net salary
+   * - cash → separate cash payment (salary net unchanged)
+   */
+  loanPaymentMode?: "salary" | "cash";
 
   /** Manual income tax deduction */
   incomeTax: number;
@@ -69,6 +75,10 @@ export type SalaryBreakdown = {
   paidLeaveDays: number;
   unpaidLeaveDays: number;
   loanThisMonth: number;
+  /** Amount actually taken from salary (0 when cash clearance) */
+  loanFromSalary: number;
+  /** Net before loan salary deduction */
+  netBeforeLoan: number;
   loanRemaining: number;
   pf: number;
   incomeTax: number;
@@ -91,12 +101,22 @@ export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): Empl
     loanTotal: 0,
     loanPaid: 0,
     loanThisMonth: 0,
+    loanPaymentMode: "salary",
     incomeTax: 0,
     pfAuto: true,
     pfOverride: null,
     remarks: "",
     ...partial,
   };
+}
+
+/** Amount deducted from salary this month (0 if cleared via separate cash). */
+export function loanAmountFromSalary(
+  detail: Pick<EmployeeSalaryDetail, "loanThisMonth" | "loanPaymentMode">,
+): number {
+  const amt = Math.max(0, Number(detail.loanThisMonth) || 0);
+  if (amt <= 0) return 0;
+  return detail.loanPaymentMode === "cash" ? 0 : amt;
 }
 
 /** Parse "HH:mm" → minutes from midnight; invalid → null */
@@ -204,13 +224,15 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
   const loanTotal = Number(detail.loanTotal) || 0;
   const loanPaid = Number(detail.loanPaid) || 0;
   const loanThisMonth = Number(detail.loanThisMonth) || 0;
+  const loanFromSalary = loanAmountFromSalary(detail);
   const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
   const pf = detail.pfAuto ? basic * 0.08 : Number(detail.pfOverride) || 0;
   const incomeTax = Number(detail.incomeTax) || 0;
 
-  const totalDeduction =
-    late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
+  const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
+  const totalDeduction = baseDeduction + loanFromSalary;
+  const netBeforeLoan = totalEarning - baseDeduction;
   const totalSalary = totalEarning - totalDeduction;
 
   return {
@@ -226,6 +248,8 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
     paidLeaveDays,
     unpaidLeaveDays,
     loanThisMonth,
+    loanFromSalary,
+    netBeforeLoan,
     loanRemaining,
     pf,
     incomeTax,
@@ -306,6 +330,7 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const loanTotal = Number(detail.loanTotal) || 0;
   const loanPaid = Number(detail.loanPaid) || 0;
   const loanThisMonth = Number(detail.loanThisMonth) || 0;
+  const loanFromSalary = loanAmountFromSalary(detail);
   const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
   const pf = detail.pfAuto
@@ -314,9 +339,9 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
 
   const incomeTax = Number(detail.incomeTax) || 0;
 
-  const totalDeduction =
-    late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
-
+  const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
+  const totalDeduction = baseDeduction + loanFromSalary;
+  const netBeforeLoan = totalEarning - baseDeduction;
   const totalSalary = totalEarning - totalDeduction;
 
   return {
@@ -332,6 +357,8 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
     paidLeaveDays,
     unpaidLeaveDays,
     loanThisMonth,
+    loanFromSalary,
+    netBeforeLoan,
     loanRemaining,
     pf,
     incomeTax,
@@ -416,6 +443,7 @@ export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): Tec
     detail.pfAuto !== false ? basic * 0.08 : Number(detail.pfOverride) || 0;
   const incomeTax = Number(detail.incomeTax) || 0;
   const loanThisMonth = Number(detail.loanThisMonth) || 0;
+  const loanFromSalary = loanAmountFromSalary(detail);
   const loanRemaining = Math.max(
     0,
     (Number(detail.loanTotal) || 0) - (Number(detail.loanPaid) || 0) - loanThisMonth,
@@ -423,7 +451,9 @@ export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): Tec
 
   const taxableIncome = gross - medicalAllowance;
   const totalEarning = gross;
-  const totalDeduction = pf + incomeTax + loanThisMonth;
+  const baseDeduction = pf + incomeTax;
+  const totalDeduction = baseDeduction + loanFromSalary;
+  const netBeforeLoan = totalEarning - baseDeduction;
   const totalSalary = totalEarning - totalDeduction;
 
   return {
@@ -446,6 +476,8 @@ export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): Tec
     paidLeaveDays: Number(detail.paidLeaveDays) || 0,
     unpaidLeaveDays: Number(detail.unpaidLeaveDays) || 0,
     loanThisMonth,
+    loanFromSalary,
+    netBeforeLoan,
     loanRemaining,
     pf,
     incomeTax,

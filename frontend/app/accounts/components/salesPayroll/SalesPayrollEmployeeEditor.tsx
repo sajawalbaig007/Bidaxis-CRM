@@ -334,14 +334,45 @@ export default function SalesPayrollEmployeeEditor({
               <Num label="Total Loan" value={employee.loanTotal} onChange={v => set("loanTotal", v)} />
               <Num label="Already Paid" value={employee.loanPaid} onChange={v => set("loanPaid", v)} />
               <Read label="Remaining" value={currency(breakdown.loanRemaining)} accent="text-orange-800" />
-              <Num label="This Month (optional)" value={employee.loanThisMonth} onChange={v => set("loanThisMonth", v)} />
+              <Num label="This Month Amount" value={employee.loanThisMonth} onChange={v => set("loanThisMonth", v)} />
             </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => set("loanPaymentMode", "salary")}
+                className={`h-8 px-3 rounded-lg text-[11px] font-bold border ${
+                  (employee.loanPaymentMode ?? "salary") === "salary"
+                    ? "bg-[#B8112D] text-white border-[#B8112D]"
+                    : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                Salary se deduct
+              </button>
+              <button
+                type="button"
+                onClick={() => set("loanPaymentMode", "cash")}
+                className={`h-8 px-3 rounded-lg text-[11px] font-bold border ${
+                  employee.loanPaymentMode === "cash"
+                    ? "bg-amber-600 text-white border-amber-600"
+                    : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                Separate cash diya
+              </button>
+            </div>
+            {(employee.loanPaymentMode ?? "salary") === "salary" && (Number(employee.loanThisMonth) || 0) > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Read label="Net before loan" value={currency(breakdown.netBeforeLoan)} />
+                <Read label="Net after loan deduction" value={currency(breakdown.netSalary)} accent="text-[#B8112D]" />
+              </div>
+            ) : employee.loanPaymentMode === "cash" && (Number(employee.loanThisMonth) || 0) > 0 ? (
+              <p className="text-[10px] font-semibold text-amber-800">
+                Cash clearance — salary net mein loan deduct nahi.
+              </p>
+            ) : null}
             <button type="button" onClick={() => void lookupLoan(true)} className="text-[10px] font-bold text-[#0B84F3] hover:underline">
               Refresh loan from ledger
             </button>
-            <p className="text-[10px] text-orange-700/80">
-              Pending loan auto-fills from the ledger. Remaining = Total − Paid − This month. Save syncs back to ledger + Loans table.
-            </p>
           </div>
 
           {/* PF & Tax */}

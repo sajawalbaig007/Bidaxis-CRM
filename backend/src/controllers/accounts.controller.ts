@@ -25,11 +25,11 @@ import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import { accountsUploadFolder } from "../utils/accountsStorage";
 import {
   accumulateCoreBudget,
-  accumulateOpexSubs,
+  accumulateOpexHeads,
   CORE_BUDGET_LINE_DEFS,
   emptyCoreActuals,
   quarterMonths,
-  type OpexSubBucket,
+  type OpexHeadBucket,
 } from "../utils/incomeBudget";
 
 function todayIsoDate(): string {
@@ -626,19 +626,19 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
 
     const actuals = emptyCoreActuals();
     const byMonth: Record<string, ReturnType<typeof emptyCoreActuals>> = {};
-    const opexSubsTotal: Record<string, OpexSubBucket> = {};
-    const opexSubsByMonth: Record<string, Record<string, OpexSubBucket>> = {};
+    const opexHeadsTotal: Record<string, OpexHeadBucket> = {};
+    const opexHeadsByMonth: Record<string, Record<string, OpexHeadBucket>> = {};
 
     for (const rec of isRecs) {
       const ym = rec.recordDate.slice(0, 7);
       if (!byMonth[ym]) byMonth[ym] = emptyCoreActuals();
-      if (!opexSubsByMonth[ym]) opexSubsByMonth[ym] = {};
+      if (!opexHeadsByMonth[ym]) opexHeadsByMonth[ym] = {};
       const data = prepareIncomeStatement(rec.data as Record<string, unknown>);
       const revenue = currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
       accumulateCoreBudget(data, actuals, revenue);
       accumulateCoreBudget(data, byMonth[ym]!, revenue);
-      accumulateOpexSubs(data, opexSubsTotal);
-      accumulateOpexSubs(data, opexSubsByMonth[ym]!);
+      accumulateOpexHeads(data, opexHeadsTotal);
+      accumulateOpexHeads(data, opexHeadsByMonth[ym]!);
     }
 
     const payroll =
@@ -648,20 +648,19 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       actuals.administration +
       actuals.executive +
       actuals.other_payroll;
-    const opexTotal = Object.values(opexSubsTotal).reduce((a, r) => a + r.amount, 0);
+    const opexTotal = Object.values(opexHeadsTotal).reduce((a, r) => a + r.amount, 0);
     const totalExpense = payroll + opexTotal;
     const netProfit = actuals.revenue - totalExpense;
 
-    const opexLines = Object.values(opexSubsTotal)
+    const opexLines = Object.values(opexHeadsTotal)
       .sort((a, b) => a.label.localeCompare(b.label))
       .map(d => ({
         key: d.key,
         headLabel: d.headLabel,
-        subLabel: d.subLabel,
         label: d.label,
         actual: d.amount,
         months: Object.fromEntries(
-          Object.entries(opexSubsByMonth).map(([ym, map]) => [ym, map[d.key]?.amount ?? 0]),
+          Object.entries(opexHeadsByMonth).map(([ym, map]) => [ym, map[d.key]?.amount ?? 0]),
         ),
       }));
 
@@ -694,9 +693,8 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
         ...opexLines.map(d => ({
           key: d.key,
           label: d.label,
-          kind: "opex_sub" as const,
+          kind: "opex_head" as const,
           headLabel: d.headLabel,
-          subLabel: d.subLabel,
           actual: d.actual,
           months: d.months,
         })),

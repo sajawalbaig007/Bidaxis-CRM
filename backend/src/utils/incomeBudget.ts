@@ -1,7 +1,7 @@
 /**
  * Income Statement → 3-month budget helpers (server).
  * Sales Team + Lead share one line; Technical Team + Manager share one line.
- * OPEX expands to sub-heads. Loans / PF are excluded.
+ * OPEX = head totals only (no sub-heads). Loans / PF are excluded.
  */
 
 export type CoreBudgetKey =
@@ -49,6 +49,11 @@ export function opexSubKey(headLabel: string, subLabel: string): string {
   return `opex::${headLabel.trim()}::${subLabel.trim()}`;
 }
 
+/** One budget/actual line per OPEX head (sub-heads rolled up). */
+export function opexHeadKey(headLabel: string): string {
+  return `opex_head::${headLabel.trim()}`;
+}
+
 function lineTotal(row: {
   amount?: number;
   totalSalary?: number;
@@ -86,9 +91,16 @@ export type OpexSubBucket = {
   amount: number;
 };
 
-/** Collect OPEX sub-head amounts (head with no subs → one line for the head). */
-export function collectOpexSubAmounts(data: Record<string, unknown>): OpexSubBucket[] {
-  const out: OpexSubBucket[] = [];
+export type OpexHeadBucket = {
+  key: string;
+  headLabel: string;
+  label: string;
+  amount: number;
+};
+
+/** Collect OPEX head totals (all sub-heads summed into the head). */
+export function collectOpexHeadAmounts(data: Record<string, unknown>): OpexHeadBucket[] {
+  const out: OpexHeadBucket[] = [];
   const heads = (data.opexHeads as {
     label?: string;
     amount?: number;
@@ -98,31 +110,44 @@ export function collectOpexSubAmounts(data: Record<string, unknown>): OpexSubBuc
   for (const head of heads) {
     const headLabel = String(head.label ?? "").trim() || "OPEX";
     const subs = head.subHeads ?? [];
-    if (subs.length === 0) {
-      const amt = Number(head.amount) || 0;
-      if (amt === 0) continue;
-      out.push({
-        key: opexSubKey(headLabel, headLabel),
-        headLabel,
-        subLabel: headLabel,
-        label: headLabel,
-        amount: amt,
-      });
-      continue;
-    }
-    for (const s of subs) {
-      const subLabel = String(s.label ?? "").trim() || "—";
-      const amt = Number(s.amount) || 0;
-      out.push({
-        key: opexSubKey(headLabel, subLabel),
-        headLabel,
-        subLabel,
-        label: `${headLabel} · ${subLabel}`,
-        amount: amt,
-      });
-    }
+    const amt =
+      subs.length > 0
+        ? subs.reduce((a, s) => a + (Number(s.amount) || 0), 0)
+        : Number(head.amount) || 0;
+    if (amt === 0) continue;
+    out.push({
+      key: opexHeadKey(headLabel),
+      headLabel,
+      label: headLabel,
+      amount: amt,
+    });
   }
   return out;
+}
+
+export function accumulateOpexHeads(
+  data: Record<string, unknown>,
+  into: Record<string, OpexHeadBucket>,
+): void {
+  for (const row of collectOpexHeadAmounts(data)) {
+    const prev = into[row.key];
+    if (prev) {
+      prev.amount += row.amount;
+    } else {
+      into[row.key] = { ...row };
+    }
+  }
+}
+
+/** @deprecated Prefer collectOpexHeadAmounts — kept for any legacy callers. */
+export function collectOpexSubAmounts(data: Record<string, unknown>): OpexSubBucket[] {
+  return collectOpexHeadAmounts(data).map(h => ({
+    key: h.key,
+    headLabel: h.headLabel,
+    subLabel: h.headLabel,
+    label: h.label,
+    amount: h.amount,
+  }));
 }
 
 export function accumulateOpexSubs(

@@ -171,6 +171,7 @@ export function emptySalesPayrollEmployee(
     loanTotal: 0,
     loanPaid: 0,
     loanThisMonth: 0,
+    loanPaymentMode: "salary",
     incomeTax: 0,
     remarks: "",
   };
@@ -196,6 +197,7 @@ export function ensureSalesPayrollFromSub(
     loanTotal: sal?.loanTotal ?? 0,
     loanPaid: sal?.loanPaid ?? 0,
     loanThisMonth: sal?.loanThisMonth ?? 0,
+    loanPaymentMode: sal?.loanPaymentMode ?? "salary",
     incomeTax: sal?.incomeTax ?? 0,
     remarks: sal?.remarks ?? "",
     ...(role === "team_lead" ? { homeAllowance: Number(sal?.homeAllowance) || 0 } : {}),
