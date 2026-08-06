@@ -75,47 +75,24 @@ function buildSalesSlipEarnings(
   b: ReturnType<typeof computeSalesEmployeePayroll>,
   kind: "sales" | "sales_lead",
   salesExtra: number,
-  template: SalarySlipTemplate,
+  _template: SalarySlipTemplate,
 ): SalarySlipLine[] {
   const qty = commissionQtyLabels(emp.commission);
   const projectComm = b.oldComm + b.newComm;
-  const lines: SalarySlipLine[] = [{ label: "Basic Salary", amount: emp.basic }];
-
-  if (emp.allowance > 0) {
-    lines.push({ label: "Misc Allowance", amount: emp.allowance });
-  }
-
-  if (template === "bem_sales") {
-    if (projectComm > 0) {
-      lines.push({
-        label: "Project Based Comm",
-        amount: projectComm,
-        qty: qty.old || qty.new ? [qty.old, qty.new].filter(Boolean).join(" · ") : undefined,
-      });
-    }
-    if (b.fixComm > 0 || qty.fix) {
-      lines.push({
-        label: "Fixed Client Comm",
-        amount: b.fixComm,
-        qty: qty.fix,
-      });
-    }
-  } else {
-    if (projectComm > 0) {
-      lines.push({
-        label: "Project Based Bonus",
-        amount: projectComm,
-        qty: `${b.totalProjects} project(s)`,
-      });
-    }
-    if (b.fixComm > 0 || qty.fix) {
-      lines.push({
-        label: "Hard Client Bonus",
-        amount: b.fixComm,
-        qty: qty.fix,
-      });
-    }
-  }
+  const lines: SalarySlipLine[] = [
+    { label: "Basic Salary", amount: emp.basic },
+    { label: "Misc Allowance", amount: emp.allowance },
+    {
+      label: "Project Based Comm",
+      amount: projectComm,
+      qty: qty.old || qty.new ? [qty.old, qty.new].filter(Boolean).join(" · ") : undefined,
+    },
+    {
+      label: "Fixed Client Comm",
+      amount: b.fixComm,
+      qty: qty.fix,
+    },
+  ];
 
   if (kind === "sales_lead" && salesExtra > 0) {
     lines.push({
@@ -125,7 +102,7 @@ function buildSalesSlipEarnings(
     });
   }
 
-  return lines.filter(r => r.amount !== 0 || r.label === "Basic Salary");
+  return lines;
 }
 
 function buildTechnicalManagerEarnings(
@@ -316,7 +293,7 @@ export function buildSalarySlipFromSub(opts: {
               amount: b.weekendOtPay,
               qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
             },
-          ].filter(r => r.amount !== 0 || r.label === "Basic Salary")
+          ]
         : [
             { label: "Basic Salary", amount: sal.basic },
             { label: "Misc Allowance", amount: sal.allowance },

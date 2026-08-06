@@ -48,8 +48,8 @@ export const SALARY_SLIP_COMPANIES: Record<SalarySlipCompanyKey, SalarySlipCompa
     website: "www.globalpreconstructionsolutions.com",
     hrManager: "",
     accountOfficer: "Muhammad Bilal",
-    accent: "#0B84F3",
-    logoUrl: "/images/image.png",
+    accent: "#0F398A",
+    logoUrl: "/images/global-logo.png",
     slipReady: true,
   },
   BDS: {

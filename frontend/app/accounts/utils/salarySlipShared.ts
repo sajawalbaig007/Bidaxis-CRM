@@ -36,8 +36,8 @@ export type SalarySlipPayload = {
 export type JsPdfWithAutoTable = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } };
 
 export const BEM_NAVY: [number, number, number] = [34, 51, 75];
-export const GPS_PURPLE: [number, number, number] = [216, 207, 247];
-export const GPS_INK: [number, number, number] = [46, 42, 110];
+export const GPS_PURPLE: [number, number, number] = [201, 226, 255];
+export const GPS_INK: [number, number, number] = [15, 57, 138];
 export const FIELD_BLUE: [number, number, number] = [214, 235, 255];
 
 export function money(n: number): string {
