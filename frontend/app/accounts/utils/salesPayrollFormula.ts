@@ -20,6 +20,8 @@ export type SalesPayrollEmployee = {
   role: "sales" | "team_lead";
   basic: number;
   allowance: number;
+  /** Team lead only — home allowance on salary slip & net pay */
+  homeAllowance?: number;
   commission: SalesCommissionFields;
   assignedToLead: boolean;
   assignedTeamLeadId: string | null;
@@ -111,7 +113,8 @@ export function calcTlAssignedCommission(rep: SalesPayrollEmployee) {
 export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarning = 0) {
   const basic = Number(emp.basic) || 0;
   const allowance = Number(emp.allowance) || 0;
-  const daySalary = (basic + allowance) / 30;
+  const homeAllowance = emp.role === "team_lead" ? Number(emp.homeAllowance) || 0 : 0;
+  const daySalary = (basic + allowance + homeAllowance) / 30;
   const comm = calcSalesCommission(emp.commission, emp.role);
   const late = calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;
@@ -119,7 +122,7 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
   const loanThisMonth = Number(emp.loanThisMonth) || 0;
   const pf = basic * 0.08;
   const incomeTax = Number(emp.incomeTax) || 0;
-  const totalEarning = basic + allowance + comm.totalCommission + extraEarning;
+  const totalEarning = basic + allowance + homeAllowance + comm.totalCommission + extraEarning;
   const totalDeduction = late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
   return {
     ...comm,

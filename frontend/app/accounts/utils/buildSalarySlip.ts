@@ -82,6 +82,13 @@ function buildSalesSlipEarnings(
   const lines: SalarySlipLine[] = [
     { label: "Basic Salary", amount: emp.basic },
     { label: "Misc Allowance", amount: emp.allowance },
+  ];
+
+  if (kind === "sales_lead") {
+    lines.push({ label: "Home Allowance", amount: Number(emp.homeAllowance) || 0 });
+  }
+
+  lines.push(
     {
       label: "Project Based Comm",
       amount: projectComm,
@@ -92,7 +99,7 @@ function buildSalesSlipEarnings(
       amount: b.fixComm,
       qty: qty.fix,
     },
-  ];
+  );
 
   if (kind === "sales_lead" && salesExtra > 0) {
     lines.push({
@@ -186,6 +193,7 @@ export function buildSalarySlipFromSub(opts: {
       role,
       basic: Number(sp?.basic) || 0,
       allowance: Number(sp?.allowance) || 0,
+      homeAllowance: role === "team_lead" ? Number(sp?.homeAllowance) || Number(sub.salary?.homeAllowance) || 0 : 0,
       commission: sp?.commission ?? {
         oldClientProjects: 0,
         oldClientPartialCount: 0,

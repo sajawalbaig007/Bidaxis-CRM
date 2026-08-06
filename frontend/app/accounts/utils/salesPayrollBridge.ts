@@ -148,6 +148,7 @@ export function emptySalesPayrollEmployee(
     role,
     basic,
     allowance,
+    homeAllowance: role === "team_lead" ? 0 : undefined,
     commission: {
       oldClientProjects: 0,
       oldClientPartialCount: 0,
@@ -190,6 +191,7 @@ export function ensureSalesPayrollFromSub(
     loanThisMonth: sal?.loanThisMonth ?? 0,
     incomeTax: sal?.incomeTax ?? 0,
     remarks: sal?.remarks ?? "",
+    ...(role === "team_lead" ? { homeAllowance: Number(sal?.homeAllowance) || 0 } : {}),
   };
 }
 
