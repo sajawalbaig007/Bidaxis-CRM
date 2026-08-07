@@ -226,7 +226,16 @@ router.put("/project/:id/timer", async (req: AuthRequest, res) => {
       }
       list[idx] = startAssignmentTimer(current);
     } else {
-      list[idx] = pauseAssignmentTimer(current);
+      const clientElapsed = Number(req.body?.clientElapsedSeconds);
+      if (Number.isFinite(clientElapsed) && clientElapsed >= 0) {
+        list[idx] = {
+          ...current,
+          timerSeconds: Math.max(current.timerSeconds, Math.floor(clientElapsed)),
+          timerStartedAt: null,
+        };
+      } else {
+        list[idx] = pauseAssignmentTimer(current);
+      }
     }
 
     const lead = await prisma.lead.update({
@@ -268,7 +277,16 @@ router.put("/project/:id/complete", async (req: AuthRequest, res) => {
       return res.status(400).json({ success: false, message: "Task is already completed" });
     }
 
-    list[idx] = { ...pauseAssignmentTimer(list[idx]!), takeoffDone: true };
+    const clientElapsed = Number(req.body?.clientElapsedSeconds);
+    const paused =
+      Number.isFinite(clientElapsed) && clientElapsed >= 0
+        ? {
+            ...list[idx]!,
+            timerSeconds: Math.max(list[idx]!.timerSeconds, Math.floor(clientElapsed)),
+            timerStartedAt: null,
+          }
+        : pauseAssignmentTimer(list[idx]!);
+    list[idx] = { ...paused, takeoffDone: true };
     const nextPhase = syncPhaseFromAssignments(list, existing.projectPhase);
 
     const lead = await prisma.lead.update({
