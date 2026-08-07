@@ -30,7 +30,7 @@ import {
   PaymentDetailCell,
   ProjectDetailCell,
   QuotedAmountCell,
-  ProjectWorkStatusBadge,
+  TechnicalWorkflowStatusBadge,
   PROJECT_TABLE_CARD,
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
@@ -84,6 +84,7 @@ type Project = {
   projectPayments:   string | null;
   projectSource:     string | null;
   projectWorkStatus?: string | null;
+  technicalAssignments?: string | null;
   isOldClient:       boolean;
   updatedAt:         string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
@@ -177,7 +178,6 @@ function ProjectCard({
   onView,
   onReassign,
   onAddNote,
-  onStatusChange,
   onTimingChange,
   hideClientFinanceCols = false,
 }: {
@@ -185,7 +185,6 @@ function ProjectCard({
   onView: () => void;
   onReassign: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
-  onStatusChange?: (id: string, status: "completed" | "in_progress" | "not_completed") => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
 }) {
@@ -228,12 +227,12 @@ function ProjectCard({
 
       <div>
         <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
-        <ProjectWorkStatusBadge
+        <TechnicalWorkflowStatusBadge
           status={p.status}
           projectDeadline={p.projectDeadline}
           projectWorkStatus={p.projectWorkStatus}
-          editable
-          onChange={(next) => onStatusChange?.(p.id, next)}
+          projectPhase={p.projectPhase}
+          technicalAssignments={p.technicalAssignments}
         />
       </div>
 
@@ -299,7 +298,6 @@ function ProjectsSection({
   onView,
   onReassign,
   onAddNote,
-  onStatusChange,
   onTimingChange,
   hideClientFinanceCols = false,
 }: {
@@ -311,7 +309,6 @@ function ProjectsSection({
   onView: (p: Project) => void;
   onReassign: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
-  onStatusChange?: (id: string, status: "completed" | "in_progress" | "not_completed") => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
 }) {
@@ -338,7 +335,6 @@ function ProjectsSection({
               onView={() => onView(p)}
               onReassign={() => void onReassign(p)}
               onAddNote={onAddNote}
-              onStatusChange={onStatusChange}
               onTimingChange={onTimingChange}
               hideClientFinanceCols={hideClientFinanceCols}
             />
@@ -437,12 +433,12 @@ function ProjectsSection({
                       />
                     </td>
                     <td className="px-3 xl:px-4 py-3 xl:py-4">
-                      <ProjectWorkStatusBadge
+                      <TechnicalWorkflowStatusBadge
                         status={p.status}
                         projectDeadline={p.projectDeadline}
                         projectWorkStatus={p.projectWorkStatus}
-                        editable
-                        onChange={(next) => onStatusChange?.(p.id, next)}
+                        projectPhase={p.projectPhase}
+                        technicalAssignments={p.technicalAssignments}
                       />
                     </td>
                     <td className="px-2 xl:px-3 py-3 xl:py-4 text-right whitespace-nowrap">
@@ -669,21 +665,6 @@ export default function AdminProjectsPage() {
     }
   };
 
-  const changeProjectStatus = async (
-    id: string,
-    projectWorkStatus: "completed" | "in_progress" | "not_completed",
-  ) => {
-    try {
-      const res = await API.put(`/admin/project/${id}`, { projectWorkStatus });
-      const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
-      setWorkbenchProject((prev) => (prev?.id === lead.id ? { ...prev, ...lead } : prev));
-      toast.success("Status updated");
-    } catch {
-      toast.error("Failed to update status");
-    }
-  };
-
   const changeDeadlineTiming = async (id: string, deadlineTiming: "" | "morning" | "cob") => {
     // Optimistic UI so Technical signal is instant
     setProjects((prev) =>
@@ -755,9 +736,9 @@ export default function AdminProjectsPage() {
     finally { setIsReassigning(false); }
   };
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { leads, total } = await fetchAllAdminProjects<Project>({
         csrId: filterCSR !== "all" ? filterCSR : undefined,
         from: dateFrom || undefined,
@@ -775,9 +756,9 @@ export default function AdminProjectsPage() {
         }).length,
       });
     } catch {
-      toast.error("Failed to load projects");
+      if (!silent) toast.error("Failed to load projects");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [filterCSR, dateFrom, dateTo, search]);
 
@@ -789,6 +770,15 @@ export default function AdminProjectsPage() {
 
   useEffect(() => {
     void fetchProjects();
+  }, [fetchProjects]);
+
+  // Pick up Technical workflow status changes without full refresh
+  useEffect(() => {
+    const poll = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void fetchProjects(true);
+    }, 8000);
+    return () => window.clearInterval(poll);
   }, [fetchProjects]);
 
   const csrList: [string, string][] = allCsrs.length > 0
@@ -988,7 +978,6 @@ export default function AdminProjectsPage() {
           }}
           onReassign={openReassign}
           onAddNote={addAdminNote}
-          onStatusChange={(id, status) => void changeProjectStatus(id, status)}
           onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}
           hideClientFinanceCols={hideClientFinanceCols}
         />

@@ -67,14 +67,14 @@ export const ADMIN_PROJECT_COLS = [
   "13%", "15%", "7%", "11%", "13%", "10%", "13%", "10%", "8%",
 ] as const;
 
-/** Technical Active Projects — details, receive, deadline, bid, notes, assign, status+actions */
+/** Technical Active Projects — details, receive, deadline, bid, notes, assign, status, actions */
 export const TECHNICAL_PROJECT_COLS = [
-  "18%", "10%", "10%", "14%", "12%", "14%", "22%",
+  "16%", "9%", "9%", "13%", "12%", "13%", "14%", "14%",
 ] as const;
 
-/** Technical Assigned tab — detail, hours, deadline, bid, notes, estimators, actions */
+/** Technical Assigned tab — detail, hours, deadline, bid, notes, estimators, status, actions */
 export const TECHNICAL_ASSIGNED_COLS = [
-  "18%", "8%", "10%", "16%", "14%", "18%", "16%",
+  "16%", "8%", "9%", "14%", "12%", "15%", "13%", "13%",
 ] as const;
 
 /** Admin Project DB when opened under /technical (legacy compact) */

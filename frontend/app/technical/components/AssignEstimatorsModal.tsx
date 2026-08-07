@@ -221,7 +221,7 @@ export default function AssignEstimatorsModal({
   const code = (project?.projectCode || project?.clientCode || "").trim() || "—";
   const projectScope = (project?.projectScope || "").trim();
   const divisionLabel = (project?.interestedService || "").trim() || "—";
-  const title = (project?.projectTitle || project?.name || "Project").trim();
+  const title = (project?.projectTitle || "Project").trim();
   const defaultDeadline = (project?.projectDeadline ?? "").split("T")[0] || "";
 
   const selectedEstimators = useMemo(

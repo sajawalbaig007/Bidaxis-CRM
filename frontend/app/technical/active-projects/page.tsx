@@ -26,7 +26,7 @@ import {
 } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ProjectDetailCell,
-  ProjectWorkStatusBadge,
+  TechnicalWorkflowStatusBadge,
   DeadlineTimingBadge,
   PROJECT_TABLE_CARD,
   PROJECT_TABLE_HEAD,
@@ -38,7 +38,6 @@ import {
   emptyWorkbench,
   parsePayments,
   type ProjectWorkbenchData,
-  type ProjectWorkStatus,
 } from "@/lib/projectFields";
 import {
   matchesTechnicalTab,
@@ -108,17 +107,17 @@ function notesToHistory(notes?: { id: string; text: string; createdAt: string }[
 function projectToWorkbench(p: Project): ProjectWorkbenchData {
   return {
     id: p.id,
-    name: p.name ?? "",
-    company: p.company ?? "",
-    phone: p.phone ?? "",
-    email: p.email ?? "",
-    ownerName: p.ownerName ?? "",
+    name: "",
+    company: "",
+    phone: "",
+    email: "",
+    ownerName: "",
     state: p.state ?? "",
     projectCode: p.projectCode || p.clientCode || "",
     projectTitle: p.projectTitle ?? "",
     projectScope: p.projectScope ?? "",
     interestedService: p.interestedService ?? "",
-    projectBudget: p.projectBudget ?? "",
+    projectBudget: "",
     projectDeadline: (p.projectDeadline ?? "").split("T")[0],
     deadlineTiming: (p.deadlineTiming === "morning" || p.deadlineTiming === "cob" ? p.deadlineTiming : "") as "" | "morning" | "cob",
     projectPhase: p.projectPhase ?? "not_started",
@@ -400,29 +399,14 @@ function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignm
 }
 
 function ProjectRowActions({
-  p,
-  showStatus = true,
   onEdit,
   onDelete,
-  onStatusChange,
 }: {
-  p: Project;
-  showStatus?: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onStatusChange: (next: ProjectWorkStatus) => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {showStatus && (
-        <ProjectWorkStatusBadge
-          status={p.status}
-          projectDeadline={p.projectDeadline}
-          projectWorkStatus={p.projectWorkStatus}
-          editable
-          onChange={onStatusChange}
-        />
-      )}
+    <div className="flex items-center gap-1.5 flex-wrap justify-end">
       <button
         type="button"
         onClick={onEdit}
@@ -578,33 +562,16 @@ export default function TechnicalActiveProjectsPage() {
     }
   };
 
-  const changeProjectStatus = async (id: string, projectWorkStatus: ProjectWorkStatus) => {
-    try {
-      const res = await API.put(`/admin/project/${id}`, { projectWorkStatus });
-      const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
-      setEditProject((prev) => (prev?.id === lead.id ? { ...prev, ...lead } : prev));
-      toast.success("Status updated");
-    } catch {
-      toast.error("Failed to update status");
-    }
-  };
-
   const saveEdit = async (data: ProjectWorkbenchData) => {
     setEditSaving(true);
     try {
+      // Technical must not overwrite client identity fields
       const res = await API.put(`/admin/project/${data.id}`, {
-        name: data.name,
-        company: data.company,
-        phone: data.phone,
-        email: data.email,
-        ownerName: data.ownerName,
         state: data.state,
         projectCode: data.projectCode,
         projectTitle: data.projectTitle,
         projectScope: data.projectScope,
         interestedService: data.interestedService,
-        projectBudget: data.projectBudget,
         projectDeadline: data.projectDeadline,
         deadlineTiming: data.deadlineTiming || "",
         projectPhase: data.projectPhase,
@@ -614,7 +581,7 @@ export default function TechnicalActiveProjectsPage() {
         projectNotes: data.projectNotes,
       });
       const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead, name: null, ownerName: null } : p)));
       setEditProject(null);
       toast.success("Project updated");
     } catch {
@@ -625,7 +592,7 @@ export default function TechnicalActiveProjectsPage() {
   };
 
   const deleteProject = async (p: Project, opts?: { skipConfirm?: boolean }) => {
-    const title = p.projectTitle || p.name || "this project";
+    const title = p.projectTitle || p.projectCode || p.clientCode || "this project";
     if (
       !opts?.skipConfirm &&
       !window.confirm(`Remove "${title}" from Technical? It will stay in Admin Project DB.`)
@@ -649,12 +616,10 @@ export default function TechnicalActiveProjectsPage() {
       const assignNames = assignments.map((a) => a.estimatorName).join(" ");
       const matchSearch =
         !q ||
-        (p.name ?? "").toLowerCase().includes(q) ||
         (p.projectTitle ?? "").toLowerCase().includes(q) ||
         (p.projectCode ?? "").toLowerCase().includes(q) ||
         (p.clientCode ?? "").toLowerCase().includes(q) ||
         (p.projectScope ?? "").toLowerCase().includes(q) ||
-        (p.company ?? "").toLowerCase().includes(q) ||
         assignNames.toLowerCase().includes(q);
       const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
       const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
@@ -691,7 +656,7 @@ export default function TechnicalActiveProjectsPage() {
 
   const isAssignedView = workflowTab === "assigned" || workflowTab === "takeoff_done";
   const headers = isAssignedView
-    ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Estimators", "Actions"]
+    ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Estimators", "Status", "Actions"]
     : [
         "Project Details",
         "Receive Date",
@@ -700,6 +665,7 @@ export default function TechnicalActiveProjectsPage() {
         "Notes for Sir",
         "Assigned To",
         "Status",
+        "Actions",
       ];
   const colWidths = isAssignedView ? TECHNICAL_ASSIGNED_COLS : TECHNICAL_PROJECT_COLS;
 
@@ -867,13 +833,19 @@ export default function TechnicalActiveProjectsPage() {
                     <div className="min-w-0 flex-1">
                       <ProjectDetailCell p={projectAsRow(p)} />
                     </div>
-                    <ProjectRowActions
-                      p={p}
-                      showStatus={!isAssignedView}
-                      onEdit={() => setEditProject(p)}
-                      onDelete={() => void deleteProject(p)}
-                      onStatusChange={(next) => void changeProjectStatus(p.id, next)}
-                    />
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <TechnicalWorkflowStatusBadge
+                        status={p.status}
+                        projectDeadline={p.projectDeadline}
+                        projectWorkStatus={p.projectWorkStatus}
+                        projectPhase={p.projectPhase}
+                        technicalAssignments={p.technicalAssignments}
+                      />
+                      <ProjectRowActions
+                        onEdit={() => setEditProject(p)}
+                        onDelete={() => void deleteProject(p)}
+                      />
+                    </div>
                   </div>
                   {isAssignedView ? (
                     <div className="grid grid-cols-2 gap-3 text-xs">
@@ -1027,12 +999,18 @@ export default function TechnicalActiveProjectsPage() {
                               />
                             </td>
                             <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <TechnicalWorkflowStatusBadge
+                                status={p.status}
+                                projectDeadline={p.projectDeadline}
+                                projectWorkStatus={p.projectWorkStatus}
+                                projectPhase={p.projectPhase}
+                                technicalAssignments={p.technicalAssignments}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
                               <ProjectRowActions
-                                p={p}
-                                showStatus={false}
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
-                                onStatusChange={(next) => void changeProjectStatus(p.id, next)}
                               />
                             </td>
                           </>
@@ -1080,11 +1058,18 @@ export default function TechnicalActiveProjectsPage() {
                               />
                             </td>
                             <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <TechnicalWorkflowStatusBadge
+                                status={p.status}
+                                projectDeadline={p.projectDeadline}
+                                projectWorkStatus={p.projectWorkStatus}
+                                projectPhase={p.projectPhase}
+                                technicalAssignments={p.technicalAssignments}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
                               <ProjectRowActions
-                                p={p}
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
-                                onStatusChange={(next) => void changeProjectStatus(p.id, next)}
                               />
                             </td>
                           </>
