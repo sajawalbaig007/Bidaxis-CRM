@@ -524,6 +524,27 @@ export default function AdminProjectsPage() {
   const [dateTo,      setDateTo]      = useState("");
   const deletedIdsRef = useRef<Set<string>>(new Set());
 
+  // Survive remounts / refresh for this browser tab
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("crm_deleted_project_ids");
+      if (raw) {
+        const arr = JSON.parse(raw) as string[];
+        if (Array.isArray(arr)) arr.forEach((id) => deletedIdsRef.current.add(id));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const rememberDeletedId = (id: string) => {
+    deletedIdsRef.current.add(id);
+    try {
+      sessionStorage.setItem(
+        "crm_deleted_project_ids",
+        JSON.stringify([...deletedIdsRef.current]),
+      );
+    } catch { /* ignore */ }
+  };
+
   /* ── Reassign modal ── */
   const [showReassign,  setShowReassign]  = useState(false);
   const [reassignProj,  setReassignProj]  = useState<Project | null>(null);
@@ -694,23 +715,28 @@ export default function AdminProjectsPage() {
   const deleteWorkbenchProject = async () => {
     if (!workbenchProject) return;
     const id = workbenchProject.id;
+    // Optimistic — leave UI immediately so poll/cache cannot flash it back
+    rememberDeletedId(id);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }));
+    setWorkbenchProject(null);
     try {
-      // Permanent DB delete (project row removed)
       const res = await API.delete(`/admin/project/${id}`);
       if (!res.data?.success) {
         throw new Error(res.data?.message || "delete failed");
       }
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-      setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }));
-      setWorkbenchProject(null);
-      toast.success("Project permanently deleted");
-      // Keep it out of silent polls / Active tab
-      deletedIdsRef.current.add(id);
-      window.setTimeout(() => {
-        void fetchProjects(true);
-      }, 200);
+      toast.success("Project permanently deleted from Project DB");
+      // Do NOT refetch immediately — that was reloading stale cached rows
     } catch {
+      deletedIdsRef.current.delete(id);
+      try {
+        sessionStorage.setItem(
+          "crm_deleted_project_ids",
+          JSON.stringify([...deletedIdsRef.current]),
+        );
+      } catch { /* ignore */ }
       toast.error("Failed to delete project");
+      void fetchProjects(true);
       throw new Error("delete failed");
     }
   };
