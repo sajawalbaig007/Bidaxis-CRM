@@ -692,13 +692,20 @@ export default function AdminProjectsPage() {
 
   const deleteWorkbenchProject = async () => {
     if (!workbenchProject) return;
+    const id = workbenchProject.id;
     try {
-      await API.delete(`/admin/lead/${workbenchProject.id}`);
-      setProjects((prev) => prev.filter((p) => p.id !== workbenchProject.id));
+      const res = await API.delete(`/admin/lead/${id}`);
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || "delete failed");
+      }
+      setProjects((prev) => prev.filter((p) => p.id !== id));
       setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }));
       setWorkbenchProject(null);
       toast.success("Project deleted");
-      void fetchProjects();
+      // Refresh from server after cache bust (don't bring deleted row back)
+      window.setTimeout(() => {
+        void fetchProjects(true);
+      }, 150);
     } catch {
       toast.error("Failed to delete project");
       throw new Error("delete failed");
