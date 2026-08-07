@@ -810,8 +810,8 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       req.query.technicalView === "true" ||
       req.query.forTechnical === "1";
 
-    // Bust cache — previous technicalView Prisma filter could return empty on Mongo
-    const cacheKey = `admin:projects:v4:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
+    // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
+    const cacheKey = `admin:projects:v5:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -854,26 +854,31 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
           notes: { orderBy: { createdAt: "asc" as const }, take: 20 },
         };
 
-    // Load full matching set, then displayable + date filters, then paginate.
-    // (Filtering after skip/take made Admin All=46 vs Technical All=96 from the same DB.)
-    const rawLeads = await prisma.lead.findMany({
-      where,
-      include,
-      orderBy: { updatedAt: "desc" },
-    });
+    // Same window Admin used before: take `limit` newest matching rows, then displayable filter.
+    // (limit 50 → All≈46 / Active≈22). Admin + Technical must use the same limit.
+    const [rawLeads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        include,
+        orderBy: { updatedAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.lead.count({ where }),
+    ]);
 
-    let allLeads = rawLeads.filter(isDisplayableProjectLead);
+    let leads = rawLeads.filter(isDisplayableProjectLead);
 
     // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset)
     if (technicalView) {
-      allLeads = allLeads.filter((l) => {
+      leads = leads.filter((l) => {
         const hidden = (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical;
         return hidden !== true;
       });
     }
 
     if (from || to) {
-      allLeads = allLeads.filter((l) => {
+      leads = leads.filter((l) => {
         const dateStr = l.projectDeadline
           ? new Date(l.projectDeadline).toISOString().split("T")[0]
           : new Date(l.updatedAt).toISOString().split("T")[0];
@@ -883,13 +888,12 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       });
     }
 
-    const total = allLeads.length;
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const withBudget = allLeads.filter((l) => !!l.projectBudget).length;
-    const thisMonth = allLeads.filter((l) => l.updatedAt >= monthStart).length;
-
-    const leads = allLeads.slice((page - 1) * limit, page * limit);
+    const [withBudget, thisMonth] = await Promise.all([
+      prisma.lead.count({ where: { ...where, projectBudget: { not: null } } }),
+      prisma.lead.count({ where: { ...where, updatedAt: { gte: monthStart } } }),
+    ]);
 
     const stats = {
       total,

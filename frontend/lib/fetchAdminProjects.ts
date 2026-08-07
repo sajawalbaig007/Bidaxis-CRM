@@ -9,14 +9,17 @@ type FetchAdminProjectsParams = {
   technicalView?: boolean;
 };
 
-/** Same project set for Admin Project DB and Technical Active Projects. */
+/**
+ * Same project set for Admin Project DB and Technical Active Projects.
+ * Uses limit 50 — matches previous Admin All≈46 / Active≈22 window.
+ */
 export async function fetchAllAdminProjects<T = Record<string, unknown>>(
   params: FetchAdminProjectsParams = {},
 ): Promise<{ leads: T[]; total: number }> {
   const query: Record<string, string> = {
     lite: "1",
     page: "1",
-    limit: "500",
+    limit: "50",
   };
   if (params.csrId) query.csrId = params.csrId;
   if (params.from) query.from = params.from;
@@ -26,6 +29,7 @@ export async function fetchAllAdminProjects<T = Record<string, unknown>>(
 
   const res = await API.get("/admin/projects", { params: query });
   const leads = (res.data.leads ?? []) as T[];
-  const total = Number(res.data.total ?? res.data.stats?.total ?? leads.length);
+  // Tab counts use displayed leads (previous Admin All/Active), not raw DB total
+  const total = leads.length;
   return { leads, total };
 }
