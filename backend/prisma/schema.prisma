@@ -27,6 +27,7 @@ model User {
   employeeCode String?
   fatherName   String?
   currentAddress String?
+  contactNo    String?
   cnic         String?
   cnicPdfUrl   String?
   profilePic   String?

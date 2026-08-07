@@ -33,7 +33,7 @@ export const updateUser = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const {
-      name, email, role, isActive, csrCode, employeeCode, fatherName, currentAddress,
+      name, email, role, isActive, csrCode, employeeCode, fatherName, currentAddress, contactNo,
       cnic, cnicPdfUrl, profilePic,
       allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
       chatEnabled, chatAllowedUserIds, chatVisibleToUserIds,
@@ -62,6 +62,9 @@ export const updateUser = async (req: Request, res: Response) => {
     if (currentAddress !== undefined) {
       data.currentAddress =
         typeof currentAddress === "string" && currentAddress.trim() ? currentAddress.trim() : null;
+    }
+    if (contactNo !== undefined) {
+      data.contactNo = typeof contactNo === "string" && contactNo.trim() ? contactNo.trim() : null;
     }
     if (cnic       !== undefined) data.cnic       = cnic       || null;
     if (cnicPdfUrl !== undefined) data.cnicPdfUrl = cnicPdfUrl || null;
@@ -100,7 +103,7 @@ export const updateUser = async (req: Request, res: Response) => {
       data,
       select: {
         id: true, name: true, email: true, role: true, csrCode: true,
-        employeeCode: true, fatherName: true, currentAddress: true,
+        employeeCode: true, fatherName: true, currentAddress: true, contactNo: true,
         cnic: true, cnicPdfUrl: true, profilePic: true, isActive: true,
         allowedIps: true, allowedMacAddress: true, temporaryAccessIp: true, temporaryAccessMac: true, temporaryAccessUntil: true,
         chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
