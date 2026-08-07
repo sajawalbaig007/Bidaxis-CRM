@@ -36,6 +36,11 @@ export type SalesPayrollEmployee = {
   loanPaymentMode?: "salary" | "cash";
   incomeTax: number;
   remarks: string;
+  /**
+   * One-off / occasional pay — added to net only (no PF / tax / late formulas).
+   */
+  occasionalAmount?: number;
+  occasionalRemark?: string;
 };
 
 export type SalesPayrollData = {
@@ -128,6 +133,7 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
   const totalEarning = basic + allowance + homeAllowance + comm.totalCommission + extraEarning;
   const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
   const totalDeduction = baseDeduction + loanFromSalary;
+  const occasionalAmount = Math.max(0, Number(emp.occasionalAmount) || 0);
   return {
     ...comm,
     daySalary,
@@ -138,8 +144,9 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
     totalEarning,
     totalDeduction,
     loanFromSalary,
-    netBeforeLoan: totalEarning - baseDeduction,
-    netSalary: totalEarning - totalDeduction,
+    occasionalAmount,
+    netBeforeLoan: totalEarning - baseDeduction + occasionalAmount,
+    netSalary: totalEarning - totalDeduction + occasionalAmount,
     loanRemaining: Math.max(
       0,
       (Number(emp.loanTotal) || 0) - (Number(emp.loanPaid) || 0) - (Number(emp.loanThisMonth) || 0),

@@ -42,6 +42,14 @@ export type EmployeeSalaryDetail = {
   /** Manual income tax deduction */
   incomeTax: number;
 
+  /**
+   * One-off / occasional pay — added to net only.
+   * Does not enter total earning (no PF / tax / late / unpaid formulas).
+   */
+  occasionalAmount?: number;
+  /** Why this occasional amount was paid (occasion note). */
+  occasionalRemark?: string;
+
   /** If true, PF = 8% of basic; if false use pfOverride */
   pfAuto: boolean;
   pfOverride?: number | null;
@@ -85,7 +93,14 @@ export type SalaryBreakdown = {
   totalDeduction: number;
   totalSalary: number;
   lateRuleApplied: string;
+  /** Occasional amount added to net (not in totalEarning) */
+  occasionalAmount: number;
 };
+
+/** Occasional pay — never feeds PF / tax / late / day-salary bases. */
+export function occasionalOf(detail: { occasionalAmount?: number | null }): number {
+  return Math.max(0, Number(detail.occasionalAmount) || 0);
+}
 
 export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): EmployeeSalaryDetail {
   return {
@@ -103,6 +118,8 @@ export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): Empl
     loanThisMonth: 0,
     loanPaymentMode: "salary",
     incomeTax: 0,
+    occasionalAmount: 0,
+    occasionalRemark: "",
     pfAuto: true,
     pfOverride: null,
     remarks: "",
@@ -232,8 +249,9 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
 
   const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
   const totalDeduction = baseDeduction + loanFromSalary;
-  const netBeforeLoan = totalEarning - baseDeduction;
-  const totalSalary = totalEarning - totalDeduction;
+  const occasionalAmount = occasionalOf(detail);
+  const netBeforeLoan = totalEarning - baseDeduction + occasionalAmount;
+  const totalSalary = totalEarning - totalDeduction + occasionalAmount;
 
   return {
     monthlySalary,
@@ -256,6 +274,7 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
     totalDeduction,
     totalSalary,
     lateRuleApplied: late.rule,
+    occasionalAmount,
   };
 }
 
@@ -273,18 +292,20 @@ export type ExecutiveBreakdown = {
   loanNegative: number;
   /**
    * Amount due to this executive this period:
-   * Total Salary + Loan+ve − Loan−ve
+   * Total Salary + Loan+ve − Loan−ve + Occasional
    */
   totalPayable: number;
+  occasionalAmount: number;
 };
 
 /**
  * Executive payroll:
  * Commission = % of net profit (profit before executive salaries; no commission on loss).
  * Basic Salary + Commission = Total Salary.
- * Total Payable (head amount) = Total Salary + Loan+ve − Loan−ve
+ * Total Payable (head amount) = Total Salary + Loan+ve − Loan−ve + Occasional
  *   · Loan+ve (company owes them) → add to salary / head total
  *   · Loan−ve (they owe company) → deduct from salary / head total
+ *   · Occasional → add to net only (no PF/tax)
  */
 export function computeExecutiveSalary(
   detail: Partial<EmployeeSalaryDetail>,
@@ -296,6 +317,7 @@ export function computeExecutiveSalary(
   const commission = (commissionBase * commissionPct) / 100;
   const loanPositive = Number(detail.loanPositive) || 0;
   const loanNegative = Number(detail.loanNegative) || 0;
+  const occasionalAmount = occasionalOf(detail);
   const totalSalary = basic + commission;
   return {
     basic,
@@ -305,7 +327,8 @@ export function computeExecutiveSalary(
     totalSalary,
     loanPositive,
     loanNegative,
-    totalPayable: totalSalary + loanPositive - loanNegative,
+    occasionalAmount,
+    totalPayable: totalSalary + loanPositive - loanNegative + occasionalAmount,
   };
 }
 
@@ -378,8 +401,9 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
 
   const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
   const totalDeduction = baseDeduction + loanFromSalary;
-  const netBeforeLoan = totalEarning - baseDeduction;
-  const totalSalary = totalEarning - totalDeduction;
+  const occasionalAmount = occasionalOf(detail);
+  const netBeforeLoan = totalEarning - baseDeduction + occasionalAmount;
+  const totalSalary = totalEarning - totalDeduction + occasionalAmount;
 
   return {
     monthlySalary,
@@ -402,6 +426,7 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
     totalDeduction,
     totalSalary,
     lateRuleApplied: late.rule,
+    occasionalAmount,
   };
 }
 
@@ -490,8 +515,9 @@ export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): Tec
   const totalEarning = gross;
   const baseDeduction = pf + incomeTax;
   const totalDeduction = baseDeduction + loanFromSalary;
-  const netBeforeLoan = totalEarning - baseDeduction;
-  const totalSalary = totalEarning - totalDeduction;
+  const occasionalAmount = occasionalOf(detail);
+  const netBeforeLoan = totalEarning - baseDeduction + occasionalAmount;
+  const totalSalary = totalEarning - totalDeduction + occasionalAmount;
 
   return {
     grossSalary: gross,
@@ -521,5 +547,6 @@ export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): Tec
     totalDeduction,
     totalSalary,
     lateRuleApplied: "Package salary — no late slabs",
+    occasionalAmount,
   };
 }

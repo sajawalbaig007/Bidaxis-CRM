@@ -174,6 +174,8 @@ export function emptySalesPayrollEmployee(
     loanPaymentMode: "salary",
     incomeTax: 0,
     remarks: "",
+    occasionalAmount: 0,
+    occasionalRemark: "",
   };
 }
 
@@ -200,6 +202,8 @@ export function ensureSalesPayrollFromSub(
     loanPaymentMode: sal?.loanPaymentMode ?? "salary",
     incomeTax: sal?.incomeTax ?? 0,
     remarks: sal?.remarks ?? "",
+    occasionalAmount: Number(sal?.occasionalAmount) || 0,
+    occasionalRemark: sal?.occasionalRemark ?? "",
     ...(role === "team_lead" ? { homeAllowance: Number(sal?.homeAllowance) || 0 } : {}),
   };
 }

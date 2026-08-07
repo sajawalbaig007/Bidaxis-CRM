@@ -384,12 +384,41 @@ export default function SalesPayrollEmployeeEditor({
             </div>
           </div>
 
+          {/* Occasional */}
+          <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-3 space-y-2">
+            <p className="text-[11px] font-extrabold uppercase text-sky-800">Occasional Amount</p>
+            <p className="text-[10px] text-sky-700/80">
+              Added to Net only — not included in PF, tax, late, or unpaid leave.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Num
+                label="Occasional Amount"
+                value={employee.occasionalAmount ?? 0}
+                onChange={v => set("occasionalAmount", v)}
+                hint="Plus into net"
+              />
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+                Occasion / Remark
+                <input
+                  type="text"
+                  value={employee.occasionalRemark ?? ""}
+                  onChange={e => set("occasionalRemark", e.target.value)}
+                  placeholder="e.g. Eid bonus, wedding gift…"
+                  className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+                />
+              </label>
+            </div>
+          </div>
+
           {/* Summary */}
           <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-3 space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <Read label="Total Earning" value={currency(breakdown.totalEarning)} accent="text-emerald-700" />
               <Read label="Total Deduction" value={currency(breakdown.totalDeduction)} accent="text-red-600" />
             </div>
+            {(breakdown.occasionalAmount ?? 0) > 0 ? (
+              <Read label="Occasional" value={currency(breakdown.occasionalAmount)} accent="text-sky-700" />
+            ) : null}
             <Read label="Net Total Salary" value={currency(breakdown.netSalary)} accent="text-[#B8112D]" />
           </div>
 

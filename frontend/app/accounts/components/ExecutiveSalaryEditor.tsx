@@ -73,7 +73,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           Total payable this period
         </p>
         <p className="text-[10px] text-crm-text-muted">
-          Basic + Commission + Loan+ve − Loan−ve = amount due to this executive
+          Basic + Commission + Loan+ve − Loan−ve + Occasional = amount due to this executive
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Read label="Basic" value={currency(b.basic)} />
@@ -90,6 +90,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
               Salary {currency(b.totalSalary)}
               {b.loanPositive > 0 ? ` · + loan ${currency(b.loanPositive)}` : ""}
               {b.loanNegative > 0 ? ` · − recover ${currency(b.loanNegative)}` : ""}
+              {b.occasionalAmount > 0 ? ` · + occasional ${currency(b.occasionalAmount)}` : ""}
             </p>
           </div>
           <p className="text-xl font-black tabular-nums text-[#B8112D]">{currency(b.totalPayable)}</p>
@@ -139,6 +140,31 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
             onChange={v => set("loanNegative", v)}
             hint="Subtracted from total payable"
           />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-sky-800">Occasional Amount</p>
+        <p className="text-[10px] text-sky-700/80">
+          Added to total due only — no PF / tax formulas.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Num
+            label="Occasional Amount"
+            value={d.occasionalAmount ?? 0}
+            onChange={v => set("occasionalAmount", v)}
+            hint="Plus into total due"
+          />
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+            Occasion / Remark
+            <input
+              type="text"
+              value={d.occasionalRemark ?? ""}
+              onChange={e => set("occasionalRemark", e.target.value)}
+              placeholder="e.g. Eid bonus, wedding gift…"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </label>
         </div>
       </div>
 
