@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  X, Check, CircleCheckBig, Clock, User2, Briefcase, Hash, Calendar,
+  X, Check, CircleCheckBig, Clock, User2, Calendar, Layers, Briefcase, ChevronDown,
 } from "lucide-react";
-import type { TechnicalAssignment, TechnicalEstimator } from "@/lib/technicalAssignments";
+import {
+  DIVISION_OPTIONS,
+  formatDivisionSummary,
+  formatScopeSummary,
+  type TechnicalAssignment,
+  type TechnicalEstimator,
+} from "@/lib/technicalAssignments";
 
 type ProjectBrief = {
   id: string;
@@ -13,7 +19,17 @@ type ProjectBrief = {
   clientCode?: string | null;
   projectTitle?: string | null;
   projectScope?: string | null;
+  interestedService?: string | null;
   projectDeadline?: string | null;
+};
+
+type Draft = {
+  manHours: string;
+  deadline: string;
+  scopes: string[];
+  divisions: string[];
+  scopeInput: string;
+  workDetail: string;
 };
 
 type Step = "pick" | "details";
@@ -27,6 +43,169 @@ type Props = {
   onConfirm: (assignments: TechnicalAssignment[]) => void | Promise<void>;
 };
 
+function emptyDraft(deadline: string, defaultScope?: string): Draft {
+  return {
+    manHours: "",
+    deadline,
+    scopes: defaultScope ? [defaultScope] : [],
+    divisions: [],
+    scopeInput: "",
+    workDetail: "",
+  };
+}
+
+function DivisionMultiSelect({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const toggle = (opt: string) => {
+    onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm bg-[#FAFAFA] outline-none focus:border-[#B8112D] flex items-center justify-between gap-2 text-left"
+      >
+        <span className={`truncate ${value.length ? "text-[#0F172A] font-semibold" : "text-gray-500 font-medium"}`}>
+          {value.length ? formatDivisionSummary(value) : "Select division(s)"}
+        </span>
+        <ChevronDown size={14} className={`text-gray-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg p-1.5 space-y-0.5">
+          {DIVISION_OPTIONS.map((opt) => {
+            const active = value.includes(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggle(opt)}
+                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-sm transition-colors ${
+                  active ? "bg-[#FFF1F3] text-[#B8112D] font-bold" : "hover:bg-gray-50 text-[#0F172A] font-medium"
+                }`}
+              >
+                <span
+                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    active ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 bg-white"
+                  }`}
+                >
+                  {active && <Check size={10} className="text-white" />}
+                </span>
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScopeMultiField({
+  scopes,
+  scopeInput,
+  onScopesChange,
+  onInputChange,
+}: {
+  scopes: string[];
+  scopeInput: string;
+  onScopesChange: (next: string[]) => void;
+  onInputChange: (v: string) => void;
+}) {
+  const addScope = () => {
+    const v = scopeInput.trim();
+    if (!v) return;
+    if (scopes.some((s) => s.toLowerCase() === v.toLowerCase())) {
+      onInputChange("");
+      return;
+    }
+    onScopesChange([...scopes, v]);
+    onInputChange("");
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={scopeInput}
+          onChange={(e) => onInputChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addScope();
+            }
+          }}
+          placeholder="Add scope, press Enter"
+          className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm text-[#0F172A] font-medium placeholder:text-gray-500 outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+        />
+        <button
+          type="button"
+          onClick={addScope}
+          className="h-10 px-3 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-bold shrink-0 hover:bg-[#ffe4e8]"
+        >
+          Add
+        </button>
+      </div>
+      {scopes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 bg-[#B8112D]/10 text-[#B8112D] text-xs font-bold px-2 py-1 rounded-lg max-w-[65%] truncate">
+            {scopes[0]}
+            <button
+              type="button"
+              onClick={() => onScopesChange(scopes.slice(1))}
+              className="hover:opacity-70"
+              aria-label="Remove scope"
+            >
+              <X size={10} />
+            </button>
+          </span>
+          {scopes.length > 1 && (
+            <span
+              className="inline-flex items-center justify-center bg-gray-200 text-gray-700 text-[11px] font-bold px-1.5 h-5 rounded-full"
+              title={scopes.slice(1).join(", ")}
+            >
+              +{scopes.length - 1}
+            </span>
+          )}
+        </div>
+      )}
+      {scopes.length > 1 && (
+        <div className="flex flex-wrap gap-1">
+          {scopes.slice(1).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onScopesChange(scopes.filter((x) => x !== s))}
+              className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-[11px] font-semibold px-2 py-0.5 rounded-lg hover:bg-[#FFF1F3] hover:text-[#B8112D]"
+            >
+              {s} <X size={9} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AssignEstimatorsModal({
   open,
   project,
@@ -37,10 +216,11 @@ export default function AssignEstimatorsModal({
 }: Props) {
   const [step, setStep] = useState<Step>("pick");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, { manHours: string; deadline: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
 
   const code = (project?.projectCode || project?.clientCode || "").trim() || "—";
-  const scope = (project?.projectScope || "").trim() || "—";
+  const projectScope = (project?.projectScope || "").trim();
+  const divisionLabel = (project?.interestedService || "").trim() || "—";
   const title = (project?.projectTitle || project?.name || "Project").trim();
   const defaultDeadline = (project?.projectDeadline ?? "").split("T")[0] || "";
 
@@ -52,11 +232,16 @@ export default function AssignEstimatorsModal({
   if (!open || !project) return null;
 
   const toggle = (id: string) => {
-    setSelectedIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 3) return prev;
-      return [...prev, id];
-    });
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const patchDraft = (id: string, patch: Partial<Draft>) => {
+    setDrafts((d) => ({
+      ...d,
+      [id]: { ...(d[id] ?? emptyDraft(defaultDeadline, projectScope || undefined)), ...patch },
+    }));
   };
 
   const goDetails = () => {
@@ -64,9 +249,7 @@ export default function AssignEstimatorsModal({
     setDrafts((prev) => {
       const next = { ...prev };
       for (const id of selectedIds) {
-        if (!next[id]) {
-          next[id] = { manHours: "", deadline: defaultDeadline };
-        }
+        if (!next[id]) next[id] = emptyDraft(defaultDeadline, projectScope || undefined);
       }
       return next;
     });
@@ -74,13 +257,21 @@ export default function AssignEstimatorsModal({
   };
 
   const handleConfirm = async () => {
-    const assignments: TechnicalAssignment[] = selectedEstimators.map((e) => ({
-      estimatorId: e.id,
-      estimatorName: e.name,
-      manHours: (drafts[e.id]?.manHours ?? "").trim(),
-      deadline: (drafts[e.id]?.deadline ?? "").trim(),
-      takeoffDone: false,
-    }));
+    const assignments: TechnicalAssignment[] = selectedEstimators.map((e) => {
+      const d = drafts[e.id] ?? emptyDraft(defaultDeadline, projectScope || undefined);
+      return {
+        estimatorId: e.id,
+        estimatorName: e.name,
+        manHours: d.manHours.trim(),
+        deadline: d.deadline.trim(),
+        scopes: d.scopes,
+        divisions: d.divisions,
+        workDetail: d.workDetail.trim(),
+        takeoffDone: false,
+        timerSeconds: 0,
+        timerStartedAt: null,
+      };
+    });
     if (assignments.some((a) => !a.deadline)) return;
     await onConfirm(assignments);
     setStep("pick");
@@ -102,10 +293,10 @@ export default function AssignEstimatorsModal({
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
-        className="w-full sm:max-w-[560px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
+        className="w-full sm:max-w-[600px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "92vh" }}
       >
-        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5 shrink-0 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-3.5 sm:pb-4 shrink-0 overflow-hidden">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
           <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
           <button
@@ -116,65 +307,65 @@ export default function AssignEstimatorsModal({
             <X size={13} />
           </button>
           <div className="flex items-center gap-2.5 sm:gap-3 pr-10">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/20 flex items-center justify-center text-white text-base sm:text-xl font-bold shrink-0">
-              {title.charAt(0).toUpperCase()}
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white/20 flex items-center justify-center text-white text-base sm:text-lg font-bold shrink-0">
+              {(code !== "—" ? code : title).charAt(0).toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <h2 className="text-sm sm:text-base lg:text-lg font-bold text-white leading-tight truncate">
-                {step === "pick" ? "Assign Estimators" : "Assignment Details"}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base sm:text-lg lg:text-xl font-extrabold text-white leading-tight truncate tracking-tight">
+                {code}
               </h2>
-              <p className="text-white/65 text-[10px] sm:text-xs mt-0.5 truncate">{title}</p>
+              <p className="text-white text-[12px] sm:text-sm mt-0.5 truncate font-semibold">
+                {title}
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] sm:text-[13px] font-semibold text-white leading-snug">
+                <span>
+                  <span className="text-white/80 font-medium">Scope:</span>{" "}
+                  <span className="text-white">{projectScope || "—"}</span>
+                </span>
+                <span className="text-white/50">·</span>
+                <span>
+                  <span className="text-white/80 font-medium">Division:</span>{" "}
+                  <span className="text-white">{divisionLabel}</span>
+                </span>
+              </div>
             </div>
           </div>
-          <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 bg-green-500/25 text-green-100 border border-green-400/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-semibold">
-              <CircleCheckBig size={9} />
-              {step === "pick" ? "Select 1–3 estimators" : "Set man hours & deadline each"}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 bg-white/20 text-white border border-white/30 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold">
+              <CircleCheckBig size={11} />
+              {step === "pick"
+                ? `Select estimators${selectedIds.length ? ` · ${selectedIds.length} selected` : ""}`
+                : "Set hours, deadline, work detail & division"}
             </span>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain">
-          <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-4">
-            {/* Auto code + scope */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-[#F8F9FC] rounded-2xl border border-gray-100 px-3.5 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 flex items-center gap-1">
-                  <Hash size={10} /> Client / Project Code
-                </p>
-                <p className="text-sm font-bold text-[#B8112D] truncate">{code}</p>
-              </div>
-              <div className="bg-[#F8F9FC] rounded-2xl border border-gray-100 px-3.5 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 flex items-center gap-1">
-                  <Briefcase size={10} /> Scope
-                </p>
-                <p className="text-sm font-semibold text-[#0F172A] truncate">{scope}</p>
-              </div>
-            </div>
-
+          <div className="px-4 sm:px-5 lg:px-6 py-4 sm:py-5 space-y-3">
             {step === "pick" ? (
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                  Estimators ({selectedIds.length}/3)
+                  Estimators ({selectedIds.length} selected)
                 </p>
                 {estimators.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-8">No estimators available.</p>
+                  <div className="text-center py-8 space-y-2">
+                    <p className="text-sm font-semibold text-gray-600">No estimators available.</p>
+                    <p className="text-xs text-gray-500 px-4 leading-relaxed">
+                      Admin → Users mein role <span className="font-bold text-[#B8112D]">Estimator</span> wale users add / activate karein, phir yeh modal dubara kholen.
+                    </p>
+                  </div>
                 ) : (
                   estimators.map((est) => {
                     const active = selectedIds.includes(est.id);
-                    const locked = !active && selectedIds.length >= 3;
                     return (
                       <button
                         key={est.id}
                         type="button"
-                        disabled={locked}
                         onClick={() => toggle(est.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left ${
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left ${
                           active
                             ? "border-[#B8112D] bg-[#FFF1F3]"
-                            : locked
-                              ? "border-gray-50 bg-gray-50 opacity-50 cursor-not-allowed"
-                              : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                            : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
                         }`}
                       >
                         <div
@@ -201,68 +392,98 @@ export default function AssignEstimatorsModal({
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
-                {selectedEstimators.map((est) => (
-                  <div
-                    key={est.id}
-                    className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3 shadow-sm"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-sm font-bold">
-                        {est.name.charAt(0).toUpperCase()}
+              <div className="space-y-3">
+                {selectedEstimators.map((est) => {
+                  const d = drafts[est.id] ?? emptyDraft(defaultDeadline, projectScope || undefined);
+                  return (
+                    <div
+                      key={est.id}
+                      className="rounded-2xl border border-gray-100 bg-white p-3.5 space-y-2.5 shadow-sm"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-sm font-bold">
+                          {est.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#0F172A] truncate flex items-center gap-1.5">
+                            <User2 size={12} className="text-[#B8112D]" />
+                            {est.name}
+                          </p>
+                          <p className="text-[11px] text-gray-400">{est.code}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#0F172A] truncate flex items-center gap-1.5">
-                          <User2 size={12} className="text-[#B8112D]" />
-                          {est.name}
-                        </p>
-                        <p className="text-[11px] text-gray-400">{est.code}</p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <label className="block space-y-1">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600 flex items-center gap-1">
+                            <Clock size={11} /> Man Hours
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="e.g. 8"
+                            value={d.manHours}
+                            onChange={(e) => patchDraft(est.id, { manHours: e.target.value })}
+                            className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+                          />
+                        </label>
+                        <label className="block space-y-1">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600 flex items-center gap-1">
+                            <Calendar size={11} /> Deadline <span className="text-[#B8112D]">*required</span>
+                          </span>
+                          <input
+                            type="date"
+                            value={d.deadline}
+                            onChange={(e) => patchDraft(est.id, { deadline: e.target.value })}
+                            className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
+                          />
+                        </label>
+                        <label className="block space-y-1 sm:col-span-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600">
+                            Work Detail
+                          </span>
+                          <textarea
+                            value={d.workDetail}
+                            onChange={(e) => patchDraft(est.id, { workDetail: e.target.value })}
+                            placeholder="Is scope me kya work karna hai — detail message for estimator…"
+                            rows={3}
+                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA] resize-none"
+                          />
+                        </label>
+                        <div className="block space-y-1">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600 flex items-center gap-1">
+                            <Briefcase size={11} /> Scope
+                            {d.scopes.length > 1 && (
+                              <span className="ml-1 bg-gray-100 text-gray-600 text-[9px] font-bold px-1.5 rounded-full">
+                                {formatScopeSummary(d.scopes)}
+                              </span>
+                            )}
+                          </span>
+                          <ScopeMultiField
+                            scopes={d.scopes}
+                            scopeInput={d.scopeInput}
+                            onScopesChange={(scopes) => patchDraft(est.id, { scopes })}
+                            onInputChange={(scopeInput) => patchDraft(est.id, { scopeInput })}
+                          />
+                        </div>
+                        <label className="block space-y-1">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-gray-600 flex items-center gap-1">
+                            <Layers size={11} /> Division
+                            {d.divisions.length > 1 && (
+                              <span className="ml-1 bg-gray-100 text-gray-600 text-[9px] font-bold px-1.5 rounded-full">
+                                +{d.divisions.length - 1}
+                              </span>
+                            )}
+                          </span>
+                          <DivisionMultiSelect
+                            value={d.divisions}
+                            onChange={(divisions) => patchDraft(est.id, { divisions })}
+                          />
+                        </label>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label className="block space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 flex items-center gap-1">
-                          <Clock size={10} /> Man Hours
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="e.g. 8"
-                          value={drafts[est.id]?.manHours ?? ""}
-                          onChange={(e) =>
-                            setDrafts((d) => ({
-                              ...d,
-                              [est.id]: {
-                                manHours: e.target.value,
-                                deadline: d[est.id]?.deadline ?? defaultDeadline,
-                              },
-                            }))
-                          }
-                          className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
-                        />
-                      </label>
-                      <label className="block space-y-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 flex items-center gap-1">
-                          <Calendar size={10} /> Deadline <span className="text-[#B8112D]">*required</span>
-                        </span>
-                        <input
-                          type="date"
-                          value={drafts[est.id]?.deadline ?? ""}
-                          onChange={(e) =>
-                            setDrafts((d) => ({
-                              ...d,
-                              [est.id]: {
-                                manHours: d[est.id]?.manHours ?? "",
-                                deadline: e.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA]"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

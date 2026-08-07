@@ -62,14 +62,24 @@ export const PROJECT_GRID_HEAD =
 export const PROJECT_GRID_ROW =
   "lg:grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
 
-/** Admin Project DB table — fixed column widths */
+/** Admin Project DB table — fixed column widths (+ Status) */
 export const ADMIN_PROJECT_COLS = [
-  "16%", "17%", "9%", "12%", "12%", "12%", "16%", "6%",
+  "13%", "15%", "7%", "11%", "13%", "10%", "13%", "10%", "8%",
 ] as const;
 
-/** Technical Active Projects — details, receive, deadline, bid, notes, assign */
+/** Technical Active Projects — details, receive, deadline, bid, notes, assign, status+actions */
 export const TECHNICAL_PROJECT_COLS = [
-  "22%", "12%", "12%", "16%", "14%", "14%", "10%",
+  "18%", "10%", "10%", "14%", "12%", "14%", "22%",
+] as const;
+
+/** Technical Assigned tab — detail, hours, deadline, bid, notes, estimators, actions */
+export const TECHNICAL_ASSIGNED_COLS = [
+  "18%", "8%", "10%", "16%", "14%", "18%", "16%",
+] as const;
+
+/** Admin Project DB when opened under /technical (legacy compact) */
+export const ADMIN_TECH_VIEW_COLS = [
+  "28%", "16%", "24%", "14%", "18%",
 ] as const;
 
 /** Table card — no inner vertical scroll; page scrolls instead */

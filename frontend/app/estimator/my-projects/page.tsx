@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  Search, FolderKanban, Calendar, Check, Clock3,
+  Search, FolderKanban, Calendar, Check, Clock3, Play, Pause, Lock, RefreshCw,
 } from "lucide-react";
 import EstimatorSidebar from "../components/layout/Sidebar";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
@@ -19,7 +19,12 @@ import {
 } from "@/app/components/projects/ProjectTableCells";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import API from "@/lib/api";
-import { projectReceiveDate, type TechnicalAssignment } from "@/lib/technicalAssignments";
+import {
+  projectReceiveDate,
+  assignmentElapsedSeconds,
+  formatElapsed,
+  type TechnicalAssignment,
+} from "@/lib/technicalAssignments";
 
 type Project = {
   id: string;
@@ -39,6 +44,7 @@ type Project = {
   projectNotes: string | null;
   projectPayments: string | null;
   technicalReceivedAt?: string | null;
+  technicalNotes?: string | null;
   createdAt?: string;
   updatedAt: string;
   myAssignment?: TechnicalAssignment;
@@ -47,7 +53,6 @@ type Project = {
 
 type FilterTab = "all" | "pending" | "done";
 
-const COLS = ["24%", "12%", "12%", "16%", "14%", "10%", "12%"] as const;
 const PAGE_SIZE = 30;
 
 const formatDate = (iso: string | null | undefined) => {
@@ -86,46 +91,184 @@ function projectAsRow(p: Project) {
   };
 }
 
+function TimerControls({
+  p,
+  now,
+  busy,
+  onTimer,
+  onComplete,
+}: {
+  p: Project;
+  now: number;
+  busy: boolean;
+  onTimer: (id: string, action: "start" | "pause") => void;
+  onComplete: (id: string) => void;
+}) {
+  const a = p.myAssignment;
+  const done = !!a?.takeoffDone;
+  const running = !!a?.timerStartedAt;
+  const elapsed = a ? assignmentElapsedSeconds(a, now) : 0;
+
+  if (done) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-sm font-bold tabular-nums text-emerald-700">{formatElapsed(elapsed)}</p>
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+          <Lock size={10} /> Completed
+        </span>
+        <p className="text-[9px] text-gray-400 leading-snug">Locked — Miss can reopen if needed</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 min-w-0">
+      <p className={`text-sm font-bold tabular-nums ${running ? "text-[#7C3AED]" : "text-gray-700"}`}>
+        {formatElapsed(elapsed)}
+        {running ? <span className="ml-1 text-[9px] font-semibold uppercase text-[#7C3AED]">Live</span> : null}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {running ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onTimer(p.id, "pause")}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-800 text-[10px] font-bold hover:bg-amber-200 disabled:opacity-50"
+          >
+            <Pause size={11} /> Pause
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onTimer(p.id, "start")}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#7C3AED] text-white text-[10px] font-bold hover:bg-[#6d28d9] disabled:opacity-50"
+          >
+            <Play size={11} /> Start
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onComplete(p.id)}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 disabled:opacity-50"
+        >
+          <Check size={11} /> Complete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function EstimatorMyProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<FilterTab>("all");
   const [page, setPage] = useState(1);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
-  const fetchProjects = useCallback(async () => {
+  const anyRunning = projects.some((p) => !!p.myAssignment?.timerStartedAt && !p.myAssignment?.takeoffDone);
+
+  useEffect(() => {
+    if (!anyRunning) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [anyRunning]);
+
+  const fetchProjects = useCallback(async (mode: "initial" | "manual" | "silent" = "silent") => {
     try {
-      setLoading(true);
+      if (mode === "initial") setLoading(true);
+      if (mode === "manual") setRefreshing(true);
       const res = await API.get("/estimator/projects");
       setProjects(res.data.leads ?? []);
     } catch {
-      toast.error("Failed to load projects");
+      if (mode !== "silent") toast.error("Failed to load projects");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    void fetchProjects();
+    void fetchProjects("initial");
   }, [fetchProjects]);
 
-  const addNote = async (id: string, text: string) => {
-    const res = await API.post(`/estimator/lead/${id}/notes`, { text });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, notes: [...(p.notes ?? []), note] } : p)),
-    );
-    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
+  // Auto-pick new assignments / Miss reopen without manual refresh
+  useEffect(() => {
+    const poll = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void fetchProjects("silent");
+    }, 6000);
+    const onFocus = () => void fetchProjects("silent");
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [fetchProjects]);
+
+  const applyLead = (lead: Project) => {
+    setProjects((prev) => {
+      const exists = prev.some((p) => p.id === lead.id);
+      if (!exists) return [lead, ...prev];
+      return prev.map((p) => {
+        if (p.id === lead.id) return { ...p, ...lead };
+        // Another project may have been auto-paused when this one started
+        if (lead.myAssignment?.timerStartedAt && p.myAssignment?.timerStartedAt && p.id !== lead.id) {
+          return {
+            ...p,
+            myAssignment: {
+              ...p.myAssignment,
+              timerStartedAt: null,
+            },
+          };
+        }
+        return p;
+      });
+    });
   };
 
-  const toggleTakeoff = async (projectId: string, takeoffDone: boolean) => {
+  const runTimer = async (projectId: string, action: "start" | "pause") => {
+    setBusyId(projectId);
     try {
-      const res = await API.put(`/estimator/project/${projectId}/takeoff`, { takeoffDone });
-      const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
-      toast.success(takeoffDone ? "Marked takeoff done" : "Marked as pending");
-    } catch {
-      toast.error("Failed to update takeoff");
+      const res = await API.put(`/estimator/project/${projectId}/timer`, { action });
+      applyLead(res.data.lead as Project);
+      if (action === "start") {
+        // Silent refresh so other auto-paused projects update without skeleton flash
+        void fetchProjects("silent");
+        toast.success("Timer started");
+      } else {
+        toast.success("Timer paused");
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to update timer";
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const completeTask = async (projectId: string) => {
+    setBusyId(projectId);
+    const toastId = toast.loading("Completing task…");
+    try {
+      const res = await API.put(`/estimator/project/${projectId}/complete`);
+      applyLead(res.data.lead as Project);
+      toast.success("Task completed — locked. Miss can reopen if needed.", { id: toastId });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to complete task";
+      toast.error(msg, { id: toastId });
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -157,12 +300,12 @@ export default function EstimatorMyProjectsPage() {
 
   const headers = [
     "Project Details",
-    "Receive Date",
+    "Receive",
     "Deadline",
     "Bid Instruction",
-    "Notes",
-    "Man Hours",
-    "Takeoff",
+    "Work Detail",
+    "Hours",
+    "Timer / Task",
   ];
 
   return (
@@ -171,11 +314,23 @@ export default function EstimatorMyProjectsPage() {
       <EstimatorSidebar />
 
       <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 overflow-x-hidden mt-[64px]">
-        <div className="mb-4 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">My Projects</h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-            Projects assigned to you by Technical Manager
-          </p>
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">My Projects</h1>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+              Start / Pause timer · Complete task (locked after complete — only Miss can reopen)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchProjects("manual")}
+            disabled={refreshing || loading}
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 disabled:opacity-60 shadow-sm w-fit"
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={refreshing || loading ? "animate-spin" : ""} />
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
 
         <CapsuleTabs
@@ -186,7 +341,7 @@ export default function EstimatorMyProjectsPage() {
           tabs={[
             { key: "all", label: "All", count: counts.all, icon: FolderKanban },
             { key: "pending", label: "Pending", count: counts.pending, icon: Clock3 },
-            { key: "done", label: "Takeoff Done", count: counts.done, icon: Check },
+            { key: "done", label: "Completed", count: counts.done, icon: Check },
           ]}
         />
 
@@ -202,10 +357,11 @@ export default function EstimatorMyProjectsPage() {
         </div>
 
         <div className="lg:hidden space-y-3">
-          {loading ? (
-            [1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 h-36 animate-pulse" />
-            ))
+          {loading && projects.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+              <RefreshCw size={22} className="text-[#7C3AED] mx-auto mb-2 animate-spin" />
+              <p className="text-gray-500 text-sm font-medium">Loading projects…</p>
+            </div>
           ) : paginated.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
               <FolderKanban size={32} className="text-gray-200 mx-auto mb-3" />
@@ -229,24 +385,32 @@ export default function EstimatorMyProjectsPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Bid Instruction</p>
-                  <p className="text-xs text-gray-600">{p.projectNotes?.trim() || "—"}</p>
+                  <CommentCell
+                    id={p.id}
+                    apiRole="estimator"
+                    readOnly
+                    skipNotesFetch
+                    comment={p.projectNotes ?? undefined}
+                    noteHistory={notesToHistory(p.notes)}
+                  />
                 </div>
-                <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Work Detail</p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap leading-snug">
+                    {p.myAssignment?.workDetail?.trim() || "—"}
+                  </p>
+                </div>
+                <div className="flex items-start justify-between gap-3 pt-1 border-t border-gray-50">
                   <span className="text-xs font-semibold text-[#7C3AED]">
                     {p.myAssignment?.manHours ? `${p.myAssignment.manHours}h` : "Hours —"}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => void toggleTakeoff(p.id, !p.myAssignment?.takeoffDone)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold ${
-                      p.myAssignment?.takeoffDone
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-[#7C3AED] text-white"
-                    }`}
-                  >
-                    <Check size={12} />
-                    {p.myAssignment?.takeoffDone ? "Done" : "Mark Done"}
-                  </button>
+                  <TimerControls
+                    p={p}
+                    now={now}
+                    busy={busyId === p.id}
+                    onTimer={(id, action) => void runTimer(id, action)}
+                    onComplete={(id) => void completeTask(id)}
+                  />
                 </div>
               </div>
             ))
@@ -255,8 +419,8 @@ export default function EstimatorMyProjectsPage() {
 
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed border-collapse" style={{ minWidth: "1000px" }}>
-              <CsrColGroup widths={COLS} />
+            <table className="w-full table-fixed border-collapse" style={{ minWidth: "1100px" }}>
+              <CsrColGroup widths={["22%", "10%", "10%", "14%", "12%", "8%", "24%"] as const} />
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
@@ -267,16 +431,13 @@ export default function EstimatorMyProjectsPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  [1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="border-b border-[#F3F3F3]">
-                      {headers.map((_, j) => (
-                        <td key={j} className="px-3 xl:px-4 py-4">
-                          <div className="h-4 bg-gray-100 rounded animate-pulse w-16" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
+                {loading && projects.length === 0 ? (
+                  <tr>
+                    <td colSpan={headers.length} className="py-16 text-center">
+                      <RefreshCw size={22} className="text-[#7C3AED] mx-auto mb-2 animate-spin" />
+                      <p className="text-gray-500 text-sm font-medium">Loading projects…</p>
+                    </td>
+                  </tr>
                 ) : paginated.length > 0 ? (
                   paginated.map((p) => (
                     <tr key={p.id} className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top">
@@ -295,20 +456,19 @@ export default function EstimatorMyProjectsPage() {
                         </p>
                       </td>
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
-                        {p.projectNotes?.trim() ? (
-                          <p className="text-[11px] text-gray-600 line-clamp-3 whitespace-pre-wrap">
-                            {p.projectNotes}
-                          </p>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <CommentCell
                           id={p.id}
+                          apiRole="estimator"
+                          readOnly
+                          skipNotesFetch
+                          comment={p.projectNotes ?? undefined}
                           noteHistory={notesToHistory(p.notes)}
-                          onAddNote={addNote}
                         />
+                      </td>
+                      <td className="px-3 xl:px-4 py-3 xl:py-4">
+                        <p className="text-[11px] text-gray-700 whitespace-pre-wrap leading-snug line-clamp-4">
+                          {p.myAssignment?.workDetail?.trim() || "—"}
+                        </p>
                       </td>
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <span className="text-xs font-bold text-[#7C3AED]">
@@ -316,18 +476,13 @@ export default function EstimatorMyProjectsPage() {
                         </span>
                       </td>
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
-                        <button
-                          type="button"
-                          onClick={() => void toggleTakeoff(p.id, !p.myAssignment?.takeoffDone)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] xl:text-xs font-semibold ${
-                            p.myAssignment?.takeoffDone
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-violet-100 text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white"
-                          }`}
-                        >
-                          <Check size={12} />
-                          {p.myAssignment?.takeoffDone ? "Done" : "Mark Done"}
-                        </button>
+                        <TimerControls
+                          p={p}
+                          now={now}
+                          busy={busyId === p.id}
+                          onTimer={(id, action) => void runTimer(id, action)}
+                          onComplete={(id) => void completeTask(id)}
+                        />
                       </td>
                     </tr>
                   ))

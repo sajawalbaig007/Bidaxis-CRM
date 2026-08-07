@@ -84,6 +84,8 @@ model Lead {
   projectTitle       String?
   projectCode        String?
   projectDeadline    String?
+  /** Emergency submit window: morning | cob (close of business). */
+  deadlineTiming     String?
   projectBudget      String?
   projectNotes       String?
   paidAmount         String?
@@ -98,6 +100,12 @@ model Lead {
   technicalReceivedAt  DateTime?
   /** JSON: [{ estimatorId, estimatorName, manHours, deadline, takeoffDone }] */
   technicalAssignments String?
+  /** JSON: [{ id, text, createdAt }] — technical/estimator working notes (not bid instructions). */
+  technicalNotes       String?
+  /** Manual work status: completed | in_progress | not_completed (overrides derived badge). */
+  projectWorkStatus    String?
+  /** Soft-removed from Technical portal only — still visible in Admin Project DB. */
+  hiddenOnTechnical    Boolean   @default(false)
   clientCode         String?
   state              String?
   isOldClient        Boolean   @default(false)

@@ -110,6 +110,8 @@ export type ProjectWorkbenchData = {
   interestedService: string;
   projectBudget: string;
   projectDeadline: string;
+  /** Emergency submit: morning | cob | "" */
+  deadlineTiming: "" | "morning" | "cob";
   projectPhase: string;
   takeoffDeadline: string;
   pricingDeadline: string;
@@ -139,10 +141,63 @@ export function emptyWorkbench(): ProjectWorkbenchData {
     interestedService: "",
     projectBudget: "",
     projectDeadline: "",
+    deadlineTiming: "",
     projectPhase: "not_started",
     takeoffDeadline: "",
     pricingDeadline: "",
     qaDeadline: "",
     projectPayments: [],
   };
+}
+
+/** Same rule as Admin → Active Projects tab. */
+export function isProjectActive(p: {
+  status?: string | null;
+  projectDeadline?: string | null;
+  projectWorkStatus?: string | null;
+}): boolean {
+  const work = (p.projectWorkStatus ?? "").toLowerCase();
+  if (work === "completed" || work === "not_completed") return false;
+  if (work === "in_progress") return true;
+
+  const st = (p.status ?? "").toLowerCase();
+  if (st === "completed") return false;
+  if (p.projectDeadline) {
+    const deadline = p.projectDeadline.split("T")[0] ?? "";
+    const today = new Date().toISOString().split("T")[0] ?? "";
+    return deadline >= today;
+  }
+  return st === "close client";
+}
+
+export type ProjectWorkStatus = "completed" | "in_progress" | "not_completed";
+
+export type DeadlineTiming = "" | "morning" | "cob";
+
+export function normalizeDeadlineTiming(raw: unknown): DeadlineTiming {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (v === "morning" || v === "cob") return v;
+  return "";
+}
+
+export const PROJECT_WORK_STATUS_OPTIONS: { value: ProjectWorkStatus; label: string }[] = [
+  { value: "in_progress", label: "In Progress" },
+  { value: "not_completed", label: "Not Completed" },
+  { value: "completed", label: "Completed" },
+];
+
+export function getProjectWorkStatus(p: {
+  status?: string | null;
+  projectDeadline?: string | null;
+  projectWorkStatus?: string | null;
+}): { key: ProjectWorkStatus; label: string } {
+  const work = (p.projectWorkStatus ?? "").toLowerCase();
+  if (work === "completed") return { key: "completed", label: "Completed" };
+  if (work === "in_progress") return { key: "in_progress", label: "In Progress" };
+  if (work === "not_completed") return { key: "not_completed", label: "Not Completed" };
+
+  const st = (p.status ?? "").toLowerCase();
+  if (st === "completed") return { key: "completed", label: "Completed" };
+  if (isProjectActive(p)) return { key: "in_progress", label: "In Progress" };
+  return { key: "not_completed", label: "Not Completed" };
 }

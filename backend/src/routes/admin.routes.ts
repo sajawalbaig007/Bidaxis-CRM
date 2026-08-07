@@ -41,6 +41,12 @@ import {
   normalizeTechnicalAssignmentsInput,
   parseTechnicalAssignments,
   serializeTechnicalAssignments,
+  mergeAssignmentProgress,
+  appendTechnicalNote,
+  serializeTechnicalNotes,
+  parseTechnicalNotes,
+  pauseAssignmentTimer,
+  syncPhaseFromAssignments,
   type TechnicalAssignment,
 } from "../utils/technicalEstimators";
 
@@ -51,11 +57,29 @@ function applyProjectPayload(updateData: Record<string, unknown>, body: Record<s
   const scalars = [
     "name", "company", "phone", "email", "state", "ownerName",
     "projectCode", "projectTitle", "projectScope", "interestedService",
-    "projectBudget", "projectDeadline", "projectNotes", "projectPhase",
+    "projectBudget", "projectDeadline", "deadlineTiming", "projectNotes", "projectPhase",
     "takeoffDeadline", "pricingDeadline", "qaDeadline", "projectSource",
+    "projectWorkStatus",
   ] as const;
   for (const key of scalars) {
     if (body[key] !== undefined) updateData[key] = body[key];
+  }
+  // Empty emergency timing clears the badge on Technical
+  if (body.deadlineTiming !== undefined) {
+    const t = String(body.deadlineTiming ?? "").trim().toLowerCase();
+    updateData.deadlineTiming = t === "morning" || t === "cob" ? t : null;
+  }
+  if (body.status !== undefined) {
+    updateData.status = body.status;
+  }
+  // Keep Project DB membership in sync with work status
+  const work = body.projectWorkStatus != null ? String(body.projectWorkStatus) : "";
+  if (work === "completed") {
+    updateData.status = "completed";
+    updateData.projectWorkStatus = "completed";
+  } else if (work === "in_progress" || work === "not_completed") {
+    updateData.status = "Close Client";
+    updateData.projectWorkStatus = work;
   }
   const payments = normalizePaymentsInput(body.projectPayments);
   if (payments !== undefined) {
@@ -79,14 +103,11 @@ router.get("/dashboard", verifyToken, allowRoles("admin"), (req, res) => {
   res.json({ success: true, message: "Welcome Admin" });
 });
 
-/* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
+/* ================= ADMIN MEETING + TECHNICAL NOTE NOTIFICATIONS ================= */
 router.get("/notifications", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
-    const cacheKey = `admin:notifications:${csrId ?? "all"}:${today}`;
-    const cached = getCache<object>(cacheKey);
-    if (cached) return res.json(cached);
 
     const rawScheduled = await prisma.lead.findMany({
       where: {
@@ -125,14 +146,56 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager", "techni
         csrId: l.csr?.id ?? "",
       }));
 
-    const payload = { success: true, scheduledCalls };
-    setCache(cacheKey, payload, 60_000);
-    return res.json(payload);
+    // Alerts from Technical "Notes for Sir"
+    const techAlertLeads = await prisma.lead.findMany({
+      where: buildProjectLeadWhere(csrId),
+      select: {
+        id: true,
+        name: true,
+        projectTitle: true,
+        projectCode: true,
+        clientCode: true,
+        technicalNotes: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 120,
+    });
+
+    const technicalNotes = techAlertLeads
+      .map((l) => {
+        const notes = parseTechnicalNotes(l.technicalNotes);
+        const latest = notes[notes.length - 1];
+        if (!latest) return null;
+        return {
+          id: `tn-${l.id}-${latest.id}`,
+          leadId: l.id,
+          projectTitle: l.projectTitle || l.name || "Project",
+          projectCode: l.projectCode || l.clientCode || "",
+          preview: latest.text,
+          createdAt: latest.createdAt || l.updatedAt.toISOString(),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 30);
+
+    return res.json({ success: true, scheduledCalls, technicalNotes });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to fetch notifications" });
   }
 });
+
+/* Mark technical-note alert as read for Admin (dismiss is primarily client-side) */
+router.put(
+  "/lead/:id/technical-notes/read",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (_req, res) => {
+    return res.json({ success: true });
+  },
+);
 
 /* ================= GET ALL CSRS ================= */
 router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
@@ -534,6 +597,42 @@ router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manag
   }
 });
 
+/* ================= TECHNICAL WORKING NOTES (not bid instructions) ================= */
+router.post(
+  "/lead/:id/technical-notes",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const text = String((req.body as { text?: string })?.text ?? "").trim();
+      if (!text) return res.status(400).json({ success: false, message: "Note text required" });
+
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId },
+        select: { id: true, assignedTo: true, technicalNotes: true },
+      });
+      if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+      const next = appendTechnicalNote(lead.technicalNotes, text);
+      const note = next[next.length - 1];
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          technicalNotes: serializeTechnicalNotes(next),
+        },
+      });
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+      return res.json({ success: true, note, technicalNotes: next });
+    } catch (err) {
+      console.error("technical-notes error:", err);
+      return res.status(500).json({ success: false, message: "Failed to add technical note" });
+    }
+  },
+);
+
 /* ================= UPDATE CSR STATUS ================= */
 router.put(
   "/csr-status/:id",
@@ -704,10 +803,15 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
     const to    = typeof req.query.to   === "string" ? req.query.to.trim()   : undefined;
     const lite  = req.query.lite !== "0" && req.query.lite !== "false";
     const page  = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+    const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const technicalView =
+      req.query.technicalView === "1" ||
+      req.query.technicalView === "true" ||
+      req.query.forTechnical === "1";
 
-    const cacheKey = `admin:projects:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}`;
+    // Bust cache — previous technicalView Prisma filter could return empty on Mongo
+    const cacheKey = `admin:projects:v4:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -750,21 +854,26 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
           notes: { orderBy: { createdAt: "asc" as const }, take: 20 },
         };
 
-    const [rawLeads, total] = await Promise.all([
-      prisma.lead.findMany({
-        where,
-        include,
-        orderBy: { updatedAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.lead.count({ where }),
-    ]);
+    // Load full matching set, then displayable + date filters, then paginate.
+    // (Filtering after skip/take made Admin All=46 vs Technical All=96 from the same DB.)
+    const rawLeads = await prisma.lead.findMany({
+      where,
+      include,
+      orderBy: { updatedAt: "desc" },
+    });
 
-    let leads = rawLeads.filter(isDisplayableProjectLead);
+    let allLeads = rawLeads.filter(isDisplayableProjectLead);
+
+    // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset)
+    if (technicalView) {
+      allLeads = allLeads.filter((l) => {
+        const hidden = (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical;
+        return hidden !== true;
+      });
+    }
 
     if (from || to) {
-      leads = leads.filter((l) => {
+      allLeads = allLeads.filter((l) => {
         const dateStr = l.projectDeadline
           ? new Date(l.projectDeadline).toISOString().split("T")[0]
           : new Date(l.updatedAt).toISOString().split("T")[0];
@@ -774,13 +883,13 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       });
     }
 
+    const total = allLeads.length;
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const withBudget = allLeads.filter((l) => !!l.projectBudget).length;
+    const thisMonth = allLeads.filter((l) => l.updatedAt >= monthStart).length;
 
-    const [withBudget, thisMonth] = await Promise.all([
-      prisma.lead.count({ where: { ...where, projectBudget: { not: null } } }),
-      prisma.lead.count({ where: { ...where, updatedAt: { gte: monthStart } } }),
-    ]);
+    const leads = allLeads.slice((page - 1) * limit, page * limit);
 
     const stats = {
       total,
@@ -979,6 +1088,7 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
     });
 
     flushAdminClientsCache();
+    invalidatePattern("admin:projects:");
     invalidateCache(`csr:projects:${lead.assignedTo}`);
 
     return res.json({ success: true, lead });
@@ -988,13 +1098,43 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
   }
 });
 
+/* ================= HIDE FROM TECHNICAL ONLY (admin Project DB keeps it) ================= */
+router.put(
+  "/project/:id/hide-technical",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { hiddenOnTechnical: true },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+        },
+      });
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to remove from technical" });
+    }
+  },
+);
+
 /* ================= TECHNICAL ESTIMATORS ================= */
 router.get(
   "/technical-estimators",
   verifyToken,
   allowRoles("admin", "manager", "technical_manager"),
   async (_req, res) => {
-    return res.json({ success: true, estimators: await listTechnicalEstimators() });
+    try {
+      return res.json({ success: true, estimators: await listTechnicalEstimators() });
+    } catch (err) {
+      console.error("technical-estimators error:", err);
+      return res.json({ success: true, estimators: [] });
+    }
   },
 );
 
@@ -1015,12 +1155,6 @@ router.put(
           message: "Select at least one estimator.",
         });
       }
-      if (assignments.length > 3) {
-        return res.status(400).json({
-          success: false,
-          message: "You can assign at most 3 estimators.",
-        });
-      }
       for (const a of assignments) {
         if (!a.deadline) {
           return res.status(400).json({
@@ -1032,17 +1166,31 @@ router.put(
 
       const existing = await prisma.lead.findUnique({
         where: { id: leadId },
-        select: { id: true, projectPhase: true, technicalReceivedAt: true, assignedTo: true },
+        select: {
+          id: true,
+          projectPhase: true,
+          technicalReceivedAt: true,
+          assignedTo: true,
+          technicalAssignments: true,
+        },
       });
       if (!existing) {
         return res.status(404).json({ success: false, message: "Project not found" });
       }
 
+      const merged = mergeAssignmentProgress(
+        assignments,
+        parseTechnicalAssignments(existing.technicalAssignments),
+      );
+
+      const nextPhase = syncPhaseFromAssignments(merged, existing.projectPhase);
+
       const lead = await prisma.lead.update({
         where: { id: leadId },
         data: {
-          technicalAssignments: serializeTechnicalAssignments(assignments),
+          technicalAssignments: serializeTechnicalAssignments(merged),
           technicalReceivedAt: existing.technicalReceivedAt ?? new Date(),
+          projectPhase: nextPhase,
         },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
@@ -1091,14 +1239,12 @@ router.put(
       if (idx < 0) {
         return res.status(404).json({ success: false, message: "Estimator assignment not found" });
       }
-      list[idx] = { ...list[idx], takeoffDone: takeoffDone === true };
+      list[idx] = {
+        ...pauseAssignmentTimer({ ...list[idx] }),
+        takeoffDone: takeoffDone === true,
+      };
 
-      const allDone = list.length > 0 && list.every((a) => a.takeoffDone);
-      const anyDone = list.some((a) => a.takeoffDone);
-      let nextPhase = existing.projectPhase ?? "not_started";
-      if (allDone) nextPhase = "takeoff_completed";
-      else if (anyDone && (nextPhase === "not_started" || !nextPhase)) nextPhase = "takeoff_started";
-      else if (!allDone && nextPhase === "takeoff_completed") nextPhase = "takeoff_started";
+      const nextPhase = syncPhaseFromAssignments(list, existing.projectPhase);
 
       const lead = await prisma.lead.update({
         where: { id: leadId },

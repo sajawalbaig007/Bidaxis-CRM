@@ -123,10 +123,10 @@ export default function CapsuleChipNav({
           return renderLink(
             item,
             i,
-            `relative z-[1] inline-flex items-center justify-center gap-1 sm:gap-1.5 h-9 px-2 sm:px-2.5 xl:px-3 rounded-full text-[10px] sm:text-[11px] xl:text-xs font-bold whitespace-nowrap shrink-0 transition-colors duration-300 min-w-0`,
+            `relative z-[1] inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-1.5 sm:px-2 xl:px-2.5 rounded-full text-[10px] sm:text-[11px] xl:text-xs font-bold whitespace-nowrap shrink-0 transition-colors duration-300 min-w-0`,
             <>
-              <span className="truncate sm:hidden">{short}</span>
-              <span className="truncate hidden sm:inline xl:hidden">{short}</span>
+              <span className="truncate lg:hidden">{short}</span>
+              <span className="truncate hidden lg:inline xl:hidden">{short}</span>
               <span className="truncate hidden xl:inline">{item.title}</span>
             </>,
           );
