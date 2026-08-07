@@ -21,10 +21,7 @@ import CapsuleTabs from "@/app/components/CapsuleTabs";
 import API from "@/lib/api";
 import {
   projectReceiveDate,
-  assignmentElapsedSeconds,
   formatElapsed,
-  pauseAssignmentTimerLocal,
-  startAssignmentTimerLocal,
   type TechnicalAssignment,
 } from "@/lib/technicalAssignments";
 
@@ -95,21 +92,21 @@ function projectAsRow(p: Project) {
 
 function TimerControls({
   p,
-  now,
+  elapsed,
+  running,
   busy,
   onTimer,
   onComplete,
 }: {
   p: Project;
-  now: number;
+  elapsed: number;
+  running: boolean;
   busy: boolean;
   onTimer: (id: string, action: "start" | "pause") => void;
   onComplete: (id: string) => void;
 }) {
   const a = p.myAssignment;
   const done = !!a?.takeoffDone;
-  const running = !!a?.timerStartedAt;
-  const elapsed = a ? assignmentElapsedSeconds(a, now) : 0;
 
   if (done) {
     return (
@@ -162,6 +159,17 @@ function TimerControls({
   );
 }
 
+/** Client-anchored live clock — avoids jumps from server/client clock skew. */
+type LiveClock = {
+  projectId: string;
+  baseSeconds: number;
+  startedAtMs: number;
+};
+
+function liveElapsed(clock: LiveClock, now: number): number {
+  return clock.baseSeconds + Math.max(0, Math.floor((now - clock.startedAtMs) / 1000));
+}
+
 export default function EstimatorMyProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,27 +179,82 @@ export default function EstimatorMyProjectsPage() {
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [liveClock, setLiveClock] = useState<LiveClock | null>(null);
   const busyRef = useRef<string | null>(null);
+  const liveClockRef = useRef<LiveClock | null>(null);
   const projectsRef = useRef<Project[]>([]);
   projectsRef.current = projects;
+  liveClockRef.current = liveClock;
 
-  const anyRunning = projects.some((p) => !!p.myAssignment?.timerStartedAt && !p.myAssignment?.takeoffDone);
+  const anyRunning =
+    !!liveClock ||
+    projects.some((p) => !!p.myAssignment?.timerStartedAt && !p.myAssignment?.takeoffDone);
 
   useEffect(() => {
     if (!anyRunning) return;
-    // Smooth live clock while a timer is running
     const t = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(t);
   }, [anyRunning]);
+
+  // Re-anchor after refresh/poll if server says running but we have no live clock
+  useEffect(() => {
+    if (liveClockRef.current) return;
+    const running = projects.find(
+      (p) => !!p.myAssignment?.timerStartedAt && !p.myAssignment?.takeoffDone,
+    );
+    if (!running?.myAssignment) return;
+    const base = running.myAssignment.timerSeconds ?? 0;
+    setLiveClock({
+      projectId: running.id,
+      baseSeconds: base,
+      startedAtMs: Date.now(),
+    });
+  }, [projects]);
+
+  const getElapsed = useCallback(
+    (p: Project) => {
+      const a = p.myAssignment;
+      if (!a) return 0;
+      if (liveClock && liveClock.projectId === p.id) {
+        return liveElapsed(liveClock, now);
+      }
+      // Paused / completed — never use server timerStartedAt (skew)
+      return Math.max(0, a.timerSeconds ?? 0);
+    },
+    [liveClock, now],
+  );
 
   const fetchProjects = useCallback(async (mode: "initial" | "manual" | "silent" = "silent") => {
     try {
       if (mode === "initial") setLoading(true);
       if (mode === "manual") setRefreshing(true);
       const res = await API.get("/estimator/projects");
-      // Don't stomp UI mid start/pause
       if (busyRef.current) return;
-      setProjects(res.data.leads ?? []);
+      const leads = (res.data.leads ?? []) as Project[];
+      const clock = liveClockRef.current;
+      setProjects(
+        leads.map((lead) => {
+          if (!clock || lead.id !== clock.projectId || !lead.myAssignment) return lead;
+          // Keep running flag; display stays on client clock
+          return {
+            ...lead,
+            myAssignment: {
+              ...lead.myAssignment,
+              timerSeconds: clock.baseSeconds,
+              timerStartedAt: lead.myAssignment.timerStartedAt
+                ? new Date(clock.startedAtMs).toISOString()
+                : null,
+            },
+          };
+        }),
+      );
+      // If server paused this project, drop live clock
+      if (clock) {
+        const mine = leads.find((l) => l.id === clock.projectId);
+        if (!mine?.myAssignment?.timerStartedAt || mine.myAssignment.takeoffDone) {
+          setLiveClock(null);
+        }
+      }
     } catch {
       if (mode !== "silent") toast.error("Failed to load projects");
     } finally {
@@ -204,7 +267,6 @@ export default function EstimatorMyProjectsPage() {
     void fetchProjects("initial");
   }, [fetchProjects]);
 
-  // Auto-pick new assignments / Miss reopen without manual refresh
   useEffect(() => {
     const poll = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
@@ -224,11 +286,37 @@ export default function EstimatorMyProjectsPage() {
     };
   }, [fetchProjects]);
 
-  const applyLead = (lead: Project) => {
+  const applyLead = (lead: Project, opts?: { keepLive?: boolean; pausedSeconds?: number }) => {
     setProjects((prev) => {
       const exists = prev.some((p) => p.id === lead.id);
       if (!exists) return [lead, ...prev];
-      return prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p));
+      return prev.map((p) => {
+        if (p.id !== lead.id) return p;
+        if (opts?.pausedSeconds != null && lead.myAssignment) {
+          return {
+            ...p,
+            ...lead,
+            myAssignment: {
+              ...lead.myAssignment,
+              timerSeconds: opts.pausedSeconds,
+              timerStartedAt: null,
+            },
+          };
+        }
+        if (opts?.keepLive && liveClockRef.current?.projectId === lead.id && lead.myAssignment) {
+          const clock = liveClockRef.current;
+          return {
+            ...p,
+            ...lead,
+            myAssignment: {
+              ...lead.myAssignment,
+              timerSeconds: clock.baseSeconds,
+              timerStartedAt: new Date(clock.startedAtMs).toISOString(),
+            },
+          };
+        }
+        return { ...p, ...lead };
+      });
     });
   };
 
@@ -241,54 +329,98 @@ export default function EstimatorMyProjectsPage() {
     const pauseProjectIds =
       action === "start"
         ? projectsRef.current
-            .filter((p) => p.id !== projectId && !!p.myAssignment?.timerStartedAt && !p.myAssignment.takeoffDone)
+            .filter(
+              (p) =>
+                p.id !== projectId &&
+                ((!p.myAssignment?.takeoffDone && !!p.myAssignment?.timerStartedAt) ||
+                  liveClockRef.current?.projectId === p.id),
+            )
             .map((p) => p.id)
         : [];
 
-    // Instant UI — no wait for network
     busyRef.current = projectId;
     setBusyId(projectId);
     setNow(tick);
-    setProjects((prev) =>
-      prev.map((p) => {
-        if (!p.myAssignment || p.myAssignment.takeoffDone) return p;
-        if (action === "start") {
+
+    let pausedSeconds: number | undefined;
+
+    if (action === "start") {
+      const base = current.myAssignment.timerSeconds ?? 0;
+      const prevClock = liveClockRef.current;
+      const clock = { projectId, baseSeconds: base, startedAtMs: tick };
+      setLiveClock(clock);
+      liveClockRef.current = clock;
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (!p.myAssignment || p.myAssignment.takeoffDone) return p;
           if (p.id === projectId) {
-            return { ...p, myAssignment: startAssignmentTimerLocal(p.myAssignment, tick) };
+            return {
+              ...p,
+              myAssignment: {
+                ...p.myAssignment,
+                timerSeconds: base,
+                timerStartedAt: new Date(tick).toISOString(),
+              },
+            };
           }
-          if (p.myAssignment.timerStartedAt) {
-            return { ...p, myAssignment: pauseAssignmentTimerLocal(p.myAssignment, tick) };
+          const otherLive = prevClock?.projectId === p.id ? prevClock : null;
+          if (otherLive || p.myAssignment.timerStartedAt) {
+            const secs = otherLive
+              ? liveElapsed(otherLive, tick)
+              : Math.max(0, p.myAssignment.timerSeconds ?? 0);
+            return {
+              ...p,
+              myAssignment: {
+                ...p.myAssignment,
+                timerSeconds: secs,
+                timerStartedAt: null,
+              },
+            };
           }
           return p;
-        }
-        if (p.id === projectId) {
-          return { ...p, myAssignment: pauseAssignmentTimerLocal(p.myAssignment, tick) };
-        }
-        return p;
-      }),
-    );
+        }),
+      );
+    } else {
+      const clock = liveClockRef.current?.projectId === projectId ? liveClockRef.current : null;
+      pausedSeconds = clock
+        ? liveElapsed(clock, tick)
+        : current.myAssignment.timerSeconds ?? 0;
+      setLiveClock(null);
+      liveClockRef.current = null;
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== projectId || !p.myAssignment) return p;
+          return {
+            ...p,
+            myAssignment: {
+              ...p.myAssignment,
+              timerSeconds: pausedSeconds!,
+              timerStartedAt: null,
+            },
+          };
+        }),
+      );
+    }
 
     try {
       const res = await API.put(`/estimator/project/${projectId}/timer`, {
         action,
         pauseProjectIds,
+        // Client elapsed so server stores the same seconds (no clock-skew jump)
+        clientElapsedSeconds: action === "pause" ? pausedSeconds : undefined,
       });
-      applyLead(res.data.lead as Project);
-      // Soft-sync other auto-paused rows without full reload flash
-      if (pauseProjectIds.length > 0) {
-        setProjects((prev) =>
-          prev.map((p) => {
-            if (!pauseProjectIds.includes(p.id) || !p.myAssignment) return p;
-            if (!p.myAssignment.timerStartedAt) return p;
-            return { ...p, myAssignment: pauseAssignmentTimerLocal(p.myAssignment, Date.now()) };
-          }),
-        );
+      if (action === "start") {
+        applyLead(res.data.lead as Project, { keepLive: true });
+      } else {
+        applyLead(res.data.lead as Project, { pausedSeconds });
       }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         "Failed to update timer";
       toast.error(msg);
+      setLiveClock(null);
+      liveClockRef.current = null;
       void fetchProjects("silent");
     } finally {
       busyRef.current = null;
@@ -297,18 +429,31 @@ export default function EstimatorMyProjectsPage() {
   };
 
   const completeTask = async (projectId: string) => {
+    if (busyRef.current) return;
+    busyRef.current = projectId;
     setBusyId(projectId);
     const toastId = toast.loading("Completing task…");
+    const tick = Date.now();
+    const clock = liveClockRef.current?.projectId === projectId ? liveClockRef.current : null;
+    const finalSeconds = clock
+      ? liveElapsed(clock, tick)
+      : projectsRef.current.find((p) => p.id === projectId)?.myAssignment?.timerSeconds ?? 0;
+    setLiveClock(null);
+    liveClockRef.current = null;
     try {
-      const res = await API.put(`/estimator/project/${projectId}/complete`);
-      applyLead(res.data.lead as Project);
+      const res = await API.put(`/estimator/project/${projectId}/complete`, {
+        clientElapsedSeconds: finalSeconds,
+      });
+      applyLead(res.data.lead as Project, { pausedSeconds: finalSeconds });
       toast.success("Task completed — locked. Miss can reopen if needed.", { id: toastId });
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         "Failed to complete task";
       toast.error(msg, { id: toastId });
+      void fetchProjects("silent");
     } finally {
+      busyRef.current = null;
       setBusyId(null);
     }
   };
@@ -447,7 +592,11 @@ export default function EstimatorMyProjectsPage() {
                   </span>
                   <TimerControls
                     p={p}
-                    now={now}
+                    elapsed={getElapsed(p)}
+                    running={
+                      liveClock?.projectId === p.id ||
+                      (!!p.myAssignment?.timerStartedAt && !p.myAssignment?.takeoffDone)
+                    }
                     busy={busyId === p.id}
                     onTimer={(id, action) => void runTimer(id, action)}
                     onComplete={(id) => void completeTask(id)}
@@ -519,7 +668,11 @@ export default function EstimatorMyProjectsPage() {
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <TimerControls
                           p={p}
-                          now={now}
+                          elapsed={getElapsed(p)}
+                          running={
+                            liveClock?.projectId === p.id ||
+                            (!!p.myAssignment?.timerStartedAt && !p.myAssignment?.takeoffDone)
+                          }
                           busy={busyId === p.id}
                           onTimer={(id, action) => void runTimer(id, action)}
                           onComplete={(id) => void completeTask(id)}
