@@ -1,18 +1,43 @@
 import prisma from "../config/db";
 
 export type ChatAccessProfile = {
+  role: string;
   chatEnabled: boolean;
   chatAllowedUserIds: string[];
   chatVisibleToUserIds: string[];
 };
 
+/** GPS company chat pool */
+export const GPS_CHAT_ROLES = ["technical_manager", "estimator"] as const;
+/** BEM company chat pool (admin is visible to both orgs) */
+export const BEM_CHAT_ROLES = ["csr", "manager", "accounts", "admin"] as const;
+
+/**
+ * Who can see whom in Messages:
+ * - Admin → everyone
+ * - GPS (technical_manager, estimator) → GPS employees + admin + technical manager
+ * - BEM (csr, manager, accounts) → BEM employees (+ admin)
+ */
+export function canSeeRoleByOrg(viewerRole: string, targetRole: string): boolean {
+  const viewer = String(viewerRole || "").toLowerCase();
+  const target = String(targetRole || "").toLowerCase();
+  if (!viewer || !target) return false;
+  if (viewer === "admin") return true;
+  if (viewer === "technical_manager" || viewer === "estimator") {
+    return target === "admin" || target === "technical_manager" || target === "estimator";
+  }
+  // BEM pool
+  return target === "admin" || target === "csr" || target === "manager" || target === "accounts";
+}
+
 export async function getChatAccess(userId: string): Promise<ChatAccessProfile | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true },
+    select: { role: true, chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true },
   });
   if (!user) return null;
   return {
+    role: String(user.role),
     chatEnabled: user.chatEnabled !== false,
     chatAllowedUserIds: Array.isArray(user.chatAllowedUserIds) ? user.chatAllowedUserIds : [],
     chatVisibleToUserIds: Array.isArray(user.chatVisibleToUserIds) ? user.chatVisibleToUserIds : [],
@@ -42,11 +67,11 @@ export function canMessageUser(
 
 /** Whether `viewerUserId` is allowed to discover/message this target account. */
 export function isVisibleToUser(
-  targetAccess: ChatAccessProfile | null | undefined,
+  targetAccess: Pick<ChatAccessProfile, "chatEnabled" | "chatVisibleToUserIds"> | null | undefined,
   viewerUserId: string,
 ): boolean {
-  if (!isChatEnabled(targetAccess)) return false;
-  const list = targetAccess!.chatVisibleToUserIds;
+  if (!targetAccess || targetAccess.chatEnabled === false) return false;
+  const list = targetAccess.chatVisibleToUserIds ?? [];
   return !list.length || list.includes(viewerUserId);
 }
 
@@ -73,6 +98,7 @@ export async function assertCanMessageTarget(
   const target = await prisma.user.findUnique({
     where: { id: targetId },
     select: {
+      role: true,
       chatEnabled: true,
       chatAllowedUserIds: true,
       chatVisibleToUserIds: true,
@@ -84,6 +110,9 @@ export async function assertCanMessageTarget(
   }
   if (target.chatEnabled === false) {
     return { ok: false, status: 403, message: "This user cannot receive messages." };
+  }
+  if (!canSeeRoleByOrg(gate.access.role, String(target.role))) {
+    return { ok: false, status: 403, message: "You can only message people in your company." };
   }
   if (!isVisibleToUser(target, meId)) {
     return { ok: false, status: 403, message: "This user is hidden from your messages." };

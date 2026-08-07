@@ -35,7 +35,7 @@ export function formatMessage(
     deletedReason?: string | null;
     hiddenForUserIds?: string[];
     mentions: string[]; reactions: unknown;
-    sender: { id: string; name: string };
+    sender: { id: string; name: string; profilePic?: string | null };
     replyTo: {
       id: string; text: string; type: string;
       sender: { name: string };
@@ -58,6 +58,7 @@ export function formatMessage(
     id:           m.id,
     senderId:     m.senderId,
     senderName:   m.sender.name,
+    senderProfilePic: m.sender.profilePic ?? null,
     text:         m.text,
     type:         m.type,
     fileUrl:      m.fileUrl,

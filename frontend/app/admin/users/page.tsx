@@ -73,6 +73,7 @@ const EMPTY_USER_FORM = {
   name: "",
   email: "",
   password: "",
+  company: "BEM" as CompanyFilter,
   role: "CSR" as UserRole,
   employeeCode: "",
   fatherName: "",
@@ -87,6 +88,26 @@ const EMPTY_USER_FORM = {
   temporaryAccessMac: "",
   temporaryAccessHours: "9",
 };
+
+const BEM_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "CSR", label: "CSR (Customer Support)" },
+  { value: "Manager", label: "Manager" },
+  { value: "Accounts", label: "Accounts" },
+  { value: "Admin", label: "Admin" },
+];
+
+const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "Technical Manager", label: "Technical Manager" },
+  { value: "Estimator", label: "Estimator" },
+];
+
+function defaultRoleForCompany(company: CompanyFilter): UserRole {
+  return company === "GPS" ? "Technical Manager" : "CSR";
+}
+
+function roleOptionsForCompany(company: CompanyFilter) {
+  return company === "GPS" ? GPS_ROLE_OPTIONS : BEM_ROLE_OPTIONS;
+}
 
 type UserSortKey =
   | "name_asc"
@@ -1105,6 +1126,7 @@ export default function UsersPage() {
                               ...EMPTY_USER_FORM,
                               name: u.name,
                               email: u.email,
+                              company: companyForRole(u.role),
                               role: u.role,
                               employeeCode: u.employeeCode ?? "",
                               fatherName: u.fatherName ?? "",
@@ -1183,6 +1205,7 @@ export default function UsersPage() {
                                   ...EMPTY_USER_FORM,
                                   name: u.name,
                                   email: u.email,
+                                  company: companyForRole(u.role),
                                   role: u.role,
                                   employeeCode: u.employeeCode ?? "",
                                   fatherName: u.fatherName ?? "",
@@ -1496,7 +1519,11 @@ export default function UsersPage() {
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
                   {editingUser ? "Edit User" : "Create User"}
                 </h2>
-                <p className="text-xs text-gray-400 mt-0.5">Scroll down for access policy &amp; more fields</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {editingUser
+                    ? "Scroll down for access policy & more fields"
+                    : "Choose company first (BEM or GPS), then pick a role for that company"}
+                </p>
               </div>
 
               <div className="flex-1 overflow-y-auto overscroll-y-contain min-h-0 px-4 sm:px-6 py-4">
@@ -1528,17 +1555,65 @@ export default function UsersPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Company — BEM vs GPS */}
                 <div>
-                  <label className="text-sm text-gray-500 block mb-2">Role</label>
-                  <select value={form.role}
+                  <label className="text-sm text-gray-500 block mb-2">
+                    Company{!editingUser && <RequiredMark />}
+                    <span className="text-xs text-gray-400 ml-2">Which company is this employee for?</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { key: "BEM" as const, title: "BEM Solutions", hint: "CSR · Manager · Accounts · Admin", accent: "#B8112D" },
+                      { key: "GPS" as const, title: "GPS · Global", hint: "Tech Manager · Estimator", accent: "#0F398A" },
+                    ]).map(opt => {
+                      const active = form.company === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => {
+                            if (form.company === opt.key) return;
+                            setForm({
+                              ...form,
+                              company: opt.key,
+                              role: defaultRoleForCompany(opt.key),
+                              csrCode: "",
+                            });
+                          }}
+                          className={`rounded-2xl border-2 px-3 py-3 text-left transition-all ${
+                            active
+                              ? "shadow-sm"
+                              : "border-gray-200 bg-white hover:border-gray-300"
+                          }`}
+                          style={
+                            active
+                              ? { borderColor: opt.accent, background: `${opt.accent}0D` }
+                              : undefined
+                          }
+                        >
+                          <p className="text-sm font-bold" style={{ color: active ? opt.accent : "#374151" }}>
+                            {opt.title}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">{opt.hint}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm text-gray-500 block mb-2">
+                    Role <span className="text-xs text-gray-400">({form.company})</span>
+                  </label>
+                  <select
+                    value={form.role}
                     onChange={e => setForm({ ...form, role: e.target.value as UserRole, csrCode: "" })}
-                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] bg-white text-sm">
-                    <option value="CSR">CSR (Customer Support)</option>
-                    <option value="Manager">Manager</option>
-                    <option value="Technical Manager">Technical Manager</option>
-                    <option value="Estimator">Estimator</option>
-                    <option value="Accounts">Accounts</option>
-                    <option value="Admin">Admin</option>
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] bg-white text-sm"
+                  >
+                    {roleOptionsForCompany(form.company).map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
 
