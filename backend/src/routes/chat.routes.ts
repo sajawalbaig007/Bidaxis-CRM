@@ -26,6 +26,7 @@ import {
   canMessageUser,
   getChatAccess,
   isVisibleToUser,
+  canSeeRoleByOrg,
 } from "../utils/chatAccess";
 
 const router = express.Router();
@@ -76,6 +77,8 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
                 select: {
                   id: true,
                   name: true,
+                  role: true,
+                  profilePic: true,
                   isOnline: true,
                   isActive: true,
                   chatEnabled: true,
@@ -103,6 +106,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
     return otherMembers.every(member =>
       member.user.isActive &&
       canMessageUser(viewerAccess, member.userId) &&
+      canSeeRoleByOrg(viewerAccess.role, String(member.user.role)) &&
       isVisibleToUser(member.user, viewUserId)
     );
   });
@@ -141,6 +145,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
       unreadCount:   unreadCounts[idx],
       memberCount:   conv.members.length,
       isOnline:      otherMember?.user?.isOnline ?? false,
+      profilePic:    otherMember?.user?.profilePic ?? null,
       pinnedMessageId: conv.pinnedMessageId ?? null,
       archived:      Boolean(m.archivedAt),
     };
@@ -162,13 +167,13 @@ async function fetchMessagesForUser(
 ) {
   const members = await prisma.conversationMember.findMany({
     where: { conversationId },
-    include: { user: { select: { id: true, name: true } } },
+    include: { user: { select: { id: true, name: true, profilePic: true } } },
   });
 
   const raw = await prisma.message.findMany({
     where: { conversationId },
     include: {
-      sender: { select: { id: true, name: true } },
+      sender: { select: { id: true, name: true, profilePic: true } },
       replyTo: {
         select: {
           id: true, text: true, type: true,
@@ -241,7 +246,7 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
       if (!allowed.ok) return res.status(allowed.status).json({ message: allowed.message });
 
       const targetUser = await prisma.user.findUnique({
-        where: { id: targetId }, select: { name: true, isOnline: true },
+        where: { id: targetId }, select: { name: true, isOnline: true, profilePic: true },
       });
 
       const convId = await prisma.$transaction(async (tx) => {
@@ -273,6 +278,7 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
           name: targetUser?.name ?? "Unknown",
           otherUserId: targetId,
           unreadCount: 0, isOnline: targetUser?.isOnline ?? false,
+          profilePic: targetUser?.profilePic ?? null,
           lastMessageAt: new Date().toISOString(),
         },
       });
@@ -469,7 +475,7 @@ router.post(
           mentions:    mentionIds,
         },
         include: {
-          sender: { select: { id: true, name: true } },
+          sender: { select: { id: true, name: true, profilePic: true } },
           replyTo: {
             select: {
               id: true, text: true, type: true,
@@ -488,7 +494,7 @@ router.post(
 
       const members = await prisma.conversationMember.findMany({
         where: { conversationId },
-        include: { user: { select: { id: true, name: true } } },
+        include: { user: { select: { id: true, name: true, profilePic: true } } },
       });
 
       emitNewMessage(conversationId, userId, message, members);
@@ -669,14 +675,14 @@ router.get("/users", verifyToken, async (req: AuthRequest, res) => {
         ? { isActive: true, id: { in: allow } }
         : { isActive: true, id: { not: meId } },
       select: {
-        id: true, name: true, email: true, role: true, csrCode: true, isOnline: true,
+        id: true, name: true, email: true, role: true, csrCode: true, isOnline: true, profilePic: true,
         chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
       },
       orderBy: [{ name: "asc" }],
     });
     return res.json({
       users: users
-        .filter(u => isVisibleToUser(u, meId))
+        .filter(u => isVisibleToUser(u, meId) && canSeeRoleByOrg(access.role, String(u.role)))
         .map(u => ({
           id: u.id,
           name: u.name,
@@ -684,6 +690,7 @@ router.get("/users", verifyToken, async (req: AuthRequest, res) => {
           role: u.role,
           csrCode: u.csrCode,
           isOnline: u.isOnline,
+          profilePic: u.profilePic ?? null,
         })),
     });
   } catch (err) {
@@ -706,7 +713,7 @@ router.get("/conversations/:id/members", verifyToken, async (req: AuthRequest, r
 
     const members = await prisma.conversationMember.findMany({
       where: { conversationId },
-      include: { user: { select: { id: true, name: true, role: true, csrCode: true, isOnline: true } } },
+      include: { user: { select: { id: true, name: true, role: true, csrCode: true, isOnline: true, profilePic: true } } },
     });
     return res.json({
       members: members.map(m => ({
@@ -715,6 +722,7 @@ router.get("/conversations/:id/members", verifyToken, async (req: AuthRequest, r
         role:     m.user.role,
         csrCode:  m.user.csrCode,
         isOnline: m.user.isOnline,
+        profilePic: m.user.profilePic ?? null,
       })),
     });
   } catch {
@@ -744,14 +752,14 @@ router.patch("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
       where: { id: msgId },
       data:  { text, editedAt: new Date() },
       include: {
-        sender: { select: { id: true, name: true } },
+        sender: { select: { id: true, name: true, profilePic: true } },
         replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
       },
     });
 
     const members = await prisma.conversationMember.findMany({
       where: { conversationId: msg.conversationId },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, profilePic: true } } },
     });
 
     invalidatePattern("chat:convs:");
@@ -831,14 +839,14 @@ router.post("/conversations/:id/pin", verifyToken, async (req: AuthRequest, res)
 
     const members = await prisma.conversationMember.findMany({
       where: { conversationId },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, profilePic: true } } },
     });
     let pinnedMessage = null;
     if (messageId) {
       const pin = await prisma.message.findFirst({
         where: { id: messageId, conversationId },
         include: {
-          sender: { select: { id: true, name: true } },
+          sender: { select: { id: true, name: true, profilePic: true } },
           replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
         },
       });

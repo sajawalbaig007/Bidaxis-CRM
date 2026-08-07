@@ -43,12 +43,12 @@ import ChatActionRail from "./ChatActionRail";
 import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 
 /* ── */
-interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; }
+interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; profilePic?: string | null; }
 type MsgType   = "text" | "file" | "image" | "voice";
 type MsgStatus = "sending" | "sent" | "delivered" | "read";
 interface ReplyQuote { id: string; text: string; senderName: string; type: MsgType; }
 interface Message {
-  id: string; senderId: string; senderName: string; text: string; type: MsgType;
+  id: string; senderId: string; senderName: string; senderProfilePic?: string | null; text: string; type: MsgType;
   fileUrl?: string; fileName?: string; fileSize?: number; fileMimeType?: string;
   createdAt: string; editedAt?: string | null; deletedAt?: string | null;
   isDeleted?: boolean; deleteLabel?: string | null;
@@ -102,12 +102,16 @@ function truncate(text: string, n = 60) { return text.length > n ? text.slice(0,
 
 /* ── */
 const COLORS = ["bg-[#B8112D]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
-function Avatar({ name, size = "md", online }: { name: string; size?: "sm"|"md"|"lg"; online?: boolean }) {
+function Avatar({ name, src, size = "md", online }: { name: string; src?: string | null; size?: "sm"|"md"|"lg"; online?: boolean }) {
   const c  = COLORS[name.charCodeAt(0) % COLORS.length];
   const sz = size === "sm" ? "w-8 h-8 text-[10px]" : size === "lg" ? "w-11 h-11 text-sm" : "w-9 h-9 text-xs";
   return (
     <div className="relative shrink-0">
-      <div className={`${sz} ${c} rounded-full text-white flex items-center justify-center font-bold`}>{initials(name)}</div>
+      {src ? (
+        <img src={src} alt={name} className={`${sz} rounded-full object-cover bg-gray-100`} />
+      ) : (
+        <div className={`${sz} ${c} rounded-full text-white flex items-center justify-center font-bold`}>{initials(name)}</div>
+      )}
       {online !== undefined && (
         <div className="absolute -bottom-0.5 -right-0.5">
           {online && <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-green-400 animate-ping opacity-75" />}
@@ -200,7 +204,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
     <div id={`msg-${msg.id}`}
       className={`flex items-end gap-2 group ${own ? "flex-row-reverse" : "flex-row"} ${!showAvatar ? (own ? "pr-11" : "pl-11") : ""}`}
       onContextMenu={e => !deleted && onCtxMenu(e, msg)}>
-      {!own && showAvatar  && <Avatar name={msg.senderName} size="sm" />}
+      {!own && showAvatar  && <Avatar name={msg.senderName} src={msg.senderProfilePic} size="sm" />}
       {!own && !showAvatar && <div className="w-8 shrink-0" />}
       <div className={`flex flex-col ${own ? "items-end" : "items-start"} max-w-[72%]`}>
         {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>}
@@ -265,7 +269,7 @@ function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinne
       ) : (
         conv.type === "group"
           ? <div className="w-9 h-9 rounded-full bg-[#B8112D]/10 text-[#B8112D] dark:bg-red-500/20 dark:text-red-300 flex items-center justify-center shrink-0"><Hash size={16} /></div>
-          : <Avatar name={conv.name} size="sm" online={conv.isOnline} />
+          : <Avatar name={conv.name} src={conv.profilePic} size="sm" online={conv.isOnline} />
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
@@ -382,8 +386,16 @@ export default function ChatPanel({
   useEffect(() => {
     void getAuthMe().then(u => {
       if (u) {
-        setMe(u);
-        meRef.current = u;
+        const meUser: ChatUser = {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          csrCode: u.csrCode ?? null,
+          profilePic: u.profilePic ?? null,
+        };
+        setMe(meUser);
+        meRef.current = meUser;
       }
     });
   }, []);
@@ -754,7 +766,26 @@ export default function ChatPanel({
 
   const parseUsers = (data: unknown): ChatUser[] => {
     const raw = Array.isArray(data) ? data : ((data as Record<string, unknown>)?.users ?? data ?? []) as unknown[];
-    return (raw as Record<string, unknown>[]).map(u => ({ id: String(u.id), name: String(u.name ?? "Unknown"), email: u.email ? String(u.email) : undefined, csrCode: u.csrCode ? String(u.csrCode) : null, role: u.role ? String(u.role) : undefined, isOnline: Boolean(u.isOnline) }));
+    return (raw as Record<string, unknown>[]).map(u => ({
+      id: String(u.id),
+      name: String(u.name ?? "Unknown"),
+      email: u.email ? String(u.email) : undefined,
+      csrCode: u.csrCode ? String(u.csrCode) : null,
+      role: u.role ? String(u.role) : undefined,
+      isOnline: Boolean(u.isOnline),
+      profilePic: u.profilePic ? String(u.profilePic) : null,
+    }));
+  };
+  /** Mirror backend GPS/BEM chat visibility (admin sees all). */
+  const canSeeChatUser = (viewerRole: string | undefined, targetRole: string | undefined) => {
+    const viewer = (viewerRole || "").toLowerCase();
+    const target = (targetRole || "").toLowerCase();
+    if (!viewer || !target) return false;
+    if (viewer === "admin") return true;
+    if (viewer === "technical_manager" || viewer === "estimator") {
+      return target === "admin" || target === "technical_manager" || target === "estimator";
+    }
+    return target === "admin" || target === "csr" || target === "manager" || target === "accounts";
   };
   const fetchUsers = async (force = false) => {
     if (!force && allUsers.length > 0) return;
@@ -762,11 +793,17 @@ export default function ChatPanel({
     try {
       const r = await API.get("/chat/users");
       const users = parseUsers(r.data?.users ?? r.data);
-      setAllUsers(users.filter(u => u.id !== meRef.current?.id));
+      setAllUsers(
+        users.filter(u => u.id !== meRef.current?.id && canSeeChatUser(meRef.current?.role, u.role)),
+      );
     } catch {
       try {
         const r = await API.get("/users");
-        setAllUsers(parseUsers(r.data).filter(u => u.id !== meRef.current?.id));
+        setAllUsers(
+          parseUsers(r.data).filter(
+            u => u.id !== meRef.current?.id && canSeeChatUser(meRef.current?.role, u.role),
+          ),
+        );
       } catch {
         if (force || allUsers.length === 0) setAllUsers([]);
       }
@@ -807,7 +844,7 @@ export default function ChatPanel({
     const tempId = `temp-${user.id}`;
     const placeholder: Conversation = {
       id: tempId, type: "direct", name: user.name, unreadCount: 0,
-      isOnline: user.isOnline, otherUserId: user.id,
+      isOnline: user.isOnline, otherUserId: user.id, profilePic: user.profilePic ?? null,
       lastMessageAt: new Date().toISOString(),
     };
     setConversations(p => [placeholder, ...p]); setActiveConvId(tempId);
@@ -1018,7 +1055,7 @@ export default function ChatPanel({
               <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {onlineDirects.map(c => (
                   <button key={c.id} onClick={() => { setActiveConvId(c.id); setMobileSideOpen(false); }} className="flex flex-col items-center gap-1 shrink-0 group" title={c.name}>
-                    <Avatar name={c.name} size="sm" online />
+                    <Avatar name={c.name} src={c.profilePic} size="sm" online />
                     <span className="text-[9px] text-gray-500 font-medium max-w-[36px] truncate">{c.name.split(" ")[0]}</span>
                   </button>
                 ))}
@@ -1042,7 +1079,7 @@ export default function ChatPanel({
 
           {me && (
             <div className="px-3 py-2.5 border-t border-gray-100 shrink-0 flex items-center gap-2">
-              <Avatar name={me.name} size="sm" online />
+              <Avatar name={me.name} src={me.profilePic} size="sm" online />
               <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{me.name}</p><p className="text-[10px] text-gray-400">{me.csrCode ?? me.role ?? "Online"}</p></div>
               <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
             </div>
@@ -1055,7 +1092,7 @@ export default function ChatPanel({
             <>
               <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 bg-white shrink-0 shadow-sm">
                 <button onClick={() => setMobileSideOpen(true)} className="sm:hidden w-7 h-7 rounded-xl bg-gray-100 flex items-center justify-center shrink-0"><ChevronLeft size={14} /></button>
-                {activeConv.type === "group" ? <div className="w-8 h-8 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={15} /></div> : <Avatar name={activeConv.name} size="sm" online={activeConv.isOnline} />}
+                {activeConv.type === "group" ? <div className="w-8 h-8 rounded-full bg-[#B8112D]/10 text-[#B8112D] flex items-center justify-center shrink-0"><Hash size={15} /></div> : <Avatar name={activeConv.name} src={activeConv.profilePic} size="sm" online={activeConv.isOnline} />}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{activeConv.name}</h3>
                   {typingName ? (
@@ -1243,7 +1280,7 @@ export default function ChatPanel({
                 const sel = selectedUsers.includes(u.id);
                 return (
                   <button key={u.id} onClick={() => setSelectedUsers(p => sel ? p.filter(id => id !== u.id) : [...p, u.id])} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${sel ? "bg-red-50 dark:bg-red-500/20 ring-1 ring-[#B8112D]/20" : "hover:bg-gray-50 dark:hover:bg-white/10"}`}>
-                    <Avatar name={u.name} size="sm" online={u.isOnline} />
+                    <Avatar name={u.name} src={u.profilePic} size="sm" online={u.isOnline} />
                     <div className="flex-1 min-w-0 text-left"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{u.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{u.csrCode ?? u.role ?? u.email}</p></div>
                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${sel ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 dark:border-gray-500"}`}>{sel && <Check size={8} className="text-white" />}</div>
                   </button>
@@ -1279,7 +1316,7 @@ export default function ChatPanel({
                 <div className="py-10 text-center"><User2 size={26} className="text-gray-200 mx-auto mb-2" /><p className="text-sm text-gray-400">{dmSearch ? "No users found" : "No team members"}</p></div>
               ) : filteredUsers.map(u => (
                 <button key={u.id} type="button" onClick={(e) => { e.stopPropagation(); guardPanelClose(); void startDm(u); }} disabled={dmLoadingUserId === u.id} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/10 transition-all group disabled:opacity-50">
-                  <Avatar name={u.name} size="sm" online={u.isOnline} />
+                  <Avatar name={u.name} src={u.profilePic} size="sm" online={u.isOnline} />
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-[#B8112D] dark:group-hover:text-red-300 transition-colors">{u.name}</p>
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">{u.csrCode ?? u.role ?? u.email}</p>

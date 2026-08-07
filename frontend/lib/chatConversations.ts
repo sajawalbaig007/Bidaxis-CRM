@@ -8,6 +8,7 @@ export interface ChatConversation {
   memberCount?: number;
   isOnline?: boolean;
   otherUserId?: string;
+  profilePic?: string | null;
   pinnedMessageId?: string | null;
   archived?: boolean;
 }

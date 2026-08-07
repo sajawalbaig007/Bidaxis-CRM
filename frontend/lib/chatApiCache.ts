@@ -60,7 +60,7 @@ export type MessagesPayload = {
   pinnedMessage?: unknown | null;
 };
 
-type ChatUser = { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string };
+type ChatUser = { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; profilePic?: string | null };
 type AdminCsr = { id: string; name: string };
 
 export function isChatConversationsFresh(): boolean {

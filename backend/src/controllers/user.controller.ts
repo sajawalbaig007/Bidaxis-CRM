@@ -111,7 +111,8 @@ export const updateUser = async (req: Request, res: Response) => {
       invalidatePattern("chat:convs:");
     }
     return res.json(user);
-  } catch {
+  } catch (err) {
+    console.error("[users] updateUser", err);
     return res.status(500).json({ message: "Update failed" });
   }
 };
