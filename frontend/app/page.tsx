@@ -10,6 +10,7 @@ import {
   Wrench,
   Wallet,
   Shield,
+  Ruler,
 } from "lucide-react";
 import type { PortalRole } from "@/lib/loginRole";
 import { PORTAL_LOGIN_COPY } from "@/lib/loginRole";
@@ -56,6 +57,13 @@ const PORTALS: LandingPortal[] = [
     accent: "#D97706",
   },
   {
+    value: "estimator",
+    label: "Estimator",
+    hint: "Assigned takeoffs, man hours & deadlines",
+    icon: Ruler,
+    accent: "#7C3AED",
+  },
+  {
     value: "accounts",
     label: "Accounts",
     hint: "Statements, payroll, cash flow & assets",
@@ -70,7 +78,7 @@ export default function HomeLandingPage() {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const active = PORTALS[index]!;
-  const CHIPS_PER_ROW = 5;
+  const CHIPS_PER_ROW = 3;
   const chipTrackRef = useRef<HTMLDivElement>(null);
   const chipBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [capsule, setCapsule] = useState({

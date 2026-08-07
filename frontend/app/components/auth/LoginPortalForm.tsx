@@ -26,6 +26,7 @@ const PORTAL_ACCENT: Record<PortalRole, string> = {
   manager: "#0F766E",
   csr: "#0B84F3",
   technical_manager: "#D97706",
+  estimator: "#7C3AED",
   accounts: "#12B76A",
 };
 

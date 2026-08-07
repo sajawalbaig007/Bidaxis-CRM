@@ -1,10 +1,11 @@
-export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts";
+export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
 
 export const PORTAL_OPTIONS: { value: PortalRole; label: string; hint: string }[] = [
   { value: "admin", label: "Admin", hint: "Full admin dashboard" },
   { value: "csr", label: "CSR", hint: "Client calls & leads" },
   { value: "manager", label: "Manager", hint: "Leads, reports & projects" },
   { value: "technical_manager", label: "Technical", hint: "Projects, KPI & team" },
+  { value: "estimator", label: "Estimator", hint: "Assigned takeoffs & deadlines" },
   { value: "accounts", label: "Accounts", hint: "Statements, payroll & assets" },
 ];
 
@@ -62,6 +63,16 @@ export const PORTAL_LOGIN_COPY: Record<
       { title: "Technical Dashboard", subtitle: "Projects, revisions, and delivery status." },
       { title: "Team & KPI", subtitle: "Track capacity, quality, and milestones." },
       { title: "Delivery Focus", subtitle: "Keep active work and revisions under control." },
+    ],
+  },
+  estimator: {
+    eyebrow: "Estimator Portal",
+    heading: "Estimator Sign In",
+    subheading: "View assigned projects, man hours, deadlines, and takeoff progress.",
+    slides: [
+      { title: "Estimator Dashboard", subtitle: "Your assigned projects and takeoff queue." },
+      { title: "Deadlines & Hours", subtitle: "See man hours and due dates for every job." },
+      { title: "Mark Progress", subtitle: "Update takeoff done and add project notes." },
     ],
   },
   accounts: {

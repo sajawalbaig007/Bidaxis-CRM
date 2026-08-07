@@ -67,9 +67,9 @@ export const ADMIN_PROJECT_COLS = [
   "16%", "17%", "9%", "12%", "12%", "12%", "16%", "6%",
 ] as const;
 
-/** Technical Active Projects — no Client / Quoted / Payment / CSR columns */
+/** Technical Active Projects — details, receive, deadline, bid, notes, assign */
 export const TECHNICAL_PROJECT_COLS = [
-  "34%", "22%", "28%", "16%",
+  "22%", "12%", "12%", "16%", "14%", "14%", "10%",
 ] as const;
 
 /** Table card — no inner vertical scroll; page scrolls instead */

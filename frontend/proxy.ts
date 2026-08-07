@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts";
+type AppRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
 
 type TokenPayload = { role?: string; exp?: number; sid?: string };
 
@@ -26,7 +26,8 @@ function parseToken(token: string): { role: AppRole | null; ok: boolean } {
       role === "csr" ||
       role === "manager" ||
       role === "technical_manager" ||
-      role === "accounts"
+      role === "accounts" ||
+      role === "estimator"
     ) {
       return { role, ok: true };
     }
@@ -47,6 +48,7 @@ function homeForRole(role: AppRole) {
   if (role === "manager") return "/manager";
   if (role === "technical_manager") return "/technical";
   if (role === "accounts") return "/accounts";
+  if (role === "estimator") return "/estimator";
   return "/csr";
 }
 
@@ -59,7 +61,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/csr") ||
     pathname.startsWith("/manager") ||
     pathname.startsWith("/technical") ||
-    pathname.startsWith("/accounts");
+    pathname.startsWith("/accounts") ||
+    pathname.startsWith("/estimator");
 
   if (!token) {
     if (protectedPath) return NextResponse.redirect(new URL("/", request.url));
@@ -97,6 +100,9 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/accounts") && role !== "accounts" && role !== "admin") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
+  if (pathname.startsWith("/estimator") && role !== "estimator") {
+    return NextResponse.redirect(new URL(homeForRole(role), request.url));
+  }
 
   return NextResponse.next();
 }
@@ -110,5 +116,6 @@ export const config = {
     "/manager/:path*",
     "/technical/:path*",
     "/accounts/:path*",
+    "/estimator/:path*",
   ],
 };
