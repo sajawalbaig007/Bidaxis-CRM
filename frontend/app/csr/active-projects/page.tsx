@@ -53,6 +53,7 @@ function csrToWorkbench(p: Project): ProjectWorkbenchData {
     interestedService: p.service === "N/A" ? "" : p.service,
     projectBudget: p.budget,
     projectDeadline: p.deadline === "N/A" ? "" : p.deadline.split("T")[0],
+    deadlineTiming: "",
     projectPhase: p.projectPhase,
     takeoffDeadline: p.takeoffDeadline,
     pricingDeadline: p.pricingDeadline,
