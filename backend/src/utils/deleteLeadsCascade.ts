@@ -2,10 +2,47 @@ import prisma from "../config/db";
 import { invalidateCsrLeadCaches } from "./csrCache";
 import { invalidatePattern, flushAdminClientsCache, invalidateCache } from "./cache";
 
-/** Remove leads and all child records (notes, sub-contacts, call logs). */
+/** Strip all Project-DB fields so the row can never reappear in Admin Project DB. */
+async function stripProjectDbFields(ids: string[]): Promise<void> {
+  await prisma.lead.updateMany({
+    where: { id: { in: ids } },
+    data: {
+      projectTitle: null,
+      projectCode: null,
+      projectDeadline: null,
+      projectBudget: null,
+      projectNotes: null,
+      projectScope: null,
+      projectPhase: null,
+      projectPayments: null,
+      projectWorkStatus: "completed",
+      projectSource: null,
+      technicalAssignments: null,
+      technicalNotes: null,
+      technicalReceivedAt: null,
+      deadlineTiming: null,
+      hiddenOnTechnical: true,
+      isOldClient: false,
+      clientCode: null,
+      inBin: true,
+      binReason: "deleted-other",
+      // Keep Close Client / completed out of "active project" derivation
+      status: "completed",
+    },
+  });
+}
+
+/**
+ * Permanently remove leads from Project DB.
+ * 1) Strip project fields first (guarantees Project DB hide even if hard-delete fails)
+ * 2) Delete child rows + lead document
+ */
 export async function deleteLeadsCascade(leadIds: string[]): Promise<number> {
   const ids = [...new Set(leadIds.map(String).filter(Boolean))];
   if (ids.length === 0) return 0;
+
+  // Step 1 — must leave Project DB immediately
+  await stripProjectDbFields(ids);
 
   await Promise.all([
     prisma.leadNote.deleteMany({ where: { leadId: { in: ids } } }),
@@ -19,44 +56,46 @@ export async function deleteLeadsCascade(leadIds: string[]): Promise<number> {
       await prisma.lead.delete({ where: { id } });
       deleted += 1;
     } catch {
-      // Fallback if delete() fails (e.g. already gone / race)
-      const res = await prisma.lead.deleteMany({ where: { id } });
-      deleted += res.count;
+      try {
+        const res = await prisma.lead.deleteMany({ where: { id } });
+        deleted += res.count;
+      } catch (err) {
+        console.error("[deleteLeadsCascade] hard delete failed for", id, err);
+      }
     }
   }
 
-  // Verify — anything still present means delete failed
-  const stillThere = await prisma.lead.count({ where: { id: { in: ids } } });
-  if (stillThere > 0) {
-    // Last resort: remove from Project DB completely (never leave as "Active")
-    await prisma.lead.updateMany({
-      where: { id: { in: ids } },
-      data: {
-        projectTitle: null,
-        projectCode: null,
-        projectDeadline: null,
-        projectBudget: null,
-        projectNotes: null,
-        projectScope: null,
-        projectPhase: null,
-        projectPayments: null,
-        projectWorkStatus: "completed",
-        projectSource: null,
-        technicalAssignments: null,
-        technicalNotes: null,
-        technicalReceivedAt: null,
-        deadlineTiming: null,
-        hiddenOnTechnical: true,
-        isOldClient: false,
-        clientCode: null,
-        inBin: true,
-        binReason: "deleted-other",
-        status: "completed",
-      },
-    });
+  // If hard delete failed, strip again (in case concurrent write restored fields)
+  const remaining = await prisma.lead.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, projectTitle: true },
+  });
+  const stillProject = remaining.filter((l) => !!(l.projectTitle && String(l.projectTitle).trim()));
+  if (stillProject.length > 0) {
+    await stripProjectDbFields(stillProject.map((l) => l.id));
   }
 
   return deleted;
+}
+
+/** True when this id no longer qualifies as a Project DB row. */
+export async function isRemovedFromProjectDb(leadId: string): Promise<boolean> {
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId },
+    select: {
+      id: true,
+      projectTitle: true,
+      isOldClient: true,
+      clientCode: true,
+      inBin: true,
+      status: true,
+    },
+  });
+  if (!lead) return true; // hard-deleted
+  if (lead.inBin === true) return true;
+  if (lead.projectTitle && String(lead.projectTitle).trim()) return false;
+  if (lead.isOldClient && lead.clientCode) return false;
+  return true;
 }
 
 /** Clear CSR + admin caches so dashboards reflect DB deletions immediately */
