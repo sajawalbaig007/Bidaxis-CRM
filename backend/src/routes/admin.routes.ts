@@ -811,7 +811,7 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       req.query.forTechnical === "1";
 
     // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
-    const cacheKey = `admin:projects:v5:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
+    const cacheKey = `admin:projects:v6:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -903,7 +903,14 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
 
     const payload = {
       success: true,
-      leads,
+      leads: technicalView
+        ? leads.map((l) => ({
+            ...l,
+            // Technical Manager must not see client name
+            name: null,
+            ownerName: null,
+          }))
+        : leads,
       stats,
       total,
       page,

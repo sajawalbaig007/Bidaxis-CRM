@@ -212,11 +212,11 @@ export default function ProjectWorkbenchModal({
           </button>
           <div className="flex items-center gap-3 pr-10">
             <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-white font-bold text-lg shrink-0">
-              {(data.projectTitle || data.name || "P").charAt(0).toUpperCase()}
+              {(data.projectTitle || data.projectCode || "P").charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
               <h2 className="text-base sm:text-lg font-bold text-white truncate">
-                {createMode ? "Add New Project" : (data.projectTitle || data.name || "Project")}
+                {createMode ? "Add New Project" : (data.projectTitle || data.projectCode || (hideClientFinanceSections ? "Project" : data.name) || "Project")}
               </h2>
               <p className="text-white/70 text-xs mt-0.5 truncate">
                 {createMode

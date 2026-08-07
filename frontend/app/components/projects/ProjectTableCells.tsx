@@ -15,6 +15,7 @@ import {
   type ProjectWorkStatus,
   ProjectPayment,
 } from "@/lib/projectFields";
+import { getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
 import { User2, Briefcase, Building2, Phone, Mail, Calendar } from "lucide-react";
 
 export type ProjectTableRow = {
@@ -323,6 +324,50 @@ export function ProjectWorkStatusBadge({
   return (
     <span
       className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border whitespace-nowrap ${styles}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+const WORKFLOW_STATUS_STYLES: Record<string, string> = {
+  not_assigned: "bg-slate-50 text-slate-700 border-slate-200",
+  assigned: "bg-sky-50 text-sky-700 border-sky-200",
+  takeoff_done: "bg-violet-50 text-violet-700 border-violet-200",
+  pricing: "bg-amber-50 text-amber-800 border-amber-200",
+  final_submission: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  in_progress: "bg-sky-50 text-sky-700 border-sky-200",
+  not_completed: "bg-amber-50 text-amber-800 border-amber-200",
+};
+
+/** Read-only status synced with Technical workflow tabs. */
+export function TechnicalWorkflowStatusBadge({
+  status,
+  projectDeadline,
+  projectWorkStatus,
+  projectPhase,
+  technicalAssignments,
+}: {
+  status?: string | null;
+  projectDeadline?: string | null;
+  projectWorkStatus?: string | null;
+  projectPhase?: string | null;
+  technicalAssignments?: unknown;
+}) {
+  const { key, label } = getTechnicalWorkflowStatus({
+    status,
+    projectDeadline,
+    projectWorkStatus,
+    projectPhase,
+    technicalAssignments,
+  });
+  const styles = WORKFLOW_STATUS_STYLES[key] ?? WORKFLOW_STATUS_STYLES.in_progress;
+
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border whitespace-nowrap ${styles}`}
+      title="Updates automatically from Technical workflow"
     >
       {label}
     </span>

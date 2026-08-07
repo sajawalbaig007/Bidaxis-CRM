@@ -181,6 +181,42 @@ export function matchesTechnicalTab(
   }
 }
 
+export type TechnicalWorkflowStatusKey =
+  | TechnicalWorkflowTab
+  | "completed"
+  | "not_completed"
+  | "in_progress";
+
+/** Single status label shared by Admin Status column + Technical tabs. */
+export function getTechnicalWorkflowStatus(p: {
+  projectPhase?: string | null;
+  technicalAssignments?: unknown;
+  status?: string | null;
+  projectDeadline?: string | null;
+  projectWorkStatus?: string | null;
+}): { key: TechnicalWorkflowStatusKey; label: string } {
+  const order: { tab: Exclude<TechnicalWorkflowTab, "all">; label: string }[] = [
+    { tab: "final_submission", label: "Final Submission" },
+    { tab: "pricing", label: "Pricing" },
+    { tab: "takeoff_done", label: "Take Off Done" },
+    { tab: "assigned", label: "Assigned" },
+    { tab: "not_assigned", label: "Not Assigned" },
+  ];
+  for (const { tab, label } of order) {
+    if (matchesTechnicalTab(tab, p)) return { key: tab, label };
+  }
+
+  const work = (p.projectWorkStatus ?? "").toLowerCase();
+  if (work === "completed" || (p.status ?? "").toLowerCase() === "completed") {
+    return { key: "completed", label: "Completed" };
+  }
+  if (work === "not_completed") return { key: "not_completed", label: "Not Completed" };
+  if (work === "in_progress" || isProjectActive(p)) {
+    return { key: "in_progress", label: "In Progress" };
+  }
+  return { key: "not_completed", label: "Not Completed" };
+}
+
 export type TechnicalNoteEntry = {
   id: string;
   text: string;
