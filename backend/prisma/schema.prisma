@@ -13,6 +13,7 @@ enum Role {
   manager
   technical_manager
   accounts
+  estimator
 }
 
 model User {
@@ -93,6 +94,10 @@ model Lead {
   pricingDeadline    String?
   qaDeadline         String?
   projectPayments    String?
+  /** When admin/CSR handed the project to technical (Close Client / Project DB). */
+  technicalReceivedAt  DateTime?
+  /** JSON: [{ estimatorId, estimatorName, manHours, deadline, takeoffDone }] */
+  technicalAssignments String?
   clientCode         String?
   state              String?
   isOldClient        Boolean   @default(false)

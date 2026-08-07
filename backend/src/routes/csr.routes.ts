@@ -487,6 +487,7 @@ router.post("/project", verifyToken, allowRoles("csr"), async (req: any, res) =>
         interested:        false,
         isOldClient,
         hiddenOnMain:      true,
+        technicalReceivedAt: new Date(),
       },
     });
 
@@ -866,6 +867,9 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
         updateData.nextSchedule = null;
         updateData.nextTime     = null;
         updateData.isOldClient = await hasPriorWonClient(lead.phone, lead.company, leadId);
+        if (!lead.technicalReceivedAt) {
+          updateData.technicalReceivedAt = new Date();
+        }
 
         /* ── AUTO clientCode: {csrCode}-{padded_seq} ── */
         if (!lead.clientCode) {

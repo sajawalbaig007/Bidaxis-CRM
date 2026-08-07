@@ -125,11 +125,20 @@ function makeOTP(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts";
+type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
 
 function parsePortalRole(raw: unknown): PortalRole | null {
   const r = String(raw ?? "").toLowerCase();
-  if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager" || r === "accounts") return r;
+  if (
+    r === "admin" ||
+    r === "csr" ||
+    r === "manager" ||
+    r === "technical_manager" ||
+    r === "accounts" ||
+    r === "estimator"
+  ) {
+    return r;
+  }
   return null;
 }
 
@@ -138,6 +147,7 @@ function portalRoleLabel(role: PortalRole): string {
   if (role === "manager") return "Manager";
   if (role === "technical_manager") return "Technical Manager";
   if (role === "accounts") return "Accounts";
+  if (role === "estimator") return "Estimator";
   return "CSR";
 }
 
@@ -202,7 +212,11 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, message: "Only admins can create Accounts users." });
     }
 
-    const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts"];
+    if (role === "estimator" && req.user?.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only admins can create Estimator accounts." });
+    }
+
+    const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts", "estimator"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ success: false, message: "Invalid role." });
     }
@@ -232,7 +246,7 @@ export const register = async (req: AuthRequest, res: Response) => {
       email,
       password: hashed,
       role,
-      csrCode: role === "csr" ? csrCode.trim() : null,
+      csrCode: role === "csr" || role === "estimator" ? (csrCode?.trim() || null) : null,
       cnic: cnic?.trim() || null,
       cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
       profilePic: profilePic || null,

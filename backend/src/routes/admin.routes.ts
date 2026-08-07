@@ -36,6 +36,13 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
+import {
+  listTechnicalEstimators,
+  normalizeTechnicalAssignmentsInput,
+  parseTechnicalAssignments,
+  serializeTechnicalAssignments,
+  type TechnicalAssignment,
+} from "../utils/technicalEstimators";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -56,6 +63,14 @@ function applyProjectPayload(updateData: Record<string, unknown>, body: Record<s
     updateData.paidAmount = String(paidTotalFromEntries(parseProjectPayments(payments)));
   } else if (body.paidAmount !== undefined) {
     updateData.paidAmount = body.paidAmount;
+  }
+  if (body.technicalAssignments !== undefined) {
+    updateData.technicalAssignments = normalizeTechnicalAssignmentsInput(body.technicalAssignments) ?? "[]";
+  }
+  if (body.technicalReceivedAt !== undefined) {
+    updateData.technicalReceivedAt = body.technicalReceivedAt
+      ? new Date(String(body.technicalReceivedAt))
+      : null;
   }
 }
 
@@ -904,6 +919,9 @@ router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_m
     createData.important = false;
     createData.interested = false;
     createData.hiddenOnMain = true;
+    if (!createData.technicalReceivedAt) {
+      createData.technicalReceivedAt = new Date();
+    }
 
     const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : (source?.phone ?? null);
     if (trimmedPhone) createData.phone = trimmedPhone;
@@ -969,6 +987,141 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
     return res.status(500).json({ success: false, message: "Failed to update project" });
   }
 });
+
+/* ================= TECHNICAL ESTIMATORS ================= */
+router.get(
+  "/technical-estimators",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (_req, res) => {
+    return res.json({ success: true, estimators: await listTechnicalEstimators() });
+  },
+);
+
+/* ================= ASSIGN ESTIMATORS (TECHNICAL) ================= */
+router.put(
+  "/project/:id/assign-estimators",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const body = req.body as Record<string, unknown>;
+      const assignments = parseTechnicalAssignments(body.assignments ?? body.technicalAssignments);
+
+      if (assignments.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Select at least one estimator.",
+        });
+      }
+      if (assignments.length > 3) {
+        return res.status(400).json({
+          success: false,
+          message: "You can assign at most 3 estimators.",
+        });
+      }
+      for (const a of assignments) {
+        if (!a.deadline) {
+          return res.status(400).json({
+            success: false,
+            message: `Deadline is required for ${a.estimatorName}.`,
+          });
+        }
+      }
+
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, projectPhase: true, technicalReceivedAt: true, assignedTo: true },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          technicalAssignments: serializeTechnicalAssignments(assignments),
+          technicalReceivedAt: existing.technicalReceivedAt ?? new Date(),
+        },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to assign estimators" });
+    }
+  },
+);
+
+/* ================= UPDATE ESTIMATOR TAKEOFF FLAGS ================= */
+router.put(
+  "/project/:id/estimator-takeoff",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const { estimatorId, takeoffDone } = req.body as {
+        estimatorId?: string;
+        takeoffDone?: boolean;
+      };
+      if (!estimatorId) {
+        return res.status(400).json({ success: false, message: "estimatorId is required" });
+      }
+
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { technicalAssignments: true, assignedTo: true, projectPhase: true },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+
+      const list = parseTechnicalAssignments(existing.technicalAssignments);
+      const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+      if (idx < 0) {
+        return res.status(404).json({ success: false, message: "Estimator assignment not found" });
+      }
+      list[idx] = { ...list[idx], takeoffDone: takeoffDone === true };
+
+      const allDone = list.length > 0 && list.every((a) => a.takeoffDone);
+      const anyDone = list.some((a) => a.takeoffDone);
+      let nextPhase = existing.projectPhase ?? "not_started";
+      if (allDone) nextPhase = "takeoff_completed";
+      else if (anyDone && (nextPhase === "not_started" || !nextPhase)) nextPhase = "takeoff_started";
+      else if (!allDone && nextPhase === "takeoff_completed") nextPhase = "takeoff_started";
+
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          technicalAssignments: serializeTechnicalAssignments(list as TechnicalAssignment[]),
+          projectPhase: nextPhase,
+        },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to update takeoff status" });
+    }
+  },
+);
 
 /* ================= SHUFFLE STATUS ================= */
 router.get(

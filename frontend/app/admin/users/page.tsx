@@ -27,7 +27,7 @@ import {
 } from "@/lib/csrResetPages";
 import { broadcastAdminSummaryStale } from "@/lib/adminSummaryCache";
 
-type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts";
+type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts" | "Estimator";
 
 type User = {
   id: string; name: string; email: string; password: string;
@@ -138,6 +138,7 @@ const roleColor = (role: UserRole) => {
   if (role === "Manager") return "bg-violet-100 text-violet-600";
   if (role === "Technical Manager") return "bg-amber-100 text-amber-700";
   if (role === "Accounts") return "bg-cyan-100 text-cyan-700";
+  if (role === "Estimator") return "bg-purple-100 text-purple-700";
   return "bg-emerald-100 text-emerald-600";
 };
 
@@ -392,6 +393,7 @@ export default function UsersPage() {
                   : u.role === "manager" ? "Manager"
                   : u.role === "technical_manager" ? "Technical Manager"
                   : u.role === "accounts" ? "Accounts"
+                  : u.role === "estimator" ? "Estimator"
                   : "Admin",
         csrCode:    u.csrCode    ?? null,
         cnic:       u.cnic       ?? null,
@@ -457,6 +459,7 @@ export default function UsersPage() {
   const activeManagers = users.filter(u => u.role === "Manager" && u.isOnline).length;
   const activeTechManagers = users.filter(u => u.role === "Technical Manager" && u.isOnline).length;
   const activeAccounts = users.filter(u => u.role === "Accounts" && u.isOnline).length;
+  const activeEstimators = users.filter(u => u.role === "Estimator" && u.isOnline).length;
   const countByRole = {
     All: users.length,
     CSR: users.filter(u => u.role === "CSR").length,
@@ -464,6 +467,7 @@ export default function UsersPage() {
     Manager: users.filter(u => u.role === "Manager").length,
     "Technical Manager": users.filter(u => u.role === "Technical Manager").length,
     Accounts: users.filter(u => u.role === "Accounts").length,
+    Estimator: users.filter(u => u.role === "Estimator").length,
   };
 
   const filteredUsers = users.filter(u => {
@@ -536,12 +540,13 @@ export default function UsersPage() {
         : form.role === "Manager" ? "manager"
         : form.role === "Technical Manager" ? "technical_manager"
         : form.role === "Accounts" ? "accounts"
+        : form.role === "Estimator" ? "estimator"
         : "admin";
       const url    = editingUser ? `${apiBase()}/users/${editingUser.id}` : `${apiBase()}/auth/register`;
       const method = editingUser ? "PUT" : "POST";
       const shared = {
         name: form.name, email: form.email, role,
-        csrCode:    role === "csr" ? form.csrCode.trim() : null,
+        csrCode:    role === "csr" || role === "estimator" ? (form.csrCode.trim() || null) : null,
         cnic:       form.cnic.trim() || null,
         cnicPdfUrl: form.cnicPdfUrl || null,
         profilePic: form.profilePic  || null,
@@ -834,6 +839,7 @@ export default function UsersPage() {
                   { name: "Admin", online: activeAdmins,   offline: countByRole.Admin - activeAdmins },
                   { name: "Manager", online: activeManagers, offline: countByRole.Manager - activeManagers },
                   { name: "Tech Mgr", online: activeTechManagers, offline: countByRole["Technical Manager"] - activeTechManagers },
+                  { name: "Estimator", online: activeEstimators, offline: countByRole.Estimator - activeEstimators },
                   { name: "Accounts", online: activeAccounts, offline: countByRole.Accounts - activeAccounts },
                 ]}
                 barGap={8} barSize={52}
@@ -906,6 +912,7 @@ export default function UsersPage() {
             { key: "Admin", label: "Admin", count: countByRole.Admin },
             { key: "Manager", label: "Manager", count: countByRole.Manager },
             { key: "Technical Manager", label: "Technical Manager", count: countByRole["Technical Manager"] },
+            { key: "Estimator", label: "Estimator", count: countByRole.Estimator },
             { key: "Accounts", label: "Accounts", count: countByRole.Accounts },
           ]}
         />
@@ -1400,28 +1407,36 @@ export default function UsersPage() {
                     <option value="CSR">CSR (Customer Support)</option>
                     <option value="Manager">Manager</option>
                     <option value="Technical Manager">Technical Manager</option>
+                    <option value="Estimator">Estimator</option>
                     <option value="Accounts">Accounts</option>
                     <option value="Admin">Admin</option>
                   </select>
                 </div>
 
-                {form.role === "CSR" && (
+                {(form.role === "CSR" || form.role === "Estimator") && (
                   <div>
                     <label className="text-sm text-gray-500 block mb-2">
-                      CSR Code <span className="text-[#B8112D] font-semibold">*</span>
-                      <span className="text-xs text-gray-400 ml-2">e.g. 1000, 1001, 1002…</span>
+                      {form.role === "Estimator" ? "Estimator Code" : "CSR Code"}{" "}
+                      {form.role === "CSR" ? <span className="text-[#B8112D] font-semibold">*</span> : (
+                        <span className="text-xs text-gray-400">(optional)</span>
+                      )}
+                      <span className="text-xs text-gray-400 ml-2">
+                        {form.role === "Estimator" ? "e.g. TECH-01" : "e.g. 1000, 1001, 1002…"}
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={form.csrCode}
                       onChange={e => setForm({ ...form, csrCode: e.target.value })}
-                      placeholder="e.g. 1000"
+                      placeholder={form.role === "Estimator" ? "e.g. TECH-01" : "e.g. 1000"}
                       maxLength={10}
                       className="w-full border-2 border-[#B8112D]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono font-bold tracking-wider"
                     />
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      Clients of this CSR will be coded as {form.csrCode || "XXXX"}-01, {form.csrCode || "XXXX"}-02…
-                    </p>
+                    {form.role === "CSR" && (
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Clients of this CSR will be coded as {form.csrCode || "XXXX"}-01, {form.csrCode || "XXXX"}-02…
+                      </p>
+                    )}
                   </div>
                 )}
 
