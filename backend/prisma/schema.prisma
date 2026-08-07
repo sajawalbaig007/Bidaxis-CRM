@@ -23,6 +23,10 @@ model User {
   password     String
   role         Role
   csrCode      String?
+  /** HR employee ID — separate from CSR/Estimator client coding code */
+  employeeCode String?
+  fatherName   String?
+  currentAddress String?
   cnic         String?
   cnicPdfUrl   String?
   profilePic   String?

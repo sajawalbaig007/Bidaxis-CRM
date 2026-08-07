@@ -165,7 +165,7 @@ export function useAccountsPage<T extends Record<string, unknown>>({
         }
       })
       .catch(() => {
-        /* ignore */
+        /* ignores */  
       });
     return () => {
       cancelled = true;
