@@ -17,6 +17,8 @@ export function wonClientStatusWhere(): Prisma.LeadWhereInput {
 export function buildProjectLeadWhere(csrId?: string): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {
     status: { in: [...PROJECT_LEAD_STATUSES] },
+    // Never show binned / soft-removed rows in Project DB
+    NOT: { inBin: true },
     OR: [
       { projectTitle: { not: null } },
       { AND: [{ isOldClient: true }, { clientCode: { not: null } }] },
@@ -31,7 +33,9 @@ export function isDisplayableProjectLead(lead: {
   projectTitle?: string | null;
   isOldClient?: boolean;
   clientCode?: string | null;
+  inBin?: boolean | null;
 }): boolean {
+  if (lead.inBin === true) return false;
   const st = (lead.status ?? "").toLowerCase();
   if (st !== "close client" && st !== "completed") return false;
   if (lead.projectTitle?.trim()) return true;

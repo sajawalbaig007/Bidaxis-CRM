@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
@@ -522,6 +522,7 @@ export default function AdminProjectsPage() {
   const [page,        setPage]        = useState(1);
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   /* ── Reassign modal ── */
   const [showReassign,  setShowReassign]  = useState(false);
@@ -694,18 +695,20 @@ export default function AdminProjectsPage() {
     if (!workbenchProject) return;
     const id = workbenchProject.id;
     try {
-      const res = await API.delete(`/admin/lead/${id}`);
+      // Permanent DB delete (project row removed)
+      const res = await API.delete(`/admin/project/${id}`);
       if (!res.data?.success) {
         throw new Error(res.data?.message || "delete failed");
       }
       setProjects((prev) => prev.filter((p) => p.id !== id));
       setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }));
       setWorkbenchProject(null);
-      toast.success("Project deleted");
-      // Refresh from server after cache bust (don't bring deleted row back)
+      toast.success("Project permanently deleted");
+      // Keep it out of silent polls / Active tab
+      deletedIdsRef.current.add(id);
       window.setTimeout(() => {
         void fetchProjects(true);
-      }, 150);
+      }, 200);
     } catch {
       toast.error("Failed to delete project");
       throw new Error("delete failed");
@@ -752,11 +755,12 @@ export default function AdminProjectsPage() {
         to: dateTo || undefined,
         search: search.trim() || undefined,
       });
-      setProjects(leads);
+      const purged = leads.filter((p) => !deletedIdsRef.current.has(p.id));
+      setProjects(purged);
       setStats({
-        total,
-        withBudget: leads.filter((p) => !!p.projectBudget).length,
-        thisMonth: leads.filter((p) => {
+        total: Math.max(0, total - (leads.length - purged.length)),
+        withBudget: purged.filter((p) => !!p.projectBudget).length,
+        thisMonth: purged.filter((p) => {
           const d = new Date(p.updatedAt);
           const now = new Date();
           return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();

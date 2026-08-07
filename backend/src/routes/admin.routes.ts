@@ -398,7 +398,7 @@ router.get("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_m
   }
 });
 
-/* ================= DELETE LEAD / PROJECT (ADMIN) ================= */
+/* ================= DELETE LEAD / PROJECT (ADMIN) — permanent DB delete ================= */
 router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
@@ -411,9 +411,6 @@ router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager", "technica
     }
 
     const deleted = await deleteLeadsCascade([leadId]);
-    if (!deleted) {
-      return res.status(500).json({ success: false, message: "Failed to delete project" });
-    }
 
     await invalidateAllLeadCaches(lead.assignedTo ? [lead.assignedTo] : undefined);
     flushAdminClientsCache();
@@ -423,14 +420,65 @@ router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager", "technica
       invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
     }
 
+    const still = await prisma.lead.findFirst({
+      where: { id: leadId },
+      select: { id: true, projectTitle: true },
+    });
+    // Must be gone from DB, or at least no longer a Project DB row
+    if (still?.projectTitle) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to permanently delete project from database",
+      });
+    }
+
     return res.json({
       success: true,
       message: `"${lead.projectTitle || lead.name || "Record"}" deleted permanently`,
       deleted,
+      permanent: true,
     });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to delete lead" });
+  }
+});
+
+/* ================= DELETE PROJECT (alias — same permanent delete) ================= */
+router.delete("/project/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
+  try {
+    const leadId = String(req.params.id);
+    const lead = await prisma.lead.findFirst({
+      where: { id: leadId },
+      select: { id: true, assignedTo: true, name: true, projectTitle: true },
+    });
+    if (!lead) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    const deleted = await deleteLeadsCascade([leadId]);
+    await invalidateAllLeadCaches(lead.assignedTo ? [lead.assignedTo] : undefined);
+
+    const still = await prisma.lead.findFirst({
+      where: { id: leadId },
+      select: { id: true, projectTitle: true },
+    });
+    if (still?.projectTitle) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to permanently delete project from database",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `"${lead.projectTitle || lead.name || "Project"}" deleted permanently`,
+      deleted,
+      permanent: true,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete project" });
   }
 });
 
@@ -821,7 +869,7 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       req.query.forTechnical === "1";
 
     // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
-    const cacheKey = `admin:projects:v6:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
+    const cacheKey = `admin:projects:v7:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}:tv${technicalView ? 1 : 0}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
