@@ -124,6 +124,31 @@ export function assignmentElapsedSeconds(
   return total;
 }
 
+/** Fold running segment into timerSeconds (local optimistic pause). */
+export function pauseAssignmentTimerLocal(
+  a: Pick<TechnicalAssignment, "timerSeconds" | "timerStartedAt" | "takeoffDone"> & Partial<TechnicalAssignment>,
+  now = Date.now(),
+): TechnicalAssignment {
+  const base = a as TechnicalAssignment;
+  if (!a.timerStartedAt) return { ...base, timerStartedAt: null };
+  const started = new Date(a.timerStartedAt).getTime();
+  const add = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
+  return {
+    ...base,
+    timerSeconds: (a.timerSeconds ?? 0) + add,
+    timerStartedAt: null,
+  };
+}
+
+export function startAssignmentTimerLocal(
+  a: TechnicalAssignment,
+  now = Date.now(),
+): TechnicalAssignment {
+  if (a.takeoffDone) return a;
+  if (a.timerStartedAt) return a;
+  return { ...a, timerStartedAt: new Date(now).toISOString() };
+}
+
 export function formatElapsed(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const h = Math.floor(s / 3600);

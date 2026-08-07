@@ -176,6 +176,35 @@ export function assignmentElapsedSeconds(a: TechnicalAssignment, now = Date.now(
   return total;
 }
 
+/** Pause running timers for this estimator on specific leads (fast path). */
+export async function pauseTimersOnLeadIds(
+  user: { id: string; name: string },
+  leadIds: string[],
+): Promise<void> {
+  const ids = [...new Set(leadIds.map(String).filter(Boolean))];
+  if (ids.length === 0) return;
+  const now = Date.now();
+  const leads = await prisma.lead.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, technicalAssignments: true },
+  });
+  for (const lead of leads) {
+    const list = parseTechnicalAssignments(lead.technicalAssignments);
+    let changed = false;
+    const next = list.map((a) => {
+      if (!assignmentBelongsToEstimator(a, user)) return a;
+      if (!a.timerStartedAt) return a;
+      changed = true;
+      return pauseAssignmentTimer(a, now);
+    });
+    if (!changed) continue;
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { technicalAssignments: serializeTechnicalAssignments(next) },
+    });
+  }
+}
+
 /** Pause any running timers for this estimator on other projects (one active timer). */
 export async function pauseOtherRunningTimersForEstimator(
   user: { id: string; name: string },
@@ -187,7 +216,7 @@ export async function pauseOtherRunningTimersForEstimator(
       ...(exceptLeadId ? { id: { not: exceptLeadId } } : {}),
     },
     select: { id: true, technicalAssignments: true },
-    take: 300,
+    take: 200,
   });
 
   const now = Date.now();
