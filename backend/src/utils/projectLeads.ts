@@ -16,25 +16,13 @@ export function wonClientStatusWhere(): Prisma.LeadWhereInput {
 /** DB filter for Project DB / Technical Active Projects (matches isDisplayableProjectLead). */
 export function buildProjectLeadWhere(csrId?: string): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {
-    AND: [
-      {
-        OR: [
-          { status: { equals: "Close Client", mode: "insensitive" } },
-          { status: { equals: "completed", mode: "insensitive" } },
-          { status: { equals: "close client", mode: "insensitive" } },
-        ],
-      },
-      {
-        OR: [
-          { projectTitle: { not: null } },
-          { AND: [{ isOldClient: true }, { clientCode: { not: null } }] },
-        ],
-      },
+    status: { in: [...PROJECT_LEAD_STATUSES] },
+    OR: [
+      { projectTitle: { not: null } },
+      { AND: [{ isOldClient: true }, { clientCode: { not: null } }] },
     ],
   };
-  if (csrId) {
-    (where.AND as Prisma.LeadWhereInput[]).push({ assignedTo: csrId });
-  }
+  if (csrId) where.assignedTo = csrId;
   return where;
 }
 
