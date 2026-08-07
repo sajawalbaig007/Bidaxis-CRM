@@ -178,7 +178,8 @@ function parseTemporaryHours(raw: unknown): 9 | 10 | null {
 export const register = async (req: AuthRequest, res: Response) => {
   try {
     const {
-      name, email, password, role, csrCode, cnic, cnicPdfUrl, profilePic,
+      name, email, password, role, csrCode, employeeCode, fatherName, currentAddress,
+      cnic, cnicPdfUrl, profilePic,
       allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
     } = req.body;
 
@@ -233,6 +234,13 @@ export const register = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    if (employeeCode?.trim()) {
+      const empTaken = await prisma.user.findFirst({ where: { employeeCode: employeeCode.trim() } });
+      if (empTaken) {
+        return res.status(400).json({ success: false, message: `Employee Code "${employeeCode.trim()}" is already in use.` });
+      }
+    }
+
     const hashed = await hashPassword(password);
     const cleanedIps = sanitizeIpList(allowedIps);
     const tempHours = parseTemporaryHours(temporaryAccessHours);
@@ -247,6 +255,9 @@ export const register = async (req: AuthRequest, res: Response) => {
       password: hashed,
       role,
       csrCode: role === "csr" || role === "estimator" ? (csrCode?.trim() || null) : null,
+      employeeCode: typeof employeeCode === "string" && employeeCode.trim() ? employeeCode.trim() : null,
+      fatherName: typeof fatherName === "string" && fatherName.trim() ? fatherName.trim() : null,
+      currentAddress: typeof currentAddress === "string" && currentAddress.trim() ? currentAddress.trim() : null,
       cnic: cnic?.trim() || null,
       cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
       profilePic: profilePic || null,
@@ -264,6 +275,9 @@ export const register = async (req: AuthRequest, res: Response) => {
         email: true,
         role: true,
         csrCode: true,
+        employeeCode: true,
+        fatherName: true,
+        currentAddress: true,
         cnic: true,
         cnicPdfUrl: true,
         profilePic: true,

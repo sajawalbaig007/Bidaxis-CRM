@@ -29,10 +29,26 @@ import { broadcastAdminSummaryStale } from "@/lib/adminSummaryCache";
 
 type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts" | "Estimator";
 
+type CompanyFilter = "BEM" | "GPS";
+
+const BEM_ROLES: UserRole[] = ["CSR", "Admin", "Manager", "Accounts"];
+const GPS_ROLES: UserRole[] = ["Technical Manager", "Estimator"];
+
+function rolesForCompany(company: CompanyFilter): UserRole[] {
+  return company === "GPS" ? GPS_ROLES : BEM_ROLES;
+}
+
+function companyForRole(role: UserRole): CompanyFilter {
+  return GPS_ROLES.includes(role) ? "GPS" : "BEM";
+}
+
 type User = {
   id: string; name: string; email: string; password: string;
   status: "Active" | "Inactive"; role: UserRole;
   csrCode:    string | null;
+  employeeCode: string | null;
+  fatherName: string | null;
+  currentAddress: string | null;
   cnic:       string | null;
   cnicPdfUrl: string | null;
   profilePic: string | null;
@@ -51,6 +67,25 @@ type User = {
   chatAllowedUserIds: string[];
   chatVisibleToUserIds: string[];
   createdAt: string | null;
+};
+
+const EMPTY_USER_FORM = {
+  name: "",
+  email: "",
+  password: "",
+  role: "CSR" as UserRole,
+  employeeCode: "",
+  fatherName: "",
+  currentAddress: "",
+  csrCode: "",
+  cnic: "",
+  cnicPdfUrl: "",
+  profilePic: "",
+  allowedIps: [""] as string[],
+  allowedMacAddress: "",
+  temporaryAccessIp: "",
+  temporaryAccessMac: "",
+  temporaryAccessHours: "9",
 };
 
 type UserSortKey =
@@ -321,6 +356,7 @@ export default function UsersPage() {
   const [search,       setSearch]       = useState("");
   const [page,         setPage]         = useState(1);
   const [roleFilter,   setRoleFilter]   = useState<"All" | UserRole>("All");
+  const [companyFilter, setCompanyFilter] = useState<CompanyFilter>("BEM");
   const [sortKey,      setSortKey]      = useState<UserSortKey>("name_asc");
   const [showModal,    setShowModal]    = useState(false);
   const [editingUser,  setEditingUser]  = useState<User | null>(null);
@@ -347,10 +383,7 @@ export default function UsersPage() {
   const [chatVisibilitySearch, setChatVisibilitySearch] = useState("");
   const [savingChat, setSavingChat] = useState(false);
 
-  const [form, setForm] = useState({
-    name: "", email: "", password: "", role: "CSR" as UserRole, csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "",
-    allowedIps: [""], allowedMacAddress: "", temporaryAccessIp: "", temporaryAccessMac: "", temporaryAccessHours: "9",
-  });
+  const [form, setForm] = useState({ ...EMPTY_USER_FORM });
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingCnic, setUploadingCnic] = useState(false);
   const [resetUser, setResetUser] = useState<User | null>(null);
@@ -372,6 +405,7 @@ export default function UsersPage() {
 
       const formatted: User[] = (Array.isArray(data) ? data : []).map((u: {
         id: string; name: string; email: string; role: string; csrCode?: string;
+        employeeCode?: string; fatherName?: string; currentAddress?: string;
         cnic?: string; cnicPdfUrl?: string; profilePic?: string;
         isActive?: boolean; isOnline?: boolean; lastActive?: string;
         browser?: string; tabId?: string; openedAt?: string;
@@ -396,6 +430,9 @@ export default function UsersPage() {
                   : u.role === "estimator" ? "Estimator"
                   : "Admin",
         csrCode:    u.csrCode    ?? null,
+        employeeCode: u.employeeCode ?? null,
+        fatherName: u.fatherName ?? null,
+        currentAddress: u.currentAddress ?? null,
         cnic:       u.cnic       ?? null,
         cnicPdfUrl: u.cnicPdfUrl ?? null,
         profilePic: u.profilePic ?? null,
@@ -470,11 +507,25 @@ export default function UsersPage() {
     Estimator: users.filter(u => u.role === "Estimator").length,
   };
 
+  const companyRoles = rolesForCompany(companyFilter);
+  const countByCompany = {
+    BEM: users.filter(u => companyForRole(u.role) === "BEM").length,
+    GPS: users.filter(u => companyForRole(u.role) === "GPS").length,
+  };
+  const companyAllCount = users.filter(u => companyRoles.includes(u.role)).length;
+
   const filteredUsers = users.filter(u => {
+    if (!companyRoles.includes(u.role)) return false;
     if (roleFilter !== "All" && u.role !== roleFilter) return false;
     const q = search.toLowerCase().trim();
     if (!q) return true;
-    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.employeeCode ?? "").toLowerCase().includes(q) ||
+      (u.csrCode ?? "").toLowerCase().includes(q) ||
+      (u.fatherName ?? "").toLowerCase().includes(q)
+    );
   });
 
   const userColPredicates = useMemo(() => ({
@@ -546,6 +597,9 @@ export default function UsersPage() {
       const method = editingUser ? "PUT" : "POST";
       const shared = {
         name: form.name, email: form.email, role,
+        employeeCode: form.employeeCode.trim() || null,
+        fatherName: form.fatherName.trim() || null,
+        currentAddress: form.currentAddress.trim() || null,
         csrCode:    role === "csr" || role === "estimator" ? (form.csrCode.trim() || null) : null,
         cnic:       form.cnic.trim() || null,
         cnicPdfUrl: form.cnicPdfUrl || null,
@@ -570,7 +624,7 @@ export default function UsersPage() {
       invalidateAuthMeCache();
       fetchUsers();
       setShowModal(false); setEditingUser(null);
-      setForm({ name: "", email: "", password: "", role: "CSR", csrCode: "", cnic: "", cnicPdfUrl: "", profilePic: "", allowedIps: [""], allowedMacAddress: "", temporaryAccessIp: "", temporaryAccessMac: "", temporaryAccessHours: "9" });
+      setForm({ ...EMPTY_USER_FORM });
       setShowPassword(false);
     } catch {
       toast.error("Something went wrong.");
@@ -821,7 +875,7 @@ export default function UsersPage() {
             <div>
               <h3 className="font-bold text-[#111827] text-base">User Activity Overview</h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                User presence overview
+                {companyFilter === "GPS" ? "GPS · Technical Manager & Estimators" : "BEM · CSR, Admin, Manager & Accounts"}
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -834,14 +888,19 @@ export default function UsersPage() {
           ) : (
             <RechartsBox height={150}>
               <BarChart
-                data={[
-                  { name: "CSR",   online: activeCSR,      offline: countByRole.CSR - activeCSR },
-                  { name: "Admin", online: activeAdmins,   offline: countByRole.Admin - activeAdmins },
-                  { name: "Manager", online: activeManagers, offline: countByRole.Manager - activeManagers },
-                  { name: "Tech Mgr", online: activeTechManagers, offline: countByRole["Technical Manager"] - activeTechManagers },
-                  { name: "Estimator", online: activeEstimators, offline: countByRole.Estimator - activeEstimators },
-                  { name: "Accounts", online: activeAccounts, offline: countByRole.Accounts - activeAccounts },
-                ]}
+                data={
+                  companyFilter === "GPS"
+                    ? [
+                        { name: "Tech Mgr", online: activeTechManagers, offline: countByRole["Technical Manager"] - activeTechManagers },
+                        { name: "Estimator", online: activeEstimators, offline: countByRole.Estimator - activeEstimators },
+                      ]
+                    : [
+                        { name: "CSR",   online: activeCSR,      offline: countByRole.CSR - activeCSR },
+                        { name: "Admin", online: activeAdmins,   offline: countByRole.Admin - activeAdmins },
+                        { name: "Manager", online: activeManagers, offline: countByRole.Manager - activeManagers },
+                        { name: "Accounts", online: activeAccounts, offline: countByRole.Accounts - activeAccounts },
+                      ]
+                }
                 barGap={8} barSize={52}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
@@ -895,27 +954,42 @@ export default function UsersPage() {
               <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
             </div>
           </div>
-          <button onClick={() => { setEditingUser(null); setForm({ name:"", email:"", password:"", role:"CSR", csrCode:"", cnic:"", cnicPdfUrl:"", profilePic:"", allowedIps:[""], allowedMacAddress:"", temporaryAccessIp:"", temporaryAccessMac:"", temporaryAccessHours:"9" }); setShowModal(true); }}
+          <button onClick={() => { setEditingUser(null); setForm({ ...EMPTY_USER_FORM }); setShowModal(true); }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
         </div>
 
-        {/* ROLE TABS — view CSR / Admin / Manager separately */}
-        <CapsuleTabs
-          className="mb-5"
-          activeKey={roleFilter}
-          onChange={key => { setRoleFilter(key); setPage(1); }}
-          tabs={[
-            { key: "All", label: "All Users", count: countByRole.All },
-            { key: "CSR", label: "CSR", count: countByRole.CSR },
-            { key: "Admin", label: "Admin", count: countByRole.Admin },
-            { key: "Manager", label: "Manager", count: countByRole.Manager },
-            { key: "Technical Manager", label: "Technical Manager", count: countByRole["Technical Manager"] },
-            { key: "Estimator", label: "Estimator", count: countByRole.Estimator },
-            { key: "Accounts", label: "Accounts", count: countByRole.Accounts },
-          ]}
-        />
+        {/* COMPANY + ROLE TABS */}
+        <div className="mb-5 space-y-3">
+          <CapsuleTabs
+            activeKey={companyFilter}
+            onChange={key => {
+              setCompanyFilter(key as CompanyFilter);
+              setRoleFilter("All");
+              setPage(1);
+            }}
+            accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
+            tabs={[
+              { key: "BEM", label: "BEM Solutions", shortLabel: "BEM", count: countByCompany.BEM },
+              { key: "GPS", label: "GPS · Global", shortLabel: "GPS", count: countByCompany.GPS },
+            ]}
+          />
+          <CapsuleTabs
+            activeKey={roleFilter}
+            onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
+            accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
+            tabs={[
+              { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BEM", count: companyAllCount },
+              ...companyRoles.map(role => ({
+                key: role,
+                label: role === "Technical Manager" ? "Tech Manager" : role,
+                shortLabel: role === "Technical Manager" ? "Tech Mgr" : role === "Estimator" ? "Est." : role,
+                count: countByRole[role],
+              })),
+            ]}
+          />
+        </div>
 
         {/* TABLE */}
         <div className="bg-white border border-gray-100 rounded-3xl overflow-x-auto">
@@ -963,15 +1037,21 @@ export default function UsersPage() {
                           <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${u.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-semibold text-gray-700">{u.name}</h3>
+                            {u.employeeCode && (
+                              <span className="inline-flex items-center bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-lg tracking-wider font-mono">
+                                {u.employeeCode}
+                              </span>
+                            )}
                             {u.role === "CSR" && u.csrCode && (
                               <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg tracking-wider">
-                                {u.csrCode}
+                                CSR {u.csrCode}
                               </span>
                             )}
                           </div>
                           <p className="text-xs text-gray-400">{u.email}</p>
+                          {u.fatherName && <p className="text-[10px] text-gray-400 mt-0.5">S/O {u.fatherName}</p>}
                           {u.cnic && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{u.cnic}</p>}
                         </div>
                       </div>
@@ -1019,7 +1099,27 @@ export default function UsersPage() {
                         </ActionTip>
                         <ActionTip
                           label="Edit User"
-                          onClick={() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "", allowedIps: u.allowedIps?.length ? u.allowedIps : [""], allowedMacAddress: u.allowedMacAddress ?? "", temporaryAccessIp: u.temporaryAccessIp ?? "", temporaryAccessMac: u.temporaryAccessMac ?? "", temporaryAccessHours: "9" }); setShowModal(true); }}
+                          onClick={() => {
+                            setEditingUser(u);
+                            setForm({
+                              ...EMPTY_USER_FORM,
+                              name: u.name,
+                              email: u.email,
+                              role: u.role,
+                              employeeCode: u.employeeCode ?? "",
+                              fatherName: u.fatherName ?? "",
+                              currentAddress: u.currentAddress ?? "",
+                              csrCode: u.csrCode ?? "",
+                              cnic: u.cnic ?? "",
+                              cnicPdfUrl: u.cnicPdfUrl ?? "",
+                              profilePic: u.profilePic ?? "",
+                              allowedIps: u.allowedIps?.length ? u.allowedIps : [""],
+                              allowedMacAddress: u.allowedMacAddress ?? "",
+                              temporaryAccessIp: u.temporaryAccessIp ?? "",
+                              temporaryAccessMac: u.temporaryAccessMac ?? "",
+                            });
+                            setShowModal(true);
+                          }}
                           className={actionBtnStyles.edit}
                         >
                           <Pencil size={16}/>
@@ -1077,7 +1177,28 @@ export default function UsersPage() {
                           <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
                             {[
                               { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
-                              { label:"Edit User",    action:() => { setEditingUser(u); setForm({ name:u.name, email:u.email, password:"", role:u.role, csrCode: u.csrCode ?? "", cnic: u.cnic ?? "", cnicPdfUrl: u.cnicPdfUrl ?? "", profilePic: u.profilePic ?? "", allowedIps: u.allowedIps?.length ? u.allowedIps : [""], allowedMacAddress: u.allowedMacAddress ?? "", temporaryAccessIp: u.temporaryAccessIp ?? "", temporaryAccessMac: u.temporaryAccessMac ?? "", temporaryAccessHours: "9" }); setShowModal(true); setOpenMenu(null); }},
+                              { label:"Edit User",    action:() => {
+                                setEditingUser(u);
+                                setForm({
+                                  ...EMPTY_USER_FORM,
+                                  name: u.name,
+                                  email: u.email,
+                                  role: u.role,
+                                  employeeCode: u.employeeCode ?? "",
+                                  fatherName: u.fatherName ?? "",
+                                  currentAddress: u.currentAddress ?? "",
+                                  csrCode: u.csrCode ?? "",
+                                  cnic: u.cnic ?? "",
+                                  cnicPdfUrl: u.cnicPdfUrl ?? "",
+                                  profilePic: u.profilePic ?? "",
+                                  allowedIps: u.allowedIps?.length ? u.allowedIps : [""],
+                                  allowedMacAddress: u.allowedMacAddress ?? "",
+                                  temporaryAccessIp: u.temporaryAccessIp ?? "",
+                                  temporaryAccessMac: u.temporaryAccessMac ?? "",
+                                });
+                                setShowModal(true);
+                                setOpenMenu(null);
+                              }},
                               { label:"Change Password", action:() => { openPasswordModal(u); setOpenMenu(null); }},
                               { label:"Chat Restrictions", action:() => { openChatRestrictions(u); setOpenMenu(null); }},
                               { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
@@ -1139,10 +1260,18 @@ export default function UsersPage() {
                   { label:"Email",          value: detailUser.email  },
                   { label:"Role",           value: detailUser.role   },
                   { label:"Account Status", value: detailUser.status },
+                  ...(detailUser.employeeCode ? [{ label: "Employee Code", value: detailUser.employeeCode }] : []),
+                  ...(detailUser.fatherName ? [{ label: "Father Name", value: detailUser.fatherName }] : []),
+                  ...(detailUser.currentAddress ? [{ label: "Current Address", value: detailUser.currentAddress }] : []),
+                  ...(detailUser.role === "CSR" && detailUser.csrCode
+                    ? [{ label: "CSR Code", value: detailUser.csrCode }]
+                    : detailUser.role === "Estimator" && detailUser.csrCode
+                      ? [{ label: "Estimator Code", value: detailUser.csrCode }]
+                      : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#F8F9FC] rounded-2xl p-4">
                     <p className="text-xs text-gray-400 mb-1">{label}</p>
-                    <h3 className="text-sm font-medium text-gray-700">{value}</h3>
+                    <h3 className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{value}</h3>
                   </div>
                 ))}
 
@@ -1413,9 +1542,55 @@ export default function UsersPage() {
                   </select>
                 </div>
 
-                {(form.role === "CSR" || form.role === "Estimator") && (
+                {/* Employee profile — all roles */}
+                <div className="rounded-2xl border border-gray-100 bg-[#FAFBFC] p-3.5 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Employee Info</p>
                   <div>
                     <label className="text-sm text-gray-500 block mb-2">
+                      Employee Code <span className="text-xs text-gray-400">(optional · HR ID)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.employeeCode}
+                      onChange={e => setForm({ ...form, employeeCode: e.target.value })}
+                      placeholder="e.g. EMP-001"
+                      maxLength={32}
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 block mb-2">
+                      Father Name <span className="text-xs text-gray-400">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.fatherName}
+                      onChange={e => setForm({ ...form, fatherName: e.target.value })}
+                      placeholder="Enter father name"
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 block mb-2">
+                      Current Address <span className="text-xs text-gray-400">(optional)</span>
+                    </label>
+                    <textarea
+                      value={form.currentAddress}
+                      onChange={e => setForm({ ...form, currentAddress: e.target.value })}
+                      placeholder="Enter current residential address"
+                      rows={2}
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* CSR / Estimator code — separate from employee code */}
+                {(form.role === "CSR" || form.role === "Estimator") && (
+                  <div className="rounded-2xl border border-[#B8112D]/20 bg-[#FFF8F9] p-3.5 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#B8112D]/70">
+                      {form.role === "Estimator" ? "Estimator Code" : "CSR Code"} — client coding
+                    </p>
+                    <label className="text-sm text-gray-500 block">
                       {form.role === "Estimator" ? "Estimator Code" : "CSR Code"}{" "}
                       {form.role === "CSR" ? <span className="text-[#B8112D] font-semibold">*</span> : (
                         <span className="text-xs text-gray-400">(optional)</span>
@@ -1430,11 +1605,12 @@ export default function UsersPage() {
                       onChange={e => setForm({ ...form, csrCode: e.target.value })}
                       placeholder={form.role === "Estimator" ? "e.g. TECH-01" : "e.g. 1000"}
                       maxLength={10}
-                      className="w-full border-2 border-[#B8112D]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono font-bold tracking-wider"
+                      className="w-full border-2 border-[#B8112D]/30 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono font-bold tracking-wider bg-white"
                     />
                     {form.role === "CSR" && (
-                      <p className="text-[11px] text-gray-400 mt-1">
+                      <p className="text-[11px] text-gray-400">
                         Clients of this CSR will be coded as {form.csrCode || "XXXX"}-01, {form.csrCode || "XXXX"}-02…
+                        {" "}· Separate from Employee Code above.
                       </p>
                     )}
                   </div>
@@ -1750,6 +1926,7 @@ export default function UsersPage() {
                                 u.name.toLowerCase().includes(q) ||
                                 u.email.toLowerCase().includes(q) ||
                                 (u.csrCode ?? "").toLowerCase().includes(q) ||
+                                (u.employeeCode ?? "").toLowerCase().includes(q) ||
                                 u.role.toLowerCase().includes(q)
                               );
                             })
@@ -1842,6 +2019,7 @@ export default function UsersPage() {
                                 u.name.toLowerCase().includes(q) ||
                                 u.email.toLowerCase().includes(q) ||
                                 (u.csrCode ?? "").toLowerCase().includes(q) ||
+                                (u.employeeCode ?? "").toLowerCase().includes(q) ||
                                 u.role.toLowerCase().includes(q)
                               );
                             })
