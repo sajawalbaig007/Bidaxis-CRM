@@ -30,6 +30,7 @@ export type SlipAmountSource =
   | "lateDeduction"
   | "employeePf"
   | "loanDeduction"
+  | "occasional"
   | "custom";
 
 export type SlipEmployeeFieldKey =
@@ -135,6 +136,7 @@ export const SLIP_AMOUNT_SOURCE_OPTIONS: { value: SlipAmountSource; label: strin
   { value: "lateDeduction", label: "Late arrival" },
   { value: "employeePf", label: "Employee PF" },
   { value: "loanDeduction", label: "Loan deduction" },
+  { value: "occasional", label: "Occasional amount (net only)" },
   { value: "custom", label: "Custom (fixed / zero)" },
 ];
 
@@ -207,6 +209,7 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
       line("e-misc", "Misc Allowance", "allowance"),
       line("e-proj", "Project Based Comm", "projectComm"),
       line("e-fix", "Fixed Client Comm", "fixComm"),
+      line("e-occ", "Occasional Amount", "occasional"),
     ],
     deductions: standardDeductions(),
     footer: bemFooter(),
@@ -223,6 +226,7 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
       line("e-proj", "Project Based Comm", "projectComm"),
       line("e-fix", "Fixed Client Comm", "fixComm"),
       line("e-tl", "Team Lead Commission", "teamLeadComm"),
+      line("e-occ", "Occasional Amount", "occasional"),
     ],
     deductions: standardDeductions(),
     footer: bemFooter(),
@@ -237,6 +241,7 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
       line("e-all", "Allowances", "allowancesCombined"),
       line("e-wot", "Weekday Overtime (1.5x)", "weekdayOt"),
       line("e-weot", "Weekend Overtime (2x)", "weekendOt"),
+      line("e-occ", "Occasional Amount", "occasional"),
     ],
     deductions: standardDeductions(),
     footer: gpsFooter(),
@@ -253,6 +258,7 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
       line("e-home", "Home Allowance (20%)", "homeAllowance"),
       line("e-util", "Utility Allowance (10%)", "utilityAllowance"),
       line("e-trav", "Travel Allowance (10%)", "travelAllowance"),
+      line("e-occ", "Occasional Amount", "occasional"),
     ],
     deductions: [
       line("d-pf", "PF Deduction (8% of Basic)", "employeePf"),
@@ -271,6 +277,7 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
       line("e-misc", "Misc Allowance", "allowance"),
       line("e-home", "Home Allowance", "homeAllowance"),
       line("e-ot", "Overtime", "overtimeTotal"),
+      line("e-occ", "Occasional Amount", "occasional"),
     ],
     deductions: standardDeductions(),
     footer: bemFooter(),
@@ -285,6 +292,7 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
       line("e-misc", "Misc Allowance", "allowance"),
       line("e-home", "Home Allowance", "homeAllowance"),
       line("e-comm", "Commission", "commission"),
+      line("e-occ", "Occasional Amount", "occasional"),
     ],
     deductions: standardDeductions(),
     footer: bemFooter(),

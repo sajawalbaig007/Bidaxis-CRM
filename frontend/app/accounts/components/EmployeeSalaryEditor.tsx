@@ -363,18 +363,46 @@ export default function EmployeeSalaryEditor({
         </div>
       </div>
 
+      <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-sky-800">Occasional Amount</p>
+        <p className="text-[10px] text-sky-700/80">
+          Added to Net Salary only — not included in PF, tax, late, or unpaid leave formulas.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Num
+            label="Occasional Amount"
+            value={d.occasionalAmount ?? 0}
+            onChange={v => set("occasionalAmount", v)}
+            hint="Plus into net"
+          />
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+            Occasion / Remark
+            <input
+              type="text"
+              value={d.occasionalRemark ?? ""}
+              onChange={e => set("occasionalRemark", e.target.value)}
+              placeholder="e.g. Eid bonus, wedding gift…"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">Totals</p>
         <p className="text-[10px] text-crm-text-muted">
           {isTechMgr
-            ? "Gross − PF − Tax (− loan this month) = Net Salary"
+            ? "Gross − PF − Tax (− loan this month) + Occasional = Net Salary"
             : isAdmin
-              ? "Basic + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"
-              : "Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction"}
+              ? "Basic + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction · + Occasional → Net"
+              : "Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction · + Occasional → Net"}
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Read label={isTechMgr ? "Gross Salary" : "Total Earning"} value={currency(b.totalEarning)} accent="text-emerald-700" />
           <Read label="Total Deduction" value={currency(b.totalDeduction)} accent="text-red-600" />
+          {(b.occasionalAmount ?? 0) > 0 ? (
+            <Read label="Occasional" value={currency(b.occasionalAmount)} accent="text-sky-700" />
+          ) : null}
           <Read
             label={(d.loanPaymentMode ?? "salary") === "salary" && b.loanFromSalary > 0 ? "Net after loan" : "Net Salary"}
             value={currency(b.totalSalary)}

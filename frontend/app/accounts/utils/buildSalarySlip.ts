@@ -45,12 +45,35 @@ function profileFromSalary(sal?: Partial<EmployeeSalaryDetail> | null) {
   };
 }
 
-function commentsFrom(sal?: { remarks?: string }, unpaidDays = 0, paidDays = 0): string {
+function commentsFrom(
+  sal?: { remarks?: string; occasionalAmount?: number; occasionalRemark?: string },
+  unpaidDays = 0,
+  paidDays = 0,
+): string {
   const bits: string[] = [];
   if (sal?.remarks?.trim()) bits.push(sal.remarks.trim());
+  const occ = Math.max(0, Number(sal?.occasionalAmount) || 0);
+  if (occ > 0) {
+    const note = sal?.occasionalRemark?.trim();
+    bits.push(note ? `Occasional (${note}): ${occ}` : `Occasional amount: ${occ}`);
+  }
   if (paidDays > 0) bits.push(`Your ${paidDays} leave(s) considered as paid/casual leave.`);
   if (unpaidDays > 0) bits.push(`Unpaid leave days: ${unpaidDays}.`);
   return bits.join(" ") || "";
+}
+
+function occasionalEarningLine(sal: {
+  occasionalAmount?: number;
+  occasionalRemark?: string;
+}): SalarySlipLine | null {
+  const amount = Math.max(0, Number(sal.occasionalAmount) || 0);
+  if (amount <= 0) return null;
+  const remark = sal.occasionalRemark?.trim();
+  return {
+    label: "Occasional Amount",
+    amount,
+    ...(remark ? { qty: remark } : {}),
+  };
 }
 
 function commissionQtyLabels(c: SalesCommissionFields) {
@@ -109,6 +132,9 @@ function buildSalesSlipEarnings(
       qty: "Assigned reps",
     });
   }
+
+  const occ = occasionalEarningLine(emp);
+  if (occ) lines.push(occ);
 
   return lines;
 }
@@ -201,6 +227,8 @@ export function buildSalarySlipFromSub(opts: {
       loanPaymentMode: sp?.loanPaymentMode === "cash" ? "cash" : "salary",
       incomeTax: Number(sp?.incomeTax) || 0,
       remarks: sp?.remarks || "",
+      occasionalAmount: Number(sp?.occasionalAmount) || 0,
+      occasionalRemark: sp?.occasionalRemark || "",
     };
     const b = computeSalesEmployeePayroll(emp, salesExtra);
     return {
@@ -248,6 +276,7 @@ export function buildSalarySlipFromSub(opts: {
         ...(ex.loanPositive > 0
           ? [{ label: "Loan (company owes)", amount: ex.loanPositive }]
           : []),
+        ...(occasionalEarningLine(sal) ? [occasionalEarningLine(sal)!] : []),
       ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
       deductions: [
         { label: "Income Tax", amount: 0 },
@@ -272,6 +301,7 @@ export function buildSalarySlipFromSub(opts: {
       : computeSalary(sal);
   const profile = profileFromSalary(sal);
   const home = Number(sal.homeAllowance) || 0;
+  const occLine = occasionalEarningLine(sal);
 
   return {
     companyKey: isTechnical ? salarySlipCompanyForKind(kind, companyKey) : companyKey,
@@ -280,29 +310,32 @@ export function buildSalarySlipFromSub(opts: {
     monthCompact,
     employeeName: sub.label,
     ...profile,
-    earnings: isTechMgr
-      ? buildTechnicalManagerEarnings(sal)
-      : isTechnical
-        ? [
-            { label: "Basic Salary", amount: sal.basic },
-            { label: "Allowances", amount: sal.allowance + home },
-            {
-              label: "Weekday Overtime (1.5x)",
-              amount: b.weekdayOtPay,
-              qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
-            },
-            {
-              label: "Weekend Overtime (2x)",
-              amount: b.weekendOtPay,
-              qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
-            },
-          ]
-        : [
-            { label: "Basic Salary", amount: sal.basic },
-            { label: "Misc Allowance", amount: sal.allowance },
-            { label: "Home Allowance", amount: home },
-            ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
-          ],
+    earnings: [
+      ...(isTechMgr
+        ? buildTechnicalManagerEarnings(sal)
+        : isTechnical
+          ? [
+              { label: "Basic Salary", amount: sal.basic },
+              { label: "Allowances", amount: sal.allowance + home },
+              {
+                label: "Weekday Overtime (1.5x)",
+                amount: b.weekdayOtPay,
+                qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
+              },
+              {
+                label: "Weekend Overtime (2x)",
+                amount: b.weekendOtPay,
+                qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
+              },
+            ]
+          : [
+              { label: "Basic Salary", amount: sal.basic },
+              { label: "Misc Allowance", amount: sal.allowance },
+              { label: "Home Allowance", amount: home },
+              ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
+            ]),
+      ...(occLine ? [occLine] : []),
+    ],
     deductions: isTechMgr
       ? [
           { label: "PF Deduction (8% of Basic)", amount: b.pf },

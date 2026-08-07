@@ -81,8 +81,16 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Common",
     title: "Total Deduction & Net",
     expression:
-      "Total Deduction = Late + (Unpaid Leaves × Day Salary) + Loan (this month) + PF + Income Tax · Net Salary = Total Earning − Total Deduction",
+      "Total Deduction = Late + (Unpaid Leaves × Day Salary) + Loan (this month) + PF + Income Tax · Net Salary = Total Earning − Total Deduction + Occasional Amount",
     appliesTo: "Every employee net salary",
+  },
+  {
+    id: "pay-occasional",
+    section: "Payroll — Common",
+    title: "Occasional Amount",
+    expression:
+      "Occasional Amount is typed by Accounts · added to Net only · does not affect PF, tax, late, unpaid leave, or day salary bases · keep Occasion remark for why it was paid",
+    appliesTo: "Every salary sub-head editor (Technical / Admin / Sales / Executive)",
   },
 
   // ---- Payroll — Technical Team ----
@@ -123,7 +131,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Technical Manager",
     title: "Net Salary",
     expression:
-      "PF = 8% of Basic · Taxable Income = Gross − Medical · Net = Gross − PF − Tax (− loan this month)",
+      "PF = 8% of Basic · Taxable Income = Gross − Medical · Net = Gross − PF − Tax (− loan this month) + Occasional",
     appliesTo: "Technical Manager employee editor",
   },
 
@@ -181,7 +189,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Executive",
     title: "Total Due (Head Amount)",
     expression:
-      "Total Due = Total Salary + Loan+ve − Loan−ve · Loan+ve adds to head total · Loan−ve deducts from head total",
+      "Total Due = Total Salary + Loan+ve − Loan−ve + Occasional · Loan+ve adds to head total · Loan−ve deducts · Occasional adds to net only",
     appliesTo: "Executive head / sub-head amount on Income Statement",
   },
   {
