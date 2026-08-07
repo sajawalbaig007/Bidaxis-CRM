@@ -49,6 +49,7 @@ type User = {
   employeeCode: string | null;
   fatherName: string | null;
   currentAddress: string | null;
+  contactNo: string | null;
   cnic:       string | null;
   cnicPdfUrl: string | null;
   profilePic: string | null;
@@ -78,6 +79,7 @@ const EMPTY_USER_FORM = {
   employeeCode: "",
   fatherName: "",
   currentAddress: "",
+  contactNo: "",
   csrCode: "",
   cnic: "",
   cnicPdfUrl: "",
@@ -426,7 +428,7 @@ export default function UsersPage() {
 
       const formatted: User[] = (Array.isArray(data) ? data : []).map((u: {
         id: string; name: string; email: string; role: string; csrCode?: string;
-        employeeCode?: string; fatherName?: string; currentAddress?: string;
+        employeeCode?: string; fatherName?: string; currentAddress?: string; contactNo?: string;
         cnic?: string; cnicPdfUrl?: string; profilePic?: string;
         isActive?: boolean; isOnline?: boolean; lastActive?: string;
         browser?: string; tabId?: string; openedAt?: string;
@@ -454,6 +456,7 @@ export default function UsersPage() {
         employeeCode: u.employeeCode ?? null,
         fatherName: u.fatherName ?? null,
         currentAddress: u.currentAddress ?? null,
+        contactNo: u.contactNo ?? null,
         cnic:       u.cnic       ?? null,
         cnicPdfUrl: u.cnicPdfUrl ?? null,
         profilePic: u.profilePic ?? null,
@@ -545,7 +548,8 @@ export default function UsersPage() {
       u.email.toLowerCase().includes(q) ||
       (u.employeeCode ?? "").toLowerCase().includes(q) ||
       (u.csrCode ?? "").toLowerCase().includes(q) ||
-      (u.fatherName ?? "").toLowerCase().includes(q)
+      (u.fatherName ?? "").toLowerCase().includes(q) ||
+      (u.contactNo ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -621,6 +625,7 @@ export default function UsersPage() {
         employeeCode: form.employeeCode.trim() || null,
         fatherName: form.fatherName.trim() || null,
         currentAddress: form.currentAddress.trim() || null,
+        contactNo: form.contactNo.trim() || null,
         csrCode:    role === "csr" || role === "estimator" ? (form.csrCode.trim() || null) : null,
         cnic:       form.cnic.trim() || null,
         cnicPdfUrl: form.cnicPdfUrl || null,
@@ -643,7 +648,34 @@ export default function UsersPage() {
 
       toast.success(editingUser ? "User updated." : "User created.");
       invalidateAuthMeCache();
-      fetchUsers();
+
+      const savedId = editingUser?.id ?? (data.user?.id as string | undefined) ?? (data.id as string | undefined);
+      const nextProfile = {
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        employeeCode: form.employeeCode.trim() || null,
+        fatherName: form.fatherName.trim() || null,
+        currentAddress: form.currentAddress.trim() || null,
+        contactNo: form.contactNo.trim() || null,
+        csrCode: role === "csr" || role === "estimator" ? (form.csrCode.trim() || null) : null,
+        cnic: form.cnic.trim() || null,
+        cnicPdfUrl: form.cnicPdfUrl || null,
+        profilePic: form.profilePic || null,
+        allowedIps: form.allowedIps.map(v => v.trim()).filter(Boolean).slice(0, 5),
+      };
+      if (savedId) {
+        setUsers(prev => {
+          const exists = prev.some(u => u.id === savedId);
+          if (exists) {
+            return prev.map(u => (u.id === savedId ? { ...u, ...nextProfile } : u));
+          }
+          return prev;
+        });
+        setDetailUser(prev => (prev?.id === savedId ? { ...prev, ...nextProfile } : prev));
+      }
+
+      await fetchUsers();
       setShowModal(false); setEditingUser(null);
       setForm({ ...EMPTY_USER_FORM });
       setShowPassword(false);
@@ -1073,6 +1105,7 @@ export default function UsersPage() {
                           </div>
                           <p className="text-xs text-gray-400">{u.email}</p>
                           {u.fatherName && <p className="text-[10px] text-gray-400 mt-0.5">S/O {u.fatherName}</p>}
+                          {u.contactNo && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{u.contactNo}</p>}
                           {u.cnic && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{u.cnic}</p>}
                         </div>
                       </div>
@@ -1115,7 +1148,7 @@ export default function UsersPage() {
                     {/* ACTIONS */}
                     <td className="px-4 sm:px-6 py-4 overflow-visible">
                       <div className="hidden md:flex items-center justify-end gap-2">
-                        <ActionTip label="View Details" onClick={() => setDetailUser(u)} className={actionBtnStyles.details}>
+                        <ActionTip label="View Details" onClick={() => setDetailUser(users.find(x => x.id === u.id) ?? u)} className={actionBtnStyles.details}>
                           Details
                         </ActionTip>
                         <ActionTip
@@ -1131,6 +1164,7 @@ export default function UsersPage() {
                               employeeCode: u.employeeCode ?? "",
                               fatherName: u.fatherName ?? "",
                               currentAddress: u.currentAddress ?? "",
+                              contactNo: u.contactNo ?? "",
                               csrCode: u.csrCode ?? "",
                               cnic: u.cnic ?? "",
                               cnicPdfUrl: u.cnicPdfUrl ?? "",
@@ -1198,7 +1232,11 @@ export default function UsersPage() {
                         {openMenu === u.id && (
                           <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
                             {[
-                              { label:"View Details", action:() => { setDetailUser(u); setOpenMenu(null); }},
+                              { label:"View Details", action:() => {
+                                const latest = users.find(x => x.id === u.id) ?? u;
+                                setDetailUser(latest);
+                                setOpenMenu(null);
+                              }},
                               { label:"Edit User",    action:() => {
                                 setEditingUser(u);
                                 setForm({
@@ -1210,6 +1248,7 @@ export default function UsersPage() {
                                   employeeCode: u.employeeCode ?? "",
                                   fatherName: u.fatherName ?? "",
                                   currentAddress: u.currentAddress ?? "",
+                                  contactNo: u.contactNo ?? "",
                                   csrCode: u.csrCode ?? "",
                                   cnic: u.cnic ?? "",
                                   cnicPdfUrl: u.cnicPdfUrl ?? "",
@@ -1282,21 +1321,36 @@ export default function UsersPage() {
                 {[
                   { label:"Email",          value: detailUser.email  },
                   { label:"Role",           value: detailUser.role   },
+                  { label:"Company",        value: companyForRole(detailUser.role) === "GPS" ? "GPS · Global" : "BEM Solutions" },
                   { label:"Account Status", value: detailUser.status },
-                  ...(detailUser.employeeCode ? [{ label: "Employee Code", value: detailUser.employeeCode }] : []),
-                  ...(detailUser.fatherName ? [{ label: "Father Name", value: detailUser.fatherName }] : []),
-                  ...(detailUser.currentAddress ? [{ label: "Current Address", value: detailUser.currentAddress }] : []),
-                  ...(detailUser.role === "CSR" && detailUser.csrCode
-                    ? [{ label: "CSR Code", value: detailUser.csrCode }]
-                    : detailUser.role === "Estimator" && detailUser.csrCode
-                      ? [{ label: "Estimator Code", value: detailUser.csrCode }]
-                      : []),
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[#F8F9FC] rounded-2xl p-4">
                     <p className="text-xs text-gray-400 mb-1">{label}</p>
                     <h3 className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{value}</h3>
                   </div>
                 ))}
+
+                <div className="bg-[#F8F9FC] rounded-2xl p-4 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Employee Info</p>
+                  {[
+                    { label: "Employee Code", value: detailUser.employeeCode },
+                    { label: "Father Name", value: detailUser.fatherName },
+                    { label: "Contact No", value: detailUser.contactNo },
+                    { label: "Current Address", value: detailUser.currentAddress },
+                    ...(detailUser.role === "CSR" && detailUser.csrCode
+                      ? [{ label: "CSR Code", value: detailUser.csrCode }]
+                      : detailUser.role === "Estimator" && detailUser.csrCode
+                        ? [{ label: "Estimator Code", value: detailUser.csrCode }]
+                        : []),
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <h3 className={`text-sm font-medium whitespace-pre-wrap ${value ? "text-gray-700" : "text-gray-300"}`}>
+                        {value || "—"}
+                      </h3>
+                    </div>
+                  ))}
+                </div>
 
                 {(detailUser.cnic || detailUser.cnicPdfUrl) && (
                   <div className="bg-[#F8F9FC] rounded-2xl p-4">
@@ -1643,6 +1697,19 @@ export default function UsersPage() {
                       onChange={e => setForm({ ...form, fatherName: e.target.value })}
                       placeholder="Enter father name"
                       className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 block mb-2">
+                      Contact No <span className="text-xs text-gray-400">(optional)</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={form.contactNo}
+                      onChange={e => setForm({ ...form, contactNo: e.target.value })}
+                      placeholder="e.g. 0300-1234567"
+                      maxLength={20}
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 outline-none focus:border-[#B8112D] text-sm font-mono"
                     />
                   </div>
                   <div>

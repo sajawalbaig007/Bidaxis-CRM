@@ -178,7 +178,7 @@ function parseTemporaryHours(raw: unknown): 9 | 10 | null {
 export const register = async (req: AuthRequest, res: Response) => {
   try {
     const {
-      name, email, password, role, csrCode, employeeCode, fatherName, currentAddress,
+      name, email, password, role, csrCode, employeeCode, fatherName, currentAddress, contactNo,
       cnic, cnicPdfUrl, profilePic,
       allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours,
     } = req.body;
@@ -258,6 +258,7 @@ export const register = async (req: AuthRequest, res: Response) => {
       employeeCode: typeof employeeCode === "string" && employeeCode.trim() ? employeeCode.trim() : null,
       fatherName: typeof fatherName === "string" && fatherName.trim() ? fatherName.trim() : null,
       currentAddress: typeof currentAddress === "string" && currentAddress.trim() ? currentAddress.trim() : null,
+      contactNo: typeof contactNo === "string" && contactNo.trim() ? contactNo.trim() : null,
       cnic: cnic?.trim() || null,
       cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
       profilePic: profilePic || null,
@@ -278,6 +279,7 @@ export const register = async (req: AuthRequest, res: Response) => {
         employeeCode: true,
         fatherName: true,
         currentAddress: true,
+        contactNo: true,
         cnic: true,
         cnicPdfUrl: true,
         profilePic: true,
