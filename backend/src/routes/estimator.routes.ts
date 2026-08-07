@@ -12,6 +12,7 @@ import {
   pauseAssignmentTimer,
   startAssignmentTimer,
   pauseOtherRunningTimersForEstimator,
+  pauseTimersOnLeadIds,
   syncPhaseFromAssignments,
   type TechnicalAssignment,
 } from "../utils/technicalEstimators";
@@ -215,7 +216,14 @@ router.put("/project/:id/timer", async (req: AuthRequest, res) => {
     }
 
     if (action === "start") {
-      await pauseOtherRunningTimersForEstimator(me, leadId);
+      const pauseIds = Array.isArray(req.body?.pauseProjectIds)
+        ? (req.body.pauseProjectIds as unknown[]).map((x) => String(x)).filter((id) => id && id !== leadId)
+        : [];
+      if (pauseIds.length > 0) {
+        await pauseTimersOnLeadIds(me, pauseIds);
+      } else {
+        await pauseOtherRunningTimersForEstimator(me, leadId);
+      }
       list[idx] = startAssignmentTimer(current);
     } else {
       list[idx] = pauseAssignmentTimer(current);
