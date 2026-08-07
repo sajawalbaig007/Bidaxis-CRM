@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function useFixedPopover(panelWidth = 260, panelHeight = 180) {
+export function useFixedPopover(
+  panelWidth = 260,
+  panelHeight = 180,
+  align: "start" | "end" = "start",
+) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -12,13 +16,15 @@ export function useFixedPopover(panelWidth = 260, panelHeight = 180) {
     const anchor = anchorRef.current;
     if (!anchor) return;
     const rect = anchor.getBoundingClientRect();
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - panelWidth - 8));
+    const preferredLeft = align === "end" ? rect.right - panelWidth : rect.left;
+    const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - panelWidth - 8));
     const spaceBelow = window.innerHeight - rect.bottom;
     if (spaceBelow < panelHeight && rect.top > panelHeight) {
       setStyle({
         position: "fixed",
         bottom: window.innerHeight - rect.top + 6,
         left,
+        width: panelWidth,
         zIndex: 9999,
       });
     } else {
@@ -26,10 +32,11 @@ export function useFixedPopover(panelWidth = 260, panelHeight = 180) {
         position: "fixed",
         top: rect.bottom + 6,
         left,
+        width: panelWidth,
         zIndex: 9999,
       });
     }
-  }, [panelWidth, panelHeight]);
+  }, [panelWidth, panelHeight, align]);
 
   useEffect(() => {
     if (!open) return;

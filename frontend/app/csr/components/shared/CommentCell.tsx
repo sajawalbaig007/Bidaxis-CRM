@@ -12,7 +12,13 @@ interface CommentCellProps {
   noteHistory?: NoteEntry[];
   noteCount?: number;
   comment?: string;
-  apiRole?: "csr" | "admin";
+  apiRole?: "csr" | "admin" | "estimator";
+  /** View-only — hide add / edit / delete (e.g. technical reading admin bid instructions). */
+  readOnly?: boolean;
+  /** Show only `comment` (e.g. projectNotes bid instruction) — never load/thread notes. */
+  commentOnly?: boolean;
+  /** Never lazy-fetch lead notes — use only `noteHistory` / `comment` from props. */
+  skipNotesFetch?: boolean;
   onAddNote?:    (id: string, text: string) => Promise<unknown>;
   onSave?:       (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string) => void;
@@ -30,7 +36,9 @@ function fmtTime(iso: string): string {
 }
 
 export default function CommentCell({
-  id, noteHistory, noteCount, comment, apiRole = "csr", onAddNote, onSave, onNoteUpdated, onNoteDeleted,
+  id, noteHistory, noteCount, comment, apiRole = "csr", readOnly = false, commentOnly = false,
+  skipNotesFetch = false,
+  onAddNote, onSave, onNoteUpdated, onNoteDeleted,
 }: CommentCellProps) {
   const [open,        setOpen]        = useState(false);
   const [draft,       setDraft]       = useState("");
@@ -50,11 +58,13 @@ export default function CommentCell({
   const fetchStartedRef = useRef(false);
 
   /* ── Notes to display in popup ── */
-  const displayNotes = (localNotes !== null ? localNotes : (noteHistory ?? []))
-    .filter(n => n.text?.trim())
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const legacyComment = comment?.trim() && !displayNotes.some(n => n.text === comment.trim())
-    ? comment.trim()
+  const displayNotes = commentOnly
+    ? []
+    : (localNotes !== null ? localNotes : (noteHistory ?? []))
+        .filter(n => n.text?.trim())
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const legacyComment = comment?.trim()
+    ? (commentOnly || !displayNotes.some(n => n.text === comment.trim()) ? comment.trim() : null)
     : null;
   const latestNote   = displayNotes[0];
   const latestPreview = latestNote?.text?.trim()
@@ -65,7 +75,7 @@ export default function CommentCell({
 
   /* ── Count badge ── */
   const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
-  const displayCount   = localNotes !== null ? localNotes.length : preloadedCount;
+  const displayCount   = commentOnly ? 0 : (localNotes !== null ? localNotes.length : preloadedCount);
   const count          = displayCount + (legacyComment ? 1 : 0);
 
   /* Sync parent note updates (status change / optimistic add) */
@@ -121,6 +131,7 @@ export default function CommentCell({
   }, [open]);
 
   const loadNotesIfNeeded = async () => {
+    if (commentOnly || skipNotesFetch) return;
     if (localNotes !== null || fetchStartedRef.current) return;
 
     const loadedCount = (noteHistory ?? []).filter(n => n.text?.trim()).length;
@@ -149,7 +160,7 @@ export default function CommentCell({
       });
       setLocalNotes(noteHistory);
     } catch {
-      setLocalNotes([]);
+      setLocalNotes(noteHistory ?? []);
     } finally {
       setNotesLoading(false);
     }
@@ -224,9 +235,9 @@ export default function CommentCell({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-amber-50">
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <StickyNote size={14} className="text-amber-600" />
-          <span className="text-[13px] font-bold text-amber-800">Notes</span>
+          <span className="text-[13px] font-bold text-amber-800">{readOnly ? "Bid Instruction" : "Notes"}</span>
           {count > 0 && (
             <span className="bg-amber-200 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
               {count}
@@ -297,7 +308,7 @@ export default function CommentCell({
                     <Clock size={9} />{fmtTime(note.createdAt)}
                   </p>
                 )}
-                {(onAddNote || onNoteUpdated) && (
+                {(!readOnly && (onAddNote || onNoteUpdated)) && (
                   <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => { setEditId(note.id); setEditText(note.text); }}
@@ -322,6 +333,7 @@ export default function CommentCell({
       </div>
 
       {/* Add note */}
+      {!readOnly && (
       <div className="border-t border-gray-100 p-3 bg-gray-50/50">
         <textarea
           value={draft}
@@ -340,6 +352,7 @@ export default function CommentCell({
           {saving ? "Saving…" : "Add Note"}
         </button>
       </div>
+      )}
     </div>
   );
 

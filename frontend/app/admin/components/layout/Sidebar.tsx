@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import {
   LayoutDashboard, Users, FileText, BarChart3,
   FolderKanban, Upload, Trash2, Settings,
-  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X,
+  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X, StickyNote,
 } from "lucide-react";
 import API from "@/lib/api";
 import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
@@ -48,11 +48,21 @@ type ScheduledCall = {
   csrId: string;
 };
 
+type TechnicalNoteAlert = {
+  id: string;
+  leadId: string;
+  projectTitle: string;
+  projectCode: string;
+  preview: string;
+  createdAt: string;
+};
+
 const TODAY = new Date().toISOString().split("T")[0];
 
 let _cachedScheduledCalls: ScheduledCall[] = [];
+let _cachedTechNotes: TechnicalNoteAlert[] = [];
 let _lastNotifFetch = 0;
-const NOTIF_CACHE_TTL = 60_000;
+const NOTIF_CACHE_TTL = 20_000;
 
 function filterDismissedCalls(all: ScheduledCall[]) {
   const dismissed = getDismissedNotificationIds();
@@ -75,6 +85,11 @@ export default function DashboardSidebar() {
   const [scheduledCalls, setScheduledCalls] = useState<ScheduledCall[]>(() =>
     Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL ? filterDismissedCalls(_cachedScheduledCalls) : []
   );
+  const [techNotes, setTechNotes] = useState<TechnicalNoteAlert[]>(() =>
+    Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL
+      ? _cachedTechNotes.filter((n) => !getDismissedNotificationIds().has(n.id))
+      : []
+  );
   const totalUnread   = useChatUnreadBadge();
   const chatEnabled   = useChatEnabled();
   const profileRef    = useRef<HTMLDivElement>(null);
@@ -93,9 +108,13 @@ export default function DashboardSidebar() {
     API.get("/admin/notifications")
       .then(res => {
         const all = (res.data.scheduledCalls ?? []) as ScheduledCall[];
+        const notes = (res.data.technicalNotes ?? []) as TechnicalNoteAlert[];
         _cachedScheduledCalls = all;
+        _cachedTechNotes = notes;
         _lastNotifFetch = Date.now();
+        const dismissed = getDismissedNotificationIds();
         setScheduledCalls(filterDismissedCalls(all));
+        setTechNotes(notes.filter((n) => !dismissed.has(n.id)));
       })
       .catch(() => {});
   };
@@ -114,10 +133,15 @@ export default function DashboardSidebar() {
 
     if (Date.now() - _lastNotifFetch < NOTIF_CACHE_TTL) {
       setScheduledCalls(filterDismissedCalls(_cachedScheduledCalls));
+      setTechNotes(_cachedTechNotes.filter((n) => !getDismissedNotificationIds().has(n.id)));
       return () => window.removeEventListener("crm-auth-me-updated", onAuthUpdated);
     }
     fetchNotifications();
-    return () => window.removeEventListener("crm-auth-me-updated", onAuthUpdated);
+    const poll = window.setInterval(fetchNotifications, 25_000);
+    return () => {
+      window.removeEventListener("crm-auth-me-updated", onAuthUpdated);
+      window.clearInterval(poll);
+    };
   }, []);
 
   useEffect(() => {
@@ -155,8 +179,14 @@ export default function DashboardSidebar() {
 
   const handleClearNotifications = () => {
     clearDismissedNotifications();
+    for (const n of techNotes) {
+      void API.put(`/admin/lead/${n.leadId}/technical-notes/read`).catch(() => {});
+      dismissNotification(n.id);
+    }
     _cachedScheduledCalls = [];
+    _cachedTechNotes = [];
     setScheduledCalls([]);
+    setTechNotes([]);
     toast.success("Notifications cleared.");
   };
 
@@ -164,27 +194,34 @@ export default function DashboardSidebar() {
     dismissNotification(id);
     _cachedScheduledCalls = _cachedScheduledCalls.filter(c => c.id !== id);
     setScheduledCalls(prev => prev.filter(c => c.id !== id));
+    const note = techNotes.find((n) => n.id === id);
+    if (note) {
+      void API.put(`/admin/lead/${note.leadId}/technical-notes/read`).catch(() => {});
+      _cachedTechNotes = _cachedTechNotes.filter((n) => n.id !== id);
+      setTechNotes((prev) => prev.filter((n) => n.id !== id));
+    }
   };
 
-  const hasNotifications = scheduledCalls.length > 0;
+  const hasNotifications = scheduledCalls.length > 0 || techNotes.length > 0;
+  const bellCount = scheduledCalls.length + techNotes.length;
 
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
-        <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
+        <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-2">
 
           {/* Logo */}
-          <div className="flex-1 min-w-0 flex items-center">
-          <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+          <div className="shrink-0 flex items-center max-w-[40%] sm:max-w-none">
+          <Link href={BASE} prefetch={false} className="flex items-center gap-2 xl:gap-3 min-w-0">
+            <div className="w-9 h-9 xl:w-11 xl:h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
               <Image
                 src="/images/image.png" alt="logo"
                 width={44} height={44}
                 className="object-cover w-full h-full rounded-[10px] bg-white"
               />
             </div>
-            <div className="hidden sm:block">
-              <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
+            <div className="hidden xl:block min-w-0">
+              <h2 className="text-[18px] 2xl:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
                 CRM Dashboard
               </h2>
               <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
@@ -194,11 +231,11 @@ export default function DashboardSidebar() {
           </Link>
           </div>
 
-          <div className="min-w-0 shrink">
+          <div className="flex-1 min-w-0 overflow-hidden px-1">
             <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
           </div>
 
-          <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
+          <div className="shrink-0 flex items-center justify-end gap-1.5 sm:gap-2">
           <ThemeToggle />
 
           {/* Chat button */}
@@ -224,9 +261,9 @@ export default function DashboardSidebar() {
               title="Scheduled meetings"
             >
               <Bell size={17} />
-              {scheduledCalls.length > 0 && (
+              {bellCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
-                  {scheduledCalls.length > 9 ? "9+" : scheduledCalls.length}
+                  {bellCount > 9 ? "9+" : bellCount}
                 </span>
               )}
             </button>
@@ -236,12 +273,17 @@ export default function DashboardSidebar() {
                 <div className="flex items-center justify-between px-4 py-3 border-b border-crm-border-subtle">
                   <div className="flex items-center gap-2">
                     <Bell size={14} className="text-[#B8112D]" />
-                    <span className="text-[13px] font-bold text-[#0F172A]">Meetings</span>
+                    <span className="text-[13px] font-bold text-[#0F172A]">Notifications</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {todayCalls.length > 0 && (
                       <span className="text-[11px] bg-[#FFF1F3] text-[#B8112D] font-bold px-2 py-0.5 rounded-full">
                         {todayCalls.length} today
+                      </span>
+                    )}
+                    {techNotes.length > 0 && (
+                      <span className="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                        {techNotes.length} tech
                       </span>
                     )}
                     {hasNotifications && (
@@ -257,11 +299,56 @@ export default function DashboardSidebar() {
                 </div>
 
                 <div className="max-h-[360px] overflow-y-auto">
-                  {scheduledCalls.length === 0 ? (
+                  {techNotes.length > 0 && (
+                    <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">Notes by Technical</p>
+                    </div>
+                  )}
+                  {techNotes.map((n) => (
+                    <div
+                      key={n.id}
+                      className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 bg-[#FFFBF5]"
+                    >
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-amber-100 text-amber-800">
+                        <StickyNote size={14} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-[#0F172A] truncate">
+                          {n.projectCode ? `${n.projectCode} · ` : ""}{n.projectTitle}
+                        </p>
+                        <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">{n.preview}</p>
+                        <Link
+                          href="/admin/active-projects"
+                          onClick={() => {
+                            dismissOne(n.id);
+                            setBellOpen(false);
+                          }}
+                          className="inline-block mt-1 text-[11px] font-bold text-[#B8112D] hover:underline"
+                        >
+                          Open Project DB
+                        </Link>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => dismissOne(n.id)}
+                        className="w-6 h-6 rounded-lg text-gray-300 hover:text-[#B8112D] hover:bg-[#FFF1F3] flex items-center justify-center shrink-0"
+                        title="Dismiss"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {scheduledCalls.length > 0 && (
+                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Meetings</p>
+                    </div>
+                  )}
+                  {scheduledCalls.length === 0 && techNotes.length === 0 ? (
                     <div className="py-8 text-center">
                       <Bell size={24} className="text-gray-200 mx-auto mb-2" />
-                      <p className="text-gray-400 text-[13px]">No scheduled meetings</p>
-                      <p className="text-gray-300 text-[11px] mt-1">CSR important leads with call times</p>
+                      <p className="text-gray-400 text-[13px]">No notifications</p>
+                      <p className="text-gray-300 text-[11px] mt-1">Meetings & technical notes appear here</p>
                     </div>
                   ) : (
                     scheduledCalls.map((c) => {
@@ -334,8 +421,8 @@ export default function DashboardSidebar() {
                   initials
                 )}
               </div>
-              <div className="hidden lg:block text-left">
-                <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
+              <div className="hidden 2xl:block text-left">
+                <p className="text-[12px] font-bold leading-none text-crm-text max-w-[110px] truncate">
                   {user?.name ?? "Admin"}
                 </p>
                 <p className="text-[10px] text-crm-text-muted mt-1">Administration</p>

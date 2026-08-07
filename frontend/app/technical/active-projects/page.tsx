@@ -1,36 +1,53 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
-  Calculator, Send, Layers, UserPlus, Check,
+  Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
 } from "lucide-react";
 
 import TechnicalSidebar from "../components/layout/Sidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
+import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
+import { useFixedPopover } from "@/app/csr/hooks/useFixedPopover";
 import {
   TECHNICAL_PROJECT_COLS,
+  TECHNICAL_ASSIGNED_COLS,
   CsrColGroup,
   CSR_THEAD,
 } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ProjectDetailCell,
+  ProjectWorkStatusBadge,
+  DeadlineTimingBadge,
   PROJECT_TABLE_CARD,
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
 import AssignEstimatorsModal from "../components/AssignEstimatorsModal";
 import API from "@/lib/api";
+import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
+import {
+  emptyWorkbench,
+  parsePayments,
+  type ProjectWorkbenchData,
+  type ProjectWorkStatus,
+} from "@/lib/projectFields";
 import {
   matchesTechnicalTab,
   parseTechnicalAssignments,
+  parseTechnicalNotes,
   projectReceiveDate,
+  formatDivisionSummary,
+  formatElapsed,
+  assignmentElapsedSeconds,
   type TechnicalAssignment,
   type TechnicalEstimator,
   type TechnicalWorkflowTab,
@@ -52,10 +69,18 @@ type Project = {
   projectScope: string | null;
   projectPhase: string | null;
   projectDeadline: string | null;
+  deadlineTiming?: string | null;
   projectNotes: string | null;
   projectPayments: string | null;
+  projectBudget?: string | null;
+  projectSource?: string | null;
+  projectWorkStatus?: string | null;
+  takeoffDeadline?: string | null;
+  pricingDeadline?: string | null;
+  qaDeadline?: string | null;
   technicalReceivedAt?: string | null;
   technicalAssignments?: string | null;
+  technicalNotes?: string | null;
   createdAt?: string;
   updatedAt: string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
@@ -78,6 +103,33 @@ const formatDate = (iso: string | null | undefined) => {
 
 function notesToHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
   return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+}
+
+function projectToWorkbench(p: Project): ProjectWorkbenchData {
+  return {
+    id: p.id,
+    name: p.name ?? "",
+    company: p.company ?? "",
+    phone: p.phone ?? "",
+    email: p.email ?? "",
+    ownerName: p.ownerName ?? "",
+    state: p.state ?? "",
+    projectCode: p.projectCode || p.clientCode || "",
+    projectTitle: p.projectTitle ?? "",
+    projectScope: p.projectScope ?? "",
+    interestedService: p.interestedService ?? "",
+    projectBudget: p.projectBudget ?? "",
+    projectDeadline: (p.projectDeadline ?? "").split("T")[0],
+    deadlineTiming: (p.deadlineTiming === "morning" || p.deadlineTiming === "cob" ? p.deadlineTiming : "") as "" | "morning" | "cob",
+    projectPhase: p.projectPhase ?? "not_started",
+    takeoffDeadline: p.takeoffDeadline ?? "",
+    pricingDeadline: p.pricingDeadline ?? "",
+    qaDeadline: p.qaDeadline ?? "",
+    projectPayments: parsePayments(p.projectPayments),
+    assignedTo: p.csr?.id,
+    projectSource: p.projectSource ?? "",
+    projectNotes: p.projectNotes ?? "",
+  };
 }
 
 function projectAsRow(p: Project) {
@@ -106,18 +158,24 @@ function AssignedToCell({
   onAssign,
   showTakeoff,
   onToggleTakeoff,
+  detailed = false,
 }: {
   assignments: TechnicalAssignment[];
   onAssign: () => void;
   showTakeoff?: boolean;
   onToggleTakeoff?: (estimatorId: string, done: boolean) => void;
+  /** Assigned tab — show Done / Pending clearly for each estimator */
+  detailed?: boolean;
 }) {
+  const panelW = 280;
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 260, "end");
+
   if (assignments.length === 0) {
     return (
       <button
         type="button"
         onClick={onAssign}
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] transition-colors shadow-sm shadow-red-100"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] transition-colors shadow-sm shadow-red-100"
       >
         <UserPlus size={12} />
         Assign
@@ -125,44 +183,261 @@ function AssignedToCell({
     );
   }
 
-  return (
-    <div className="space-y-1.5 min-w-0">
-      {assignments.map((a) => (
-        <div
-          key={a.estimatorId}
-          className="flex items-center gap-1.5 min-w-0 bg-[#F8F9FC] rounded-lg px-2 py-1.5 border border-gray-100"
-        >
-          <div className="w-6 h-6 rounded-full bg-[#B8112D]/15 text-[#B8112D] flex items-center justify-center text-[10px] font-bold shrink-0">
-            {a.estimatorName.charAt(0)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold text-[#0F172A] truncate">{a.estimatorName}</p>
-            <p className="text-[9px] text-gray-400 truncate">
-              {a.manHours ? `${a.manHours}h` : "—"} · {formatDate(a.deadline)}
-            </p>
-          </div>
-          {showTakeoff && onToggleTakeoff && (
-            <button
-              type="button"
-              title={a.takeoffDone ? "Mark remaining" : "Mark takeoff done"}
-              onClick={() => onToggleTakeoff(a.estimatorId, !a.takeoffDone)}
-              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                a.takeoffDone
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-gray-100 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600"
-              }`}
-            >
-              <Check size={12} />
-            </button>
+  const primary = assignments[0];
+  const extra = assignments.length - 1;
+  const doneCount = assignments.filter((a) => a.takeoffDone).length;
+  const canToggle = Boolean((showTakeoff || detailed) && onToggleTakeoff);
+
+  const popup =
+    open &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={style}
+        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-2.5 py-1.5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
+            Estimators ({assignments.length})
+          </span>
+          {detailed && (
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+              {doneCount}/{assignments.length} done
+            </span>
           )}
         </div>
-      ))}
+        {assignments.map((a) => {
+          const elapsed = formatElapsed(assignmentElapsedSeconds(a));
+          const running = !!a.timerStartedAt;
+          return (
+            <div
+              key={a.estimatorId}
+              className="flex items-start gap-2 min-w-0 px-2.5 py-2 border-b border-gray-50 last:border-0"
+            >
+              <div className="w-7 h-7 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
+                {a.estimatorName.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-[12px] font-bold text-[#0F172A] truncate leading-tight">
+                  {a.estimatorName}
+                </p>
+                <div className="flex flex-wrap items-center gap-1">
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${
+                      a.takeoffDone
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-amber-100 text-amber-900"
+                    }`}
+                  >
+                    {a.takeoffDone ? "Completed" : "Pending"}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums ${
+                      running
+                        ? "bg-sky-100 text-sky-800"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    Time {elapsed}
+                    {running ? " · Live" : ""}
+                  </span>
+                  {a.divisions?.length ? (
+                    <span className="text-[10px] font-semibold text-gray-600 truncate max-w-[100px]">
+                      {formatDivisionSummary(a.divisions)}
+                    </span>
+                  ) : null}
+                </div>
+                {a.workDetail ? (
+                  <p className="text-[10px] text-gray-600 line-clamp-2 leading-snug">{a.workDetail}</p>
+                ) : null}
+              </div>
+              {canToggle && onToggleTakeoff && (
+                <button
+                  type="button"
+                  title={a.takeoffDone ? "Set back to pending" : "Mark completed"}
+                  onClick={() => onToggleTakeoff(a.estimatorId, !a.takeoffDone)}
+                  className={`h-7 px-2 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-bold gap-1 ${
+                    a.takeoffDone
+                      ? "bg-amber-500 text-white hover:bg-amber-600"
+                      : "bg-emerald-600 text-white hover:bg-emerald-700"
+                  }`}
+                >
+                  {a.takeoffDone ? (
+                    <>
+                      <RotateCcw size={11} /> Pending
+                    </>
+                  ) : (
+                    <>
+                      <Check size={12} /> Done
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <div className="border-t border-gray-100 px-2.5 py-2">
+          <button
+            type="button"
+            onClick={() => onAssign()}
+            className="w-full h-8 rounded-lg bg-[#B8112D] text-white text-[11px] font-bold hover:bg-[#a30f27] inline-flex items-center justify-center gap-1.5"
+          >
+            <UserPlus size={12} />
+            Reassign
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
+
+  return (
+    <>
+      <div className="flex items-center gap-1 min-w-0 max-w-full">
+        <button
+          ref={anchorRef}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+          className="flex items-center gap-1.5 min-w-0 flex-1 max-w-[170px] rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#B8112D]/40 transition-colors text-left"
+          title="View estimators"
+        >
+          <div className="flex items-center -space-x-1.5 shrink-0">
+            {assignments.slice(0, 2).map((a) => (
+              <div
+                key={a.estimatorId}
+                className="w-5 h-5 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[9px] font-bold border border-white"
+              >
+                {a.estimatorName.charAt(0)}
+              </div>
+            ))}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold text-[#0F172A] truncate leading-tight">
+              {primary.estimatorName}
+            </p>
+            <p className="text-[9px] font-semibold truncate leading-tight">
+              {detailed ? (
+                <span className={primary.takeoffDone ? "text-emerald-700" : "text-amber-700"}>
+                  {primary.takeoffDone ? "Completed" : "Pending"}
+                  {` · ${formatElapsed(assignmentElapsedSeconds(primary))}`}
+                  {extra > 0 ? ` · ${doneCount}/${assignments.length}` : ""}
+                </span>
+              ) : (
+                <span className="text-gray-600">
+                  {primary.manHours ? `${primary.manHours}h` : "—"}
+                  {extra > 0 ? ` · ${assignments.length}` : ""}
+                </span>
+              )}
+            </p>
+          </div>
+          {extra > 0 && (
+            <span className="shrink-0 h-5 min-w-[20px] px-1 rounded-md bg-[#B8112D] text-white text-[10px] font-bold flex items-center justify-center">
+              +{extra}
+            </span>
+          )}
+        </button>
+        {canToggle && onToggleTakeoff && assignments.length === 1 && (
+          <button
+            type="button"
+            title={primary.takeoffDone ? "Set back to pending" : "Mark completed"}
+            onClick={() => onToggleTakeoff(primary.estimatorId, !primary.takeoffDone)}
+            className={`h-6 px-1.5 rounded-md flex items-center justify-center shrink-0 text-[9px] font-bold ${
+              primary.takeoffDone
+                ? "bg-amber-500 text-white hover:bg-amber-600"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            }`}
+          >
+            {primary.takeoffDone ? <RotateCcw size={10} /> : <Check size={11} />}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onAssign}
+          className="h-6 px-1.5 rounded-md bg-[#B8112D] text-white flex items-center justify-center shrink-0 hover:bg-[#a30f27] text-[9px] font-bold gap-0.5"
+          title="Reassign"
+        >
+          <UserPlus size={11} />
+        </button>
+      </div>
+      {popup}
+    </>
+  );
+}
+
+function AssignmentHoursCell({ assignments }: { assignments: TechnicalAssignment[] }) {
+  if (assignments.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  const first = assignments[0];
+  const extra = assignments.length - 1;
+  return (
+    <p className="text-[11px] font-semibold text-gray-700 whitespace-nowrap" title={assignments.map((a) => `${a.estimatorName}: ${a.manHours || "—"}h`).join("\n")}>
+      {first.manHours ? `${first.manHours}h` : "—"}
+      {extra > 0 && (
+        <span className="ml-1 text-[9px] font-bold text-[#B8112D]/70">+{extra}</span>
+      )}
+    </p>
+  );
+}
+
+function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignment[] }) {
+  if (assignments.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  const first = assignments[0];
+  const extra = assignments.length - 1;
+  return (
+    <p
+      className="text-[11px] font-semibold text-gray-700 flex items-center gap-1 whitespace-nowrap"
+      title={assignments.map((a) => `${a.estimatorName}: ${formatDate(a.deadline)}`).join("\n")}
+    >
+      <Calendar size={10} className="text-[#B8112D] shrink-0" />
+      {formatDate(first.deadline)}
+      {extra > 0 && (
+        <span className="text-[9px] font-bold text-[#B8112D]/70">+{extra}</span>
+      )}
+    </p>
+  );
+}
+
+function ProjectRowActions({
+  p,
+  showStatus = true,
+  onEdit,
+  onDelete,
+  onStatusChange,
+}: {
+  p: Project;
+  showStatus?: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onStatusChange: (next: ProjectWorkStatus) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {showStatus && (
+        <ProjectWorkStatusBadge
+          status={p.status}
+          projectDeadline={p.projectDeadline}
+          projectWorkStatus={p.projectWorkStatus}
+          editable
+          onChange={onStatusChange}
+        />
+      )}
       <button
         type="button"
-        onClick={onAssign}
-        className="text-[10px] font-semibold text-[#B8112D] hover:underline"
+        onClick={onEdit}
+        className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+        title="Edit project"
       >
-        Reassign
+        <Eye size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 shrink-0"
+        title="Delete project"
+      >
+        <Trash2 size={14} />
       </button>
     </div>
   );
@@ -181,43 +456,88 @@ export default function TechnicalActiveProjectsPage() {
   const [estimators, setEstimators] = useState<TechnicalEstimator[]>([]);
   const [assignProject, setAssignProject] = useState<Project | null>(null);
   const [assignSaving, setAssignSaving] = useState(false);
+  const [editProject, setEditProject] = useState<Project | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
-      const params: Record<string, string> = {
-        lite: "1",
-        page: "1",
-        limit: "100",
-      };
-      if (dateFrom) params.from = dateFrom;
-      if (dateTo) params.to = dateTo;
-      if (search.trim()) params.search = search.trim();
-      const res = await API.get("/admin/projects", { params });
-      setProjects(res.data.leads ?? []);
+      if (!silent) setLoading(true);
+      const { leads } = await fetchAllAdminProjects<Project>({
+        from: dateFrom || undefined,
+        to: dateTo || undefined,
+        technicalView: true,
+      });
+      setProjects(Array.isArray(leads) ? leads : []);
     } catch {
-      toast.error("Failed to load projects");
+      if (!silent) {
+        toast.error("Failed to load projects");
+        setProjects([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [dateFrom, dateTo, search]);
+  }, [dateFrom, dateTo]);
 
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
 
+  // Pick up Admin Morning/COB changes without manual refresh
   useEffect(() => {
+    const poll = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void fetchProjects(true);
+    }, 8000);
+    const onFocus = () => void fetchProjects(true);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchProjects]);
+
+  const loadEstimators = useCallback(() => {
     API.get("/admin/technical-estimators")
-      .then((res) => setEstimators(res.data.estimators ?? []))
-      .catch(() => {});
+      .then((res) => {
+        const list = res.data?.estimators;
+        if (Array.isArray(list) && list.length > 0) {
+          setEstimators(list);
+        } else {
+          setEstimators([]);
+          toast.error("No estimator users found. Add users with role Estimator in Admin → Users.");
+        }
+      })
+      .catch(() => {
+        setEstimators([]);
+        toast.error("Failed to load estimators from users");
+      });
   }, []);
 
+  useEffect(() => {
+    loadEstimators();
+  }, [loadEstimators]);
+
+  // Refresh roster every time Assign modal opens
+  useEffect(() => {
+    if (assignProject) loadEstimators();
+  }, [assignProject, loadEstimators]);
+
   const addNote = async (id: string, text: string) => {
-    const res = await API.post(`/admin/lead/${id}/notes`, { text });
+    const res = await API.post(`/admin/lead/${id}/technical-notes`, { text });
     const note = res.data.note as { id: string; text: string; createdAt: string };
     const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };
+    const list = (res.data.technicalNotes as { id: string; text: string; createdAt: string }[]) ?? null;
     setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, notes: [...(p.notes ?? []), note] } : p)),
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              technicalNotes: list
+                ? JSON.stringify(list)
+                : JSON.stringify([...parseTechnicalNotes(p.technicalNotes), note]),
+            }
+          : p,
+      ),
     );
     return entry;
   };
@@ -248,8 +568,77 @@ export default function TechnicalActiveProjectsPage() {
       });
       const lead = res.data.lead as Project;
       setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success(
+        takeoffDone
+          ? "Marked completed"
+          : "Set back to pending — estimator can work again",
+      );
     } catch {
-      toast.error("Failed to update takeoff status");
+      toast.error("Failed to update task status");
+    }
+  };
+
+  const changeProjectStatus = async (id: string, projectWorkStatus: ProjectWorkStatus) => {
+    try {
+      const res = await API.put(`/admin/project/${id}`, { projectWorkStatus });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setEditProject((prev) => (prev?.id === lead.id ? { ...prev, ...lead } : prev));
+      toast.success("Status updated");
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const saveEdit = async (data: ProjectWorkbenchData) => {
+    setEditSaving(true);
+    try {
+      const res = await API.put(`/admin/project/${data.id}`, {
+        name: data.name,
+        company: data.company,
+        phone: data.phone,
+        email: data.email,
+        ownerName: data.ownerName,
+        state: data.state,
+        projectCode: data.projectCode,
+        projectTitle: data.projectTitle,
+        projectScope: data.projectScope,
+        interestedService: data.interestedService,
+        projectBudget: data.projectBudget,
+        projectDeadline: data.projectDeadline,
+        deadlineTiming: data.deadlineTiming || "",
+        projectPhase: data.projectPhase,
+        takeoffDeadline: data.takeoffDeadline,
+        pricingDeadline: data.pricingDeadline,
+        qaDeadline: data.qaDeadline,
+        projectNotes: data.projectNotes,
+      });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setEditProject(null);
+      toast.success("Project updated");
+    } catch {
+      toast.error("Failed to save project");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const deleteProject = async (p: Project, opts?: { skipConfirm?: boolean }) => {
+    const title = p.projectTitle || p.name || "this project";
+    if (
+      !opts?.skipConfirm &&
+      !window.confirm(`Remove "${title}" from Technical? It will stay in Admin Project DB.`)
+    ) {
+      return;
+    }
+    try {
+      await API.put(`/admin/project/${p.id}/hide-technical`);
+      setProjects((prev) => prev.filter((x) => x.id !== p.id));
+      if (editProject?.id === p.id) setEditProject(null);
+      toast.success("Removed from Technical");
+    } catch {
+      toast.error("Failed to remove from Technical");
     }
   };
 
@@ -300,15 +689,19 @@ export default function TechnicalActiveProjectsPage() {
   const totalPages = Math.max(1, Math.ceil(displayed.length / PAGE_SIZE));
   const paginated = displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const headers = [
-    "Project Details",
-    "Receive Date",
-    "Deadline",
-    "Bid Instruction",
-    "Notes",
-    "Assigned To",
-    "",
-  ];
+  const isAssignedView = workflowTab === "assigned" || workflowTab === "takeoff_done";
+  const headers = isAssignedView
+    ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Estimators", "Actions"]
+    : [
+        "Project Details",
+        "Receive Date",
+        "Deadline",
+        "Bid Instruction",
+        "Notes for Sir",
+        "Assigned To",
+        "Status",
+      ];
+  const colWidths = isAssignedView ? TECHNICAL_ASSIGNED_COLS : TECHNICAL_PROJECT_COLS;
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
@@ -327,9 +720,21 @@ export default function TechnicalActiveProjectsPage() {
               Technical workflow — assign estimators, track takeoff, pricing & submission.
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
-            <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
-            Live Data
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => void fetchProjects()}
+              disabled={loading}
+              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
+              title="Refresh"
+            >
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+            <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
+              <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
+              Live Data
+            </div>
           </div>
         </div>
 
@@ -380,21 +785,21 @@ export default function TechnicalActiveProjectsPage() {
           ]}
         />
 
-        <div className="flex flex-col gap-2 sm:gap-3 mb-4 sm:mb-5">
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="relative flex-1 sm:max-w-sm lg:max-w-md">
-              <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search code, title, scope, estimator..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
-              />
-            </div>
+        <div className="flex flex-nowrap items-center gap-2 mb-4 sm:mb-5 overflow-x-auto pb-1 accounts-nav-scroll">
+          <div className="relative flex-1 min-w-[180px] max-w-[280px] shrink-0">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search code, title, scope..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full h-10 sm:h-[42px] bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-9 pr-3 text-sm outline-none focus:border-[#B8112D]"
+            />
+          </div>
+          <div className="shrink-0">
             <StateFilterDropdown
               value={stateFilter}
               onChange={(v) => {
@@ -402,37 +807,35 @@ export default function TechnicalActiveProjectsPage() {
                 setPage(1);
               }}
             />
-            <PhoneAreaCodeFilterInput
-              value={phoneFilter}
-              onChange={(v) => {
-                setPhoneFilter(v);
+          </div>
+          <PhoneAreaCodeFilterInput
+            value={phoneFilter}
+            onChange={(v) => {
+              setPhoneFilter(v);
+              setPage(1);
+            }}
+          />
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            <Calendar size={14} className="text-gray-400 shrink-0" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
                 setPage(1);
               }}
+              className="h-10 sm:h-[42px] w-[132px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
             />
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-            <div className="flex items-center gap-2 flex-1 sm:max-w-md">
-              <Calendar size={15} className="text-gray-400 shrink-0" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setPage(1);
-                }}
-                className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
-              />
-              <span className="text-xs text-gray-400 shrink-0">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => {
-                  setDateTo(e.target.value);
-                  setPage(1);
-                }}
-                className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
-              />
-            </div>
+            <span className="text-[11px] text-gray-400 shrink-0">to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              className="h-10 sm:h-[42px] w-[132px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+            />
             {(dateFrom || dateTo) && (
               <button
                 type="button"
@@ -441,9 +844,9 @@ export default function TechnicalActiveProjectsPage() {
                   setDateTo("");
                   setPage(1);
                 }}
-                className="h-10 px-4 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-all"
+                className="h-10 sm:h-[42px] px-3 rounded-xl bg-gray-100 text-gray-600 text-xs font-semibold hover:bg-gray-200 transition-all shrink-0 whitespace-nowrap"
               >
-                Clear dates
+                Clear
               </button>
             )}
           </div>
@@ -460,40 +863,77 @@ export default function TechnicalActiveProjectsPage() {
               const assignments = parseTechnicalAssignments(p.technicalAssignments);
               return (
                 <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
-                  <ProjectDetailCell p={projectAsRow(p)} />
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Receive Date</p>
-                      <p className="font-semibold text-gray-700">{formatDate(projectReceiveDate(p))}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <ProjectDetailCell p={projectAsRow(p)} />
                     </div>
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Deadline</p>
-                      <p className="font-semibold text-gray-700">{formatDate(p.projectDeadline)}</p>
-                    </div>
+                    <ProjectRowActions
+                      p={p}
+                      showStatus={!isAssignedView}
+                      onEdit={() => setEditProject(p)}
+                      onDelete={() => void deleteProject(p)}
+                      onStatusChange={(next) => void changeProjectStatus(p.id, next)}
+                    />
                   </div>
+                  {isAssignedView ? (
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Man Hours</p>
+                        <AssignmentHoursCell assignments={assignments} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Deadline</p>
+                        <div className="space-y-1">
+                          <AssignmentDeadlineCell assignments={assignments} />
+                          <DeadlineTimingBadge timing={p.deadlineTiming} />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Receive Date</p>
+                        <p className="font-semibold text-gray-700">{formatDate(projectReceiveDate(p))}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Deadline</p>
+                        <div className="space-y-1">
+                          <p className="font-semibold text-gray-700">{formatDate(p.projectDeadline)}</p>
+                          <DeadlineTimingBadge timing={p.deadlineTiming} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Bid Instruction</p>
-                    {p.projectNotes?.trim() ? (
-                      <p className="text-[12px] text-gray-600 whitespace-pre-wrap">{p.projectNotes}</p>
-                    ) : (
-                      <span className="text-[10px] text-gray-400">—</span>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Notes</p>
                     <CommentCell
                       id={p.id}
                       apiRole="admin"
+                      readOnly
+                      skipNotesFetch
+                      comment={p.projectNotes ?? undefined}
                       noteHistory={notesToHistory(p.notes)}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Notes for Sir</p>
+                    <CommentCell
+                      id={p.id}
+                      apiRole="admin"
+                      skipNotesFetch
+                      noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
                       onAddNote={addNote}
                     />
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Assigned To</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">
+                      {isAssignedView ? "Estimators" : "Assigned To"}
+                    </p>
                     <AssignedToCell
                       assignments={assignments}
                       onAssign={() => setAssignProject(p)}
-                      showTakeoff={workflowTab === "takeoff_done"}
+                      showTakeoff={isAssignedView}
+                      detailed={isAssignedView}
                       onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                     />
                   </div>
@@ -511,16 +951,14 @@ export default function TechnicalActiveProjectsPage() {
         {/* Desktop table */}
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed border-collapse" style={{ minWidth: "1100px" }}>
-              <CsrColGroup widths={TECHNICAL_PROJECT_COLS} />
+            <table className="w-full table-fixed border-collapse" style={{ minWidth: isAssignedView ? "1280px" : "1200px" }}>
+              <CsrColGroup widths={colWidths} />
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
                     <th
                       key={i}
-                      className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD} ${
-                        i === headers.length - 1 ? "text-right" : ""
-                      }`}
+                      className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD}`}
                     >
                       {h}
                     </th>
@@ -549,47 +987,108 @@ export default function TechnicalActiveProjectsPage() {
                         <td className="px-3 xl:px-4 py-3 xl:py-4">
                           <ProjectDetailCell p={projectAsRow(p)} />
                         </td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
-                          <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
-                            <Calendar size={10} className="text-[#B8112D] shrink-0" />
-                            {formatDate(projectReceiveDate(p))}
-                          </p>
-                        </td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
-                          <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
-                            {formatDate(p.projectDeadline)}
-                          </p>
-                        </td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
-                          {p.projectNotes?.trim() ? (
-                            <p className="text-[11px] text-gray-600 line-clamp-3 whitespace-pre-wrap">
-                              {p.projectNotes}
-                            </p>
-                          ) : (
-                            <span className="text-[10px] text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
-                          <CommentCell
-                            id={p.id}
-                            apiRole="admin"
-                            noteHistory={notesToHistory(p.notes)}
-                            onAddNote={addNote}
-                          />
-                        </td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
-                          <AssignedToCell
-                            assignments={assignments}
-                            onAssign={() => setAssignProject(p)}
-                            showTakeoff={workflowTab === "takeoff_done" || workflowTab === "assigned"}
-                            onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
-                          />
-                        </td>
-                        <td className="px-3 xl:px-4 py-3 xl:py-4 text-right">
-                          <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">
-                            {(p.projectPhase ?? "not_started").replace(/_/g, " ")}
-                          </span>
-                        </td>
+                        {isAssignedView ? (
+                          <>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <AssignmentHoursCell assignments={assignments} />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <div className="space-y-1">
+                                <AssignmentDeadlineCell assignments={assignments} />
+                                <DeadlineTimingBadge timing={p.deadlineTiming} />
+                              </div>
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                readOnly
+                                skipNotesFetch
+                                comment={p.projectNotes ?? undefined}
+                                noteHistory={notesToHistory(p.notes)}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                onAddNote={addNote}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-visible">
+                              <AssignedToCell
+                                assignments={assignments}
+                                onAssign={() => setAssignProject(p)}
+                                detailed
+                                showTakeoff
+                                onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <ProjectRowActions
+                                p={p}
+                                showStatus={false}
+                                onEdit={() => setEditProject(p)}
+                                onDelete={() => void deleteProject(p)}
+                                onStatusChange={(next) => void changeProjectStatus(p.id, next)}
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
+                                <Calendar size={10} className="text-[#B8112D] shrink-0" />
+                                {formatDate(projectReceiveDate(p))}
+                              </p>
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <div className="space-y-1">
+                                <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
+                                  {formatDate(p.projectDeadline)}
+                                </p>
+                                <DeadlineTimingBadge timing={p.deadlineTiming} />
+                              </div>
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                readOnly
+                                skipNotesFetch
+                                comment={p.projectNotes ?? undefined}
+                                noteHistory={notesToHistory(p.notes)}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                onAddNote={addNote}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <AssignedToCell
+                                assignments={assignments}
+                                onAssign={() => setAssignProject(p)}
+                                showTakeoff={false}
+                                onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
+                              />
+                            </td>
+                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                              <ProjectRowActions
+                                p={p}
+                                onEdit={() => setEditProject(p)}
+                                onDelete={() => void deleteProject(p)}
+                                onStatusChange={(next) => void changeProjectStatus(p.id, next)}
+                              />
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })
@@ -646,6 +1145,25 @@ export default function TechnicalActiveProjectsPage() {
         saving={assignSaving}
         onClose={() => setAssignProject(null)}
         onConfirm={confirmAssign}
+      />
+
+      <ProjectWorkbenchModal
+        open={!!editProject}
+        onClose={() => setEditProject(null)}
+        initial={editProject ? projectToWorkbench(editProject) : emptyWorkbench()}
+        mode="admin"
+        saving={editSaving}
+        onSave={saveEdit}
+        onDelete={editProject ? async () => { await deleteProject(editProject, { skipConfirm: true }); } : undefined}
+        noteHistory={editProject ? notesToHistory(editProject.notes) : undefined}
+        onAddNote={
+          editProject
+            ? async (text) => {
+                await addNote(editProject.id, text);
+              }
+            : undefined
+        }
+        hideClientFinanceSections
       />
     </div>
   );

@@ -20,20 +20,24 @@ import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeF
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
-import { ADMIN_PROJECT_COLS, TECHNICAL_PROJECT_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { parseTechnicalNotes } from "@/lib/technicalAssignments";
+import API from "@/lib/api";
+import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
   ClientDetailCell,
   FulfillmentCell,
   PaymentDetailCell,
   ProjectDetailCell,
   QuotedAmountCell,
+  ProjectWorkStatusBadge,
   PROJECT_TABLE_CARD,
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
-import API from "@/lib/api";
 import {
   emptyWorkbench,
   parsePayments,
+  isProjectActive,
   ProjectWorkbenchData,
   CSR_ASSIGN_OTHER,
   PROJECT_PHASE_OPTIONS,
@@ -70,13 +74,16 @@ type Project = {
   projectScope:      string | null;
   projectPhase:      string | null;
   projectDeadline:   string | null;
+  deadlineTiming?:   string | null;
   takeoffDeadline:   string | null;
   pricingDeadline:   string | null;
   qaDeadline:        string | null;
   projectBudget:     string | null;
   projectNotes:      string | null;
+  technicalNotes?:   string | null;
   projectPayments:   string | null;
   projectSource:     string | null;
+  projectWorkStatus?: string | null;
   isOldClient:       boolean;
   updatedAt:         string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
@@ -100,6 +107,7 @@ function projectToWorkbench(p: Project): ProjectWorkbenchData {
     interestedService: p.interestedService ?? "",
     projectBudget: p.projectBudget ?? "",
     projectDeadline: (p.projectDeadline ?? "").split("T")[0],
+    deadlineTiming: (p.deadlineTiming === "morning" || p.deadlineTiming === "cob" ? p.deadlineTiming : "") as "" | "morning" | "cob",
     projectPhase: p.projectPhase ?? "not_started",
     takeoffDeadline: p.takeoffDeadline ?? "",
     pricingDeadline: p.pricingDeadline ?? "",
@@ -135,17 +143,6 @@ const formatDate = (iso: string | null | undefined) => {
 
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date();
 
-const isProjectActive = (p: Project): boolean => {
-  const st = (p.status ?? "").toLowerCase();
-  if (st === "completed") return false;
-  if (p.projectDeadline) {
-    const deadline = p.projectDeadline.split("T")[0];
-    const today = new Date().toISOString().split("T")[0];
-    return deadline >= today;
-  }
-  return st === "close client";
-};
-
 
 function notesToHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
   return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
@@ -166,6 +163,7 @@ function projectAsRow(p: Project) {
     interestedService: p.interestedService,
     projectBudget: p.projectBudget,
     projectDeadline: p.projectDeadline,
+    deadlineTiming: p.deadlineTiming,
     projectPhase: p.projectPhase,
     projectPayments: p.projectPayments,
     state: p.state,
@@ -179,12 +177,16 @@ function ProjectCard({
   onView,
   onReassign,
   onAddNote,
+  onStatusChange,
+  onTimingChange,
   hideClientFinanceCols = false,
 }: {
   p: Project;
   onView: () => void;
   onReassign: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  onStatusChange?: (id: string, status: "completed" | "in_progress" | "not_completed") => void;
+  onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
 }) {
   return (
@@ -219,16 +221,44 @@ function ProjectCard({
           <PaymentDetailCell p={projectAsRow(p)} />
         </div>
       )}
-      <FulfillmentCell p={projectAsRow(p)} />
+      <FulfillmentCell
+        p={projectAsRow(p)}
+        onTimingChange={onTimingChange ? (next) => onTimingChange(p.id, next) : undefined}
+      />
 
-      <div className="pt-1">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Bid Instruction</p>
-        <CommentCell
-          id={p.id}
-          apiRole="admin"
-          noteHistory={notesToHistory(p.notes)}
-          onAddNote={onAddNote}
+      <div>
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Status</p>
+        <ProjectWorkStatusBadge
+          status={p.status}
+          projectDeadline={p.projectDeadline}
+          projectWorkStatus={p.projectWorkStatus}
+          editable
+          onChange={(next) => onStatusChange?.(p.id, next)}
         />
+      </div>
+
+      <div className="pt-1 space-y-3">
+        <div>
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Bid Instruction</p>
+          <CommentCell
+            id={p.id}
+            apiRole="admin"
+            noteHistory={notesToHistory(p.notes)}
+            onAddNote={onAddNote}
+          />
+        </div>
+        {parseTechnicalNotes(p.technicalNotes).length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Notes by Technical</p>
+            <CommentCell
+              id={`${p.id}-tech`}
+              apiRole="admin"
+              readOnly
+              skipNotesFetch
+              noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -269,6 +299,8 @@ function ProjectsSection({
   onView,
   onReassign,
   onAddNote,
+  onStatusChange,
+  onTimingChange,
   hideClientFinanceCols = false,
 }: {
   projects: Project[];
@@ -279,15 +311,17 @@ function ProjectsSection({
   onView: (p: Project) => void;
   onReassign: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  onStatusChange?: (id: string, status: "completed" | "in_progress" | "not_completed") => void;
+  onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
 }) {
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const headers = hideClientFinanceCols
-    ? ["Project Detail", "Client Deadline", "Bid Instruction", ""]
-    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", ""];
+    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Status", ""]
+    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Status", ""];
   const colCount = headers.length;
-  const colWidths = hideClientFinanceCols ? TECHNICAL_PROJECT_COLS : ADMIN_PROJECT_COLS;
+  const colWidths = hideClientFinanceCols ? ADMIN_TECH_VIEW_COLS : ADMIN_PROJECT_COLS;
 
   return (
     <div>
@@ -304,6 +338,8 @@ function ProjectsSection({
               onView={() => onView(p)}
               onReassign={() => void onReassign(p)}
               onAddNote={onAddNote}
+              onStatusChange={onStatusChange}
+              onTimingChange={onTimingChange}
               hideClientFinanceCols={hideClientFinanceCols}
             />
           ))
@@ -374,14 +410,21 @@ function ProjectsSection({
                         <td className="px-3 xl:px-4 py-3 xl:py-4"><PaymentDetailCell p={projectAsRow(p)} /></td>
                       </>
                     )}
-                    <td className="px-3 xl:px-4 py-3 xl:py-4"><FulfillmentCell p={projectAsRow(p)} /></td>
+                    <td className="px-3 xl:px-4 py-3 xl:py-4">
+                      <FulfillmentCell
+                        p={projectAsRow(p)}
+                        onTimingChange={onTimingChange ? (next) => onTimingChange(p.id, next) : undefined}
+                      />
+                    </td>
                     {!hideClientFinanceCols && (
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <div className="flex items-center gap-1.5 min-w-0">
                           {p.csr?.csrCode && !p.projectSource && (
                             <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{p.csr.csrCode}</span>
                           )}
-                          <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate">{projectAssigneeLabel(p)}</span>
+                          <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate" title={projectAssigneeLabel(p)}>
+                            {projectAssigneeLabel(p)}
+                          </span>
                         </div>
                       </td>
                     )}
@@ -393,20 +436,30 @@ function ProjectsSection({
                         onAddNote={onAddNote}
                       />
                     </td>
-                    <td className="px-3 xl:px-4 py-3 xl:py-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="px-3 xl:px-4 py-3 xl:py-4">
+                      <ProjectWorkStatusBadge
+                        status={p.status}
+                        projectDeadline={p.projectDeadline}
+                        projectWorkStatus={p.projectWorkStatus}
+                        editable
+                        onChange={(next) => onStatusChange?.(p.id, next)}
+                      />
+                    </td>
+                    <td className="px-2 xl:px-3 py-3 xl:py-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
                         {!hideClientFinanceCols && (
                           <button
                             onClick={() => void onReassign(p)}
-                            className="px-2.5 py-1.5 rounded-xl bg-blue-100 text-blue-700 text-[10px] xl:text-xs font-medium hover:bg-blue-200 flex items-center gap-1 shrink-0"
+                            className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 text-[10px] font-medium hover:bg-blue-200 flex items-center justify-center shrink-0"
+                            title="Reassign"
                           >
-                            <ArrowRightLeft size={11} />
-                            <span className="hidden xl:inline">Reassign</span>
+                            <ArrowRightLeft size={12} />
                           </button>
                         )}
                         <button
                           onClick={() => onView(p)}
-                          className="w-8 h-8 xl:w-9 xl:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+                          className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+                          title="View / Edit"
                         >
                           <Eye size={14} />
                         </button>
@@ -543,6 +596,7 @@ export default function AdminProjectsPage() {
         projectScope:      data.projectScope.trim() || undefined,
         interestedService: data.interestedService,
         projectDeadline:   data.projectDeadline,
+        deadlineTiming:    data.deadlineTiming || "",
         projectBudget:     data.projectBudget.trim() || undefined,
         projectNotes:      data.projectNotes?.trim() || undefined,
         projectPhase:      data.projectPhase,
@@ -595,6 +649,7 @@ export default function AdminProjectsPage() {
         interestedService: data.interestedService,
         projectBudget: data.projectBudget,
         projectDeadline: data.projectDeadline,
+        deadlineTiming: data.deadlineTiming || "",
         projectPhase: data.projectPhase,
         takeoffDeadline: data.takeoffDeadline,
         pricingDeadline: data.pricingDeadline,
@@ -611,6 +666,46 @@ export default function AdminProjectsPage() {
       toast.error("Failed to save project");
     } finally {
       setWorkbenchSaving(false);
+    }
+  };
+
+  const changeProjectStatus = async (
+    id: string,
+    projectWorkStatus: "completed" | "in_progress" | "not_completed",
+  ) => {
+    try {
+      const res = await API.put(`/admin/project/${id}`, { projectWorkStatus });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setWorkbenchProject((prev) => (prev?.id === lead.id ? { ...prev, ...lead } : prev));
+      toast.success("Status updated");
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  const changeDeadlineTiming = async (id: string, deadlineTiming: "" | "morning" | "cob") => {
+    // Optimistic UI so Technical signal is instant
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, deadlineTiming: deadlineTiming || null } : p)),
+    );
+    setWorkbenchProject((prev) =>
+      prev?.id === id ? { ...prev, deadlineTiming: deadlineTiming || null } : prev,
+    );
+    try {
+      const res = await API.put(`/admin/project/${id}`, { deadlineTiming });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success(
+        deadlineTiming === "morning"
+          ? "Marked Morning — Technical notified"
+          : deadlineTiming === "cob"
+            ? "Marked COB — Technical notified"
+            : "Emergency timing cleared",
+      );
+    } catch {
+      toast.error("Failed to update timing");
+      void fetchProjects();
     }
   };
 
@@ -663,34 +758,38 @@ export default function AdminProjectsPage() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const params: Record<string, string> = {
-        lite: "1",
-        page: String(page),
-        limit: "50",
-      };
-      if (filterCSR !== "all") params.csrId = filterCSR;
-      if (dateFrom) params.from = dateFrom;
-      if (dateTo) params.to = dateTo;
-      if (search.trim()) params.search = search.trim();
-      const res = await API.get("/admin/projects", { params });
-      setProjects(res.data.leads ?? []);
-      setStats(res.data.stats   ?? { total: 0, withBudget: 0, thisMonth: 0 });
+      const { leads, total } = await fetchAllAdminProjects<Project>({
+        csrId: filterCSR !== "all" ? filterCSR : undefined,
+        from: dateFrom || undefined,
+        to: dateTo || undefined,
+        search: search.trim() || undefined,
+      });
+      setProjects(leads);
+      setStats({
+        total,
+        withBudget: leads.filter((p) => !!p.projectBudget).length,
+        thisMonth: leads.filter((p) => {
+          const d = new Date(p.updatedAt);
+          const now = new Date();
+          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        }).length,
+      });
     } catch {
       toast.error("Failed to load projects");
     } finally {
       setLoading(false);
     }
-  }, [filterCSR, dateFrom, dateTo, page, search]);
+  }, [filterCSR, dateFrom, dateTo, search]);
 
   useEffect(() => {
     API.get("/admin/csrs")
       .then(res => setAllCsrs(res.data.csrs ?? []))
       .catch(() => {});
   }, []);
-//
+
   useEffect(() => {
     void fetchProjects();
-  }, [filterCSR, dateFrom, dateTo, page, search, fetchProjects]);
+  }, [fetchProjects]);
 
   const csrList: [string, string][] = allCsrs.length > 0
     ? allCsrs.map((c): [string, string] => [c.id, c.name])
@@ -883,9 +982,14 @@ export default function AdminProjectsPage() {
           setPage={setPage}
           loading={loading}
           search={search}
-          onView={setWorkbenchProject}
+          onView={(p) => {
+            setWorkbenchProject(p);
+            void API.put(`/admin/lead/${p.id}/technical-notes/read`).catch(() => {});
+          }}
           onReassign={openReassign}
           onAddNote={addAdminNote}
+          onStatusChange={(id, status) => void changeProjectStatus(id, status)}
+          onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}
           hideClientFinanceCols={hideClientFinanceCols}
         />
 
@@ -900,6 +1004,11 @@ export default function AdminProjectsPage() {
           onDelete={deleteWorkbenchProject}
           noteHistory={workbenchProject ? notesToHistory(workbenchProject.notes) : undefined}
           onAddNote={workbenchProject ? async (text) => { await addAdminNote(workbenchProject.id, text); } : undefined}
+          technicalNoteHistory={
+            workbenchProject
+              ? notesToHistory(parseTechnicalNotes(workbenchProject.technicalNotes))
+              : undefined
+          }
           hideClientFinanceSections={hideClientFinanceCols}
         />
 

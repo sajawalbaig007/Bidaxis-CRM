@@ -47,6 +47,8 @@ type Props = {
   onDelete?: () => Promise<void>;
   noteHistory?: NoteEntry[];
   onAddNote?: (text: string) => Promise<void>;
+  /** Notes written by Technical for Sir — shown under Bid Instruction */
+  technicalNoteHistory?: NoteEntry[];
   phoneLookup?: PhoneLookupProps;
   /** Technical portal — hide Client / Quoted / Payment / CSR sections */
   hideClientFinanceSections?: boolean;
@@ -111,6 +113,7 @@ export default function ProjectWorkbenchModal({
   onDelete,
   noteHistory,
   onAddNote,
+  technicalNoteHistory,
   phoneLookup,
   hideClientFinanceSections = false,
 }: Props) {
@@ -392,6 +395,40 @@ export default function ProjectWorkbenchModal({
                   value={data.projectDeadline}
                   onChange={(e) => setData((d) => ({ ...d, projectDeadline: e.target.value }))}
                 />
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                    Emergency submit
+                  </span>
+                  {(
+                    [
+                      { value: "morning", label: "Morning" },
+                      { value: "cob", label: "COB" },
+                    ] as const
+                  ).map((opt) => {
+                    const active = (data.deadlineTiming || "") === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setData((d) => ({
+                            ...d,
+                            deadlineTiming: active ? "" : opt.value,
+                          }))
+                        }
+                        className={`h-7 px-2.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                          active
+                            ? opt.value === "morning"
+                              ? "bg-amber-500 text-white border-amber-500"
+                              : "bg-[#B8112D] text-white border-[#B8112D]"
+                            : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <ReqLabel required>Scope</ReqLabel>
@@ -532,27 +569,53 @@ export default function ProjectWorkbenchModal({
           </Section>
           )}
 
-          {(createMode || (noteHistory && onAddNote)) && (
-            <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <StickyNote size={12} className="text-[#B8112D]" /> Bid Instruction
-                {createMode && <span className="text-[#B8112D] normal-case">*</span>}
-              </p>
-              {createMode ? (
-                <textarea
-                  className={`${inputCls} h-24 py-2.5 resize-none`}
-                  value={data.projectNotes ?? ""}
-                  placeholder="Bid Instruction notes…"
-                  onChange={(e) => setData((d) => ({ ...d, projectNotes: e.target.value }))}
-                />
-              ) : noteHistory && onAddNote ? (
-                <CommentCell
-                  id={data.id}
-                  apiRole={mode === "admin" ? "admin" : "csr"}
-                  noteHistory={noteHistory}
-                  onAddNote={async (_id, text) => { await onAddNote(text); }}
-                />
-              ) : null}
+          {(createMode || (noteHistory && onAddNote) || mode === "admin") && (
+            <div className="space-y-3">
+              {(createMode || (noteHistory && onAddNote)) && (
+                <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <StickyNote size={12} className="text-[#B8112D]" /> Bid Instruction
+                    {createMode && <span className="text-[#B8112D] normal-case">*</span>}
+                  </p>
+                  {createMode ? (
+                    <textarea
+                      className={`${inputCls} h-24 py-2.5 resize-none`}
+                      value={data.projectNotes ?? ""}
+                      placeholder="Bid Instruction notes…"
+                      onChange={(e) => setData((d) => ({ ...d, projectNotes: e.target.value }))}
+                    />
+                  ) : noteHistory && onAddNote ? (
+                    <CommentCell
+                      id={data.id}
+                      apiRole={mode === "admin" ? "admin" : "csr"}
+                      noteHistory={noteHistory}
+                      onAddNote={async (_id, text) => { await onAddNote(text); }}
+                    />
+                  ) : null}
+                </div>
+              )}
+
+              {/* Always visible for Admin — Technical "Notes for Sir" land here */}
+              {mode === "admin" && !createMode && (
+                <div className="bg-[#FFF8F0] rounded-2xl border-2 border-amber-200 p-4">
+                  <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <StickyNote size={12} className="text-amber-700" /> Notes by Technical
+                  </p>
+                  {technicalNoteHistory && technicalNoteHistory.length > 0 ? (
+                    <CommentCell
+                      id={`${data.id}-tech-notes`}
+                      apiRole="admin"
+                      readOnly
+                      skipNotesFetch
+                      noteHistory={technicalNoteHistory}
+                    />
+                  ) : (
+                    <p className="text-xs text-amber-700/70 font-medium py-2">
+                      Abhi koi note nahi — Technical “Notes for Sir” yahan dikhega.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
