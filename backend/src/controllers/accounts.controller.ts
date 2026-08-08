@@ -22,6 +22,14 @@ import {
   recomputeTechnicalTeamInIncomeStatement,
 } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
+import {
+  aggregateCollectionsForDate,
+  aggregateCollectionsForMonths,
+  applyCollectionsToDashboardData,
+  emptyDayCollections,
+  monthStartIso,
+  yearMonthFromDate,
+} from "../utils/projectCurrencyCollections";
 import { accountsUploadFolder } from "../utils/accountsStorage";
 import {
   accumulateCoreBudget,
@@ -131,7 +139,12 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
 
     const record = await findRecord(pageParam, recordDate);
     const raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
-    const responseData = preparePageData(pageParam, raw);
+    let responseData = preparePageData(pageParam, raw);
+
+    if (pageParam === "dashboard") {
+      const collections = await aggregateCollectionsForDate(recordDate);
+      responseData = applyCollectionsToDashboardData(responseData, collections);
+    }
 
     const uploads = await prisma.accountsFileUpload.findMany({
       where: { page: toPrismaAccountsPage(pageParam), recordDate },
@@ -175,7 +188,12 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Missing data payload." });
     }
 
-    const payload = preparePageData(pageParam, data);
+    let payload = preparePageData(pageParam, data);
+
+    if (pageParam === "dashboard") {
+      const collections = await aggregateCollectionsForDate(recordDate);
+      payload = applyCollectionsToDashboardData(payload, collections);
+    }
 
     const prismaPage = toPrismaAccountsPage(pageParam);
     const record = await prisma.accountsRecord.upsert({
@@ -423,6 +441,25 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
       );
 
+      const collectionMonths = [
+        ...new Set([
+          ...dashRecs.map((r) => yearMonthFromDate(r.recordDate)),
+          ...isRecs.map((r) => yearMonthFromDate(r.recordDate)),
+        ]),
+      ];
+      const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
+      const dashForMonth = (ym: string) => {
+        const monthStart = monthStartIso(ym);
+        const raw =
+          dashByDate.get(monthStart) ??
+          [...dashByDate.entries()].find(([d]) => yearMonthFromDate(d) === ym)?.[1] ??
+          defaultAccountsData("dashboard");
+        return applyCollectionsToDashboardData(
+          raw,
+          collectionsByMonth.get(ym) ?? emptyDayCollections(),
+        );
+      };
+
       let revenue = 0;
       let payroll = 0;
       let opex = 0;
@@ -430,19 +467,27 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       let pf = 0;
       let currencyFormulaTotal = 0;
 
-      for (const rec of dashRecs) {
-        const d = rec.data as Record<string, unknown>;
-        currencyFormulaTotal += currencyFormulaTotalFromDashboard(d);
+      // Project collections are monthly — count each month once (no day double-count)
+      for (const ym of collectionMonths) {
+        currencyFormulaTotal += currencyFormulaTotalFromDashboard(dashForMonth(ym));
       }
 
+      const revenueMonths = new Set<string>();
       for (const rec of isRecs) {
         const data = preparePageData("income_statement", rec.data as Record<string, unknown>);
-        revenue += currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
+        const ym = yearMonthFromDate(rec.recordDate);
+        if (!revenueMonths.has(ym)) {
+          revenueMonths.add(ym);
+          revenue += currencyFormulaTotalFromDashboard(dashForMonth(ym));
+        }
         payroll += sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
         opex += sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
         loans += sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
         pf += sumLines(data.providentFundHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
       }
+
+      // If no IS days, revenue still equals currency months
+      if (isRecs.length === 0) revenue = currencyFormulaTotal;
 
       // Total expense aligns with Income Statement cards: salaries + OPEX only
       const expense = payroll + opex;
@@ -488,7 +533,9 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       persistedPages.income_statement = isRecs.length > 0;
       persistedPages.dashboard = dashRecs.length > 0;
       const latestDash = dashRecs[dashRecs.length - 1];
-      dashData = (latestDash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard");
+      dashData = latestDash
+        ? dashForMonth(yearMonthFromDate(latestDash.recordDate))
+        : defaultAccountsData("dashboard");
       recordDate = toDate;
     } else {
       const pages: AccountsPageKey[] = [
@@ -510,9 +557,12 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
           Object.assign(summaries, summarizeBalanceSheet(data));
         } else if (page === "income_statement") {
           const dashRec = await findRecord("dashboard", toDate);
-          const revenue = currencyFormulaTotalFromDashboard(
-            (dashRec?.data as Record<string, unknown> | undefined) ?? undefined,
+          const collections = await aggregateCollectionsForDate(toDate);
+          const dashMerged = applyCollectionsToDashboardData(
+            (dashRec?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard"),
+            collections,
           );
+          const revenue = currencyFormulaTotalFromDashboard(dashMerged);
           const payroll = sumLines(data.teamSalaries as Array<{ totalSalary?: number; subHeads?: Array<{ amount?: number }> }>);
           const opex = sumLines(data.opexHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
           const loans = sumLines(data.loanHeads as Array<{ amount?: number; subHeads?: Array<{ amount?: number }> }>);
@@ -535,7 +585,11 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
       }
 
       const dash = await findRecord("dashboard", toDate);
-      dashData = (dash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard");
+      const dayCollections = await aggregateCollectionsForDate(toDate);
+      dashData = applyCollectionsToDashboardData(
+        (dash?.data as Record<string, unknown> | undefined) ?? defaultAccountsData("dashboard"),
+        dayCollections,
+      );
       persistedPages.dashboard = !!dash;
       recordDate = toDate;
     }
@@ -626,17 +680,41 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
       dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
     );
 
+    const collectionMonths = [
+      ...new Set([
+        ...dashRecs.map((r) => yearMonthFromDate(r.recordDate)),
+        ...isRecs.map((r) => yearMonthFromDate(r.recordDate)),
+      ]),
+    ];
+    const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
+    const dashForMonth = (ym: string) => {
+      const monthStart = monthStartIso(ym);
+      const raw =
+        dashByDate.get(monthStart) ??
+        [...dashByDate.entries()].find(([d]) => yearMonthFromDate(d) === ym)?.[1] ??
+        defaultAccountsData("dashboard");
+      return applyCollectionsToDashboardData(
+        raw,
+        collectionsByMonth.get(ym) ?? emptyDayCollections(),
+      );
+    };
+
     const actuals = emptyCoreActuals();
     const byMonth: Record<string, ReturnType<typeof emptyCoreActuals>> = {};
     const opexHeadsTotal: Record<string, OpexHeadBucket> = {};
     const opexHeadsByMonth: Record<string, Record<string, OpexHeadBucket>> = {};
+    const revenueMonthsAdded = new Set<string>();
 
     for (const rec of isRecs) {
       const ym = rec.recordDate.slice(0, 7);
       if (!byMonth[ym]) byMonth[ym] = emptyCoreActuals();
       if (!opexHeadsByMonth[ym]) opexHeadsByMonth[ym] = {};
       const data = prepareIncomeStatement(rec.data as Record<string, unknown>);
-      const revenue = currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
+      // Month currency total once per month (project payments are monthly)
+      const revenue = revenueMonthsAdded.has(ym)
+        ? 0
+        : currencyFormulaTotalFromDashboard(dashForMonth(ym));
+      revenueMonthsAdded.add(ym);
       accumulateCoreBudget(data, actuals, revenue);
       accumulateCoreBudget(data, byMonth[ym]!, revenue);
       accumulateOpexHeads(data, opexHeadsTotal);

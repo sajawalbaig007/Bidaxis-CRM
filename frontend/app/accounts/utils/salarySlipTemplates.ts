@@ -17,6 +17,7 @@ import {
   GPS_INK,
   GPS_PURPLE,
   earningsTotal,
+  slipNetPayment,
   fitLogoBox,
   loadLogoForPdf,
   money,
@@ -248,6 +249,33 @@ function summaryRows(
   return (doc.lastAutoTable?.finalY ?? y) + 6;
 }
 
+/** Net Payment = Earnings − Deduction + Occasional (occasional has no PF/tax/late cut). */
+function paymentSummaryBody(
+  payload: SalarySlipPayload,
+  earningsSum: number,
+  deductionsTotalAmt: number,
+): { rows: [string, string][]; netHighlightIndex: number } {
+  const empPf = Number(payload.employeePf) || 0;
+  const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
+  const occasional = Math.max(0, Number(payload.occasionalAmount) || 0);
+  const netPay = slipNetPayment(payload);
+  const occLabel = payload.occasionalRemark?.trim()
+    ? `Occasional (+ Net, no deduction) · ${payload.occasionalRemark.trim()}`
+    : "Occasional Amount (+ Net, no deduction)";
+
+  const rows: [string, string][] = [
+    ["Net Employee PF Contribution", money(empPf)],
+    ["Net Employer PF Contribution", money(erPf)],
+    ["Total Earnings", money(earningsSum)],
+    ["Total Deduction", money(deductionsTotalAmt)],
+  ];
+  if (occasional > 0) {
+    rows.push([occLabel, money(occasional)]);
+  }
+  rows.push(["Net Payment", money(netPay)]);
+  return { rows, netHighlightIndex: rows.length - 1 };
+}
+
 /** Global / GPS — technical team */
 export async function renderGpsTechnicalSlip(
   doc: JsPdfWithAutoTable,
@@ -283,23 +311,19 @@ export async function renderGpsTechnicalSlip(
     GPS_INK,
     true,
   );
-  const netPay = earningsSum - deductionsTotal;
-  const empPf = Number(payload.employeePf) || 0;
-  const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
+  const { rows: payRows, netHighlightIndex } = paymentSummaryBody(
+    payload,
+    earningsSum,
+    deductionsTotal,
+  );
 
   let y = summaryRows(
     doc,
     tableY,
     pageW,
-    [
-      ["Net Employee PF Contribution", money(empPf)],
-      ["Net Employer PF Contribution", money(erPf)],
-      ["Total Earnings", money(earningsSum)],
-      ["Total Deduction", money(deductionsTotal)],
-      ["Net Payment", money(netPay)],
-    ],
+    payRows,
     GPS_PURPLE,
-    4,
+    netHighlightIndex,
     GPS_INK,
     true,
     FIELD_BLUE,
@@ -349,23 +373,19 @@ export async function renderBemSalesSlip(
     BEM_BLACK,
     BEM_BLACK,
   );
-  const netPay = earningsSum - deductionsTotal;
-  const empPf = Number(payload.employeePf) || 0;
-  const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
+  const { rows: payRowsBem, netHighlightIndex: netIdxBem } = paymentSummaryBody(
+    payload,
+    earningsSum,
+    deductionsTotal,
+  );
 
   let y = summaryRows(
     doc,
     tableY,
     pageW,
-    [
-      ["Net Employee PF Contribution", money(empPf)],
-      ["Net Employer PF Contribution", money(erPf)],
-      ["Total Earnings", money(earningsSum)],
-      ["Total Deduction", money(deductionsTotal)],
-      ["Net Payment", money(netPay)],
-    ],
+    payRowsBem,
     BEM_BLACK,
-    4,
+    netIdxBem,
     BEM_RED,
     false,
     FIELD_LIGHT,
@@ -425,23 +445,19 @@ export async function renderBemCsrFullSlip(
     BEM_BLACK,
     BEM_BLACK,
   );
-  const netPay = earningsSum - deductionsTotal;
-  const empPf = Number(payload.employeePf) || 0;
-  const erPf = payload.employerPf != null ? Number(payload.employerPf) : empPf;
+  const { rows: payRowsCsr, netHighlightIndex: netIdxCsr } = paymentSummaryBody(
+    payload,
+    earningsSum,
+    deductionsTotal,
+  );
 
   let y = summaryRows(
     doc,
     tableY,
     pageW,
-    [
-      ["Net Employee PF Contribution", money(empPf)],
-      ["Net Employer PF Contribution", money(erPf)],
-      ["Total Earnings", money(earningsSum)],
-      ["Total Deduction", money(deductionsTotal)],
-      ["Net Payment", money(netPay)],
-    ],
+    payRowsCsr,
     BEM_BLACK,
-    4,
+    netIdxCsr,
     BEM_RED,
   );
 

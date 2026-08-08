@@ -82,9 +82,7 @@ function sub(label: string, amount: number, withSalary = false, teamName?: strin
           salary: emptySalaryDetail({
             basic: amount,
             ...(kind === "admin" ? { checkIn: "18:00" } : {}),
-            ...(kind === "technical_manager"
-              ? { grossSalary: 0, homeAllowance: 0, medicalAllowance: 0, utilityAllowance: 0, travelAllowance: 0 }
-              : {}),
+            ...(kind === "technical_manager" ? { checkIn: "09:00", checkOut: "18:00" } : {}),
             ...(kind === "executive"
               ? { commissionPct: execPctForLabel(label), loanPositive: 0, loanNegative: 0 }
               : {}),
@@ -125,16 +123,26 @@ function ensureTeamSalarySubs(
   }
   if (kind === "technical_manager") {
     return (subs ?? []).map(s => {
-      if (s.salary) return s;
+      if (s.salary) {
+        // Migrate default 07:00 legacy rows to manager shift 09:00
+        if (!s.salary.checkIn || s.salary.checkIn === "07:00") {
+          return {
+            ...s,
+            salary: {
+              ...s.salary,
+              checkIn: "09:00",
+              checkOut: s.salary.checkOut === "16:00" || !s.salary.checkOut ? "18:00" : s.salary.checkOut,
+            },
+          };
+        }
+        return s;
+      }
       return {
         ...s,
         salary: emptySalaryDetail({
           basic: Number(s.amount) || 0,
-          grossSalary: Number(s.amount) || 0,
-          homeAllowance: 0,
-          medicalAllowance: 0,
-          utilityAllowance: 0,
-          travelAllowance: 0,
+          checkIn: "09:00",
+          checkOut: "18:00",
         }),
       };
     });
@@ -551,7 +559,9 @@ export function recomputeExecutiveTeam(data: IncomeStatementData): IncomeStateme
       Number(s.salary.basic) !== sal.basic ||
       Number(s.salary.commissionPct) !== sal.commissionPct ||
       Number(s.salary.loanPositive) !== sal.loanPositive ||
-      Number(s.salary.loanNegative) !== sal.loanNegative;
+      Number(s.salary.loanNegative) !== sal.loanNegative ||
+      Number(s.salary.occasionalAmount) !== Number(sal.occasionalAmount) ||
+      String(s.salary.occasionalRemark ?? "") !== String(sal.occasionalRemark ?? "");
     if (!salaryChanged && Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
     changed = true;
     return { ...s, salary: sal, amount: total };

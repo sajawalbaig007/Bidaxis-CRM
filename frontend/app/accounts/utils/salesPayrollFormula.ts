@@ -38,6 +38,7 @@ export type SalesPayrollEmployee = {
   remarks: string;
   /**
    * One-off / occasional pay — added to net only (no PF / tax / late formulas).
+   * Net = (Total Earning − Total Deduction) + Occasional Amount
    */
   occasionalAmount?: number;
   occasionalRemark?: string;

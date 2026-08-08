@@ -15,6 +15,10 @@ import {
   parseProjectPayments,
   paidTotalFromEntries,
 } from "../utils/projectPayments";
+import {
+  paidDatesFromPayments,
+  syncAccountsCurrencyForDates,
+} from "../utils/projectCurrencyCollections";
 import { buildBinWhere, filterActiveLeads, notInBinFilter } from "../utils/binLeads";
 import { findLeadsByPhone, buildPhoneLookupResponse } from "../utils/leadPhoneLookup";
 import { findDuplicateLead } from "../utils/leadDuplicateCheck";
@@ -1109,6 +1113,13 @@ router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_m
       },
     });
 
+    if (typeof createData.projectPayments === "string") {
+      const dates = paidDatesFromPayments(parseProjectPayments(createData.projectPayments));
+      if (dates.length) {
+        await syncAccountsCurrencyForDates(dates, req.user?.id);
+      }
+    }
+
     flushAdminClientsCache();
     if (assignTo !== adminId) {
       invalidateCache(`csr:dashboard:${assignTo}`, `csr:projects:${assignTo}`, `csr:leads:${assignTo}`);
@@ -1121,13 +1132,21 @@ router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_m
 });
 
 /* ================= UPDATE PROJECT (ADMIN) ================= */
-router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
+router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req: AuthRequest, res) => {
   try {
     const leadId = String(req.params.id);
     const updateData: Record<string, unknown> = {};
 
     applyProjectPayload(updateData, req.body as Record<string, unknown>);
     if (req.body.assignedTo !== undefined) updateData.assignedTo = req.body.assignedTo;
+
+    const prev =
+      updateData.projectPayments !== undefined
+        ? await prisma.lead.findUnique({
+            where: { id: leadId },
+            select: { projectPayments: true },
+          })
+        : null;
 
     const lead = await prisma.lead.update({
       where: { id: leadId },
@@ -1137,6 +1156,16 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
         notes: { orderBy: { createdAt: "asc" } },
       },
     });
+
+    if (typeof updateData.projectPayments === "string") {
+      const dates = [
+        ...paidDatesFromPayments(parseProjectPayments(prev?.projectPayments)),
+        ...paidDatesFromPayments(parseProjectPayments(updateData.projectPayments)),
+      ];
+      if (dates.length) {
+        await syncAccountsCurrencyForDates(dates, req.user?.id);
+      }
+    }
 
     flushAdminClientsCache();
     invalidatePattern("admin:projects:");

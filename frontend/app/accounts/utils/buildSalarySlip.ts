@@ -55,24 +55,28 @@ function commentsFrom(
   const occ = Math.max(0, Number(sal?.occasionalAmount) || 0);
   if (occ > 0) {
     const note = sal?.occasionalRemark?.trim();
-    bits.push(note ? `Occasional (${note}): ${occ}` : `Occasional amount: ${occ}`);
+    bits.push(
+      note
+        ? `Occasional (no deduction): ${note}`
+        : "Occasional amount added to net with no deduction.",
+    );
   }
   if (paidDays > 0) bits.push(`Your ${paidDays} leave(s) considered as paid/casual leave.`);
   if (unpaidDays > 0) bits.push(`Unpaid leave days: ${unpaidDays}.`);
   return bits.join(" ") || "";
 }
 
-function occasionalEarningLine(sal: {
+/** Occasional is payload-level (net add-on), never an earning line. */
+function occasionalPayloadFields(sal: {
   occasionalAmount?: number;
   occasionalRemark?: string;
-}): SalarySlipLine | null {
-  const amount = Math.max(0, Number(sal.occasionalAmount) || 0);
-  if (amount <= 0) return null;
+}): Pick<SalarySlipPayload, "occasionalAmount" | "occasionalRemark"> {
+  const occasionalAmount = Math.max(0, Number(sal.occasionalAmount) || 0);
+  if (occasionalAmount <= 0) return {};
   const remark = sal.occasionalRemark?.trim();
   return {
-    label: "Occasional Amount",
-    amount,
-    ...(remark ? { qty: remark } : {}),
+    occasionalAmount,
+    ...(remark ? { occasionalRemark: remark } : {}),
   };
 }
 
@@ -133,23 +137,27 @@ function buildSalesSlipEarnings(
     });
   }
 
-  const occ = occasionalEarningLine(emp);
-  if (occ) lines.push(occ);
-
   return lines;
 }
 
 function buildTechnicalManagerEarnings(
   sal: EmployeeSalaryDetail,
 ): SalarySlipLine[] {
-  const tm = computeTechnicalManagerSalary(sal);
+  const home = Number(sal.homeAllowance) || 0;
+  const b = computeTechnicalManagerSalary(sal);
   return [
-    { label: "Gross Salary", amount: tm.grossSalary },
-    { label: "Basic Salary (50%)", amount: tm.basic },
-    { label: "Medical Allowance (10%)", amount: tm.medicalAllowance },
-    { label: "Home Allowance (20%)", amount: tm.homeAllowance },
-    { label: "Utility Allowance (10%)", amount: tm.utilityAllowance },
-    { label: "Travel Allowance (10%)", amount: tm.travelAllowance },
+    { label: "Basic Salary", amount: sal.basic },
+    { label: "Allowances", amount: sal.allowance + home },
+    {
+      label: "Weekday Overtime (1.5x)",
+      amount: b.weekdayOtPay,
+      qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
+    },
+    {
+      label: "Weekend Overtime (2x)",
+      amount: b.weekendOtPay,
+      qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
+    },
   ];
 }
 
@@ -249,6 +257,7 @@ export function buildSalarySlipFromSub(opts: {
         emp,
         b.loanFromSalary,
       ),
+      ...occasionalPayloadFields(emp),
       comments: commentsFrom(emp, emp.unpaidLeaveDays, emp.paidLeaveDays),
       employeePf: b.pf,
       employerPf: b.pf,
@@ -276,7 +285,6 @@ export function buildSalarySlipFromSub(opts: {
         ...(ex.loanPositive > 0
           ? [{ label: "Loan (company owes)", amount: ex.loanPositive }]
           : []),
-        ...(occasionalEarningLine(sal) ? [occasionalEarningLine(sal)!] : []),
       ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
       deductions: [
         { label: "Income Tax", amount: 0 },
@@ -285,6 +293,7 @@ export function buildSalarySlipFromSub(opts: {
         { label: "Employee PF Share", amount: 0 },
         { label: "Loan Deduction", amount: ex.loanNegative },
       ],
+      ...occasionalPayloadFields(sal),
       comments: commentsFrom(sal),
       employeePf: 0,
       employerPf: 0,
@@ -301,7 +310,6 @@ export function buildSalarySlipFromSub(opts: {
       : computeSalary(sal);
   const profile = profileFromSalary(sal);
   const home = Number(sal.homeAllowance) || 0;
-  const occLine = occasionalEarningLine(sal);
 
   return {
     companyKey: isTechnical ? salarySlipCompanyForKind(kind, companyKey) : companyKey,
@@ -310,43 +318,35 @@ export function buildSalarySlipFromSub(opts: {
     monthCompact,
     employeeName: sub.label,
     ...profile,
-    earnings: [
-      ...(isTechMgr
+    earnings: isTechnical
+      ? isTechMgr
         ? buildTechnicalManagerEarnings(sal)
-        : isTechnical
-          ? [
-              { label: "Basic Salary", amount: sal.basic },
-              { label: "Allowances", amount: sal.allowance + home },
-              {
-                label: "Weekday Overtime (1.5x)",
-                amount: b.weekdayOtPay,
-                qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
-              },
-              {
-                label: "Weekend Overtime (2x)",
-                amount: b.weekendOtPay,
-                qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
-              },
-            ]
-          : [
-              { label: "Basic Salary", amount: sal.basic },
-              { label: "Misc Allowance", amount: sal.allowance },
-              { label: "Home Allowance", amount: home },
-              ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
-            ]),
-      ...(occLine ? [occLine] : []),
-    ],
-    deductions: isTechMgr
-      ? [
-          { label: "PF Deduction (8% of Basic)", amount: b.pf },
-          { label: "Tax Amount", amount: b.incomeTax },
-          ...(b.loanFromSalary > 0 ? [{ label: "Loan Deduction", amount: b.loanFromSalary }] : []),
-        ]
-      : standardDeductions(
-          { ...b, loanThisMonth: b.loanFromSalary },
-          sal,
-          b.loanFromSalary,
-        ),
+        : [
+            { label: "Basic Salary", amount: sal.basic },
+            { label: "Allowances", amount: sal.allowance + home },
+            {
+              label: "Weekday Overtime (1.5x)",
+              amount: b.weekdayOtPay,
+              qty: sal.weekdayOtHours > 0 ? `${sal.weekdayOtHours} hr` : undefined,
+            },
+            {
+              label: "Weekend Overtime (2x)",
+              amount: b.weekendOtPay,
+              qty: sal.weekendOtHours > 0 ? `${sal.weekendOtHours} hr` : undefined,
+            },
+          ]
+      : [
+          { label: "Basic Salary", amount: sal.basic },
+          { label: "Misc Allowance", amount: sal.allowance },
+          { label: "Home Allowance", amount: home },
+          ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
+        ],
+    deductions: standardDeductions(
+      { ...b, loanThisMonth: b.loanFromSalary },
+      sal,
+      b.loanFromSalary,
+    ),
+    ...occasionalPayloadFields(sal),
     comments: commentsFrom(sal, sal.unpaidLeaveDays, sal.paidLeaveDays),
     employeePf: b.pf,
     employerPf: b.pf,

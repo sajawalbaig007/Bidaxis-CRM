@@ -638,7 +638,7 @@ export default function AccountsDashboardPage() {
               <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Currency Payment Formula</h2>
-                  <p className="text-[11px] text-crm-text-faint mt-0.5">View-only · eye to edit · {acc.recordDate}</p>
+                  <p className="text-[11px] text-crm-text-faint mt-0.5">Collected from project payments (by month) · eye for rates · {acc.recordDate}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {viewTab !== "ALL" && (

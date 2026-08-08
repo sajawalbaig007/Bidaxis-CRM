@@ -26,6 +26,7 @@ import {
   normalizePaymentsInput,
   parseProjectPayments,
   paidTotalFromEntries,
+  preservePaymentSlipLinksForCsr,
 } from "../utils/projectPayments";
 import {
   NOT_INTERESTED_LIMIT,
@@ -725,8 +726,10 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (req.body.clientCode       !== undefined) updateData.clientCode       = req.body.clientCode;
     const payments = normalizePaymentsInput(req.body.projectPayments);
     if (payments !== undefined) {
-      updateData.projectPayments = payments;
-      updateData.paidAmount = String(paidTotalFromEntries(parseProjectPayments(payments)));
+      // CSR cannot add/change payment slip links — Admin / Manager only
+      const safePayments = preservePaymentSlipLinksForCsr(payments, lead.projectPayments) ?? payments;
+      updateData.projectPayments = safePayments;
+      updateData.paidAmount = String(paidTotalFromEntries(parseProjectPayments(safePayments)));
     }
 
     /* ── STATUS HANDLING ── */

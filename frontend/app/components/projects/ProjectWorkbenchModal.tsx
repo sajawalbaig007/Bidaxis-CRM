@@ -11,6 +11,8 @@ import { ReqLabel } from "@/app/components/form/RequiredMark";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import {
   PAYMENT_TYPE_OPTIONS,
+  PAYMENT_CHANNEL_OPTIONS,
+  PAYMENT_CURRENCY_OPTIONS,
   ProjectPayment,
   ProjectWorkbenchData,
   CSR_ASSIGN_OTHER,
@@ -144,7 +146,7 @@ export default function ProjectWorkbenchModal({
       ...d,
       projectPayments: [
         ...d.projectPayments,
-        { id: newPaymentId(), type: "Partial", amount: "", link: "", isPaid: false },
+        { id: newPaymentId(), type: "Partial", amount: "", link: "", isPaid: false, paymentChannel: undefined, currency: undefined },
       ],
     }));
   };
@@ -156,7 +158,13 @@ export default function ProjectWorkbenchModal({
         if (p.id !== id) return p;
         const next = { ...p, ...patch };
         if (patch.isPaid === true && !next.paidAt) next.paidAt = new Date().toISOString();
-        if (patch.isPaid === false) next.paidAt = undefined;
+        if (patch.isPaid === true && !next.accountsMonth) {
+          next.accountsMonth = new Date().toISOString().slice(0, 7);
+        }
+        if (patch.isPaid === false) {
+          next.paidAt = undefined;
+          next.accountsMonth = undefined;
+        }
         return next;
       }),
     }));
@@ -195,6 +203,17 @@ export default function ProjectWorkbenchModal({
         toast.error("Bid Instruction notes are required");
         return;
       }
+    if (mode === "admin" && !hideClientFinanceSections) {
+      const badPaid = data.projectPayments.find(
+        (p) =>
+          p.isPaid &&
+          (!p.paymentChannel || !p.currency || !p.accountsMonth || !parseMoney(p.amount)),
+      );
+      if (badPaid) {
+        toast.error("Paid entries need amount, channel, USD/CAD/PKR, and Accounts month");
+        return;
+      }
+    }
     await onSave(data);
   };
 
@@ -486,7 +505,7 @@ export default function ProjectWorkbenchModal({
             </div>
 
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-1">
-              Payment entries
+              Payment entries · channel + currency + month → Accounts
             </p>
             <div className="space-y-3">
               {data.projectPayments.length === 0 && (
@@ -512,9 +531,11 @@ export default function ProjectWorkbenchModal({
                       ))}
                     </select>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                        {p.currency === "PKR" ? "Rs" : p.currency === "CAD" ? "C$" : p.currency === "USD" ? "$" : "$"}
+                      </span>
                       <input
-                        className={`${inputCls} pl-6`}
+                        className={`${inputCls} pl-7`}
                         placeholder="Amount"
                         value={p.amount}
                         onChange={(e) => updatePayment(p.id, { amount: e.target.value })}
@@ -541,15 +562,77 @@ export default function ProjectWorkbenchModal({
                       <Trash2 size={14} />
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Link2 size={14} className="text-[#B8112D] shrink-0" />
-                    <input
-                      className={inputCls}
-                      placeholder="Payment link (invoice / receipt URL)"
-                      value={p.link ?? ""}
-                      onChange={(e) => updatePayment(p.id, { link: e.target.value })}
-                    />
-                  </div>
+                  {mode !== "csr" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <select
+                        className={inputCls}
+                        value={p.paymentChannel ?? ""}
+                        onChange={(e) =>
+                          updatePayment(p.id, {
+                            paymentChannel: (e.target.value || undefined) as ProjectPayment["paymentChannel"],
+                          })
+                        }
+                        title="Accounts payment channel"
+                      >
+                        <option value="">Payment channel…</option>
+                        {PAYMENT_CHANNEL_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <select
+                        className={inputCls}
+                        value={p.currency ?? ""}
+                        onChange={(e) =>
+                          updatePayment(p.id, {
+                            currency: (e.target.value || undefined) as ProjectPayment["currency"],
+                          })
+                        }
+                        title="Payment currency"
+                      >
+                        <option value="">Currency…</option>
+                        {PAYMENT_CURRENCY_OPTIONS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="month"
+                        className={inputCls}
+                        value={p.accountsMonth ?? ""}
+                        onChange={(e) =>
+                          updatePayment(p.id, {
+                            accountsMonth: e.target.value || undefined,
+                          })
+                        }
+                        title="Accounts month — payment counts in this month"
+                        placeholder="Accounts month"
+                      />
+                    </div>
+                  )}
+                  {mode === "csr" && (p.paymentChannel || p.currency || p.accountsMonth) ? (
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      {PAYMENT_CHANNEL_OPTIONS.find((o) => o.value === p.paymentChannel)?.label ?? "Channel"}
+                      {p.currency ? ` · ${p.currency}` : ""}
+                      {p.accountsMonth ? ` · ${p.accountsMonth}` : ""}
+                      <span className="text-gray-400"> (Admin / Manager)</span>
+                    </p>
+                  ) : null}
+                  {mode !== "csr" && (
+                    <div className="flex items-center gap-2">
+                      <Link2 size={14} className="text-[#B8112D] shrink-0" />
+                      <input
+                        className={inputCls}
+                        placeholder="Payment slip / invoice / receipt URL"
+                        value={p.link ?? ""}
+                        onChange={(e) => updatePayment(p.id, { link: e.target.value })}
+                        title="Admin / Manager only — attach payment slip link"
+                      />
+                    </div>
+                  )}
+                  {mode === "csr" && p.link?.trim() ? (
+                    <p className="text-[10px] text-gray-400 font-medium truncate" title="Payment slip (Admin/Manager only)">
+                      Slip on file (managed by Admin / Manager)
+                    </p>
+                  ) : null}
                   {p.isPaid && p.paidAt && (
                     <p className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
                       <Calendar size={10} />
