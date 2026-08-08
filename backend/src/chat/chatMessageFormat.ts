@@ -1,3 +1,5 @@
+import { chatDisplayName } from "../utils/chatAccess";
+
 export type ReactionsMap = Record<string, string[]>;
 
 export const EDIT_WINDOW_MS = 10 * 60 * 1000;
@@ -11,13 +13,13 @@ export function msgStatus(
   senderId: string,
   userId: string,
   createdAt: Date,
-  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[]
+  members: { userId: string; lastReadAt: Date | null; user: { name: string; email?: string | null; role?: string | null } }[]
 ): { status: string; readBy: string[] } {
   const others = members.filter(m => m.userId !== userId);
   if (senderId === userId) {
     const readBy = others
       .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
-      .map(m => m.user.name);
+      .map(m => chatDisplayName(m.user));
     const allRead = others.length > 0 && readBy.length === others.length;
     return { status: allRead ? "read" : "delivered", readBy };
   }
@@ -35,14 +37,14 @@ export function formatMessage(
     deletedReason?: string | null;
     hiddenForUserIds?: string[];
     mentions: string[]; reactions: unknown;
-    sender: { id: string; name: string; profilePic?: string | null };
+    sender: { id: string; name: string; email?: string | null; role?: string | null; profilePic?: string | null };
     replyTo: {
       id: string; text: string; type: string;
-      sender: { name: string };
+      sender: { name: string; email?: string | null; role?: string | null };
     } | null;
   },
   userId: string,
-  members: { userId: string; lastReadAt: Date | null; user: { name: string } }[],
+  members: { userId: string; lastReadAt: Date | null; user: { name: string; email?: string | null; role?: string | null } }[],
   auditMode = false,
 ) {
   const { status, readBy } = msgStatus(m.senderId, userId, m.createdAt, members);
@@ -57,7 +59,7 @@ export function formatMessage(
   return {
     id:           m.id,
     senderId:     m.senderId,
-    senderName:   m.sender.name,
+    senderName:   chatDisplayName(m.sender),
     senderProfilePic: m.sender.profilePic ?? null,
     text:         m.text,
     type:         m.type,
@@ -81,7 +83,7 @@ export function formatMessage(
     replyTo:      m.replyTo ? {
       id:         m.replyTo.id,
       text:       m.replyTo.text,
-      senderName: m.replyTo.sender.name,
+      senderName: chatDisplayName(m.replyTo.sender),
       type:       m.replyTo.type,
     } : null,
   };

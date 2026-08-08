@@ -31,9 +31,18 @@ let loginAttemptSeq = 0;
 export async function hasActiveSession(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
-    select: { activeSessionId: true },
+    select: { activeSessionId: true, lastActive: true },
   });
-  return !!user?.activeSessionId;
+  if (!user?.activeSessionId) return false;
+
+  // Stale session (closed browser / crash) — free the seat so they can log in again
+  const STALE_MS = Number(process.env.SESSION_STALE_MS ?? 2 * 60 * 60 * 1000); // 2h default
+  const last = user.lastActive?.getTime() ?? 0;
+  if (!last || Date.now() - last > STALE_MS) {
+    await clearActiveSession(userId);
+    return false;
+  }
+  return true;
 }
 
 export async function registerActiveSession(userId: string, sid: string): Promise<void> {

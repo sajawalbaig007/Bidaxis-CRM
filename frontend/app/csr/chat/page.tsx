@@ -676,7 +676,13 @@ export default function ChatPage() {
     const raw = Array.isArray(data) ? data : ((data as Record<string, unknown>)?.users ?? data ?? []) as unknown[];
     return (raw as Record<string, unknown>[]).map(u => ({
       id:       String(u.id),
-      name:     String(u.name ?? "Unknown"),
+      name:     (() => {
+        const n = String(u.name ?? "").trim();
+        if (n && n.toLowerCase() !== "unknown") return n;
+        const email = u.email ? String(u.email) : "";
+        if (email) return email.includes("@") ? email.split("@")[0]! : email;
+        return u.csrCode ? String(u.csrCode) : (u.role ? String(u.role).replace(/_/g, " ") : "User");
+      })(),
       email:    u.email ? String(u.email) : undefined,
       csrCode:  u.csrCode ? String(u.csrCode) : null,
       role:     u.role ? String(u.role) : undefined,
