@@ -928,8 +928,8 @@ export default function ChatPanel({
             ...c,
             lastMessage: last
               ? (last.type !== "text" ? `Sent a ${last.type}` : last.text)
-              : null,
-            lastMessageAt: last?.createdAt ?? null,
+              : undefined,
+            lastMessageAt: last?.createdAt ?? undefined,
           };
         }));
       }
