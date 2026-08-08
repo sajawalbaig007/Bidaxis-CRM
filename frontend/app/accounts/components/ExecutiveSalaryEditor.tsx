@@ -146,7 +146,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
       <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-sky-800">Occasional Amount</p>
         <p className="text-[10px] text-sky-700/80">
-          Added to total due only — no PF / tax formulas.
+          Rule: if filled, amount is added to Total Due only. No PF / tax formulas on this amount.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Num

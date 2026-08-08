@@ -4,6 +4,9 @@
  */
 
 import API from "@/lib/api";
+import type { SubHeadEntry } from "../types";
+import { withSyncedPayrollAmount } from "./payrollAmountSync";
+import { resolvePayrollKind } from "./salesPayrollBridge";
 
 export type LedgerLoan = {
   employeeName: string;
@@ -123,8 +126,10 @@ type LoanBearing = {
 export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
   subs: T[] | undefined,
   loans: LedgerLoan[],
+  teamTitle = "",
 ): T[] | undefined {
   if (!subs?.length || !loans.length) return subs;
+  const teamKind = teamTitle ? resolvePayrollKind(teamTitle, subs as never) : undefined;
   let changed = false;
   const next = subs.map(sub => {
     const name = (sub.salesPayroll?.name || sub.label || sub.name || "").trim();
@@ -166,6 +171,14 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
       }
     }
 
+    if (patchSub !== sub && teamTitle) {
+      patchSub = withSyncedPayrollAmount(
+        patchSub as unknown as SubHeadEntry,
+        teamTitle,
+        teamKind,
+      ) as unknown as T;
+    }
+
     return patchSub;
   });
   return changed ? next : subs;
@@ -173,14 +186,14 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
 
 /** Hydrate all team salary rows from the payroll-loan ledger. */
 export async function hydrateIncomeStatementPendingLoans<
-  T extends { teamSalaries?: { subHeads?: LoanBearing[]; [k: string]: unknown }[] },
+  T extends { teamSalaries?: { team?: string; subHeads?: LoanBearing[]; [k: string]: unknown }[] },
 >(data: T): Promise<T> {
   const loans = await fetchAllPayrollLoans();
   if (!loans.length || !data.teamSalaries?.length) return data;
 
   let changed = false;
   const teamSalaries = data.teamSalaries.map(team => {
-    const nextSubs = hydrateSubsFromLedgerLoans(team.subHeads, loans);
+    const nextSubs = hydrateSubsFromLedgerLoans(team.subHeads, loans, String(team.team ?? ""));
     if (nextSubs !== team.subHeads) {
       changed = true;
       return { ...team, subHeads: nextSubs };

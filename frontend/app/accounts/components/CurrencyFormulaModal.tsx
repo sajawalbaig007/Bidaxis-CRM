@@ -29,14 +29,19 @@ function calcLocal(t: DashboardCurrencyTab) {
   return { gross, tax, net, rate };
 }
 
-const FX_FIELDS: { label: string; key: keyof DashboardCurrencyTab; readOnly?: boolean }[] = [
-  { label: "USD Payment (actual cash)", key: "usdAmount" },
+const FX_FIELDS: {
+  label: string;
+  key: keyof DashboardCurrencyTab;
+  readOnly?: boolean;
+  fromProjects?: boolean;
+}[] = [
+  { label: "USD Payment (from projects)", key: "usdAmount", fromProjects: true },
   { label: "USD Tax Factor", key: "usdTaxFactor", readOnly: true },
   { label: "USD to PKR Rate", key: "usdToPkrRate" },
-  { label: "CAD Payment (actual cash)", key: "cadAmount" },
+  { label: "CAD Payment (from projects)", key: "cadAmount", fromProjects: true },
   { label: "CAD Tax Factor", key: "cadTaxFactor", readOnly: true },
   { label: "CAD to PKR Rate", key: "cadToPkrRate" },
-  { label: "Direct PKR Payment", key: "pkrAmount" },
+  { label: "Direct PKR (from projects)", key: "pkrAmount", fromProjects: true },
 ];
 
 export default function CurrencyFormulaModal({
@@ -60,7 +65,12 @@ export default function CurrencyFormulaModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b bg-[#F8FAFC] flex items-center justify-between">
-          <h3 className="font-bold text-crm-text text-sm">Edit payment formula — {CURRENCY_TAB_LABELS[tab]}</h3>
+          <div>
+            <h3 className="font-bold text-crm-text text-sm">Payment formula — {CURRENCY_TAB_LABELS[tab]}</h3>
+            <p className="text-[10px] text-crm-text-faint mt-0.5">
+              Collected amounts come from Admin/Manager project payments (USD / CAD / PKR) · rates editable
+            </p>
+          </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-crm-muted flex items-center justify-center">
             <X size={16} />
           </button>
@@ -70,11 +80,12 @@ export default function CurrencyFormulaModal({
           {local ? (
             <>
               <label className="text-xs font-semibold text-crm-text-secondary block">
-                Gross payment (PKR)
-                <AmountInput
-                  value={Number(value.pkrAmount) || 0}
-                  onChange={n => onChange("pkrAmount", n)}
-                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/30"
+                Gross collected (PKR) — from projects
+                <input
+                  type="text"
+                  readOnly
+                  value={currency(Number(value.pkrAmount) || 0)}
+                  className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-muted cursor-default tabular-nums"
                 />
               </label>
               <label className="text-xs font-semibold text-crm-text-secondary block">
@@ -95,15 +106,15 @@ export default function CurrencyFormulaModal({
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {FX_FIELDS.map(({ label, key, readOnly }) => (
+                {FX_FIELDS.map(({ label, key, readOnly, fromProjects }) => (
                   <label key={key} className={`text-xs font-semibold text-crm-text-secondary ${key === "pkrAmount" ? "sm:col-span-2" : ""}`}>
                     {label}{readOnly ? " (fixed)" : ""}
-                    {readOnly ? (
+                    {readOnly || fromProjects ? (
                       <input
                         type="text"
                         readOnly
-                        value={String(value[key] as number)}
-                        className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-muted cursor-default"
+                        value={fromProjects ? currency(Number(value[key] as number) || 0) : String(value[key] as number)}
+                        className="mt-1 h-10 w-full rounded-xl border border-crm-border px-3 text-sm bg-[#F8FAFC] text-crm-text-muted cursor-default tabular-nums"
                       />
                     ) : (
                       <AmountInput

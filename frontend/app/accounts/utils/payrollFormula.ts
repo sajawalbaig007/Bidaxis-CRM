@@ -42,9 +42,10 @@ export type EmployeeSalaryDetail = {
   /** Manual income tax deduction */
   incomeTax: number;
 
-  /**
-   * One-off / occasional pay — added to net only.
-   * Does not enter total earning (no PF / tax / late / unpaid formulas).
+/**
+   * One-off / occasional pay.
+   * Formula: Net Salary = (Total Earning − Total Deduction) + Occasional Amount
+   * Never enters totalEarning — so PF, tax, late, unpaid leave, day-salary ignore it.
    */
   occasionalAmount?: number;
   /** Why this occasional amount was paid (occasion note). */
@@ -145,9 +146,9 @@ export function timeToMinutes(t: string | undefined | null): number | null {
 }
 
 /**
- * Late deduction for Technical Team.
- * Shift 07:00–16:00 (9h). Relief until 07:30.
- * 07:30–08:00 → 1/4 day | 08:00–09:00 → 1/3 day | 09:00+ → half day
+ * Late deduction for Technical Team / Technical Manager day shifts.
+ * Tech team: shift 07:00 (relief 07:30). Tech manager: shift 09:00 (relief 09:30).
+ * Same slabs after start: +0:30 relief · next 30m = ¼ day · next 60m = ⅓ day · later = ½ day.
  * Waiver: if check-in late but worked ≥ 9 hours, no late cut.
  */
 export function calcLateDeduction(
@@ -155,6 +156,8 @@ export function calcLateDeduction(
   checkIn: string,
   checkOut: string,
   override?: number | null,
+  /** 7 = Technical Team · 9 = Technical Manager */
+  shiftStartHour: 7 | 9 = 7,
 ): { amount: number; rule: string } {
   if (override != null && Number.isFinite(override) && override >= 0) {
     return { amount: Number(override) || 0, rule: "Manual late override" };
@@ -164,12 +167,14 @@ export function calcLateDeduction(
   const outMin = timeToMinutes(checkOut);
   if (inMin == null) return { amount: 0, rule: "No check-in — no late cut" };
 
-  const reliefEnd = 7 * 60 + 30; // 07:30
-  const eight = 8 * 60;
-  const nine = 9 * 60;
+  const start = shiftStartHour * 60;
+  const reliefEnd = start + 30;
+  const quarterEnd = start + 60; // first hour after start
+  const thirdEnd = start + 120; // second hour after start
+  const pad = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
   if (inMin <= reliefEnd) {
-    return { amount: 0, rule: "On time / relief (≤ 07:30)" };
+    return { amount: 0, rule: `On time / relief (≤ ${pad(reliefEnd)})` };
   }
 
   // Full 9h shift waiver
@@ -180,13 +185,13 @@ export function calcLateDeduction(
     }
   }
 
-  if (inMin < eight) {
-    return { amount: daySalary / 4, rule: "07:30–08:00 → ¼ day" };
+  if (inMin < quarterEnd) {
+    return { amount: daySalary / 4, rule: `${pad(reliefEnd)}–${pad(quarterEnd)} → ¼ day` };
   }
-  if (inMin < nine) {
-    return { amount: daySalary / 3, rule: "08:00–09:00 → ⅓ day" };
+  if (inMin < thirdEnd) {
+    return { amount: daySalary / 3, rule: `${pad(quarterEnd)}–${pad(thirdEnd)} → ⅓ day` };
   }
-  return { amount: daySalary / 2, rule: "09:00+ → half day" };
+  return { amount: daySalary / 2, rule: `${pad(thirdEnd)}+ → half day` };
 }
 
 /**
@@ -358,7 +363,10 @@ export function ensureExecutiveSalaryDetail(
   });
 }
 
-export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
+export function computeSalary(
+  detail: EmployeeSalaryDetail,
+  opts?: { /** Technical Team = 7 · Technical Manager = 9 */ lateShiftHour?: 7 | 9 },
+): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
   const allowance = Number(detail.allowance) || 0;
   const homeAllowance = Number(detail.homeAllowance) || 0;
@@ -381,6 +389,7 @@ export function computeSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
     detail.checkIn,
     detail.checkOut,
     detail.lateDeductionOverride,
+    opts?.lateShiftHour ?? 7,
   );
 
   const unpaidLeaveDays = Number(detail.unpaidLeaveDays) || 0;
@@ -450,10 +459,30 @@ export type TechManagerBreakdown = SalaryBreakdown & {
   taxableIncome: number;
 };
 
-/** Gross = explicit field, else sum of stored package lines (legacy rows). */
+/**
+ * Technical Manager — same payroll as Technical Team, but late shift starts at 09:00.
+ */
+export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): TechManagerBreakdown {
+  const b = computeSalary(detail, { lateShiftHour: 9 });
+  const basic = Number(detail.basic) || 0;
+  const medicalAllowance = Number(detail.medicalAllowance) || 0;
+  const homeAllowance = Number(detail.homeAllowance) || 0;
+  const utilityAllowance = Number(detail.utilityAllowance) || 0;
+  const travelAllowance = Number(detail.travelAllowance) || 0;
+  return {
+    ...b,
+    grossSalary: b.monthlySalary,
+    basic,
+    medicalAllowance,
+    homeAllowance,
+    utilityAllowance,
+    travelAllowance,
+    taxableIncome: Math.max(0, b.totalEarning - medicalAllowance),
+  };
+}
+
+/** @deprecated Package % split no longer used — Technical Manager uses Technical Team formula. */
 export function resolveTechnicalManagerGross(detail: EmployeeSalaryDetail): number {
-  const g = Number(detail.grossSalary) || 0;
-  if (g > 0) return g;
   return (
     (Number(detail.basic) || 0) +
     (Number(detail.homeAllowance) || 0) +
@@ -464,89 +493,20 @@ export function resolveTechnicalManagerGross(detail: EmployeeSalaryDetail): numb
   );
 }
 
-/** Write Gross and auto-fill Basic / Medical / Home / Utility / Travel. */
+/** @deprecated Package % split no longer used — Technical Manager uses Technical Team formula. */
 export function applyTechnicalManagerGross(
   detail: EmployeeSalaryDetail,
   gross: number,
 ): EmployeeSalaryDetail {
-  const g = Math.max(0, Number(gross) || 0);
-  const s = TECH_MGR_GROSS_SPLITS;
+  // Legacy helper: map gross into basic so older UI paths don't break.
   return {
     ...detail,
-    grossSalary: g,
-    basic: g * s.basic,
-    medicalAllowance: g * s.medical,
-    homeAllowance: g * s.home,
-    utilityAllowance: g * s.utility,
-    travelAllowance: g * s.travel,
+    grossSalary: Math.max(0, Number(gross) || 0),
+    basic: Math.max(0, Number(gross) || 0),
+    medicalAllowance: 0,
+    homeAllowance: 0,
+    utilityAllowance: 0,
+    travelAllowance: 0,
     allowance: 0,
-    pfAuto: true,
-  };
-}
-
-/**
- * Technical Manager package salary (sheet formula):
- * Basic 50% · Medical 10% · Home 20% · Utility 10% · Travel 10% of Gross
- * PF = 8% of Basic · Taxable = Gross − Medical · Net = Gross − PF − Tax (− loan this month)
- */
-export function computeTechnicalManagerSalary(detail: EmployeeSalaryDetail): TechManagerBreakdown {
-  const gross = resolveTechnicalManagerGross(detail);
-  const s = TECH_MGR_GROSS_SPLITS;
-  const basic = gross * s.basic;
-  const medicalAllowance = gross * s.medical;
-  const homeAllowance = gross * s.home;
-  const utilityAllowance = gross * s.utility;
-  const travelAllowance = gross * s.travel;
-  const monthlySalary = gross;
-  const daySalary = monthlySalary / 30;
-  const hourSalary = daySalary / 8;
-
-  const pf =
-    detail.pfAuto !== false ? basic * 0.08 : Number(detail.pfOverride) || 0;
-  const incomeTax = Number(detail.incomeTax) || 0;
-  const loanThisMonth = Number(detail.loanThisMonth) || 0;
-  const loanFromSalary = loanAmountFromSalary(detail);
-  const loanRemaining = Math.max(
-    0,
-    (Number(detail.loanTotal) || 0) - (Number(detail.loanPaid) || 0) - loanThisMonth,
-  );
-
-  const taxableIncome = gross - medicalAllowance;
-  const totalEarning = gross;
-  const baseDeduction = pf + incomeTax;
-  const totalDeduction = baseDeduction + loanFromSalary;
-  const occasionalAmount = occasionalOf(detail);
-  const netBeforeLoan = totalEarning - baseDeduction + occasionalAmount;
-  const totalSalary = totalEarning - totalDeduction + occasionalAmount;
-
-  return {
-    grossSalary: gross,
-    basic,
-    medicalAllowance,
-    homeAllowance,
-    utilityAllowance,
-    travelAllowance,
-    taxableIncome,
-    monthlySalary,
-    daySalary,
-    hourSalary,
-    weekdayOtPay: 0,
-    weekendOtPay: 0,
-    totalOvertime: 0,
-    totalEarning,
-    lateDeduction: 0,
-    unpaidLeaveDeduction: 0,
-    paidLeaveDays: Number(detail.paidLeaveDays) || 0,
-    unpaidLeaveDays: Number(detail.unpaidLeaveDays) || 0,
-    loanThisMonth,
-    loanFromSalary,
-    netBeforeLoan,
-    loanRemaining,
-    pf,
-    incomeTax,
-    totalDeduction,
-    totalSalary,
-    lateRuleApplied: "Package salary — no late slabs",
-    occasionalAmount,
   };
 }

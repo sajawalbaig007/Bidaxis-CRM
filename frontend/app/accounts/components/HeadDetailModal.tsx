@@ -172,13 +172,7 @@ export default function HeadDetailModal({
         : isAdminKind
           ? emptySalaryDetail({ checkIn: "18:00" })
           : isTechMgrKind
-            ? emptySalaryDetail({
-                grossSalary: 0,
-                homeAllowance: 0,
-                medicalAllowance: 0,
-                utilityAllowance: 0,
-                travelAllowance: 0,
-              })
+            ? emptySalaryDetail({ checkIn: "09:00", checkOut: "18:00" })
             : ensureSalaryDetail(undefined, 0)
       : undefined;
     const amount = salary
@@ -284,7 +278,7 @@ export default function HeadDetailModal({
             )}
             {payrollKind === "technical_manager" && salaryMode && (
               <p className="text-[10px] font-bold text-violet-700 mt-0.5">
-                Technical Manager — Gross package: Basic 50% · Medical 10% · Home 20% · Utility 10% · Travel 10% · PF 8% of Basic · Net = Gross − PF − Tax
+                Technical Manager — Technical Team formula · late shift 09:00 (relief ≤09:30)
               </p>
             )}
           </div>
@@ -527,7 +521,13 @@ export default function HeadDetailModal({
                         ...(s.salary ?? { basic: s.amount }),
                         checkIn: s.salary?.checkIn || "18:00",
                       })
-                    : ensureSalaryDetail(s.salary, s.amount);
+                    : isTechMgrSub
+                      ? emptySalaryDetail({
+                          ...(s.salary ?? { basic: s.amount }),
+                          checkIn: s.salary?.checkIn || "09:00",
+                          checkOut: s.salary?.checkOut || "18:00",
+                        })
+                      : ensureSalaryDetail(s.salary, s.amount);
                   const net = isAdminSub
                     ? computeAdminSalary(sal).totalSalary
                     : isTechMgrSub

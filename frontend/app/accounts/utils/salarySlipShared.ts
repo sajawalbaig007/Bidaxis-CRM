@@ -27,6 +27,12 @@ export type SalarySlipPayload = {
   cnic?: string;
   earnings: SalarySlipLine[];
   deductions: SalarySlipLine[];
+  /**
+   * Occasional pay — added to Net Payment only.
+   * Never included in Total Earnings (so PF / tax / late formulas stay unchanged).
+   */
+  occasionalAmount?: number;
+  occasionalRemark?: string;
   comments?: string;
   employeePf?: number;
   employerPf?: number;
@@ -72,6 +78,19 @@ export function earningsTotal(lines: SalarySlipLine[]): number {
   return lines.reduce(
     (a, r) => a + (r.includeInTotal === false ? 0 : Number(r.amount) || 0),
     0,
+  );
+}
+
+export function deductionsTotal(lines: SalarySlipLine[]): number {
+  return lines.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+}
+
+/** Net = Total Earnings − Total Deduction + Occasional (occasional has zero deductions). */
+export function slipNetPayment(payload: SalarySlipPayload): number {
+  return (
+    earningsTotal(payload.earnings) -
+    deductionsTotal(payload.deductions) +
+    Math.max(0, Number(payload.occasionalAmount) || 0)
   );
 }
 

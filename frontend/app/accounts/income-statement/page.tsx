@@ -27,6 +27,7 @@ import {
   recomputeExecutiveTeam,
   seededIncomeStatementData,
 } from "../utils/incomeStatementSeed";
+import { recomputePayrollSubAmounts } from "../utils/payrollAmountSync";
 import { syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
 import { syncLoanHeadsFromSalaries } from "../utils/payrollLoanHeadsSync";
 import { hydrateIncomeStatementPendingLoans } from "../utils/loanLedgerApply";
@@ -51,10 +52,12 @@ function normalizeIncomeStatement(
   return syncLoanHeadsFromSalaries(
     syncProvidentFundFromSalaries(
       recomputeExecutiveTeam(
-        ensureIncomeStatementPeople({
-          ...raw,
-          totalRevenue,
-        }),
+        recomputePayrollSubAmounts(
+          ensureIncomeStatementPeople({
+            ...raw,
+            totalRevenue,
+          }),
+        ),
       ),
     ),
   );

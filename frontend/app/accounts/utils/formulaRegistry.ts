@@ -81,7 +81,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Common",
     title: "Total Deduction & Net",
     expression:
-      "Total Deduction = Late + (Unpaid Leaves × Day Salary) + Loan (this month) + PF + Income Tax · Net Salary = Total Earning − Total Deduction + Occasional Amount",
+      "Net Salary = (Total Earning − Total Deduction) + Occasional Amount · Occasional never enters PF / tax / late / unpaid bases",
     appliesTo: "Every employee net salary",
   },
   {
@@ -89,7 +89,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Common",
     title: "Occasional Amount",
     expression:
-      "Occasional Amount is typed by Accounts · added to Net only · does not affect PF, tax, late, unpaid leave, or day salary bases · keep Occasion remark for why it was paid",
+      "If Occasional Amount is filled → add it to Net Salary only · zero deductions of any kind on this amount · keep Occasion remark for why it was paid",
     appliesTo: "Every salary sub-head editor (Technical / Admin / Sales / Executive)",
   },
 
@@ -119,20 +119,12 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
 
   // ---- Payroll — Technical Manager ----
   {
-    id: "tech-mgr-package",
+    id: "tech-mgr-same-as-tech",
     section: "Payroll — Technical Manager",
-    title: "Gross package split",
+    title: "Same as Technical Team (9 AM late)",
     expression:
-      "Basic = 50% · Medical = 10% · Home = 20% · Utility = 10% · Travel = 10% of Gross",
+      "Same as Technical Team · Late shift 09:00 · relief ≤ 09:30 · 09:30–10:00 = ¼ day · 10:00–11:00 = ⅓ day · 11:00+ = ½ day · ≥9h worked → waived · Net = Earning − Deduction + Occasional",
     appliesTo: "Income Statement → Team Salaries → Technical Manager",
-  },
-  {
-    id: "tech-mgr-net",
-    section: "Payroll — Technical Manager",
-    title: "Net Salary",
-    expression:
-      "PF = 8% of Basic · Taxable Income = Gross − Medical · Net = Gross − PF − Tax (− loan this month) + Occasional",
-    appliesTo: "Technical Manager employee editor",
   },
 
   // ---- Payroll — Administration ----
@@ -189,8 +181,8 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Executive",
     title: "Total Due (Head Amount)",
     expression:
-      "Total Due = Total Salary + Loan+ve − Loan−ve + Occasional · Loan+ve adds to head total · Loan−ve deducts · Occasional adds to net only",
-    appliesTo: "Executive head / sub-head amount on Income Statement",
+      "Amount due = Basic + Commission + Loan+ve − Loan−ve + Occasional",
+    appliesTo: "Income Statement → Team Salaries → Executive (head amount / Total Due)",
   },
   {
     id: "exec-comm",

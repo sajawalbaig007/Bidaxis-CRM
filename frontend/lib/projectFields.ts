@@ -1,3 +1,15 @@
+export type PaymentChannel = "AH" | "SN" | "CHQ" | "HM";
+export type PaymentCurrency = "USD" | "CAD" | "PKR";
+
+export const PAYMENT_CHANNEL_OPTIONS: { value: PaymentChannel; label: string }[] = [
+  { value: "AH", label: "Ahmed Hamza" },
+  { value: "SN", label: "Sharjeel Nasir" },
+  { value: "CHQ", label: "Cheque" },
+  { value: "HM", label: "Habib Metro" },
+];
+
+export const PAYMENT_CURRENCY_OPTIONS: PaymentCurrency[] = ["USD", "CAD", "PKR"];
+
 export type ProjectPayment = {
   id: string;
   type: string;
@@ -5,6 +17,12 @@ export type ProjectPayment = {
   link?: string;
   isPaid: boolean;
   paidAt?: string;
+  /** Accounts currency channel — Admin/Manager when payment arrives */
+  paymentChannel?: PaymentChannel;
+  /** USD / CAD / PKR — shown on Accounts currency section */
+  currency?: PaymentCurrency;
+  /** YYYY-MM — Accounts month this payment counts in */
+  accountsMonth?: string;
 };
 
 export const PROJECT_PHASE_OPTIONS = [
@@ -25,13 +43,54 @@ export const PAYMENT_TYPE_OPTIONS = [
   "Other",
 ] as const;
 
+function normalizePaymentChannel(raw: unknown): PaymentChannel | undefined {
+  const v = String(raw ?? "").trim().toUpperCase();
+  if (v === "AH" || v === "SN" || v === "CHQ" || v === "HM") return v;
+  return undefined;
+}
+
+function normalizePaymentCurrency(raw: unknown): PaymentCurrency | undefined {
+  const v = String(raw ?? "").trim().toUpperCase();
+  if (v === "USD" || v === "CAD" || v === "PKR") return v;
+  return undefined;
+}
+
+function normalizeAccountsMonth(raw: unknown): string | undefined {
+  const v = String(raw ?? "").trim();
+  if (/^\d{4}-\d{2}$/.test(v)) return v;
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 7);
+  return undefined;
+}
+
+function sanitizePayment(raw: Partial<ProjectPayment> & Record<string, unknown>): ProjectPayment {
+  const channel = normalizePaymentChannel(raw.paymentChannel);
+  const currency = normalizePaymentCurrency(raw.currency);
+  const accountsMonth = normalizeAccountsMonth(raw.accountsMonth);
+  const entry: ProjectPayment = {
+    id: String(raw.id ?? ""),
+    type: String(raw.type ?? "Partial"),
+    amount: String(raw.amount ?? ""),
+    isPaid: Boolean(raw.isPaid),
+  };
+  if (typeof raw.link === "string" && raw.link.trim()) entry.link = raw.link.trim();
+  if (typeof raw.paidAt === "string" && raw.paidAt.trim()) entry.paidAt = raw.paidAt;
+  if (channel) entry.paymentChannel = channel;
+  if (currency) entry.currency = currency;
+  if (accountsMonth) entry.accountsMonth = accountsMonth;
+  return entry;
+}
+
 export function parsePayments(raw: unknown): ProjectPayment[] {
   if (!raw) return [];
-  if (Array.isArray(raw)) return raw as ProjectPayment[];
+  if (Array.isArray(raw)) {
+    return raw.map((e) => sanitizePayment((e ?? {}) as Record<string, unknown>));
+  }
   if (typeof raw === "string" && raw.trim()) {
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed)
+        ? parsed.map((e) => sanitizePayment((e ?? {}) as Record<string, unknown>))
+        : [];
     } catch {
       return [];
     }

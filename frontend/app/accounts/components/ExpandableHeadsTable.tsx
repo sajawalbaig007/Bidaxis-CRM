@@ -601,7 +601,7 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.pf) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.incomeTax) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{b ? currency(b.totalDeduction) : "—"}</td>
-                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(s.amount)}</td>
+                                        <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{b ? currency(b.totalSalary) : currency(s.amount)}</td>
                                         <td className="px-1 py-2 text-center">
                                           <SalarySlipDownloadButton
                                             compact

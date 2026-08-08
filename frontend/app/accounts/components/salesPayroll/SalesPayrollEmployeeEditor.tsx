@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { currency } from "../../types";
 import {
   calcSalesCommission,
@@ -71,6 +71,10 @@ export default function SalesPayrollEmployeeEditor({
 }: Props) {
   const [open, setOpen] = useState(defaultOpen || embedded);
   const isSales = variant === "sales";
+  const employeeRef = useRef(employee);
+  employeeRef.current = employee;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const assignedTlTotal =
     variant === "team_lead"
@@ -97,22 +101,24 @@ export default function SalesPayrollEmployeeEditor({
   );
 
   const lookupLoan = useCallback(async (force = false) => {
+    const current = employeeRef.current;
     const patch = await fetchAndApplyPendingLoan(
-      employee.name,
+      current.name,
       {
-        loanTotal: Number(employee.loanTotal) || 0,
-        loanPaid: Number(employee.loanPaid) || 0,
-        loanThisMonth: Number(employee.loanThisMonth) || 0,
+        loanTotal: Number(current.loanTotal) || 0,
+        loanPaid: Number(current.loanPaid) || 0,
+        loanThisMonth: Number(current.loanThisMonth) || 0,
       },
       { force },
     );
     if (!patch) return;
-    onChange({ ...employee, ...patch });
-  }, [employee, onChange]);
+    // Merge onto latest employee so occasional / other edits aren't wiped mid-request
+    onChangeRef.current({ ...employeeRef.current, ...patch });
+  }, []);
 
   useEffect(() => {
     if (open || embedded) void lookupLoan(false);
-  }, [open, embedded, employee.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, embedded, employee.name, lookupLoan]);
 
   const assignedReps = allData.salesTeamMembers.filter(m =>
     isRepAssignedToLead(m, employee.id),
@@ -388,7 +394,7 @@ export default function SalesPayrollEmployeeEditor({
           <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-3 space-y-2">
             <p className="text-[11px] font-extrabold uppercase text-sky-800">Occasional Amount</p>
             <p className="text-[10px] text-sky-700/80">
-              Added to Net only — not included in PF, tax, late, or unpaid leave.
+              Rule: if filled, amount is added to Net Salary only. No PF, tax, late, unpaid, or loan cut on this amount.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Num

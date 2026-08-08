@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
-  applyTechnicalManagerGross,
   computeAdminSalary,
   computeSalary,
   computeTechnicalManagerSalary,
@@ -20,7 +19,11 @@ type Props = {
   teamHint?: string;
   /** Auto-lookup loan ledger by employee name */
   enableLoanLookup?: boolean;
-  /** "admin" — Administration formula: no overtime, 6 PM late slabs. */
+  /**
+   * technical → Technical Team (OT + 7 AM late).
+   * technical_manager → same formula, late shift 9 AM.
+   * admin → Administration (no OT, 6 PM late).
+   */
   variant?: "technical" | "technical_manager" | "admin";
 };
 
@@ -67,37 +70,43 @@ export default function EmployeeSalaryEditor({
   variant = "technical",
 }: Props) {
   const d = value;
+  const dRef = useRef(d);
+  dRef.current = d;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const isAdmin = variant === "admin";
   const isTechMgr = variant === "technical_manager";
-  const b = isTechMgr
-    ? computeTechnicalManagerSalary(d)
-    : isAdmin
-      ? computeAdminSalary(d)
+  /** Technical Manager uses Technical Team formula with 9 AM late shift. */
+  const isGpsTechnical = variant === "technical" || variant === "technical_manager";
+  const b = isAdmin
+    ? computeAdminSalary(d)
+    : isTechMgr
+      ? computeTechnicalManagerSalary(d)
       : computeSalary(d);
-  const tm = isTechMgr ? computeTechnicalManagerSalary(d) : null;
+
+  const defaultCheckIn = isAdmin ? "18:00" : isTechMgr ? "09:00" : "07:00";
+  const defaultCheckOut = isTechMgr ? "18:00" : "16:00";
 
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
     onChange({ ...d, [key]: val });
   };
 
-  const setGross = (gross: number) => {
-    onChange(applyTechnicalManagerGross(d, gross));
-  };
-
   const lookupLoan = useCallback(async (force = false) => {
     if (!enableLoanLookup || !name.trim()) return;
+    const current = dRef.current;
     const patch = await fetchAndApplyPendingLoan(
       name,
       {
-        loanTotal: Number(d.loanTotal) || 0,
-        loanPaid: Number(d.loanPaid) || 0,
-        loanThisMonth: Number(d.loanThisMonth) || 0,
+        loanTotal: Number(current.loanTotal) || 0,
+        loanPaid: Number(current.loanPaid) || 0,
+        loanThisMonth: Number(current.loanThisMonth) || 0,
       },
       { force },
     );
     if (!patch) return;
-    onChange({ ...d, ...patch });
-  }, [enableLoanLookup, name, d, onChange]);
+    // Merge onto latest salary so in-flight edits (e.g. occasional) are not wiped
+    onChangeRef.current({ ...dRef.current, ...patch });
+  }, [enableLoanLookup, name]);
 
   useEffect(() => {
     void lookupLoan(false);
@@ -114,48 +123,43 @@ export default function EmployeeSalaryEditor({
         <p className="text-xs font-extrabold text-[#B8112D] tabular-nums">Net: {currency(b.totalSalary)}</p>
       </div>
 
-      {isTechMgr && tm ? (
-        <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-2.5 space-y-2">
-          <p className="text-[10px] font-extrabold uppercase tracking-wide text-violet-800">
-            Package salary (Gross → %)
-          </p>
-          <p className="text-[10px] text-violet-700/80">
-            Basic 50% · Medical 10% · Home 20% · Utility 10% · Travel 10% · PF = 8% of Basic ·
-            Taxable = Gross − Medical · Net = Gross − PF − Tax
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <Num label="Gross Salary" value={tm.grossSalary} onChange={setGross} hint="Enter package total" />
-            <Num
-              label="Tax Amount"
-              value={d.incomeTax}
-              onChange={v => set("incomeTax", v)}
-              hint="Manual — editable"
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
+        <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
+        <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+        <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
+        <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
+        <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
+      </div>
+
+      <div className="rounded-xl border border-sky-100 bg-sky-50/40 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-sky-800">Occasional Amount</p>
+        <p className="text-[10px] text-sky-700/80">
+          Rule: if filled, amount is added to Net Salary only. No PF, tax, late, unpaid, or loan cut on this amount.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Num
+            label="Occasional Amount"
+            value={d.occasionalAmount ?? 0}
+            onChange={v => set("occasionalAmount", v)}
+            hint="Plus into net only"
+          />
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+            Occasion / Remark
+            <input
+              type="text"
+              value={d.occasionalRemark ?? ""}
+              onChange={e => set("occasionalRemark", e.target.value)}
+              placeholder="e.g. Eid bonus, wedding gift…"
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
             />
-            <Read label="Basic (50%)" value={currency(tm.basic)} />
-            <Read label="Medical (10%)" value={currency(tm.medicalAllowance)} />
-            <Read label="Home (20%)" value={currency(tm.homeAllowance)} />
-            <Read label="Utility (10%)" value={currency(tm.utilityAllowance)} />
-            <Read label="Travel (10%)" value={currency(tm.travelAllowance)} />
-            <Read label="Taxable Income" value={currency(tm.taxableIncome)} accent="text-violet-800" />
-            <Read label="PF (8% of Basic)" value={currency(tm.pf)} accent="text-teal-800" />
-            <Read label="1 Day (/30)" value={currency(tm.daySalary)} />
-            <Read label="Net Salary" value={currency(tm.totalSalary)} accent="text-[#B8112D]" />
-          </div>
+          </label>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
-          <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
-          <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
-          <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
-          <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
-          <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />
-        </div>
-      )}
+      </div>
 
       <div className="rounded-xl border border-crm-border bg-crm-surface-muted p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-crm-text-secondary">
-          Salary slip profile ({variant === "technical" || variant === "technical_manager" ? "GPS · Global Pre Construction" : "BEM Solutions"})
+          Salary slip profile ({isGpsTechnical ? "GPS · Global Pre Construction" : "BEM Solutions"})
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
@@ -197,7 +201,7 @@ export default function EmployeeSalaryEditor({
         </div>
       </div>
 
-      {!isAdmin && !isTechMgr && (
+      {!isAdmin && (
         <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-2.5 space-y-2">
           <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">Overtime</p>
           <p className="text-[10px] text-blue-600/80">Weekday OT = hours × hourly × 1.5 · Weekend OT = hours × hourly × 2</p>
@@ -211,59 +215,61 @@ export default function EmployeeSalaryEditor({
         </div>
       )}
 
-      {!isTechMgr && (
-        <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-2.5 space-y-2">
-          <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
-            {isAdmin ? "Late Arrival (Admin shift 6:00 PM)" : "Late Arrival (Tech shift 7:00–16:00)"}
-          </p>
-          <p className="text-[10px] text-amber-700/80">
-            {isAdmin
-              ? "1-day salary = (Basic + Allowance) ÷ 30. Relief ≤18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = half day."
+      <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
+          {isAdmin
+            ? "Late Arrival (Admin shift 6:00 PM)"
+            : isTechMgr
+              ? "Late Arrival (Tech Manager shift 9:00–18:00)"
+              : "Late Arrival (Tech shift 7:00–16:00)"}
+        </p>
+        <p className="text-[10px] text-amber-700/80">
+          {isAdmin
+            ? "1-day salary = (Basic + Allowance) ÷ 30. Relief ≤18:15 · 18:15–18:30 = ⅕ day · 18:30–19:00 = ¼ day · 19:00–20:00 = ⅓ day · 20:00+ = half day."
+            : isTechMgr
+              ? "Relief ≤09:30 · 09:30–10:00 = ¼ day · 10:00–11:00 = ⅓ day · 11:00+ = half day. If worked ≥9h after late check-in → waived."
               : "Relief ≤07:30 · 07:30–08:00 = ¼ day · 08:00–09:00 = ⅓ day · 09:00+ = half day. If worked ≥9h after late check-in → waived."}
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+            Check In
+            <input
+              type="time"
+              value={d.checkIn || defaultCheckIn}
+              onChange={e => set("checkIn", e.target.value)}
+              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none"
+            />
+          </label>
+          {!isAdmin && (
             <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
-              Check In
+              Check Out
               <input
                 type="time"
-                value={d.checkIn || (isAdmin ? "18:00" : "07:00")}
-                onChange={e => set("checkIn", e.target.value)}
+                value={d.checkOut || defaultCheckOut}
+                onChange={e => set("checkOut", e.target.value)}
                 className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none"
               />
             </label>
-            {!isAdmin && (
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
-                Check Out
-                <input
-                  type="time"
-                  value={d.checkOut || "16:00"}
-                  onChange={e => set("checkOut", e.target.value)}
-                  className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none"
-                />
-              </label>
-            )}
-            <Num
-              label="Late Override (optional)"
-              value={d.lateDeductionOverride ?? 0}
-              onChange={v => set("lateDeductionOverride", v)}
-              hint="0 = use time rules"
-            />
-            <Read label="Late Deduction" value={currency(b.lateDeduction)} accent="text-amber-800" />
-            <Read label="Rule" value={b.lateRuleApplied} />
-          </div>
+          )}
+          <Num
+            label="Late Override (optional)"
+            value={d.lateDeductionOverride ?? 0}
+            onChange={v => set("lateDeductionOverride", v)}
+            hint="0 = use time rules"
+          />
+          <Read label="Late Deduction" value={currency(b.lateDeduction)} accent="text-amber-800" />
+          <Read label="Rule" value={b.lateRuleApplied} />
         </div>
-      )}
+      </div>
 
-      {!isTechMgr && (
-        <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-2.5 space-y-2">
-          <p className="text-[10px] font-extrabold uppercase tracking-wide text-rose-800">Leaves</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Num label="Paid Leave Days" value={d.paidLeaveDays} onChange={v => set("paidLeaveDays", v)} />
-            <Num label="Unpaid Leave Days" value={d.unpaidLeaveDays} onChange={v => set("unpaidLeaveDays", v)} />
-            <Read label="Unpaid Leave Deduction" value={currency(b.unpaidLeaveDeduction)} accent="text-rose-700" />
-          </div>
+      <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-rose-800">Leaves</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Num label="Paid Leave Days" value={d.paidLeaveDays} onChange={v => set("paidLeaveDays", v)} />
+          <Num label="Unpaid Leave Days" value={d.unpaidLeaveDays} onChange={v => set("unpaidLeaveDays", v)} />
+          <Read label="Unpaid Leave Deduction" value={currency(b.unpaidLeaveDeduction)} accent="text-rose-700" />
         </div>
-      )}
+      </div>
 
       <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2.5 space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -331,78 +337,32 @@ export default function EmployeeSalaryEditor({
       <div className="rounded-xl border border-teal-100 bg-teal-50/30 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-teal-800">PF & Tax</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-          {isTechMgr ? (
-            <>
-              <Read label="PF (8% of Basic)" value={currency(b.pf)} accent="text-teal-800" />
-              <Num
-                label="Tax Amount"
-                value={d.incomeTax}
-                onChange={v => set("incomeTax", v)}
-                hint="Type any amount — updates Net"
-              />
-              <Read label="Taxable Income" value={currency(tm?.taxableIncome ?? 0)} accent="text-violet-800" />
-            </>
-          ) : (
-            <>
-              <label className="flex items-center gap-2 text-xs text-crm-text-secondary h-9 col-span-2 sm:col-span-1">
-                <input
-                  type="checkbox"
-                  checked={d.pfAuto}
-                  onChange={e => set("pfAuto", e.target.checked)}
-                  className="rounded border-crm-border"
-                />
-                PF auto 8% of basic
-              </label>
-              {!d.pfAuto && (
-                <Num label="PF Manual" value={d.pfOverride ?? 0} onChange={v => set("pfOverride", v)} />
-              )}
-              <Read label="PF Deduction" value={currency(b.pf)} accent="text-teal-800" />
-              <Num label="Tax Amount" value={d.incomeTax} onChange={v => set("incomeTax", v)} />
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5 space-y-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-sky-800">Occasional Amount</p>
-        <p className="text-[10px] text-sky-700/80">
-          Added to Net Salary only — not included in PF, tax, late, or unpaid leave formulas.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <Num
-            label="Occasional Amount"
-            value={d.occasionalAmount ?? 0}
-            onChange={v => set("occasionalAmount", v)}
-            hint="Plus into net"
-          />
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
-            Occasion / Remark
+          <label className="flex items-center gap-2 text-xs text-crm-text-secondary h-9 col-span-2 sm:col-span-1">
             <input
-              type="text"
-              value={d.occasionalRemark ?? ""}
-              onChange={e => set("occasionalRemark", e.target.value)}
-              placeholder="e.g. Eid bonus, wedding gift…"
-              className="mt-1 h-9 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-sm outline-none focus:border-[#B8112D]"
+              type="checkbox"
+              checked={d.pfAuto}
+              onChange={e => set("pfAuto", e.target.checked)}
+              className="rounded border-crm-border"
             />
+            PF auto 8% of basic
           </label>
+          {!d.pfAuto && (
+            <Num label="PF Manual" value={d.pfOverride ?? 0} onChange={v => set("pfOverride", v)} />
+          )}
+          <Read label="PF Deduction" value={currency(b.pf)} accent="text-teal-800" />
+          <Num label="Tax Amount" value={d.incomeTax} onChange={v => set("incomeTax", v)} />
         </div>
       </div>
 
       <div className="rounded-xl border border-[#F3D7DC] bg-gradient-to-br from-[#FFF6F8] to-white p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#B8112D]">Totals</p>
         <p className="text-[10px] text-crm-text-muted">
-          {isTechMgr
-            ? "Gross − PF − Tax (− loan this month) + Occasional = Net Salary"
-            : isAdmin
-              ? "Basic + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction · + Occasional → Net"
-              : "Basic + OT + Allowance = Total Earning · Late + Unpaid + Loan(this mo) + PF + Tax = Total Deduction · + Occasional → Net"}
+          Net Salary = (Total Earning − Total Deduction) + Occasional
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Read label={isTechMgr ? "Gross Salary" : "Total Earning"} value={currency(b.totalEarning)} accent="text-emerald-700" />
+          <Read label="Total Earning" value={currency(b.totalEarning)} accent="text-emerald-700" />
           <Read label="Total Deduction" value={currency(b.totalDeduction)} accent="text-red-600" />
-          {(b.occasionalAmount ?? 0) > 0 ? (
-            <Read label="Occasional" value={currency(b.occasionalAmount)} accent="text-sky-700" />
-          ) : null}
+          <Read label="Occasional" value={currency(b.occasionalAmount ?? 0)} accent="text-sky-700" />
           <Read
             label={(d.loanPaymentMode ?? "salary") === "salary" && b.loanFromSalary > 0 ? "Net after loan" : "Net Salary"}
             value={currency(b.totalSalary)}
