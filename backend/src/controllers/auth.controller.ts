@@ -29,10 +29,12 @@ import {
   otpResendCount,
   registerActiveSession,
   clearActiveSession,
+  hasActiveSession,
   recordLoginAttempt,
   getLoginAttemptAlert,
   clearLoginAttemptAlert,
 } from "../utils/sessions";
+import { notifyLoginAttempt } from "../chat/chatSocket";
 
 const JWT_SECRET = getJwtSecret();
 
@@ -60,9 +62,19 @@ function userPayload(u: AuthUser) {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
-async function blockIfAlreadyLoggedIn(_userId: string, _res: Response): Promise<boolean> {
-  /* Allow new login — registerActiveSession replaces the previous session. */
-  return false;
+async function blockIfAlreadyLoggedIn(userId: string, res: Response): Promise<boolean> {
+  const active = await hasActiveSession(userId);
+  if (!active) return false;
+
+  const attemptId = await recordLoginAttempt(userId);
+  notifyLoginAttempt(userId, attemptId);
+
+  res.status(403).json({
+    success: false,
+    code: "ALREADY_LOGGED_IN",
+    message: "Already logged in on another device.",
+  });
+  return true;
 }
 
 async function issueSessionToken(
@@ -810,7 +822,7 @@ export const getSessionStatus = async (req: AuthRequest, res: Response) => {
       loginAttemptPending,
       attemptId: alert?.attemptId ?? 0,
       message:   loginAttemptPending
-        ? "Someone is trying to login to your account."
+        ? "Someone is trying to login to your account from another device."
         : undefined,
     });
   } catch {

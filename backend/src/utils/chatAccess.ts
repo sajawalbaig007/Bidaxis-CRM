@@ -135,3 +135,31 @@ export async function assertCanMessageTarget(
   }
   return { ok: true };
 }
+
+const ROLE_DISPLAY: Record<string, string> = {
+  admin: "Admin",
+  csr: "CSR",
+  manager: "Manager",
+  technical_manager: "Technical Manager",
+  estimator: "Estimator",
+  accounts: "Accounts",
+};
+
+/** Never show literal "Unknown" — prefer name, then email, then role label. */
+export function chatDisplayName(user: {
+  name?: string | null;
+  email?: string | null;
+  role?: string | null;
+  csrCode?: string | null;
+} | null | undefined): string {
+  const name = String(user?.name ?? "").trim();
+  if (name && name.toLowerCase() !== "unknown") return name;
+  const email = String(user?.email ?? "").trim();
+  if (email) return email.includes("@") ? email.split("@")[0]! : email;
+  const code = String(user?.csrCode ?? "").trim();
+  if (code) return code;
+  const role = String(user?.role ?? "").toLowerCase();
+  if (role && ROLE_DISPLAY[role]) return ROLE_DISPLAY[role];
+  if (role) return role.replace(/_/g, " ");
+  return "User";
+}

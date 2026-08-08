@@ -4,11 +4,12 @@ import { WebSocket, WebSocketServer } from "ws";
 import prisma from "../config/db";
 import { getJwtSecret } from "../config/security";
 import { formatMessage, messagePreviewText } from "./chatMessageFormat";
+import { chatDisplayName } from "../utils/chatAccess";
 
 type MemberRow = {
   userId: string;
   lastReadAt: Date | null;
-  user: { id: string; name: string };
+  user: { id: string; name: string; email?: string | null; role?: string | null };
 };
 
 interface ClientMeta {
@@ -231,7 +232,7 @@ export function emitNewMessage(
       conversationId,
       lastMessage:  preview,
       lastMessageAt,
-      senderName:   message.sender.name,
+      senderName:   chatDisplayName(message.sender),
       incrementUnread,
     });
   }
@@ -291,6 +292,15 @@ export function emitPresence(userId: string, isOnline: boolean) {
 /** Tell a CSR browser to drop cached lists after admin reset. */
 export function notifyCsrDataReset(csrId: string): void {
   sendToUser(csrId, { type: "csr-data-reset" });
+}
+
+/** Notify the active session that another device tried to log in. */
+export function notifyLoginAttempt(userId: string, attemptId: number): void {
+  sendToUser(userId, {
+    type: "auth:login_attempt",
+    attemptId,
+    message: "Someone is trying to login to your account from another device.",
+  });
 }
 
 /** Tell admin/manager browsers to refresh dashboard summary counts. */

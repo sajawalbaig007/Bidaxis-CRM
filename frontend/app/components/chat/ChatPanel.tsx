@@ -766,15 +766,34 @@ export default function ChatPanel({
 
   const parseUsers = (data: unknown): ChatUser[] => {
     const raw = Array.isArray(data) ? data : ((data as Record<string, unknown>)?.users ?? data ?? []) as unknown[];
-    return (raw as Record<string, unknown>[]).map(u => ({
-      id: String(u.id),
-      name: String(u.name ?? "Unknown"),
-      email: u.email ? String(u.email) : undefined,
-      csrCode: u.csrCode ? String(u.csrCode) : null,
-      role: u.role ? String(u.role) : undefined,
-      isOnline: Boolean(u.isOnline),
-      profilePic: u.profilePic ? String(u.profilePic) : null,
-    }));
+    return (raw as Record<string, unknown>[]).map(u => {
+      const name = String(u.name ?? "").trim();
+      const email = u.email ? String(u.email) : undefined;
+      const role = u.role ? String(u.role) : undefined;
+      const roleLabel =
+        role === "technical_manager" ? "Technical Manager"
+        : role === "accounts" ? "Accounts"
+        : role === "estimator" ? "Estimator"
+        : role === "csr" ? "CSR"
+        : role === "manager" ? "Manager"
+        : role === "admin" ? "Admin"
+        : role?.replace(/_/g, " ");
+      const display =
+        name && name.toLowerCase() !== "unknown"
+          ? name
+          : email
+            ? (email.includes("@") ? email.split("@")[0]! : email)
+            : (u.csrCode ? String(u.csrCode) : roleLabel || "User");
+      return {
+        id: String(u.id),
+        name: display,
+        email,
+        csrCode: u.csrCode ? String(u.csrCode) : null,
+        role,
+        isOnline: Boolean(u.isOnline),
+        profilePic: u.profilePic ? String(u.profilePic) : null,
+      };
+    });
   };
   /** Mirror backend GPS/BEM chat visibility (admin sees all). */
   const canSeeChatUser = (viewerRole: string | undefined, targetRole: string | undefined) => {
