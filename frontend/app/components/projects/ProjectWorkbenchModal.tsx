@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X, ChevronDown, User2, Briefcase, DollarSign,
   Plus, Trash2, Save, Loader2, Link2, StickyNote, Hash, Calendar,
@@ -125,12 +125,25 @@ export default function ProjectWorkbenchModal({
   );
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const wasOpenRef = useRef(false);
+  const loadedIdRef = useRef<string>("");
 
+  // Only reset accordion / form when modal opens or a different project is loaded —
+  // not on every parent re-render (parent rebuilds `initial` each time).
   useEffect(() => {
-    if (open) {
+    if (!open) {
+      wasOpenRef.current = false;
+      loadedIdRef.current = "";
+      return;
+    }
+    const justOpened = !wasOpenRef.current;
+    const projectChanged = initial.id !== loadedIdRef.current;
+    wasOpenRef.current = true;
+    if (justOpened || projectChanged) {
       setData(initial);
       setOpenSection(hideClientFinanceSections ? "project" : "client");
       setConfirmDelete(false);
+      loadedIdRef.current = initial.id;
     }
   }, [open, initial, hideClientFinanceSections]);
 
@@ -174,7 +187,33 @@ export default function ProjectWorkbenchModal({
     setData((d) => ({ ...d, projectPayments: d.projectPayments.filter((p) => p.id !== id) }));
   };
 
-  const toggleSection = (key: string) => setOpenSection((s) => (s === key ? "" : key));
+  const toggleSection = (key: string) => {
+    setOpenSection((s) => {
+      const next = s === key ? "" : key;
+      // Opening Payment Detail with no rows — seed one entry so channel/currency/month are visible
+      if (next === "payment" && mode !== "csr" && !hideClientFinanceSections) {
+        setData((d) => {
+          if (d.projectPayments.length > 0) return d;
+          return {
+            ...d,
+            projectPayments: [
+              {
+                id: newPaymentId(),
+                type: "Partial",
+                amount: "",
+                link: "",
+                isPaid: false,
+                paymentChannel: undefined,
+                currency: undefined,
+                accountsMonth: new Date().toISOString().slice(0, 7),
+              },
+            ],
+          };
+        });
+      }
+      return next;
+    });
+  };
 
   const validateAndSave = async () => {
     const req = (v: string | undefined | null) => !!v?.trim();
@@ -505,12 +544,12 @@ export default function ProjectWorkbenchModal({
             </div>
 
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider pt-1">
-              Payment entries · channel + currency + month → Accounts
+              Payment entries
             </p>
             <div className="space-y-3">
               {data.projectPayments.length === 0 && (
                 <p className="text-xs text-gray-400 text-center py-4 bg-[#FAFAFA] rounded-xl">
-                  No payment entries yet — add one below
+                  No payment entries yet — tap “Add payment entry” for channel, currency & month
                 </p>
               )}
               {data.projectPayments.map((p) => (
@@ -521,91 +560,113 @@ export default function ProjectWorkbenchModal({
                   }`}
                 >
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <select
-                      className={inputCls}
-                      value={p.type}
-                      onChange={(e) => updatePayment(p.id, { type: e.target.value })}
-                    >
-                      {PAYMENT_TYPE_OPTIONS.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                        {p.currency === "PKR" ? "Rs" : p.currency === "CAD" ? "C$" : p.currency === "USD" ? "$" : "$"}
-                      </span>
-                      <input
-                        className={`${inputCls} pl-7`}
-                        placeholder="Amount"
-                        value={p.amount}
-                        onChange={(e) => updatePayment(p.id, { amount: e.target.value })}
-                      />
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Type</span>
+                      <select
+                        className={inputCls}
+                        value={p.type}
+                        onChange={(e) => updatePayment(p.id, { type: e.target.value })}
+                      >
+                        {PAYMENT_TYPE_OPTIONS.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
                     </div>
-                    <label className={`flex items-center justify-center gap-2 h-10 sm:h-11 rounded-xl border-2 text-xs font-bold cursor-pointer transition-colors ${
-                      p.isPaid
-                        ? "border-emerald-400 bg-emerald-100 text-emerald-700"
-                        : "border-gray-200 bg-[#FAFAFA] text-gray-500"
-                    }`}>
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={p.isPaid}
-                        onChange={(e) => updatePayment(p.id, { isPaid: e.target.checked })}
-                      />
-                      {p.isPaid ? "✓ Paid" : "Unpaid"}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => removePayment(p.id)}
-                      className="h-10 sm:h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 border border-red-100"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Amount</span>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                          {p.currency === "PKR" ? "Rs" : p.currency === "CAD" ? "C$" : "$"}
+                        </span>
+                        <input
+                          className={`${inputCls} pl-7`}
+                          placeholder="Amount"
+                          value={p.amount}
+                          onChange={(e) => updatePayment(p.id, { amount: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Status</span>
+                      <label className={`flex items-center justify-center gap-2 h-10 sm:h-11 rounded-xl border-2 text-xs font-bold cursor-pointer transition-colors ${
+                        p.isPaid
+                          ? "border-emerald-400 bg-emerald-100 text-emerald-700"
+                          : "border-gray-200 bg-[#FAFAFA] text-gray-500"
+                      }`}>
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={p.isPaid}
+                          onChange={(e) => updatePayment(p.id, { isPaid: e.target.checked })}
+                        />
+                        {p.isPaid ? "✓ Paid" : "Unpaid"}
+                      </label>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mb-1 block opacity-0">Del</span>
+                      <button
+                        type="button"
+                        onClick={() => removePayment(p.id)}
+                        className="w-full h-10 sm:h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 border border-red-100"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                   {mode !== "csr" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <select
-                        className={inputCls}
-                        value={p.paymentChannel ?? ""}
-                        onChange={(e) =>
-                          updatePayment(p.id, {
-                            paymentChannel: (e.target.value || undefined) as ProjectPayment["paymentChannel"],
-                          })
-                        }
-                        title="Accounts payment channel"
-                      >
-                        <option value="">Payment channel…</option>
-                        {PAYMENT_CHANNEL_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      <select
-                        className={inputCls}
-                        value={p.currency ?? ""}
-                        onChange={(e) =>
-                          updatePayment(p.id, {
-                            currency: (e.target.value || undefined) as ProjectPayment["currency"],
-                          })
-                        }
-                        title="Payment currency"
-                      >
-                        <option value="">Currency…</option>
-                        {PAYMENT_CURRENCY_OPTIONS.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="month"
-                        className={inputCls}
-                        value={p.accountsMonth ?? ""}
-                        onChange={(e) =>
-                          updatePayment(p.id, {
-                            accountsMonth: e.target.value || undefined,
-                          })
-                        }
-                        title="Accounts month — payment counts in this month"
-                        placeholder="Accounts month"
-                      />
+                    <div className="rounded-xl border border-[#F3D7DC] bg-[#FFF8F9] p-2.5 space-y-2">
+                      <p className="text-[10px] font-bold text-[#B8112D] uppercase tracking-wide">
+                        Accounts · channel / currency / month
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Channel</span>
+                          <select
+                            className={inputCls}
+                            value={p.paymentChannel ?? ""}
+                            onChange={(e) =>
+                              updatePayment(p.id, {
+                                paymentChannel: (e.target.value || undefined) as ProjectPayment["paymentChannel"],
+                              })
+                            }
+                          >
+                            <option value="">Select…</option>
+                            {PAYMENT_CHANNEL_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Currency</span>
+                          <select
+                            className={inputCls}
+                            value={p.currency ?? ""}
+                            onChange={(e) =>
+                              updatePayment(p.id, {
+                                currency: (e.target.value || undefined) as ProjectPayment["currency"],
+                              })
+                            }
+                          >
+                            <option value="">Select…</option>
+                            {PAYMENT_CURRENCY_OPTIONS.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Accounts month</span>
+                          <input
+                            type="month"
+                            className={inputCls}
+                            value={p.accountsMonth ?? ""}
+                            onChange={(e) =>
+                              updatePayment(p.id, {
+                                accountsMonth: e.target.value || undefined,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                   {mode === "csr" && (p.paymentChannel || p.currency || p.accountsMonth) ? (

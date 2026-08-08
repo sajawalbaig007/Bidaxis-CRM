@@ -15,8 +15,9 @@ export const BEM_CHAT_ROLES = ["csr", "manager", "accounts", "admin"] as const;
 /**
  * Who can see whom in Messages:
  * - Admin → everyone
- * - GPS (technical_manager, estimator) → GPS employees + admin + technical manager
- * - BEM (csr, manager, accounts) → BEM employees (+ admin)
+ * - GPS (technical_manager, estimator) → GPS + admin + accounts
+ * - Accounts → BEM + GPS + admin (bridge both orgs)
+ * - BEM (csr, manager) → BEM employees (+ admin)
  */
 export function canSeeRoleByOrg(viewerRole: string, targetRole: string): boolean {
   const viewer = String(viewerRole || "").toLowerCase();
@@ -24,9 +25,24 @@ export function canSeeRoleByOrg(viewerRole: string, targetRole: string): boolean
   if (!viewer || !target) return false;
   if (viewer === "admin") return true;
   if (viewer === "technical_manager" || viewer === "estimator") {
-    return target === "admin" || target === "technical_manager" || target === "estimator";
+    return (
+      target === "admin" ||
+      target === "technical_manager" ||
+      target === "estimator" ||
+      target === "accounts"
+    );
   }
-  // BEM pool
+  if (viewer === "accounts") {
+    return (
+      target === "admin" ||
+      target === "csr" ||
+      target === "manager" ||
+      target === "accounts" ||
+      target === "technical_manager" ||
+      target === "estimator"
+    );
+  }
+  // BEM pool (csr, manager)
   return target === "admin" || target === "csr" || target === "manager" || target === "accounts";
 }
 

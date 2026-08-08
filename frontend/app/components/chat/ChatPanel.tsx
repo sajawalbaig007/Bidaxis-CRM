@@ -783,7 +783,22 @@ export default function ChatPanel({
     if (!viewer || !target) return false;
     if (viewer === "admin") return true;
     if (viewer === "technical_manager" || viewer === "estimator") {
-      return target === "admin" || target === "technical_manager" || target === "estimator";
+      return (
+        target === "admin" ||
+        target === "technical_manager" ||
+        target === "estimator" ||
+        target === "accounts"
+      );
+    }
+    if (viewer === "accounts") {
+      return (
+        target === "admin" ||
+        target === "csr" ||
+        target === "manager" ||
+        target === "accounts" ||
+        target === "technical_manager" ||
+        target === "estimator"
+      );
     }
     return target === "admin" || target === "csr" || target === "manager" || target === "accounts";
   };
