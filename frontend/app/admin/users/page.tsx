@@ -31,8 +31,32 @@ type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts" |
 
 type CompanyFilter = "BEM" | "GPS";
 
-const BEM_ROLES: UserRole[] = ["CSR", "Admin", "Manager", "Accounts"];
-const GPS_ROLES: UserRole[] = ["Technical Manager", "Estimator"];
+/**
+ * Single source for Admin → Users activity chart / role tabs / create-user options.
+ * Add a new dashboard here → User Activity Overview picks it up automatically.
+ */
+type PortalDashboard = {
+  role: UserRole;
+  company: CompanyFilter;
+  /** Short label on the activity chart X-axis */
+  shortLabel: string;
+  /** Footer / stats label */
+  onlineLabel: string;
+  /** Create-user dropdown label */
+  formLabel: string;
+};
+
+const PORTAL_DASHBOARDS: PortalDashboard[] = [
+  { role: "CSR", company: "BEM", shortLabel: "CSR", onlineLabel: "CSR Online", formLabel: "CSR (Customer Support)" },
+  { role: "Manager", company: "BEM", shortLabel: "Manager", onlineLabel: "Managers Online", formLabel: "Manager" },
+  { role: "Accounts", company: "BEM", shortLabel: "Accounts", onlineLabel: "Accounts Online", formLabel: "Accounts" },
+  { role: "Admin", company: "BEM", shortLabel: "Admin", onlineLabel: "Admins Online", formLabel: "Admin" },
+  { role: "Technical Manager", company: "GPS", shortLabel: "Tech Mgr", onlineLabel: "Tech Mgr Online", formLabel: "Technical Manager" },
+  { role: "Estimator", company: "GPS", shortLabel: "Estimator", onlineLabel: "Estimators Online", formLabel: "Estimator" },
+];
+
+const BEM_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "BEM").map((d) => d.role);
+const GPS_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "GPS").map((d) => d.role);
 
 function rolesForCompany(company: CompanyFilter): UserRole[] {
   return company === "GPS" ? GPS_ROLES : BEM_ROLES;
@@ -40,6 +64,21 @@ function rolesForCompany(company: CompanyFilter): UserRole[] {
 
 function companyForRole(role: UserRole): CompanyFilter {
   return GPS_ROLES.includes(role) ? "GPS" : "BEM";
+}
+
+function dashboardsForCompany(company: CompanyFilter, presentRoles: UserRole[]): PortalDashboard[] {
+  const known = PORTAL_DASHBOARDS.filter((d) => d.company === company);
+  const knownSet = new Set(known.map((d) => d.role));
+  const extras = presentRoles
+    .filter((r) => !knownSet.has(r) && companyForRole(r) === company)
+    .map((role) => ({
+      role,
+      company,
+      shortLabel: role.length > 10 ? role.slice(0, 8) + "…" : role,
+      onlineLabel: `${role} Online`,
+      formLabel: role,
+    }));
+  return [...known, ...extras];
 }
 
 type User = {
@@ -91,17 +130,13 @@ const EMPTY_USER_FORM = {
   temporaryAccessHours: "9",
 };
 
-const BEM_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "CSR", label: "CSR (Customer Support)" },
-  { value: "Manager", label: "Manager" },
-  { value: "Accounts", label: "Accounts" },
-  { value: "Admin", label: "Admin" },
-];
+const BEM_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
+  .filter((d) => d.company === "BEM")
+  .map((d) => ({ value: d.role, label: d.formLabel }));
 
-const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "Technical Manager", label: "Technical Manager" },
-  { value: "Estimator", label: "Estimator" },
-];
+const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
+  .filter((d) => d.company === "GPS")
+  .map((d) => ({ value: d.role, label: d.formLabel }));
 
 function defaultRoleForCompany(company: CompanyFilter): UserRole {
   return company === "GPS" ? "Technical Manager" : "CSR";
@@ -515,23 +550,66 @@ export default function UsersPage() {
 
   const totalUsers   = users.length;
   const onlineNow    = users.filter(u => u.isOnline).length;
-  const activeCSR    = users.filter(u => u.role === "CSR"   && u.isOnline).length;
-  const activeAdmins = users.filter(u => u.role === "Admin" && u.isOnline).length;
-  const activeManagers = users.filter(u => u.role === "Manager" && u.isOnline).length;
-  const activeTechManagers = users.filter(u => u.role === "Technical Manager" && u.isOnline).length;
-  const activeAccounts = users.filter(u => u.role === "Accounts" && u.isOnline).length;
-  const activeEstimators = users.filter(u => u.role === "Estimator" && u.isOnline).length;
-  const countByRole = {
-    All: users.length,
-    CSR: users.filter(u => u.role === "CSR").length,
-    Admin: users.filter(u => u.role === "Admin").length,
-    Manager: users.filter(u => u.role === "Manager").length,
-    "Technical Manager": users.filter(u => u.role === "Technical Manager").length,
-    Accounts: users.filter(u => u.role === "Accounts").length,
-    Estimator: users.filter(u => u.role === "Estimator").length,
-  };
+  const countByRole = useMemo(() => {
+    const base: Record<string, number> = { All: users.length };
+    for (const u of users) {
+      base[u.role] = (base[u.role] ?? 0) + 1;
+    }
+    for (const d of PORTAL_DASHBOARDS) {
+      if (base[d.role] === undefined) base[d.role] = 0;
+    }
+    return base as Record<UserRole | "All", number> & Record<string, number>;
+  }, [users]);
 
-  const companyRoles = rolesForCompany(companyFilter);
+  const onlineByRole = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const u of users) {
+      if (!u.isOnline) continue;
+      map[u.role] = (map[u.role] ?? 0) + 1;
+    }
+    return map;
+  }, [users]);
+
+  const companyRoles = useMemo(() => {
+    const base = rolesForCompany(companyFilter);
+    const extras = [...new Set(users.map((u) => u.role))].filter(
+      (r) => !base.includes(r) && companyForRole(r) === companyFilter,
+    );
+    return [...base, ...extras];
+  }, [companyFilter, users]);
+  const activityDashboards = useMemo(
+    () => dashboardsForCompany(companyFilter, [...new Set(users.map((u) => u.role))]),
+    [companyFilter, users],
+  );
+  const activityChartData = useMemo(
+    () =>
+      activityDashboards.map((d) => {
+        const total = countByRole[d.role] ?? 0;
+        const online = onlineByRole[d.role] ?? 0;
+        return {
+          name: d.shortLabel,
+          online,
+          offline: Math.max(0, total - online),
+        };
+      }),
+    [activityDashboards, countByRole, onlineByRole],
+  );
+  const activitySubtitle = useMemo(() => {
+    const names = activityDashboards.map((d) => d.role).join(", ");
+    return companyFilter === "GPS" ? `GPS · ${names}` : `BEM · ${names}`;
+  }, [activityDashboards, companyFilter]);
+  const activityStatCards = useMemo(() => {
+    const roleCards = activityDashboards.map((d, i) => ({
+      label: d.onlineLabel,
+      value: onlineByRole[d.role] ?? 0,
+      color: i % 2 === 0 ? "text-[#B8112D]" : "text-blue-600",
+    }));
+    return [
+      { label: "Total Users", value: totalUsers, color: "text-[#111827]" },
+      { label: "Online Now", value: onlineNow, color: "text-green-600" },
+      ...roleCards,
+    ];
+  }, [activityDashboards, onlineByRole, onlineNow, totalUsers]);
   const countByCompany = {
     BEM: users.filter(u => companyForRole(u.role) === "BEM").length,
     GPS: users.filter(u => companyForRole(u.role) === "GPS").length,
@@ -928,7 +1006,7 @@ export default function UsersPage() {
             <div>
               <h3 className="font-bold text-[#111827] text-base">User Activity Overview</h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                {companyFilter === "GPS" ? "GPS · Technical Manager & Estimators" : "BEM · CSR, Admin, Manager & Accounts"}
+                {activitySubtitle}
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -941,20 +1019,8 @@ export default function UsersPage() {
           ) : (
             <RechartsBox height={150}>
               <BarChart
-                data={
-                  companyFilter === "GPS"
-                    ? [
-                        { name: "Tech Mgr", online: activeTechManagers, offline: countByRole["Technical Manager"] - activeTechManagers },
-                        { name: "Estimator", online: activeEstimators, offline: countByRole.Estimator - activeEstimators },
-                      ]
-                    : [
-                        { name: "CSR",   online: activeCSR,      offline: countByRole.CSR - activeCSR },
-                        { name: "Admin", online: activeAdmins,   offline: countByRole.Admin - activeAdmins },
-                        { name: "Manager", online: activeManagers, offline: countByRole.Manager - activeManagers },
-                        { name: "Accounts", online: activeAccounts, offline: countByRole.Accounts - activeAccounts },
-                      ]
-                }
-                barGap={8} barSize={52}
+                data={activityChartData}
+                barGap={8} barSize={Math.min(52, Math.max(28, Math.floor(320 / Math.max(1, activityChartData.length))))}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:13, fontWeight:700, fill:"#374151" }}/>
@@ -965,13 +1031,12 @@ export default function UsersPage() {
               </BarChart>
             </RechartsBox>
           )}
-          <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
-            {[
-              { label:"Total Users",    value: totalUsers,   color:"text-[#111827]" },
-              { label:"Online Now",     value: onlineNow,    color:"text-green-600" },
-              { label:"CSR Online",     value: activeCSR,    color:"text-[#B8112D]" },
-              { label:"Admins Online",  value: activeAdmins, color:"text-blue-600"  },
-            ].map(s => (
+          <div className={`grid gap-3 mt-4 pt-4 border-t border-gray-100 ${
+            activityStatCards.length <= 4
+              ? "grid-cols-2 sm:grid-cols-4"
+              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+          }`}>
+            {activityStatCards.map(s => (
               <div key={s.label} className="text-center">
                 {loading
                   ? <div className="h-7 w-8 bg-gray-100 rounded-lg animate-pulse mx-auto mb-1"/>
@@ -1034,11 +1099,11 @@ export default function UsersPage() {
             accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
             tabs={[
               { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BEM", count: companyAllCount },
-              ...companyRoles.map(role => ({
-                key: role,
-                label: role === "Technical Manager" ? "Tech Manager" : role,
-                shortLabel: role === "Technical Manager" ? "Tech Mgr" : role === "Estimator" ? "Est." : role,
-                count: countByRole[role],
+              ...activityDashboards.map(d => ({
+                key: d.role,
+                label: d.role,
+                shortLabel: d.shortLabel,
+                count: countByRole[d.role] ?? 0,
               })),
             ]}
           />
@@ -1618,8 +1683,8 @@ export default function UsersPage() {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {([
-                      { key: "BEM" as const, title: "BEM Solutions", hint: "CSR · Manager · Accounts · Admin", accent: "#B8112D" },
-                      { key: "GPS" as const, title: "GPS · Global", hint: "Tech Manager · Estimator", accent: "#0F398A" },
+                      { key: "BEM" as const, title: "BEM Solutions", hint: PORTAL_DASHBOARDS.filter(d => d.company === "BEM").map(d => d.shortLabel).join(" · "), accent: "#B8112D" },
+                      { key: "GPS" as const, title: "GPS · Global", hint: PORTAL_DASHBOARDS.filter(d => d.company === "GPS").map(d => d.shortLabel).join(" · "), accent: "#0F398A" },
                     ]).map(opt => {
                       const active = form.company === opt.key;
                       return (

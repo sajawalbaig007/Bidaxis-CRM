@@ -253,6 +253,8 @@ model ConversationMember {
   joinedAt       DateTime  @default(now())
   lastReadAt     DateTime?
   archivedAt     DateTime?
+  /** Soft-hide from user's recent chats; admin peek still sees the thread */
+  clearedAt      DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
