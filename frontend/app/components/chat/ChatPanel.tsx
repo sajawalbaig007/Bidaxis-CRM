@@ -911,9 +911,29 @@ export default function ChatPanel({
   };
   const deleteMsg = async (msgId: string, mode: "for_me" | "for_everyone") => {
     setCtxMenu(null);
-    setMessages(p => p.filter(m => m.id !== msgId));
+    const remaining = messages.filter(m => m.id !== msgId);
+    setMessages(remaining);
     invalidateChatMessages(`/chat/conversations/${activeConvId}/messages`);
-    await API.delete(`/chat/messages/${msgId}`, { data: { mode } }).catch(() => {});
+    try {
+      const res = await API.delete(`/chat/messages/${msgId}`, { data: { mode } });
+      const cleared = Boolean(res.data?.conversationCleared) || remaining.length === 0;
+      if (cleared && activeConvId) {
+        setConversations(p => p.filter(c => c.id !== activeConvId));
+        setActiveConvId(null);
+      } else if (activeConvId) {
+        const last = remaining[remaining.length - 1];
+        setConversations(p => p.map(c => {
+          if (c.id !== activeConvId) return c;
+          return {
+            ...c,
+            lastMessage: last
+              ? (last.type !== "text" ? `Sent a ${last.type}` : last.text)
+              : null,
+            lastMessageAt: last?.createdAt ?? null,
+          };
+        }));
+      }
+    } catch { /* ignore */ }
   };
   const handleReply = (msg: Message) => { setReplyTo(msg); setCtxMenu(null); setTimeout(() => inputRef.current?.focus(), 50); };
   const copyText = async (text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); setCtxMenu(null); };

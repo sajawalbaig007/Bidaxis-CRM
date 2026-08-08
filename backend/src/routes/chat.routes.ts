@@ -63,7 +63,13 @@ async function getConversationMemberIds(conversationId: string): Promise<string[
   return rows.map(r => r.userId);
 }
 
-async function fetchConversationsForUser(viewUserId: string, showArchived: boolean) {
+async function fetchConversationsForUser(
+  viewUserId: string,
+  showArchived: boolean,
+  opts?: { includeEmpty?: boolean; includeCleared?: boolean },
+) {
+  const includeEmpty = opts?.includeEmpty === true;
+  const includeCleared = opts?.includeCleared === true;
   const viewerAccess = await getChatAccess(viewUserId);
   if (!viewerAccess?.chatEnabled) return [];
 
@@ -92,7 +98,8 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
             },
           },
           messages: {
-            where: notDeletedMessageWhere(),
+            // Admin peek: include soft-deleted so empty/cleared threads still have preview context
+            ...(includeEmpty ? {} : { where: notDeletedMessageWhere() }),
             orderBy: { createdAt: "desc" },
             take: 15,
             select: { text: true, type: true, createdAt: true, senderId: true, hiddenForUserIds: true, deletedAt: true },
@@ -104,6 +111,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
   });
 
   const filteredMemberships = memberships.filter(m => {
+    if (!includeCleared && m.clearedAt) return false;
     if (showArchived ? !m.archivedAt : Boolean(m.archivedAt)) return false;
     const otherMembers = m.conversation.members.filter(member => member.userId !== viewUserId);
     return otherMembers.every(member =>
@@ -114,8 +122,19 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
     );
   });
 
+  const withPreview = filteredMemberships.map((m) => {
+    const conv = m.conversation;
+    const lastMsg = includeEmpty
+      ? (conv.messages.find(msg => messageVisibleForUser(msg, viewUserId))
+          ?? conv.messages[0]
+          ?? null)
+      : (conv.messages.find(msg => messageVisibleForUser(msg, viewUserId)) ?? null);
+    const hasVisible = conv.messages.some(msg => messageVisibleForUser(msg, viewUserId));
+    return { m, lastMsg, hasVisible };
+  }).filter(({ hasVisible }) => includeEmpty || hasVisible);
+
   const unreadCounts = await Promise.all(
-    filteredMemberships.map(m =>
+    withPreview.map(({ m }) =>
       prisma.message.count({
         where: {
           conversationId: m.conversationId,
@@ -127,11 +146,18 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
     )
   );
 
-  return filteredMemberships.map((m, idx) => {
+  return withPreview.map(({ m, lastMsg }, idx) => {
     const conv        = m.conversation;
-    const lastMsg     = conv.messages.find(msg => messageVisibleForUser(msg, viewUserId));
     const otherMember = conv.type === "direct"
       ? conv.members.find(mem => mem.userId !== viewUserId)
+      : null;
+
+    const preview = lastMsg
+      ? (lastMsg.deletedAt
+          ? "Deleted message"
+          : lastMsg.type !== "text"
+            ? `Sent a ${lastMsg.type}`
+            : lastMsg.text)
       : null;
 
     return {
@@ -141,9 +167,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
                          ? chatDisplayName(otherMember?.user)
                          : (conv.name ?? "Group"),
       otherUserId:   otherMember?.userId ?? null,
-      lastMessage:   lastMsg
-                         ? (lastMsg.type !== "text" ? `Sent a ${lastMsg.type}` : lastMsg.text)
-                         : null,
+      lastMessage:   preview,
       lastMessageAt: lastMsg?.createdAt ?? null,
       unreadCount:   unreadCounts[idx],
       memberCount:   conv.members.length,
@@ -151,6 +175,7 @@ async function fetchConversationsForUser(viewUserId: string, showArchived: boole
       profilePic:    otherMember?.user?.profilePic ?? null,
       pinnedMessageId: conv.pinnedMessageId ?? null,
       archived:      Boolean(m.archivedAt),
+      cleared:       Boolean(m.clearedAt),
     };
   });
 }
@@ -161,6 +186,24 @@ function messageVisibleForUser(
 ) {
   if (m.deletedAt) return false;
   return !(m.hiddenForUserIds ?? []).includes(viewUserId);
+}
+
+/** If the user has no visible messages left, soft-hide the chat from their recent list. */
+async function clearConversationIfEmptyForUser(conversationId: string, userId: string) {
+  const anyVisible = await prisma.message.findFirst({
+    where: {
+      conversationId,
+      deletedAt: null,
+      NOT: { hiddenForUserIds: { has: userId } },
+    },
+    select: { id: true },
+  });
+  if (anyVisible) return false;
+  await prisma.conversationMember.updateMany({
+    where: { conversationId, userId },
+    data:  { clearedAt: new Date(), archivedAt: null },
+  });
+  return true;
 }
 
 async function fetchMessagesForUser(
@@ -328,25 +371,20 @@ router.post("/conversations", verifyToken, async (req: AuthRequest, res) => {
 });
 
 /* ═══════════════════════════════════════════════════════
-   DELETE /chat/conversations/:id
+   DELETE /chat/conversations/:id — soft-hide from recent chats
+   Membership stays so admin peek can still open the thread.
 ═══════════════════════════════════════════════════════ */
 router.delete("/conversations/:id", verifyToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const convId = p(req.params.id);
 
-    await prisma.conversationMember.deleteMany({
+    await prisma.conversationMember.updateMany({
       where: { conversationId: convId, userId },
+      data:  { clearedAt: new Date(), archivedAt: null },
     });
 
-    const remaining = await prisma.conversationMember.count({
-      where: { conversationId: convId },
-    });
-
-    if (remaining === 0) {
-      await prisma.conversation.delete({ where: { id: convId } });
-    }
-
+    invalidatePattern("chat:convs:");
     return res.json({ success: true });
   } catch {
     return res.json({ success: true });
@@ -494,6 +532,12 @@ router.post(
         data:  { updatedAt: new Date() },
       });
 
+      // New activity restores the thread on everyone's recent list
+      await prisma.conversationMember.updateMany({
+        where: { conversationId },
+        data:  { clearedAt: null },
+      });
+
       invalidatePattern("chat:convs:");
 
       const members = await prisma.conversationMember.findMany({
@@ -542,8 +586,9 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
           data:  { hiddenForUserIds: [...hidden, userId] },
         });
       }
+      const cleared = await clearConversationIfEmptyForUser(msg.conversationId, userId);
       invalidatePattern("chat:convs:");
-      return res.json({ success: true, mode: "for_me" });
+      return res.json({ success: true, mode: "for_me", conversationCleared: cleared });
     }
 
     if (msg.deletedAt) return res.json({ success: true, mode: "for_everyone" });
@@ -567,6 +612,12 @@ router.delete("/messages/:id", verifyToken, async (req: AuthRequest, res) => {
 
     const memberIds = await getConversationMemberIds(msg.conversationId);
     emitMessageDelete(msg.conversationId, msgId, memberIds);
+
+    // Soft-hide for each member who no longer has any visible messages
+    for (const mid of memberIds) {
+      await clearConversationIfEmptyForUser(msg.conversationId, mid);
+    }
+
     invalidatePattern("chat:convs:");
     return res.json({ success: true, mode: "for_everyone" });
   } catch {
@@ -912,7 +963,10 @@ router.get("/admin/view/:csrId/conversations", verifyToken, allowRoles("admin"),
     });
     if (!csr) return res.status(404).json({ message: "CSR not found" });
 
-    const conversations = await fetchConversationsForUser(csrId, showArchived);
+    const conversations = await fetchConversationsForUser(csrId, showArchived, {
+      includeEmpty: true,
+      includeCleared: true,
+    });
     return res.json({ conversations });
   } catch (err) {
     console.error("[chat] admin view conversations", err);

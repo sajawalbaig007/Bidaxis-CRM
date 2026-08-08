@@ -796,11 +796,19 @@ export default function ChatPage() {
 
   /* ─── Delete message ─── */
   const deleteMsg = async (msgId: string, forEveryone: boolean) => {
-    setMessages(p => p.filter(m => m.id !== msgId));
+    const remaining = messages.filter(m => m.id !== msgId);
+    setMessages(remaining);
     setCtxMenu(null);
-    if (forEveryone) {
-      await API.delete(`/chat/messages/${msgId}`).catch(() => {});
-    }
+    try {
+      const res = await API.delete(`/chat/messages/${msgId}`, {
+        data: { mode: forEveryone ? "for_everyone" : "for_me" },
+      });
+      const cleared = Boolean(res.data?.conversationCleared) || remaining.length === 0;
+      if (cleared && activeConvId) {
+        setConversations(p => p.filter(c => c.id !== activeConvId));
+        setActiveConvId(null);
+      }
+    } catch { /* ignore */ }
   };
 
   /* ─── Context menu ─── */
