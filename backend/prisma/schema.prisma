@@ -103,8 +103,6 @@ model Lead {
   projectPayments    String?
   /** When admin/CSR handed the project to technical (Close Client / Project DB). */
   technicalReceivedAt  DateTime?
-  /** When Technical sent the project into Pricing. */
-  pricingReceivedAt    DateTime?
   /** JSON: [{ estimatorId, estimatorName, manHours, deadline, takeoffDone }] */
   technicalAssignments String?
   /** JSON: [{ id, text, createdAt }] — technical/estimator working notes (not bid instructions). */

@@ -7,6 +7,8 @@ import {
   type TechnicalAssignment,
 } from "./technicalEstimators";
 
+const LATE_PHASES = new Set(["pricing_phase", "qa_phase", "delivery_phase"]);
+
 function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -47,17 +49,15 @@ function pipelineBucket(p: {
   const phase = (p.projectPhase ?? "not_started").toLowerCase();
   const assignments = parseTechnicalAssignments(p.technicalAssignments);
   const hasAssign = assignments.length > 0;
-  const anyWorking = assignments.some((a) => !a.takeoffDone && !a.pricingSent);
-  const anyTakeoffReady = assignments.some((a) => a.takeoffDone && !a.pricingSent);
-  const anyPricingSent = assignments.some((a) => a.pricingSent);
-  const inFinal = phase === "qa_phase" || phase === "delivery_phase";
-  const inPricing = phase === "pricing_phase" || phase.startsWith("pricing_") || anyPricingSent;
+  const anyPending = assignments.some((a) => !a.takeoffDone);
+  const allDone = hasAssign && assignments.every((a) => a.takeoffDone);
+  const inLatePhase = LATE_PHASES.has(phase);
 
-  if (inFinal) return "final_submission";
-  if (inPricing) return "pricing";
+  if (phase === "pricing_phase") return "pricing";
+  if (phase === "qa_phase" || phase === "delivery_phase") return "final_submission";
   if (!hasAssign && isProjectActive(p)) return "not_assigned";
-  if (anyTakeoffReady) return "takeoff_done";
-  if (anyWorking || hasAssign) return "assigned";
+  if (hasAssign && anyPending && !inLatePhase) return "assigned";
+  if (allDone && !inLatePhase) return "takeoff_done";
   return "other";
 }
 
