@@ -4,14 +4,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast, { Toaster } from "react-hot-toast";
 import {
+  AlertTriangle,
   BarChart3,
+  CheckCircle2,
   ChevronDown,
+  ClipboardList,
+  Clock3,
+  FileText,
+  Hammer,
+  MessageSquareWarning,
   Pencil,
+  Percent,
   Plus,
   RefreshCw,
   Star,
-  Trash2,
+  Target,
   Timer,
+  Trash2,
+  Users,
+  type LucideIcon,
 } from "lucide-react";
 import TechnicalSidebar from "../components/layout/Sidebar";
 import EstimatorKpiEntryModal from "../components/EstimatorKpiEntryModal";
@@ -43,6 +54,25 @@ type EditorState = {
   record?: EstimatorKpiRecord | null;
 };
 
+const FIELD_ICONS: Record<EstimatorKpiFieldKey, LucideIcon> = {
+  projects_delivered: CheckCircle2,
+  productivity: Timer,
+  retained_clients: Users,
+  punctuality: Clock3,
+  avg_takeoff: Target,
+  team_query_mistakes: MessageSquareWarning,
+  trades_history: Hammer,
+  final_remarks: FileText,
+  marks_out_of_10: Percent,
+  rating_stars: Star,
+};
+
+function latestByField(records: EstimatorKpiRecord[], fieldKey: string) {
+  return [...records]
+    .filter((r) => r.fieldKey === fieldKey)
+    .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())[0] ?? null;
+}
+
 export default function TechnicalKpiPage() {
   const [month, setMonth] = useState(currentMonthValue());
   const [estimators, setEstimators] = useState<EstimatorKpiRosterItem[]>([]);
@@ -50,8 +80,10 @@ export default function TechnicalKpiPage() {
   const [teamLive, setTeamLive] = useState<TechnicalTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  /** Accordion: only one estimator open at a time */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,8 +136,28 @@ export default function TechnicalKpiPage() {
         });
       }
     }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [estimators, records]);
+    const needle = search.trim().toLowerCase();
+    return [...byId.values()]
+      .filter((e) => !needle || e.name.toLowerCase().includes(needle) || e.code.toLowerCase().includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [estimators, records, search]);
+
+  const monthStats = useMemo(() => {
+    const withEntries = new Set(records.map((r) => r.estimatorId)).size;
+    const rated = records.filter((r) => r.fieldKey === "rating_stars").length;
+    const marked = records.filter((r) => r.fieldKey === "marks_out_of_10").length;
+    return {
+      estimators: estimators.length || roster.length,
+      entries: records.length,
+      withEntries,
+      rated,
+      marked,
+    };
+  }, [records, estimators.length, roster.length]);
+
+  const toggleExpand = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  };
 
   const openCreate = (estimator: EstimatorKpiRosterItem, fieldKey: EstimatorKpiFieldKey) => {
     setEditor({
@@ -183,85 +235,181 @@ export default function TechnicalKpiPage() {
     return `${formatLoggedHours(live.loggedSeconds)} logged · ${live.completed}/${live.assigned} done`;
   };
 
+  const summaryCards = [
+    {
+      label: "Estimators",
+      value: String(monthStats.estimators),
+      hint: `${monthStats.withEntries} with entries`,
+      icon: Users,
+      tone: "from-[#0B84F3] to-[#0369A1]",
+    },
+    {
+      label: "Month entries",
+      value: String(monthStats.entries),
+      hint: month,
+      icon: ClipboardList,
+      tone: "from-[#B8112D] to-[#8b0d22]",
+    },
+    {
+      label: "Marks logged",
+      value: String(monthStats.marked),
+      hint: "Out of 10 scores",
+      icon: Percent,
+      tone: "from-[#059669] to-[#047857]",
+    },
+    {
+      label: "Star ratings",
+      value: String(monthStats.rated),
+      hint: "Out of 5 stars",
+      icon: Star,
+      tone: "from-[#D97706] to-[#B45309]",
+    },
+  ];
+
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
+    <div className="flex min-h-screen bg-[#EEF1F7]">
       <Toaster position="top-right" />
       <TechnicalSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+      <main className="flex-1 min-w-0 overflow-x-hidden mt-16">
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
-          <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#B8112D] mb-1">
-                <BarChart3 size={13} />
-                Estimator evaluation
+          {/* Hero header */}
+          <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#B8112D]/10 bg-white shadow-sm">
+            <div
+              className="absolute inset-0 opacity-[0.55]"
+              style={{
+                background:
+                  "radial-gradient(900px 240px at 0% 0%, rgba(184,17,45,0.12), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(11,132,243,0.10), transparent 50%)",
+              }}
+            />
+            <div className="relative px-4 sm:px-5 md:px-6 py-4 sm:py-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF1F3] text-[#B8112D] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
+                  <BarChart3 size={12} />
+                  Estimator evaluation
+                </div>
+                <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+                  KPI Dashboard
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">
+                  One estimator open at a time. Add dated entries inside the scroll panel for monthly reports.
+                </p>
               </div>
-              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
-                KPI Dashboard
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                Per-estimator fields — add entries with timestamp for monthly reports. Create, edit, or delete any row.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-              <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700">
-                <span className="text-[11px] text-gray-400 uppercase">Month</span>
-                <input
-                  type="month"
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  className="outline-none bg-transparent text-sm font-semibold text-[#0F172A]"
-                />
-              </label>
-              <Link
-                href="/technical/team"
-                className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D]"
-              >
-                Open Team
-              </Link>
-              <button
-                type="button"
-                onClick={() => void load()}
-                disabled={loading}
-                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
-              >
-                <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-                {loading ? "Refreshing…" : "Refresh"}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white/90 text-sm font-semibold text-gray-700 shadow-sm">
+                  <span className="text-[11px] text-gray-400 uppercase">Month</span>
+                  <input
+                    type="month"
+                    value={month}
+                    onChange={(e) => {
+                      setMonth(e.target.value);
+                      setExpandedId(null);
+                    }}
+                    className="outline-none bg-transparent text-sm font-semibold text-[#0F172A]"
+                  />
+                </label>
+                <Link
+                  href="/technical/team"
+                  className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] shadow-sm"
+                >
+                  Open Team
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void load()}
+                  disabled={loading}
+                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:opacity-60 shadow-sm"
+                >
+                  <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+                  {loading ? "Refreshing…" : "Refresh"}
+                </button>
+              </div>
             </div>
           </header>
+
+          {/* Summary */}
+          <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+            {summaryCards.map((c) => (
+              <div
+                key={c.label}
+                className={`bg-gradient-to-br ${c.tone} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md min-h-24 flex flex-col gap-1.5`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-white/75 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
+                    {c.label}
+                  </span>
+                  <span className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                    <c.icon size={14} />
+                  </span>
+                </div>
+                <span className="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums leading-none">
+                  {loading && records.length === 0 ? "…" : c.value}
+                </span>
+                <p className="text-[10px] sm:text-[11px] text-white/70 mt-auto">{c.hint}</p>
+              </div>
+            ))}
+          </section>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+            <p className="text-xs text-gray-500 font-medium">
+              Tap a card to open fields · previous card auto-collapses
+            </p>
+            <div className="relative w-full sm:w-72">
+              <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search estimator…"
+                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#B8112D] placeholder:text-gray-400 shadow-sm"
+              />
+            </div>
+          </div>
 
           <section className="space-y-3">
             {loading && roster.length === 0 ? (
               [1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 animate-pulse">
+                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 animate-pulse shadow-sm">
                   <div className="h-5 bg-gray-100 rounded w-1/3 mb-3" />
                   <div className="h-3 bg-gray-50 rounded w-2/3" />
                 </div>
               ))
             ) : roster.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 px-4 py-14 text-center text-sm text-gray-400 font-medium">
+              <div className="bg-white rounded-2xl border border-dashed border-gray-200 px-4 py-14 text-center text-sm text-gray-400 font-medium">
                 No estimators found. Add users with role Estimator in Admin Users.
               </div>
             ) : (
               roster.map((est) => {
-                const open = expanded[est.id] ?? false;
+                const open = expandedId === est.id;
                 const live = liveByEstimator.get(est.id);
                 const allRecords = recordsByEstimator.get(est.id) ?? [];
-                const latestMarks = allRecords.find((r) => r.fieldKey === "marks_out_of_10");
-                const latestStars = allRecords.find((r) => r.fieldKey === "rating_stars");
+                const latestMarks = latestByField(allRecords, "marks_out_of_10");
+                const latestStars = latestByField(allRecords, "rating_stars");
+                const filledFields = ESTIMATOR_KPI_FIELD_KEYS.filter((k) =>
+                  allRecords.some((r) => r.fieldKey === k),
+                ).length;
+                const fillPct = Math.round((filledFields / ESTIMATOR_KPI_FIELD_KEYS.length) * 100);
 
                 return (
                   <article
                     key={est.id}
-                    className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden"
+                    className={`rounded-2xl sm:rounded-3xl border shadow-sm overflow-hidden transition-all ${
+                      open
+                        ? "bg-white border-[#B8112D]/35 ring-1 ring-[#B8112D]/15 shadow-md"
+                        : "bg-white border-gray-100 hover:border-[#B8112D]/20"
+                    }`}
                   >
                     <button
                       type="button"
-                      onClick={() => setExpanded((p) => ({ ...p, [est.id]: !open }))}
-                      className="w-full text-left px-4 sm:px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-[#FFF8F9]/60 transition-colors"
+                      onClick={() => toggleExpand(est.id)}
+                      className="w-full text-left px-4 sm:px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center font-bold text-xs shrink-0">
+                        <div
+                          className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-xs shrink-0 shadow-sm ${
+                            open
+                              ? "bg-[#B8112D] text-white"
+                              : "bg-gradient-to-br from-[#FFF1F3] to-[#FFE4E8] text-[#B8112D]"
+                          }`}
+                        >
                           {est.name
                             .split(" ")
                             .map((w) => w[0])
@@ -272,7 +420,7 @@ export default function TechnicalKpiPage() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-bold text-[#0F172A] text-sm sm:text-base">{est.name}</h3>
-                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 px-2 py-0.5 rounded-md">
                               {est.code}
                             </span>
                             {latestMarks ? (
@@ -285,118 +433,186 @@ export default function TechnicalKpiPage() {
                                 {starsLabel(latestStars.value)}
                               </span>
                             ) : null}
+                            {live && live.overdue > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-lg">
+                                <AlertTriangle size={11} /> {live.overdue} overdue
+                              </span>
+                            ) : null}
                           </div>
                           <p className="text-[11px] sm:text-xs text-gray-500 mt-1">
-                            {allRecords.length} entr{allRecords.length === 1 ? "y" : "ies"} in {month}
+                            {allRecords.length} entr{allRecords.length === 1 ? "y" : "ies"} · {filledFields}/
+                            {ESTIMATOR_KPI_FIELD_KEYS.length} fields filled
                             {live ? (
                               <>
                                 {" "}
                                 · <Timer size={11} className="inline -mt-0.5" />{" "}
-                                {formatLoggedHours(live.loggedSeconds)} live track · {live.pending} pending
+                                {formatLoggedHours(live.loggedSeconds)} track · {live.pending} pending
                               </>
                             ) : null}
                           </p>
+                          <div className="mt-2 max-w-xs">
+                            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[#B8112D]"
+                                style={{ width: `${fillPct}%` }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <ChevronDown
-                        size={16}
-                        className={`text-gray-400 transition-transform self-end sm:self-center ${open ? "rotate-180" : ""}`}
-                      />
+                      <div
+                        className={`self-end sm:self-center w-9 h-9 rounded-xl border inline-flex items-center justify-center transition-colors ${
+                          open
+                            ? "bg-[#B8112D] border-[#B8112D] text-white"
+                            : "bg-gray-50 border-gray-200 text-gray-500"
+                        }`}
+                      >
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${open ? "rotate-180" : ""}`}
+                        />
+                      </div>
                     </button>
 
                     {open ? (
-                      <div className="border-t border-gray-100 px-3 sm:px-5 py-4 space-y-3 bg-[#FAFBFC]">
-                        {ESTIMATOR_KPI_FIELD_KEYS.map((fieldKey) => {
-                          const meta = ESTIMATOR_KPI_FIELD_META[fieldKey];
-                          const fieldRecords = allRecords
-                            .filter((r) => r.fieldKey === fieldKey)
-                            .sort(
-                              (a, b) =>
-                                new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
-                            );
+                      <div className="px-3 sm:px-5 pb-4 sm:pb-5">
+                        <div className="rounded-2xl border border-gray-200 bg-[#F7F8FC] shadow-inner overflow-hidden">
+                          <div className="px-3 sm:px-4 py-2.5 border-b border-gray-200/80 bg-white/80 flex items-center justify-between gap-2 sticky top-0 z-[1]">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                              KPI fields · scroll inside
+                            </p>
+                            <span className="text-[10px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-md">
+                              {month}
+                            </span>
+                          </div>
 
-                          return (
-                            <div
-                              key={fieldKey}
-                              className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
-                            >
-                              <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 border-b border-gray-50">
-                                <div className="min-w-0">
-                                  <h4 className="text-sm font-bold text-[#0F172A]">{meta.label}</h4>
-                                  {fieldKey === "productivity" && live ? (
-                                    <p className="text-[10px] text-sky-700 mt-0.5">
-                                      Time track ref: {formatLoggedHours(live.loggedSeconds)} · planned{" "}
-                                      {live.plannedHours || 0}h
-                                    </p>
-                                  ) : meta.hint ? (
-                                    <p className="text-[10px] text-gray-400 mt-0.5 truncate">{meta.hint}</p>
-                                  ) : null}
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => openCreate(est, fieldKey)}
-                                  className="shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27]"
-                                >
-                                  <Plus size={13} />
-                                  Add
-                                </button>
-                              </div>
+                          <div className="max-h-[min(58vh,520px)] overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3 custom-kpi-scroll">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                              {ESTIMATOR_KPI_FIELD_KEYS.map((fieldKey) => {
+                                const meta = ESTIMATOR_KPI_FIELD_META[fieldKey];
+                                const Icon = FIELD_ICONS[fieldKey];
+                                const fieldRecords = allRecords
+                                  .filter((r) => r.fieldKey === fieldKey)
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
+                                  );
+                                const hasEntries = fieldRecords.length > 0;
 
-                              {fieldRecords.length === 0 ? (
-                                <p className="px-3 sm:px-4 py-4 text-xs text-gray-400">
-                                  No entries this month — tap Add.
-                                </p>
-                              ) : (
-                                <ul className="divide-y divide-gray-50">
-                                  {fieldRecords.map((rec) => (
-                                    <li
-                                      key={rec.id}
-                                      className="px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2"
-                                    >
-                                      <div className="min-w-0">
-                                        <div className="text-sm font-semibold text-[#0F172A] whitespace-pre-wrap break-words">
-                                          {fieldKey === "rating_stars" ? (
-                                            <span className="inline-flex items-center gap-1.5 text-amber-600">
-                                              <Star size={14} className="fill-amber-400 text-amber-400" />
-                                              {displayValue(fieldKey, rec.value)}
-                                            </span>
-                                          ) : (
-                                            displayValue(fieldKey, rec.value)
-                                          )}
+                                return (
+                                  <div
+                                    key={fieldKey}
+                                    className={`rounded-xl border overflow-hidden bg-white shadow-sm ${
+                                      hasEntries ? "border-emerald-100" : "border-gray-200"
+                                    }`}
+                                  >
+                                    <div className="px-3 py-2.5 flex items-start justify-between gap-2 bg-gradient-to-r from-white to-[#FAFBFC]">
+                                      <div className="flex items-start gap-2.5 min-w-0">
+                                        <div
+                                          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                            hasEntries
+                                              ? "bg-emerald-50 text-emerald-700"
+                                              : "bg-[#FFF1F3] text-[#B8112D]"
+                                          }`}
+                                        >
+                                          <Icon size={14} />
                                         </div>
-                                        {rec.note ? (
-                                          <p className="text-[11px] text-gray-500 mt-0.5">{rec.note}</p>
-                                        ) : null}
-                                        <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                                          {formatKpiTimestamp(rec.recordedAt)}
-                                          {rec.createdByName ? ` · by ${rec.createdByName}` : ""}
+                                        <div className="min-w-0">
+                                          <h4 className="text-[13px] font-bold text-[#0F172A] leading-tight">
+                                            {meta.label}
+                                          </h4>
+                                          {fieldKey === "productivity" && live ? (
+                                            <p className="text-[10px] text-sky-700 mt-0.5">
+                                              Track {formatLoggedHours(live.loggedSeconds)} · planned{" "}
+                                              {live.plannedHours || 0}h
+                                            </p>
+                                          ) : meta.hint ? (
+                                            <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">
+                                              {meta.hint}
+                                            </p>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openCreate(est, fieldKey);
+                                        }}
+                                        className="shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] shadow-sm"
+                                      >
+                                        <Plus size={13} />
+                                        Add
+                                      </button>
+                                    </div>
+
+                                    {fieldRecords.length === 0 ? (
+                                      <div className="px-3 py-4 border-t border-dashed border-gray-100">
+                                        <p className="text-[11px] text-gray-400 text-center">
+                                          Empty — tap Add to log with timestamp
                                         </p>
                                       </div>
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        <button
-                                          type="button"
-                                          onClick={() => openEdit(est, fieldKey, rec)}
-                                          className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D]"
-                                          title="Edit"
-                                        >
-                                          <Pencil size={13} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => void handleDelete(rec.id)}
-                                          className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF1F3]"
-                                          title="Delete"
-                                        >
-                                          <Trash2 size={13} />
-                                        </button>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
+                                    ) : (
+                                      <ul className="divide-y divide-gray-50 border-t border-gray-50">
+                                        {fieldRecords.map((rec) => (
+                                          <li
+                                            key={rec.id}
+                                            className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 hover:bg-[#FFF8F9]/70"
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="text-sm font-semibold text-[#0F172A] whitespace-pre-wrap break-words">
+                                                {fieldKey === "rating_stars" ? (
+                                                  <span className="inline-flex items-center gap-1.5 text-amber-600">
+                                                    <Star size={14} className="fill-amber-400 text-amber-400" />
+                                                    {displayValue(fieldKey, rec.value)}
+                                                  </span>
+                                                ) : (
+                                                  displayValue(fieldKey, rec.value)
+                                                )}
+                                              </div>
+                                              {rec.note ? (
+                                                <p className="text-[11px] text-gray-500 mt-0.5">{rec.note}</p>
+                                              ) : null}
+                                              <p className="text-[10px] text-gray-400 mt-1 font-medium inline-flex items-center gap-1">
+                                                <Clock3 size={10} />
+                                                {formatKpiTimestamp(rec.recordedAt)}
+                                                {rec.createdByName ? ` · ${rec.createdByName}` : ""}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  openEdit(est, fieldKey, rec);
+                                                }}
+                                                className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] bg-white"
+                                                title="Edit"
+                                              >
+                                                <Pencil size={13} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  void handleDelete(rec.id);
+                                                }}
+                                                className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF1F3] bg-white"
+                                                title="Delete"
+                                              >
+                                                <Trash2 size={13} />
+                                              </button>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                   </article>
@@ -420,6 +636,23 @@ export default function TechnicalKpiPage() {
           onSubmit={(payload) => void handleSave(payload)}
         />
       ) : null}
+
+      <style jsx global>{`
+        .custom-kpi-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #c4c9d4 transparent;
+        }
+        .custom-kpi-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-kpi-scroll::-webkit-scrollbar-thumb {
+          background: #c4c9d4;
+          border-radius: 999px;
+        }
+        .custom-kpi-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+      `}</style>
     </div>
   );
 }
