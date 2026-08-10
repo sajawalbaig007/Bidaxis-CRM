@@ -300,7 +300,113 @@ function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinne
 }
 
 /* ---- */
-export type ViewAsCsr = { id: string; name: string };
+export type ViewAsCsr = { id: string; name: string; role?: string };
+
+function roleShort(role?: string) {
+  const r = (role || "").toLowerCase();
+  if (r === "csr") return "CSR";
+  if (r === "admin") return "Admin";
+  if (r === "manager") return "Manager";
+  if (r === "accounts") return "Accounts";
+  if (r === "technical_manager") return "Tech Mgr";
+  if (r === "estimator") return "Estimator";
+  return role ? role.replace(/_/g, " ") : "";
+}
+
+function AdminViewAsPicker({
+  options,
+  value,
+  onChange,
+  isStealthView,
+}: {
+  options: ViewAsCsr[];
+  value: ViewAsCsr | null;
+  onChange: (csr: ViewAsCsr | null) => void;
+  isStealthView: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter((o) => {
+      const hay = `${o.name} ${o.role ?? ""} ${roleShort(o.role)}`.toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [options, q]);
+
+  return (
+    <div className="mb-2.5" ref={rootRef}>
+      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">View as account</label>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-1 w-full h-9 px-2.5 rounded-xl border border-gray-200 text-[12px] font-semibold bg-[#FAFAFA] outline-none focus:border-[#B8112D] flex items-center justify-between gap-2 text-left"
+      >
+        <span className="truncate">{value ? `${value.name}${value.role ? ` · ${roleShort(value.role)}` : ""}` : "My chats (Admin)"}</span>
+        <ChevronLeft size={14} className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <div className="mt-1.5 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search all accounts…"
+                className="w-full h-8 rounded-lg bg-[#F3F4F6] pl-7 pr-2 text-xs outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto overscroll-contain py-1">
+            <button
+              type="button"
+              onClick={() => { onChange(null); setOpen(false); setQ(""); }}
+              className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-[#FFF1F3] ${!value ? "bg-[#FFF1F3] text-[#B8112D]" : "text-gray-800"}`}
+            >
+              My chats (Admin)
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-[11px] text-gray-400">No matches</p>
+            ) : (
+              filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { onChange(c); setOpen(false); setQ(""); }}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-[#FFF1F3] flex items-center justify-between gap-2 ${
+                    value?.id === c.id ? "bg-[#FFF1F3] text-[#B8112D] font-semibold" : "text-gray-800"
+                  }`}
+                >
+                  <span className="truncate">{c.name}</span>
+                  <span className="text-[10px] text-gray-400 shrink-0">{roleShort(c.role)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {isStealthView && (
+        <p className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 leading-snug">
+          Read-only — user is not notified
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function ChatPanel({
   onClose,
@@ -1069,31 +1175,12 @@ export default function ChatPanel({
                 )}
               </div>
               {adminCsrOptions.length > 0 && onViewAsCsrChange && (
-                <div className="mb-2.5">
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">View as CSR</label>
-                  <select
-                    value={viewAsCsr?.id ?? ""}
-                    onChange={e => {
-                      const id = e.target.value;
-                      if (!id) onViewAsCsrChange(null);
-                      else {
-                        const csr = adminCsrOptions.find(c => c.id === id);
-                        if (csr) onViewAsCsrChange(csr);
-                      }
-                    }}
-                    className="mt-1 w-full h-9 px-2.5 rounded-xl border border-gray-200 text-[12px] font-semibold bg-[#FAFAFA] outline-none focus:border-[#B8112D]"
-                  >
-                    <option value="">My chats (Admin)</option>
-                    {adminCsrOptions.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  {isStealthView && (
-                    <p className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 leading-snug">
-                      Read-only — CSR is not notified
-                    </p>
-                  )}
-                </div>
+                <AdminViewAsPicker
+                  options={adminCsrOptions}
+                  value={viewAsCsr}
+                  onChange={onViewAsCsrChange}
+                  isStealthView={isStealthView}
+                />
               )}
               </>
             )}

@@ -61,7 +61,7 @@ export type MessagesPayload = {
 };
 
 type ChatUser = { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; profilePic?: string | null };
-type AdminCsr = { id: string; name: string };
+type AdminCsr = { id: string; name: string; role?: string };
 
 export function isChatConversationsFresh(): boolean {
   return read(convStore, "active", CONV_TTL_MS) !== null;
@@ -126,9 +126,14 @@ export async function fetchConvMembers(convId: string, force = false): Promise<C
 
 export async function fetchAdminCsrs(force = false): Promise<AdminCsr[]> {
   return cached("list", csrsStore, ADMIN_CSRS_TTL_MS, async () => {
+    try {
+      const r = await API.get("/chat/admin/viewable-users");
+      const list = (r.data?.users ?? []) as AdminCsr[];
+      if (list.length) return list.map(c => ({ id: c.id, name: c.name, role: c.role }));
+    } catch { /* fall back to CSR-only list */ }
     const r = await API.get("/admin/csrs");
     const list = (r.data?.csrs ?? []) as AdminCsr[];
-    return list.map(c => ({ id: c.id, name: c.name }));
+    return list.map(c => ({ id: c.id, name: c.name, role: "csr" }));
   }, force);
 }
 
