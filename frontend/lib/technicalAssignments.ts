@@ -27,6 +27,8 @@ export type TechnicalAssignment = {
   /** Scope work instructions for the estimator. */
   workDetail: string;
   takeoffDone: boolean;
+  /** Individually sent to Pricing (others can stay Assigned / Take Off Done). */
+  pricingSent: boolean;
   timerSeconds: number;
   timerStartedAt: string | null;
 };
@@ -105,6 +107,7 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       divisions: asStringList(o.divisions ?? o.division),
       workDetail: String(o.workDetail ?? o.scopeDetail ?? "").trim(),
       takeoffDone: o.takeoffDone === true,
+      pricingSent: o.pricingSent === true,
       timerSeconds: Math.max(0, Math.floor(Number(o.timerSeconds ?? 0) || 0)),
       timerStartedAt: o.timerStartedAt ? String(o.timerStartedAt).trim() || null : null,
     });
@@ -122,6 +125,13 @@ export function assignmentElapsedSeconds(
     if (Number.isFinite(started)) total += Math.max(0, Math.floor((now - started) / 1000));
   }
   return total;
+}
+
+/** Estimator Complete unlocks only after timer has run this long (seconds). */
+export const MIN_COMPLETE_TIMER_SECONDS = 30;
+
+export function canCompleteAfterTimer(elapsedSeconds: number): boolean {
+  return Math.max(0, Math.floor(elapsedSeconds)) >= MIN_COMPLETE_TIMER_SECONDS;
 }
 
 /** Fold running segment into timerSeconds (local optimistic pause). */
@@ -166,7 +176,107 @@ export function projectReceiveDate(p: {
   return p.technicalReceivedAt || p.createdAt || p.updatedAt || null;
 }
 
-const LATE_PHASES = new Set(["pricing_phase", "qa_phase", "delivery_phase"]);
+/** Date project was sent into Pricing (Send for Pricing). */
+export function pricingReceiveDate(p: {
+  pricingReceivedAt?: string | null;
+}): string | null {
+  return p.pricingReceivedAt || null;
+}
+
+const LATE_PHASES = new Set([
+  "pricing_phase",
+  "pricing_with_qa",
+  "pricing_without_qa",
+  "pricing_quick_qa",
+  "qa_phase",
+  "delivery_phase",
+]);
+
+export function isPricingPhase(phase?: string | null): boolean {
+  const p = (phase ?? "").toLowerCase();
+  return p === "pricing_phase" || p.startsWith("pricing_");
+}
+
+export type PricingQaMode = "with_qa" | "without_qa" | "quick_qa";
+
+export const PRICING_QA_OPTIONS: { value: PricingQaMode; label: string }[] = [
+  { value: "with_qa", label: "With QA" },
+  { value: "without_qa", label: "Without QA" },
+  { value: "quick_qa", label: "Quick QA" },
+];
+
+export function getPricingQaMode(phase?: string | null): PricingQaMode | "" {
+  const p = (phase ?? "").toLowerCase();
+  if (p === "pricing_with_qa") return "with_qa";
+  if (p === "pricing_without_qa") return "without_qa";
+  if (p === "pricing_quick_qa") return "quick_qa";
+  if (p === "pricing_phase") return "";
+  return "";
+}
+
+export function pricingQaPhase(mode: PricingQaMode): string {
+  if (mode === "with_qa") return "pricing_with_qa";
+  if (mode === "without_qa") return "pricing_without_qa";
+  return "pricing_quick_qa";
+}
+
+export type TechTaskStatus = "pending" | "in_progress" | "completed";
+
+export const TECH_TASK_STATUS_OPTIONS: { value: TechTaskStatus; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+];
+
+export function getTechTaskStatus(p: {
+  projectWorkStatus?: string | null;
+  status?: string | null;
+}): TechTaskStatus {
+  const work = (p.projectWorkStatus ?? "").toLowerCase();
+  if (work === "completed") return "completed";
+  if (work === "in_progress") return "in_progress";
+  if (work === "pending" || work === "not_completed") return "pending";
+  if ((p.status ?? "").toLowerCase() === "completed") return "completed";
+  return "pending";
+}
+
+export function isAssignmentWorking(a: Pick<TechnicalAssignment, "takeoffDone" | "pricingSent">): boolean {
+  return !a.takeoffDone && !a.pricingSent;
+}
+
+export function isAssignmentTakeoffReady(
+  a: Pick<TechnicalAssignment, "takeoffDone" | "pricingSent">,
+): boolean {
+  return a.takeoffDone === true && !a.pricingSent;
+}
+
+export function isAssignmentPricingSent(a: Pick<TechnicalAssignment, "pricingSent">): boolean {
+  return a.pricingSent === true;
+}
+
+/** All assigned estimators have been sent to Pricing → show main project scope. */
+export function allAssignmentsSentForPricing(assignments: TechnicalAssignment[]): boolean {
+  return assignments.length > 0 && assignments.every((a) => a.pricingSent === true);
+}
+
+export function pricedAssignments(assignments: TechnicalAssignment[]): TechnicalAssignment[] {
+  return assignments.filter(isAssignmentPricingSent);
+}
+
+export function formatAssignmentScopeLine(a: TechnicalAssignment): string {
+  const scopes = (a.scopes ?? []).filter(Boolean).join(", ");
+  const divisions = (a.divisions ?? []).filter(Boolean).join(", ");
+  const parts = [scopes, divisions].filter(Boolean);
+  return parts.join(" · ") || "—";
+}
+
+/** Old projects moved to pricing as a whole — treat completed rows as already priced. */
+function legacyWholeProjectPricing(
+  phase: string,
+  assignments: TechnicalAssignment[],
+): boolean {
+  return isPricingPhase(phase) && !assignments.some((a) => a.pricingSent);
+}
 
 export function matchesTechnicalTab(
   tab: TechnicalWorkflowTab,
@@ -181,26 +291,32 @@ export function matchesTechnicalTab(
   const phase = (p.projectPhase ?? "not_started").toLowerCase();
   const assignments = parseTechnicalAssignments(p.technicalAssignments);
   const hasAssign = assignments.length > 0;
-  const anyPending = assignments.some((a) => !a.takeoffDone);
-  const allDone = hasAssign && assignments.every((a) => a.takeoffDone);
-  const inLatePhase = LATE_PHASES.has(phase);
+  const inFinal = phase === "qa_phase" || phase === "delivery_phase";
+  const legacyPricing = legacyWholeProjectPricing(phase, assignments);
 
   switch (tab) {
     case "all":
       return true;
     case "not_assigned":
-      // Active projects that are not yet assigned to any estimator
       return !hasAssign && isProjectActive(p);
     case "assigned":
-      // Has work still pending — includes reopened from Take Off
-      return hasAssign && anyPending && !inLatePhase;
+      // Only estimators still working — others may already be in Take Off / Pricing
+      return !inFinal && assignments.some(isAssignmentWorking);
     case "takeoff_done":
-      // All estimators completed takeoff
-      return allDone && !inLatePhase;
+      // Only estimators Done but not yet sent for pricing
+      return (
+        !inFinal &&
+        !legacyPricing &&
+        assignments.some(isAssignmentTakeoffReady)
+      );
     case "pricing":
-      return phase === "pricing_phase";
+      // Only when at least one estimator was individually sent (or legacy whole-project pricing)
+      return (
+        !inFinal &&
+        (assignments.some(isAssignmentPricingSent) || legacyPricing)
+      );
     case "final_submission":
-      return phase === "qa_phase" || phase === "delivery_phase";
+      return inFinal;
     default:
       return true;
   }
@@ -220,26 +336,54 @@ export function getTechnicalWorkflowStatus(p: {
   projectDeadline?: string | null;
   projectWorkStatus?: string | null;
 }): { key: TechnicalWorkflowStatusKey; label: string } {
-  const order: { tab: Exclude<TechnicalWorkflowTab, "all">; label: string }[] = [
-    { tab: "final_submission", label: "Final Submission" },
-    { tab: "pricing", label: "Pricing" },
-    { tab: "takeoff_done", label: "Take Off Done" },
-    { tab: "assigned", label: "Assigned" },
-    { tab: "not_assigned", label: "Not Assigned" },
-  ];
-  for (const { tab, label } of order) {
-    if (matchesTechnicalTab(tab, p)) return { key: tab, label };
+  const phase = (p.projectPhase ?? "").toLowerCase();
+  if (phase === "pricing_with_qa") return { key: "pricing", label: "Pricing · With QA" };
+  if (phase === "pricing_without_qa") return { key: "pricing", label: "Pricing · Without QA" };
+  if (phase === "pricing_quick_qa") return { key: "pricing", label: "Pricing · Quick QA" };
+
+  const assignments = parseTechnicalAssignments(p.technicalAssignments);
+
+  // Live furthest stage (Admin + All Projects)
+  if (matchesTechnicalTab("final_submission", p)) {
+    return { key: "final_submission", label: "Final Submission" };
+  }
+  if (matchesTechnicalTab("pricing", p)) {
+    const priced = assignments.filter(isAssignmentPricingSent).length;
+    const pending = assignments.filter(
+      (a) => isAssignmentWorking(a) || isAssignmentTakeoffReady(a),
+    ).length;
+    if (priced > 0 && pending > 0) {
+      return { key: "pricing", label: `Pricing · ${priced} sent` };
+    }
+    if (priced > 0) {
+      return { key: "pricing", label: priced === 1 ? "Pricing · 1 sent" : `Pricing · ${priced} sent` };
+    }
+    return { key: "pricing", label: "Pricing" };
+  }
+  if (matchesTechnicalTab("takeoff_done", p)) {
+    const ready = assignments.filter(isAssignmentTakeoffReady).length;
+    const pending = assignments.filter(isAssignmentWorking).length;
+    if (ready > 0 && pending > 0) {
+      return { key: "takeoff_done", label: `Take Off Done · ${ready} ready` };
+    }
+    return { key: "takeoff_done", label: "Take Off Done" };
+  }
+  if (matchesTechnicalTab("assigned", p)) {
+    return { key: "assigned", label: "Assigned" };
+  }
+  if (matchesTechnicalTab("not_assigned", p)) {
+    return { key: "not_assigned", label: "Not Assigned" };
   }
 
   const work = (p.projectWorkStatus ?? "").toLowerCase();
   if (work === "completed" || (p.status ?? "").toLowerCase() === "completed") {
     return { key: "completed", label: "Completed" };
   }
-  if (work === "not_completed") return { key: "not_completed", label: "Not Completed" };
+  if (work === "not_completed" || work === "pending") return { key: "not_completed", label: "Pending" };
   if (work === "in_progress" || isProjectActive(p)) {
     return { key: "in_progress", label: "In Progress" };
   }
-  return { key: "not_completed", label: "Not Completed" };
+  return { key: "not_completed", label: "Pending" };
 }
 
 export type TechnicalNoteEntry = {
