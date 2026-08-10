@@ -40,6 +40,15 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
+import { buildTechnicalMonitoring } from "../utils/technicalMonitoring";
+import {
+  ESTIMATOR_KPI_FIELD_KEYS,
+  ESTIMATOR_KPI_FIELD_META,
+  isEstimatorKpiFieldKey,
+  monthBounds,
+  parseRecordedAt,
+  validateKpiValue,
+} from "../utils/technicalKpiRecords";
 import {
   listTechnicalEstimators,
   normalizeTechnicalAssignmentsInput,
@@ -1214,6 +1223,198 @@ router.get(
     } catch (err) {
       console.error("technical-estimators error:", err);
       return res.json({ success: true, estimators: [] });
+    }
+  },
+);
+
+/* ================= TECHNICAL KPI + TEAM MONITORING ================= */
+router.get(
+  "/technical-monitoring",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (_req, res) => {
+    try {
+      const payload = await buildTechnicalMonitoring();
+      return res.json({ success: true, ...payload });
+    } catch (err) {
+      console.error("technical-monitoring error:", err);
+      return res.status(500).json({ success: false, message: "Failed to load technical monitoring" });
+    }
+  },
+);
+
+/* ================= ESTIMATOR KPI RECORDS (editable ledger) ================= */
+router.get(
+  "/technical-kpi-records",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const estimatorId = typeof req.query.estimatorId === "string" ? req.query.estimatorId.trim() : "";
+      const fieldKey = typeof req.query.fieldKey === "string" ? req.query.fieldKey.trim() : "";
+      const month = typeof req.query.month === "string" ? req.query.month.trim() : "";
+
+      const where: Prisma.EstimatorKpiRecordWhereInput = {};
+      if (estimatorId) where.estimatorId = estimatorId;
+      if (fieldKey && isEstimatorKpiFieldKey(fieldKey)) where.fieldKey = fieldKey;
+      const bounds = month ? monthBounds(month) : null;
+      if (bounds) where.recordedAt = { gte: bounds.from, lt: bounds.to };
+
+      const [records, estimators] = await Promise.all([
+        prisma.estimatorKpiRecord.findMany({
+          where,
+          orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+          take: 2000,
+        }),
+        listTechnicalEstimators(),
+      ]);
+
+      return res.json({
+        success: true,
+        fields: ESTIMATOR_KPI_FIELD_KEYS.map((key) => ({
+          key,
+          ...ESTIMATOR_KPI_FIELD_META[key],
+        })),
+        estimators,
+        records,
+      });
+    } catch (err) {
+      console.error("technical-kpi-records list error:", err);
+      return res.status(500).json({ success: false, message: "Failed to load KPI records" });
+    }
+  },
+);
+
+router.post(
+  "/technical-kpi-records",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req: AuthRequest, res) => {
+    try {
+      const body = req.body as Record<string, unknown>;
+      const estimatorId = String(body.estimatorId ?? "").trim();
+      const estimatorName = String(body.estimatorName ?? "").trim();
+      const fieldKey = body.fieldKey;
+      const note = body.note != null ? String(body.note).trim() : "";
+
+      if (!estimatorId) {
+        return res.status(400).json({ success: false, message: "estimatorId is required" });
+      }
+      if (!isEstimatorKpiFieldKey(fieldKey)) {
+        return res.status(400).json({ success: false, message: "Invalid fieldKey" });
+      }
+      const validated = validateKpiValue(fieldKey, body.value);
+      if (!validated.ok) {
+        return res.status(400).json({ success: false, message: validated.message });
+      }
+
+      let name = estimatorName;
+      if (!name) {
+        const u = await prisma.user.findUnique({
+          where: { id: estimatorId },
+          select: { name: true },
+        });
+        name = u?.name ?? estimatorId;
+      }
+
+      let createdByName: string | null = null;
+      if (req.user?.id) {
+        const me = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { name: true },
+        });
+        createdByName = me?.name ?? null;
+      }
+
+      const record = await prisma.estimatorKpiRecord.create({
+        data: {
+          estimatorId,
+          estimatorName: name,
+          fieldKey,
+          value: validated.value,
+          note: note || null,
+          recordedAt: parseRecordedAt(body.recordedAt),
+          createdById: req.user?.id ?? null,
+          createdByName,
+        },
+      });
+
+      return res.json({ success: true, record });
+    } catch (err) {
+      console.error("technical-kpi-records create error:", err);
+      return res.status(500).json({ success: false, message: "Failed to create KPI record" });
+    }
+  },
+);
+
+router.put(
+  "/technical-kpi-records/:id",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req: AuthRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const existing = await prisma.estimatorKpiRecord.findUnique({ where: { id } });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Record not found" });
+      }
+
+      const body = req.body as Record<string, unknown>;
+      const fieldKey = isEstimatorKpiFieldKey(body.fieldKey)
+        ? body.fieldKey
+        : isEstimatorKpiFieldKey(existing.fieldKey)
+          ? existing.fieldKey
+          : null;
+      if (!fieldKey) {
+        return res.status(400).json({ success: false, message: "Invalid fieldKey on record" });
+      }
+      const data: Prisma.EstimatorKpiRecordUpdateInput = {};
+
+      if (body.value !== undefined) {
+        const validated = validateKpiValue(fieldKey, body.value);
+        if (!validated.ok) {
+          return res.status(400).json({ success: false, message: validated.message });
+        }
+        data.value = validated.value;
+      }
+      if (body.note !== undefined) {
+        const note = String(body.note ?? "").trim();
+        data.note = note || null;
+      }
+      if (body.recordedAt !== undefined) {
+        data.recordedAt = parseRecordedAt(body.recordedAt, existing.recordedAt);
+      }
+      if (isEstimatorKpiFieldKey(body.fieldKey) && body.fieldKey !== existing.fieldKey) {
+        data.fieldKey = body.fieldKey;
+      }
+      if (body.estimatorName != null && String(body.estimatorName).trim()) {
+        data.estimatorName = String(body.estimatorName).trim();
+      }
+
+      const record = await prisma.estimatorKpiRecord.update({
+        where: { id },
+        data,
+      });
+      return res.json({ success: true, record });
+    } catch (err) {
+      console.error("technical-kpi-records update error:", err);
+      return res.status(500).json({ success: false, message: "Failed to update KPI record" });
+    }
+  },
+);
+
+router.delete(
+  "/technical-kpi-records/:id",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      await prisma.estimatorKpiRecord.delete({ where: { id } });
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("technical-kpi-records delete error:", err);
+      return res.status(500).json({ success: false, message: "Failed to delete KPI record" });
     }
   },
 );
