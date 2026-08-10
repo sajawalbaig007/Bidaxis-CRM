@@ -18,26 +18,33 @@ export type TechnicalAssignment = {
   workDetail: string;
   /** Task complete (estimator finished; Miss can reopen to pending). */
   takeoffDone: boolean;
+  /** Individually sent to Pricing. */
+  pricingSent: boolean;
   /** Accumulated work time in seconds (persists across pauses). */
   timerSeconds: number;
   /** ISO timestamp while running; null when paused/idle. */
   timerStartedAt: string | null;
 };
 
-/** Sync projectPhase from assignment complete flags (assigned ↔ takeoff). */
+/** Sync projectPhase from assignment complete / pricing flags. */
 export function syncPhaseFromAssignments(
   list: TechnicalAssignment[],
   currentPhase: string | null | undefined,
 ): string {
   const phase = (currentPhase ?? "not_started").toLowerCase();
-  if (phase === "pricing_phase" || phase === "qa_phase" || phase === "delivery_phase") {
+  if (phase === "qa_phase" || phase === "delivery_phase") {
     return currentPhase ?? phase;
   }
   if (list.length === 0) return "not_started";
-  const allDone = list.every((a) => a.takeoffDone);
+
+  const anyPricing = list.some((a) => a.pricingSent);
+  if (anyPricing) {
+    if (phase.startsWith("pricing_")) return currentPhase ?? "pricing_phase";
+    return "pricing_phase";
+  }
+
   const anyDone = list.some((a) => a.takeoffDone);
-  if (allDone) return "takeoff_completed";
-  if (anyDone) return "takeoff_started";
+  if (anyDone) return "takeoff_completed";
   return "not_started";
 }
 
@@ -122,6 +129,7 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       divisions: asStringList(o.divisions ?? o.division),
       workDetail: String(o.workDetail ?? o.scopeDetail ?? "").trim(),
       takeoffDone: o.takeoffDone === true,
+      pricingSent: o.pricingSent === true,
       timerSeconds,
       timerStartedAt: startedRaw || null,
     });
@@ -174,6 +182,13 @@ export function assignmentElapsedSeconds(a: TechnicalAssignment, now = Date.now(
     if (Number.isFinite(started)) total += Math.max(0, Math.floor((now - started) / 1000));
   }
   return total;
+}
+
+/** Estimator Complete unlocks only after timer has run this long (seconds). */
+export const MIN_COMPLETE_TIMER_SECONDS = 30;
+
+export function canCompleteAfterTimer(elapsedSeconds: number): boolean {
+  return Math.max(0, Math.floor(elapsedSeconds)) >= MIN_COMPLETE_TIMER_SECONDS;
 }
 
 /** Pause running timers for this estimator on specific leads (fast path). */
@@ -254,6 +269,7 @@ export function mergeAssignmentProgress(
       return {
         ...a,
         takeoffDone: false,
+        pricingSent: false,
         timerSeconds: 0,
         timerStartedAt: null,
       };
@@ -261,6 +277,7 @@ export function mergeAssignmentProgress(
     return {
       ...a,
       takeoffDone: old.takeoffDone,
+      pricingSent: old.pricingSent,
       timerSeconds: old.timerSeconds,
       timerStartedAt: old.takeoffDone ? null : old.timerStartedAt,
     };

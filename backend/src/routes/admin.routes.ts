@@ -1187,6 +1187,247 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
   }
 });
 
+/* ================= SEND FOR PRICING ================= */
+router.put(
+  "/project/:id/send-pricing",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const estimatorId = String((req.body as { estimatorId?: string })?.estimatorId ?? "").trim();
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: {
+          id: true,
+          assignedTo: true,
+          technicalAssignments: true,
+          projectPhase: true,
+          pricingReceivedAt: true,
+        },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+      const list = parseTechnicalAssignments(existing.technicalAssignments);
+
+      let sent = 0;
+      const next = list.map((a) => {
+        const match = estimatorId
+          ? a.estimatorId === estimatorId
+          : a.takeoffDone && !a.pricingSent;
+        if (!match) return a;
+        if (!a.takeoffDone) return a;
+        if (a.pricingSent) return a;
+        sent += 1;
+        return { ...a, pricingSent: true, timerStartedAt: null };
+      });
+
+      if (estimatorId) {
+        const target = list.find((a) => a.estimatorId === estimatorId);
+        if (!target) {
+          return res.status(404).json({ success: false, message: "Estimator assignment not found" });
+        }
+        if (!target.takeoffDone) {
+          return res.status(400).json({
+            success: false,
+            message: "That estimator must be Done before Send for Pricing.",
+          });
+        }
+        if (target.pricingSent) {
+          return res.status(400).json({
+            success: false,
+            message: "That estimator was already sent for pricing.",
+          });
+        }
+      }
+
+      if (sent === 0) {
+        return res.status(400).json({
+          success: false,
+          message: estimatorId
+            ? "Could not send that estimator for pricing."
+            : "No completed estimators waiting to send for pricing.",
+        });
+      }
+
+      const nextPhase = syncPhaseFromAssignments(next, existing.projectPhase);
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          technicalAssignments: serializeTechnicalAssignments(next),
+          projectPhase: nextPhase,
+          pricingReceivedAt: existing.pricingReceivedAt ?? new Date(),
+        },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to send for pricing" });
+    }
+  },
+);
+
+/* ================= PRICING QA MODE (With / Without / Quick) ================= */
+router.put(
+  "/project/:id/pricing-qa",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const mode = String((req.body as { mode?: string })?.mode ?? "")
+        .trim()
+        .toLowerCase();
+      const map: Record<string, string> = {
+        with_qa: "pricing_with_qa",
+        without_qa: "pricing_without_qa",
+        quick_qa: "pricing_quick_qa",
+      };
+      const nextPhase = map[mode];
+      if (!nextPhase) {
+        return res.status(400).json({
+          success: false,
+          message: "mode must be with_qa | without_qa | quick_qa",
+        });
+      }
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { projectPhase: nextPhase },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to update pricing QA" });
+    }
+  },
+);
+
+/* ================= SEND FOR FINAL SUBMISSION ================= */
+router.put(
+  "/project/:id/send-final-submission",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, assignedTo: true, projectPhase: true, technicalAssignments: true },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+      const phase = String(existing.projectPhase ?? "").toLowerCase();
+      // Already in Final — treat as success (idempotent)
+      if (phase === "qa_phase" || phase === "delivery_phase") {
+        const lead = await prisma.lead.findUnique({
+          where: { id: leadId },
+          include: {
+            csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            notes: { orderBy: { createdAt: "asc" }, take: 20 },
+            uploadFile: { select: { companyName: true } },
+          },
+        });
+        return res.json({ success: true, lead });
+      }
+      const list = parseTechnicalAssignments(existing.technicalAssignments);
+      const inPricing =
+        phase === "pricing_phase" ||
+        phase.startsWith("pricing_") ||
+        list.some((a) => a.pricingSent);
+      if (!inPricing) {
+        return res.status(400).json({
+          success: false,
+          message: "Project must be in Pricing before Final Submission.",
+        });
+      }
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { projectPhase: "qa_phase" },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to send for final submission" });
+    }
+  },
+);
+
+/* ================= RETURN FROM FINAL SUBMISSION → PRICING ================= */
+router.put(
+  "/project/:id/return-pricing",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, assignedTo: true, projectPhase: true },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+      const phase = String(existing.projectPhase ?? "").toLowerCase();
+      // Already in Pricing — treat as success (idempotent)
+      if (phase === "pricing_phase" || phase.startsWith("pricing_")) {
+        const lead = await prisma.lead.findUnique({
+          where: { id: leadId },
+          include: {
+            csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            notes: { orderBy: { createdAt: "asc" }, take: 20 },
+            uploadFile: { select: { companyName: true } },
+          },
+        });
+        return res.json({ success: true, lead });
+      }
+      if (phase !== "qa_phase" && phase !== "delivery_phase") {
+        return res.status(400).json({
+          success: false,
+          message: "Project must be in Final Submission to return to Pricing.",
+        });
+      }
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { projectPhase: "pricing_phase" },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to return to pricing" });
+    }
+  },
+);
+
 /* ================= HIDE FROM TECHNICAL ONLY (admin Project DB keeps it) ================= */
 router.put(
   "/project/:id/hide-technical",
@@ -1521,8 +1762,10 @@ router.put(
         return res.status(404).json({ success: false, message: "Estimator assignment not found" });
       }
       list[idx] = {
-        ...pauseAssignmentTimer({ ...list[idx] }),
+        ...pauseAssignmentTimer({ ...list[idx]! }),
         takeoffDone: takeoffDone === true,
+        // Reopen → back to Assigned; complete → Take Off Done (not pricing yet)
+        pricingSent: takeoffDone === true ? list[idx]!.pricingSent : false,
       };
 
       const nextPhase = syncPhaseFromAssignments(list, existing.projectPhase);
