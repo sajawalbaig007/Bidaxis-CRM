@@ -5,11 +5,11 @@ import ChatPanel from "@/app/components/chat/ChatPanel";
 import { fetchAdminCsrs } from "@/lib/chatApiCache";
 
 export default function AdminChatPanel({ onClose }: { onClose: () => void }) {
-  const [csrs, setCsrs] = useState<{ id: string; name: string }[]>([]);
-  const [viewAs, setViewAs] = useState<{ id: string; name: string } | null>(null);
+  const [csrs, setCsrs] = useState<{ id: string; name: string; role?: string }[]>([]);
+  const [viewAs, setViewAs] = useState<{ id: string; name: string; role?: string } | null>(null);
 
   useEffect(() => {
-    void fetchAdminCsrs().then(setCsrs).catch(() => {});
+    void fetchAdminCsrs(true).then(setCsrs).catch(() => {});
   }, []);
 
   return (

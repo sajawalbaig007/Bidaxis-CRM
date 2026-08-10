@@ -950,47 +950,77 @@ router.post("/conversations/:id/unarchive", verifyToken, async (req: AuthRequest
 });
 
 /* ═══════════════════════════════════════════════════════
-   Admin stealth view — read CSR chats without notifying them
+   Admin stealth — list of users whose chats admin can open
 ═══════════════════════════════════════════════════════ */
-router.get("/admin/view/:csrId/conversations", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.get("/admin/viewable-users", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
   try {
-    const csrId        = p(req.params.csrId);
+    const meId = req.user!.id;
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        id: { not: meId },
+        role: { in: ["csr", "manager", "accounts", "technical_manager", "estimator", "admin"] },
+      },
+      select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    });
+    return res.json({
+      users: users.map((u) => ({
+        id: u.id,
+        name: chatDisplayName(u),
+        role: u.role,
+        csrCode: u.csrCode,
+        isOnline: u.isOnline,
+      })),
+    });
+  } catch (err) {
+    console.error("[chat] admin viewable-users", err);
+    return res.status(500).json({ message: "Failed to fetch users" });
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   Admin stealth view — read any staff chats without notifying them
+═══════════════════════════════════════════════════════ */
+router.get("/admin/view/:userId/conversations", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId       = p(req.params.userId);
     const showArchived = req.query.archived === "1";
 
-    const csr = await prisma.user.findFirst({
-      where:  { id: csrId, role: "csr" },
+    const target = await prisma.user.findFirst({
+      where:  { id: userId, isActive: true },
       select: { id: true },
     });
-    if (!csr) return res.status(404).json({ message: "CSR not found" });
+    if (!target) return res.status(404).json({ message: "User not found" });
 
-    const conversations = await fetchConversationsForUser(csrId, showArchived, {
+    const conversations = await fetchConversationsForUser(userId, showArchived, {
       includeEmpty: true,
       includeCleared: true,
     });
     return res.json({ conversations });
   } catch (err) {
     console.error("[chat] admin view conversations", err);
-    return res.status(500).json({ message: "Failed to fetch CSR conversations" });
+    return res.status(500).json({ message: "Failed to fetch conversations" });
   }
 });
 
-router.get("/admin/view/:csrId/conversations/:convId/messages", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
+router.get("/admin/view/:userId/conversations/:convId/messages", verifyToken, allowRoles("admin"), async (req: AuthRequest, res) => {
   try {
-    const csrId          = p(req.params.csrId);
+    const userId         = p(req.params.userId);
     const conversationId = p(req.params.convId);
 
-    const csr = await prisma.user.findFirst({
-      where:  { id: csrId, role: "csr" },
+    const target = await prisma.user.findFirst({
+      where:  { id: userId, isActive: true },
       select: { id: true },
     });
-    if (!csr) return res.status(404).json({ message: "CSR not found" });
+    if (!target) return res.status(404).json({ message: "User not found" });
 
     const member = await prisma.conversationMember.findUnique({
-      where: { conversationId_userId: { conversationId, userId: csrId } },
+      where: { conversationId_userId: { conversationId, userId } },
     });
-    if (!member) return res.status(403).json({ message: "CSR is not in this conversation" });
+    if (!member) return res.status(403).json({ message: "User is not in this conversation" });
 
-    const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId, { includeDeleted: true });
+    const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId, { includeDeleted: true });
     return res.json({ messages, pinnedMessage });
   } catch (err) {
     console.error("[chat] admin view messages", err);
