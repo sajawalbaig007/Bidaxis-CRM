@@ -356,7 +356,7 @@ function PricingQaSelect({
         const v = e.target.value as PricingQaMode;
         if (v) onChange(v);
       }}
-      className="h-8 max-w-full rounded-lg border border-violet-200 bg-violet-50 text-violet-800 px-2 text-[10px] xl:text-[11px] font-bold outline-none cursor-pointer disabled:opacity-60"
+      className="h-8 w-full max-w-full rounded-lg border border-violet-200 bg-violet-50 text-violet-800 px-1.5 text-[10px] font-bold outline-none cursor-pointer disabled:opacity-60"
       title="QA type — shown to Admin in real time"
     >
       <option value="" disabled>
@@ -776,61 +776,56 @@ function ProjectRowActions({
   showReturnPricing?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-end gap-1.5 min-w-0">
-      <div className="flex items-center gap-1.5 flex-nowrap justify-end">
-        {showSendPricing && onSendPricing && (
-          <button
-            type="button"
-            onClick={onSendPricing}
-            className="h-8 px-2 rounded-xl bg-violet-600 text-white text-[9px] xl:text-[10px] font-bold hover:bg-violet-700 inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
-            title="Send for Pricing"
-          >
-            <Calculator size={12} />
-            <span className="hidden 2xl:inline">Send for Pricing</span>
-            <span className="2xl:hidden">Pricing</span>
-          </button>
-        )}
-        {showSendFinal && onSendFinal && (
-          <button
-            type="button"
-            onClick={onSendFinal}
-            className="h-8 px-2 rounded-xl bg-emerald-600 text-white text-[9px] xl:text-[10px] font-bold hover:bg-emerald-700 inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
-            title="Send for Final Submission"
-          >
-            <Send size={12} />
-            <span className="hidden 2xl:inline">Final Submission</span>
-            <span className="2xl:hidden">Final</span>
-          </button>
-        )}
-        {showReturnPricing && onReturnPricing && (
-          <button
-            type="button"
-            onClick={onReturnPricing}
-            className="h-8 px-2 rounded-xl bg-amber-500 text-white text-[9px] xl:text-[10px] font-bold hover:bg-amber-600 inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
-            title="Return to Pricing"
-          >
-            <Calculator size={12} />
-            <span className="hidden xl:inline">Back to Pricing</span>
-            <span className="xl:hidden">Pricing</span>
-          </button>
-        )}
+    <div className="flex items-center gap-1 flex-nowrap min-w-0">
+      {showSendPricing && onSendPricing && (
         <button
           type="button"
-          onClick={onEdit}
-          className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
-          title="Edit project"
+          onClick={onSendPricing}
+          className="h-7 px-1.5 rounded-lg bg-violet-600 text-white text-[9px] font-bold hover:bg-violet-700 inline-flex items-center gap-0.5 shrink-0"
+          title="Send for Pricing"
         >
-          <Eye size={14} />
+          <Calculator size={11} className="shrink-0" />
+          <span>Pricing</span>
         </button>
+      )}
+      {showSendFinal && onSendFinal && (
         <button
           type="button"
-          onClick={onDelete}
-          className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 shrink-0"
-          title="Delete project"
+          onClick={onSendFinal}
+          className="h-7 px-1.5 rounded-lg bg-emerald-600 text-white text-[9px] font-bold hover:bg-emerald-700 inline-flex items-center gap-0.5 shrink-0"
+          title="Send for Final Submission"
         >
-          <Trash2 size={14} />
+          <Send size={11} className="shrink-0" />
+          <span>Final</span>
         </button>
-      </div>
+      )}
+      {showReturnPricing && onReturnPricing && (
+        <button
+          type="button"
+          onClick={onReturnPricing}
+          className="h-7 px-1.5 rounded-lg bg-amber-500 text-white text-[9px] font-bold hover:bg-amber-600 inline-flex items-center gap-0.5 shrink-0"
+          title="Return to Pricing"
+        >
+          <Calculator size={11} className="shrink-0" />
+          <span>Back</span>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onEdit}
+        className="w-7 h-7 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+        title="Edit project"
+      >
+        <Eye size={13} />
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 shrink-0"
+        title="Delete project"
+      >
+        <Trash2 size={13} />
+      </button>
     </div>
   );
 }
@@ -1164,7 +1159,7 @@ export default function TechnicalActiveProjectsPage() {
   const headers = isAssignedView
     ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Estimators", "Status", "Actions"]
     : isPricingView
-      ? ["Project / Pricing Scope", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "QA Status", "Status", "Actions"]
+      ? ["Project / Scope", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "QA Status", "Status", "Actions"]
       : isFinalView
         ? ["Project Details", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "Actions"]
         : [
@@ -1190,7 +1185,7 @@ export default function TechnicalActiveProjectsPage() {
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
       <TechnicalSidebar />
 
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-auto mt-[64px]">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
 
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1354,7 +1349,7 @@ export default function TechnicalActiveProjectsPage() {
                         <ProjectDetailCell p={projectAsRow(p)} />
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className="flex flex-col items-start gap-2 shrink-0">
                       {!isFinalView && (
                         <ProjectStatusCell
                           p={p}
@@ -1474,26 +1469,15 @@ export default function TechnicalActiveProjectsPage() {
 
         {/* Desktop table */}
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD} min-w-0`}>
-          <div className="overflow-x-auto overscroll-x-contain">
-            <table
-              className="w-full table-fixed border-collapse"
-              style={{
-                minWidth: isAssignedView
-                  ? "1280px"
-                  : isPricingView
-                    ? "1260px"
-                    : isFinalView
-                      ? "1180px"
-                      : "1200px",
-              }}
-            >
+          <div className="min-w-0 w-full overflow-x-hidden">
+            <table className="w-full table-fixed border-collapse">
               <CsrColGroup widths={colWidths} />
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
                     <th
                       key={i}
-                      className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD}`}
+                      className={`px-2 xl:px-3 py-3 leading-tight ${PROJECT_TABLE_HEAD}`}
                     >
                       {h}
                     </th>
@@ -1505,7 +1489,7 @@ export default function TechnicalActiveProjectsPage() {
                   [1, 2, 3, 4, 5].map((i) => (
                     <tr key={i} className="border-b border-[#F3F3F3]">
                       {headers.map((_, j) => (
-                        <td key={j} className="px-3 xl:px-4 py-4">
+                        <td key={j} className="px-2 xl:px-3 py-4">
                           <div className="h-4 bg-gray-100 rounded animate-pulse w-16" />
                         </td>
                       ))}
@@ -1520,7 +1504,7 @@ export default function TechnicalActiveProjectsPage() {
                         key={p.id}
                         className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top"
                       >
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
+                        <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden">
                           {isPricingView ? (
                             <PricingProjectDetailCell p={p} assignments={assignments} />
                           ) : (
@@ -1529,16 +1513,16 @@ export default function TechnicalActiveProjectsPage() {
                         </td>
                         {isAssignedView ? (
                           <>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <AssignmentHoursCell assignments={assignments} />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
                                 <AssignmentDeadlineCell assignments={assignments} />
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1548,7 +1532,7 @@ export default function TechnicalActiveProjectsPage() {
                                 noteHistory={notesToHistory(p.notes)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1557,7 +1541,7 @@ export default function TechnicalActiveProjectsPage() {
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-visible">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
                               <AssignedToCell
                                 assignments={assignments}
                                 onAssign={() => setAssignProject(p)}
@@ -1569,14 +1553,14 @@ export default function TechnicalActiveProjectsPage() {
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <ProjectStatusCell
                                 p={p}
                                 editable={isPricingView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
@@ -1587,13 +1571,13 @@ export default function TechnicalActiveProjectsPage() {
                           </>
                         ) : isPricingView ? (
                           <>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
                                 <Calendar size={10} className="text-[#B8112D] shrink-0" />
                                 {formatDate(pricingReceiveDate(p))}
                               </p>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
                                 <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
                                   {formatDate(p.projectDeadline)}
@@ -1601,7 +1585,7 @@ export default function TechnicalActiveProjectsPage() {
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1611,7 +1595,7 @@ export default function TechnicalActiveProjectsPage() {
                                 noteHistory={notesToHistory(p.notes)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1620,20 +1604,20 @@ export default function TechnicalActiveProjectsPage() {
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <PricingQaSelect
                                 phase={p.projectPhase}
                                 onChange={(mode) => void setPricingQa(p.id, mode)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <ProjectStatusCell
                                 p={p}
                                 editable={isPricingView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
@@ -1644,13 +1628,13 @@ export default function TechnicalActiveProjectsPage() {
                           </>
                         ) : isFinalView ? (
                           <>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
                                 <Calendar size={10} className="text-[#B8112D] shrink-0" />
                                 {formatDate(projectReceiveDate(p))}
                               </p>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
                                 <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
                                   {formatDate(p.projectDeadline)}
@@ -1658,7 +1642,7 @@ export default function TechnicalActiveProjectsPage() {
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1668,7 +1652,7 @@ export default function TechnicalActiveProjectsPage() {
                                 noteHistory={notesToHistory(p.notes)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1677,7 +1661,7 @@ export default function TechnicalActiveProjectsPage() {
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-visible">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
@@ -1688,13 +1672,13 @@ export default function TechnicalActiveProjectsPage() {
                           </>
                         ) : (
                           <>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
                                 <Calendar size={10} className="text-[#B8112D] shrink-0" />
                                 {formatDate(projectReceiveDate(p))}
                               </p>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
                                 <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
                                   {formatDate(p.projectDeadline)}
@@ -1702,7 +1686,7 @@ export default function TechnicalActiveProjectsPage() {
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1712,7 +1696,7 @@ export default function TechnicalActiveProjectsPage() {
                                 noteHistory={notesToHistory(p.notes)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1721,7 +1705,7 @@ export default function TechnicalActiveProjectsPage() {
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <AssignedToCell
                                 assignments={assignments}
                                 onAssign={() => setAssignProject(p)}
@@ -1729,14 +1713,14 @@ export default function TechnicalActiveProjectsPage() {
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <ProjectStatusCell
                                 p={p}
                                 editable={isPricingView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-visible">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
