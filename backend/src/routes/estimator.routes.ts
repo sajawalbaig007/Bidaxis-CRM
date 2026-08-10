@@ -14,9 +14,6 @@ import {
   pauseOtherRunningTimersForEstimator,
   pauseTimersOnLeadIds,
   syncPhaseFromAssignments,
-  assignmentElapsedSeconds,
-  canCompleteAfterTimer,
-  MIN_COMPLETE_TIMER_SECONDS,
   type TechnicalAssignment,
 } from "../utils/technicalEstimators";
 import { invalidatePattern, invalidateCache } from "../utils/cache";
@@ -281,19 +278,6 @@ router.put("/project/:id/complete", async (req: AuthRequest, res) => {
     }
 
     const clientElapsed = Number(req.body?.clientElapsedSeconds);
-    const serverElapsed = assignmentElapsedSeconds(list[idx]!);
-    const elapsed =
-      Number.isFinite(clientElapsed) && clientElapsed >= 0
-        ? Math.max(serverElapsed, Math.floor(clientElapsed))
-        : serverElapsed;
-    if (!canCompleteAfterTimer(elapsed)) {
-      const left = Math.max(0, MIN_COMPLETE_TIMER_SECONDS - elapsed);
-      return res.status(400).json({
-        success: false,
-        message: `Start the timer and wait ${left || MIN_COMPLETE_TIMER_SECONDS}s before Complete.`,
-      });
-    }
-
     const paused =
       Number.isFinite(clientElapsed) && clientElapsed >= 0
         ? {
@@ -302,7 +286,7 @@ router.put("/project/:id/complete", async (req: AuthRequest, res) => {
             timerStartedAt: null,
           }
         : pauseAssignmentTimer(list[idx]!);
-    list[idx] = { ...paused, takeoffDone: true, pricingSent: false };
+    list[idx] = { ...paused, takeoffDone: true };
     const nextPhase = syncPhaseFromAssignments(list, existing.projectPhase);
 
     const lead = await prisma.lead.update({
@@ -351,16 +335,7 @@ router.put("/project/:id/takeoff", async (req: AuthRequest, res) => {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
 
-    const elapsed = assignmentElapsedSeconds(list[idx]!);
-    if (!canCompleteAfterTimer(elapsed)) {
-      const left = Math.max(0, MIN_COMPLETE_TIMER_SECONDS - elapsed);
-      return res.status(400).json({
-        success: false,
-        message: `Start the timer and wait ${left || MIN_COMPLETE_TIMER_SECONDS}s before Complete.`,
-      });
-    }
-
-    list[idx] = { ...pauseAssignmentTimer(list[idx]!), takeoffDone: true, pricingSent: false };
+    list[idx] = { ...pauseAssignmentTimer(list[idx]!), takeoffDone: true };
     const nextPhase = syncPhaseFromAssignments(list, existing.projectPhase);
 
     const lead = await prisma.lead.update({

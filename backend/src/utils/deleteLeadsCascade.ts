@@ -20,7 +20,6 @@ async function stripProjectDbFields(ids: string[]): Promise<void> {
       technicalAssignments: null,
       technicalNotes: null,
       technicalReceivedAt: null,
-      pricingReceivedAt: null,
       deadlineTiming: null,
       hiddenOnTechnical: true,
       isOldClient: false,

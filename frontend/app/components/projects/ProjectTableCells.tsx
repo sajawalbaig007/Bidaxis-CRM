@@ -16,16 +16,7 @@ import {
   ProjectPayment,
 } from "@/lib/projectFields";
 import { getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
-import {
-  parseTechnicalAssignments,
-  isAssignmentWorking,
-  isAssignmentTakeoffReady,
-  isAssignmentPricingSent,
-  type TechnicalAssignment,
-} from "@/lib/technicalAssignments";
 import { User2, Briefcase, Building2, Phone, Mail, Calendar } from "lucide-react";
-import { useFixedPopover } from "@/app/csr/hooks/useFixedPopover";
-import { createPortal } from "react-dom";
 
 export type ProjectTableRow = {
   id: string;
@@ -350,19 +341,6 @@ const WORKFLOW_STATUS_STYLES: Record<string, string> = {
   not_completed: "bg-amber-50 text-amber-800 border-amber-200",
 };
 
-function assignmentStage(a: TechnicalAssignment): { label: string; className: string } {
-  if (isAssignmentPricingSent(a)) {
-    return { label: "Pricing", className: "bg-amber-100 text-amber-800" };
-  }
-  if (isAssignmentTakeoffReady(a)) {
-    return { label: "Take Off Done", className: "bg-violet-100 text-violet-800" };
-  }
-  if (isAssignmentWorking(a)) {
-    return { label: "Pending", className: "bg-sky-100 text-sky-800" };
-  }
-  return { label: "—", className: "bg-gray-100 text-gray-600" };
-}
-
 /** Read-only status synced with Technical workflow tabs. */
 export function TechnicalWorkflowStatusBadge({
   status,
@@ -385,85 +363,13 @@ export function TechnicalWorkflowStatusBadge({
     technicalAssignments,
   });
   const styles = WORKFLOW_STATUS_STYLES[key] ?? WORKFLOW_STATUS_STYLES.in_progress;
-  const list = parseTechnicalAssignments(technicalAssignments);
-  const panelW = 280;
-  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 320, "end");
-
-  const popup =
-    open &&
-    list.length > 0 &&
-    createPortal(
-      <div
-        ref={panelRef}
-        style={style}
-        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-80 overflow-y-auto z-[80]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-2.5 py-1.5 border-b border-gray-100 sticky top-0 bg-white">
-          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
-            Who is where ({list.length})
-          </span>
-        </div>
-        {list.map((a) => {
-          const stage = assignmentStage(a);
-          return (
-            <div
-              key={a.estimatorId}
-              className="flex items-center justify-between gap-2 px-2.5 py-2 border-b border-gray-50 last:border-0 min-w-0"
-            >
-              <div className="min-w-0 flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
-                  {a.estimatorName.charAt(0)}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold text-[#0F172A] truncate">{a.estimatorName}</p>
-                  <p className="text-[9px] text-gray-500 truncate">
-                    {(a.scopes ?? []).filter(Boolean).join(", ") || "—"}
-                    {a.divisions?.length
-                      ? ` · ${a.divisions.filter(Boolean).join(", ")}`
-                      : ""}
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`shrink-0 inline-flex px-1.5 py-0.5 rounded-md text-[9px] font-extrabold ${stage.className}`}
-              >
-                {stage.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>,
-      document.body,
-    );
-
-  if (list.length === 0) {
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border whitespace-nowrap ${styles}`}
-        title="Updates automatically from Technical workflow"
-      >
-        {label}
-      </span>
-    );
-  }
 
   return (
-    <div className="min-w-0 max-w-[200px]">
-      <button
-        ref={anchorRef}
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          toggle();
-        }}
-        className={`inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border text-left hover:opacity-90 ${styles}`}
-        title="Click to see who is Pricing / Pending / Take Off Done"
-      >
-        <span className="truncate">{label}</span>
-        <span className="shrink-0 text-[9px] opacity-70">▾</span>
-      </button>
-      {popup}
-    </div>
+    <span
+      className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border whitespace-nowrap ${styles}`}
+      title="Updates automatically from Technical workflow"
+    >
+      {label}
+    </span>
   );
 }

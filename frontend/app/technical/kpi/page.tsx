@@ -92,20 +92,13 @@ export default function TechnicalKpiPage() {
         fetchEstimatorKpiRecords(month),
         fetchTechnicalMonitoring().catch(() => null),
       ]);
-      if (!kpiRes?.success) {
-        throw new Error("KPI API returned unsuccessful");
-      }
       setEstimators(Array.isArray(kpiRes.estimators) ? kpiRes.estimators : []);
       setRecords(Array.isArray(kpiRes.records) ? kpiRes.records : []);
       setTeamLive(Array.isArray(monRes?.team) ? monRes!.team : []);
-    } catch (err: unknown) {
+    } catch {
       setEstimators([]);
       setRecords([]);
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        (err as Error)?.message ||
-        "Failed to load KPI records";
-      toast.error(msg);
+      toast.error("Failed to load KPI records");
     } finally {
       setLoading(false);
     }

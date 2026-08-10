@@ -22,9 +22,6 @@ import API from "@/lib/api";
 import {
   projectReceiveDate,
   formatElapsed,
-  canCompleteAfterTimer,
-  MIN_COMPLETE_TIMER_SECONDS,
-  parseTechnicalNotes,
   type TechnicalAssignment,
 } from "@/lib/technicalAssignments";
 
@@ -110,8 +107,6 @@ function TimerControls({
 }) {
   const a = p.myAssignment;
   const done = !!a?.takeoffDone;
-  const canComplete = canCompleteAfterTimer(elapsed);
-  const waitLeft = Math.max(0, MIN_COMPLETE_TIMER_SECONDS - Math.floor(elapsed));
 
   if (done) {
     return (
@@ -153,28 +148,13 @@ function TimerControls({
         )}
         <button
           type="button"
-          disabled={busy || !canComplete}
+          disabled={busy}
           onClick={() => onComplete(p.id)}
-          title={
-            canComplete
-              ? "Mark complete"
-              : `Start timer — Complete unlocks after ${MIN_COMPLETE_TIMER_SECONDS}s (${waitLeft}s left)`
-          }
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 disabled:opacity-50"
         >
           <Check size={11} /> Complete
-          {!canComplete ? (
-            <span className="tabular-nums opacity-90">{waitLeft}s</span>
-          ) : null}
         </button>
       </div>
-      {!canComplete ? (
-        <p className="text-[9px] text-gray-400 leading-snug">
-          {running || elapsed > 0
-            ? `Complete unlocks in ${waitLeft}s`
-            : `Start timer — Complete after ${MIN_COMPLETE_TIMER_SECONDS}s`}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -338,25 +318,6 @@ export default function EstimatorMyProjectsPage() {
         return { ...p, ...lead };
       });
     });
-  };
-
-  const addTechnicalNote = async (id: string, text: string) => {
-    const res = await API.post(`/estimator/lead/${id}/notes`, { text });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
-    const list = res.data.technicalNotes as { id: string; text: string; createdAt: string }[] | undefined;
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              technicalNotes: list
-                ? JSON.stringify(list)
-                : JSON.stringify([...parseTechnicalNotes(p.technicalNotes), note]),
-            }
-          : p,
-      ),
-    );
-    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
   };
 
   const runTimer = async (projectId: string, action: "start" | "pause") => {
@@ -528,7 +489,6 @@ export default function EstimatorMyProjectsPage() {
     "Receive",
     "Deadline",
     "Bid Instruction",
-    "Notes for Sir",
     "Work Detail",
     "Hours",
     "Timer / Task",
@@ -621,16 +581,6 @@ export default function EstimatorMyProjectsPage() {
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Notes for Sir</p>
-                  <CommentCell
-                    id={p.id}
-                    apiRole="estimator"
-                    skipNotesFetch
-                    noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                    onAddNote={addTechnicalNote}
-                  />
-                </div>
-                <div>
                   <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Work Detail</p>
                   <p className="text-xs text-gray-700 whitespace-pre-wrap leading-snug">
                     {p.myAssignment?.workDetail?.trim() || "—"}
@@ -659,8 +609,8 @@ export default function EstimatorMyProjectsPage() {
 
         <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed border-collapse" style={{ minWidth: "1280px" }}>
-              <CsrColGroup widths={["18%", "9%", "9%", "12%", "12%", "12%", "7%", "21%"] as const} />
+            <table className="w-full table-fixed border-collapse" style={{ minWidth: "1100px" }}>
+              <CsrColGroup widths={["22%", "10%", "10%", "14%", "12%", "8%", "24%"] as const} />
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
@@ -703,15 +653,6 @@ export default function EstimatorMyProjectsPage() {
                           skipNotesFetch
                           comment={p.projectNotes ?? undefined}
                           noteHistory={notesToHistory(p.notes)}
-                        />
-                      </td>
-                      <td className="px-3 xl:px-4 py-3 xl:py-4">
-                        <CommentCell
-                          id={p.id}
-                          apiRole="estimator"
-                          skipNotesFetch
-                          noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                          onAddNote={addTechnicalNote}
                         />
                       </td>
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
