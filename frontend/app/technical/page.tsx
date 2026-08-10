@@ -82,8 +82,8 @@ export default function TechnicalDashboardPage() {
 
   const modules = [
     { title: "Active Projects", desc: "Same project DB as Admin — live from admin data", href: "/technical/active-projects", icon: FolderKanban },
-    { title: "KPI Dashboard", desc: "Productivity, evaluation & scores (coming next)", href: "/technical/kpi", icon: BarChart3 },
-    { title: "Team Monitoring", desc: "Team leads & estimator workload (coming next)", href: "/technical/team", icon: Users },
+    { title: "KPI Dashboard", desc: "Pipeline health, completion rates & estimator scores", href: "/technical/kpi", icon: BarChart3 },
+    { title: "Team Monitoring", desc: "Live workload, timers, deadlines & monthly KPI snapshot", href: "/technical/team", icon: Users },
     { title: "Revision Monitoring", desc: "Construction, as-built, take-off, pricing", href: "/technical/revisions", icon: GitBranch },
   ];
 

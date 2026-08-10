@@ -455,3 +455,30 @@ model AccountsMonthlyReport {
   @@index([createdAt])
   @@map("accounts_dashboard_monthly_reports")
 }
+
+/**
+ * Technical Manager KPI ledger — one row per field entry per estimator.
+ * Multiple rows per fieldKey allow monthly history (+ add / edit / delete).
+ */
+model EstimatorKpiRecord {
+  id            String   @id @default(cuid()) @map("_id")
+  estimatorId   String
+  estimatorName String
+  /** See ESTIMATOR_KPI_FIELD_KEYS in technicalKpiRecords.ts */
+  fieldKey      String
+  value         String
+  note          String?
+  /** When this value was recorded — used for monthly reports */
+  recordedAt    DateTime
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([estimatorId])
+  @@index([fieldKey])
+  @@index([recordedAt])
+  @@index([estimatorId, fieldKey])
+  @@index([estimatorId, recordedAt])
+  @@map("estimator_kpi_records")
+}
