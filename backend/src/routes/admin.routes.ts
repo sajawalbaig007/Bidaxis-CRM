@@ -37,7 +37,7 @@ import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
 import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal } from "../utils/estTime";
 import { AuthRequest } from "../middleware/auth.middleware";
-import { deleteLeadsCascade, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
+import { deleteLeadsCascade, removeProjectsKeepClients, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
 import { buildTechnicalMonitoring } from "../utils/technicalMonitoring";
@@ -455,7 +455,7 @@ router.delete("/lead/:id", verifyToken, allowRoles("admin", "manager", "technica
   }
 });
 
-/* ================= DELETE PROJECT (alias — same permanent delete) ================= */
+/* ================= DELETE PROJECT (Project DB only — CSR client kept) ================= */
 router.delete("/project/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
@@ -467,7 +467,7 @@ router.delete("/project/:id", verifyToken, allowRoles("admin", "manager", "techn
       return res.status(404).json({ success: false, message: "Project not found" });
     }
 
-    const deleted = await deleteLeadsCascade([leadId]);
+    const deleted = await removeProjectsKeepClients([leadId]);
     await invalidateAllLeadCaches(lead.assignedTo ? [lead.assignedTo] : undefined);
 
     const gone = await isRemovedFromProjectDb(leadId);
@@ -480,9 +480,10 @@ router.delete("/project/:id", verifyToken, allowRoles("admin", "manager", "techn
 
     return res.json({
       success: true,
-      message: `"${lead.projectTitle || lead.name || "Project"}" deleted permanently`,
+      message: `"${lead.projectTitle || lead.name || "Project"}" removed from Project DB (CSR client kept)`,
       deleted,
-      permanent: true,
+      permanent: false,
+      clientKept: true,
     });
   } catch (error) {
     console.log(error);

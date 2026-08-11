@@ -105,10 +105,13 @@ export function parseMoney(raw: string | number | null | undefined): number {
   return Number.isNaN(num) ? 0 : num;
 }
 
-/** Strip currency symbol for budget input display (avoids "$" + "$620" overlap) */
+/** Strip currency symbols for budget/amount inputs (avoids "$" + "$620" / "$0.00" overlap) */
 export function stripBudgetForInput(raw: string | null | undefined): string {
   if (!raw) return "";
-  return String(raw).replace(/^\$/, "").trim();
+  return String(raw)
+    .replace(/^[\$\s]*(?:Rs\.?|PKR|CAD|C\$)?\s*/i, "")
+    .replace(/,/g, "")
+    .trim();
 }
 
 export function formatQuotedAmount(raw: string | null | undefined): string {

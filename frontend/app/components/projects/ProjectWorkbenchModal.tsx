@@ -531,9 +531,9 @@ export default function ProjectWorkbenchModal({
               <div>
                 <ReqLabel required>Quotation / Budget ($)</ReqLabel>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none select-none">$</span>
+                  <span className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none select-none z-[1]">$</span>
                   <input
-                    className={`${inputCls} pl-8 font-semibold text-[#0F172A]`}
+                    className={`${inputCls} !pl-8 sm:!pl-9 font-semibold text-[#0F172A]`}
                     value={stripBudgetForInput(data.projectBudget)}
                     placeholder="0.00"
                     inputMode="decimal"
@@ -575,14 +575,14 @@ export default function ProjectWorkbenchModal({
                     <div>
                       <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Amount</span>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none select-none z-[1]">
                           {p.currency === "PKR" ? "Rs" : p.currency === "CAD" ? "C$" : "$"}
                         </span>
                         <input
-                          className={`${inputCls} pl-7`}
+                          className={`${inputCls} ${p.currency === "PKR" ? "!pl-9" : "!pl-7"}`}
                           placeholder="Amount"
-                          value={p.amount}
-                          onChange={(e) => updatePayment(p.id, { amount: e.target.value })}
+                          value={stripBudgetForInput(p.amount)}
+                          onChange={(e) => updatePayment(p.id, { amount: e.target.value.replace(/[^0-9.]/g, "") })}
                         />
                       </div>
                     </div>

@@ -2,27 +2,33 @@ import prisma from "../config/db";
 import { invalidateCsrLeadCaches } from "./csrCache";
 import { invalidatePattern, flushAdminClientsCache, invalidateCache } from "./cache";
 
+/** Project fields only — CSR client identity (isOldClient, clientCode, status, inBin) untouched. */
+const PROJECT_DB_CLEAR = {
+  projectTitle: null,
+  projectCode: null,
+  projectDeadline: null,
+  projectBudget: null,
+  projectNotes: null,
+  projectScope: null,
+  projectPhase: null,
+  projectPayments: null,
+  projectWorkStatus: "completed",
+  projectSource: null,
+  technicalAssignments: null,
+  technicalNotes: null,
+  technicalReceivedAt: null,
+  pricingReceivedAt: null,
+  deadlineTiming: null,
+  hiddenOnTechnical: true,
+  paidAmount: null,
+} as const;
+
 /** Strip all Project-DB fields so the row can never reappear in Admin Project DB. */
 async function stripProjectDbFields(ids: string[]): Promise<void> {
   await prisma.lead.updateMany({
     where: { id: { in: ids } },
     data: {
-      projectTitle: null,
-      projectCode: null,
-      projectDeadline: null,
-      projectBudget: null,
-      projectNotes: null,
-      projectScope: null,
-      projectPhase: null,
-      projectPayments: null,
-      projectWorkStatus: "completed",
-      projectSource: null,
-      technicalAssignments: null,
-      technicalNotes: null,
-      technicalReceivedAt: null,
-      pricingReceivedAt: null,
-      deadlineTiming: null,
-      hiddenOnTechnical: true,
+      ...PROJECT_DB_CLEAR,
       isOldClient: false,
       clientCode: null,
       inBin: true,
@@ -31,6 +37,37 @@ async function stripProjectDbFields(ids: string[]): Promise<void> {
       status: "completed",
     },
   });
+}
+
+/**
+ * Admin Project DB delete: remove project fields only.
+ * Keeps the lead as CSR Old/New Client (isOldClient, clientCode, Close Client status, not in bin).
+ */
+export async function removeProjectsKeepClients(leadIds: string[]): Promise<number> {
+  const ids = [...new Set(leadIds.map(String).filter(Boolean))];
+  if (ids.length === 0) return 0;
+
+  await prisma.lead.updateMany({
+    where: { id: { in: ids } },
+    data: { ...PROJECT_DB_CLEAR },
+  });
+
+  // Ensure won-client status so they stay on CSR Clients if they were a project
+  const leads = await prisma.lead.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, status: true },
+  });
+  for (const lead of leads) {
+    const st = (lead.status ?? "").toLowerCase();
+    if (st !== "close client" && st !== "completed" && st !== "closed") {
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: { status: "Close Client" },
+      });
+    }
+  }
+
+  return ids.length;
 }
 
 /**
@@ -79,23 +116,19 @@ export async function deleteLeadsCascade(leadIds: string[]): Promise<number> {
   return deleted;
 }
 
-/** True when this id no longer qualifies as a Project DB row. */
+/** True when this id no longer qualifies as a Project DB row (client row may still exist). */
 export async function isRemovedFromProjectDb(leadId: string): Promise<boolean> {
   const lead = await prisma.lead.findFirst({
     where: { id: leadId },
     select: {
       id: true,
       projectTitle: true,
-      isOldClient: true,
-      clientCode: true,
       inBin: true,
-      status: true,
     },
   });
   if (!lead) return true; // hard-deleted
   if (lead.inBin === true) return true;
   if (lead.projectTitle && String(lead.projectTitle).trim()) return false;
-  if (lead.isOldClient && lead.clientCode) return false;
   return true;
 }
 
