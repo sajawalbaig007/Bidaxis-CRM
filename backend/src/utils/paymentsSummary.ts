@@ -63,6 +63,8 @@ export type PaymentsSummaryPayload = {
     quotedProjects: number;
     quotedAmount: number;
     collectedEntries: number;
+    /** Paid in Project DB but channel/currency not set yet */
+    unassignedPaidCount: number;
     fullPaidCount: number;
     partialPaidCount: number;
     unpaidWithQuoteCount: number;
@@ -123,6 +125,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       clientCode: true,
       projectBudget: true,
       projectPayments: true,
+      status: true,
       inBin: true,
     },
     orderBy: { updatedAt: "desc" },
@@ -148,6 +151,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let quotedProjects = 0;
   let quotedAmount = 0;
   let collectedEntries = 0;
+  let unassignedPaidCount = 0;
   let fullPaidCount = 0;
   let partialPaidCount = 0;
   let unpaidWithQuoteCount = 0;
@@ -165,11 +169,14 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     }
 
     for (const entry of paidInScope) {
-      if (!entry.paymentChannel || !entry.currency) continue;
-      const ch = channelMap.get(entry.paymentChannel);
-      if (!ch) continue;
       const amt = parseMoney(entry.amount);
       if (amt <= 0) continue;
+      if (!entry.paymentChannel || !entry.currency) {
+        unassignedPaidCount += 1;
+        continue;
+      }
+      const ch = channelMap.get(entry.paymentChannel);
+      if (!ch) continue;
       ch.paymentCount += 1;
       collectedEntries += 1;
       ch.totals[entry.currency] += amt;
@@ -231,6 +238,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       quotedProjects,
       quotedAmount,
       collectedEntries,
+      unassignedPaidCount,
       fullPaidCount,
       partialPaidCount,
       unpaidWithQuoteCount,

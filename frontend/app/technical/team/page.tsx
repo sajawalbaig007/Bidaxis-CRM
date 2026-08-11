@@ -14,7 +14,7 @@ import {
   Users,
   Star,
 } from "lucide-react";
-import TechnicalSidebar from "../components/layout/Sidebar";
+import TechnicalPageShell from "../components/TechnicalPageShell";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { formatDivisionSummary, formatElapsed } from "@/lib/technicalAssignments";
 import {
@@ -201,9 +201,7 @@ export default function TechnicalTeamPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
-      <TechnicalSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+    <TechnicalPageShell>
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
           <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
@@ -211,10 +209,10 @@ export default function TechnicalTeamPage() {
                 <Users size={13} />
                 Live workload
               </div>
-              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-crm-text tracking-tight">
                 Team Monitoring
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+              <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5">
                 Estimator jobs, timers, deadlines + previous month KPI rating.
                 {prevMonthLabel ? (
                   <span className="text-violet-600 font-medium"> · {prevMonthLabel}</span>
@@ -335,7 +333,7 @@ export default function TechnicalTeamPage() {
                 return (
                   <article
                     key={m.estimatorId}
-                    className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden"
+                    className="bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle shadow-sm overflow-hidden"
                   >
                     <button
                       type="button"
@@ -356,7 +354,7 @@ export default function TechnicalTeamPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-bold text-[#0F172A] text-sm sm:text-base truncate">
+                              <h3 className="font-bold text-crm-text text-sm sm:text-base truncate">
                                 {m.name}
                               </h3>
                               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
@@ -567,7 +565,6 @@ export default function TechnicalTeamPage() {
             )}
           </section>
         </div>
-      </main>
-    </div>
+    </TechnicalPageShell>
   );
 }

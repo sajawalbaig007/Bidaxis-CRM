@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Check, Clock3, Play, Pause, Lock, RefreshCw,
 } from "lucide-react";
-import EstimatorSidebar from "../components/layout/Sidebar";
+import EstimatorPageShell from "../components/EstimatorPageShell";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import {
@@ -535,15 +535,12 @@ export default function EstimatorMyProjectsPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
+    <EstimatorPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 overflow-x-hidden">
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
-      <EstimatorSidebar />
-
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 overflow-x-hidden mt-[64px]">
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">My Projects</h1>
-            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-crm-text">My Projects</h1>
+            <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5">
               Start / Pause timer · Complete task (locked after complete — only Miss can reopen)
             </p>
           </div>
@@ -551,7 +548,7 @@ export default function EstimatorMyProjectsPage() {
             type="button"
             onClick={() => void fetchProjects("manual")}
             disabled={refreshing || loading}
-            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 disabled:opacity-60 shadow-sm w-fit"
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-crm-border bg-crm-surface text-xs sm:text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 dark:hover:bg-violet-500/10 disabled:opacity-60 shadow-sm w-fit"
             title="Refresh"
           >
             <RefreshCw size={14} className={refreshing || loading ? "animate-spin" : ""} />
@@ -578,24 +575,24 @@ export default function EstimatorMyProjectsPage() {
             placeholder="Search code, title, scope..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#7C3AED]"
+            className="w-full bg-crm-surface border border-crm-border rounded-xl sm:rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-sm text-crm-text outline-none focus:border-[#7C3AED]"
           />
         </div>
 
         <div className="lg:hidden space-y-3">
           {loading && projects.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle p-10 text-center">
               <RefreshCw size={22} className="text-[#7C3AED] mx-auto mb-2 animate-spin" />
-              <p className="text-gray-500 text-sm font-medium">Loading projects…</p>
+              <p className="text-crm-text-muted text-sm font-medium">Loading projects…</p>
             </div>
           ) : paginated.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-              <FolderKanban size={32} className="text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400 font-medium text-sm">No projects found</p>
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle p-10 text-center">
+              <FolderKanban size={32} className="text-crm-text-faint mx-auto mb-3 opacity-40" />
+              <p className="text-crm-text-faint font-medium text-sm">No projects found</p>
             </div>
           ) : (
             paginated.map((p) => (
-              <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+              <div key={p.id} className="bg-crm-surface rounded-2xl border border-crm-border-subtle p-4 shadow-sm space-y-3">
                 <ProjectDetailCell p={projectAsRow(p)} />
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
@@ -680,7 +677,7 @@ export default function EstimatorMyProjectsPage() {
                   </tr>
                 ) : paginated.length > 0 ? (
                   paginated.map((p) => (
-                    <tr key={p.id} className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top">
+                    <tr key={p.id} className="border-b border-crm-border-subtle hover:bg-crm-surface-muted transition-all align-top">
                       <td className="px-3 xl:px-4 py-3 xl:py-4">
                         <ProjectDetailCell p={projectAsRow(p)} />
                       </td>
@@ -779,7 +776,6 @@ export default function EstimatorMyProjectsPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </EstimatorPageShell>
   );
 }

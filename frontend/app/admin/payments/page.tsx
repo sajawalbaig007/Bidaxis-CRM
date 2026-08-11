@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import { apiErrorMessage } from "@/lib/api";
 import {
   AlertCircle,
   CheckCircle2,
@@ -149,6 +150,11 @@ function ProjectPaymentsTable({
                               Partial
                             </span>
                           ) : null}
+                          {!pay.channel && pay.amountNum > 0 ? (
+                            <span className="ml-2 text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
+                              No channel
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-gray-500">
                           {pay.channelLabel}
@@ -182,8 +188,8 @@ export default function AdminPaymentsPage() {
     try {
       const res = await fetchPaymentsSummary(month || null);
       setData(res);
-    } catch {
-      toast.error("Failed to load payments summary");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to load payments summary"));
       setData(null);
     } finally {
       setLoading(false);
@@ -245,7 +251,7 @@ export default function AdminPaymentsPage() {
                 Collections Dashboard
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5 max-w-xl">
-                Ahmed Hamza · Sharjeel Nasir · Cheque · Habib Metro — per source amounts, quoted totals, partial & full paid projects.
+                Live from Project DB — save payment details there and refresh here. Channel, currency & month required for source totals.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
@@ -284,6 +290,21 @@ export default function AdminPaymentsPage() {
               </button>
             </div>
           </header>
+
+          {(data?.totals?.unassignedPaidCount ?? 0) > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-sm text-amber-900">
+                <span className="font-bold">{data!.totals.unassignedPaidCount} paid entr{data!.totals.unassignedPaidCount === 1 ? "y" : "ies"}</span>
+                {" "}missing channel or currency — open Project DB, mark Paid, and set Ahmed Hamza / Sharjeel / Cheque / Habib Metro + USD/CAD/PKR.
+              </p>
+              <Link
+                href={`${basePath}/active-projects`}
+                className="text-xs font-bold text-[#B8112D] hover:underline shrink-0"
+              >
+                Fix in Project DB →
+              </Link>
+            </div>
+          ) : null}
 
           <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
             {summaryCards.map((c) => (

@@ -17,7 +17,6 @@ import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import EstimatorCheckInControl from "@/app/estimator/components/EstimatorCheckInControl";
-import EstimatorCheckInBanner from "@/app/estimator/components/EstimatorCheckInBanner";
 import API from "@/lib/api";
 
 const BASE = "/estimator";
@@ -193,8 +192,6 @@ export default function EstimatorSidebar() {
           </div>
         </div>
       </header>
-
-      <EstimatorCheckInBanner />
 
       {chatOpen && <ChatPanel onClose={closeChat} />}
     </>
