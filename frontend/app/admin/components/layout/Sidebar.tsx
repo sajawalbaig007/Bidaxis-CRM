@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import {
   LayoutDashboard, Users, FileText, BarChart3,
   FolderKanban, Upload, Trash2, Settings,
-  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X, StickyNote,
+  LogOut, ChevronDown, MessageSquare, Bell, Phone, Clock, X, StickyNote, Wallet,
 } from "lucide-react";
 import API from "@/lib/api";
 import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
@@ -30,6 +30,7 @@ const navItems = [
   { title: "Leads",      shortTitle: "Leads",      href: `${BASE}/leads`,           icon: FileText        },
   { title: "Reports",    shortTitle: "Reports",    href: `${BASE}/reports`,         icon: BarChart3       },
   { title: "Project DB", shortTitle: "Project DB", href: `${BASE}/active-projects`, icon: FolderKanban    },
+  { title: "Payments",   shortTitle: "Payments",   href: `${BASE}/payments`,       icon: Wallet          },
   { title: "Uploads",    shortTitle: "Uploads",    href: `${BASE}/uploads`,         icon: Upload          },
   { title: "Bin",        shortTitle: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
   { title: "Settings",   shortTitle: "Settings",   href: `${BASE}/settings`,        icon: Settings        },
