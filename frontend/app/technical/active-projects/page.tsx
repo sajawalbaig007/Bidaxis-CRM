@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
@@ -22,18 +22,20 @@ import { useFixedPopover } from "@/app/csr/hooks/useFixedPopover";
 import {
   TECHNICAL_PROJECT_COLS,
   TECHNICAL_ASSIGNED_COLS,
+  TECHNICAL_FINAL_COLS,
+  TECHNICAL_PRICING_COLS,
   CsrColGroup,
   CSR_THEAD,
 } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ProjectDetailCell,
-  TechnicalWorkflowStatusBadge,
   DeadlineTimingBadge,
+  TechnicalWorkflowStatusBadge,
   PROJECT_TABLE_CARD,
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
 import AssignEstimatorsModal from "../components/AssignEstimatorsModal";
-import API from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
   emptyWorkbench,
@@ -45,12 +47,23 @@ import {
   parseTechnicalAssignments,
   parseTechnicalNotes,
   projectReceiveDate,
+  pricingReceiveDate,
   formatDivisionSummary,
   formatElapsed,
   assignmentElapsedSeconds,
+  getTechTaskStatus,
+  TECH_TASK_STATUS_OPTIONS,
+  getPricingQaMode,
+  PRICING_QA_OPTIONS,
+  isAssignmentWorking,
+  isAssignmentTakeoffReady,
+  allAssignmentsSentForPricing,
+  pricedAssignments,
   type TechnicalAssignment,
   type TechnicalEstimator,
   type TechnicalWorkflowTab,
+  type TechTaskStatus,
+  type PricingQaMode,
 } from "@/lib/technicalAssignments";
 
 type Project = {
@@ -79,6 +92,7 @@ type Project = {
   pricingDeadline?: string | null;
   qaDeadline?: string | null;
   technicalReceivedAt?: string | null;
+  pricingReceivedAt?: string | null;
   technicalAssignments?: string | null;
   technicalNotes?: string | null;
   createdAt?: string;
@@ -153,22 +167,247 @@ function projectAsRow(p: Project) {
   };
 }
 
+function PricingProjectDetailCell({
+  p,
+  assignments,
+}: {
+  p: Project;
+  assignments: TechnicalAssignment[];
+}) {
+  const priced = pricedAssignments(assignments);
+  const showMainScope = allAssignmentsSentForPricing(assignments) || priced.length === 0;
+  const code = (p.projectCode || p.clientCode || "").trim();
+  const title = (p.projectTitle || "").trim();
+  const mainScope = (p.projectScope || "").trim();
+  const othersWorking =
+    assignments.some(isAssignmentWorking) || assignments.some(isAssignmentTakeoffReady);
+
+  const panelW = 300;
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 320, "start");
+  const primary = priced[0];
+  const extra = Math.max(0, priced.length - 1);
+
+  const popup =
+    open &&
+    !showMainScope &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={style}
+        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-80 overflow-y-auto z-[80]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-2.5 py-1.5 border-b border-gray-100 sticky top-0 bg-white">
+          <span className="text-[10px] font-bold text-violet-700 uppercase tracking-wide">
+            Sent for pricing ({priced.length})
+          </span>
+        </div>
+        {priced.map((a) => (
+          <div key={a.estimatorId} className="px-2.5 py-2 border-b border-gray-50 last:border-0 space-y-0.5">
+            <p className="text-[12px] font-bold text-[#0F172A] truncate">{a.estimatorName}</p>
+            <p className="text-[10px] font-semibold text-gray-700">
+              Scope: {(a.scopes ?? []).filter(Boolean).join(", ") || "—"}
+            </p>
+            <p className="text-[10px] font-semibold text-gray-700">
+              Division: {formatDivisionSummary(a.divisions) || "—"}
+            </p>
+            {a.workDetail ? (
+              <p className="text-[10px] text-gray-500 line-clamp-3">{a.workDetail}</p>
+            ) : null}
+          </div>
+        ))}
+        {othersWorking ? (
+          <p className="px-2.5 py-2 text-[9px] text-amber-700 font-semibold">
+            Others still on Assigned / Take Off Done
+          </p>
+        ) : null}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div className="min-w-0 bg-[#F8F9FC] rounded-xl px-2.5 py-1.5 border border-gray-100/80 space-y-1">
+      {title ? (
+        <p className="text-xs font-semibold text-[#0F172A] truncate">{title}</p>
+      ) : null}
+      {code ? (
+        <p className="text-[10px] text-gray-600">
+          Code: <span className="font-bold text-[#B8112D]">{code}</span>
+        </p>
+      ) : null}
+
+      {showMainScope ? (
+        <div className="space-y-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-wide text-violet-700">Full project scope</p>
+          <p className="text-[11px] font-semibold text-[#0F172A] truncate">Scope: {mainScope || "—"}</p>
+          {p.interestedService ? (
+            <p className="text-[11px] font-semibold text-gray-700 truncate">
+              Division: {p.interestedService}
+            </p>
+          ) : null}
+        </div>
+      ) : primary ? (
+        <button
+          ref={anchorRef}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+          className="w-full flex items-center gap-1.5 rounded-lg bg-white border border-violet-100 px-1.5 py-1 hover:border-violet-300 text-left"
+          title="View who was sent for pricing"
+        >
+          <div className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0">
+            {primary.estimatorName.charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-bold text-[#0F172A] truncate">{primary.estimatorName}</p>
+            <p className="text-[9px] font-semibold text-violet-700 truncate">
+              {(primary.scopes ?? []).filter(Boolean).join(", ") || "—"}
+              {primary.divisions?.length ? ` · ${formatDivisionSummary(primary.divisions)}` : ""}
+            </p>
+          </div>
+          {extra > 0 && (
+            <span className="shrink-0 h-5 min-w-[20px] px-1 rounded-md bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center">
+              +{extra}
+            </span>
+          )}
+        </button>
+      ) : null}
+      {popup}
+    </div>
+  );
+}
+
+function ProjectStatusCell({
+  p,
+  editable,
+  onChange,
+}: {
+  p: Project;
+  editable: boolean;
+  onChange: (next: TechTaskStatus) => void;
+}) {
+  if (editable) {
+    return (
+      <TechTaskStatusSelect
+        value={getTechTaskStatus(p)}
+        onChange={onChange}
+      />
+    );
+  }
+  return (
+    <TechnicalWorkflowStatusBadge
+      status={p.status}
+      projectDeadline={p.projectDeadline}
+      projectWorkStatus={p.projectWorkStatus}
+      projectPhase={p.projectPhase}
+      technicalAssignments={p.technicalAssignments}
+    />
+  );
+}
+
+function TechTaskStatusSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: TechTaskStatus;
+  disabled?: boolean;
+  onChange: (next: TechTaskStatus) => void;
+}) {
+  const styles =
+    value === "completed"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : value === "in_progress"
+        ? "bg-sky-50 text-sky-700 border-sky-200"
+        : "bg-amber-50 text-amber-800 border-amber-200";
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as TechTaskStatus)}
+      className={`h-8 max-w-full rounded-lg border px-2 text-[10px] xl:text-[11px] font-bold outline-none cursor-pointer disabled:opacity-60 ${styles}`}
+      title="Task status"
+    >
+      {TECH_TASK_STATUS_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function PricingQaSelect({
+  phase,
+  disabled,
+  onChange,
+}: {
+  phase?: string | null;
+  disabled?: boolean;
+  onChange: (mode: PricingQaMode) => void;
+}) {
+  const mode = getPricingQaMode(phase);
+  return (
+    <select
+      value={mode || ""}
+      disabled={disabled}
+      onChange={(e) => {
+        const v = e.target.value as PricingQaMode;
+        if (v) onChange(v);
+      }}
+      className="h-8 w-full max-w-full rounded-lg border border-violet-200 bg-violet-50 text-violet-800 px-1.5 text-[10px] font-bold outline-none cursor-pointer disabled:opacity-60"
+      title="QA type — shown to Admin in real time"
+    >
+      <option value="" disabled>
+        Select QA…
+      </option>
+      {PRICING_QA_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function AssignedToCell({
   assignments,
   onAssign,
   showTakeoff,
   onToggleTakeoff,
   detailed = false,
+  onSendPricing,
+  showSendPricing = false,
+  assignmentFilter = "all",
 }: {
   assignments: TechnicalAssignment[];
   onAssign: () => void;
   showTakeoff?: boolean;
   onToggleTakeoff?: (estimatorId: string, done: boolean) => void;
-  /** Assigned tab — show Done / Pending clearly for each estimator */
   detailed?: boolean;
+  onSendPricing?: (estimatorId: string) => void;
+  showSendPricing?: boolean;
+  /** assigned tab = working only; takeoff_done = ready only */
+  assignmentFilter?: "all" | "working" | "takeoff_ready";
 }) {
-  const panelW = 280;
-  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 260, "end");
+  const panelW = 300;
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 320, "end");
+  const [now, setNow] = useState(() => Date.now());
+
+  const visible = assignments.filter((a) => {
+    if (assignmentFilter === "working") return isAssignmentWorking(a);
+    if (assignmentFilter === "takeoff_ready") return isAssignmentTakeoffReady(a);
+    return true;
+  });
+
+  const anyLive = visible.some((a) => !!a.timerStartedAt && !a.takeoffDone);
+  useEffect(() => {
+    if (!open && !anyLive) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [open, anyLive]);
 
   if (assignments.length === 0) {
     return (
@@ -183,10 +422,15 @@ function AssignedToCell({
     );
   }
 
-  const primary = assignments[0];
-  const extra = assignments.length - 1;
-  const doneCount = assignments.filter((a) => a.takeoffDone).length;
+  if (visible.length === 0) {
+    return <span className="text-[11px] text-gray-400">—</span>;
+  }
+
+  const primary = visible[0]!;
+  const extra = visible.length - 1;
+  const doneCount = visible.filter((a) => a.takeoffDone).length;
   const canToggle = Boolean((showTakeoff || detailed) && onToggleTakeoff);
+  const canPrice = Boolean(showSendPricing && onSendPricing);
 
   const popup =
     open &&
@@ -194,86 +438,100 @@ function AssignedToCell({
       <div
         ref={panelRef}
         style={style}
-        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto"
+        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-80 overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-2.5 py-1.5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
           <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
-            Estimators ({assignments.length})
+            Estimators ({visible.length})
           </span>
           {detailed && (
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">
-              {doneCount}/{assignments.length} done
+              {doneCount}/{visible.length} done
             </span>
           )}
         </div>
-        {assignments.map((a) => {
-          const elapsed = formatElapsed(assignmentElapsedSeconds(a));
+        {visible.map((a) => {
+          const elapsed = formatElapsed(assignmentElapsedSeconds(a, now));
           const running = !!a.timerStartedAt;
+          const showPriceBtn = a.takeoffDone && !a.pricingSent && canPrice;
           return (
             <div
               key={a.estimatorId}
-              className="flex items-start gap-2 min-w-0 px-2.5 py-2 border-b border-gray-50 last:border-0"
+              className="flex flex-col gap-1 min-w-0 px-2.5 py-2 border-b border-gray-50 last:border-0"
             >
-              <div className="w-7 h-7 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
-                {a.estimatorName.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-[12px] font-bold text-[#0F172A] truncate leading-tight">
-                  {a.estimatorName}
-                </p>
-                <div className="flex flex-wrap items-center gap-1">
-                  <span
-                    className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${
-                      a.takeoffDone
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-amber-100 text-amber-900"
-                    }`}
-                  >
-                    {a.takeoffDone ? "Completed" : "Pending"}
-                  </span>
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums ${
-                      running
-                        ? "bg-sky-100 text-sky-800"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    Time {elapsed}
-                    {running ? " · Live" : ""}
-                  </span>
-                  {a.divisions?.length ? (
-                    <span className="text-[10px] font-semibold text-gray-600 truncate max-w-[100px]">
-                      {formatDivisionSummary(a.divisions)}
-                    </span>
-                  ) : null}
+              <div className="flex items-start gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
+                  {a.estimatorName.charAt(0)}
                 </div>
-                {a.workDetail ? (
-                  <p className="text-[10px] text-gray-600 line-clamp-2 leading-snug">{a.workDetail}</p>
-                ) : null}
-              </div>
-              {canToggle && onToggleTakeoff && (
-                <button
-                  type="button"
-                  title={a.takeoffDone ? "Set back to pending" : "Mark completed"}
-                  onClick={() => onToggleTakeoff(a.estimatorId, !a.takeoffDone)}
-                  className={`h-7 px-2 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-bold gap-1 ${
-                    a.takeoffDone
-                      ? "bg-amber-500 text-white hover:bg-amber-600"
-                      : "bg-emerald-600 text-white hover:bg-emerald-700"
-                  }`}
-                >
-                  {a.takeoffDone ? (
-                    <>
-                      <RotateCcw size={11} /> Pending
-                    </>
-                  ) : (
-                    <>
-                      <Check size={12} /> Done
-                    </>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-[12px] font-bold text-[#0F172A] truncate leading-tight">
+                    {a.estimatorName}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${
+                        a.pricingSent
+                          ? "bg-violet-100 text-violet-800"
+                          : a.takeoffDone
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-900"
+                      }`}
+                    >
+                      {a.pricingSent ? "Pricing" : a.takeoffDone ? "Completed" : "Pending"}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums ${
+                        running ? "bg-sky-100 text-sky-800" : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      Time {elapsed}
+                      {running ? " · Live" : ""}
+                    </span>
+                    {a.divisions?.length ? (
+                      <span className="text-[10px] font-semibold text-gray-600 truncate max-w-[100px]">
+                        {formatDivisionSummary(a.divisions)}
+                      </span>
+                    ) : null}
+                  </div>
+                  {(canToggle || showPriceBtn) && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {canToggle && onToggleTakeoff && !a.pricingSent && (
+                        <button
+                          type="button"
+                          title={a.takeoffDone ? "Set back to pending" : "Mark completed"}
+                          onClick={() => onToggleTakeoff(a.estimatorId, !a.takeoffDone)}
+                          className={`h-6 w-fit px-2 rounded-md inline-flex items-center justify-center text-[9px] font-bold gap-1 ${
+                            a.takeoffDone
+                              ? "bg-amber-500 text-white hover:bg-amber-600"
+                              : "bg-emerald-600 text-white hover:bg-emerald-700"
+                          }`}
+                        >
+                          {a.takeoffDone ? (
+                            <>
+                              <RotateCcw size={10} /> Pending
+                            </>
+                          ) : (
+                            <>
+                              <Check size={11} /> Done
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {showPriceBtn && (
+                        <button
+                          type="button"
+                          title="Send this estimator for Pricing"
+                          onClick={() => onSendPricing?.(a.estimatorId)}
+                          className="h-6 w-fit px-2 rounded-md bg-violet-600 text-white text-[9px] font-bold hover:bg-violet-700 inline-flex items-center justify-center gap-1"
+                        >
+                          <Calculator size={10} /> Pricing
+                        </button>
+                      )}
+                    </div>
                   )}
-                </button>
-              )}
+                </div>
+              </div>
             </div>
           );
         })}
@@ -292,7 +550,7 @@ function AssignedToCell({
     );
 
   return (
-    <>
+    <div className="space-y-1.5 min-w-0">
       <div className="flex items-center gap-1 min-w-0 max-w-full">
         <button
           ref={anchorRef}
@@ -301,11 +559,11 @@ function AssignedToCell({
             e.stopPropagation();
             toggle();
           }}
-          className="flex items-center gap-1.5 min-w-0 flex-1 max-w-[170px] rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#B8112D]/40 transition-colors text-left"
-          title="View estimators"
+          className="flex items-center gap-1.5 min-w-0 flex-1 max-w-[200px] rounded-lg bg-[#F8F9FC] border border-gray-200 px-1.5 py-1 hover:border-[#B8112D]/40 transition-colors text-left"
+          title="View all estimators"
         >
           <div className="flex items-center -space-x-1.5 shrink-0">
-            {assignments.slice(0, 2).map((a) => (
+            {visible.slice(0, 2).map((a) => (
               <div
                 key={a.estimatorId}
                 className="w-5 h-5 rounded-full bg-[#B8112D] text-white flex items-center justify-center text-[9px] font-bold border border-white"
@@ -320,15 +578,26 @@ function AssignedToCell({
             </p>
             <p className="text-[9px] font-semibold truncate leading-tight">
               {detailed ? (
-                <span className={primary.takeoffDone ? "text-emerald-700" : "text-amber-700"}>
-                  {primary.takeoffDone ? "Completed" : "Pending"}
-                  {` · ${formatElapsed(assignmentElapsedSeconds(primary))}`}
-                  {extra > 0 ? ` · ${doneCount}/${assignments.length}` : ""}
+                <span
+                  className={
+                    primary.pricingSent
+                      ? "text-violet-700"
+                      : primary.takeoffDone
+                        ? "text-emerald-700"
+                        : "text-amber-700"
+                  }
+                >
+                  {primary.pricingSent
+                    ? "Pricing"
+                    : primary.takeoffDone
+                      ? "Completed"
+                      : "Pending"}
+                  {` · ${doneCount}/${visible.length}`}
                 </span>
               ) : (
                 <span className="text-gray-600">
                   {primary.manHours ? `${primary.manHours}h` : "—"}
-                  {extra > 0 ? ` · ${assignments.length}` : ""}
+                  {extra > 0 ? ` · ${visible.length}` : ""}
                 </span>
               )}
             </p>
@@ -339,7 +608,7 @@ function AssignedToCell({
             </span>
           )}
         </button>
-        {canToggle && onToggleTakeoff && assignments.length === 1 && (
+        {canToggle && onToggleTakeoff && visible.length === 1 && !primary.pricingSent && (
           <button
             type="button"
             title={primary.takeoffDone ? "Set back to pending" : "Mark completed"}
@@ -363,72 +632,224 @@ function AssignedToCell({
         </button>
       </div>
       {popup}
-    </>
+    </div>
   );
 }
 
 function AssignmentHoursCell({ assignments }: { assignments: TechnicalAssignment[] }) {
-  if (assignments.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  const panelW = 260;
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 280, "start");
   const first = assignments[0];
-  const extra = assignments.length - 1;
+  const extra = Math.max(0, assignments.length - 1);
+
+  if (!first) return <span className="text-xs text-gray-400">—</span>;
+
+  const popup =
+    open &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={style}
+        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-72 overflow-y-auto z-[80]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-2.5 py-1.5 border-b border-gray-100 text-[10px] font-bold text-gray-600 uppercase">
+          Man hours ({assignments.length})
+        </div>
+        {assignments.map((a) => (
+          <div
+            key={a.estimatorId}
+            className="flex items-center justify-between gap-2 px-2.5 py-2 border-b border-gray-50 last:border-0"
+          >
+            <p className="text-[11px] font-bold text-[#0F172A] truncate">{a.estimatorName}</p>
+            <p className="text-[11px] font-semibold text-gray-700 tabular-nums shrink-0">
+              {a.manHours ? `${a.manHours}h` : "—"}
+            </p>
+          </div>
+        ))}
+      </div>,
+      document.body,
+    );
+
   return (
-    <p className="text-[11px] font-semibold text-gray-700 whitespace-nowrap" title={assignments.map((a) => `${a.estimatorName}: ${a.manHours || "—"}h`).join("\n")}>
-      {first.manHours ? `${first.manHours}h` : "—"}
-      {extra > 0 && (
-        <span className="ml-1 text-[9px] font-bold text-[#B8112D]/70">+{extra}</span>
-      )}
-    </p>
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (assignments.length > 1) toggle();
+        }}
+        className={`text-[11px] font-semibold text-gray-700 whitespace-nowrap inline-flex items-center gap-1 rounded-md px-1 py-0.5 ${
+          extra > 0 ? "hover:bg-gray-100 cursor-pointer" : "cursor-default"
+        }`}
+        title={extra > 0 ? "View all man hours" : undefined}
+      >
+        {first.manHours ? `${first.manHours}h` : "—"}
+        {extra > 0 && (
+          <span className="text-[9px] font-bold text-[#B8112D] bg-[#FFF1F3] px-1 rounded">
+            +{extra}
+          </span>
+        )}
+      </button>
+      {popup}
+    </>
   );
 }
 
 function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignment[] }) {
-  if (assignments.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  const panelW = 280;
+  const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 280, "start");
   const first = assignments[0];
-  const extra = assignments.length - 1;
+  const extra = Math.max(0, assignments.length - 1);
+
+  if (!first) return <span className="text-xs text-gray-400">—</span>;
+
+  const popup =
+    open &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={style}
+        className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 max-h-72 overflow-y-auto z-[80]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-2.5 py-1.5 border-b border-gray-100 text-[10px] font-bold text-gray-600 uppercase">
+          Deadlines ({assignments.length})
+        </div>
+        {assignments.map((a) => (
+          <div
+            key={a.estimatorId}
+            className="flex items-center justify-between gap-2 px-2.5 py-2 border-b border-gray-50 last:border-0"
+          >
+            <p className="text-[11px] font-bold text-[#0F172A] truncate">{a.estimatorName}</p>
+            <p className="text-[11px] font-semibold text-gray-700 shrink-0">{formatDate(a.deadline)}</p>
+          </div>
+        ))}
+      </div>,
+      document.body,
+    );
+
   return (
-    <p
-      className="text-[11px] font-semibold text-gray-700 flex items-center gap-1 whitespace-nowrap"
-      title={assignments.map((a) => `${a.estimatorName}: ${formatDate(a.deadline)}`).join("\n")}
-    >
-      <Calendar size={10} className="text-[#B8112D] shrink-0" />
-      {formatDate(first.deadline)}
-      {extra > 0 && (
-        <span className="text-[9px] font-bold text-[#B8112D]/70">+{extra}</span>
-      )}
-    </p>
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (assignments.length > 1) toggle();
+        }}
+        className={`text-[11px] font-semibold text-gray-700 inline-flex items-center gap-1 whitespace-nowrap rounded-md px-1 py-0.5 ${
+          extra > 0 ? "hover:bg-gray-100 cursor-pointer" : "cursor-default"
+        }`}
+        title={extra > 0 ? "View all deadlines" : undefined}
+      >
+        <Calendar size={10} className="text-[#B8112D] shrink-0" />
+        {formatDate(first.deadline)}
+        {extra > 0 && (
+          <span className="text-[9px] font-bold text-[#B8112D] bg-[#FFF1F3] px-1 rounded">
+            +{extra}
+          </span>
+        )}
+      </button>
+      {popup}
+    </>
   );
 }
 
 function ProjectRowActions({
   onEdit,
   onDelete,
+  onSendPricing,
+  showSendPricing = false,
+  onSendFinal,
+  showSendFinal = false,
+  onReturnPricing,
+  showReturnPricing = false,
 }: {
   onEdit: () => void;
   onDelete: () => void;
+  onSendPricing?: () => void;
+  showSendPricing?: boolean;
+  onSendFinal?: () => void;
+  showSendFinal?: boolean;
+  onReturnPricing?: () => void;
+  showReturnPricing?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+    <div className="flex items-center gap-1 flex-nowrap min-w-0">
+      {showSendPricing && onSendPricing && (
+        <button
+          type="button"
+          onClick={onSendPricing}
+          className="h-7 px-1.5 rounded-lg bg-violet-600 text-white text-[9px] font-bold hover:bg-violet-700 inline-flex items-center gap-0.5 shrink-0"
+          title="Send for Pricing"
+        >
+          <Calculator size={11} className="shrink-0" />
+          <span>Pricing</span>
+        </button>
+      )}
+      {showSendFinal && onSendFinal && (
+        <button
+          type="button"
+          onClick={onSendFinal}
+          className="h-7 px-1.5 rounded-lg bg-emerald-600 text-white text-[9px] font-bold hover:bg-emerald-700 inline-flex items-center gap-0.5 shrink-0"
+          title="Send for Final Submission"
+        >
+          <Send size={11} className="shrink-0" />
+          <span>Final</span>
+        </button>
+      )}
+      {showReturnPricing && onReturnPricing && (
+        <button
+          type="button"
+          onClick={onReturnPricing}
+          className="h-7 px-1.5 rounded-lg bg-amber-500 text-white text-[9px] font-bold hover:bg-amber-600 inline-flex items-center gap-0.5 shrink-0"
+          title="Return to Pricing"
+        >
+          <Calculator size={11} className="shrink-0" />
+          <span>Back</span>
+        </button>
+      )}
       <button
         type="button"
         onClick={onEdit}
-        className="w-8 h-8 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
+        className="w-7 h-7 rounded-lg bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 shrink-0"
         title="Edit project"
       >
-        <Eye size={14} />
+        <Eye size={13} />
       </button>
       <button
         type="button"
         onClick={onDelete}
-        className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 shrink-0"
+        className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 shrink-0"
         title="Delete project"
       >
-        <Trash2 size={14} />
+        <Trash2 size={13} />
       </button>
     </div>
   );
 }
 
 export default function TechnicalActiveProjectsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen bg-[#F5F6FA]">
+          <TechnicalSidebar />
+          <main className="flex-1 min-w-0 p-6 mt-[64px]">
+            <div className="h-10 w-48 bg-gray-100 rounded-xl animate-pulse mb-4" />
+            <div className="h-64 bg-white rounded-2xl border border-gray-100 animate-pulse" />
+          </main>
+        </div>
+      }
+    >
+      <TechnicalActiveProjectsPageInner />
+    </Suspense>
+  );
+}
+
+function TechnicalActiveProjectsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const focusProjectId = (searchParams.get("project") || "").trim();
@@ -473,12 +894,12 @@ export default function TechnicalActiveProjectsPage() {
     void fetchProjects();
   }, [fetchProjects]);
 
-  // Pick up Admin Morning/COB changes without manual refresh
+  // Silent refresh every 30s (Admin Morning/COB + workflow stages)
   useEffect(() => {
     const poll = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void fetchProjects(true);
-    }, 8000);
+    }, 30000);
     const onFocus = () => void fetchProjects(true);
     window.addEventListener("focus", onFocus);
     return () => {
@@ -604,11 +1025,103 @@ export default function TechnicalActiveProjectsPage() {
       setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
       toast.success(
         takeoffDone
-          ? "Marked completed"
+          ? "Marked Done — this estimator moved to Take Off Done"
           : "Set back to pending — estimator can work again",
       );
     } catch {
       toast.error("Failed to update task status");
+    }
+  };
+
+  const sendForPricing = async (projectId: string, estimatorId?: string) => {
+    try {
+      const res = await API.put(`/admin/project/${projectId}/send-pricing`, {
+        ...(estimatorId ? { estimatorId } : {}),
+      });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success(
+        estimatorId
+          ? "Estimator sent for Pricing — others stay where they are"
+          : "Sent for Pricing",
+      );
+      const stillReady = parseTechnicalAssignments(lead.technicalAssignments).some(
+        isAssignmentTakeoffReady,
+      );
+      const stillWorking = parseTechnicalAssignments(lead.technicalAssignments).some(
+        isAssignmentWorking,
+      );
+      if (stillReady) setWorkflowTab("takeoff_done");
+      else if (stillWorking) setWorkflowTab("assigned");
+      else setWorkflowTab("pricing");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to send for pricing";
+      toast.error(msg);
+    }
+  };
+
+  const sendForFinalSubmission = async (projectId: string) => {
+    // Optimistic: move to Final immediately so UI never feels “stuck”
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, projectPhase: "qa_phase" } : p)),
+    );
+    try {
+      const res = await API.put(`/admin/project/${projectId}/send-final-submission`, {});
+      const lead = (res.data?.lead ?? res.data) as Project | undefined;
+      if (lead?.id) {
+        setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      }
+      toast.success("Sent for Final Submission");
+      setWorkflowTab("final_submission");
+      void fetchProjects(true);
+    } catch (err: unknown) {
+      void fetchProjects(true);
+      toast.error(apiErrorMessage(err, "Failed to send for final submission"));
+    }
+  };
+
+  const returnToPricing = async (projectId: string) => {
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, projectPhase: "pricing_phase" } : p)),
+    );
+    try {
+      const res = await API.put(`/admin/project/${projectId}/return-pricing`, {});
+      const lead = (res.data?.lead ?? res.data) as Project | undefined;
+      if (lead?.id) {
+        setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      }
+      toast.success("Returned to Pricing");
+      setWorkflowTab("pricing");
+      void fetchProjects(true);
+    } catch (err: unknown) {
+      void fetchProjects(true);
+      toast.error(apiErrorMessage(err, "Failed to return to pricing"));
+    }
+  };
+
+  const setPricingQa = async (projectId: string, mode: PricingQaMode) => {
+    try {
+      const res = await API.put(`/admin/project/${projectId}/pricing-qa`, { mode });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success("QA status updated — Admin can see it live");
+    } catch {
+      toast.error("Failed to update QA status");
+    }
+  };
+
+  const changeTaskStatus = async (projectId: string, status: TechTaskStatus) => {
+    try {
+      const projectWorkStatus =
+        status === "pending" ? "pending" : status === "completed" ? "completed" : "in_progress";
+      const res = await API.put(`/admin/project/${projectId}`, { projectWorkStatus });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success("Status updated");
+    } catch {
+      toast.error("Failed to update status");
     }
   };
 
@@ -705,26 +1218,42 @@ export default function TechnicalActiveProjectsPage() {
   const paginated = displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const isAssignedView = workflowTab === "assigned" || workflowTab === "takeoff_done";
+  const isPricingView = workflowTab === "pricing";
+  const isFinalView = workflowTab === "final_submission";
+  const showAssignColumn = !isAssignedView && !isPricingView && !isFinalView;
+  const assignmentFilter = "all" as const;
+  const isTakeoffDoneView = workflowTab === "takeoff_done";
+
   const headers = isAssignedView
     ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Estimators", "Status", "Actions"]
-    : [
-        "Project Details",
-        "Receive Date",
-        "Deadline",
-        "Bid Instruction",
-        "Notes for Sir",
-        "Assigned To",
-        "Status",
-        "Actions",
-      ];
-  const colWidths = isAssignedView ? TECHNICAL_ASSIGNED_COLS : TECHNICAL_PROJECT_COLS;
+    : isPricingView
+      ? ["Project / Scope", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "QA Status", "Status", "Actions"]
+      : isFinalView
+        ? ["Project Details", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "Actions"]
+        : [
+            "Project Details",
+            "Receive Date",
+            "Deadline",
+            "Bid Instruction",
+            "Notes for Sir",
+            "Assigned To",
+            "Status",
+            "Actions",
+          ];
+  const colWidths = isAssignedView
+    ? TECHNICAL_ASSIGNED_COLS
+    : isPricingView
+      ? TECHNICAL_PRICING_COLS
+      : isFinalView
+        ? TECHNICAL_FINAL_COLS
+        : TECHNICAL_PROJECT_COLS;
 
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
       <TechnicalSidebar />
 
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 overflow-x-hidden mt-[64px]">
+      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
 
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -877,6 +1406,7 @@ export default function TechnicalActiveProjectsPage() {
           ) : paginated.length > 0 ? (
             paginated.map((p) => {
               const assignments = parseTechnicalAssignments(p.technicalAssignments);
+              const anyReady = assignments.some(isAssignmentTakeoffReady);
               return (
                 <div
                   key={p.id}
@@ -889,19 +1419,29 @@ export default function TechnicalActiveProjectsPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <ProjectDetailCell p={projectAsRow(p)} />
+                      {isPricingView ? (
+                        <PricingProjectDetailCell p={p} assignments={assignments} />
+                      ) : (
+                        <ProjectDetailCell p={projectAsRow(p)} />
+                      )}
                     </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0">
-                      <TechnicalWorkflowStatusBadge
-                        status={p.status}
-                        projectDeadline={p.projectDeadline}
-                        projectWorkStatus={p.projectWorkStatus}
-                        projectPhase={p.projectPhase}
-                        technicalAssignments={p.technicalAssignments}
-                      />
+                    <div className="flex flex-col items-start gap-2 shrink-0">
+                      {!isFinalView && (
+                        <ProjectStatusCell
+                          p={p}
+                          editable={isPricingView}
+                          onChange={(next) => void changeTaskStatus(p.id, next)}
+                        />
+                      )}
                       <ProjectRowActions
                         onEdit={() => setEditProject(p)}
                         onDelete={() => void deleteProject(p)}
+                        showSendPricing={isTakeoffDoneView && anyReady}
+                        onSendPricing={() => void sendForPricing(p.id)}
+                        showSendFinal={isPricingView}
+                        onSendFinal={() => void sendForFinalSubmission(p.id)}
+                        showReturnPricing={isFinalView}
+                        onReturnPricing={() => void returnToPricing(p.id)}
                       />
                     </div>
                   </div>
@@ -923,7 +1463,9 @@ export default function TechnicalActiveProjectsPage() {
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
                         <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Receive Date</p>
-                        <p className="font-semibold text-gray-700">{formatDate(projectReceiveDate(p))}</p>
+                        <p className="font-semibold text-gray-700">
+                          {formatDate(isPricingView ? pricingReceiveDate(p) : projectReceiveDate(p))}
+                        </p>
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Deadline</p>
@@ -955,18 +1497,41 @@ export default function TechnicalActiveProjectsPage() {
                       onAddNote={addNote}
                     />
                   </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">
-                      {isAssignedView ? "Estimators" : "Assigned To"}
-                    </p>
-                    <AssignedToCell
-                      assignments={assignments}
-                      onAssign={() => setAssignProject(p)}
-                      showTakeoff={isAssignedView}
-                      detailed={isAssignedView}
-                      onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
-                    />
-                  </div>
+                  {isPricingView && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">QA Status</p>
+                      <PricingQaSelect
+                        phase={p.projectPhase}
+                        onChange={(mode) => void setPricingQa(p.id, mode)}
+                      />
+                    </div>
+                  )}
+                  {showAssignColumn && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Assigned To</p>
+                      <AssignedToCell
+                        assignments={assignments}
+                        onAssign={() => setAssignProject(p)}
+                        showTakeoff={false}
+                        onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
+                      />
+                    </div>
+                  )}
+                  {isAssignedView && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Estimators</p>
+                      <AssignedToCell
+                        assignments={assignments}
+                        onAssign={() => setAssignProject(p)}
+                        showTakeoff
+                        detailed
+                        assignmentFilter={assignmentFilter}
+                        showSendPricing={isTakeoffDoneView}
+                        onSendPricing={(eid) => void sendForPricing(p.id, eid)}
+                        onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -979,16 +1544,16 @@ export default function TechnicalActiveProjectsPage() {
         </div>
 
         {/* Desktop table */}
-        <div className={`hidden lg:block ${PROJECT_TABLE_CARD}`}>
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed border-collapse" style={{ minWidth: isAssignedView ? "1280px" : "1200px" }}>
+        <div className={`hidden lg:block ${PROJECT_TABLE_CARD} min-w-0`}>
+          <div className="min-w-0 w-full overflow-x-hidden">
+            <table className="w-full table-fixed border-collapse">
               <CsrColGroup widths={colWidths} />
               <thead className={CSR_THEAD}>
                 <tr className="text-left">
                   {headers.map((h, i) => (
                     <th
                       key={i}
-                      className={`px-3 xl:px-4 py-3 xl:py-4 whitespace-nowrap ${PROJECT_TABLE_HEAD}`}
+                      className={`px-2 xl:px-3 py-3 leading-tight ${PROJECT_TABLE_HEAD}`}
                     >
                       {h}
                     </th>
@@ -1000,7 +1565,7 @@ export default function TechnicalActiveProjectsPage() {
                   [1, 2, 3, 4, 5].map((i) => (
                     <tr key={i} className="border-b border-[#F3F3F3]">
                       {headers.map((_, j) => (
-                        <td key={j} className="px-3 xl:px-4 py-4">
+                        <td key={j} className="px-2 xl:px-3 py-4">
                           <div className="h-4 bg-gray-100 rounded animate-pulse w-16" />
                         </td>
                       ))}
@@ -1009,6 +1574,7 @@ export default function TechnicalActiveProjectsPage() {
                 ) : paginated.length > 0 ? (
                   paginated.map((p) => {
                     const assignments = parseTechnicalAssignments(p.technicalAssignments);
+                    const anyReady = assignments.some(isAssignmentTakeoffReady);
                     return (
                       <tr
                         key={p.id}
@@ -1017,21 +1583,25 @@ export default function TechnicalActiveProjectsPage() {
                           highlightId === p.id ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#B8112D]/30" : ""
                         }`}
                       >
-                        <td className="px-3 xl:px-4 py-3 xl:py-4">
-                          <ProjectDetailCell p={projectAsRow(p)} />
+                        <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden">
+                          {isPricingView ? (
+                            <PricingProjectDetailCell p={p} assignments={assignments} />
+                          ) : (
+                            <ProjectDetailCell p={projectAsRow(p)} />
+                          )}
                         </td>
                         {isAssignedView ? (
                           <>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <AssignmentHoursCell assignments={assignments} />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
                                 <AssignmentDeadlineCell assignments={assignments} />
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1041,7 +1611,7 @@ export default function TechnicalActiveProjectsPage() {
                                 noteHistory={notesToHistory(p.notes)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1050,40 +1620,43 @@ export default function TechnicalActiveProjectsPage() {
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4 overflow-visible">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
                               <AssignedToCell
                                 assignments={assignments}
                                 onAssign={() => setAssignProject(p)}
                                 detailed
                                 showTakeoff
+                                assignmentFilter={assignmentFilter}
+                                showSendPricing={isTakeoffDoneView}
+                                onSendPricing={(eid) => void sendForPricing(p.id, eid)}
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
-                              <TechnicalWorkflowStatusBadge
-                                status={p.status}
-                                projectDeadline={p.projectDeadline}
-                                projectWorkStatus={p.projectWorkStatus}
-                                projectPhase={p.projectPhase}
-                                technicalAssignments={p.technicalAssignments}
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <ProjectStatusCell
+                                p={p}
+                                editable={isPricingView}
+                                onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
+                                showSendPricing={isTakeoffDoneView && anyReady}
+                                onSendPricing={() => void sendForPricing(p.id)}
                               />
                             </td>
                           </>
-                        ) : (
+                        ) : isPricingView ? (
                           <>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
                                 <Calendar size={10} className="text-[#B8112D] shrink-0" />
-                                {formatDate(projectReceiveDate(p))}
+                                {formatDate(pricingReceiveDate(p))}
                               </p>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <div className="space-y-1">
                                 <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
                                   {formatDate(p.projectDeadline)}
@@ -1091,7 +1664,7 @@ export default function TechnicalActiveProjectsPage() {
                                 <DeadlineTimingBadge timing={p.deadlineTiming} />
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1101,7 +1674,7 @@ export default function TechnicalActiveProjectsPage() {
                                 noteHistory={notesToHistory(p.notes)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
@@ -1110,7 +1683,108 @@ export default function TechnicalActiveProjectsPage() {
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <PricingQaSelect
+                                phase={p.projectPhase}
+                                onChange={(mode) => void setPricingQa(p.id, mode)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <ProjectStatusCell
+                                p={p}
+                                editable={isPricingView}
+                                onChange={(next) => void changeTaskStatus(p.id, next)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <ProjectRowActions
+                                onEdit={() => setEditProject(p)}
+                                onDelete={() => void deleteProject(p)}
+                                showSendFinal
+                                onSendFinal={() => void sendForFinalSubmission(p.id)}
+                              />
+                            </td>
+                          </>
+                        ) : isFinalView ? (
+                          <>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
+                                <Calendar size={10} className="text-[#B8112D] shrink-0" />
+                                {formatDate(projectReceiveDate(p))}
+                              </p>
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <div className="space-y-1">
+                                <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
+                                  {formatDate(p.projectDeadline)}
+                                </p>
+                                <DeadlineTimingBadge timing={p.deadlineTiming} />
+                              </div>
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                readOnly
+                                skipNotesFetch
+                                comment={p.projectNotes ?? undefined}
+                                noteHistory={notesToHistory(p.notes)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                onAddNote={addNote}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
+                              <ProjectRowActions
+                                onEdit={() => setEditProject(p)}
+                                onDelete={() => void deleteProject(p)}
+                                showReturnPricing
+                                onReturnPricing={() => void returnToPricing(p.id)}
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <p className="text-[10px] xl:text-xs font-semibold text-gray-700 flex items-center gap-1">
+                                <Calendar size={10} className="text-[#B8112D] shrink-0" />
+                                {formatDate(projectReceiveDate(p))}
+                              </p>
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <div className="space-y-1">
+                                <p className="text-[10px] xl:text-xs font-semibold text-gray-700">
+                                  {formatDate(p.projectDeadline)}
+                                </p>
+                                <DeadlineTimingBadge timing={p.deadlineTiming} />
+                              </div>
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                readOnly
+                                skipNotesFetch
+                                comment={p.projectNotes ?? undefined}
+                                noteHistory={notesToHistory(p.notes)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                onAddNote={addNote}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
                               <AssignedToCell
                                 assignments={assignments}
                                 onAssign={() => setAssignProject(p)}
@@ -1118,16 +1792,14 @@ export default function TechnicalActiveProjectsPage() {
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
-                              <TechnicalWorkflowStatusBadge
-                                status={p.status}
-                                projectDeadline={p.projectDeadline}
-                                projectWorkStatus={p.projectWorkStatus}
-                                projectPhase={p.projectPhase}
-                                technicalAssignments={p.technicalAssignments}
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <ProjectStatusCell
+                                p={p}
+                                editable={isPricingView}
+                                onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-3 xl:px-4 py-3 xl:py-4">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}

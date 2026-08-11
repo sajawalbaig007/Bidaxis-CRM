@@ -242,22 +242,21 @@ function ProjectCard({
           <CommentCell
             id={p.id}
             apiRole="admin"
+            comment={p.projectNotes ?? undefined}
             noteHistory={notesToHistory(p.notes)}
             onAddNote={onAddNote}
           />
         </div>
-        {parseTechnicalNotes(p.technicalNotes).length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Notes by Technical</p>
-            <CommentCell
-              id={`${p.id}-tech`}
-              apiRole="admin"
-              readOnly
-              skipNotesFetch
-              noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-            />
-          </div>
-        )}
+        <div>
+          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Notes by Technical</p>
+          <CommentCell
+            id={`${p.id}-tech`}
+            apiRole="admin"
+            readOnly
+            skipNotesFetch
+            noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -425,12 +424,24 @@ function ProjectsSection({
                       </td>
                     )}
                     <td className="px-3 xl:px-4 py-3 xl:py-4">
-                      <CommentCell
-                        id={p.id}
-                        apiRole="admin"
-                        noteHistory={notesToHistory(p.notes)}
-                        onAddNote={onAddNote}
-                      />
+                      <div className="space-y-1.5 min-w-0">
+                        <CommentCell
+                          id={p.id}
+                          apiRole="admin"
+                          comment={p.projectNotes ?? undefined}
+                          noteHistory={notesToHistory(p.notes)}
+                          onAddNote={onAddNote}
+                        />
+                        {parseTechnicalNotes(p.technicalNotes).length > 0 && (
+                          <CommentCell
+                            id={`${p.id}-tech`}
+                            apiRole="admin"
+                            readOnly
+                            skipNotesFetch
+                            noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                          />
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 xl:px-4 py-3 xl:py-4">
                       <TechnicalWorkflowStatusBadge

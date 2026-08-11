@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -93,7 +93,7 @@ export default function TechnicalSidebar() {
   }, [loadNotifications]);
 
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
+    const onDoc = (e: globalThis.MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
@@ -139,7 +139,7 @@ export default function TechnicalSidebar() {
     }
   };
 
-  const handleDismiss = async (id: string, e: MouseEvent) => {
+  const handleDismiss = async (id: string, e: ReactMouseEvent) => {
     e.stopPropagation();
     const target = notifications.find((n) => n.id === id);
     try {
