@@ -35,7 +35,7 @@ export const ESTIMATOR_KPI_FIELD_META: Record<
     input: "textarea",
     hint: "Auto from estimator daily sessions",
   },
-  retained_clients: { label: "Retained clients", input: "number", hint: "Manual" },
+  retained_clients: { label: "Retained clients", input: "number", hint: "Auto from returning-client projects" },
   punctuality: { label: "Punctuality", input: "text", hint: "Auto from overdue vs assigned" },
   avg_takeoff: { label: "Avg takeoff", input: "text", hint: "Auto average timer on completed" },
   team_query_mistakes: { label: "Team query mistakes", input: "text", hint: "Manual" },
