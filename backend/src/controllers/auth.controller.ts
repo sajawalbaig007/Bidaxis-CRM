@@ -62,9 +62,39 @@ function userPayload(u: AuthUser) {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
-async function blockIfAlreadyLoggedIn(userId: string, res: Response): Promise<boolean> {
+async function tokenUserId(req: Request): Promise<string | null> {
+  const token =
+    req.cookies?.token ??
+    req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id?: string };
+    return decoded.id ?? null;
+  } catch {
+    // Expired / rotated token still identifies this browser's last user
+    try {
+      const decoded = jwt.decode(token) as { id?: string } | null;
+      return decoded?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Single-device lock: block a second device.
+ * Same browser re-login (cookie / Bearer still present for this user) must not
+ * false-lock after SESSION_INVALID cleared the client but left activeSessionId in DB.
+ */
+async function blockIfAlreadyLoggedIn(userId: string, req: Request, res: Response): Promise<boolean> {
   const active = await hasActiveSession(userId);
   if (!active) return false;
+
+  const cookieUserId = await tokenUserId(req);
+  if (cookieUserId && cookieUserId === userId) {
+    await clearActiveSession(userId);
+    return false;
+  }
 
   const attemptId = await recordLoginAttempt(userId);
   notifyLoginAttempt(userId, attemptId);
@@ -421,7 +451,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (user.twoFAEnabled && isSmtpConfigured()) {
-      if (await blockIfAlreadyLoggedIn(user.id, res)) return;
+      if (await blockIfAlreadyLoggedIn(user.id, req, res)) return;
 
       const existing = otpAttempts.get(user.id);
       if (existing?.blockedUntil && Date.now() < existing.blockedUntil) {
@@ -448,7 +478,7 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    if (await blockIfAlreadyLoggedIn(user.id, res)) return;
+    if (await blockIfAlreadyLoggedIn(user.id, req, res)) return;
 
     const dbUser = await prisma.user.findUnique({
       where:  { id: user.id },
@@ -523,7 +553,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
     otpAttempts.delete(userId);
     otpResendCount.delete(userId);
 
-    if (await blockIfAlreadyLoggedIn(userId, res)) return;
+    if (await blockIfAlreadyLoggedIn(userId, req, res)) return;
 
     const user = await prisma.user.findUnique({
       where:  { id: userId },
@@ -616,15 +646,20 @@ export const logout = async (req: Request, res: Response) => {
       req.cookies?.token ??
       req.headers.authorization?.replace("Bearer ", "");
     if (token) {
+      let userId: string | undefined;
       try {
         const decoded = jwt.verify(token, JWT_SECRET) as { id?: string };
-        if (decoded.id) {
-          await clearActiveSession(decoded.id);
-          await writeAuditLog({ action: "logout", userId: decoded.id, ip, userAgent: ua });
-          await recordAccessHistory({ userId: decoded.id, ip, userAgent: ua, event: "logout" });
-          /* Work session stays open — only Check Out / stale timeout ends the shift */
-        }
-      } catch { /* ignore */ }
+        userId = decoded.id;
+      } catch {
+        const decoded = jwt.decode(token) as { id?: string } | null;
+        userId = decoded?.id;
+      }
+      if (userId) {
+        await clearActiveSession(userId);
+        await writeAuditLog({ action: "logout", userId, ip, userAgent: ua });
+        await recordAccessHistory({ userId, ip, userAgent: ua, event: "logout" });
+        /* Work session stays open — only Check Out / stale timeout ends the shift */
+      }
     }
   } catch { /* ignore */ }
   res.clearCookie("token");

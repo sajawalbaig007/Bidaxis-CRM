@@ -99,7 +99,8 @@ API.interceptors.response.use(
       path.startsWith("/csr") ||
       path.startsWith("/manager") ||
       path.startsWith("/technical") ||
-      path.startsWith("/accounts");
+      path.startsWith("/accounts") ||
+      path.startsWith("/estimator");
 
     if (
       status === 401 &&
@@ -108,6 +109,13 @@ API.interceptors.response.use(
       !handling401
     ) {
       handling401 = true;
+      const token = getClientAuthToken();
+      // Free single-device seat in DB (even if JWT already invalid / expired)
+      void fetch(`${resolveBaseURL()}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      }).catch(() => {});
       setClientAuthToken(null);
       void fetch("/api/auth/clear-session", { method: "POST", credentials: "include" });
       toast.error("Session expired. Please log in again.", { duration: 4000 });
