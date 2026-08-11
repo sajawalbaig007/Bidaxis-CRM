@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
@@ -428,6 +429,10 @@ function ProjectRowActions({
 }
 
 export default function TechnicalActiveProjectsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const focusProjectId = (searchParams.get("project") || "").trim();
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -442,6 +447,8 @@ export default function TechnicalActiveProjectsPage() {
   const [assignSaving, setAssignSaving] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const focusHandledRef = useRef<string | null>(null);
 
   const fetchProjects = useCallback(async (silent = false) => {
     try {
@@ -500,6 +507,49 @@ export default function TechnicalActiveProjectsPage() {
   useEffect(() => {
     loadEstimators();
   }, [loadEstimators]);
+
+  // Deep-link from TM notification bell: /technical/active-projects?project=<id>
+  useEffect(() => {
+    if (!focusProjectId || loading) return;
+    if (focusHandledRef.current === focusProjectId) return;
+    focusHandledRef.current = focusProjectId;
+    let cancelled = false;
+
+    const openFocused = async () => {
+      let project: Project | null = null;
+      try {
+        const res = await API.get(`/admin/lead/${focusProjectId}`);
+        const lead = res.data?.lead as Project | undefined;
+        if (lead?.id) project = lead;
+      } catch {
+        /* fall through */
+      }
+      if (cancelled) return;
+      if (!project) {
+        toast.error("Project from notification not found");
+        router.replace("/technical/active-projects");
+        return;
+      }
+
+      setProjects((prev) => (prev.some((p) => p.id === project!.id) ? prev : [project!, ...prev]));
+      setWorkflowTab("all");
+      setPage(1);
+      setSearch(project.projectCode || project.projectTitle || "");
+      setHighlightId(project.id);
+      setEditProject(project);
+      router.replace("/technical/active-projects");
+      window.setTimeout(() => {
+        document
+          .querySelector(`[data-project-row="${project!.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    };
+
+    void openFocused();
+    return () => {
+      cancelled = true;
+    };
+  }, [focusProjectId, loading, router]);
 
   // Refresh roster every time Assign modal opens
   useEffect(() => {
@@ -828,7 +878,15 @@ export default function TechnicalActiveProjectsPage() {
             paginated.map((p) => {
               const assignments = parseTechnicalAssignments(p.technicalAssignments);
               return (
-                <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+                <div
+                  key={p.id}
+                  data-project-row={p.id}
+                  className={`bg-white rounded-2xl border p-4 shadow-sm space-y-3 ${
+                    highlightId === p.id
+                      ? "border-[#B8112D] ring-2 ring-[#B8112D]/20"
+                      : "border-gray-100"
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <ProjectDetailCell p={projectAsRow(p)} />
@@ -954,7 +1012,10 @@ export default function TechnicalActiveProjectsPage() {
                     return (
                       <tr
                         key={p.id}
-                        className="border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top"
+                        data-project-row={p.id}
+                        className={`border-b border-[#F3F3F3] hover:bg-[#FAFAFA] transition-all align-top ${
+                          highlightId === p.id ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#B8112D]/30" : ""
+                        }`}
                       >
                         <td className="px-3 xl:px-4 py-3 xl:py-4">
                           <ProjectDetailCell p={projectAsRow(p)} />

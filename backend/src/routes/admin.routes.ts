@@ -49,6 +49,7 @@ import {
   parseRecordedAt,
   validateKpiValue,
 } from "../utils/technicalKpiRecords";
+import { buildEstimatorKpiAuto } from "../utils/estimatorKpiAuto";
 import {
   listTechnicalEstimators,
   normalizeTechnicalAssignmentsInput,
@@ -62,6 +63,12 @@ import {
   syncPhaseFromAssignments,
   type TechnicalAssignment,
 } from "../utils/technicalEstimators";
+import {
+  diffProjectChangesForTm,
+  notifyTmFromActor,
+  parseChangeSummary,
+  projectLabel,
+} from "../utils/technicalNotifications";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -1149,13 +1156,30 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
     applyProjectPayload(updateData, req.body as Record<string, unknown>);
     if (req.body.assignedTo !== undefined) updateData.assignedTo = req.body.assignedTo;
 
-    const prev =
-      updateData.projectPayments !== undefined
-        ? await prisma.lead.findUnique({
-            where: { id: leadId },
-            select: { projectPayments: true },
-          })
-        : null;
+    const prev = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: {
+        projectPayments: true,
+        projectPhase: true,
+        projectWorkStatus: true,
+        status: true,
+        projectDeadline: true,
+        deadlineTiming: true,
+        projectTitle: true,
+        projectCode: true,
+        projectScope: true,
+        projectNotes: true,
+        takeoffDeadline: true,
+        pricingDeadline: true,
+        qaDeadline: true,
+        interestedService: true,
+        technicalAssignments: true,
+        clientCode: true,
+      },
+    });
+    if (!prev) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
 
     const lead = await prisma.lead.update({
       where: { id: leadId },
@@ -1168,12 +1192,30 @@ router.put("/project/:id", verifyToken, allowRoles("admin", "manager", "technica
 
     if (typeof updateData.projectPayments === "string") {
       const dates = [
-        ...paidDatesFromPayments(parseProjectPayments(prev?.projectPayments)),
+        ...paidDatesFromPayments(parseProjectPayments(prev.projectPayments)),
         ...paidDatesFromPayments(parseProjectPayments(updateData.projectPayments)),
       ];
       if (dates.length) {
         await syncAccountsCurrencyForDates(dates, req.user?.id);
       }
+    }
+
+    const changes = diffProjectChangesForTm(
+      prev as unknown as Record<string, unknown>,
+      { ...prev, ...updateData } as Record<string, unknown>,
+    );
+    if (changes.length > 0) {
+      const label = projectLabel(lead.projectCode || lead.clientCode, lead.projectTitle);
+      void notifyTmFromActor({
+        actorId: req.user?.id,
+        leadId: lead.id,
+        projectTitle: lead.projectTitle,
+        projectCode: lead.projectCode || lead.clientCode,
+        source: "admin",
+        title: "Project updated",
+        message: `${label}: ${changes.join(", ")}`,
+        changes,
+      });
     }
 
     flushAdminClientsCache();
@@ -1243,7 +1285,205 @@ router.get(
   },
 );
 
+/* ================= TECHNICAL MANAGER INBOX NOTIFICATIONS ================= */
+router.get(
+  "/technical-notifications",
+  verifyToken,
+  allowRoles("technical_manager", "admin"),
+  async (req, res) => {
+    try {
+      const unreadOnly = req.query.unread === "1" || req.query.unread === "true";
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+      const where: Prisma.TechnicalNotificationWhereInput = unreadOnly ? { readAt: null } : {};
+
+      const [rows, unreadCount] = await Promise.all([
+        prisma.technicalNotification.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          take: limit,
+        }),
+        prisma.technicalNotification.count({ where: { readAt: null } }),
+      ]);
+
+      const notifications = rows.map((n) => ({
+        id: n.id,
+        leadId: n.leadId,
+        projectTitle: n.projectTitle,
+        projectCode: n.projectCode,
+        source: n.source,
+        actorId: n.actorId,
+        actorName: n.actorName,
+        actorRole: n.actorRole,
+        title: n.title,
+        message: n.message,
+        changes: parseChangeSummary(n.changeSummary),
+        readAt: n.readAt,
+        createdAt: n.createdAt,
+      }));
+
+      return res.json({ success: true, notifications, unreadCount });
+    } catch (err) {
+      console.error("technical-notifications list error:", err);
+      return res.status(500).json({ success: false, message: "Failed to load notifications" });
+    }
+  },
+);
+
+router.put(
+  "/technical-notifications/read-all",
+  verifyToken,
+  allowRoles("technical_manager", "admin"),
+  async (_req, res) => {
+    try {
+      const result = await prisma.technicalNotification.updateMany({
+        where: { readAt: null },
+        data: { readAt: new Date() },
+      });
+      return res.json({ success: true, updated: result.count });
+    } catch (err) {
+      console.error("technical-notifications read-all error:", err);
+      return res.status(500).json({ success: false, message: "Failed to mark all read" });
+    }
+  },
+);
+
+router.put(
+  "/technical-notifications/:id/read",
+  verifyToken,
+  allowRoles("technical_manager", "admin"),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const row = await prisma.technicalNotification.update({
+        where: { id },
+        data: { readAt: new Date() },
+      });
+      return res.json({ success: true, notification: row });
+    } catch (err) {
+      console.error("technical-notifications read error:", err);
+      return res.status(500).json({ success: false, message: "Failed to mark notification read" });
+    }
+  },
+);
+
+router.delete(
+  "/technical-notifications/:id",
+  verifyToken,
+  allowRoles("technical_manager", "admin"),
+  async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      await prisma.technicalNotification.delete({ where: { id } });
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("technical-notifications delete error:", err);
+      return res.status(500).json({ success: false, message: "Failed to dismiss notification" });
+    }
+  },
+);
+
 /* ================= ESTIMATOR KPI RECORDS (editable ledger) ================= */
+router.get(
+  "/technical-kpi-auto",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const month =
+        typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month.trim())
+          ? req.query.month.trim()
+          : new Date().toISOString().slice(0, 7);
+      const payload = await buildEstimatorKpiAuto(month);
+      return res.json({ success: true, ...payload });
+    } catch (err) {
+      console.error("technical-kpi-auto error:", err);
+      return res.status(500).json({ success: false, message: "Failed to build auto KPI" });
+    }
+  },
+);
+
+/** Seed auto values as editable records (skips fields that already have entries this month). */
+router.post(
+  "/technical-kpi-auto-seed",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req: AuthRequest, res) => {
+    try {
+      const body = req.body as Record<string, unknown>;
+      const month =
+        typeof body.month === "string" && /^\d{4}-\d{2}$/.test(body.month.trim())
+          ? body.month.trim()
+          : new Date().toISOString().slice(0, 7);
+      const estimatorId = String(body.estimatorId ?? "").trim();
+      const onlyEmpty = body.onlyEmpty !== false;
+      const fieldKeysRaw = Array.isArray(body.fieldKeys) ? body.fieldKeys.map(String) : null;
+
+      const bounds = monthBounds(month);
+      if (!bounds) {
+        return res.status(400).json({ success: false, message: "Invalid month" });
+      }
+
+      const snapshot = await buildEstimatorKpiAuto(month);
+      const targets = estimatorId
+        ? snapshot.estimators.filter((e) => e.estimatorId === estimatorId)
+        : snapshot.estimators;
+
+      let createdByName: string | null = null;
+      if (req.user?.id) {
+        const me = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { name: true },
+        });
+        createdByName = me?.name ?? null;
+      }
+
+      const existing = await prisma.estimatorKpiRecord.findMany({
+        where: {
+          recordedAt: { gte: bounds.from, lt: bounds.to },
+          ...(estimatorId ? { estimatorId } : {}),
+        },
+        select: { estimatorId: true, fieldKey: true },
+      });
+      const existingSet = new Set(existing.map((r) => `${r.estimatorId}::${r.fieldKey}`));
+
+      let created = 0;
+      const now = new Date();
+
+      for (const row of targets) {
+        for (const field of row.fields) {
+          if (!field.auto || !field.value.trim()) continue;
+          if (fieldKeysRaw && !fieldKeysRaw.includes(field.fieldKey)) continue;
+          const key = `${row.estimatorId}::${field.fieldKey}`;
+          if (onlyEmpty && existingSet.has(key)) continue;
+          if (!isEstimatorKpiFieldKey(field.fieldKey)) continue;
+          const validated = validateKpiValue(field.fieldKey, field.value);
+          if (!validated.ok) continue;
+
+          await prisma.estimatorKpiRecord.create({
+            data: {
+              estimatorId: row.estimatorId,
+              estimatorName: row.name,
+              fieldKey: field.fieldKey,
+              value: validated.value,
+              note: field.note || "Auto-filled",
+              recordedAt: now,
+              createdById: req.user?.id ?? null,
+              createdByName,
+            },
+          });
+          existingSet.add(key);
+          created += 1;
+        }
+      }
+
+      return res.json({ success: true, created, month });
+    } catch (err) {
+      console.error("technical-kpi-auto-seed error:", err);
+      return res.status(500).json({ success: false, message: "Failed to auto-fill KPI records" });
+    }
+  },
+);
+
 router.get(
   "/technical-kpi-records",
   verifyToken,

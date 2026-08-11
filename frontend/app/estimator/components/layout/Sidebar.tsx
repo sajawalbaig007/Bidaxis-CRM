@@ -16,6 +16,8 @@ import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
+import EstimatorCheckInControl from "@/app/estimator/components/EstimatorCheckInControl";
+import EstimatorCheckInBanner from "@/app/estimator/components/EstimatorCheckInBanner";
 import API from "@/lib/api";
 
 const BASE = "/estimator";
@@ -107,7 +109,8 @@ export default function EstimatorSidebar() {
             <CapsuleChipNav items={navItems} baseHref={BASE} accent={ACCENT} variant="inline" />
           </div>
 
-          <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
+          <div className="flex-1 min-w-0 flex items-center justify-end gap-2 sm:gap-3">
+            <EstimatorCheckInControl compact />
             <ThemeToggle />
 
             <button
@@ -190,6 +193,8 @@ export default function EstimatorSidebar() {
           </div>
         </div>
       </header>
+
+      <EstimatorCheckInBanner />
 
       {chatOpen && <ChatPanel onClose={closeChat} />}
     </>

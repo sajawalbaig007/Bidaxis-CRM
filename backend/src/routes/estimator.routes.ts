@@ -17,6 +17,15 @@ import {
   type TechnicalAssignment,
 } from "../utils/technicalEstimators";
 import { invalidatePattern, invalidateCache } from "../utils/cache";
+import { notifyTmFromActor, projectLabel } from "../utils/technicalNotifications";
+import {
+  checkInCsrWorkSession,
+  checkOutCsrWorkSession,
+  getCsrWorkSessionStatus,
+  tickCsrWorkSession,
+} from "../utils/csrSessionTracking";
+import { getClientIp, getUserAgent } from "../utils/requestMeta";
+import { formatEstDateTime } from "../utils/estTime";
 
 const router = express.Router();
 
@@ -263,7 +272,14 @@ router.put("/project/:id/complete", async (req: AuthRequest, res) => {
     const leadId = String(req.params.id);
     const existing = await prisma.lead.findUnique({
       where: { id: leadId },
-      select: { technicalAssignments: true, assignedTo: true, projectPhase: true },
+      select: {
+        technicalAssignments: true,
+        assignedTo: true,
+        projectPhase: true,
+        projectTitle: true,
+        projectCode: true,
+        clientCode: true,
+      },
     });
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
@@ -301,6 +317,18 @@ router.put("/project/:id/complete", async (req: AuthRequest, res) => {
     invalidatePattern("admin:projects:");
     invalidateCache(`csr:projects:${lead.assignedTo}`);
 
+    const label = projectLabel(lead.projectCode || lead.clientCode, lead.projectTitle);
+    void notifyTmFromActor({
+      actorId: me.id,
+      leadId: lead.id,
+      projectTitle: lead.projectTitle,
+      projectCode: lead.projectCode || lead.clientCode,
+      source: "estimator",
+      title: "Takeoff completed",
+      message: `${me.name} marked takeoff done on ${label}`,
+      changes: ["Takeoff completed", nextPhase !== existing.projectPhase ? `Phase → ${nextPhase}` : ""].filter(Boolean),
+    });
+
     return res.json({ success: true, lead: withMyAssignment(lead, me) });
   } catch (error) {
     console.log(error);
@@ -325,7 +353,14 @@ router.put("/project/:id/takeoff", async (req: AuthRequest, res) => {
     const leadId = String(req.params.id);
     const existing = await prisma.lead.findUnique({
       where: { id: leadId },
-      select: { technicalAssignments: true, assignedTo: true, projectPhase: true },
+      select: {
+        technicalAssignments: true,
+        assignedTo: true,
+        projectPhase: true,
+        projectTitle: true,
+        projectCode: true,
+        clientCode: true,
+      },
     });
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
@@ -350,6 +385,18 @@ router.put("/project/:id/takeoff", async (req: AuthRequest, res) => {
     invalidatePattern("admin:projects:");
     invalidateCache(`csr:projects:${lead.assignedTo}`);
 
+    const label = projectLabel(lead.projectCode || lead.clientCode, lead.projectTitle);
+    void notifyTmFromActor({
+      actorId: me.id,
+      leadId: lead.id,
+      projectTitle: lead.projectTitle,
+      projectCode: lead.projectCode || lead.clientCode,
+      source: "estimator",
+      title: "Takeoff completed",
+      message: `${me.name} marked takeoff done on ${label}`,
+      changes: ["Takeoff completed"],
+    });
+
     return res.json({ success: true, lead: withMyAssignment(lead, me) });
   } catch (error) {
     console.log(error);
@@ -368,7 +415,13 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
 
     const existing = await prisma.lead.findUnique({
       where: { id: leadId },
-      select: { technicalAssignments: true, technicalNotes: true },
+      select: {
+        technicalAssignments: true,
+        technicalNotes: true,
+        projectTitle: true,
+        projectCode: true,
+        clientCode: true,
+      },
     });
     if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
 
@@ -385,10 +438,123 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
       where: { id: leadId },
       data: { technicalNotes: serializeTechnicalNotes(next) },
     });
+
+    const label = projectLabel(existing.projectCode || existing.clientCode, existing.projectTitle);
+    void notifyTmFromActor({
+      actorId: me.id,
+      leadId,
+      projectTitle: existing.projectTitle,
+      projectCode: existing.projectCode || existing.clientCode,
+      source: "estimator",
+      title: "Estimator note",
+      message: `${me.name} on ${label}: ${text.slice(0, 160)}`,
+      changes: ["Working note"],
+    });
+
     return res.json({ success: true, note, technicalNotes: next });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to add note" });
+  }
+});
+
+/* ================= CHECK IN / CHECK OUT (same CsrWorkSession ledger) ================= */
+
+router.get("/work-session", async (req: AuthRequest, res) => {
+  try {
+    const status = await getCsrWorkSessionStatus(req.user!.id);
+    return res.json({ success: true, ...status });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to load work session." });
+  }
+});
+
+router.post("/check-in", async (req: AuthRequest, res) => {
+  try {
+    const result = await checkInCsrWorkSession({
+      userId: req.user!.id,
+      ip: getClientIp(req),
+      userAgent: getUserAgent(req),
+      deviceId: req.body?.tabId ?? req.body?.deviceId,
+    });
+    let status = await getCsrWorkSessionStatus(req.user!.id);
+    if (!status.checkedIn) {
+      status = {
+        checkedIn: true,
+        session: {
+          id: result.sessionId,
+          checkInAt: result.loginAt.toISOString(),
+          checkInAtEst: formatEstDateTime(result.loginAt),
+          dashboardMs: 0,
+          awayMs: 0,
+          totalMs: 0,
+          dashboardDuration: "0s",
+          awayDuration: "0s",
+          totalDuration: "0s",
+        },
+      };
+    }
+    return res.json({
+      success: true,
+      created: result.created,
+      message: result.created ? "Checked in successfully." : "Already checked in.",
+      ...status,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Check-in failed." });
+  }
+});
+
+router.post("/check-out", async (req: AuthRequest, res) => {
+  try {
+    const closed = await checkOutCsrWorkSession(req.user!.id);
+    return res.json({
+      success: true,
+      closed,
+      checkedIn: false,
+      session: null,
+      message: closed ? "Checked out successfully." : "No active check-in.",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Check-out failed." });
+  }
+});
+
+router.post("/heartbeat", async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const tabVisible = req.body?.tabVisible !== false;
+    const tabId = req.body?.tabId ?? "unknown";
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: tabVisible
+        ? { isOnline: true, lastActive: new Date() }
+        : { isOnline: false },
+    }).catch(() => {});
+
+    void tickCsrWorkSession({ userId, tabVisible, deviceId: String(tabId) });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false });
+  }
+});
+
+router.post("/offline", async (req: AuthRequest, res) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { isOnline: false },
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false });
   }
 });
 
