@@ -1,4 +1,6 @@
 import prisma from "../config/db";
+import { notInBinFilter } from "./binLeads";
+import { clientIdentityKey, isWonClientStatus } from "./leadClientPromotion";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "./projectLeads";
 import {
   assignmentElapsedSeconds,
@@ -64,6 +66,58 @@ function assignmentOverdue(deadline: string, takeoffDone: boolean, todayYmd: str
   return deadline < todayYmd;
 }
 
+function leadTouchesMonth(
+  lead: { technicalReceivedAt?: Date | null; updatedAt: Date },
+  bounds: { from: Date; to: Date },
+): boolean {
+  const received = lead.technicalReceivedAt ?? lead.updatedAt;
+  if (received >= bounds.from && received < bounds.to) return true;
+  return lead.updatedAt >= bounds.from && lead.updatedAt < bounds.to;
+}
+
+type WonIdentityLead = {
+  id: string;
+  phone?: string | null;
+  company?: string | null;
+  status?: string | null;
+  isOldClient?: boolean;
+  createdAt: Date;
+};
+
+/** Returning client = flagged old OR had a prior won project before this lead. */
+function isRetainedClientLead(
+  lead: {
+    id: string;
+    phone?: string | null;
+    company?: string | null;
+    isOldClient?: boolean;
+    createdAt: Date;
+  },
+  priorWinsByKey: Map<string, WonIdentityLead[]>,
+): boolean {
+  if (lead.isOldClient) return true;
+  const key = clientIdentityKey(lead);
+  const prior = (priorWinsByKey.get(key) ?? []).filter(
+    (w) => w.id !== lead.id && w.createdAt.getTime() < lead.createdAt.getTime(),
+  );
+  return prior.length > 0;
+}
+
+function clientLabel(lead: {
+  name?: string | null;
+  company?: string | null;
+  clientCode?: string | null;
+  projectCode?: string | null;
+}): string {
+  return (
+    lead.company?.trim() ||
+    lead.name?.trim() ||
+    lead.clientCode?.trim() ||
+    lead.projectCode?.trim() ||
+    "Client"
+  );
+}
+
 /** Auto-computed KPI suggestions for the selected month (still editable when saved). */
 export async function buildEstimatorKpiAuto(month: string): Promise<{
   month: string;
@@ -78,27 +132,54 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
   const now = Date.now();
   const todayYmd = new Date().toISOString().split("T")[0] ?? "";
 
-  const [roster, rawLeads, sessions] = await Promise.all([
+  const [roster, rawLeads, wonIdentityLeads, sessions] = await Promise.all([
     listTechnicalEstimators(),
     prisma.lead.findMany({
       where: buildProjectLeadWhere(),
       select: {
         id: true,
+        name: true,
+        company: true,
+        phone: true,
         status: true,
         projectTitle: true,
         projectCode: true,
+        clientCode: true,
+        isOldClient: true,
         projectPhase: true,
         projectDeadline: true,
         projectWorkStatus: true,
         interestedService: true,
         trade: true,
         technicalAssignments: true,
+        technicalReceivedAt: true,
         hiddenOnTechnical: true,
         inBin: true,
+        createdAt: true,
         updatedAt: true,
       },
       orderBy: { updatedAt: "desc" },
       take: 500,
+    }),
+    prisma.lead.findMany({
+      where: {
+        ...notInBinFilter(),
+        OR: [
+          { status: { equals: "Close Client", mode: "insensitive" } },
+          { status: { equals: "completed", mode: "insensitive" } },
+          { status: { equals: "closed", mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        phone: true,
+        company: true,
+        status: true,
+        isOldClient: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+      take: 5000,
     }),
     prisma.csrWorkSession.findMany({
       where: {
@@ -119,7 +200,17 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
 
   const leads = rawLeads
     .filter(isDisplayableProjectLead)
-    .filter((l) => (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical !== true);
+    .filter((l) => (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical !== true)
+    .filter((l) => leadTouchesMonth(l, bounds));
+
+  const priorWinsByKey = new Map<string, WonIdentityLead[]>();
+  for (const w of wonIdentityLeads) {
+    if (!isWonClientStatus(w.status)) continue;
+    const key = clientIdentityKey(w);
+    const list = priorWinsByKey.get(key) ?? [];
+    list.push(w);
+    priorWinsByKey.set(key, list);
+  }
 
   type Acc = {
     id: string;
@@ -136,6 +227,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
     trades: Set<string>;
     projectLines: string[];
     timerHoursSamples: number[];
+    retainedProjects: number;
+    retainedLines: string[];
   };
 
   const byId = new Map<string, Acc>();
@@ -155,6 +248,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       trades: new Set(),
       projectLines: [],
       timerHoursSamples: [],
+      retainedProjects: 0,
+      retainedLines: [],
     });
   }
 
@@ -180,6 +275,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       trades: new Set(),
       projectLines: [],
       timerHoursSamples: [],
+      retainedProjects: 0,
+      retainedLines: [],
     };
     byId.set(estimatorId, created);
     return created;
@@ -187,8 +284,11 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
 
   for (const lead of leads) {
     const assignments = parseTechnicalAssignments(lead.technicalAssignments);
-    const code = (lead.projectCode ?? "").trim() || "—";
+    if (assignments.length === 0) continue;
+    const code = (lead.projectCode ?? lead.clientCode ?? "").trim() || "—";
     const title = (lead.projectTitle ?? "").trim() || "Untitled";
+    const retained = isRetainedClientLead(lead, priorWinsByKey);
+    const retainedLabel = clientLabel(lead);
     const tradeBits = [
       ...(lead.interestedService ? [lead.interestedService] : []),
       ...(lead.trade ? [lead.trade] : []),
@@ -221,6 +321,17 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         acc.projectLines.push(
           `${code} ${title}: ${hoursLabel(logged)}${a.manHours ? ` / ${a.manHours}h planned` : ""} (${status})`,
         );
+      }
+    }
+
+    if (retained) {
+      const credited = new Set<string>();
+      for (const a of assignments) {
+        if (credited.has(a.estimatorId)) continue;
+        credited.add(a.estimatorId);
+        const acc = ensure(a.estimatorId, a.estimatorName);
+        acc.retainedProjects += 1;
+        acc.retainedLines.push(`${retainedLabel} · ${code} ${title}`);
       }
     }
   }
@@ -289,17 +400,17 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       const fieldMap: Partial<Record<EstimatorKpiFieldKey, { value: string; note: string; auto: boolean }>> = {
         projects_delivered: {
           value: String(acc.delivered),
-          note: "Auto: takeoff-complete assignments (all visible technical projects)",
+          note: `Auto: completed takeoffs this month (${month})`,
           auto: true,
         },
         productivity: {
           value: productivity,
-          note: "Auto: assignment timers + planned hours",
+          note: `Auto: assignment timers + planned hours (${month})`,
           auto: true,
         },
         project_time_spent: {
           value: projectTime,
-          note: "Auto: per-project timer logged vs planned",
+          note: `Auto: per-project timer logged vs planned (${month})`,
           auto: true,
         },
         checkin_checkout: {
@@ -309,20 +420,27 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         },
         punctuality: {
           value: punctuality,
-          note: "Auto: pending overdue vs assigned",
+          note: `Auto: pending overdue vs assigned (${month})`,
           auto: true,
         },
         avg_takeoff: {
           value: avgTakeoff,
-          note: "Auto: average timer hours on completed takeoffs",
+          note: `Auto: average timer hours on completed takeoffs (${month})`,
           auto: true,
         },
         trades_history: {
           value: trades,
-          note: "Auto: scopes / trades from assigned projects",
+          note: `Auto: scopes / trades from assigned projects (${month})`,
           auto: true,
         },
-        retained_clients: { value: "", note: "Manual", auto: false },
+        retained_clients: {
+          value: acc.retainedProjects > 0 ? String(acc.retainedProjects) : "",
+          note:
+            acc.retainedLines.length > 0
+              ? `Auto: returning-client projects this month — ${acc.retainedLines.slice(0, 12).join("; ")}`
+              : `Auto: returning-client projects credited to estimator (${month})`,
+          auto: true,
+        },
         team_query_mistakes: { value: "", note: "Manual", auto: false },
         final_remarks: { value: "", note: "Manual", auto: false },
         marks_out_of_10: { value: "", note: "Manual", auto: false },

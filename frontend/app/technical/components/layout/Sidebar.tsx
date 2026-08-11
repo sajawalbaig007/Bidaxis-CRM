@@ -85,11 +85,31 @@ export default function TechnicalSidebar() {
   }, []);
 
   useEffect(() => {
-    void loadNotifications();
+    let cancelled = false;
+
+    (async () => {
+      // Yield so setState is not synchronous inside the effect body (react-hooks/set-state-in-effect).
+      await Promise.resolve();
+      if (cancelled) return;
+      try {
+        const data = await fetchTechnicalNotifications(40);
+        if (cancelled) return;
+        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+        setUnreadCount(Number(data.unreadCount) || 0);
+      } catch {
+        /* keep previous */
+      }
+    })();
+
     const poll = window.setInterval(() => {
-      if (document.visibilityState === "visible") void loadNotifications();
+      if (document.visibilityState !== "visible") return;
+      void loadNotifications();
     }, 20000);
-    return () => window.clearInterval(poll);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+    };
   }, [loadNotifications]);
 
   useEffect(() => {
