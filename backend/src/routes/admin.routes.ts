@@ -51,6 +51,7 @@ import {
 } from "../utils/technicalKpiRecords";
 import { buildEstimatorKpiAuto } from "../utils/estimatorKpiAuto";
 import { buildPreviousMonthRatings } from "../utils/previousMonthRatings";
+import { buildPaymentsSummary } from "../utils/paymentsSummary";
 import {
   listTechnicalEstimators,
   normalizeTechnicalAssignmentsInput,
@@ -1701,6 +1702,25 @@ router.delete(
 );
 
 /* ================= ESTIMATOR KPI RECORDS (editable ledger) ================= */
+router.get(
+  "/payments-summary",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (req, res) => {
+    try {
+      const month =
+        typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month.trim())
+          ? req.query.month.trim()
+          : null;
+      const payload = await buildPaymentsSummary(month);
+      return res.json({ success: true, ...payload });
+    } catch (err) {
+      console.error("payments-summary error:", err);
+      return res.status(500).json({ success: false, message: "Failed to load payments summary" });
+    }
+  },
+);
+
 router.get(
   "/technical-previous-month-ratings",
   verifyToken,
