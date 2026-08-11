@@ -26,7 +26,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import TechnicalSidebar from "../components/layout/Sidebar";
+import TechnicalPageShell from "../components/TechnicalPageShell";
 import EstimatorKpiEntryModal from "../components/EstimatorKpiEntryModal";
 import {
   ESTIMATOR_KPI_FIELD_KEYS,
@@ -349,13 +349,11 @@ export default function TechnicalKpiPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#EEF1F7]">
+    <TechnicalPageShell bgClass="bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <Toaster position="top-right" />
-      <TechnicalSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-16">
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
           {/* Hero header */}
-          <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#B8112D]/10 bg-white shadow-sm">
+          <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#B8112D]/10 bg-crm-surface shadow-sm">
             <div
               className="absolute inset-0 opacity-[0.55]"
               style={{
@@ -762,7 +760,6 @@ export default function TechnicalKpiPage() {
             )}
           </section>
         </div>
-      </main>
 
       {editor ? (
         <EstimatorKpiEntryModal
@@ -800,6 +797,6 @@ export default function TechnicalKpiPage() {
           background: transparent;
         }
       `}</style>
-    </div>
+    </TechnicalPageShell>
   );
 }

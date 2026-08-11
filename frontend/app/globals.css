@@ -107,6 +107,11 @@ body {
 .dark .bg-\[\#F1F5F9\] { background-color: rgba(100, 116, 139, 0.18) !important; }
 .dark .bg-\[\#F4F4F5\] { background-color: var(--crm-muted) !important; }
 
+.dark .bg-\[\#EEF1F7\] { background-color: var(--crm-bg-subtle) !important; }
+.dark .from-violet-50 { --tw-gradient-from: rgba(139, 92, 246, 0.14) !important; }
+.dark .via-white { --tw-gradient-via: var(--crm-surface) !important; }
+.dark .to-amber-50\/40 { --tw-gradient-to: rgba(245, 158, 11, 0.12) !important; }
+
 .dark .text-gray-900,
 .dark .text-gray-800 { color: var(--crm-text) !important; }
 .dark .text-gray-700,

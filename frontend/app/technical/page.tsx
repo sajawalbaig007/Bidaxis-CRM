@@ -6,7 +6,9 @@ import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
   ArrowRight, BarChart3, Users, GitBranch, RefreshCw, FileText, Trophy,
 } from "lucide-react";
-import TechnicalSidebar from "./components/layout/Sidebar";
+import TechnicalPageShell from "./components/TechnicalPageShell";
+import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
 import {
   fetchPreviousMonthRatings,
@@ -111,18 +113,15 @@ export default function TechnicalDashboardPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
-      <TechnicalSidebar />
-
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+    <TechnicalPageShell>
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
 
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-crm-text tracking-tight">
                 Dashboard
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
+              <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
                 Project overview · active work · deadlines
               </p>
             </div>
@@ -130,7 +129,7 @@ export default function TechnicalDashboardPage() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-brand-soft disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               {loading ? "Refreshing…" : "Refresh stats"}
@@ -262,12 +261,12 @@ export default function TechnicalDashboardPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead className="bg-[#FAFAFA] text-[11px] text-gray-500 uppercase tracking-wide">
+                <thead className={CSR_THEAD}>
                   <tr>
-                    <th className="px-4 py-2.5 font-semibold">Code</th>
-                    <th className="px-4 py-2.5 font-semibold">Project</th>
-                    <th className="px-4 py-2.5 font-semibold">Phase</th>
-                    <th className="px-4 py-2.5 font-semibold">Deadline</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Code</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Project</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Phase</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Deadline</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -313,7 +312,6 @@ export default function TechnicalDashboardPage() {
             </div>
           </section>
         </div>
-      </main>
-    </div>
+    </TechnicalPageShell>
   );
 }

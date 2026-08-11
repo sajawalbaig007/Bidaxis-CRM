@@ -6,7 +6,9 @@ import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
   ArrowRight, RefreshCw, Star, Trophy,
 } from "lucide-react";
-import EstimatorSidebar from "./components/layout/Sidebar";
+import EstimatorPageShell from "./components/EstimatorPageShell";
+import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
+import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
 import { fetchMyPreviousMonthRating, starsDisplay, type EstimatorMonthRating } from "@/lib/estimatorPreviousMonthRating";
 
@@ -72,17 +74,14 @@ export default function EstimatorDashboardPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
-      <EstimatorSidebar />
-
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
+    <EstimatorPageShell>
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-crm-text tracking-tight">
                 Estimator Dashboard
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
+              <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
                 Your assigned projects · takeoff · deadlines
               </p>
             </div>
@@ -90,7 +89,7 @@ export default function EstimatorDashboardPage() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 dark:hover:bg-violet-500/10 disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
             >
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               {loading ? "Refreshing…" : "Refresh stats"}
@@ -98,7 +97,7 @@ export default function EstimatorDashboardPage() {
           </header>
 
           {prevRating ? (
-            <section className="rounded-2xl sm:rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-amber-50/40 p-4 sm:p-5 shadow-sm">
+            <section className="rounded-2xl sm:rounded-3xl border border-violet-200 dark:border-violet-500/30 bg-gradient-to-br from-violet-50 via-white to-amber-50/40 dark:from-violet-500/10 dark:via-crm-surface dark:to-amber-500/10 p-4 sm:p-5 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
                   <div className="w-11 h-11 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
@@ -108,11 +107,11 @@ export default function EstimatorDashboardPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wide text-violet-600">
                       {prevMonthLabel} — your rating
                     </p>
-                    <p className="text-sm sm:text-base font-bold text-[#0F172A] mt-0.5">
+                    <p className="text-sm sm:text-base font-bold text-crm-text mt-0.5">
                       Shown all month on your dashboard
                     </p>
                     {prevRating.remarks ? (
-                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{prevRating.remarks}</p>
+                      <p className="text-xs text-crm-text-secondary mt-1 line-clamp-2">{prevRating.remarks}</p>
                     ) : null}
                   </div>
                 </div>
@@ -168,25 +167,25 @@ export default function EstimatorDashboardPage() {
 
           <Link
             href="/estimator/my-projects"
-            className="group bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 hover:border-[#7C3AED]/30 hover:shadow-md transition-all flex items-start justify-between gap-3"
+            className="group bg-crm-surface rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-crm-border-subtle hover:border-[#7C3AED]/30 hover:shadow-md transition-all flex items-start justify-between gap-3"
           >
             <div>
-              <div className="w-10 h-10 rounded-xl bg-violet-50 text-[#7C3AED] flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-500/15 text-[#7C3AED] flex items-center justify-center mb-3">
                 <FolderKanban size={18} />
               </div>
-              <h3 className="font-bold text-gray-800 text-sm sm:text-base">My Projects</h3>
-              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+              <h3 className="font-bold text-crm-text text-sm sm:text-base">My Projects</h3>
+              <p className="text-[11px] sm:text-xs text-crm-text-faint mt-0.5">
                 Open assigned work — man hours, deadlines & takeoff status
               </p>
             </div>
-            <ArrowRight size={16} className="text-gray-300 group-hover:text-[#7C3AED] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+            <ArrowRight size={16} className="text-crm-text-faint group-hover:text-[#7C3AED] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
           </Link>
 
-          <section className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100">
+          <section className="bg-crm-surface rounded-2xl sm:rounded-3xl shadow-sm border border-crm-border-subtle overflow-hidden">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-crm-border-subtle">
               <div>
-                <h2 className="font-bold text-gray-800 text-sm sm:text-base">Recent Assignments</h2>
-                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">Latest projects assigned to you</p>
+                <h2 className="font-bold text-crm-text text-sm sm:text-base">Recent Assignments</h2>
+                <p className="text-[11px] sm:text-xs text-crm-text-faint mt-0.5">Latest projects assigned to you</p>
               </div>
               <Link href="/estimator/my-projects" className="text-xs sm:text-sm font-semibold text-[#7C3AED] hover:underline">
                 View all
@@ -194,13 +193,13 @@ export default function EstimatorDashboardPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
-                <thead className="bg-[#FAFAFA] text-[11px] text-gray-500 uppercase tracking-wide">
+                <thead className={CSR_THEAD}>
                   <tr>
-                    <th className="px-4 py-2.5 font-semibold">Code</th>
-                    <th className="px-4 py-2.5 font-semibold">Project</th>
-                    <th className="px-4 py-2.5 font-semibold">Hours</th>
-                    <th className="px-4 py-2.5 font-semibold">Deadline</th>
-                    <th className="px-4 py-2.5 font-semibold">Status</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Code</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Project</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Hours</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Deadline</th>
+                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -214,23 +213,23 @@ export default function EstimatorDashboardPage() {
                     ))
                   ) : recent.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400 font-medium">
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-crm-text-faint font-medium">
                         No assignments yet — technical will assign projects to you.
                       </td>
                     </tr>
                   ) : (
                     recent.map(p => (
-                      <tr key={p.id} className="border-t border-gray-50 hover:bg-violet-50/40">
+                      <tr key={p.id} className="border-t border-crm-border-subtle hover:bg-violet-50/40 dark:hover:bg-violet-500/10">
                         <td className="px-4 py-3 text-xs font-semibold text-[#7C3AED] whitespace-nowrap">
                           {p.projectCode || "—"}
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-[#0F172A] truncate max-w-[220px]">
+                        <td className="px-4 py-3 text-sm font-semibold text-crm-text truncate max-w-[220px]">
                           {p.projectTitle || "Untitled"}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        <td className="px-4 py-3 text-xs text-crm-text-secondary whitespace-nowrap">
                           {p.myAssignment?.manHours ? `${p.myAssignment.manHours}h` : "—"}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        <td className="px-4 py-3 text-xs text-crm-text-secondary whitespace-nowrap">
                           {p.myAssignment?.deadline
                             ? new Date(p.myAssignment.deadline).toLocaleDateString()
                             : p.projectDeadline
@@ -256,7 +255,6 @@ export default function EstimatorDashboardPage() {
             </div>
           </section>
         </div>
-      </main>
-    </div>
+    </EstimatorPageShell>
   );
 }

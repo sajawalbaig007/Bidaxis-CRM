@@ -9,7 +9,7 @@ import {
   AlertTriangle, BarChart3, CheckCircle2, Clock3, Download, FileText,
   FolderKanban, GitBranch, Loader2, RefreshCw, Star, Target, Users,
 } from "lucide-react";
-import TechnicalSidebar from "../components/layout/Sidebar";
+import TechnicalPageShell from "../components/TechnicalPageShell";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { starsLabel } from "@/lib/estimatorKpiRecords";
 import {
@@ -155,11 +155,9 @@ export default function TechnicalReportsPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#EEF1F7]">
+    <TechnicalPageShell bgClass="bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <Toaster position="top-right" />
-      <TechnicalSidebar />
 
-      <main className="flex-1 min-w-0 overflow-x-hidden mt-16">
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
           <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#B8112D]/10 bg-white shadow-sm">
             <div
@@ -446,7 +444,6 @@ export default function TechnicalReportsPage() {
             </section>
           ) : null}
         </div>
-      </main>
-    </div>
+    </TechnicalPageShell>
   );
 }

@@ -9,7 +9,7 @@ import {
   Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
 } from "lucide-react";
 
-import TechnicalSidebar from "../components/layout/Sidebar";
+import TechnicalPageShell from "../components/TechnicalPageShell";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
@@ -838,13 +838,12 @@ export default function TechnicalActiveProjectsPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen bg-[#F5F6FA]">
-          <TechnicalSidebar />
-          <main className="flex-1 min-w-0 p-6 mt-[64px]">
-            <div className="h-10 w-48 bg-gray-100 rounded-xl animate-pulse mb-4" />
-            <div className="h-64 bg-white rounded-2xl border border-gray-100 animate-pulse" />
-          </main>
-        </div>
+        <TechnicalPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg">
+          <div className="p-6">
+            <div className="h-10 w-48 bg-crm-muted rounded-xl animate-pulse mb-4" />
+            <div className="h-64 bg-crm-surface rounded-2xl border border-crm-border-subtle animate-pulse" />
+          </div>
+        </TechnicalPageShell>
       }
     >
       <TechnicalActiveProjectsPageInner variant="active" />
@@ -1268,19 +1267,16 @@ export function TechnicalActiveProjectsPageInner({
         : TECHNICAL_PROJECT_COLS;
 
   return (
-    <div className="flex min-h-screen bg-[#F5F6FA]">
+    <TechnicalPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className="p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden">
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
-      <TechnicalSidebar />
-
-      <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
 
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-crm-text">
               {isRevisions ? "Revisions" : "Active Projects"}
             </h1>
-            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
+            <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
               {isRevisions
                 ? "Admin-sent revision projects — assign estimators like Active Projects."
                 : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
@@ -1875,7 +1871,6 @@ export function TechnicalActiveProjectsPageInner({
             </div>
           )}
         </div>
-      </main>
 
       <AssignEstimatorsModal
         open={!!assignProject}
@@ -1904,6 +1899,6 @@ export function TechnicalActiveProjectsPageInner({
         }
         hideClientFinanceSections
       />
-    </div>
+    </TechnicalPageShell>
   );
 }

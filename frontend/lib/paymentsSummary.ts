@@ -48,6 +48,7 @@ export type PaymentsSummaryPayload = {
     quotedProjects: number;
     quotedAmount: number;
     collectedEntries: number;
+    unassignedPaidCount: number;
     fullPaidCount: number;
     partialPaidCount: number;
     unpaidWithQuoteCount: number;
