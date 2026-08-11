@@ -16,6 +16,8 @@ type Props = {
   fieldKey: EstimatorKpiFieldKey;
   estimatorName: string;
   initial?: EstimatorKpiRecord | null;
+  draftValue?: string;
+  draftNote?: string;
   liveHoursHint?: string | null;
   saving?: boolean;
   onClose: () => void;
@@ -28,6 +30,8 @@ export default function EstimatorKpiEntryModal({
   fieldKey,
   estimatorName,
   initial,
+  draftValue,
+  draftNote,
   liveHoursHint,
   saving,
   onClose,
@@ -40,10 +44,12 @@ export default function EstimatorKpiEntryModal({
 
   useEffect(() => {
     if (!open) return;
-    setValue(initial?.value ?? (meta.input === "stars5" ? "5" : meta.input === "marks10" ? "10" : ""));
-    setNote(initial?.note ?? "");
+    const fallback =
+      meta.input === "stars5" ? "5" : meta.input === "marks10" ? "10" : "";
+    setValue(initial?.value ?? draftValue ?? fallback);
+    setNote(initial?.note ?? draftNote ?? "");
     setRecordedAt(toDatetimeLocalValue(initial?.recordedAt ?? new Date()));
-  }, [open, initial, meta.input]);
+  }, [open, initial, draftValue, draftNote, meta.input]);
 
   if (!open) return null;
 

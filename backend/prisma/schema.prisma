@@ -482,3 +482,31 @@ model EstimatorKpiRecord {
   @@index([estimatorId, recordedAt])
   @@map("estimator_kpi_records")
 }
+
+/**
+ * Inbox for Technical Manager — Admin / Estimator project activity alerts.
+ * Click opens Active Projects focused on leadId.
+ */
+model TechnicalNotification {
+  id            String    @id @default(cuid()) @map("_id")
+  leadId        String
+  projectTitle  String?
+  projectCode   String?
+  /** admin | estimator | system */
+  source        String
+  actorId       String?
+  actorName     String?
+  actorRole     String?
+  title         String
+  message       String
+  /** JSON string[] of human-readable changed fields */
+  changeSummary String?
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([readAt])
+  @@index([leadId])
+  @@index([source, createdAt])
+  @@map("technical_notifications")
+}

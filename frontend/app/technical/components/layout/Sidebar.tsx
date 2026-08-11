@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, FolderKanban, BarChart3, Users,
-  GitBranch, FileText, LogOut, ChevronDown, MessageSquare,
+  GitBranch, FileText, LogOut, ChevronDown, MessageSquare, Bell, CheckCheck, X,
 } from "lucide-react";
 import { logoutSession } from "@/lib/session";
 import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
@@ -18,6 +19,16 @@ import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import API from "@/lib/api";
+import {
+  dismissTechnicalNotification,
+  fetchTechnicalNotifications,
+  formatNotifTime,
+  markAllTechnicalNotificationsRead,
+  markTechnicalNotificationRead,
+  sourceLabel,
+  technicalProjectHref,
+  type TechnicalInboxNotification,
+} from "@/lib/technicalNotifications";
 
 const BASE = "/technical";
 
@@ -33,18 +44,33 @@ const navItems = [
 type UserInfo = { name: string; email: string; role: string; profilePic?: string | null };
 
 export default function TechnicalSidebar() {
+  const router = useRouter();
   const [user, setUser] = useState<UserInfo | null>(() => peekAuthMe());
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [notifications, setNotifications] = useState<TechnicalInboxNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const totalUnread = useChatUnreadBadge();
   const chatEnabled = useChatEnabled();
   const profileRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   const closeChat = () => {
     forceStopChatUnreadPolling();
     setChatOpen(false);
   };
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await fetchTechnicalNotifications(40);
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+      setUnreadCount(Number(data.unreadCount) || 0);
+    } catch {
+      /* keep previous */
+    }
+  }, []);
 
   useEffect(() => () => {
     forceStopChatUnreadPolling();
@@ -59,9 +85,20 @@ export default function TechnicalSidebar() {
   }, []);
 
   useEffect(() => {
+    void loadNotifications();
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadNotifications();
+    }, 20000);
+    return () => window.clearInterval(poll);
+  }, [loadNotifications]);
+
+  useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
+      }
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setBellOpen(false);
       }
     };
     document.addEventListener("mousedown", onDoc);
@@ -72,6 +109,46 @@ export default function TechnicalSidebar() {
     setLoggingOut(true);
     await logoutSession(() => API.post("/auth/logout", {}));
     window.location.href = "/login/technical_manager";
+  };
+
+  const openNotification = async (n: TechnicalInboxNotification) => {
+    setBellOpen(false);
+    if (!n.readAt) {
+      try {
+        await markTechnicalNotificationRead(n.id);
+        setNotifications((prev) =>
+          prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)),
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } catch {
+        /* still navigate */
+      }
+    }
+    router.push(technicalProjectHref(n.leadId));
+  };
+
+  const handleMarkAll = async () => {
+    try {
+      await markAllTechnicalNotificationsRead();
+      setNotifications((prev) =>
+        prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })),
+      );
+      setUnreadCount(0);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleDismiss = async (id: string, e: MouseEvent) => {
+    e.stopPropagation();
+    const target = notifications.find((n) => n.id === id);
+    try {
+      await dismissTechnicalNotification(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      if (target && !target.readAt) setUnreadCount((c) => Math.max(0, c - 1));
+    } catch {
+      /* ignore */
+    }
   };
 
   const initials = (user?.name ?? "TM")
@@ -111,8 +188,121 @@ export default function TechnicalSidebar() {
             <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
           </div>
 
-          <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
+          <div className="flex-1 min-w-0 flex items-center justify-end gap-2 sm:gap-3">
           <ThemeToggle />
+
+          <div ref={bellRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setBellOpen((v) => !v);
+                setProfileOpen(false);
+                if (!bellOpen) void loadNotifications();
+              }}
+              className={`relative w-9 h-9 rounded-[13px] flex items-center justify-center transition-all ${
+                bellOpen
+                  ? "bg-[#B8112D] text-white shadow-md"
+                  : "bg-crm-nav-pill text-crm-text-muted hover:bg-crm-brand-soft hover:text-[#B8112D]"
+              }`}
+              title="Project notifications"
+            >
+              <Bell size={16} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#B8112D] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {bellOpen && (
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[min(92vw,380px)] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-crm-border-subtle flex items-center justify-between gap-2 bg-gradient-to-r from-[#FFF1F3] to-white">
+                  <div>
+                    <p className="text-sm font-bold text-[#0F172A]">Notifications</p>
+                    <p className="text-[10px] text-gray-500">
+                      Admin & estimator project updates · {unreadCount} unread
+                    </p>
+                  </div>
+                  {notifications.some((n) => !n.readAt) ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleMarkAll()}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#B8112D] hover:underline shrink-0"
+                    >
+                      <CheckCheck size={13} />
+                      Mark all
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="max-h-[min(70vh,420px)] overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-12 text-center text-sm text-gray-400 font-medium">
+                      No notifications yet
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100">
+                      {notifications.map((n) => {
+                        const unread = !n.readAt;
+                        return (
+                          <li key={n.id} className={unread ? "bg-[#FFF8F9]" : "bg-white"}>
+                            <div className="flex items-start gap-1">
+                              <button
+                                type="button"
+                                onClick={() => void openNotification(n)}
+                                className="flex-1 min-w-0 text-left px-3.5 py-3 hover:bg-[#FFF1F3]/80 transition-colors"
+                              >
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                                      n.source === "estimator"
+                                        ? "bg-sky-50 text-sky-700"
+                                        : "bg-amber-50 text-amber-800"
+                                    }`}
+                                  >
+                                    {sourceLabel(n.source, n.actorRole)}
+                                  </span>
+                                  {unread ? (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#B8112D]" />
+                                  ) : null}
+                                  <span className="text-[10px] text-gray-400 ml-auto">
+                                    {formatNotifTime(n.createdAt)}
+                                  </span>
+                                </div>
+                                <p className="text-[13px] font-bold text-[#0F172A] mt-1 line-clamp-1">
+                                  {n.title}
+                                </p>
+                                <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">
+                                  {n.message}
+                                </p>
+                                {(n.projectCode || n.projectTitle) && (
+                                  <p className="text-[10px] font-semibold text-[#B8112D] mt-1 truncate">
+                                    {n.projectCode ? `${n.projectCode} · ` : ""}
+                                    {n.projectTitle || "Open project"}
+                                  </p>
+                                )}
+                                {n.actorName ? (
+                                  <p className="text-[10px] text-gray-400 mt-0.5">by {n.actorName}</p>
+                                ) : null}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => void handleDismiss(n.id, e)}
+                                className="mt-3 mr-2 w-7 h-7 rounded-lg text-gray-400 hover:text-[#B8112D] hover:bg-[#FFF1F3] inline-flex items-center justify-center shrink-0"
+                                title="Dismiss"
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <button
             type="button"

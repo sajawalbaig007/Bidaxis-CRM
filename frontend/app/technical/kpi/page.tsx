@@ -12,11 +12,13 @@ import {
   Clock3,
   FileText,
   Hammer,
+  LogIn,
   MessageSquareWarning,
   Pencil,
   Percent,
   Plus,
   RefreshCw,
+  Sparkles,
   Star,
   Target,
   Timer,
@@ -32,10 +34,14 @@ import {
   createEstimatorKpiRecord,
   currentMonthValue,
   deleteEstimatorKpiRecord,
+  fetchEstimatorKpiAuto,
   fetchEstimatorKpiRecords,
   formatKpiTimestamp,
+  seedEstimatorKpiAuto,
   starsLabel,
   updateEstimatorKpiRecord,
+  type EstimatorKpiAutoField,
+  type EstimatorKpiAutoRow,
   type EstimatorKpiFieldKey,
   type EstimatorKpiRecord,
   type EstimatorKpiRosterItem,
@@ -52,11 +58,16 @@ type EditorState = {
   estimatorName: string;
   fieldKey: EstimatorKpiFieldKey;
   record?: EstimatorKpiRecord | null;
+  /** Prefill create modal from auto suggestion */
+  draftValue?: string;
+  draftNote?: string;
 };
 
 const FIELD_ICONS: Record<EstimatorKpiFieldKey, LucideIcon> = {
   projects_delivered: CheckCircle2,
   productivity: Timer,
+  project_time_spent: ClipboardList,
+  checkin_checkout: LogIn,
   retained_clients: Users,
   punctuality: Clock3,
   avg_takeoff: Target,
@@ -77,9 +88,11 @@ export default function TechnicalKpiPage() {
   const [month, setMonth] = useState(currentMonthValue());
   const [estimators, setEstimators] = useState<EstimatorKpiRosterItem[]>([]);
   const [records, setRecords] = useState<EstimatorKpiRecord[]>([]);
+  const [autoRows, setAutoRows] = useState<EstimatorKpiAutoRow[]>([]);
   const [teamLive, setTeamLive] = useState<TechnicalTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seedingId, setSeedingId] = useState<string | null>(null);
   /** Accordion: only one estimator open at a time */
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -88,16 +101,19 @@ export default function TechnicalKpiPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [kpiRes, monRes] = await Promise.all([
+      const [kpiRes, autoRes, monRes] = await Promise.all([
         fetchEstimatorKpiRecords(month),
+        fetchEstimatorKpiAuto(month).catch(() => null),
         fetchTechnicalMonitoring().catch(() => null),
       ]);
       setEstimators(Array.isArray(kpiRes.estimators) ? kpiRes.estimators : []);
       setRecords(Array.isArray(kpiRes.records) ? kpiRes.records : []);
+      setAutoRows(Array.isArray(autoRes?.estimators) ? autoRes!.estimators : []);
       setTeamLive(Array.isArray(monRes?.team) ? monRes!.team : []);
     } catch {
       setEstimators([]);
       setRecords([]);
+      setAutoRows([]);
       toast.error("Failed to load KPI records");
     } finally {
       setLoading(false);
@@ -155,17 +171,33 @@ export default function TechnicalKpiPage() {
     };
   }, [records, estimators.length, roster.length]);
 
+  const autoByEstimator = useMemo(() => {
+    const map = new Map<string, Map<EstimatorKpiFieldKey, EstimatorKpiAutoField>>();
+    for (const row of autoRows) {
+      const fields = new Map<EstimatorKpiFieldKey, EstimatorKpiAutoField>();
+      for (const f of row.fields) fields.set(f.fieldKey, f);
+      map.set(row.estimatorId, fields);
+    }
+    return map;
+  }, [autoRows]);
+
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
-  const openCreate = (estimator: EstimatorKpiRosterItem, fieldKey: EstimatorKpiFieldKey) => {
+  const openCreate = (
+    estimator: EstimatorKpiRosterItem,
+    fieldKey: EstimatorKpiFieldKey,
+    draft?: { value?: string; note?: string },
+  ) => {
     setEditor({
       mode: "create",
       estimatorId: estimator.id,
       estimatorName: estimator.name,
       fieldKey,
       record: null,
+      draftValue: draft?.value,
+      draftNote: draft?.note,
     });
   };
 
@@ -177,6 +209,49 @@ export default function TechnicalKpiPage() {
       fieldKey,
       record,
     });
+  };
+
+  const applyAutoField = async (
+    estimator: EstimatorKpiRosterItem,
+    fieldKey: EstimatorKpiFieldKey,
+    auto: EstimatorKpiAutoField,
+  ) => {
+    if (!auto.value.trim()) return;
+    setSaving(true);
+    try {
+      const res = await createEstimatorKpiRecord({
+        estimatorId: estimator.id,
+        estimatorName: estimator.name,
+        fieldKey,
+        value: auto.value,
+        note: auto.note || "Auto-filled",
+        recordedAt: new Date().toISOString(),
+      });
+      if (!res.success) throw new Error(res.message || "Create failed");
+      toast.success("Auto value saved (editable)");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Auto-fill failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const seedEmptyForEstimator = async (estimatorId: string) => {
+    setSeedingId(estimatorId);
+    try {
+      const res = await seedEstimatorKpiAuto({
+        month,
+        estimatorId,
+        onlyEmpty: true,
+      });
+      toast.success(res.created > 0 ? `Auto-filled ${res.created} field(s)` : "Nothing new to fill");
+      await load();
+    } catch {
+      toast.error("Auto-fill failed");
+    } finally {
+      setSeedingId(null);
+    }
   };
 
   const handleSave = async (payload: { value: string; note: string; recordedAt: string }) => {
@@ -291,7 +366,7 @@ export default function TechnicalKpiPage() {
                   KPI Dashboard
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">
-                  One estimator open at a time. Add dated entries inside the scroll panel for monthly reports.
+                  Timers, check-in/out & delivery stats auto-fill — save them as editable entries for the monthly report.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
@@ -479,11 +554,25 @@ export default function TechnicalKpiPage() {
                         <div className="rounded-2xl border border-gray-200 bg-[#F7F8FC] shadow-inner overflow-hidden">
                           <div className="px-3 sm:px-4 py-2.5 border-b border-gray-200/80 bg-white/80 flex items-center justify-between gap-2 sticky top-0 z-[1]">
                             <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                              KPI fields · scroll inside
+                              KPI fields · auto + editable
                             </p>
-                            <span className="text-[10px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-md">
-                              {month}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void seedEmptyForEstimator(est.id);
+                                }}
+                                disabled={seedingId === est.id}
+                                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-violet-50 text-[#7C3AED] border border-violet-100 text-[11px] font-semibold hover:bg-violet-100 disabled:opacity-60"
+                              >
+                                <Sparkles size={12} />
+                                {seedingId === est.id ? "Filling…" : "Auto-fill empty"}
+                              </button>
+                              <span className="text-[10px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-md">
+                                {month}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="max-h-[min(58vh,520px)] overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3 custom-kpi-scroll">
@@ -498,6 +587,8 @@ export default function TechnicalKpiPage() {
                                       new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
                                   );
                                 const hasEntries = fieldRecords.length > 0;
+                                const auto = autoByEstimator.get(est.id)?.get(fieldKey) ?? null;
+                                const showAuto = Boolean(auto?.auto && auto.value.trim());
 
                                 return (
                                   <div
@@ -512,14 +603,21 @@ export default function TechnicalKpiPage() {
                                           className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                                             hasEntries
                                               ? "bg-emerald-50 text-emerald-700"
-                                              : "bg-[#FFF1F3] text-[#B8112D]"
+                                              : showAuto
+                                                ? "bg-violet-50 text-[#7C3AED]"
+                                                : "bg-[#FFF1F3] text-[#B8112D]"
                                           }`}
                                         >
                                           <Icon size={14} />
                                         </div>
                                         <div className="min-w-0">
-                                          <h4 className="text-[13px] font-bold text-[#0F172A] leading-tight">
+                                          <h4 className="text-[13px] font-bold text-[#0F172A] leading-tight inline-flex items-center gap-1.5 flex-wrap">
                                             {meta.label}
+                                            {showAuto ? (
+                                              <span className="text-[9px] font-bold uppercase tracking-wide text-[#7C3AED] bg-violet-50 px-1.5 py-0.5 rounded">
+                                                Auto
+                                              </span>
+                                            ) : null}
                                           </h4>
                                           {fieldKey === "productivity" && live ? (
                                             <p className="text-[10px] text-sky-700 mt-0.5">
@@ -533,23 +631,59 @@ export default function TechnicalKpiPage() {
                                           ) : null}
                                         </div>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openCreate(est, fieldKey);
-                                        }}
-                                        className="shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] shadow-sm"
-                                      >
-                                        <Plus size={13} />
-                                        Add
-                                      </button>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {showAuto && !hasEntries ? (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              void applyAutoField(est, fieldKey, auto!);
+                                            }}
+                                            disabled={saving}
+                                            className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-violet-50 text-[#7C3AED] border border-violet-100 text-[11px] font-semibold hover:bg-violet-100 disabled:opacity-60"
+                                            title="Save auto value as editable entry"
+                                          >
+                                            <Sparkles size={12} />
+                                            Use
+                                          </button>
+                                        ) : null}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openCreate(
+                                              est,
+                                              fieldKey,
+                                              showAuto
+                                                ? { value: auto!.value, note: auto!.note }
+                                                : undefined,
+                                            );
+                                          }}
+                                          className="shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#B8112D] text-white text-[11px] font-semibold hover:bg-[#a30f27] shadow-sm"
+                                        >
+                                          <Plus size={13} />
+                                          Add
+                                        </button>
+                                      </div>
                                     </div>
 
+                                    {showAuto ? (
+                                      <div className="px-3 py-2 border-t border-violet-50 bg-violet-50/40">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#7C3AED] mb-1">
+                                          Live auto suggestion
+                                        </p>
+                                        <pre className="text-[11px] text-[#0F172A] whitespace-pre-wrap break-words font-sans leading-relaxed max-h-28 overflow-y-auto">
+                                          {auto!.value}
+                                        </pre>
+                                      </div>
+                                    ) : null}
+
                                     {fieldRecords.length === 0 ? (
-                                      <div className="px-3 py-4 border-t border-dashed border-gray-100">
+                                      <div className="px-3 py-3 border-t border-dashed border-gray-100">
                                         <p className="text-[11px] text-gray-400 text-center">
-                                          Empty — tap Add to log with timestamp
+                                          {showAuto
+                                            ? "Not saved yet — tap Use or Add (prefilled) to keep an editable row"
+                                            : "Empty — tap Add to log with timestamp"}
                                         </p>
                                       </div>
                                     ) : (
@@ -630,7 +764,13 @@ export default function TechnicalKpiPage() {
           fieldKey={editor.fieldKey}
           estimatorName={editor.estimatorName}
           initial={editor.record}
-          liveHoursHint={editor.fieldKey === "productivity" ? liveHintFor(editor.estimatorId) : null}
+          draftValue={editor.draftValue}
+          draftNote={editor.draftNote}
+          liveHoursHint={
+            editor.fieldKey === "productivity" || editor.fieldKey === "project_time_spent"
+              ? liveHintFor(editor.estimatorId)
+              : null
+          }
           saving={saving}
           onClose={() => setEditor(null)}
           onSubmit={(payload) => void handleSave(payload)}
