@@ -268,6 +268,7 @@ export default function AssignEstimatorsModal({
         divisions: d.divisions,
         workDetail: d.workDetail.trim(),
         takeoffDone: false,
+        pricingSent: false,
         timerSeconds: 0,
         timerStartedAt: null,
       };
