@@ -38,11 +38,11 @@ export const ESTIMATOR_KPI_FIELD_META: Record<
   retained_clients: { label: "Retained clients", input: "number", hint: "Auto from returning-client projects" },
   punctuality: { label: "Punctuality", input: "text", hint: "Auto from overdue vs assigned" },
   avg_takeoff: { label: "Avg takeoff", input: "text", hint: "Auto average timer on completed" },
-  team_query_mistakes: { label: "Team query mistakes", input: "text", hint: "Manual" },
+  team_query_mistakes: { label: "Team query mistakes", input: "text", hint: "Auto from overdue follow-ups" },
   trades_history: { label: "Trades history", input: "textarea", hint: "Auto from scopes/trades" },
-  final_remarks: { label: "Final remarks", input: "textarea", hint: "Manual" },
-  marks_out_of_10: { label: "Marks (out of 10)", input: "marks10", hint: "Manual" },
-  rating_stars: { label: "Rating (out of 5)", input: "stars5", hint: "Manual" },
+  final_remarks: { label: "Final remarks", input: "textarea", hint: "Auto monthly performance summary" },
+  marks_out_of_10: { label: "Marks (out of 10)", input: "marks10", hint: "Auto score from KPI metrics" },
+  rating_stars: { label: "Rating (out of 5)", input: "stars5", hint: "Auto from marks" },
 };
 
 export function isEstimatorKpiFieldKey(raw: unknown): raw is EstimatorKpiFieldKey {

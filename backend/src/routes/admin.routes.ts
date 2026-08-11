@@ -50,6 +50,7 @@ import {
   validateKpiValue,
 } from "../utils/technicalKpiRecords";
 import { buildEstimatorKpiAuto } from "../utils/estimatorKpiAuto";
+import { buildPreviousMonthRatings } from "../utils/previousMonthRatings";
 import {
   listTechnicalEstimators,
   normalizeTechnicalAssignmentsInput,
@@ -873,6 +874,12 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
       req.query.technicalView === "1" ||
       req.query.technicalView === "true" ||
       req.query.forTechnical === "1";
+    const revisionsView =
+      req.query.revisions === "1" ||
+      req.query.revisions === "true";
+    const excludeRevisions =
+      req.query.excludeRevisions === "1" ||
+      req.query.excludeRevisions === "true";
 
     // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
     // No response cache — stale cache was bringing deleted projects back after toast.
@@ -936,6 +943,12 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
         const hidden = (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical;
         return hidden !== true;
       });
+    }
+
+    if (revisionsView) {
+      leads = leads.filter((l) => (l as { needsRevision?: boolean | null }).needsRevision === true);
+    } else if (technicalView && excludeRevisions) {
+      leads = leads.filter((l) => (l as { needsRevision?: boolean | null }).needsRevision !== true);
     }
 
     if (from || to) {
@@ -1495,6 +1508,70 @@ router.put(
   },
 );
 
+/* ================= ADMIN → TM REVISION QUEUE ================= */
+router.put(
+  "/project/:id/request-revision",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (req: AuthRequest, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const body = req.body as { revisionNotes?: string };
+      const revisionNotes = String(body.revisionNotes ?? "").trim().slice(0, 2000);
+
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: {
+          id: true,
+          projectTitle: true,
+          projectCode: true,
+          clientCode: true,
+          needsRevision: true,
+        },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          needsRevision: true,
+          revisionRequestedAt: new Date(),
+          revisionNotes: revisionNotes || null,
+          hiddenOnTechnical: false,
+        },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          uploadFile: { select: { companyName: true } },
+          notes: { orderBy: { createdAt: "desc" as const }, take: 5 },
+        },
+      });
+
+      const label = projectLabel(lead.projectCode || lead.clientCode, lead.projectTitle);
+      void notifyTmFromActor({
+        actorId: req.user?.id,
+        leadId: lead.id,
+        projectTitle: lead.projectTitle,
+        projectCode: lead.projectCode || lead.clientCode,
+        source: "admin",
+        title: "Revision requested",
+        message: revisionNotes
+          ? `${label}: sent for revision — ${revisionNotes}`
+          : `${label}: sent for revision`,
+        changes: ["Revision requested"],
+      });
+
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to send for revision" });
+    }
+  },
+);
+
 /* ================= TECHNICAL ESTIMATORS ================= */
 router.get(
   "/technical-estimators",
@@ -1624,6 +1701,21 @@ router.delete(
 );
 
 /* ================= ESTIMATOR KPI RECORDS (editable ledger) ================= */
+router.get(
+  "/technical-previous-month-ratings",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (_req, res) => {
+    try {
+      const payload = await buildPreviousMonthRatings();
+      return res.json({ success: true, ...payload });
+    } catch (err) {
+      console.error("technical-previous-month-ratings error:", err);
+      return res.status(500).json({ success: false, message: "Failed to load previous month ratings" });
+    }
+  },
+);
+
 router.get(
   "/technical-kpi-auto",
   verifyToken,

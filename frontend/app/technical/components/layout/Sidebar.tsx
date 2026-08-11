@@ -27,6 +27,7 @@ import {
   markTechnicalNotificationRead,
   sourceLabel,
   technicalProjectHref,
+  technicalRevisionHref,
   type TechnicalInboxNotification,
 } from "@/lib/technicalNotifications";
 
@@ -144,7 +145,11 @@ export default function TechnicalSidebar() {
         /* still navigate */
       }
     }
-    router.push(technicalProjectHref(n.leadId));
+    const href =
+      n.title.toLowerCase().includes("revision")
+        ? technicalRevisionHref(n.leadId)
+        : technicalProjectHref(n.leadId);
+    router.push(href);
   };
 
   const handleMarkAll = async () => {

@@ -118,6 +118,79 @@ function clientLabel(lead: {
   );
 }
 
+/** Auto marks / stars / remarks from monthly estimator stats. */
+function deriveReviewFields(
+  acc: {
+    assigned: number;
+    delivered: number;
+    pending: number;
+    overdue: number;
+    loggedSeconds: number;
+    plannedHours: number;
+    retainedProjects: number;
+  },
+  checkInDays: number,
+  month: string,
+): {
+  marks: string;
+  stars: string;
+  remarks: string;
+  queryMistakes: string;
+  hasData: boolean;
+} {
+  const hasData = acc.assigned > 0 || checkInDays > 0 || acc.loggedSeconds > 0;
+  if (!hasData) {
+    return { marks: "", stars: "", remarks: "", queryMistakes: "", hasData: false };
+  }
+
+  const completionRate = acc.assigned > 0 ? acc.delivered / acc.assigned : 0;
+  const punctualityRate = acc.assigned > 0 ? (acc.assigned - acc.overdue) / acc.assigned : 1;
+  const loggedHours = acc.loggedSeconds / 3600;
+  const activity =
+    acc.plannedHours > 0
+      ? Math.min(1, loggedHours / acc.plannedHours)
+      : Math.min(1, loggedHours / 40);
+  const attendance = checkInDays > 0 ? Math.min(1, checkInDays / 22) : 0;
+  const retainedBonus = Math.min(1, acc.retainedProjects * 0.25);
+
+  let marks =
+    completionRate * 3.5 +
+    punctualityRate * 2.5 +
+    activity * 2 +
+    attendance * 1 +
+    retainedBonus * 1;
+  marks = Math.max(0, Math.min(10, Math.round(marks * 10) / 10));
+
+  const stars = marks <= 0 ? 1 : Math.min(5, Math.max(1, Math.round(marks / 2)));
+
+  const tone =
+    marks >= 8
+      ? "Strong month"
+      : marks >= 6
+        ? "Solid performance"
+        : marks >= 4
+          ? "Needs improvement"
+          : "Below target";
+
+  const bits: string[] = [];
+  if (acc.delivered > 0) bits.push(`${acc.delivered} takeoff(s) completed`);
+  if (acc.retainedProjects > 0) bits.push(`${acc.retainedProjects} retained client project(s)`);
+  if (acc.overdue > 0) bits.push(`${acc.overdue} overdue item(s)`);
+  else if (acc.pending > 0) bits.push(`${acc.pending} pending`);
+  if (checkInDays > 0) bits.push(`${checkInDays} check-in day(s)`);
+  if (loggedHours > 0) bits.push(`${hoursLabel(acc.loggedSeconds)} logged`);
+
+  const remarks = `${tone} (${month}). ${bits.length ? bits.join(" · ") : "Limited activity this month"}.`;
+
+  return {
+    marks: String(marks),
+    stars: String(stars),
+    remarks,
+    queryMistakes: String(acc.overdue),
+    hasData: true,
+  };
+}
+
 /** Auto-computed KPI suggestions for the selected month (still editable when saved). */
 export async function buildEstimatorKpiAuto(month: string): Promise<{
   month: string;
@@ -397,6 +470,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       const trades =
         acc.trades.size > 0 ? [...acc.trades].sort((a, b) => a.localeCompare(b)).join(", ") : "No trades/scopes yet";
 
+      const review = deriveReviewFields(acc, checkInDays, month);
+
       const fieldMap: Partial<Record<EstimatorKpiFieldKey, { value: string; note: string; auto: boolean }>> = {
         projects_delivered: {
           value: String(acc.delivered),
@@ -441,10 +516,26 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
               : `Auto: returning-client projects credited to estimator (${month})`,
           auto: true,
         },
-        team_query_mistakes: { value: "", note: "Manual", auto: false },
-        final_remarks: { value: "", note: "Manual", auto: false },
-        marks_out_of_10: { value: "", note: "Manual", auto: false },
-        rating_stars: { value: "", note: "Manual", auto: false },
+        team_query_mistakes: {
+          value: review.queryMistakes,
+          note: `Auto: overdue assignments / follow-ups needing attention (${month})`,
+          auto: review.hasData,
+        },
+        final_remarks: {
+          value: review.remarks,
+          note: `Auto: monthly performance summary (${month})`,
+          auto: review.hasData,
+        },
+        marks_out_of_10: {
+          value: review.marks,
+          note: `Auto: score from delivery, punctuality, activity, attendance & retained clients (${month})`,
+          auto: review.hasData,
+        },
+        rating_stars: {
+          value: review.stars,
+          note: `Auto: rating derived from marks out of 10 (${month})`,
+          auto: review.hasData,
+        },
       };
 
       const fields: EstimatorKpiAutoField[] = ESTIMATOR_KPI_FIELD_KEYS.map((key) => {

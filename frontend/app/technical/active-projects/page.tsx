@@ -95,6 +95,9 @@ type Project = {
   pricingReceivedAt?: string | null;
   technicalAssignments?: string | null;
   technicalNotes?: string | null;
+  needsRevision?: boolean;
+  revisionRequestedAt?: string | null;
+  revisionNotes?: string | null;
   createdAt?: string;
   updatedAt: string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
@@ -844,12 +847,18 @@ export default function TechnicalActiveProjectsPage() {
         </div>
       }
     >
-      <TechnicalActiveProjectsPageInner />
+      <TechnicalActiveProjectsPageInner variant="active" />
     </Suspense>
   );
 }
 
-function TechnicalActiveProjectsPageInner() {
+export type TechnicalProjectsVariant = "active" | "revisions";
+
+export function TechnicalActiveProjectsPageInner({
+  variant = "active",
+}: {
+  variant?: TechnicalProjectsVariant;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const focusProjectId = (searchParams.get("project") || "").trim();
@@ -870,6 +879,8 @@ function TechnicalActiveProjectsPageInner() {
   const [editSaving, setEditSaving] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const focusHandledRef = useRef<string | null>(null);
+  const isRevisions = variant === "revisions";
+  const basePath = isRevisions ? "/technical/revisions" : "/technical/active-projects";
 
   const fetchProjects = useCallback(async (silent = false) => {
     try {
@@ -878,6 +889,8 @@ function TechnicalActiveProjectsPageInner() {
         from: dateFrom || undefined,
         to: dateTo || undefined,
         technicalView: true,
+        revisionsOnly: isRevisions,
+        excludeRevisions: !isRevisions,
       });
       setProjects(Array.isArray(leads) ? leads : []);
     } catch {
@@ -888,7 +901,7 @@ function TechnicalActiveProjectsPageInner() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, isRevisions]);
 
   useEffect(() => {
     void fetchProjects();
@@ -948,7 +961,13 @@ function TechnicalActiveProjectsPageInner() {
       if (cancelled) return;
       if (!project) {
         toast.error("Project from notification not found");
-        router.replace("/technical/active-projects");
+        router.replace(basePath);
+        return;
+      }
+
+      if (isRevisions && !project.needsRevision) {
+        toast.error("This project is not in the revision queue");
+        router.replace(basePath);
         return;
       }
 
@@ -958,7 +977,7 @@ function TechnicalActiveProjectsPageInner() {
       setSearch(project.projectCode || project.projectTitle || "");
       setHighlightId(project.id);
       setEditProject(project);
-      router.replace("/technical/active-projects");
+      router.replace(basePath);
       window.setTimeout(() => {
         document
           .querySelector(`[data-project-row="${project!.id}"]`)
@@ -970,7 +989,7 @@ function TechnicalActiveProjectsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [focusProjectId, loading, router]);
+  }, [focusProjectId, loading, router, basePath, isRevisions]);
 
   // Refresh roster every time Assign modal opens
   useEffect(() => {
@@ -1259,10 +1278,12 @@ function TechnicalActiveProjectsPageInner() {
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
-              Active Projects
+              {isRevisions ? "Revisions" : "Active Projects"}
             </h1>
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-              Technical workflow — assign estimators, track takeoff, pricing & submission.
+              {isRevisions
+                ? "Admin-sent revision projects — assign estimators like Active Projects."
+                : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

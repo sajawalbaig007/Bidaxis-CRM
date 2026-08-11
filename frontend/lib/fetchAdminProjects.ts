@@ -7,6 +7,10 @@ type FetchAdminProjectsParams = {
   search?: string;
   /** Exclude projects soft-removed from Technical portal */
   technicalView?: boolean;
+  /** TM Revisions section only */
+  revisionsOnly?: boolean;
+  /** Hide revision-queue projects from TM Active Projects */
+  excludeRevisions?: boolean;
 };
 
 /**
@@ -26,6 +30,8 @@ export async function fetchAllAdminProjects<T = Record<string, unknown>>(
   if (params.to) query.to = params.to;
   if (params.search?.trim()) query.search = params.search.trim();
   if (params.technicalView) query.technicalView = "1";
+  if (params.revisionsOnly) query.revisions = "1";
+  if (params.excludeRevisions) query.excludeRevisions = "1";
 
   const res = await API.get("/admin/projects", { params: query });
   const leads = (res.data.leads ?? []) as T[];
