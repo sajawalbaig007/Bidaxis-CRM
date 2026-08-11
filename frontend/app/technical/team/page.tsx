@@ -12,17 +12,17 @@ import {
   Search,
   Timer,
   Users,
+  Star,
 } from "lucide-react";
 import TechnicalSidebar from "../components/layout/Sidebar";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { formatDivisionSummary, formatElapsed } from "@/lib/technicalAssignments";
 import {
-  currentMonthValue,
-  fetchEstimatorKpiRecords,
-  formatKpiTimestamp,
-  starsLabel,
-  type EstimatorKpiRecord,
-} from "@/lib/estimatorKpiRecords";
+  fetchPreviousMonthRatings,
+  ratingByEstimatorId,
+  starsDisplay,
+  type EstimatorMonthRating,
+} from "@/lib/estimatorPreviousMonthRating";
 import {
   fetchTechnicalMonitoring,
   formatDeadline,
@@ -47,15 +47,10 @@ function utilizationPct(loggedSeconds: number, plannedHours: number) {
   return Math.min(100, Math.round((loggedSeconds / 3600 / plannedHours) * 100));
 }
 
-function latestByField(records: EstimatorKpiRecord[], fieldKey: string) {
-  return [...records]
-    .filter((r) => r.fieldKey === fieldKey)
-    .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())[0] ?? null;
-}
-
 export default function TechnicalTeamPage() {
   const [team, setTeam] = useState<TechnicalTeamMember[]>([]);
-  const [kpiRecords, setKpiRecords] = useState<EstimatorKpiRecord[]>([]);
+  const [prevRatings, setPrevRatings] = useState<EstimatorMonthRating[]>([]);
+  const [prevMonthLabel, setPrevMonthLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -63,26 +58,31 @@ export default function TechnicalTeamPage() {
   const [sort, setSort] = useState<TeamSort>("busy");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const month = currentMonthValue();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [mon, kpi] = await Promise.all([
+      const [mon, ratingsRes] = await Promise.all([
         fetchTechnicalMonitoring(),
-        fetchEstimatorKpiRecords(month).catch(() => null),
+        fetchPreviousMonthRatings().catch(() => null),
       ]);
       setTeam(Array.isArray(mon.team) ? mon.team : []);
       setGeneratedAt(mon.generatedAt ?? null);
-      setKpiRecords(Array.isArray(kpi?.records) ? kpi!.records : []);
+      if (ratingsRes?.success) {
+        setPrevRatings(ratingsRes.ratings);
+        setPrevMonthLabel(ratingsRes.monthLabel);
+      } else {
+        setPrevRatings([]);
+        setPrevMonthLabel("");
+      }
     } catch {
       setTeam([]);
-      setKpiRecords([]);
+      setPrevRatings([]);
       setGeneratedAt(null);
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -97,15 +97,7 @@ export default function TechnicalTeamPage() {
     return () => window.clearInterval(tick);
   }, []);
 
-  const kpiByEstimator = useMemo(() => {
-    const map = new Map<string, EstimatorKpiRecord[]>();
-    for (const r of kpiRecords) {
-      const list = map.get(r.estimatorId) ?? [];
-      list.push(r);
-      map.set(r.estimatorId, list);
-    }
-    return map;
-  }, [kpiRecords]);
+  const ratingMap = useMemo(() => ratingByEstimatorId(prevRatings), [prevRatings]);
 
   const summary = useMemo(() => {
     let pending = 0;
@@ -223,7 +215,10 @@ export default function TechnicalTeamPage() {
                 Team Monitoring
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                Estimator jobs, timers, deadlines + this month&apos;s KPI marks/stars.
+                Estimator jobs, timers, deadlines + previous month KPI rating.
+                {prevMonthLabel ? (
+                  <span className="text-violet-600 font-medium"> · {prevMonthLabel}</span>
+                ) : null}
                 {generatedAt ? (
                   <span className="text-gray-400"> · Synced {new Date(generatedAt).toLocaleTimeString()}</span>
                 ) : null}
@@ -335,10 +330,7 @@ export default function TechnicalTeamPage() {
               filtered.map((m) => {
                 const open = expanded[m.estimatorId] ?? false;
                 const util = utilizationPct(m.loggedSeconds, m.plannedHours);
-                const monthKpis = kpiByEstimator.get(m.estimatorId) ?? [];
-                const marks = latestByField(monthKpis, "marks_out_of_10");
-                const stars = latestByField(monthKpis, "rating_stars");
-                const remarks = latestByField(monthKpis, "final_remarks");
+                const prev = ratingMap.get(m.estimatorId);
 
                 return (
                   <article
@@ -385,14 +377,15 @@ export default function TechnicalTeamPage() {
                                   <AlertTriangle size={11} /> {m.overdue} overdue
                                 </span>
                               ) : null}
-                              {marks ? (
-                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">
-                                  {marks.value}/10
+                              {prev?.marks ? (
+                                <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-lg" title={prevMonthLabel ? `${prevMonthLabel} marks` : undefined}>
+                                  {prev.marks}/10
                                 </span>
                               ) : null}
-                              {stars ? (
-                                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg">
-                                  {starsLabel(stars.value)}
+                              {prev?.stars ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg" title={prevMonthLabel ? `${prevMonthLabel} rating` : undefined}>
+                                  <Star size={10} className="fill-amber-400 text-amber-400" />
+                                  {starsDisplay(prev.stars)}
                                 </span>
                               ) : null}
                             </div>
@@ -401,10 +394,10 @@ export default function TechnicalTeamPage() {
                               {formatLoggedHours(m.loggedSeconds)} logged
                               {m.plannedHours > 0 ? ` / ${m.plannedHours}h planned` : ""}
                             </p>
-                            {remarks ? (
+                            {prev?.remarks ? (
                               <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">
-                                Remarks: {remarks.value}
-                                <span className="text-gray-400"> · {formatKpiTimestamp(remarks.recordedAt)}</span>
+                                {prevMonthLabel ? `${prevMonthLabel}: ` : ""}
+                                {prev.remarks}
                               </p>
                             ) : null}
                           </div>
@@ -546,7 +539,10 @@ export default function TechnicalTeamPage() {
                         )}
                         <div className="px-4 py-2.5 border-t border-gray-50 bg-[#FAFAFA] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <p className="text-[11px] text-gray-400">
-                            KPI month {month}: {monthKpis.length} entr{monthKpis.length === 1 ? "y" : "ies"}
+                            {prevMonthLabel
+                              ? `Previous month rating (${prevMonthLabel})`
+                              : "Previous month KPI rating"}
+                            {prev ? ` · ${prev.marks || "—"}/10` : ""}
                           </p>
                           <div className="flex items-center gap-3 justify-end">
                             <Link

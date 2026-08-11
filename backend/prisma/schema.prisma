@@ -113,6 +113,10 @@ model Lead {
   projectWorkStatus    String?
   /** Soft-removed from Technical portal only — still visible in Admin Project DB. */
   hiddenOnTechnical    Boolean   @default(false)
+  /** Admin sent project back for revision — shows in TM Revisions section. */
+  needsRevision          Boolean   @default(false)
+  revisionRequestedAt    DateTime?
+  revisionNotes            String?
   clientCode         String?
   state              String?
   isOldClient        Boolean   @default(false)

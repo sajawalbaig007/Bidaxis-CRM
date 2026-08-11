@@ -8,7 +8,7 @@ import {
   Search, FolderKanban, X, Eye,
   Calendar, Building2, User2,
   ChevronDown, ArrowRightLeft, Check, RefreshCw,
-  Plus,
+  Plus, GitBranch,
 } from "lucide-react";
 
 import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
@@ -85,6 +85,9 @@ type Project = {
   projectSource:     string | null;
   projectWorkStatus?: string | null;
   technicalAssignments?: string | null;
+  needsRevision?: boolean;
+  revisionRequestedAt?: string | null;
+  revisionNotes?: string | null;
   isOldClient:       boolean;
   updatedAt:         string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
@@ -177,6 +180,7 @@ function ProjectCard({
   p,
   onView,
   onReassign,
+  onRequestRevision,
   onAddNote,
   onTimingChange,
   hideClientFinanceCols = false,
@@ -184,6 +188,7 @@ function ProjectCard({
   p: Project;
   onView: () => void;
   onReassign: () => void;
+  onRequestRevision?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
@@ -199,6 +204,19 @@ function ProjectCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {!hideClientFinanceCols && onRequestRevision && (
+            <button
+              onClick={onRequestRevision}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                p.needsRevision
+                  ? "bg-violet-100 text-violet-700"
+                  : "bg-violet-50 text-violet-600 hover:bg-violet-100"
+              }`}
+              title={p.needsRevision ? "In revision queue" : "Send for revision"}
+            >
+              <GitBranch size={13} />
+            </button>
+          )}
           {!hideClientFinanceCols && (
             <button onClick={onReassign}
               className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100">
@@ -296,6 +314,7 @@ function ProjectsSection({
   search,
   onView,
   onReassign,
+  onRequestRevision,
   onAddNote,
   onTimingChange,
   hideClientFinanceCols = false,
@@ -307,6 +326,7 @@ function ProjectsSection({
   search: string;
   onView: (p: Project) => void;
   onReassign: (p: Project) => void;
+  onRequestRevision?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
@@ -333,6 +353,7 @@ function ProjectsSection({
               p={p}
               onView={() => onView(p)}
               onReassign={() => void onReassign(p)}
+              onRequestRevision={onRequestRevision ? () => onRequestRevision(p) : undefined}
               onAddNote={onAddNote}
               onTimingChange={onTimingChange}
               hideClientFinanceCols={hideClientFinanceCols}
@@ -454,6 +475,19 @@ function ProjectsSection({
                     </td>
                     <td className="px-2 xl:px-3 py-3 xl:py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        {!hideClientFinanceCols && onRequestRevision && (
+                          <button
+                            onClick={() => onRequestRevision(p)}
+                            className={`w-8 h-8 rounded-xl text-[10px] font-medium flex items-center justify-center shrink-0 ${
+                              p.needsRevision
+                                ? "bg-violet-100 text-violet-700"
+                                : "bg-violet-50 text-violet-600 hover:bg-violet-100"
+                            }`}
+                            title={p.needsRevision ? "In revision queue" : "Send for revision"}
+                          >
+                            <GitBranch size={12} />
+                          </button>
+                        )}
                         {!hideClientFinanceCols && (
                           <button
                             onClick={() => void onReassign(p)}
@@ -563,6 +597,11 @@ export default function AdminProjectsPage() {
   const [selCsrId,      setSelCsrId]      = useState("");
   const [isReassigning, setIsReassigning] = useState(false);
   const [csrOptsLoaded, setCsrOptsLoaded] = useState(false);
+
+  const [showRevision, setShowRevision] = useState(false);
+  const [revisionProj, setRevisionProj] = useState<Project | null>(null);
+  const [revisionNotes, setRevisionNotes] = useState("");
+  const [revisionSaving, setRevisionSaving] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addDraft,     setAddDraft]     = useState<ProjectWorkbenchData | null>(null);
@@ -781,6 +820,32 @@ export default function AdminProjectsPage() {
       setReassignProj(null);
     } catch { toast.error("Failed to reassign project."); }
     finally { setIsReassigning(false); }
+  };
+
+  const openRevision = (p: Project) => {
+    setRevisionProj(p);
+    setRevisionNotes(p.revisionNotes ?? "");
+    setShowRevision(true);
+  };
+
+  const confirmRevision = async () => {
+    if (!revisionProj) return;
+    setRevisionSaving(true);
+    try {
+      const res = await API.put(`/admin/project/${revisionProj.id}/request-revision`, {
+        revisionNotes: revisionNotes.trim(),
+      });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success("Sent to Technical Manager → Revisions");
+      setShowRevision(false);
+      setRevisionProj(null);
+      setRevisionNotes("");
+    } catch {
+      toast.error("Failed to send for revision");
+    } finally {
+      setRevisionSaving(false);
+    }
   };
 
   const fetchProjects = useCallback(async (silent = false) => {
@@ -1025,6 +1090,7 @@ export default function AdminProjectsPage() {
             void API.put(`/admin/lead/${p.id}/technical-notes/read`).catch(() => {});
           }}
           onReassign={openReassign}
+          onRequestRevision={hideClientFinanceCols ? undefined : openRevision}
           onAddNote={addAdminNote}
           onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}
           hideClientFinanceCols={hideClientFinanceCols}
@@ -1067,6 +1133,68 @@ export default function AdminProjectsPage() {
             onPhonePaste,
           }}
         />
+
+      {/* ══ SEND FOR REVISION MODAL ══ */}
+      {showRevision && revisionProj && !hideClientFinanceCols && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-[32px] shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-br from-violet-600 to-violet-800 px-5 sm:px-6 pt-5 pb-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                    <GitBranch size={18} />
+                    Send for Revision
+                  </h2>
+                  <p className="text-white/70 text-xs sm:text-sm mt-0.5">
+                    {revisionProj.projectTitle ?? revisionProj.name ?? "Project"} → Technical Manager Revisions
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowRevision(false)}
+                  className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center text-white shrink-0"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 sm:px-6 py-4 space-y-3">
+              <label className="block text-xs font-semibold text-gray-600">
+                Revision notes (optional)
+                <textarea
+                  value={revisionNotes}
+                  onChange={(e) => setRevisionNotes(e.target.value)}
+                  rows={4}
+                  placeholder="What needs to be revised — construction, as-built, takeoff, pricing…"
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-[#0F172A] outline-none focus:border-violet-400 resize-none"
+                />
+              </label>
+              {revisionProj.needsRevision ? (
+                <p className="text-xs text-violet-700 bg-violet-50 px-3 py-2 rounded-xl">
+                  Already in revision queue — sending again will update notes and notify Technical Manager.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex gap-3 px-5 sm:px-6 pb-5 pt-2">
+              <button
+                onClick={() => setShowRevision(false)}
+                className="flex-1 h-11 rounded-2xl bg-[#F5F6FA] text-gray-600 font-semibold text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void confirmRevision()}
+                disabled={revisionSaving}
+                className="flex-1 h-11 rounded-2xl bg-violet-600 text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                <GitBranch size={14} />
+                {revisionSaving ? "Sending…" : "Send to Revisions"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ REASSIGN CSR MODAL ══ */}
       {showReassign && reassignProj && !hideClientFinanceCols && (

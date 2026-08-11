@@ -27,6 +27,7 @@ import {
   getCsrWorkSessionStatus,
   tickCsrWorkSession,
 } from "../utils/csrSessionTracking";
+import { buildPreviousMonthRatings } from "../utils/previousMonthRatings";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { formatEstDateTime } from "../utils/estTime";
 
@@ -192,6 +193,31 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to load dashboard" });
+  }
+});
+
+router.get("/previous-month-rating", async (req: AuthRequest, res) => {
+  try {
+    const me = await currentEstimator(req);
+    if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const payload = await buildPreviousMonthRatings();
+    const rating =
+      payload.ratings.find((r) => r.estimatorId === me.id) ??
+      payload.ratings.find(
+        (r) => r.name.trim().toLowerCase() === me.name.trim().toLowerCase(),
+      ) ??
+      null;
+
+    return res.json({
+      success: true,
+      month: payload.month,
+      monthLabel: payload.monthLabel,
+      rating,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to load previous month rating" });
   }
 });
 

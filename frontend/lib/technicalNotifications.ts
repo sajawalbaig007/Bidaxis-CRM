@@ -46,6 +46,10 @@ export function technicalProjectHref(leadId: string): string {
   return `/technical/active-projects?project=${encodeURIComponent(leadId)}`;
 }
 
+export function technicalRevisionHref(leadId: string): string {
+  return `/technical/revisions?project=${encodeURIComponent(leadId)}`;
+}
+
 export function formatNotifTime(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);

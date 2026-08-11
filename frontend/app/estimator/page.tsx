@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
-  ArrowRight, RefreshCw,
+  ArrowRight, RefreshCw, Star, Trophy,
 } from "lucide-react";
 import EstimatorSidebar from "./components/layout/Sidebar";
 import API from "@/lib/api";
+import { fetchMyPreviousMonthRating, starsDisplay, type EstimatorMonthRating } from "@/lib/estimatorPreviousMonthRating";
 
 type RecentRow = {
   id: string;
@@ -33,16 +34,29 @@ export default function EstimatorDashboardPage() {
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, takeoffDone: 0, overdue: 0 });
   const [recent, setRecent] = useState<RecentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [prevRating, setPrevRating] = useState<EstimatorMonthRating | null>(null);
+  const [prevMonthLabel, setPrevMonthLabel] = useState("");
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await API.get("/estimator/dashboard");
-      setStats(res.data?.stats ?? { total: 0, pending: 0, takeoffDone: 0, overdue: 0 });
-      setRecent(Array.isArray(res.data?.recent) ? res.data.recent : []);
+      const [dashRes, ratingRes] = await Promise.all([
+        API.get("/estimator/dashboard"),
+        fetchMyPreviousMonthRating().catch(() => null),
+      ]);
+      setStats(dashRes.data?.stats ?? { total: 0, pending: 0, takeoffDone: 0, overdue: 0 });
+      setRecent(Array.isArray(dashRes.data?.recent) ? dashRes.data.recent : []);
+      if (ratingRes?.success) {
+        setPrevRating(ratingRes.rating);
+        setPrevMonthLabel(ratingRes.monthLabel);
+      } else {
+        setPrevRating(null);
+        setPrevMonthLabel("");
+      }
     } catch {
       setStats({ total: 0, pending: 0, takeoffDone: 0, overdue: 0 });
       setRecent([]);
+      setPrevRating(null);
     } finally {
       setLoading(false);
     }
@@ -82,6 +96,45 @@ export default function EstimatorDashboardPage() {
               {loading ? "Refreshing…" : "Refresh stats"}
             </button>
           </header>
+
+          {prevRating ? (
+            <section className="rounded-2xl sm:rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-amber-50/40 p-4 sm:p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+                    <Trophy size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-violet-600">
+                      {prevMonthLabel} — your rating
+                    </p>
+                    <p className="text-sm sm:text-base font-bold text-[#0F172A] mt-0.5">
+                      Shown all month on your dashboard
+                    </p>
+                    {prevRating.remarks ? (
+                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{prevRating.remarks}</p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 shrink-0">
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Marks</p>
+                    <p className="text-2xl font-extrabold text-violet-700 tabular-nums">
+                      {prevRating.marks || "—"}
+                      <span className="text-sm text-gray-400">/10</span>
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Stars</p>
+                    <p className="text-lg text-amber-500 tracking-wide flex items-center gap-1">
+                      <Star size={14} className="fill-amber-400 text-amber-400" />
+                      {starsDisplay(prevRating.stars)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section aria-label="Quick stats">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">

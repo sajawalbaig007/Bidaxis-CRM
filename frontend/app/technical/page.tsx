@@ -4,10 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
-  ArrowRight, BarChart3, Users, GitBranch, RefreshCw,
+  ArrowRight, BarChart3, Users, GitBranch, RefreshCw, FileText, Trophy,
 } from "lucide-react";
 import TechnicalSidebar from "./components/layout/Sidebar";
 import API from "@/lib/api";
+import {
+  fetchPreviousMonthRatings,
+  starsDisplay,
+  topPerformers,
+  type EstimatorMonthRating,
+} from "@/lib/estimatorPreviousMonthRating";
 
 type ProjectRow = {
   id: string;
@@ -38,17 +44,33 @@ function isOverdue(p: ProjectRow) {
 export default function TechnicalDashboardPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [top5, setTop5] = useState<EstimatorMonthRating[]>([]);
+  const [prevMonthLabel, setPrevMonthLabel] = useState("");
+  const [ratingsLoading, setRatingsLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
+    setRatingsLoading(true);
     try {
-      const res = await API.get("/admin/projects", { params: { limit: 100 } });
-      const rows = res.data?.leads ?? res.data?.projects ?? [];
+      const [projRes, ratingsRes] = await Promise.all([
+        API.get("/admin/projects", { params: { limit: 100, technicalView: "1", excludeRevisions: "1" } }),
+        fetchPreviousMonthRatings().catch(() => null),
+      ]);
+      const rows = projRes.data?.leads ?? projRes.data?.projects ?? [];
       setProjects(Array.isArray(rows) ? (rows as ProjectRow[]) : []);
+      if (ratingsRes?.success) {
+        setTop5(topPerformers(ratingsRes.ratings, 5));
+        setPrevMonthLabel(ratingsRes.monthLabel);
+      } else {
+        setTop5([]);
+        setPrevMonthLabel("");
+      }
     } catch {
       setProjects([]);
+      setTop5([]);
     } finally {
       setLoading(false);
+      setRatingsLoading(false);
     }
   };
 
@@ -85,6 +107,7 @@ export default function TechnicalDashboardPage() {
     { title: "KPI Dashboard", desc: "Pipeline health, completion rates & estimator scores", href: "/technical/kpi", icon: BarChart3 },
     { title: "Team Monitoring", desc: "Live workload, timers, deadlines & monthly KPI snapshot", href: "/technical/team", icon: Users },
     { title: "Revision Monitoring", desc: "Construction, as-built, take-off, pricing", href: "/technical/revisions", icon: GitBranch },
+    { title: "Reports", desc: "Monthly KPI export, charts & Save to Word", href: "/technical/reports", icon: FileText },
   ];
 
   return (
@@ -141,6 +164,70 @@ export default function TechnicalDashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#FFFBEB] to-white">
+              <div>
+                <h2 className="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-2">
+                  <Trophy size={16} className="text-amber-500" />
+                  Top 5 Performers
+                </h2>
+                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+                  {prevMonthLabel ? `${prevMonthLabel} rating` : "Previous month KPI marks & stars"}
+                </p>
+              </div>
+              <Link href="/technical/kpi" className="text-xs sm:text-sm font-semibold text-[#B8112D] hover:underline">
+                KPI Dashboard
+              </Link>
+            </div>
+            <div className="p-4 sm:p-5">
+              {ratingsLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="h-24 rounded-2xl bg-gray-100 animate-pulse" />
+                  ))}
+                </div>
+              ) : top5.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">
+                  No previous month ratings yet — auto-fill KPI at month end.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {top5.map((e, idx) => (
+                    <div
+                      key={e.estimatorId}
+                      className={`rounded-2xl border p-4 flex flex-col gap-2 ${
+                        idx === 0
+                          ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white ring-1 ring-amber-100"
+                          : "border-gray-100 bg-[#FAFBFC]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-extrabold ${
+                            idx === 0 ? "bg-amber-400 text-white" : "bg-gray-200 text-gray-600"
+                          }`}
+                        >
+                          #{idx + 1}
+                        </span>
+                        <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
+                          {e.marks ? `${e.marks}/10` : "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-[#0F172A] truncate">{e.name}</p>
+                        <p className="text-[10px] text-gray-400">{e.code}</p>
+                      </div>
+                      <p className="text-amber-600 text-sm tracking-wide">{starsDisplay(e.stars)}</p>
+                      {e.delivered ? (
+                        <p className="text-[10px] text-gray-500">{e.delivered} delivered</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
