@@ -66,19 +66,19 @@ import {
   type TechnicalAssignment,
 } from "../utils/technicalEstimators";
 import {
-  diffProjectChangesForTm,
-  notifyTmFromActor,
-  parseChangeSummary,
-  projectLabel,
-} from "../utils/technicalNotifications";
+  buildProjectDbTemplateBuffer,
+  parseProjectDbExcel,
+  excelRowToProjectBody,
+} from "../utils/projectDbExcel";
+import { uploadExcel } from "../middleware/upload.middleware";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
 
 function applyProjectPayload(updateData: Record<string, unknown>, body: Record<string, unknown>) {
   const scalars = [
-    "name", "company", "phone", "email", "state", "ownerName",
-    "projectCode", "projectTitle", "projectScope", "interestedService",
+    "name", "company", "phone", "email", "state", "ownerName", "timezone",
+    "projectCode", "clientCode", "projectTitle", "projectScope", "interestedService",
     "projectBudget", "projectDeadline", "deadlineTiming", "projectNotes", "projectPhase",
     "takeoffDeadline", "pricingDeadline", "qaDeadline", "projectSource",
     "projectWorkStatus",
@@ -972,8 +972,16 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
     // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset)
     if (technicalView) {
       leads = leads.filter((l) => {
-        const hidden = (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical;
-        return hidden !== true;
+        const row = l as {
+          hiddenOnTechnical?: boolean | null;
+          projectWorkStatus?: string | null;
+          status?: string | null;
+        };
+        if (row.hiddenOnTechnical === true) return false;
+        const work = String(row.projectWorkStatus ?? "").toLowerCase();
+        const st = String(row.status ?? "").toLowerCase();
+        if (work === "completed" || st === "completed") return false;
+        return true;
       });
     }
 
@@ -1046,6 +1054,187 @@ router.get("/lookup-by-phone", verifyToken, allowRoles("admin", "manager", "tech
     return res.status(500).json({ success: false, message: "Failed to lookup client" });
   }
 });
+
+/* ================= PROJECT DB EXCEL TEMPLATE ================= */
+router.get(
+  "/projects/excel-template",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (_req, res) => {
+    try {
+      const buf = buildProjectDbTemplateBuffer();
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="project-db-template.xlsx"',
+      );
+      return res.send(buf);
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to build template" });
+    }
+  },
+);
+
+/* ================= PROJECT DB EXCEL UPLOAD (bulk historical OK) ================= */
+router.post(
+  "/projects/excel-upload",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  uploadExcel.single("file"),
+  async (req: AuthRequest, res) => {
+    try {
+      const file = req.file;
+      if (!file?.buffer?.length) {
+        return res.status(400).json({ success: false, message: "Excel file is required." });
+      }
+
+      const adminId = req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const { rows, errors: parseErrors } = parseProjectDbExcel(file.buffer);
+      if (!rows.length && parseErrors.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Could not parse any valid project rows.",
+          errors: parseErrors.slice(0, 50),
+          created: 0,
+          failed: parseErrors.length,
+        });
+      }
+      if (!rows.length) {
+        return res.status(400).json({
+          success: false,
+          message: "No project rows found. Fill the Projects sheet using the template.",
+          errors: [],
+          created: 0,
+          failed: 0,
+        });
+      }
+
+      const csrList = await prisma.user.findMany({
+        where: { role: "csr", isActive: true },
+        select: { id: true, csrCode: true },
+      });
+      const csrByCode = new Map(
+        csrList
+          .filter((c) => c.csrCode)
+          .map((c) => [String(c.csrCode).trim().toUpperCase(), c.id] as const),
+      );
+
+      const rowErrors = [...parseErrors];
+      let created = 0;
+      const syncDates = new Set<string>();
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]!;
+        const excelRowApprox = i + 2;
+        try {
+          const body = excelRowToProjectBody(row);
+          const createData: Record<string, unknown> = {};
+          applyProjectPayload(createData, body);
+
+          const code = String(row.csrCode ?? "").trim().toUpperCase();
+          const sourceText = String(row.projectSource ?? "").trim();
+          let assignTo = adminId;
+          let sourceLabel: string | null = null;
+
+          if (code) {
+            const csrId = csrByCode.get(code);
+            if (!csrId) {
+              rowErrors.push({
+                row: excelRowApprox,
+                message: `Unknown or inactive csrCode: ${row.csrCode}`,
+              });
+              continue;
+            }
+            assignTo = csrId;
+          } else if (sourceText) {
+            sourceLabel = sourceText;
+          }
+
+          createData.assignedTo = assignTo;
+          createData.projectSource = sourceLabel;
+          createData.status = body.status ?? "Close Client";
+          createData.important = false;
+          createData.interested = false;
+          createData.hiddenOnMain = true;
+          if (!createData.technicalReceivedAt) {
+            createData.technicalReceivedAt = new Date();
+          }
+          if (row.clientCode?.trim()) createData.clientCode = row.clientCode.trim();
+          if (row.timezone?.trim()) createData.timezone = row.timezone.trim();
+
+          const phone = typeof createData.phone === "string" ? createData.phone.trim() : "";
+          if (phone) {
+            const existingLeads = await findLeadsByPhone(phone);
+            createData.isOldClient = existingLeads.length > 0;
+          } else {
+            createData.isOldClient = false;
+          }
+
+          if (row.createdAt && /^\d{4}-\d{2}-\d{2}/.test(row.createdAt)) {
+            const d = new Date(`${row.createdAt.slice(0, 10)}T12:00:00.000Z`);
+            if (!Number.isNaN(d.getTime())) {
+              createData.createdAt = d;
+              createData.updatedAt = d;
+            }
+          }
+
+          await prisma.lead.create({
+            data: createData as Parameters<typeof prisma.lead.create>[0]["data"],
+          });
+          created += 1;
+
+          if (typeof createData.projectPayments === "string") {
+            for (const d of paidDatesFromPayments(parseProjectPayments(createData.projectPayments))) {
+              syncDates.add(d);
+            }
+          }
+          if (assignTo !== adminId) {
+            invalidateCache(
+              `csr:dashboard:${assignTo}`,
+              `csr:projects:${assignTo}`,
+              `csr:leads:${assignTo}`,
+            );
+          }
+        } catch (err) {
+          console.log(err);
+          rowErrors.push({
+            row: excelRowApprox,
+            message: "Failed to create project row.",
+          });
+        }
+      }
+
+      if (syncDates.size) {
+        await syncAccountsCurrencyForDates([...syncDates], adminId);
+      }
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+
+      return res.json({
+        success: true,
+        created,
+        failed: rowErrors.length,
+        totalRows: rows.length,
+        errors: rowErrors.slice(0, 80),
+        message:
+          created > 0
+            ? `Imported ${created} project(s)${rowErrors.length ? `, ${rowErrors.length} row error(s)` : ""}.`
+            : "No projects imported.",
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to upload projects Excel" });
+    }
+  },
+);
 
 /* ================= ADD PROJECT (ADMIN) ================= */
 router.post("/project", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req: AuthRequest, res) => {
@@ -1536,6 +1725,67 @@ router.put(
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to remove from technical" });
+    }
+  },
+);
+
+/* ================= MARK COMPLETED (Admin: after Final Submission → hide from TM) ================= */
+router.put(
+  "/project/:id/mark-completed",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, assignedTo: true, projectPhase: true, projectWorkStatus: true, status: true },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+      const work = String(existing.projectWorkStatus ?? "").toLowerCase();
+      const st = String(existing.status ?? "").toLowerCase();
+      if (work === "completed" || st === "completed") {
+        const lead = await prisma.lead.findUnique({
+          where: { id: leadId },
+          include: {
+            csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            notes: { orderBy: { createdAt: "asc" }, take: 20 },
+            uploadFile: { select: { companyName: true } },
+          },
+        });
+        return res.json({ success: true, lead });
+      }
+      const phase = String(existing.projectPhase ?? "").toLowerCase();
+      if (phase !== "qa_phase" && phase !== "delivery_phase") {
+        return res.status(400).json({
+          success: false,
+          message: "Project must be in Final Submission before marking completed.",
+        });
+      }
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          projectWorkStatus: "completed",
+          status: "completed",
+          projectPhase: "delivery_phase",
+          hiddenOnTechnical: true,
+          needsRevision: false,
+        },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      if (lead.assignedTo) invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to mark project completed" });
     }
   },
 );

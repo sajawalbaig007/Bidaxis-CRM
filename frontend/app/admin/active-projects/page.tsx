@@ -8,7 +8,7 @@ import {
   Search, FolderKanban, X, Eye,
   Calendar, Building2, User2,
   ChevronDown, ArrowRightLeft, Check, RefreshCw,
-  Plus, GitBranch,
+  Plus, GitBranch, CheckCircle2, Download, Upload,
 } from "lucide-react";
 
 import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
@@ -21,7 +21,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
-import { parseTechnicalNotes } from "@/lib/technicalAssignments";
+import { parseTechnicalNotes, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
 import API from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
@@ -38,6 +38,7 @@ import {
   emptyWorkbench,
   parsePayments,
   isProjectActive,
+  getProjectWorkStatus,
   ProjectWorkbenchData,
   CSR_ASSIGN_OTHER,
   PROJECT_PHASE_OPTIONS,
@@ -179,11 +180,16 @@ function projectAsRow(p: Project) {
 }
 
 /* ── Projects Card (mobile / tablet) ── */
+function canMarkProjectCompleted(p: Project) {
+  return getTechnicalWorkflowStatus(p).key === "final_submission";
+}
+
 function ProjectCard({
   p,
   onView,
   onReassign,
   onRequestRevision,
+  onMarkCompleted,
   onAddNote,
   onTimingChange,
   hideClientFinanceCols = false,
@@ -192,6 +198,7 @@ function ProjectCard({
   onView: () => void;
   onReassign: () => void;
   onRequestRevision?: () => void;
+  onMarkCompleted?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
@@ -206,7 +213,18 @@ function ProjectCard({
             <ClientDetailCell p={projectAsRow(p)} />
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {!hideClientFinanceCols && onMarkCompleted && canMarkProjectCompleted(p) && (
+            <button
+              type="button"
+              onClick={onMarkCompleted}
+              className="h-8 px-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-bold inline-flex items-center gap-1 hover:bg-emerald-100"
+              title="Mark as completed — remove from Technical Manager"
+            >
+              <CheckCircle2 size={12} />
+              Complete
+            </button>
+          )}
           {!hideClientFinanceCols && onRequestRevision && (
             <button
               onClick={onRequestRevision}
@@ -318,6 +336,7 @@ function ProjectsSection({
   onView,
   onReassign,
   onRequestRevision,
+  onMarkCompleted,
   onAddNote,
   onTimingChange,
   hideClientFinanceCols = false,
@@ -330,6 +349,7 @@ function ProjectsSection({
   onView: (p: Project) => void;
   onReassign: (p: Project) => void;
   onRequestRevision?: (p: Project) => void;
+  onMarkCompleted?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
@@ -357,6 +377,7 @@ function ProjectsSection({
               onView={() => onView(p)}
               onReassign={() => void onReassign(p)}
               onRequestRevision={onRequestRevision ? () => onRequestRevision(p) : undefined}
+              onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(p) : undefined}
               onAddNote={onAddNote}
               onTimingChange={onTimingChange}
               hideClientFinanceCols={hideClientFinanceCols}
@@ -478,6 +499,17 @@ function ProjectsSection({
                     </td>
                     <td className="px-2 xl:px-3 py-3 xl:py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        {!hideClientFinanceCols && onMarkCompleted && canMarkProjectCompleted(p) && (
+                          <button
+                            type="button"
+                            onClick={() => onMarkCompleted(p)}
+                            className="h-8 px-2 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-bold hover:bg-emerald-100 inline-flex items-center gap-1 shrink-0"
+                            title="Mark as completed — remove from Technical Manager"
+                          >
+                            <CheckCircle2 size={12} />
+                            Complete
+                          </button>
+                        )}
                         {!hideClientFinanceCols && onRequestRevision && (
                           <button
                             onClick={() => onRequestRevision(p)}
@@ -566,7 +598,10 @@ export default function AdminProjectsPage() {
   const [allCsrs,     setAllCsrs]     = useState<CSROption[]>([]);
   const [workbenchProject, setWorkbenchProject] = useState<Project | null>(null);
   const [workbenchSaving, setWorkbenchSaving]   = useState(false);
-  const [projectTab,  setProjectTab]  = useState<"all" | "active">("all");
+  const [projectTab,  setProjectTab]  = useState<"all" | "active" | "completed">("all");
+  const [markingCompletedId, setMarkingCompletedId] = useState<string | null>(null);
+  const [excelUploading, setExcelUploading] = useState(false);
+  const excelInputRef = useRef<HTMLInputElement>(null);
   const [page,        setPage]        = useState(1);
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
@@ -853,6 +888,77 @@ export default function AdminProjectsPage() {
     }
   };
 
+  const markProjectCompleted = async (p: Project) => {
+    if (!canMarkProjectCompleted(p) || markingCompletedId) return;
+    setMarkingCompletedId(p.id);
+    try {
+      const res = await API.put(`/admin/project/${p.id}/mark-completed`);
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((row) => (row.id === lead.id ? { ...row, ...lead } : row)));
+      toast.success("Marked completed — removed from Technical Manager");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to mark completed";
+      toast.error(msg);
+    } finally {
+      setMarkingCompletedId(null);
+    }
+  };
+
+  const downloadProjectDbTemplate = async () => {
+    try {
+      const res = await API.get("/admin/projects/excel-template", {
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "project-db-template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Template downloaded");
+    } catch {
+      toast.error("Failed to download template");
+    }
+  };
+
+  const uploadProjectDbExcel = async (file: File) => {
+    setExcelUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await API.post("/admin/projects/excel-upload", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const created = Number(res.data?.created ?? 0);
+      const failed = Number(res.data?.failed ?? 0);
+      const errs = Array.isArray(res.data?.errors) ? res.data.errors : [];
+      if (created > 0) {
+        toast.success(res.data?.message || `Imported ${created} project(s)`);
+        void fetchProjects(true);
+      } else {
+        toast.error(res.data?.message || "No projects imported");
+      }
+      if (failed > 0 && errs[0]?.message) {
+        toast.error(`Row ${errs[0].row}: ${errs[0].message}`, { duration: 5000 });
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to upload Excel";
+      toast.error(msg);
+    } finally {
+      setExcelUploading(false);
+      if (excelInputRef.current) excelInputRef.current.value = "";
+    }
+  };
+
   const fetchProjects = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
@@ -939,7 +1045,13 @@ export default function AdminProjectsPage() {
 
   const allProjects    = baseFiltered;
   const activeProjects = baseFiltered.filter(isProjectActive);
-  const displayedProjects = projectTab === "all" ? allProjects : activeProjects;
+  const completedProjects = baseFiltered.filter((p) => getProjectWorkStatus(p).key === "completed");
+  const displayedProjects =
+    projectTab === "all"
+      ? allProjects
+      : projectTab === "active"
+        ? activeProjects
+        : completedProjects;
 
   const phasePieData = useMemo(() => {
     const counts = new Map<string, number>();
@@ -974,18 +1086,48 @@ export default function AdminProjectsPage() {
             <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
               {hideClientFinanceCols
                 ? "Active projects — filter by date, view all or active only."
-                : "All CSR projects — filter by date, view all or active only."}
+                : "All CSR projects — All / Active / Completed. Final Submission → Mark Complete."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {!hideClientFinanceCols && (
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors"
-              >
-                <Plus size={14} /> Add New Project
-              </button>
+              <>
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadProjectDbExcel(f);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void downloadProjectDbTemplate()}
+                  className="flex items-center justify-center gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-gray-700 text-xs sm:text-sm font-semibold hover:border-[#B8112D]/40 hover:text-[#B8112D] transition-colors"
+                  title="Download Excel template with all Project DB fields"
+                >
+                  <Download size={14} /> Template
+                </button>
+                <button
+                  type="button"
+                  disabled={excelUploading}
+                  onClick={() => excelInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs sm:text-sm font-semibold hover:bg-emerald-100 disabled:opacity-60 transition-colors"
+                  title="Upload previous projects Excel (any date range)"
+                >
+                  <Upload size={14} className={excelUploading ? "animate-pulse" : ""} />
+                  {excelUploading ? "Uploading…" : "Upload Excel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="flex items-center justify-center gap-2 h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white text-xs sm:text-sm font-semibold shadow-md shadow-red-200 hover:bg-[#a30f27] transition-colors"
+                >
+                  <Plus size={14} /> Add New Project
+                </button>
+              </>
             )}
             <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
               <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
@@ -1107,11 +1249,12 @@ export default function AdminProjectsPage() {
           )}
         </div>
 
-        {/* ALL / ACTIVE TABS */}
+        {/* ALL / ACTIVE / COMPLETED TABS */}
         <div className="flex flex-wrap gap-2 mb-4 sm:mb-5">
           {([
-            { key: "all" as const,    label: "All Projects",    count: allProjects.length,    sub: "New, old, completed & in-progress" },
-            { key: "active" as const, label: "Active Projects", count: activeProjects.length, sub: "Currently in progress only" },
+            { key: "all" as const,       label: "All Projects",       count: allProjects.length,       sub: "New, old, completed & in-progress" },
+            { key: "active" as const,    label: "Active Projects",    count: activeProjects.length,    sub: "Currently in progress only" },
+            { key: "completed" as const, label: "Completed",          count: completedProjects.length, sub: "Final submission marked done by Admin" },
           ]).map(tab => {
             const active = projectTab === tab.key;
             return (
@@ -1153,6 +1296,7 @@ export default function AdminProjectsPage() {
           }}
           onReassign={openReassign}
           onRequestRevision={hideClientFinanceCols ? undefined : openRevision}
+          onMarkCompleted={hideClientFinanceCols ? undefined : (p) => void markProjectCompleted(p)}
           onAddNote={addAdminNote}
           onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}
           hideClientFinanceCols={hideClientFinanceCols}

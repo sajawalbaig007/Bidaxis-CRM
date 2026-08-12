@@ -315,8 +315,12 @@ export function matchesTechnicalTab(
         !inFinal &&
         (assignments.some(isAssignmentPricingSent) || legacyPricing)
       );
-    case "final_submission":
+    case "final_submission": {
+      const work = (p.projectWorkStatus ?? "").toLowerCase();
+      const st = (p.status ?? "").toLowerCase();
+      if (work === "completed" || st === "completed") return false;
       return inFinal;
+    }
     default:
       return true;
   }
@@ -342,6 +346,12 @@ export function getTechnicalWorkflowStatus(p: {
   if (phase === "pricing_quick_qa") return { key: "pricing", label: "Pricing · Quick QA" };
 
   const assignments = parseTechnicalAssignments(p.technicalAssignments);
+
+  // Completed wins over Final Submission (Admin Mark as Completed)
+  const workEarly = (p.projectWorkStatus ?? "").toLowerCase();
+  if (workEarly === "completed" || (p.status ?? "").toLowerCase() === "completed") {
+    return { key: "completed", label: "Completed" };
+  }
 
   // Live furthest stage (Admin + All Projects)
   if (matchesTechnicalTab("final_submission", p)) {
