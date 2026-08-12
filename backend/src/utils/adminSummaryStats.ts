@@ -272,6 +272,7 @@ export async function buildAdminTabCountsPayload(filters?: {
   phonePrefix?: string;
   areaCodes?: string[];
   scheduleDate?: string;
+  csrName?: string;
 }) {
   const extras = {
     state: filters?.state,
@@ -280,22 +281,23 @@ export async function buildAdminTabCountsPayload(filters?: {
   };
   const search = filters?.search;
   const scheduleDate = filters?.scheduleDate;
+  const csrName = filters?.csrName;
 
   const [all, important, schedule, interested, closed] = await Promise.all([
     prisma.lead.count({
-      where: buildAdminClientListWhere("all", undefined, search, undefined, extras),
+      where: buildAdminClientListWhere("all", csrName, search, undefined, extras),
     }),
     prisma.lead.count({
-      where: buildAdminClientListWhere("important", undefined, search, undefined, extras),
+      where: buildAdminClientListWhere("important", csrName, search, undefined, extras),
     }),
     prisma.lead.count({
-      where: buildAdminClientListWhere("schedule", undefined, search, scheduleDate, extras),
+      where: buildAdminClientListWhere("schedule", csrName, search, scheduleDate, extras),
     }),
     prisma.lead.count({
-      where: buildAdminClientListWhere("interested", undefined, search, undefined, extras),
+      where: buildAdminClientListWhere("interested", csrName, search, undefined, extras),
     }),
     prisma.lead.count({
-      where: buildAdminClientListWhere("closed", undefined, search, undefined, extras),
+      where: buildAdminClientListWhere("closed", csrName, search, undefined, extras),
     }),
   ]);
 

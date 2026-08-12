@@ -12,6 +12,7 @@ import {
   paymentActivityAt,
   paymentChannelLabel,
   paymentPercent,
+  paymentTypeDisplay,
   sortPaymentsNewestFirst,
   getProjectWorkStatus,
   PROJECT_WORK_STATUS_OPTIONS,
@@ -198,10 +199,44 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
   const paidSorted = sortPaymentsNewestFirst(payments.filter((x) => x.isPaid && parseMoney(x.amount) > 0));
   const latest = paidSorted[0] ?? latestPaidPayment(payments);
   const older = paidSorted.slice(1);
+  const historyAll = paidSorted;
   const pct = paymentPercent(payments, p.projectBudget);
   const paidNum = payments.length > 0
     ? payments.filter((x) => x.isPaid).reduce((s, x) => s + parseMoney(x.amount), 0)
     : 0;
+
+  const renderPayRow = (pay: ProjectPayment, emphasize = false) => {
+    const href = pay.link?.trim();
+    const linkOk = !!href && (/^https?:\/\//i.test(href) || href.startsWith("/"));
+    return (
+      <li key={pay.id} className={`px-2.5 py-2 ${emphasize ? "" : ""}`}>
+        <p className="text-[10px] font-bold text-emerald-800">
+          {formatPaymentMoney(pay.amount, pay.currency)} · {paymentTypeDisplay(pay.type, payments, p.projectBudget)}
+        </p>
+        <p className="text-[9px] text-gray-600">
+          {paymentChannelLabel(pay.paymentChannel)}
+          {pay.currency ? ` · ${pay.currency}` : ""}
+          {" · "}
+          {formatPaymentWhen(paymentActivityAt(pay))}
+        </p>
+        {href ? (
+          linkOk ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[9px] font-semibold text-[#0B84F3] hover:underline break-all"
+            >
+              {href}
+            </a>
+          ) : (
+            <p className="text-[9px] text-gray-500 break-all">{href}</p>
+          )
+        ) : null}
+      </li>
+    );
+  };
 
   return (
     <div className="flex items-start gap-2 min-w-0">
@@ -212,7 +247,8 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
             <div className="flex items-start gap-1.5">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] xl:text-xs font-semibold text-[#065F46]">
-                  {formatPaymentMoney(latest.amount, latest.currency)} · {latest.type}
+                  {formatPaymentMoney(latest.amount, latest.currency)} ·{" "}
+                  {paymentTypeDisplay(latest.type, payments, p.projectBudget)}
                 </p>
                 <p className="text-[9px] text-gray-500 truncate">
                   {paymentChannelLabel(latest.paymentChannel)}
@@ -221,7 +257,7 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
                   {formatPaymentWhen(paymentActivityAt(latest))}
                 </p>
               </div>
-              {older.length > 0 && (
+              {historyAll.length > 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -229,32 +265,20 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
                     setHistoryOpen((v) => !v);
                   }}
                   className="shrink-0 mt-0.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md transition-colors"
-                  title={historyOpen ? "Hide payment history" : `Show ${older.length} older payment${older.length === 1 ? "" : "s"}`}
+                  title={historyOpen ? "Hide payment history" : `Show full payment history (${historyAll.length})`}
                   aria-expanded={historyOpen}
                 >
-                  +{older.length}
+                  +{historyAll.length - 1}
                 </button>
               )}
             </div>
-            {historyOpen && older.length > 0 && (
-              <div className="mt-1.5 rounded-lg border border-emerald-100 bg-emerald-50/70 overflow-hidden">
-                <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-emerald-800 border-b border-emerald-100">
-                  Payment history
+            {historyOpen && historyAll.length > 0 && (
+              <div className="mt-1.5 rounded-lg border border-emerald-100 bg-emerald-50/70 overflow-hidden shadow-sm">
+                <p className="px-2 py-1.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800 border-b border-emerald-100">
+                  Payment history ({historyAll.length})
                 </p>
-                <ul className="max-h-40 overflow-y-auto divide-y divide-emerald-100/80">
-                  {older.map((pay) => (
-                    <li key={pay.id} className="px-2 py-1.5">
-                      <p className="text-[10px] font-bold text-emerald-800">
-                        {formatPaymentMoney(pay.amount, pay.currency)} · {pay.type}
-                      </p>
-                      <p className="text-[9px] text-gray-600">
-                        {paymentChannelLabel(pay.paymentChannel)}
-                        {pay.currency ? ` · ${pay.currency}` : ""}
-                        {" · "}
-                        {formatPaymentWhen(paymentActivityAt(pay))}
-                      </p>
-                    </li>
-                  ))}
+                <ul className="max-h-48 overflow-y-auto divide-y divide-emerald-100/80">
+                  {historyAll.map((pay) => renderPayRow(pay))}
                 </ul>
               </div>
             )}

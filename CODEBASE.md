@@ -441,12 +441,13 @@ Many routes allow **`admin` and `manager`**; admin-only routes noted.
 | GET | `/dashboard` | admin | Legacy stub |
 | GET | `/notifications` | admin, manager, TM | **Meetings** (`scheduledCalls`) + **technical notes** (`technicalNotes`) — see [§14](#14-notifications--alerts) |
 | GET | `/csrs` | admin, manager | Active CSR list |
-| GET | `/clients/tab-counts` | admin, manager, TM | Tab badge counts — optional `search`, `state`, `phone`, `areaCodes`, `scheduleDate` |
+| GET | `/clients/tab-counts` | admin, manager, TM | Tab badge counts — optional `search`, `state`, `phone`, `areaCodes`, `scheduleDate`, **`csr`** |
 | GET | `/clients/summary` | admin, manager | Dashboard stats + charts |
 | GET | `/clients` | admin, manager, TM | Paginated leads (`view`, `search`, `state`, `phone`, `areaCodes`, `scheduleDate`, `csr`) |
 | GET/PUT/DELETE | `/lead/:id` | admin, manager | Lead CRUD |
 | PUT | `/lead/:id/reassign` | admin, manager | Reassign to CSR |
-| POST/PUT/DELETE | `/lead/:id/notes[/:noteId]` | admin, manager, TM | Notes CRUD — **PUT bumps `createdAt`** (edited note → latest) |
+| POST | `/leads/reassign-bulk` | admin, manager | Bulk move: From CSR+page → To CSR(s)+page (equal round-robin; destination page sets status) |
+| POST/PUT/DELETE | `/lead/:id/notes[/:noteId]` | admin, manager, TM | Notes CRUD — **PUT bumps `createdAt`** (edited note → latest); UI DELETE uses CommentCell `deletedNoteIdsRef` |
 | POST/PUT/DELETE | `/lead/:id/subcontacts[/:subId]` | admin, manager | Sub-contacts |
 | GET | `/projects` | admin, manager | Paginated active projects |
 | GET | `/projects/excel-template` | admin, manager | Download Project DB Excel template (all fields) |
@@ -841,6 +842,13 @@ Lead is in bin if `inBin === true` OR NP count ≥ 7 OR NI count ≥ 3.
 ### Upload Categories
 
 `call-data`, `new-client`, `old-client`, `interested`, `important`, `active-projects`
+
+### CSR lead reassignment (same Uploads grid)
+
+- Card **Reassign CSR Leads** (merged with the four Excel upload cards)
+- Modal: **From CSR + page** → **To CSR(s) + page** (multi-select CSRs, equal round-robin)
+- API: `POST /api/admin/leads/reassign-bulk` with `fromCsrId`, `fromPage`, `toCsrIds`, `toPage` — destination page sets status/flags so leads land on that CSR page
+- Schedule destination only when source is Schedule (needs meeting date)
 
 ### Upload Source
 
@@ -1286,15 +1294,17 @@ Stored on **`Lead.projectPayments`**. Parsers: `backend/.../projectPayments.ts`,
 | Field | Meaning |
 |-------|---------|
 | `id` | Stable row id |
-| `type` | Partial / Milestone / Final / Other |
+| `type` | Partial / Milestone / Final / Other / **Full** (auto when collection ≥ 100%) |
 | `amount` | Collected amount |
-| `link` | Slip URL (Admin/Manager) |
+| `link` | Slip URL (Admin/Manager) — **clickable in +N history popup** |
 | `isPaid` | Collected flag |
-| `paidAt` | **Payment date** |
+| `paidAt` | **Specific payment date** (workbench date picker; drives Accounts month) |
 | `createdAt` | Row history timestamp |
 | `paymentChannel` | AH · SN · CHQ · HM |
 | `currency` | USD · CAD · PKR (multi-currency per source) |
-| `accountsMonth` | **Receive / Accounts month** (`YYYY-MM`) |
+| `accountsMonth` | **Receive / Accounts month** (`YYYY-MM`, derived from `paidAt` day) |
+
+Project DB payment filter: **Partial** (`0 < % < 100`) / **Full** (`% ≥ 100`) via `matchesPaymentCollectionFilter` / `paymentTypeDisplay`.
 
 ---
 
@@ -1302,40 +1312,40 @@ Stored on **`Lead.projectPayments`**. Parsers: `backend/.../projectPayments.ts`,
 
 #### `/admin` — Dashboard
 - **File:** `admin/page.tsx`
-- **Source:** `GET /admin/clients/summary` via `lib/adminSummaryCache` (+ widgets: `/admin/csrs`, `/admin/projects`)
-- **Shows:** KPI tiles, chart series, recent activity, top performers, active projects snippet
+- **Source:** `GET /admin/clients/summary` via `lib/adminSummaryCache` (+ widgets: Top Estimators, CSRs)
+- **Shows:** KPI tiles (**Total Leads** + **Pending** non-clickable; **Important** where Online CSR was; **Total Completed** where Important was); chart (**Today / Pending** range label) + **Top 5 Estimators**; recent activity; top CSR performers — **no Project DB preview**
 - **Merge:** Summary cache / sessionStorage; stale broadcast after users/leads mutations
-- **Backend:** `adminSummaryStats.ts`
+- **Backend:** `adminSummaryStats.ts` · widget `TopEstimatorsWidget.tsx`
 
 #### `/admin/leads`
 - **File:** `admin/leads/page.tsx`
-- **Source:** `GET /admin/clients` (view/page/search/state/phone/areaCodes); `GET /admin/clients/tab-counts` (same filters); `GET /admin/csrs`; lead CRUD/notes/reassign
-- **Shows:** Tabs Important / Schedule / Interested / Closed; client/company/phone/state/CSR/notes/schedule
-- **Merge:** Tab **counts follow filters**; notes via CommentCell (`createdAt` bump on edit)
+- **Source:** `GET /admin/clients` (view/page/search/state/phone/areaCodes/**csr**); `GET /admin/clients/tab-counts` (**same filters incl. csr**); `GET /admin/csrs`; lead CRUD/notes/reassign
+- **Shows:** Tabs Important / Schedule / Interested / Closed; generic search across client/company/phone/email/project/notes/CSR/status; Closed status label **Closed** (not “Not Interested” for `completed`)
+- **Merge:** Tab **counts follow CSR + search filters**; notes via CommentCell (`createdAt` bump on edit; delete sticky via `deletedNoteIdsRef`)
 - **Backend:** `adminClientQueries.ts`, `adminSummaryStats.ts`
 
 #### `/admin/active-projects` (Project DB)
 - **File:** `admin/active-projects/page.tsx`
 - **Source:** `GET /admin/projects` (paged); project CRUD; notes; reassign; phone lookup; technical-notes read; **`PUT /admin/project/:id/mark-completed`**
 - **Excel:** **`GET /admin/projects/excel-template`** (all table + workbench + payment1–5 columns + Instructions sheet); **`POST /admin/projects/excel-upload`** (multipart `file`) — bulk import historical projects (any deadline / `createdAt` date)
-- **Shows:** Tabs **All / Active / Completed**; Code/title/client/phase/deadline/quoted/paid/**payment history +N**/CSR/technical status/notes; header **Template** + **Upload Excel** buttons (Admin/Manager only)
+- **Shows:** Tabs **All / Active / Completed**; search by **project name / client name / project code**; payment filter **Partial | Full**; Code/title/client/phase/deadline/quoted/paid/**+N full history popup (clickable links)**/CSR/technical status/notes; header **Template** + **Upload Excel**
 - **Final → Completed:** When status is **Final Submission**, Admin sees **Complete** → sets `projectWorkStatus`/`status` completed, `hiddenOnTechnical: true` (drops from TM), lands in **Completed** tab
 - **Merge:** **On save → Accounts currency** (`syncAccountsCurrencyForDates`); phone lookup autofill; Excel upload also syncs paid payment months
-- **UI:** `ProjectWorkbenchModal` (channel / currency / accounts month / slip link)
-- **Util:** `backend/src/utils/projectDbExcel.ts`
+- **UI:** `ProjectWorkbenchModal` (channel / currency / **payment date** / slip link; auto **Full** at 100%)
+- **Util:** `backend/src/utils/projectDbExcel.ts` · `frontend/lib/projectFields.ts`
 
 #### `/admin/payments`
 - **File:** `admin/payments/page.tsx` · **Lib:** `lib/paymentsSummary.ts`
 - **Source:** `GET /admin/payments-summary?month=`
 - **Shows:** Quoted/collected/outstanding; status donut; source bars; **AH/SN/CHQ/HM cards with USD·CAD·PKR separate**; Full/Partial/Unpaid expandable tables (proj code, client, email, link, status, amount, payment date, source, receive date, **+N**)
-- **Merge:** Read-only from `projectPayments` (write path = Project DB save)
+- **Merge:** Read-only from `projectPayments` (write path = Project DB save). **Collected** buckets by payment month; split halves stay in their months; **outstanding uses all-time paid %** (prior-month half is not false outstanding)
 - **Backend:** `paymentsSummary.ts`
 
 #### `/admin/uploads`
 - **File:** `admin/uploads/page.tsx`
-- **Source:** upload-sources, trades, CSRs, `POST /uploads`, history/latest/delete
-- **Shows:** Category wizard, preview, CSR distribution, history
-- **Merge:** Interested-by-phone consolidate on upload (`upload.controller`)
+- **Source:** upload-sources, trades, CSRs, `POST /uploads`, history/latest/delete, **`POST /admin/leads/reassign-bulk`**
+- **Shows:** Five-card grid (New / Important / **Reassign CSR Leads** / Interested / Active), wizard, preview, CSR distribution, history
+- **Merge:** Interested-by-phone consolidate on upload (`upload.controller`); reassign = From CSR+page → To CSR(s)+page
 
 #### `/admin/reports`
 - **File:** `admin/reports/page.tsx`

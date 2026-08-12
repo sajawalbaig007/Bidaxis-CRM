@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
 import DashboardNavbar  from "../components/layout/Navbar";
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { fetchReports, type ReportsData } from "@/lib/reportsCache";
 import API, { apiErrorMessage } from "@/lib/api";
 
@@ -35,7 +35,6 @@ type CsrActualStats = {
 
 /* ── Main Page ── */
 export default function ReportsPage() {
-  const StaffSidebar = useStaffSidebar();
   const [reportData,    setReportData]    = useState<ReportResponse | null>(null);
   const [activePeriod,  setActivePeriod]  = useState<"today" | "week" | "month" | "all">("week");
   const [loadingReport, setLoadingReport] = useState(false);

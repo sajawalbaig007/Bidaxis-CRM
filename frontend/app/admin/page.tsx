@@ -3,20 +3,20 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { useStaffBase } from "@/app/hooks/useStaffBase";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
-import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
+import TopEstimatorsWidget from "./components/widgets/TopEstimatorsWidget";
 import { getAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
-  TrendingUp, Briefcase, Trophy, RefreshCw, FolderKanban,
+  TrendingUp, Trophy, RefreshCw,
 } from "lucide-react";
 
 const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
   ssr: false,
-  loading: () => <div className="h-[240px] sm:h-[280px] rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-[180px] sm:h-[200px] rounded-xl bg-gray-100 animate-pulse" />,
 });
 
 const OverviewChart = dynamic(() => import("./components/charts/OverviewChart"), {
@@ -56,13 +56,11 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const StaffSidebar = useStaffSidebar();
   const staffBase = useStaffBase();
   const [selectedRange, setSelectedRange] = useState("week");
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [stats, setStats] = useState<QuickStats | null>(null);
   const [overviewLoaded, setOverviewLoaded] = useState(false);
-  const [projectsEnabled, setProjectsEnabled] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
 
   const loadOverview = useCallback(async (force = false) => {
@@ -104,13 +102,13 @@ export default function DashboardPage() {
   }, [summary?.chartSeries, selectedRange]);
 
   const tiles = useMemo(() => [
-    { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%", href: `${staffBase}/leads` },
+    { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%" },
     { label: "Today Completed Calls", value: stats?.todayCompletedCalls ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%" },
-    { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%", href: `${staffBase}/leads` },
-    { label: "Important",    value: stats?.importantOnly ?? stats?.important ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <Star         size={15}/>, bar: "40%", href: `${staffBase}/leads?tab=important` },
+    { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%" },
+    { label: "Total Completed", value: stats?.completed ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <CheckCircle2 size={15}/>, bar: "40%", href: `${staffBase}/leads?tab=closed` },
     { label: "Interested",   value: stats?.interested  ?? 0, from: "from-[#2563EB]", to: "to-[#1D4ED8]",  icon: <TrendingUp   size={15}/>, bar: "60%", href: `${staffBase}/leads?tab=interested` },
     { label: "Close Client", value: stats?.projectWon  ?? 0, from: "from-[#7C3AED]", to: "to-[#6D28D9]",  icon: <Trophy       size={15}/>, bar: "30%", href: `${staffBase}/leads?tab=closed` },
-    { label: "Online CSRs",  value: stats?.onlineCSRs  ?? 0, from: "from-[#0891B2]", to: "to-[#0E7490]",  icon: <Briefcase    size={15}/>, bar: "55%" },
+    { label: "Important",    value: stats?.importantOnly ?? stats?.important ?? 0, from: "from-[#0891B2]", to: "to-[#0E7490]",  icon: <Star         size={15}/>, bar: "55%", href: `${staffBase}/leads?tab=important` },
     { label: "Users Online", value: stats?.totalOnline ?? 0, from: "from-[#4F46E5]", to: "to-[#4338CA]",  icon: <Users        size={15}/>, bar: "65%" },
   ], [stats, staffBase]);
 
@@ -192,8 +190,8 @@ export default function DashboardPage() {
             aria-label="Charts"
             className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 md:gap-5"
           >
-            <div className="xl:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3 sm:mb-4">
+            <div className="xl:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0 space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h2 className="font-bold text-gray-800 text-sm sm:text-base">Performance Overview</h2>
                   <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
@@ -207,8 +205,11 @@ export default function DashboardPage() {
               {overviewLoaded || loadingOverview ? (
                 <PerformanceChart series={chartSeries} range={selectedRange} />
               ) : (
-                <div className="h-[240px] sm:h-[280px] rounded-xl bg-gray-100 animate-pulse" />
+                <div className="h-[180px] sm:h-[200px] rounded-xl bg-gray-100 animate-pulse" />
               )}
+              <div className="border-t border-gray-100 pt-3">
+                <TopEstimatorsWidget />
+              </div>
             </div>
 
             <div className="xl:col-span-4 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
@@ -241,63 +242,31 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* 5 — Project DB */}
-          <section aria-label="Projects" className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
-            {projectsEnabled ? (
-              <ActiveProjectsWidget enabled />
-            ) : (
-              <LazySectionPrompt
-                icon={<FolderKanban size={28} className="text-gray-300" />}
-                label="Click to load Project DB preview"
-                onLoad={() => setProjectsEnabled(true)}
-              />
-            )}
-          </section>
-
         </div>
       </main>
     </div>
   );
 }
 
-function LazySectionPrompt({
-  icon,
-  label,
-  onLoad,
-  loading = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onLoad: () => void;
-  loading?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onLoad}
-      disabled={loading}
-      className="w-full flex flex-col items-center justify-center text-center rounded-xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 hover:bg-[#FFF6F7] transition-colors disabled:opacity-60 py-12 sm:py-14"
-    >
-      {icon}
-      <p className="text-sm text-gray-500 mt-3 font-medium">{loading ? "Loading…" : label}</p>
-    </button>
-  );
-}
-
 const DateRangePicker = ({ selected, onChange }: { selected: string; onChange: (r: string) => void }) => (
   <div className="flex gap-1.5 overflow-x-auto max-w-full pb-0.5 shrink-0 -mx-0.5 px-0.5">
-    {["Today (4AM+)", "Week", "Month", "Year"].map(r => (
+    {[
+      { key: "today", label: "Today / Pending" },
+      { key: "week", label: "Week" },
+      { key: "month", label: "Month" },
+      { key: "year", label: "Year" },
+    ].map(r => (
       <button
-        key={r}
+        key={r.key}
         type="button"
-        onClick={() => onChange(r.toLowerCase().replace(" (4am+)", ""))}
+        onClick={() => onChange(r.key)}
         className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold transition-all whitespace-nowrap ${
-          (r.startsWith("Today") ? selected === "today" : selected === r.toLowerCase())
+          selected === r.key
             ? "bg-[#B8112D] text-white shadow-sm"
             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
         }`}
       >
-        {r}
+        {r.label}
       </button>
     ))}
   </div>

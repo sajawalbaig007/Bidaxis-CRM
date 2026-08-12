@@ -230,17 +230,13 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    const paidTotalAll = monthFilter
-      ? paidInScope.reduce((s, e) => s + parseMoney(e.amount), 0)
-      : paidTotalFromEntries(allPayments);
-    const pct = monthFilter
-      ? quoted > 0
-        ? Math.min(100, (paidTotalAll / quoted) * 100)
-        : 0
-      : paymentPercent(allPayments, lead.projectBudget);
+    const paidTotalAllTime = paidTotalFromEntries(allPayments);
+    const paidTotalInMonth = paidInScope.reduce((s, e) => s + parseMoney(e.amount), 0);
+    const pctAllTime = paymentPercent(allPayments, lead.projectBudget);
 
+    // Outstanding is always vs all-time collections (split months must not re-open balance)
     if (quoted > 0) {
-      outstandingAmount += Math.max(0, quoted - paidTotalAll);
+      outstandingAmount += Math.max(0, quoted - paidTotalAllTime);
     }
 
     const rowPayments = paidInScope
@@ -250,8 +246,21 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
         const tb = b.paidAt || b.createdAt || "";
         return tb.localeCompare(ta);
       });
+
+    // Month view: list projects that paid this month; bucket by all-time % so prior halves aren't "outstanding"
     const status: ProjectPaymentSummaryRow["status"] =
-      pct >= 100 ? "full" : paidTotalAll > 0 || rowPayments.length > 0 ? "partial" : "unpaid";
+      pctAllTime >= 100
+        ? "full"
+        : paidTotalInMonth > 0 || (!monthFilter && paidTotalAllTime > 0)
+          ? "partial"
+          : "unpaid";
+
+    const paidTotalDisplay = monthFilter ? paidTotalInMonth : paidTotalAllTime;
+    const pctDisplay = monthFilter
+      ? quoted > 0
+        ? Math.min(100, (paidTotalInMonth / quoted) * 100)
+        : pctAllTime
+      : pctAllTime;
 
     const row: ProjectPaymentSummaryRow = {
       leadId: lead.id,
@@ -261,9 +270,9 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       clientEmail: (lead.email || "").trim() || null,
       quoted,
       quotedLabel: quoted > 0 ? `$${quoted.toLocaleString()}` : "—",
-      paidTotal: paidTotalAll,
-      paidLabel: paidTotalAll > 0 ? `$${paidTotalAll.toLocaleString()}` : "—",
-      percent: Math.round(pct * 10) / 10,
+      paidTotal: paidTotalDisplay,
+      paidLabel: paidTotalDisplay > 0 ? `$${paidTotalDisplay.toLocaleString()}` : "—",
+      percent: Math.round((monthFilter ? pctAllTime : pctDisplay) * 10) / 10,
       status,
       payments: rowPayments,
     };

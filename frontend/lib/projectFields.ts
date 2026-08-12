@@ -38,17 +38,43 @@ export const PROJECT_PHASE_OPTIONS = [
 
 export const PAYMENT_TYPE_OPTIONS = [
   "Partial",
+  "Full",
   "Milestone",
   "Final",
   "Other",
 ] as const;
 
-/** Project DB filters — payment types except Other */
+/** Project DB filters — Partial (<100%) or Full (100% collected) */
 export const PAYMENT_TYPE_FILTER_OPTIONS = [
   "Partial",
-  "Milestone",
-  "Final",
+  "Full",
 ] as const;
+
+/** Display label: force Full when quote is fully collected. */
+export function paymentTypeDisplay(
+  type: string | undefined,
+  payments: ProjectPayment[],
+  budget: string | null | undefined,
+): string {
+  if (paymentPercent(payments, budget) >= 100) return "Full";
+  const t = String(type ?? "Partial").trim();
+  if (t.toLowerCase() === "full" || t.toLowerCase() === "full payment") return "Full";
+  return t || "Partial";
+}
+
+/** True when project matches Project DB Partial/Full payment filter. */
+export function matchesPaymentCollectionFilter(
+  filter: string,
+  payments: ProjectPayment[],
+  budget: string | null | undefined,
+): boolean {
+  const f = filter.trim().toLowerCase();
+  if (!f) return true;
+  const pct = paymentPercent(payments, budget);
+  if (f === "full") return pct >= 100;
+  if (f === "partial") return pct > 0 && pct < 100;
+  return true;
+}
 
 function normalizePaymentChannel(raw: unknown): PaymentChannel | undefined {
   const v = String(raw ?? "").trim().toUpperCase();

@@ -7,10 +7,10 @@ import {
   Database, FileSpreadsheet, FileImage, FileArchive, FileBadge,
   Loader2, X, Building2, ChevronDown, ChevronUp, RefreshCw, RotateCcw,
   PhoneCall, Star, Briefcase, Globe, Plus, History, AlertCircle, Pencil,
-  Download, Search,
+  Download, Search, ArrowLeftRight,
 } from "lucide-react";
 
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
 import API from "@/lib/api";
@@ -111,6 +111,15 @@ const filterCsrsBySearch = (list: CSR[], query: string) => {
 const sourceAdminLabel = (s: { name: string; sudoName?: string | null }) =>
   s.sudoName ? `${s.name} · ${s.sudoName}` : s.name;
 const PREVIEW_PAGE_SIZE = 30;
+const REASSIGN_PAGES = [
+  { key: "important", label: "Important" },
+  { key: "schedule", label: "Schedule Call" },
+  { key: "interested", label: "Interested" },
+  { key: "pending", label: "Pending" },
+  { key: "not_picked", label: "Not Picked" },
+  { key: "not_interested", label: "Not Interested" },
+  { key: "close_client", label: "Close Client" },
+] as const;
 const RESULT_FILTER_OPTIONS = [
   { key: "all" as const, label: "All" },
   { key: "new" as const, label: "New" },
@@ -164,7 +173,6 @@ const getFileIcon = (type: string) => {
 };
 
 export default function UploadPage() {
-  const StaffSidebar = useStaffSidebar();
   const inputRef             = useRef<HTMLInputElement | null>(null);
   const inputRefImportant    = useRef<HTMLInputElement | null>(null);
   const inputRefInterested   = useRef<HTMLInputElement | null>(null);
@@ -204,6 +212,15 @@ export default function UploadPage() {
   const [csrs,          setCsrs]          = useState<CSR[]>([]);
   const [selectedCSRs,  setSelectedCSRs]  = useState<string[]>([]);
   const [csrSearchQuery, setCsrSearchQuery] = useState("");
+
+  /* Bulk reassign leads between CSRs (Uploads card) */
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignFromCsrId, setReassignFromCsrId] = useState("");
+  const [reassignToCsrIds, setReassignToCsrIds] = useState<string[]>([]);
+  const [reassignFromPage, setReassignFromPage] = useState<string>("important");
+  const [reassignToPage, setReassignToPage] = useState<string>("important");
+  const [reassignSubmitting, setReassignSubmitting] = useState(false);
+  const [reassignSearch, setReassignSearch] = useState("");
 
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
@@ -352,7 +369,10 @@ export default function UploadPage() {
     try {
       await API.delete(`/admin/upload-sources/${id}`);
       toast.success("Source deleted");
-      if (historySourceId === id) setHistorySourceId("all");
+      if (historySourceId === id) {
+        setHistorySourceId("all");
+        setSourceDetail(null);
+      }
       if (selectedSourceId === id) setSelectedSourceId("");
       await fetchUploadSources();
     } catch {
@@ -407,6 +427,95 @@ export default function UploadPage() {
       const res = await API.get("/admin/csrs");
       setCsrs(res.data.csrs);
     } catch { toast.error("Failed to fetch CSRs"); }
+  };
+
+  const openReassignModal = async () => {
+    setReassignFromCsrId("");
+    setReassignToCsrIds([]);
+    setReassignFromPage("important");
+    setReassignToPage("important");
+    setReassignSearch("");
+    setShowReassignModal(true);
+    if (!csrs.length) await fetchCSRs();
+  };
+
+  const toggleReassignToCsr = (id: string) => {
+    setReassignToCsrIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const submitReassignLeads = async () => {
+    if (!reassignFromCsrId) {
+      toast.error("Select source CSR");
+      return;
+    }
+    if (!reassignFromPage) {
+      toast.error("Select source page");
+      return;
+    }
+    if (!reassignToCsrIds.length) {
+      toast.error("Select at least one destination CSR");
+      return;
+    }
+    if (!reassignToPage) {
+      toast.error("Select destination page");
+      return;
+    }
+    const samePage = reassignFromPage === reassignToPage;
+    const dest = samePage
+      ? reassignToCsrIds.filter((id) => id !== reassignFromCsrId)
+      : reassignToCsrIds;
+    if (!dest.length) {
+      toast.error(
+        samePage
+          ? "Same page: pick a different destination CSR"
+          : "Destination CSR must differ from source",
+      );
+      return;
+    }
+    if (reassignToPage === "schedule" && reassignFromPage !== "schedule") {
+      toast.error("Schedule destination only works when source page is Schedule Call (meeting date required)");
+      return;
+    }
+    const fromName = csrs.find((c) => c.id === reassignFromCsrId)?.name ?? "source";
+    const fromLabel = REASSIGN_PAGES.find((p) => p.key === reassignFromPage)?.label ?? reassignFromPage;
+    const toLabel = REASSIGN_PAGES.find((p) => p.key === reassignToPage)?.label ?? reassignToPage;
+    if (
+      !confirm(
+        `Move ${fromLabel} leads from ${fromName}\n→ ${dest.length} CSR(s) on page: ${toLabel}?\nEqual round-robin.`,
+      )
+    ) {
+      return;
+    }
+    setReassignSubmitting(true);
+    try {
+      const res = await API.post("/admin/leads/reassign-bulk", {
+        fromCsrId: reassignFromCsrId,
+        toCsrIds: dest,
+        fromPage: reassignFromPage,
+        toPage: reassignToPage,
+      });
+      const moved = Number(res.data?.moved ?? 0);
+      const dist = (res.data?.distribution ?? []) as { name: string; leads: number }[];
+      const distLine = dist
+        .filter((d) => d.leads > 0)
+        .map((d) => `${d.name}: ${d.leads}`)
+        .join(", ");
+      toast.success(
+        moved
+          ? `Moved ${moved} (${fromLabel} → ${toLabel})${distLine ? ` · ${distLine}` : ""}`
+          : "No matching leads to move",
+      );
+      setShowReassignModal(false);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Reassign failed";
+      toast.error(msg);
+    } finally {
+      setReassignSubmitting(false);
+    }
   };
 
   const fetchUploadHistory = async (category?: UploadCategoryKey) => {
@@ -466,17 +575,24 @@ export default function UploadPage() {
     load();
   }, []);
 
-  useEffect(() => {
-    if (historySourceId === "all") {
-      setSourceDetail(null);
-      return;
-    }
-    void fetchSourceDetail(historySourceId);
-  }, [historySourceId]);
+  const closeCSRModal = () => {
+    setShowCSRModal(false);
+    setCsrSearchQuery("");
+    setFilePreviewRows([]);
+    setFilePreviewSummary(null);
+    setFilePreviewSkipped(false);
+    setHideDupInPreview(true);
+    setPreviewFilter("all");
+    setFilePreviewLoading(false);
+  };
 
-  useEffect(() => {
-    if (!showCSRModal) setCsrSearchQuery("");
-  }, [showCSRModal]);
+  const goToCsrStep = () => {
+    setFilePreviewSkipped(true);
+    setFilePreviewRows([]);
+    setFilePreviewSummary(null);
+    setFilePreviewLoading(false);
+    setModalStep("csrs");
+  };
 
   const openCSRModal = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
@@ -565,24 +681,6 @@ export default function UploadPage() {
     return formData;
   };
 
-  useEffect(() => {
-    if (!showCSRModal || modalStep !== "csrs" || !selectedFile) {
-      if (!showCSRModal) {
-        setFilePreviewRows([]);
-        setFilePreviewSummary(null);
-        setFilePreviewSkipped(false);
-        setHideDupInPreview(true);
-        setPreviewFilter("all");
-      }
-      return;
-    }
-    /* Live preview off — avoid /uploads/preview during CSR select / upload */
-    setFilePreviewSkipped(true);
-    setFilePreviewRows([]);
-    setFilePreviewSummary(null);
-    setFilePreviewLoading(false);
-  }, [showCSRModal, modalStep, selectedFile]);
-
   const handleFiles = async () => {
     if (!selectedFile) return;
     /* Company required only for regular Call Data uploads — special uploads (important/interested/active) and client sheets use Excel row company */
@@ -593,7 +691,7 @@ export default function UploadPage() {
     const formData = buildUploadFormData();
     if (!formData) return;
 
-    setShowCSRModal(false);
+    closeCSRModal();
     setResultsExpanded(true);
     setPreviewLoading(true);
     setPreviewLive(true);
@@ -723,6 +821,205 @@ export default function UploadPage() {
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
 
+      {/* ── REASSIGN LEADS MODAL ── */}
+      {showReassignModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-xl lg:max-w-2xl shadow-2xl overflow-hidden max-h-[96vh] sm:max-h-[90vh] flex flex-col">
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <ArrowLeftRight size={18} className="text-violet-600 shrink-0" />
+                  Reassign CSR Leads
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pick source CSR + page, then destination CSR(s) + page.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReassignModal(false)}
+                className="p-2 rounded-xl hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-5">
+              {/* FROM */}
+              <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 space-y-3">
+                <p className="text-xs font-bold text-violet-700 uppercase tracking-wide">From (source)</p>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500">CSR</label>
+                  <select
+                    value={reassignFromCsrId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setReassignFromCsrId(id);
+                      if (reassignFromPage === reassignToPage) {
+                        setReassignToCsrIds((prev) => prev.filter((x) => x !== id));
+                      }
+                    }}
+                    className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  >
+                    <option value="">Select source CSR…</option>
+                    {csrs.filter((c) => c.isActive).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{c.csrCode ? ` (${c.csrCode})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500">Page to move</label>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {REASSIGN_PAGES.map((p) => {
+                      const on = reassignFromPage === p.key;
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => setReassignFromPage(p.key)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                            on
+                              ? "bg-violet-600 text-white border-violet-600"
+                              : "bg-white text-gray-600 border-gray-200 hover:border-violet-300"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* TO */}
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">To (destination)</p>
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-emerald-700 hover:underline"
+                    onClick={() => {
+                      const all = csrs
+                        .filter((c) => {
+                          if (!c.isActive) return false;
+                          if (reassignFromPage === reassignToPage && c.id === reassignFromCsrId) return false;
+                          return true;
+                        })
+                        .map((c) => c.id);
+                      setReassignToCsrIds(all);
+                    }}
+                  >
+                    Select all CSRs
+                  </button>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500">CSR(s) — equal distribute</label>
+                  <div className="relative mt-1.5 mb-2">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={reassignSearch}
+                      onChange={(e) => setReassignSearch(e.target.value)}
+                      placeholder="Search CSR…"
+                      className="w-full rounded-xl border border-gray-200 pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    />
+                  </div>
+                  <div className="max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-white divide-y divide-gray-50">
+                    {filterCsrsBySearch(
+                      csrs.filter((c) => {
+                        if (!c.isActive) return false;
+                        if (reassignFromPage === reassignToPage && c.id === reassignFromCsrId) return false;
+                        return true;
+                      }),
+                      reassignSearch,
+                    ).map((c) => {
+                      const checked = reassignToCsrIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-emerald-50/60 ${
+                            checked ? "bg-emerald-50/80" : ""
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleReassignToCsr(c.id)}
+                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-400"
+                          />
+                          <span className="text-sm font-medium text-gray-800 truncate">{c.name}</span>
+                          {c.csrCode ? (
+                            <span className="text-[11px] text-emerald-700 font-semibold ml-auto">{c.csrCode}</span>
+                          ) : null}
+                        </label>
+                      );
+                    })}
+                    {filterCsrsBySearch(
+                      csrs.filter((c) => c.isActive),
+                      reassignSearch,
+                    ).length === 0 && (
+                      <p className="px-3 py-6 text-center text-sm text-gray-400">No CSRs found</p>
+                    )}
+                  </div>
+                  {reassignToCsrIds.length > 1 && (
+                    <p className="mt-1.5 text-[11px] text-gray-500">
+                      {reassignToCsrIds.length} CSRs — leads split evenly (round-robin).
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500">Land on page</label>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {REASSIGN_PAGES.map((p) => {
+                      const on = reassignToPage === p.key;
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => setReassignToPage(p.key)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                            on
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {reassignToPage === "schedule" && reassignFromPage !== "schedule" && (
+                    <p className="mt-1.5 text-[11px] text-amber-700">
+                      Schedule needs an existing meeting date — use Schedule Call as source, or pick another destination page.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 sm:px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowReassignModal(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reassignSubmitting}
+                onClick={() => void submitReassignLeads()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60"
+              >
+                {reassignSubmitting ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeftRight size={16} />}
+                Reassign leads
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── MODAL ── */}
       {showCSRModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -751,7 +1048,7 @@ export default function UploadPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowCSRModal(false)}
+                onClick={closeCSRModal}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all shrink-0"
               >
                 <X size={15} className="sm:w-[18px] sm:h-[18px]" />
@@ -1127,7 +1424,7 @@ export default function UploadPage() {
                     <div className="flex gap-2 sm:gap-3">
                       <button
                         onClick={() => {
-                          if (uploadMode !== "regular") { setShowCSRModal(false); return; }
+                          if (uploadMode !== "regular") { closeCSRModal(); return; }
                           setModalStep(selectedPane === "lead" ? "category" : "company");
                         }}
                         className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-all"
@@ -1231,13 +1528,13 @@ export default function UploadPage() {
                       Back
                     </button>
                     <button
-                      onClick={() => { setSelectedTrade(""); setModalStep("csrs"); }}
+                      onClick={() => { setSelectedTrade(""); goToCsrStep(); }}
                       className="h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 text-gray-500 font-semibold text-sm hover:border-gray-300 hover:text-gray-700 transition-all"
                     >
                       Skip
                     </button>
                     <button
-                      onClick={() => setModalStep("csrs")}
+                      onClick={goToCsrStep}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                     >
                       Next — Select CSRs
@@ -1321,7 +1618,7 @@ export default function UploadPage() {
                       Back
                     </button>
                     <button
-                      onClick={() => setModalStep("csrs")}
+                      onClick={goToCsrStep}
                       className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all"
                     >
                       Next — CSRs
@@ -1771,7 +2068,10 @@ export default function UploadPage() {
           <>
           <div className="flex flex-wrap gap-2 mb-4 mt-4">
             <button
-              onClick={() => setHistorySourceId("all")}
+              onClick={() => {
+                setHistorySourceId("all");
+                setSourceDetail(null);
+              }}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 historySourceId === "all" ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
@@ -1781,7 +2081,10 @@ export default function UploadPage() {
             {uploadSources.map(s => (
               <button
                 key={s.id}
-                onClick={() => setHistorySourceId(s.id)}
+                onClick={() => {
+                  setHistorySourceId(s.id);
+                  void fetchSourceDetail(s.id);
+                }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   historySourceId === s.id ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
@@ -2000,8 +2303,8 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* ── UPLOAD BOXES — two columns on md+ ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+        {/* ── UPLOAD BOXES — shared grid (incl. reassign) ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
 
           {/* Regular leads upload */}
           <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
@@ -2065,6 +2368,35 @@ export default function UploadPage() {
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <TemplateDownloadLink {...UPLOAD_TEMPLATES.important} className="border-amber-300 text-amber-700 bg-amber-50" />
+            </div>
+          </div>
+
+          {/* Reassign between CSRs — same card shell as uploads */}
+          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm md:col-span-2 xl:col-span-1">
+            <div
+              onClick={() => void openReassignModal()}
+              className="border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group border-violet-200 hover:border-violet-400 hover:bg-violet-50/40"
+            >
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-violet-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
+                  <ArrowLeftRight size={26} className="text-violet-600 sm:w-7 sm:h-7" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800">Reassign CSR Leads</h3>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
+                  From CSR + page → To CSR(s) + page. Multi-CSR = equal split.
+                </p>
+                <button
+                  type="button"
+                  className="mt-4 bg-violet-600 hover:bg-violet-700 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium"
+                >
+                  Open Reassign
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50 text-[10px] font-semibold text-violet-700">
+                Source &amp; destination page · No Excel
+              </span>
             </div>
           </div>
 

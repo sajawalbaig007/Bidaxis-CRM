@@ -93,6 +93,7 @@ export default function CommentCell({
   const popupRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const fetchStartedRef = useRef(false);
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
 
   const readonlyExtras = (extraReadOnlyNotes ?? [])
     .filter((n) => n.text?.trim())
@@ -135,7 +136,9 @@ export default function CommentCell({
     setLocalNotes((prev) => {
       if (prev === null) return null;
       const ids = new Set(prev.map((n) => n.id));
-      const incoming = noteHistory.filter((n) => !ids.has(n.id));
+      const incoming = noteHistory.filter(
+        (n) => !ids.has(n.id) && !deletedNoteIdsRef.current.has(n.id),
+      );
       if (!incoming.length) return prev;
       return [...incoming, ...prev];
     });
@@ -301,7 +304,11 @@ export default function CommentCell({
     setDeleting(noteId);
     try {
       await API.delete(`/${apiRole}/lead/${id}/notes/${noteId}`);
-      setLocalNotes((prev) => (prev !== null ? prev.filter((n) => n.id !== noteId) : null));
+      deletedNoteIdsRef.current.add(noteId);
+      setLocalNotes((prev) => {
+        const base = prev !== null ? prev : (noteHistory ?? []);
+        return base.filter((n) => n.id !== noteId);
+      });
       onNoteDeleted?.(id, noteId);
     } catch {
       /* toast from interceptor */

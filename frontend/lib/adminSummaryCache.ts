@@ -183,6 +183,7 @@ export async function getAdminTabCounts(
     phone?: string;
     areaCodes?: string[];
     scheduleDate?: string;
+    csr?: string;
   },
 ): Promise<AdminTabCounts> {
   const hasFilters = !!(
@@ -190,7 +191,8 @@ export async function getAdminTabCounts(
     filters?.state?.trim() ||
     filters?.phone?.trim() ||
     filters?.scheduleDate?.trim() ||
-    (filters?.areaCodes?.length ?? 0) > 0
+    (filters?.areaCodes?.length ?? 0) > 0 ||
+    (filters?.csr?.trim() && filters.csr !== "all")
   );
 
   if (!hasFilters && !force && tabCountsCached && Date.now() - tabCountsCached.at < TAB_COUNTS_TTL_MS) {
@@ -203,6 +205,7 @@ export async function getAdminTabCounts(
   if (filters?.phone?.trim()) params.phone = filters.phone.trim();
   if (filters?.scheduleDate?.trim()) params.scheduleDate = filters.scheduleDate.trim();
   if (filters?.areaCodes?.length) params.areaCodes = filters.areaCodes.join(",");
+  if (filters?.csr?.trim() && filters.csr !== "all") params.csr = filters.csr.trim();
 
   if (hasFilters) {
     const res = await API.get("/admin/clients/tab-counts", { params });

@@ -175,23 +175,44 @@ export default function ProjectWorkbenchModal({
   };
 
   const updatePayment = (id: string, patch: Partial<ProjectPayment>) => {
-    setData((d) => ({
-      ...d,
-      projectPayments: d.projectPayments.map((p) => {
+    setData((d) => {
+      const projectPayments = d.projectPayments.map((p) => {
         if (p.id !== id) return p;
         const next = { ...p, ...patch };
         if (!next.createdAt) next.createdAt = new Date().toISOString();
-        if (patch.isPaid === true && !next.paidAt) next.paidAt = new Date().toISOString();
-        if (patch.isPaid === true && !next.accountsMonth) {
-          next.accountsMonth = new Date().toISOString().slice(0, 7);
+        if (patch.isPaid === true && !next.paidAt) {
+          next.paidAt = new Date().toISOString();
+        }
+        if (patch.isPaid === true && !next.accountsMonth && next.paidAt) {
+          next.accountsMonth = String(next.paidAt).slice(0, 7);
+        }
+        if (patch.paidAt !== undefined && next.paidAt) {
+          const day = String(next.paidAt).slice(0, 10);
+          if (/^\d{4}-\d{2}-\d{2}/.test(day)) {
+            next.accountsMonth = day.slice(0, 7);
+            // Keep full ISO if only date provided
+            if (String(next.paidAt).length === 10) {
+              next.paidAt = `${day}T12:00:00.000Z`;
+            }
+          }
         }
         if (patch.isPaid === false) {
           next.paidAt = undefined;
           next.accountsMonth = undefined;
         }
         return next;
-      }),
-    }));
+      });
+      // Auto Full when quote fully collected
+      if (paymentPercent(projectPayments, d.projectBudget) >= 100) {
+        return {
+          ...d,
+          projectPayments: projectPayments.map((p) =>
+            p.isPaid && parseMoney(p.amount) > 0 ? { ...p, type: "Full" } : p,
+          ),
+        };
+      }
+      return { ...d, projectPayments };
+    });
   };
 
   const removePayment = (id: string) => {
@@ -258,14 +279,24 @@ export default function ProjectWorkbenchModal({
       const badPaid = data.projectPayments.find(
         (p) =>
           p.isPaid &&
-          (!p.paymentChannel || !p.currency || !p.accountsMonth || !parseMoney(p.amount)),
+          (!p.paymentChannel || !p.currency || !(p.paidAt || p.accountsMonth) || !parseMoney(p.amount)),
       );
       if (badPaid) {
-        toast.error("Paid entries need amount, channel, USD/CAD/PKR, and Accounts month");
+        toast.error("Paid entries need amount, channel, USD/CAD/PKR, and payment date");
         return;
       }
     }
-    await onSave(data);
+    // Ensure 100% → Full type before save
+    const toSave =
+      paymentPercent(data.projectPayments, data.projectBudget) >= 100
+        ? {
+            ...data,
+            projectPayments: data.projectPayments.map((p) =>
+              p.isPaid && parseMoney(p.amount) > 0 ? { ...p, type: "Full" } : p,
+            ),
+          }
+        : data;
+    await onSave(toSave);
   };
 
   return (
@@ -632,7 +663,7 @@ export default function ProjectWorkbenchModal({
                   {mode !== "csr" && (
                     <div className="rounded-xl border border-[#F3D7DC] bg-[#FFF8F9] p-2.5 space-y-2">
                       <p className="text-[10px] font-bold text-[#B8112D] uppercase tracking-wide">
-                        Accounts · channel / currency / month
+                        Accounts · channel / currency / payment date
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
@@ -670,16 +701,19 @@ export default function ProjectWorkbenchModal({
                           </select>
                         </div>
                         <div>
-                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Accounts month</span>
+                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Payment date</span>
                           <input
-                            type="month"
+                            type="date"
                             className={inputCls}
-                            value={p.accountsMonth ?? ""}
-                            onChange={(e) =>
+                            value={(p.paidAt ?? "").toString().slice(0, 10)}
+                            onChange={(e) => {
+                              const day = e.target.value;
                               updatePayment(p.id, {
-                                accountsMonth: e.target.value || undefined,
-                              })
-                            }
+                                paidAt: day || undefined,
+                                accountsMonth: day ? day.slice(0, 7) : undefined,
+                                isPaid: day ? true : p.isPaid,
+                              });
+                            }}
                           />
                         </div>
                       </div>
