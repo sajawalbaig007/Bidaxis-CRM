@@ -191,6 +191,8 @@ function ProjectCard({
   onRequestRevision,
   onMarkCompleted,
   onAddNote,
+  onNoteUpdated,
+  onNoteDeleted,
   onTimingChange,
   hideClientFinanceCols = false,
 }: {
@@ -200,6 +202,8 @@ function ProjectCard({
   onRequestRevision?: () => void;
   onMarkCompleted?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
+  onNoteDeleted?: (id: string, noteId: string) => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
 }) {
@@ -275,26 +279,28 @@ function ProjectCard({
         />
       </div>
 
-      <div className="pt-1 space-y-3">
-        <div>
-          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Bid Instruction</p>
+      <div className="pt-1 space-y-2">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Notes</p>
+        <div className="flex flex-wrap items-center gap-1.5">
           <CommentCell
             id={p.id}
             apiRole="admin"
             comment={p.projectNotes ?? undefined}
             noteHistory={notesToHistory(p.notes)}
             onAddNote={onAddNote}
+            onNoteUpdated={onNoteUpdated}
+            onNoteDeleted={onNoteDeleted}
           />
-        </div>
-        <div>
-          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Notes by Technical</p>
-          <CommentCell
-            id={`${p.id}-tech`}
-            apiRole="admin"
-            readOnly
-            skipNotesFetch
-            noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-          />
+          {parseTechnicalNotes(p.technicalNotes).length > 0 && (
+            <CommentCell
+              id={`${p.id}-tech`}
+              apiRole="admin"
+              readOnly
+              skipNotesFetch
+              badgeLabel="Tech"
+              noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+            />
+          )}
         </div>
       </div>
 
@@ -312,14 +318,11 @@ function ProjectCard({
       </div>
 
       {!hideClientFinanceCols && (
-        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50">
-          <span className="font-medium text-[#065F46] truncate flex items-center gap-1.5">
-            {p.csr?.csrCode && !p.projectSource && (
-              <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md">{p.csr.csrCode}</span>
-            )}
-            {projectAssigneeLabel(p)}
+        <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-50 gap-2">
+          <span className="font-medium truncate flex items-center gap-1.5 min-w-0">
+            <ProjectCsrCell p={p} />
           </span>
-          {p.email && <span className="text-gray-400 truncate max-w-[140px]">{p.email}</span>}
+          {p.email && <span className="text-gray-400 truncate max-w-[140px] shrink-0">{p.email}</span>}
         </div>
       )}
     </div>
@@ -338,6 +341,8 @@ function ProjectsSection({
   onRequestRevision,
   onMarkCompleted,
   onAddNote,
+  onNoteUpdated,
+  onNoteDeleted,
   onTimingChange,
   hideClientFinanceCols = false,
 }: {
@@ -351,6 +356,8 @@ function ProjectsSection({
   onRequestRevision?: (p: Project) => void;
   onMarkCompleted?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
+  onNoteDeleted?: (id: string, noteId: string) => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
   hideClientFinanceCols?: boolean;
 }) {
@@ -379,6 +386,8 @@ function ProjectsSection({
               onRequestRevision={onRequestRevision ? () => onRequestRevision(p) : undefined}
               onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(p) : undefined}
               onAddNote={onAddNote}
+              onNoteUpdated={onNoteUpdated}
+              onNoteDeleted={onNoteDeleted}
               onTimingChange={onTimingChange}
               hideClientFinanceCols={hideClientFinanceCols}
             />
@@ -457,25 +466,20 @@ function ProjectsSection({
                       />
                     </td>
                     {!hideClientFinanceCols && (
-                      <td className="px-3 xl:px-4 py-3 xl:py-4">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {p.csr?.csrCode && !p.projectSource && (
-                            <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{p.csr.csrCode}</span>
-                          )}
-                          <span className="text-xs xl:text-sm font-semibold text-[#065F46] truncate" title={projectAssigneeLabel(p)}>
-                            {projectAssigneeLabel(p)}
-                          </span>
-                        </div>
+                      <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                        <ProjectCsrCell p={p} />
                       </td>
                     )}
-                    <td className="px-3 xl:px-4 py-3 xl:py-4">
-                      <div className="space-y-1.5 min-w-0">
+                    <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
                         <CommentCell
                           id={p.id}
                           apiRole="admin"
                           comment={p.projectNotes ?? undefined}
                           noteHistory={notesToHistory(p.notes)}
                           onAddNote={onAddNote}
+                          onNoteUpdated={onNoteUpdated}
+                          onNoteDeleted={onNoteDeleted}
                         />
                         {parseTechnicalNotes(p.technicalNotes).length > 0 && (
                           <CommentCell
@@ -483,33 +487,36 @@ function ProjectsSection({
                             apiRole="admin"
                             readOnly
                             skipNotesFetch
+                            badgeLabel="Tech"
                             noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
                           />
                         )}
                       </div>
                     </td>
-                    <td className="px-3 xl:px-4 py-3 xl:py-4">
-                      <TechnicalWorkflowStatusBadge
-                        status={p.status}
-                        projectDeadline={p.projectDeadline}
-                        projectWorkStatus={p.projectWorkStatus}
-                        projectPhase={p.projectPhase}
-                        technicalAssignments={p.technicalAssignments}
-                      />
-                    </td>
-                    <td className="px-2 xl:px-3 py-3 xl:py-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                      <div className="flex flex-col items-start gap-1.5 min-w-0 max-w-full">
+                        <TechnicalWorkflowStatusBadge
+                          status={p.status}
+                          projectDeadline={p.projectDeadline}
+                          projectWorkStatus={p.projectWorkStatus}
+                          projectPhase={p.projectPhase}
+                          technicalAssignments={p.technicalAssignments}
+                        />
                         {!hideClientFinanceCols && onMarkCompleted && canMarkProjectCompleted(p) && (
                           <button
                             type="button"
                             onClick={() => onMarkCompleted(p)}
-                            className="h-8 px-2 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-bold hover:bg-emerald-100 inline-flex items-center gap-1 shrink-0"
+                            className="h-7 px-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold hover:bg-emerald-100 inline-flex items-center gap-1 shrink-0 border border-emerald-200"
                             title="Mark as completed — remove from Technical Manager"
                           >
                             <CheckCircle2 size={12} />
                             Complete
                           </button>
                         )}
+                      </div>
+                    </td>
+                    <td className="px-2 xl:px-3 py-3 xl:py-4 text-right min-w-0 overflow-hidden align-top">
+                      <div className="inline-flex items-center justify-end gap-1 flex-wrap max-w-full">
                         {!hideClientFinanceCols && onRequestRevision && (
                           <button
                             onClick={() => onRequestRevision(p)}
@@ -580,8 +587,30 @@ const PAGE_SIZE = 30;
 
 function projectAssigneeLabel(p: Project): string {
   if (p.projectSource?.trim()) return p.projectSource.trim();
-  if (p.csr?.csrCode) return p.csr.name ?? "—";
-  return p.csr?.name ?? "Unassigned";
+  if (p.csr?.name) return p.csr.name;
+  if (p.csr?.csrCode) return p.csr.csrCode;
+  return "Unassigned";
+}
+
+function ProjectCsrCell({ p }: { p: Project }) {
+  if (p.projectSource?.trim()) {
+    return (
+      <span className="text-xs font-semibold text-gray-600 break-words" title={p.projectSource.trim()}>
+        {p.projectSource.trim()}
+      </span>
+    );
+  }
+  if (p.csr?.csrCode) {
+    return (
+      <span
+        className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] xl:text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
+        title={p.csr.name ? `${p.csr.csrCode} — ${p.csr.name}` : p.csr.csrCode}
+      >
+        {p.csr.csrCode}
+      </span>
+    );
+  }
+  return <span className="text-xs text-gray-400">—</span>;
 }
 
 export default function AdminProjectsPage() {
@@ -738,6 +767,44 @@ export default function AdminProjectsPage() {
       prev?.id === id ? { ...prev, notes: [...(prev.notes ?? []), note] } : prev
     );
     return entry;
+  };
+
+  const updateAdminNote = (id: string, noteId: string, text: string, createdAt?: string) => {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              notes: (p.notes ?? []).map((n) =>
+                n.id === noteId ? { ...n, text, createdAt: createdAt ?? n.createdAt } : n,
+              ),
+            }
+          : p,
+      ),
+    );
+    setWorkbenchProject((prev) =>
+      prev?.id === id
+        ? {
+            ...prev,
+            notes: (prev.notes ?? []).map((n) =>
+              n.id === noteId ? { ...n, text, createdAt: createdAt ?? n.createdAt } : n,
+            ),
+          }
+        : prev,
+    );
+  };
+
+  const deleteAdminNote = (id: string, noteId: string) => {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, notes: (p.notes ?? []).filter((n) => n.id !== noteId) } : p,
+      ),
+    );
+    setWorkbenchProject((prev) =>
+      prev?.id === id
+        ? { ...prev, notes: (prev.notes ?? []).filter((n) => n.id !== noteId) }
+        : prev,
+    );
   };
 
   const saveWorkbench = async (data: ProjectWorkbenchData) => {
@@ -1023,13 +1090,13 @@ export default function AdminProjectsPage() {
 
   const baseFiltered = projects.filter((p) => {
     const q = search.toLowerCase();
-    const csrName = projectAssigneeLabel(p);
     const matchSearch =
       (p.name ?? "").toLowerCase().includes(q) ||
       (p.projectTitle ?? "").toLowerCase().includes(q) ||
       (p.company ?? "").toLowerCase().includes(q) ||
       (p.interestedService ?? "").toLowerCase().includes(q) ||
-      csrName.toLowerCase().includes(q) ||
+      (p.csr?.name ?? "").toLowerCase().includes(q) ||
+      (p.csr?.csrCode ?? "").toLowerCase().includes(q) ||
       (p.projectSource ?? "").toLowerCase().includes(q) ||
       (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
     const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
@@ -1096,6 +1163,16 @@ export default function AdminProjectsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => void fetchProjects()}
+              disabled={loading}
+              className="h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-gray-700 text-xs sm:text-sm font-semibold inline-flex items-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] disabled:opacity-60"
+              title="Refresh projects"
+            >
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
             {!hideClientFinanceCols && (
               <>
                 <input
@@ -1304,6 +1381,8 @@ export default function AdminProjectsPage() {
           onRequestRevision={hideClientFinanceCols ? undefined : openRevision}
           onMarkCompleted={hideClientFinanceCols ? undefined : (p) => void markProjectCompleted(p)}
           onAddNote={addAdminNote}
+          onNoteUpdated={updateAdminNote}
+          onNoteDeleted={deleteAdminNote}
           onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}
           hideClientFinanceCols={hideClientFinanceCols}
         />

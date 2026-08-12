@@ -5,6 +5,9 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Check, Clock3, Play, Pause, Lock, RefreshCw,
 } from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
+} from "recharts";
 import EstimatorPageShell from "../components/EstimatorPageShell";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
@@ -18,6 +21,7 @@ import {
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import API from "@/lib/api";
 import {
   projectReceiveDate,
@@ -520,6 +524,39 @@ export default function EstimatorMyProjectsPage() {
     done: projects.filter((p) => !!p.myAssignment?.takeoffDone).length,
   }), [projects]);
 
+  const overdueCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return projects.filter((p) => {
+      if (p.myAssignment?.takeoffDone) return false;
+      const raw = p.myAssignment?.deadline || p.projectDeadline;
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return false;
+      return d < today;
+    }).length;
+  }, [projects]);
+
+  const statusPie = useMemo(() => {
+    const pendingOnTrack = Math.max(0, counts.pending - overdueCount);
+    return [
+      { name: "Pending", value: pendingOnTrack, color: "#D97706" },
+      { name: "Overdue", value: overdueCount, color: "#B8112D" },
+      { name: "Takeoff done", value: counts.done, color: "#059669" },
+    ].filter((d) => d.value > 0);
+  }, [counts.pending, counts.done, overdueCount]);
+
+  const workloadBar = useMemo(
+    () =>
+      [
+        { name: "All", count: counts.all, fill: "#7C3AED" },
+        { name: "Pending", count: counts.pending, fill: "#D97706" },
+        { name: "Done", count: counts.done, fill: "#059669" },
+        { name: "Overdue", count: overdueCount, fill: "#B8112D" },
+      ].filter((d) => d.count > 0),
+    [counts, overdueCount],
+  );
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -537,23 +574,96 @@ export default function EstimatorMyProjectsPage() {
   return (
     <EstimatorPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 overflow-x-hidden">
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-crm-text">My Projects</h1>
-            <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5">
-              Start / Pause timer · Complete task (locked after complete — only Miss can reopen)
-            </p>
+        <div className="mb-4 sm:mb-6 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-crm-text">My Projects</h1>
+              <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5">
+                Start / Pause timer · Complete task (locked after complete — only Miss can reopen)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void fetchProjects("manual")}
+              disabled={refreshing || loading}
+              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-crm-border bg-crm-surface text-xs sm:text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 dark:hover:bg-violet-500/10 disabled:opacity-60 shadow-sm w-fit shrink-0"
+              title="Refresh"
+            >
+              <RefreshCw size={14} className={refreshing || loading ? "animate-spin" : ""} />
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => void fetchProjects("manual")}
-            disabled={refreshing || loading}
-            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-crm-border bg-crm-surface text-xs sm:text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] hover:bg-violet-50 dark:hover:bg-violet-500/10 disabled:opacity-60 shadow-sm w-fit"
-            title="Refresh"
-          >
-            <RefreshCw size={14} className={refreshing || loading ? "animate-spin" : ""} />
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-3 sm:p-4 min-w-0">
+              <h2 className="font-bold text-crm-text text-sm">Assignment mix</h2>
+              <p className="text-[11px] text-crm-text-faint mt-0.5 mb-2">Pending · overdue · takeoff done</p>
+              {loading && projects.length === 0 ? (
+                <div className="h-[160px] bg-crm-border-subtle/40 rounded-xl animate-pulse" />
+              ) : statusPie.length === 0 ? (
+                <p className="text-sm text-crm-text-faint text-center py-10">No project data yet</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <RechartsBox height={150} className="sm:w-[150px] shrink-0">
+                    <PieChart>
+                      <Pie
+                        data={statusPie}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={36}
+                        outerRadius={58}
+                        paddingAngle={3}
+                        stroke="#fff"
+                        strokeWidth={2}
+                      >
+                        {statusPie.map((s) => (
+                          <Cell key={s.name} fill={s.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+                    </PieChart>
+                  </RechartsBox>
+                  <div className="flex-1 w-full grid gap-1.5">
+                    {statusPie.map((s) => (
+                      <div key={s.name} className="flex items-center gap-2 bg-[#FAFAFA] dark:bg-black/20 rounded-lg px-2.5 py-2">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        <p className="flex-1 text-xs font-medium text-crm-text-secondary truncate">{s.name}</p>
+                        <span className="text-sm font-bold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-3 sm:p-4 min-w-0">
+              <h2 className="font-bold text-crm-text text-sm">Workload snapshot</h2>
+              <p className="text-[11px] text-crm-text-faint mt-0.5 mb-2">Your assigned pipeline</p>
+              {loading && projects.length === 0 ? (
+                <div className="h-[160px] bg-crm-border-subtle/40 rounded-xl animate-pulse" />
+              ) : workloadBar.length === 0 ? (
+                <p className="text-sm text-crm-text-faint text-center py-10">No workload data yet</p>
+              ) : (
+                <RechartsBox height={160}>
+                  <BarChart data={workloadBar} barSize={22}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                      cursor={{ fill: "rgba(124,58,237,0.06)" }}
+                    />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                      {workloadBar.map((d) => (
+                        <Cell key={d.name} fill={d.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </RechartsBox>
+              )}
+            </div>
+          </div>
         </div>
 
         <CapsuleTabs
@@ -568,15 +678,27 @@ export default function EstimatorMyProjectsPage() {
           ]}
         />
 
-        <div className="relative mb-4 max-w-md">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search code, title, scope..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full bg-crm-surface border border-crm-border rounded-xl sm:rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-sm text-crm-text outline-none focus:border-[#7C3AED]"
-          />
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 mb-4">
+          <div className="relative flex-1 min-w-0 sm:min-w-[200px] sm:max-w-md">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search code, title, scope..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="w-full bg-crm-surface border border-crm-border rounded-xl sm:rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 text-sm text-crm-text outline-none focus:border-[#7C3AED]"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchProjects("manual")}
+            disabled={refreshing || loading}
+            className="h-10 sm:h-[46px] px-3 rounded-xl border border-crm-border bg-crm-surface text-xs font-semibold text-crm-text-secondary inline-flex items-center justify-center gap-1.5 hover:border-[#7C3AED]/40 hover:text-[#7C3AED] disabled:opacity-60 shrink-0"
+            title="Refresh"
+          >
+            <RefreshCw size={13} className={refreshing || loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
         </div>
 
         <div className="lg:hidden space-y-3">

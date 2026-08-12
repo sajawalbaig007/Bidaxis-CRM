@@ -799,26 +799,31 @@ function ClientsPageContent() {
                             </>
                           )}
 
-                          <td className={`${CSR_TD} whitespace-nowrap`}>
-                            <div className="flex items-center gap-1.5">
-                              {client.csrCode && (
-                                <span className="bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-1.5 py-0.5 rounded-md">{client.csrCode}</span>
-                              )}
-                              <span className="text-xs sm:text-sm text-gray-600">{client.csr}</span>
-                            </div>
+                          <td className={`${CSR_TD} min-w-0 overflow-hidden`}>
+                            {client.csrCode ? (
+                              <span
+                                className="inline-flex bg-[#B8112D]/10 text-[#B8112D] text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
+                                title={client.csr ? `${client.csrCode} — ${client.csr}` : client.csrCode}
+                              >
+                                {client.csrCode}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
                           </td>
 
                           {/* Status badge */}
-                          <td className={CSR_TD}>
+                          <td className={`${CSR_TD} min-w-0 overflow-hidden`}>
                             <span
-                              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${adminLeadStatusBadgeClass(client.rawStatus, client.nextFollowup)}`}
+                              className={`inline-flex max-w-full px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium truncate ${adminLeadStatusBadgeClass(client.rawStatus, client.nextFollowup)}`}
+                              title={adminLeadStatusLabel(client.rawStatus, client.nextFollowup)}
                             >
                               {adminLeadStatusLabel(client.rawStatus, client.nextFollowup)}
                             </span>
                           </td>
 
                           {/* Notes */}
-                          <td className={CSR_TD}>
+                          <td className={`${CSR_TD} min-w-0 overflow-hidden`}>
                             <CommentCell
                               id={client.id}
                               apiRole="admin"
@@ -844,6 +849,32 @@ function ClientsPageContent() {
                                     : c
                                 )));
                                 return entry;
+                              }}
+                              onNoteUpdated={(leadId, noteId, text, createdAt) => {
+                                const at = createdAt ?? new Date().toISOString();
+                                setClients(prev => prev.map(c => {
+                                  if (c.id !== leadId) return c;
+                                  const noteHistory = [...(c.noteHistory ?? [])]
+                                    .map(n => (n.id === noteId ? { ...n, text, createdAt: at } : n))
+                                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                                  return {
+                                    ...c,
+                                    noteHistory,
+                                    lastComment: noteHistory[0]?.text ?? c.lastComment,
+                                  };
+                                }));
+                              }}
+                              onNoteDeleted={(leadId, noteId) => {
+                                setClients(prev => prev.map(c => {
+                                  if (c.id !== leadId) return c;
+                                  const noteHistory = (c.noteHistory ?? []).filter(n => n.id !== noteId);
+                                  return {
+                                    ...c,
+                                    noteHistory,
+                                    noteCount: Math.max(0, (c.noteCount ?? noteHistory.length + 1) - 1),
+                                    lastComment: noteHistory[0]?.text ?? "No comments",
+                                  };
+                                }));
                               }}
                               onSave={async (id, text) => {
                                 await API.patch(`/admin/lead/${id}/note`, { comments: text });

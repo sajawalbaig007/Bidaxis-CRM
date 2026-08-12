@@ -23,7 +23,7 @@ export default function PhoneAreaCodeFilterInput({
         onChange={e => onChange(e.target.value)}
         placeholder="Area code..."
         title="Search by phone area code (e.g. 214, 416)"
-        className={`h-10 sm:h-[42px] pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none w-[130px] sm:w-[150px] ${
+        className={`h-10 sm:h-[42px] pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none w-full min-w-0 sm:w-[150px] ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary"
