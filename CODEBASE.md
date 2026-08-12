@@ -1313,7 +1313,7 @@ Project DB payment filter: **Partial** (`0 < % < 100`) / **Full** (`% ≥ 100`) 
 #### `/admin` — Dashboard
 - **File:** `admin/page.tsx`
 - **Source:** `GET /admin/clients/summary` via `lib/adminSummaryCache` (+ widgets: Top Estimators, CSRs)
-- **Shows:** KPI tiles (**Total Leads** + **Pending** non-clickable; **Important** where Online CSR was; **Total Completed** where Important was); chart (**Today / Pending** range label) + **Top 5 Estimators**; recent activity; top CSR performers — **no Project DB preview**
+- **Shows:** KPI tiles (**Total Leads** + **Pending** non-clickable; **Important** where Online CSR was; **Total Completed** = all-time CSR status updates via `CallLog`; **Today Completed Calls** = today’s CallLog); chart (**Today / Pending** range label) + **Top 5 Estimators**; recent activity; top CSR performers — **no Project DB preview**
 - **Merge:** Summary cache / sessionStorage; stale broadcast after users/leads mutations
 - **Backend:** `adminSummaryStats.ts` · widget `TopEstimatorsWidget.tsx`
 

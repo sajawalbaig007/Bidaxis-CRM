@@ -1,4 +1,4 @@
-/** Technical Team payroll formulas — OT, late (7–4), leaves, loan, PF 8%, tax */
+/** Technical Team payroll formulas — OT, late (7–4), leaves, loan, PF 8%, tax, occasional */
 
 export type TechnicalSalaryDetail = {
   basic: number;
@@ -14,6 +14,9 @@ export type TechnicalSalaryDetail = {
   loanPaid: number;
   loanThisMonth: number;
   incomeTax: number;
+  /** One-off pay added to net only (no PF/tax/late on this amount). */
+  occasionalAmount?: number;
+  occasionalRemark?: string;
   pfAuto: boolean;
   pfOverride?: number | null;
   remarks: string;
@@ -47,13 +50,14 @@ export type SalaryBreakdown = {
   loanRemaining: number;
   pf: number;
   incomeTax: number;
+  occasionalAmount: number;
   totalDeduction: number;
   totalSalary: number;
   lateRuleApplied: string;
 };
 
 export function emptyTechnicalSalary(partial?: Partial<TechnicalSalaryDetail>): TechnicalSalaryDetail {
-  return {
+  const merged: TechnicalSalaryDetail = {
     basic: 0,
     allowance: 0,
     weekdayOtHours: 0,
@@ -67,11 +71,17 @@ export function emptyTechnicalSalary(partial?: Partial<TechnicalSalaryDetail>): 
     loanPaid: 0,
     loanThisMonth: 0,
     incomeTax: 0,
+    occasionalAmount: 0,
+    occasionalRemark: "",
     pfAuto: true,
     pfOverride: null,
     remarks: "",
     ...partial,
   };
+  merged.occasionalAmount = Math.max(0, Number(merged.occasionalAmount) || 0);
+  merged.occasionalRemark = String(merged.occasionalRemark ?? "");
+  merged.pfAuto = partial?.pfAuto !== false;
+  return merged;
 }
 
 export function timeToMinutes(t: string | undefined | null): number | null {
@@ -160,7 +170,8 @@ export function computeTechnicalSalary(detail: TechnicalSalaryDetail): SalaryBre
   const totalDeduction =
     late.amount + unpaidLeaveDeduction + loanThisMonth + pf + incomeTax;
 
-  const totalSalary = totalEarning - totalDeduction;
+  const occasionalAmount = Math.max(0, Number(detail.occasionalAmount) || 0);
+  const totalSalary = totalEarning - totalDeduction + occasionalAmount;
 
   return {
     monthlySalary,
@@ -178,6 +189,7 @@ export function computeTechnicalSalary(detail: TechnicalSalaryDetail): SalaryBre
     loanRemaining,
     pf,
     incomeTax,
+    occasionalAmount,
     totalDeduction,
     totalSalary,
     lateRuleApplied: late.rule,

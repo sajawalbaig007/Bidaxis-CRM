@@ -432,8 +432,7 @@ export default function CSRPage() {
               {
                 label: "Today's queue",
                 tabs: [
-                  { tab:"today",         label:"Today Leads",    short:"Today",    count: statCounts.pendingCount,       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/25 ring-1 ring-[#B8112D]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
-                  { tab:"pending",       label:"Pending",        short:"Pending",  count: statCounts.pendingCount,       icon:<Clock3         size={13}/>, active:"bg-amber-600 text-white shadow-md shadow-amber-500/30",            inactive:"bg-amber-100 text-amber-800 dark:bg-amber-500/25 dark:text-amber-300 ring-1 ring-amber-300/70 dark:ring-amber-400/35"  },
+                  { tab:"today",         label:"Today / Pending", short:"Today",    count: statCounts.pendingCount,       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/25 ring-1 ring-[#B8112D]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
                   { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: statCounts.notPickedCount,     icon:<Clock3         size={13}/>, active:"bg-orange-500 text-white shadow-md shadow-orange-500/30",          inactive:"bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 ring-1 ring-orange-300/70 dark:ring-orange-400/35"  },
                   { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: statCounts.notInterestedCount, icon:<CircleCheckBig size={13}/>, active:"bg-slate-600 text-white shadow-md shadow-slate-500/25",            inactive:"bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200 ring-1 ring-slate-300/80 dark:ring-slate-400/35"  },
                 ],
@@ -457,17 +456,24 @@ export default function CSRPage() {
                 </p>
                 <div className={`grid gap-1.5 sm:gap-2 ${
                   gi === 0
-                    ? "grid-cols-2 sm:grid-cols-4"
+                    ? "grid-cols-3"
                     : "grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
                 }`}>
                   {group.tabs.map(btn => {
-                    const isActive = activeTab === btn.tab;
+                    const isActive =
+                      btn.tab === "today"
+                        ? activeTab === "today" || activeTab === "pending"
+                        : activeTab === btn.tab;
                     return (
                       <button
                         key={btn.tab}
                         type="button"
-                        onClick={() => { setActiveTab(btn.tab); setPage(1); setPhoneFilter(""); }}
-                        className={`min-h-[40px] sm:min-h-[42px] px-2 sm:px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] font-semibold transition-all ${
+                        onClick={() => {
+                          setActiveTab(btn.tab === "today" ? "today" : btn.tab);
+                          setPage(1);
+                          setPhoneFilter("");
+                        }}
+                        className={`min-h-[40px] sm:min-h-[42px] w-full px-2 sm:px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] font-semibold transition-all ${
                           isActive ? btn.active : btn.inactive
                         }`}
                       >
@@ -658,7 +664,7 @@ export default function CSRPage() {
                           ? `No leads matching phone code "${phoneFilter}".`
                           : statCounts.totalLeads > 0 && tabFiltered.length === 0
                           ? "Your leads are on other pages — try Not Interested, Potential Clients, or Clients."
-                          : activeTab === "today" && statCounts.totalLeads > 0
+                          : (activeTab === "today" || activeTab === "pending") && statCounts.totalLeads > 0
                           ? "No pending leads in Today's queue. Try another tab above."
                           : "No calls available in this category."}
                       </p>

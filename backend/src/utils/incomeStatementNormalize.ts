@@ -110,7 +110,7 @@ export function executiveCommissionBase(data: Record<string, unknown>): number {
 }
 
 /**
- * amount = Basic + Commission + Loan+ve − Loan−ve (total payable / head total)
+ * amount = Basic + Commission + Loan+ve − Loan−ve + Occasional − PF
  * for each executive sub-head.
  */
 export function recomputeExecutiveTeamInIncomeStatement(
@@ -130,13 +130,24 @@ export function recomputeExecutiveTeamInIncomeStatement(
     const pct = Number(s.salary?.commissionPct) || 0;
     const loanPositive = Number(s.salary?.loanPositive) || 0;
     const loanNegative = Number(s.salary?.loanNegative) || 0;
-    const total = basic + (base * pct) / 100 + loanPositive - loanNegative;
+    const occasionalAmount = Math.max(0, Number(s.salary?.occasionalAmount) || 0);
+    const occasionalRemark = String(s.salary?.occasionalRemark ?? "");
+    const pfAuto = s.salary?.pfAuto !== false;
+    const pf = pfAuto
+      ? basic * 0.08
+      : Math.max(0, Number(s.salary?.pfOverride) || 0);
+    const total =
+      basic + (base * pct) / 100 + loanPositive - loanNegative + occasionalAmount - pf;
     const nextSalary = {
       ...(s.salary ?? {}),
       basic,
       commissionPct: pct,
       loanPositive,
       loanNegative,
+      occasionalAmount,
+      occasionalRemark,
+      pfAuto,
+      pfOverride: s.salary?.pfOverride == null ? null : Number(s.salary.pfOverride),
       remarks: String(s.salary?.remarks ?? ""),
     };
     if (
@@ -144,6 +155,8 @@ export function recomputeExecutiveTeamInIncomeStatement(
       Number(s.salary?.basic) === basic &&
       Number(s.salary?.loanPositive) === loanPositive &&
       Number(s.salary?.loanNegative) === loanNegative &&
+      Number(s.salary?.occasionalAmount || 0) === occasionalAmount &&
+      String(s.salary?.occasionalRemark ?? "") === occasionalRemark &&
       s.salary
     ) {
       return s;

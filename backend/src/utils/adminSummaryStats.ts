@@ -321,6 +321,7 @@ export async function buildAdminClientSummaryPayload() {
     pipeline,
     closedTab,
     todayCompletedCalls,
+    totalCompletedCalls,
     recent,
     recentStatusLogs,
     chartSeries,
@@ -334,6 +335,8 @@ export async function buildAdminClientSummaryPayload() {
     prisma.callLog.count({
       where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
     }),
+    /** All-time CSR status updates (same source as Reports “Completed”) */
+    prisma.callLog.count(),
     prisma.lead.findMany({
       select: {
         id: true,
@@ -439,7 +442,8 @@ export async function buildAdminClientSummaryPayload() {
       scheduled,
       interested,
       projectWon,
-      completed: closedTab,
+      /** All-time CallLog rows = every CSR status update */
+      completed: totalCompletedCalls,
       closed: closedTab,
       todayCompletedCalls,
       other,
