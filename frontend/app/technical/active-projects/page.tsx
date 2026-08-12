@@ -907,7 +907,16 @@ export function TechnicalActiveProjectsPageInner({
   }, [dateFrom, dateTo, isRevisions]);
 
   useEffect(() => {
-    void fetchProjects();
+    let cancelled = false;
+    (async () => {
+      // Yield so setLoading is not synchronous inside the effect (react-hooks/set-state-in-effect).
+      await Promise.resolve();
+      if (cancelled) return;
+      await fetchProjects();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchProjects]);
 
   // Silent refresh every 30s (Admin Morning/COB + workflow stages)

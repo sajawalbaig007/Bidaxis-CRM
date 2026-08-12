@@ -1294,7 +1294,7 @@ Stored on **`Lead.projectPayments`**. Parsers: `backend/.../projectPayments.ts`,
 | Field | Meaning |
 |-------|---------|
 | `id` | Stable row id |
-| `type` | Partial / Milestone / Final / Other / **Full** (auto when collection ≥ 100%) |
+| `type` | **Partial** / **Full** only (Full auto when collection ≥ 100%; legacy Milestone/Final/Other still display until changed) |
 | `amount` | Collected amount |
 | `link` | Slip URL (Admin/Manager) — **clickable in +N history popup** |
 | `isPaid` | Collected flag |

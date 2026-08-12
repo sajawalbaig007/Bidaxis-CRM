@@ -39,9 +39,6 @@ export const PROJECT_PHASE_OPTIONS = [
 export const PAYMENT_TYPE_OPTIONS = [
   "Partial",
   "Full",
-  "Milestone",
-  "Final",
-  "Other",
 ] as const;
 
 /** Project DB filters — Partial (<100%) or Full (100% collected) */

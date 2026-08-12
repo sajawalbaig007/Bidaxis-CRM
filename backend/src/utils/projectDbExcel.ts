@@ -24,7 +24,7 @@ const PHASES = [
 
 const WORK_STATUSES = ["in_progress", "not_completed", "completed"] as const;
 const TIMINGS = ["", "morning", "cob"] as const;
-const PAYMENT_TYPES = ["Partial", "Milestone", "Final", "Other"] as const;
+const PAYMENT_TYPES = ["Partial", "Full"] as const;
 const CHANNELS = ["AH", "SN", "CHQ", "HM"] as const;
 const CURRENCIES = ["USD", "CAD", "PKR"] as const;
 
@@ -276,7 +276,7 @@ function exampleRow(): Record<string, string> {
   row.payment1AccountsMonth = "2024-04";
   row.payment1Link = "";
   row.payment1CreatedAt = "2024-04-10";
-  row.payment2Type = "Final";
+  row.payment2Type = "Full";
   row.payment2Amount = "1500";
   row.payment2IsPaid = "yes";
   row.payment2PaidAt = "2024-06-01";
