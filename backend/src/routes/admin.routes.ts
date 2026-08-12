@@ -1076,7 +1076,9 @@ router.get(
         "Content-Disposition",
         'attachment; filename="project-db-template.xlsx"',
       );
-      return res.send(buf);
+      res.setHeader("Content-Length", String(buf.length));
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).end(buf);
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to build template" });

@@ -909,11 +909,17 @@ export default function AdminProjectsPage() {
   const downloadProjectDbTemplate = async () => {
     try {
       const res = await API.get("/admin/projects/excel-template", {
-        responseType: "blob",
+        responseType: "arraybuffer",
       });
-      const blob = new Blob([res.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
+      const contentType =
+        String(res.headers?.["content-type"] ?? "") ||
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      const blob = new Blob([res.data], { type: contentType });
+      // Guard: if proxy returned JSON error, don't save as xlsx
+      if (contentType.includes("application/json") || blob.size < 100) {
+        toast.error("Template download failed — invalid file from server");
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -922,7 +928,7 @@ export default function AdminProjectsPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success("Template downloaded");
+      toast.success("Template downloaded — use Projects sheet (columns across row 1)");
     } catch {
       toast.error("Failed to download template");
     }
