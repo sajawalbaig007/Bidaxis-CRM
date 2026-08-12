@@ -264,15 +264,16 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
     const state = req.query.state ? String(req.query.state) : undefined;
     const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
     const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
+    const csrName = req.query.csr ? String(req.query.csr) : undefined;
     const areaCodesRaw = req.query.areaCodes ? String(req.query.areaCodes) : "";
     const areaCodes = areaCodesRaw
       .split(",")
       .map(s => s.trim())
       .filter(Boolean);
 
-    const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length);
+    const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}`
+      ? `admin:clients:tab-counts:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
       : "admin:clients:tab-counts";
 
     if (!hasFilters) {
@@ -281,7 +282,16 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
     }
 
     const payload = await buildAdminTabCountsPayload(
-      hasFilters ? { search, state, phonePrefix, areaCodes, scheduleDate } : undefined,
+      hasFilters
+        ? {
+            search,
+            state,
+            phonePrefix,
+            areaCodes,
+            scheduleDate,
+            csrName: csrName && csrName !== "all" ? csrName : undefined,
+          }
+        : undefined,
     );
     if (!hasFilters) setCache(CACHE_KEY, payload, 60_000);
     return res.json(payload);
@@ -2799,6 +2809,282 @@ router.put("/lead/:id/reassign", verifyToken, allowRoles("admin", "manager", "te
     return res.status(500).json({ success: false, message: "Failed to reassign lead" });
   }
 });
+
+/**
+ * Bulk reassign: From CSR + page → To CSR(s) + page (equal round-robin).
+ * Destination page sets status/flags so leads land on that CSR page.
+ */
+router.post(
+  "/leads/reassign-bulk",
+  verifyToken,
+  allowRoles("admin", "manager"),
+  async (req, res) => {
+    try {
+      const body = req.body as {
+        fromCsrId?: string;
+        toCsrIds?: string[];
+        /** @deprecated use fromPage */
+        pages?: string[];
+        fromPage?: string;
+        toPage?: string;
+      };
+      const fromCsrId = String(body.fromCsrId ?? "").trim();
+      const toCsrIds = Array.isArray(body.toCsrIds)
+        ? [...new Set(body.toCsrIds.map((id) => String(id).trim()).filter(Boolean))]
+        : [];
+      const pageKeys = new Set([
+        "important",
+        "schedule",
+        "interested",
+        "pending",
+        "not_picked",
+        "not_interested",
+        "close_client",
+      ]);
+      const fromPage = String(body.fromPage ?? body.pages?.[0] ?? "")
+        .trim()
+        .toLowerCase();
+      const toPage = String(body.toPage ?? body.fromPage ?? body.pages?.[0] ?? "")
+        .trim()
+        .toLowerCase();
+
+      if (!fromCsrId) {
+        return res.status(400).json({ success: false, message: "fromCsrId is required" });
+      }
+      if (!toCsrIds.length) {
+        return res.status(400).json({ success: false, message: "Select at least one destination CSR" });
+      }
+      if (!pageKeys.has(fromPage)) {
+        return res.status(400).json({ success: false, message: "Select a valid source page" });
+      }
+      if (!pageKeys.has(toPage)) {
+        return res.status(400).json({ success: false, message: "Select a valid destination page" });
+      }
+      if (toCsrIds.includes(fromCsrId) && toCsrIds.length === 1 && fromPage === toPage) {
+        return res.status(400).json({
+          success: false,
+          message: "Destination CSR/page must differ from source",
+        });
+      }
+
+      const fromCsr = await prisma.user.findFirst({
+        where: { id: fromCsrId, role: "csr" },
+        select: { id: true, name: true },
+      });
+      if (!fromCsr) {
+        return res.status(404).json({ success: false, message: "Source CSR not found" });
+      }
+
+      const destCsrs = await prisma.user.findMany({
+        where: { id: { in: toCsrIds }, role: "csr", isActive: true },
+        select: { id: true, name: true, csrCode: true },
+      });
+      if (destCsrs.length !== toCsrIds.length) {
+        return res.status(400).json({ success: false, message: "One or more destination CSRs are invalid/inactive" });
+      }
+
+      const pageWhere = (page: string): Prisma.LeadWhereInput | null => {
+        if (page === "important") return importantOnlyWhere();
+        if (page === "schedule") return scheduledCallWhere();
+        if (page === "interested") return isInterestedStatusWhere();
+        if (page === "pending") return { status: { equals: "pending", mode: "insensitive" } };
+        if (page === "not_picked") {
+          return { status: { in: ["not picked", "Not Picked", "not completed", "Not Completed"] } };
+        }
+        if (page === "not_interested") {
+          return { status: { in: ["not interested", "Not Interested"] } };
+        }
+        if (page === "close_client") {
+          return {
+            status: { in: ["Close Client", "close client", "closed", "completed", "Completed"] },
+          };
+        }
+        return null;
+      };
+
+      const sourceWhere = pageWhere(fromPage);
+      if (!sourceWhere) {
+        return res.status(400).json({ success: false, message: "Select a valid source page" });
+      }
+
+      const leads = await prisma.lead.findMany({
+        where: {
+          assignedTo: fromCsrId,
+          inBin: { not: true },
+          ...sourceWhere,
+        },
+        select: {
+          id: true,
+          nextSchedule: true,
+          nextTime: true,
+          clientCode: true,
+          phone: true,
+          company: true,
+        },
+        orderBy: { updatedAt: "asc" },
+      });
+
+      const destIds = [...new Set(toCsrIds)];
+      const finalTargets =
+        fromPage === toPage
+          ? destIds.filter((id) => id !== fromCsrId)
+          : destIds;
+      if (!finalTargets.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            fromPage === toPage
+              ? "Select a different destination CSR (same page requires another CSR)"
+              : "No valid destination CSRs",
+        });
+      }
+
+      const statusPatchForPage = (
+        page: string,
+        lead: { nextSchedule: string | null; nextTime: string | null },
+      ): Prisma.LeadUpdateInput => {
+        const clearSched = { nextSchedule: null, nextTime: null };
+        if (page === "important") {
+          return {
+            status: "important",
+            important: true,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+          };
+        }
+        if (page === "schedule") {
+          const hasMeeting = Boolean(lead.nextSchedule && String(lead.nextSchedule).trim());
+          return {
+            status: "important",
+            important: true,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...(hasMeeting ? {} : clearSched),
+          };
+        }
+        if (page === "interested") {
+          return {
+            status: "interested",
+            important: false,
+            interested: true,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+          };
+        }
+        if (page === "pending") {
+          return {
+            status: "pending",
+            important: false,
+            interested: false,
+            hiddenOnMain: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+          };
+        }
+        if (page === "not_picked") {
+          return {
+            status: "not picked",
+            important: false,
+            interested: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+          };
+        }
+        if (page === "not_interested") {
+          return {
+            status: "Not Interested",
+            important: false,
+            interested: false,
+            inBin: false,
+            binReason: null,
+            binPreviousStatus: null,
+            ...clearSched,
+          };
+        }
+        return {
+          status: "Close Client",
+          important: false,
+          interested: false,
+          hiddenOnMain: true,
+          inBin: false,
+          binReason: null,
+          binPreviousStatus: null,
+          ...clearSched,
+        };
+      };
+
+      let moved = 0;
+      const perCsr: Record<string, number> = {};
+      for (const id of finalTargets) perCsr[id] = 0;
+
+      for (let i = 0; i < leads.length; i++) {
+        const lead = leads[i]!;
+        const toId = finalTargets[i % finalTargets.length]!;
+        const pageData = statusPatchForPage(toPage, lead);
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            assignedTo: toId,
+            ...pageData,
+          },
+        });
+        perCsr[toId] = (perCsr[toId] ?? 0) + 1;
+        moved += 1;
+      }
+
+      flushAdminClientsCache();
+      invalidatePattern("admin:bin");
+      const cacheKeys = [
+        `csr:dashboard:${fromCsrId}`,
+        `csr:leads:${fromCsrId}`,
+        `csr:not-interested:${fromCsrId}`,
+        `csr:bin:${fromCsrId}`,
+        `csr:projects:${fromCsrId}`,
+      ];
+      for (const id of finalTargets) {
+        cacheKeys.push(
+          `csr:dashboard:${id}`,
+          `csr:leads:${id}`,
+          `csr:not-interested:${id}`,
+          `csr:bin:${id}`,
+          `csr:projects:${id}`,
+        );
+      }
+      invalidateCache(...cacheKeys);
+
+      const destNames = destCsrs
+        .filter((c) => finalTargets.includes(c.id))
+        .map((c) => ({ csrId: c.id, name: c.name, leads: perCsr[c.id] ?? 0 }));
+
+      return res.json({
+        success: true,
+        moved,
+        fromCsr: fromCsr.name,
+        fromPage,
+        toPage,
+        distribution: destNames,
+        message: `Moved ${moved} lead(s) from ${fromCsr.name}/${fromPage} → ${toPage}.`,
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to bulk reassign leads" });
+    }
+  },
+);
 
 /* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */
 

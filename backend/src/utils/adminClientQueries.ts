@@ -117,6 +117,17 @@ export function buildAdminClientListWhere(
         { company: { contains: q } },
         { phone: { contains: q } },
         { email: { contains: q } },
+        { ownerName: { contains: q } },
+        { projectTitle: { contains: q } },
+        { projectCode: { contains: q } },
+        { clientCode: { contains: q } },
+        { interestedService: { contains: q } },
+        { status: { contains: q } },
+        { comments: { contains: q } },
+        { projectNotes: { contains: q } },
+        { state: { contains: q } },
+        { csr: { is: { name: { contains: q } } } },
+        { csr: { is: { csrCode: { contains: q } } } },
       ],
     });
   }

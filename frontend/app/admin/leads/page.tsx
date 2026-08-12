@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 
 /* ─── COMPONENTS ─── */
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import { useStaffBase } from "@/app/hooks/useStaffBase";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
@@ -105,7 +105,6 @@ export default function ClientsPage() {
 function ClientsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const StaffSidebar = useStaffSidebar();
   const staffBase = useStaffBase();
   const urlTab = searchParams.get("tab");
   const [clients, setClients] = useState<Client[]>([]);
@@ -248,13 +247,15 @@ function ClientsPageContent() {
       areaCodes: filterAreaCodes.length ? filterAreaCodes : undefined,
       scheduleDate:
         effectiveView === "schedule" && impFilterDate ? impFilterDate : undefined,
+      csr: csrFilter !== "all" ? csrFilter : undefined,
     };
     const hasFilters = !!(
       filters.search ||
       filters.state ||
       filters.phone ||
       filters.scheduleDate ||
-      (filters.areaCodes?.length ?? 0) > 0
+      (filters.areaCodes?.length ?? 0) > 0 ||
+      filters.csr
     );
 
     void getAdminTabCounts(hasFilters, hasFilters ? filters : undefined)
@@ -271,6 +272,7 @@ function ClientsPageContent() {
     filterAreaCodes,
     effectiveView,
     impFilterDate,
+    csrFilter,
   ]);
 
   useEffect(() => {

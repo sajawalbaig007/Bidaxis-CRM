@@ -594,11 +594,16 @@ export default function CSRPage() {
                             return { ...l, noteHistory };
                           }));
                         }}
-                        onNoteDeleted={(leadId, _noteId) => {
-                          setLeads(prev => prev.map(l => l.id === leadId
-                            ? { ...l, noteCount: Math.max(0, (l.noteCount ?? 0) - 1) }
-                            : l
-                          ));
+                        onNoteDeleted={(leadId, noteId) => {
+                          setLeads(prev => prev.map(l => {
+                            if (l.id !== leadId) return l;
+                            const noteHistory = l.noteHistory.filter((n) => n.id !== noteId);
+                            return {
+                              ...l,
+                              noteHistory,
+                              noteCount: Math.max(0, noteHistory.length),
+                            };
+                          }));
                         }}
                       />
                     </td>

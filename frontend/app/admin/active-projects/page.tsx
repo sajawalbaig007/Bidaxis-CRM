@@ -11,7 +11,7 @@ import {
   Plus, GitBranch, CheckCircle2, Download, Upload,
 } from "lucide-react";
 
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
@@ -43,6 +43,8 @@ import {
   CSR_ASSIGN_OTHER,
   PROJECT_PHASE_OPTIONS,
   PAYMENT_TYPE_FILTER_OPTIONS,
+  matchesPaymentCollectionFilter,
+  paymentPercent,
 } from "@/lib/projectFields";
 
 function phaseLabel(value: string) {
@@ -601,7 +603,6 @@ function ProjectCsrCell({ p }: { p: Project }) {
 export default function AdminProjectsPage() {
   const pathname = usePathname();
   const hideClientFinanceCols = pathname?.startsWith("/technical") ?? false;
-  const StaffSidebar = useStaffSidebar();
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [stats,     setStats]     = useState<Stats>({ total: 0, withBudget: 0, thisMonth: 0 });
   const [loading,   setLoading]   = useState(true);
@@ -1074,16 +1075,14 @@ export default function AdminProjectsPage() {
       );
 
   const baseFiltered = projects.filter((p) => {
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().trim();
     const matchSearch =
+      !q ||
       (p.name ?? "").toLowerCase().includes(q) ||
       (p.projectTitle ?? "").toLowerCase().includes(q) ||
-      (p.company ?? "").toLowerCase().includes(q) ||
-      (p.interestedService ?? "").toLowerCase().includes(q) ||
-      (p.csr?.name ?? "").toLowerCase().includes(q) ||
-      (p.csr?.csrCode ?? "").toLowerCase().includes(q) ||
-      (p.projectSource ?? "").toLowerCase().includes(q) ||
-      (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
+      (p.projectCode ?? "").toLowerCase().includes(q) ||
+      (p.clientCode ?? "").toLowerCase().includes(q) ||
+      (p.company ?? "").toLowerCase().includes(q);
     const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
     const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
     const matchCsr = filterCSR === "all" || p.csr?.id === filterCSR;
@@ -1092,12 +1091,11 @@ export default function AdminProjectsPage() {
       if (!iso) return false;
       return iso.slice(0, 7) === monthFilter;
     })();
-    const matchPaymentType = !paymentTypeFilter || (() => {
-      const payments = parsePayments(p.projectPayments);
-      return payments.some(
-        (pay) => pay.type.toLowerCase() === paymentTypeFilter.toLowerCase(),
-      );
-    })();
+    const matchPaymentType = matchesPaymentCollectionFilter(
+      paymentTypeFilter,
+      parsePayments(p.projectPayments),
+      p.projectBudget,
+    );
     return matchSearch && matchState && matchPhone && matchCsr && matchMonth && matchPaymentType;
   });
 
@@ -1216,7 +1214,7 @@ export default function AdminProjectsPage() {
               <Search size={15} className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search projects, client, service..."
+                placeholder="Search by project name, client, project code..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="w-full bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 text-sm outline-none focus:border-[#B8112D]"
@@ -1297,9 +1295,9 @@ export default function AdminProjectsPage() {
                   onChange={(e) => { setPaymentTypeFilter(e.target.value); setPage(1); }}
                   className="appearance-none w-full sm:min-w-[180px] h-10 sm:h-11 bg-white border border-gray-200 rounded-xl pl-3.5 pr-9 text-sm outline-none focus:border-[#B8112D] font-semibold text-gray-700"
                 >
-                  <option value="">All payment types</option>
+                  <option value="">All payments</option>
                   {PAYMENT_TYPE_FILTER_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t}>{t === "Full" ? "Full payment" : "Partial"}</option>
                   ))}
                 </select>
                 <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />

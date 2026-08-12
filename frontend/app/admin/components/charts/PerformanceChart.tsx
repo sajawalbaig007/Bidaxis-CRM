@@ -117,7 +117,7 @@ export default function PerformanceChart({ leads = [], series, range = "week" }:
   }, [series, leads, range]);
 
   return (
-    <div className="h-[320px]">
+    <div className="h-[200px] sm:h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
           <defs>

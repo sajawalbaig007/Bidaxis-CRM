@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { apiErrorMessage } from "@/lib/api";
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import {
@@ -421,7 +421,6 @@ function ProjectList({
 }
 
 export default function AdminPaymentsPage() {
-  const StaffSidebar = useStaffSidebar();
   const pathname = usePathname();
   const basePath = pathname?.startsWith("/manager") ? "/manager" : "/admin";
 

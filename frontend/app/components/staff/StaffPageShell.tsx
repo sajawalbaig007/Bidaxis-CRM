@@ -1,6 +1,6 @@
 "use client";
 
-import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
+import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 
 /** Standard admin/manager page wrapper — top nav + padded main content. */
 export default function StaffPageShell({
@@ -12,8 +12,6 @@ export default function StaffPageShell({
   className?: string;
   maxWidth?: string;
 }) {
-  const StaffSidebar = useStaffSidebar();
-
   return (
     <div className="min-h-screen bg-[#F5F6FA] dark:bg-[#0f1117]">
       <StaffSidebar />
