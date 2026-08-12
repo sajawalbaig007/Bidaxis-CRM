@@ -21,7 +21,7 @@ interface CommentCellProps {
   skipNotesFetch?: boolean;
   onAddNote?:    (id: string, text: string) => Promise<unknown>;
   onSave?:       (id: string, text: string) => Promise<void>;
-  onNoteUpdated?: (id: string, noteId: string, text: string) => void;
+  onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
 }
 
@@ -208,9 +208,24 @@ export default function CommentCell({
     if (!text) return;
     setEditSaving(true);
     try {
-      await API.put(`/${apiRole}/lead/${id}/notes/${noteId}`, { text });
-      setLocalNotes(prev => prev !== null ? prev.map(n => n.id === noteId ? { ...n, text } : n) : null);
-      onNoteUpdated?.(id, noteId, text);
+      const res = await API.put(`/${apiRole}/lead/${id}/notes/${noteId}`, { text });
+      const serverNote = res.data?.note as { id?: string; text?: string; createdAt?: string } | undefined;
+      const bumpedAt = serverNote?.createdAt ?? new Date().toISOString();
+      setLocalNotes(prev => {
+        const base = prev ?? noteHistory ?? [];
+        const next = base.map(n =>
+          n.id === noteId ? { ...n, text: serverNote?.text ?? text, createdAt: bumpedAt } : n,
+        );
+        // If note wasn't in list yet, prepend
+        const has = next.some(n => n.id === noteId);
+        const withNote = has
+          ? next
+          : [{ id: noteId, text: serverNote?.text ?? text, createdAt: bumpedAt }, ...next];
+        return [...withNote].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      });
+      onNoteUpdated?.(id, noteId, text, bumpedAt);
       setEditId(null);
     } catch { /* toast from interceptor */ }
     finally { setEditSaving(false); }

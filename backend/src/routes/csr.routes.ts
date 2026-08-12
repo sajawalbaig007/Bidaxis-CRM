@@ -587,7 +587,10 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req
     if (!text?.trim()) return res.status(400).json({ success: false, message: "Note text required" });
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
-    const updated = await prisma.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+    const updated = await prisma.leadNote.update({
+      where: { id: noteId },
+      data: { text: text.trim(), createdAt: new Date() },
+    });
     invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
     flushAdminClientsCache();
     return res.json({ success: true, note: updated });

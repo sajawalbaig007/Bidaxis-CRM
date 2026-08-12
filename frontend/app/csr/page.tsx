@@ -584,11 +584,15 @@ export default function CSRPage() {
                         noteCount={currentLink.noteCount}
                         comment={currentLink.comments?.trim() || undefined}
                         onAddNote={addNote}
-                        onNoteUpdated={(leadId, noteId, text) => {
-                          setLeads(prev => prev.map(l => l.id === leadId
-                            ? { ...l, noteHistory: l.noteHistory.map(n => n.id === noteId ? { ...n, text } : n) }
-                            : l
-                          ));
+                        onNoteUpdated={(leadId, noteId, text, createdAt) => {
+                          const at = createdAt ?? new Date().toISOString();
+                          setLeads(prev => prev.map(l => {
+                            if (l.id !== leadId) return l;
+                            const noteHistory = [...l.noteHistory]
+                              .map(n => (n.id === noteId ? { ...n, text, createdAt: at } : n))
+                              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                            return { ...l, noteHistory };
+                          }));
                         }}
                         onNoteDeleted={(leadId, _noteId) => {
                           setLeads(prev => prev.map(l => l.id === leadId

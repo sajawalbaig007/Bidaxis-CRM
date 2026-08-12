@@ -27,6 +27,26 @@ import {
 } from "@/lib/csrResetPages";
 import { broadcastAdminSummaryStale } from "@/lib/adminSummaryCache";
 
+/** Build a viewable CNIC preview URL (Cloudinary raw PDFs blank in iframes). */
+function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string } {
+  const u = url.trim();
+  if (/\.(png|jpe?g|webp|gif)(\?|$)/i.test(u)) {
+    return { kind: "image", src: u };
+  }
+  // New uploads: image/pdf — first page thumbnail
+  if (u.includes("/image/upload/") && /\.pdf(\?|$)/i.test(u)) {
+    return { kind: "image", src: u.replace("/upload/", "/upload/f_jpg,pg_1,q_auto,w_900/") };
+  }
+  // Legacy raw PDF — Google Docs embedded viewer
+  if (u.includes("/raw/upload/") || /\.pdf(\?|$)/i.test(u)) {
+    return {
+      kind: "pdf",
+      src: `https://docs.google.com/gview?url=${encodeURIComponent(u)}&embedded=true`,
+    };
+  }
+  return { kind: "pdf", src: u };
+}
+
 type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts" | "Estimator";
 
 type CompanyFilter = "BEM" | "GPS";
@@ -1425,21 +1445,24 @@ export default function UsersPage() {
                     )}
                     {detailUser.cnicPdfUrl && (
                       <div className="mt-3">
-                        {/\.(png|jpe?g|webp|gif)(\?|$)/i.test(detailUser.cnicPdfUrl) ? (
-                          <img
-                            src={detailUser.cnicPdfUrl}
-                            alt="CNIC"
-                            className="w-full max-h-44 object-contain rounded-xl border border-gray-200 bg-white"
-                          />
-                        ) : (
-                          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
-                            <iframe
-                              src={detailUser.cnicPdfUrl}
-                              title="CNIC document"
-                              className="w-full h-44"
+                        {(() => {
+                          const preview = cnicDocumentPreview(detailUser.cnicPdfUrl);
+                          return preview.kind === "image" ? (
+                            <img
+                              src={preview.src}
+                              alt="CNIC"
+                              className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-white"
                             />
-                          </div>
-                        )}
+                          ) : (
+                            <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                              <iframe
+                                src={preview.src}
+                                title="CNIC document"
+                                className="w-full h-56"
+                              />
+                            </div>
+                          );
+                        })()}
                         <div className="flex items-center gap-3 mt-2">
                           <PdfPreview url={detailUser.cnicPdfUrl} fileName="CNIC document" />
                           <a

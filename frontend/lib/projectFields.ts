@@ -17,6 +17,8 @@ export type ProjectPayment = {
   link?: string;
   isPaid: boolean;
   paidAt?: string;
+  /** When this payment row was first added (history) */
+  createdAt?: string;
   /** Accounts currency channel — Admin/Manager when payment arrives */
   paymentChannel?: PaymentChannel;
   /** USD / CAD / PKR — shown on Accounts currency section */
@@ -78,7 +80,10 @@ function sanitizePayment(raw: Partial<ProjectPayment> & Record<string, unknown>)
     isPaid: Boolean(raw.isPaid),
   };
   if (typeof raw.link === "string" && raw.link.trim()) entry.link = raw.link.trim();
-  if (typeof raw.paidAt === "string" && raw.paidAt.trim()) entry.paidAt = raw.paidAt;
+  if (typeof raw.paidAt === "string" && raw.paidAt.trim()) entry.paidAt = raw.paidAt.trim();
+  if (typeof raw.createdAt === "string" && raw.createdAt.trim()) entry.createdAt = raw.createdAt.trim();
+  // Backfill history timestamp from paidAt for older rows
+  if (!entry.createdAt && entry.paidAt) entry.createdAt = entry.paidAt;
   if (channel) entry.paymentChannel = channel;
   if (currency) entry.currency = currency;
   if (accountsMonth) entry.accountsMonth = accountsMonth;
@@ -128,9 +133,24 @@ export function paidTotal(payments: ProjectPayment[]): number {
 export function latestPaidPayment(payments: ProjectPayment[]): ProjectPayment | null {
   const paid = payments.filter((p) => p.isPaid);
   if (!paid.length) return null;
-  const withDate = paid.filter((p) => p.paidAt);
-  if (!withDate.length) return paid[paid.length - 1];
-  return [...withDate].sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
+  return sortPaymentsNewestFirst(paid)[0] ?? null;
+}
+
+/** Sort by paidAt, then createdAt (newest first) — full payment history order. */
+export function sortPaymentsNewestFirst(payments: ProjectPayment[]): ProjectPayment[] {
+  return [...payments].sort((a, b) => {
+    const ta = a.paidAt || a.createdAt || "";
+    const tb = b.paidAt || b.createdAt || "";
+    if (ta && tb) return tb.localeCompare(ta);
+    if (ta) return -1;
+    if (tb) return 1;
+    return 0;
+  });
+}
+
+/** Activity timestamp for a payment row (paid date preferred). */
+export function paymentActivityAt(p: ProjectPayment): string | undefined {
+  return p.paidAt || p.createdAt;
 }
 
 export function paymentPercent(payments: ProjectPayment[], budget: string | number | null | undefined): number {
@@ -154,6 +174,19 @@ export function formatPaymentWhen(iso: string | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+export function formatPaymentMoney(amount: string | number, currency?: PaymentCurrency | null): string {
+  const n = parseMoney(amount);
+  if (n <= 0) return "—";
+  const prefix =
+    currency === "PKR" ? "PKR " : currency === "CAD" ? "CAD " : currency === "USD" ? "$" : "$";
+  return `${prefix}${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+export function paymentChannelLabel(channel?: PaymentChannel | null): string {
+  if (!channel) return "—";
+  return PAYMENT_CHANNEL_OPTIONS.find((o) => o.value === channel)?.label ?? channel;
 }
 
 export function newPaymentId(): string {

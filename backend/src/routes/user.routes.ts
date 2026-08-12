@@ -108,7 +108,11 @@ router.post("/upload-cnic", allowRoles("admin"), uploadPdf.single("file"), async
       const stream = cloudinary.uploader.upload_stream(
         {
           folder: "crm_cnic_docs",
-          resource_type: "raw",
+          // image+pdf enables inline preview / page thumbnails (raw uploads blank in iframes)
+          resource_type: "image",
+          format: "pdf",
+          type: "upload",
+          access_mode: "public",
         },
         (err, result) => { if (err || !result) return reject(err); resolve(result.secure_url); }
       );

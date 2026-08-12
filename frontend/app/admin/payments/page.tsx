@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronDown,
   DollarSign,
+  ExternalLink,
   Percent,
   RefreshCw,
   TrendingUp,
@@ -25,6 +26,8 @@ import {
   fetchPaymentsSummary,
   formatMoney,
   formatMoneyAlways,
+  type ChannelCurrencyTotals,
+  type PaymentEntrySummary,
   type PaymentsSummaryPayload,
   type ProjectPaymentSummaryRow,
 } from "@/lib/paymentsSummary";
@@ -35,28 +38,89 @@ const STATUS_COLORS = {
   unpaid: "#EF4444",
 };
 
+const CURRENCY_ORDER = ["USD", "CAD", "PKR"] as const;
+
+function formatPaymentDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/** Accounts receive month (YYYY-MM) — separate from payment paidAt. */
+function formatReceiveDate(month: string | null | undefined): string {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return "—";
+  const [y, mo] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Always show USD / CAD / PKR separately inside one source card. */
+function CurrencyBreakdown({
+  totals,
+  accent,
+}: {
+  totals: ChannelCurrencyTotals;
+  accent?: string;
+}) {
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-1.5">
+      {CURRENCY_ORDER.map((key) => {
+        const value = totals[key] ?? 0;
+        const active = value > 0;
+        return (
+          <div
+            key={key}
+            className={`rounded-xl border px-2 py-2 text-center ${
+              active
+                ? "bg-crm-surface border-crm-border shadow-sm"
+                : "bg-crm-muted/40 border-transparent opacity-60"
+            }`}
+          >
+            <p
+              className="text-[9px] font-extrabold uppercase tracking-wider"
+              style={{ color: active && accent ? accent : undefined }}
+            >
+              <span className={active ? "" : "text-crm-text-faint"}>{key}</span>
+            </p>
+            <p
+              className={`mt-0.5 text-[11px] sm:text-xs font-bold tabular-nums leading-tight ${
+                active ? "text-crm-text" : "text-crm-text-faint"
+              }`}
+            >
+              {active ? formatMoneyAlways(value, key) : "—"}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CurrencyLines({
   totals,
 }: {
   totals: { USD: number; CAD: number; PKR: number };
 }) {
-  const rows = [
-    { key: "USD", value: totals.USD },
-    { key: "CAD", value: totals.CAD },
-    { key: "PKR", value: totals.PKR },
-  ].filter((r) => r.value > 0);
+  const rows = CURRENCY_ORDER.map((key) => ({ key, value: totals[key] })).filter((r) => r.value > 0);
 
   if (rows.length === 0) {
     return <p className="text-[11px] text-crm-text-faint mt-1">No currency yet</p>;
   }
 
   return (
-    <div className="mt-2 space-y-0.5">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {rows.map((r) => (
-        <p key={r.key} className="text-[11px] text-crm-text-muted tabular-nums">
-          <span className="font-bold text-crm-text-faint uppercase mr-1">{r.key}</span>
-          {formatMoneyAlways(r.value, r.key)}
-        </p>
+        <span
+          key={r.key}
+          className="inline-flex items-center gap-1 rounded-lg border border-crm-border-subtle bg-crm-surface px-2 py-1 text-[11px] tabular-nums"
+        >
+          <span className="font-extrabold text-crm-text-faint uppercase">{r.key}</span>
+          <span className="font-bold text-crm-text">{formatMoneyAlways(r.value, r.key)}</span>
+        </span>
       ))}
     </div>
   );
@@ -96,6 +160,13 @@ function KpiCard({
       {children}
     </div>
   );
+}
+
+function paymentStatusBadge(pay: PaymentEntrySummary) {
+  if (pay.paymentStatus === "Paid") {
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300";
+  }
+  return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300";
 }
 
 function ProjectList({
@@ -146,11 +217,32 @@ function ProjectList({
       {rows.length === 0 ? (
         <p className="px-4 py-10 text-center text-sm text-crm-text-faint">{emptyText}</p>
       ) : (
-        <div className="divide-y divide-crm-border-subtle max-h-[420px] overflow-y-auto">
+        <div className="divide-y divide-crm-border-subtle max-h-[560px] overflow-y-auto">
           {rows.map((p) => {
             const open = expanded[p.leadId] ?? false;
+            const detailRows =
+              p.payments.length > 0
+                ? p.payments
+                : [
+                    {
+                      id: `${p.leadId}-empty`,
+                      type: "—",
+                      amount: "",
+                      amountNum: 0,
+                      currency: null,
+                      channel: null,
+                      channelLabel: "—",
+                      link: null,
+                      paymentStatus: "Unpaid" as const,
+                      paidAt: null,
+                      createdAt: null,
+                      accountsMonth: null,
+                      isPartialType: false,
+                    },
+                  ];
+
             return (
-              <div key={p.leadId} className="px-4 sm:px-5 py-3">
+              <div key={p.leadId} className="px-3 sm:px-4 py-3">
                 <button
                   type="button"
                   onClick={() => setExpanded((prev) => ({ ...prev, [p.leadId]: !open }))}
@@ -167,7 +259,11 @@ function ProjectList({
                         {p.projectTitle || "Untitled"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-crm-text-muted mt-0.5">
+                    <p className="text-[11px] text-crm-text-muted mt-0.5 truncate">
+                      {p.clientName || "—"}
+                      {p.clientEmail ? ` · ${p.clientEmail}` : ""}
+                    </p>
+                    <p className="text-[11px] text-crm-text-faint mt-0.5">
                       Quoted {p.quotedLabel} · Collected {p.paidLabel} · {p.percent}%
                     </p>
                   </div>
@@ -175,39 +271,145 @@ function ProjectList({
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${badgeCls}`}>
                       {p.payments.length} payment{p.payments.length === 1 ? "" : "s"}
                     </span>
+                    {p.payments.length > 1 ? (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-crm-text text-white"
+                        title={`${p.payments.length - 1} older payment(s) in history`}
+                      >
+                        +{p.payments.length - 1}
+                      </span>
+                    ) : null}
                     <ChevronDown
                       size={14}
                       className={`text-crm-text-faint transition-transform ${open ? "rotate-180" : ""}`}
                     />
                   </div>
                 </button>
-                {open && p.payments.length > 0 ? (
-                  <ul className="mt-3 space-y-2 pl-1">
-                    {p.payments.map((pay) => (
-                      <li
-                        key={pay.id}
-                        className="text-[11px] sm:text-xs rounded-xl border border-crm-border-subtle bg-crm-surface-muted px-3 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
-                      >
-                        <div>
-                          <span className="font-bold text-crm-text">{pay.type}</span>
-                          <span className="text-crm-text-faint mx-1.5">·</span>
-                          <span className="font-semibold text-emerald-600">
-                            {formatMoney(pay.amountNum, pay.currency)}
-                          </span>
-                          {!pay.channel ? (
-                            <span className="ml-2 text-[10px] font-bold text-red-700 bg-red-50 dark:bg-red-500/15 px-1.5 py-0.5 rounded">
-                              No channel
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="text-crm-text-muted">
-                          {pay.channelLabel}
-                          {pay.currency ? ` · ${pay.currency}` : ""}
-                          {pay.accountsMonth ? ` · ${pay.accountsMonth}` : ""}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+
+                {open ? (
+                  <div className="mt-3 rounded-xl border border-crm-border-subtle overflow-hidden bg-crm-surface-muted/40">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px] min-w-[980px]">
+                        <thead>
+                          <tr className="bg-crm-surface-muted text-crm-text-faint border-b border-crm-border-subtle">
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Proj code
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Client name
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Client email
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Payment link
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Status
+                            </th>
+                            <th className="px-2.5 py-2 text-right font-bold uppercase tracking-wide whitespace-nowrap">
+                              Amount
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Payment date
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Source
+                            </th>
+                            <th className="px-2.5 py-2 text-left font-bold uppercase tracking-wide whitespace-nowrap">
+                              Receive date
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailRows.map((pay) => (
+                            <tr
+                              key={pay.id}
+                              className="border-b border-crm-border-subtle last:border-0 bg-crm-surface"
+                            >
+                              <td className="px-2.5 py-2.5 font-bold text-[#B8112D] whitespace-nowrap align-top">
+                                {p.projectCode || "—"}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-crm-text font-medium max-w-[140px] truncate align-top" title={p.clientName ?? undefined}>
+                                {p.clientName || "—"}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-crm-text-secondary max-w-[160px] truncate align-top" title={p.clientEmail ?? undefined}>
+                                {p.clientEmail ? (
+                                  <a
+                                    href={`mailto:${p.clientEmail}`}
+                                    className="text-sky-700 hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {p.clientEmail}
+                                  </a>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="px-2.5 py-2.5 align-top">
+                                {pay.link ? (
+                                  <a
+                                    href={pay.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-1 font-semibold text-[#B8112D] hover:underline max-w-[160px]"
+                                    title={pay.link}
+                                  >
+                                    <ExternalLink size={11} className="shrink-0" />
+                                    <span className="truncate">Open link</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-crm-text-faint">—</span>
+                                )}
+                              </td>
+                              <td className="px-2.5 py-2.5 align-top whitespace-nowrap">
+                                <span
+                                  className={`inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded-md ${paymentStatusBadge(pay)}`}
+                                >
+                                  {pay.paymentStatus}
+                                </span>
+                                {pay.type && pay.type !== "—" ? (
+                                  <span className="ml-1 text-crm-text-faint">{pay.type}</span>
+                                ) : null}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-right font-bold tabular-nums text-emerald-700 align-top whitespace-nowrap">
+                                {pay.amountNum > 0
+                                  ? formatMoney(pay.amountNum, pay.currency)
+                                  : "—"}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-crm-text-secondary whitespace-nowrap align-top">
+                                {formatPaymentDate(pay.paidAt)}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-crm-text-secondary whitespace-nowrap align-top">
+                                {pay.channel ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="font-bold text-crm-text">{pay.channel}</span>
+                                    <span className="text-crm-text-faint">{pay.channelLabel}</span>
+                                    {pay.currency ? (
+                                      <span className="text-[10px] font-bold text-crm-text-muted">
+                                        · {pay.currency}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-red-700 bg-red-50 dark:bg-red-500/15 px-1.5 py-0.5 rounded">
+                                    No source
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-2.5 py-2.5 text-crm-text-secondary whitespace-nowrap align-top">
+                                {formatReceiveDate(pay.accountsMonth)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="px-3 py-1.5 text-[10px] text-crm-text-faint border-t border-crm-border-subtle">
+                      Payment date = when marked paid · Receive date = Accounts month (books separately)
+                    </p>
+                  </div>
                 ) : null}
               </div>
             );
@@ -271,8 +473,6 @@ export default function AdminPaymentsPage() {
       })),
     [channels],
   );
-
-  const maxSource = Math.max(...sourceBars.map((s) => s.amount), 1);
 
   const lastUpdated = data?.generatedAt
     ? new Date(data.generatedAt).toLocaleTimeString("en-GB", {
@@ -531,15 +731,25 @@ export default function AdminPaymentsPage() {
             </div>
           </section>
 
-          {/* Source cards */}
+          {/* Source cards — one card per channel; USD / CAD / PKR always separate */}
           <section>
-            <h2 className="text-sm font-bold text-crm-text mb-3">
+            <h2 className="text-sm font-bold text-crm-text mb-1">
               Sources · {data?.monthLabel ?? "All time"}
             </h2>
+            <p className="text-[11px] text-crm-text-muted mb-3">
+              Same source can collect USD, CAD and PKR — amounts stay separate in one card
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {channels.map((ch) => {
                 const style = CHANNEL_STYLES[ch.key];
-                const pct = Math.round((ch.totalAmount / maxSource) * 100);
+                const active = CURRENCY_ORDER.filter((c) => (ch.totals[c] ?? 0) > 0);
+                const primary =
+                  active.length === 1
+                    ? formatMoneyAlways(ch.totals[active[0]!], active[0])
+                    : active.length > 1
+                      ? `${active.length} currencies`
+                      : formatMoneyAlways(0);
+
                 return (
                   <div
                     key={ch.key}
@@ -560,46 +770,38 @@ export default function AdminPaymentsPage() {
                       </span>
                     </div>
                     <p className="text-xl font-extrabold text-crm-text tabular-nums mt-3 tracking-tight">
-                      {formatMoneyAlways(ch.totalAmount)}
+                      {primary}
                     </p>
                     <p className="text-[11px] text-crm-text-faint mt-0.5">
                       {ch.projectCount} project{ch.projectCount === 1 ? "" : "s"}
-                      {ch.activeCurrencies.length > 0
-                        ? ` · ${ch.activeCurrencies.join(" / ")}`
-                        : " · No currency"}
+                      {active.length > 0 ? ` · ${active.join(" + ")}` : " · No currency yet"}
                     </p>
-                    <div className="mt-3 w-full h-1.5 rounded-full bg-crm-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${pct}%`, background: style.color }}
-                      />
-                    </div>
-                    <CurrencyLines totals={ch.totals} />
+                    <CurrencyBreakdown totals={ch.totals} accent={style.color} />
                   </div>
                 );
               })}
             </div>
           </section>
 
-          {/* Project lists */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          {/* Project lists — full width so payment detail table stays readable */}
+          <div className="space-y-4">
             <ProjectList
               title="Full paid"
-              subtitle="Quoted amount fully collected"
+              subtitle="Quoted amount fully collected — expand for client & payment details"
               rows={data?.fullPaidProjects ?? []}
               tone="emerald"
               emptyText="No fully paid projects in this period."
             />
             <ProjectList
               title="Partial paid"
-              subtitle="Expand to see channel & amount"
+              subtitle="Expand to see channel, link, payment & receive dates"
               rows={data?.partialPaidProjects ?? []}
               tone="amber"
               emptyText="No partial payments in this period."
             />
             <ProjectList
               title="Unpaid (with quote)"
-              subtitle="Quoted but nothing collected yet"
+              subtitle="Quoted but nothing collected yet — expand for client details"
               rows={data?.unpaidProjects ?? []}
               tone="red"
               emptyText="No unpaid quoted projects."

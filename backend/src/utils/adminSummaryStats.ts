@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { buildBinWhere, buildNotBinWhere } from "./binLeads";
 import {
+  buildAdminClientListWhere,
   buildAdminClientViewWhere,
   importantOnlyWhere,
   isImportantStatusWhere,
@@ -265,13 +266,37 @@ function performerRate(resolved: number, total: number): number {
   return Math.round(pct * 10) / 10;
 }
 
-export async function buildAdminTabCountsPayload() {
+export async function buildAdminTabCountsPayload(filters?: {
+  search?: string;
+  state?: string;
+  phonePrefix?: string;
+  areaCodes?: string[];
+  scheduleDate?: string;
+}) {
+  const extras = {
+    state: filters?.state,
+    phonePrefix: filters?.phonePrefix,
+    areaCodes: filters?.areaCodes,
+  };
+  const search = filters?.search;
+  const scheduleDate = filters?.scheduleDate;
+
   const [all, important, schedule, interested, closed] = await Promise.all([
-    prisma.lead.count(),
-    prisma.lead.count({ where: importantOnlyWhere() }),
-    prisma.lead.count({ where: scheduledCallWhere() }),
-    prisma.lead.count({ where: isInterestedStatusWhere() }),
-    prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
+    prisma.lead.count({
+      where: buildAdminClientListWhere("all", undefined, search, undefined, extras),
+    }),
+    prisma.lead.count({
+      where: buildAdminClientListWhere("important", undefined, search, undefined, extras),
+    }),
+    prisma.lead.count({
+      where: buildAdminClientListWhere("schedule", undefined, search, scheduleDate, extras),
+    }),
+    prisma.lead.count({
+      where: buildAdminClientListWhere("interested", undefined, search, undefined, extras),
+    }),
+    prisma.lead.count({
+      where: buildAdminClientListWhere("closed", undefined, search, undefined, extras),
+    }),
   ]);
 
   return {

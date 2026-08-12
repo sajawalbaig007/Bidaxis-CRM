@@ -37,7 +37,7 @@ import CommentCell from "../../csr/components/shared/CommentCell";
 import type { NoteEntry } from "../../csr/hooks/useLeadsData";
 import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
-import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
+import { STATE_AREA_CODES } from "@/app/csr/constants/locations";
 import LeadDetailModal from "../../csr/components/LeadDetailModal";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from "recharts";
 import {
@@ -229,25 +229,72 @@ function ClientsPageContent() {
     return () => clearTimeout(t);
   }, [impSearch]);
 
+  const activeSearchQ = effectiveView === "important" || effectiveView === "schedule"
+    ? impSearchDebounced
+    : searchDebounced;
+
+  const filterAreaCodes = useMemo(() => {
+    if (!stateFilter.trim()) return [] as string[];
+    return STATE_AREA_CODES[stateFilter] ?? [];
+  }, [stateFilter]);
+
+  // Refresh tab counts whenever search / location / area-code filters change
+  useEffect(() => {
+    let cancelled = false;
+    const filters = {
+      search: activeSearchQ.trim() || undefined,
+      state: stateFilter.trim() || undefined,
+      phone: phoneFilter.replace(/\D/g, "") || undefined,
+      areaCodes: filterAreaCodes.length ? filterAreaCodes : undefined,
+      scheduleDate:
+        effectiveView === "schedule" && impFilterDate ? impFilterDate : undefined,
+    };
+    const hasFilters = !!(
+      filters.search ||
+      filters.state ||
+      filters.phone ||
+      filters.scheduleDate ||
+      (filters.areaCodes?.length ?? 0) > 0
+    );
+
+    void getAdminTabCounts(hasFilters, hasFilters ? filters : undefined)
+      .then(tc => {
+        if (!cancelled) setTabCounts(tc);
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [
+    activeSearchQ,
+    stateFilter,
+    phoneFilter,
+    filterAreaCodes,
+    effectiveView,
+    impFilterDate,
+  ]);
+
   useEffect(() => {
     let cancelled = false;
 
     const loadClients = async () => {
       setLoading(true);
       try {
-        const q = effectiveView === "important" || effectiveView === "schedule"
-          ? impSearchDebounced
-          : searchDebounced;
         const params = new URLSearchParams({
           view: effectiveView,
           page: String(page),
           limit: String(PAGE_SIZE),
         });
         if (csrFilter !== "all") params.set("csr", csrFilter);
-        if (q.trim()) params.set("search", q.trim());
+        if (activeSearchQ.trim()) params.set("search", activeSearchQ.trim());
         if (effectiveView === "schedule" && impFilterDate) {
           params.set("scheduleDate", impFilterDate);
         }
+        if (stateFilter.trim()) {
+          params.set("state", stateFilter.trim());
+          if (filterAreaCodes.length) params.set("areaCodes", filterAreaCodes.join(","));
+        }
+        const phoneDigits = phoneFilter.replace(/\D/g, "");
+        if (phoneDigits) params.set("phone", phoneDigits);
 
         const res = await API.get(`/admin/clients?${params}`);
         if (cancelled) return;
@@ -275,9 +322,11 @@ function ClientsPageContent() {
     effectiveView,
     page,
     csrFilter,
-    searchDebounced,
-    impSearchDebounced,
+    activeSearchQ,
     impFilterDate,
+    stateFilter,
+    phoneFilter,
+    filterAreaCodes,
     refreshToken,
   ]);
 
@@ -304,16 +353,8 @@ function ClientsPageContent() {
 
   const { filters: leadColFilters, setFilter: setLeadColFilter, filtered: colFilteredClients, hasActiveFilters } =
     useColumnFilters(
-      useMemo(() => {
-        let list = clients;
-        if (stateFilter) {
-          list = list.filter(c => matchesStateLocationFilter(c.state, c.contact, stateFilter));
-        }
-        if (phoneFilter) {
-          list = list.filter(c => matchesPhoneAreaCodeFilter(c.contact, phoneFilter));
-        }
-        return list;
-      }, [clients, stateFilter, phoneFilter]),
+      // State / phone already applied server-side — keep light client pass for consistency
+      useMemo(() => clients, [clients]),
       leadColPredicates,
     );
 
@@ -327,15 +368,19 @@ function ClientsPageContent() {
     return null;
   }
 
+  // Tab counts come from API (including search/state/phone). Column filters only adjust
+  // the active tab count from the current page when those header filters are on.
   const filteredTabCounts = useMemo(() => {
     if (!hasActiveFilters) return tabCounts;
-    const counts = { important: 0, schedule: 0, interested: 0, closed: 0 };
-    colFilteredClients.forEach(c => {
-      const b = clientViewBucket(c);
-      if (b) counts[b]++;
-    });
-    return { ...tabCounts, ...counts };
-  }, [hasActiveFilters, colFilteredClients, tabCounts]);
+    const counts = { ...tabCounts };
+    const bucket = effectiveView;
+    if (bucket === "important" || bucket === "schedule" || bucket === "interested" || bucket === "closed") {
+      counts[bucket] = colFilteredClients.filter(c => clientViewBucket(c) === bucket).length;
+    }
+    return counts;
+  }, [hasActiveFilters, colFilteredClients, tabCounts, effectiveView]);
+
+  const locationFiltersActive = !!(stateFilter.trim() || phoneFilter.trim() || activeSearchQ.trim());
 
   const visibleTabs = useMemo<CapsuleTabItem<ClientView>[]>(() => {
     const all: CapsuleTabItem<ClientView>[] = [
@@ -344,8 +389,8 @@ function ClientsPageContent() {
       { key: "interested", label: "Interested", count: filteredTabCounts.interested, icon: HeartHandshake },
       { key: "closed", label: "Closed", count: filteredTabCounts.closed, icon: BadgeCheck },
     ];
-    return hasActiveFilters ? all.filter(t => (t.count ?? 0) > 0) : all;
-  }, [filteredTabCounts, hasActiveFilters]);
+    return hasActiveFilters || locationFiltersActive ? all.filter(t => (t.count ?? 0) > 0) : all;
+  }, [filteredTabCounts, hasActiveFilters, locationFiltersActive]);
 
   const paginatedClients  = colFilteredClients;
   const filteredClients     = colFilteredClients;

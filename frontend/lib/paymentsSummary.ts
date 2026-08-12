@@ -12,8 +12,16 @@ export type PaymentEntrySummary = {
   currency: "USD" | "CAD" | "PKR" | null;
   channel: PaymentChannelKey | null;
   channelLabel: string;
-  accountsMonth: string | null;
+  /** Payment slip / invoice URL */
+  link: string | null;
+  /** Paid / Unpaid (entry-level) */
+  paymentStatus: "Paid" | "Unpaid";
+  /** When payment was marked paid (ISO) */
   paidAt: string | null;
+  /** When payment row was created (ISO) */
+  createdAt: string | null;
+  /** Accounts receive month YYYY-MM (separate from paidAt) */
+  accountsMonth: string | null;
   isPartialType: boolean;
 };
 
@@ -21,6 +29,8 @@ export type ProjectPaymentSummaryRow = {
   leadId: string;
   projectCode: string | null;
   projectTitle: string | null;
+  clientName: string | null;
+  clientEmail: string | null;
   quoted: number;
   quotedLabel: string;
   paidTotal: number;
