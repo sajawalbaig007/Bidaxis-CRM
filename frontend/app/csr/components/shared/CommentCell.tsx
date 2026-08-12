@@ -21,6 +21,11 @@ interface CommentCellProps {
   skipNotesFetch?: boolean;
   /** Optional short label under the sticky (e.g. "Tech"). */
   badgeLabel?: string;
+  /**
+   * Extra notes merged into the same sticky (e.g. Technical notes on Admin Project DB).
+   * Always shown in history / latest pick; never editable via this cell.
+   */
+  extraReadOnlyNotes?: NoteEntry[];
   onAddNote?: (id: string, text: string) => Promise<unknown>;
   onSave?: (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
@@ -43,7 +48,18 @@ function fmtTime(iso: string): string {
 }
 
 function isLegacyNoteId(noteId: string) {
-  return noteId.startsWith("legacy-") || noteId.startsWith("tmp-");
+  return (
+    noteId.startsWith("legacy-") ||
+    noteId.startsWith("tmp-") ||
+    noteId.startsWith("tech-") ||
+    noteId.startsWith("readonly-")
+  );
+}
+
+function sortNotesNewestFirst(notes: NoteEntry[]) {
+  return [...notes].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 export default function CommentCell({
@@ -56,6 +72,7 @@ export default function CommentCell({
   commentOnly = false,
   skipNotesFetch = false,
   badgeLabel,
+  extraReadOnlyNotes,
   onAddNote,
   onSave,
   onNoteUpdated,
@@ -77,11 +94,21 @@ export default function CommentCell({
   const btnRef = useRef<HTMLButtonElement>(null);
   const fetchStartedRef = useRef(false);
 
-  const displayNotes = commentOnly
+  const readonlyExtras = (extraReadOnlyNotes ?? [])
+    .filter((n) => n.text?.trim())
+    .map((n) => ({
+      ...n,
+      id: n.id.startsWith("tech-") || n.id.startsWith("readonly-") ? n.id : `readonly-${n.id}`,
+    }));
+
+  const baseNotes = commentOnly
     ? []
-    : (localNotes !== null ? localNotes : (noteHistory ?? []))
-        .filter((n) => n.text?.trim())
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    : (localNotes !== null ? localNotes : (noteHistory ?? [])).filter((n) => n.text?.trim());
+
+  const displayNotes = sortNotesNewestFirst([
+    ...baseNotes,
+    ...readonlyExtras.filter((extra) => !baseNotes.some((n) => n.id === extra.id || n.text === extra.text)),
+  ]);
 
   const legacyComment = comment?.trim()
     ? commentOnly || !displayNotes.some((n) => n.text === comment.trim())
@@ -94,8 +121,11 @@ export default function CommentCell({
   const latestAt = latestNote?.createdAt || null;
 
   const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
-  const displayCount = commentOnly ? 0 : localNotes !== null ? localNotes.length : preloadedCount;
-  const count = displayCount + (legacyComment ? 1 : 0);
+  const baseCount = commentOnly ? 0 : localNotes !== null ? localNotes.length : preloadedCount;
+  const extrasUniqueCount = readonlyExtras.filter(
+    (extra) => !(localNotes ?? noteHistory ?? []).some((n) => n.id === extra.id || n.text === extra.text),
+  ).length;
+  const count = baseCount + extrasUniqueCount + (legacyComment ? 1 : 0);
   /** Older notes beyond the latest one shown on the chip */
   const olderCount = Math.max(0, count - (latestText ? 1 : 0));
   const canMutate = !readOnly;
@@ -334,6 +364,7 @@ export default function CommentCell({
         {!notesLoading &&
           displayNotes.map((note, idx) => {
             const editable = canMutate && !isLegacyNoteId(note.id);
+            const isTech = note.id.startsWith("tech-") || note.id.startsWith("readonly-");
             return (
               <div
                 key={note.id}
@@ -371,6 +402,11 @@ export default function CommentCell({
                   </div>
                 ) : (
                   <div>
+                    {isTech && (
+                      <span className="inline-flex mb-1 text-[9px] font-extrabold uppercase tracking-wide text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-md">
+                        Tech
+                      </span>
+                    )}
                     <p className="text-[12px] text-amber-950 leading-snug whitespace-pre-wrap break-words">
                       {note.text}
                     </p>
