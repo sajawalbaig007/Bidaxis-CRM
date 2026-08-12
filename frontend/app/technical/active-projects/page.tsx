@@ -8,10 +8,14 @@ import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
   Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
 } from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
+} from "recharts";
 
 import TechnicalPageShell from "../components/TechnicalPageShell";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown";
@@ -780,7 +784,7 @@ function ProjectRowActions({
   showReturnPricing?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-1 flex-nowrap min-w-0">
+    <div className="inline-flex items-center gap-1 flex-wrap min-w-0 max-w-full">
       {showSendPricing && onSendPricing && (
         <button
           type="button"
@@ -1227,6 +1231,36 @@ export function TechnicalActiveProjectsPageInner({
     return counts;
   }, [baseFiltered]);
 
+  const statusPie = useMemo(() => {
+    const overdue = baseFiltered.filter((p) => {
+      if (!p.projectDeadline) return false;
+      const d = new Date(p.projectDeadline);
+      if (Number.isNaN(d.getTime())) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return d < today && !matchesTechnicalTab("final_submission", p);
+    }).length;
+    const finalN = tabCounts.final_submission;
+    const onTrack = Math.max(0, baseFiltered.length - overdue - finalN);
+    return [
+      { name: "On track", value: onTrack, color: "#D97706" },
+      { name: "Overdue", value: overdue, color: "#B8112D" },
+      { name: "Final / Done", value: finalN, color: "#059669" },
+    ].filter((d) => d.value > 0);
+  }, [baseFiltered, tabCounts.final_submission]);
+
+  const stageBar = useMemo(
+    () =>
+      [
+        { name: "Unassigned", count: tabCounts.not_assigned, fill: "#94A3B8" },
+        { name: "Assigned", count: tabCounts.assigned, fill: "#0EA5E9" },
+        { name: "Takeoff", count: tabCounts.takeoff_done, fill: "#8B5CF6" },
+        { name: "Pricing", count: tabCounts.pricing, fill: "#F59E0B" },
+        { name: "Final", count: tabCounts.final_submission, fill: "#6366F1" },
+      ].filter((d) => d.count > 0),
+    [tabCounts],
+  );
+
   const displayed = useMemo(
     () => baseFiltered.filter((p) => matchesTechnicalTab(workflowTab, p)),
     [baseFiltered, workflowTab],
@@ -1271,33 +1305,105 @@ export function TechnicalActiveProjectsPageInner({
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
         <DashboardNavbar />
 
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-crm-text">
-              {isRevisions ? "Revisions" : "Active Projects"}
-            </h1>
-            <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
-              {isRevisions
-                ? "Admin-sent revision projects — assign estimators like Active Projects."
-                : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => void fetchProjects()}
-              disabled={loading}
-              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
-              title="Refresh"
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-              {loading ? "Refreshing…" : "Refresh"}
-            </button>
-            <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
-              <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
-              Live Data
+        <div className="mb-4 sm:mb-6 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-crm-text">
+                {isRevisions ? "Revisions" : "Active Projects"}
+              </h1>
+              <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 sm:mt-1">
+                {isRevisions
+                  ? "Admin-sent revision projects — assign estimators like Active Projects."
+                  : "Technical workflow — assign estimators, track takeoff, pricing & submission."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() => void fetchProjects()}
+                disabled={loading}
+                className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm"
+                title="Refresh"
+              >
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                {loading ? "Refreshing…" : "Refresh"}
+              </button>
+              <div className="flex items-center gap-2 bg-[#ECFDF5] text-[#065F46] px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold w-fit">
+                <div className="w-2 h-2 rounded-full bg-[#12B76A] animate-pulse" />
+                Live Data
+              </div>
             </div>
           </div>
+
+          {!isRevisions && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4 min-w-0">
+                <h2 className="font-bold text-gray-800 text-sm">Project mix</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5 mb-2">On track · overdue · final</p>
+                {loading ? (
+                  <div className="h-[160px] bg-gray-50 rounded-xl animate-pulse" />
+                ) : statusPie.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-10">No project data yet</p>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <RechartsBox height={150} className="sm:w-[150px] shrink-0">
+                      <PieChart>
+                        <Pie
+                          data={statusPie}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={36}
+                          outerRadius={58}
+                          paddingAngle={3}
+                          stroke="#fff"
+                          strokeWidth={2}
+                        >
+                          {statusPie.map((s) => (
+                            <Cell key={s.name} fill={s.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+                      </PieChart>
+                    </RechartsBox>
+                    <div className="flex-1 w-full grid gap-1.5">
+                      {statusPie.map((s) => (
+                        <div key={s.name} className="flex items-center gap-2 bg-[#FAFAFA] rounded-lg px-2.5 py-2">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                          <p className="flex-1 text-xs font-medium text-gray-600 truncate">{s.name}</p>
+                          <span className="text-sm font-bold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4 min-w-0">
+                <h2 className="font-bold text-gray-800 text-sm">By workflow stage</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5 mb-2">Counts across tabs</p>
+                {loading ? (
+                  <div className="h-[160px] bg-gray-50 rounded-xl animate-pulse" />
+                ) : stageBar.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-10">No stage data yet</p>
+                ) : (
+                  <RechartsBox height={160}>
+                    <BarChart data={stageBar} barSize={22}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} cursor={{ fill: "#FFF1F3" }} />
+                      <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                        {stageBar.map((d) => (
+                          <Cell key={d.name} fill={d.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </RechartsBox>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <CapsuleTabs
@@ -1347,37 +1453,42 @@ export function TechnicalActiveProjectsPageInner({
           ]}
         />
 
-        <div className="flex flex-nowrap items-center gap-2 mb-4 sm:mb-5 overflow-x-auto pb-1 accounts-nav-scroll">
-          <div className="relative flex-1 min-w-[180px] max-w-[280px] shrink-0">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search code, title, scope..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full h-10 sm:h-[42px] bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-9 pr-3 text-sm outline-none focus:border-[#B8112D]"
-            />
+        <div className="flex flex-col gap-2 mb-4 sm:mb-5">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
+            <div className="relative flex-1 min-w-0 sm:min-w-[200px] sm:max-w-md">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search code, title, scope..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full h-10 sm:h-[42px] bg-white border border-gray-200 rounded-xl sm:rounded-2xl pl-9 pr-3 text-sm outline-none focus:border-[#B8112D]"
+              />
+            </div>
+            <div className="shrink-0 w-full sm:w-auto">
+              <StateFilterDropdown
+                value={stateFilter}
+                onChange={(v) => {
+                  setStateFilter(v);
+                  setPage(1);
+                }}
+              />
+            </div>
+            <div className="w-full sm:w-auto min-w-0">
+              <PhoneAreaCodeFilterInput
+                value={phoneFilter}
+                onChange={(v) => {
+                  setPhoneFilter(v);
+                  setPage(1);
+                }}
+                className="w-full sm:w-auto"
+              />
+            </div>
           </div>
-          <div className="shrink-0">
-            <StateFilterDropdown
-              value={stateFilter}
-              onChange={(v) => {
-                setStateFilter(v);
-                setPage(1);
-              }}
-            />
-          </div>
-          <PhoneAreaCodeFilterInput
-            value={phoneFilter}
-            onChange={(v) => {
-              setPhoneFilter(v);
-              setPage(1);
-            }}
-          />
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          <div className="flex flex-wrap items-center gap-2">
             <Calendar size={14} className="text-gray-400 shrink-0" />
             <input
               type="date"
@@ -1386,7 +1497,7 @@ export function TechnicalActiveProjectsPageInner({
                 setDateFrom(e.target.value);
                 setPage(1);
               }}
-              className="h-10 sm:h-[42px] w-[132px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+              className="h-10 sm:h-[42px] flex-1 min-w-[130px] max-w-[160px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
             />
             <span className="text-[11px] text-gray-400 shrink-0">to</span>
             <input
@@ -1396,7 +1507,7 @@ export function TechnicalActiveProjectsPageInner({
                 setDateTo(e.target.value);
                 setPage(1);
               }}
-              className="h-10 sm:h-[42px] w-[132px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
+              className="h-10 sm:h-[42px] flex-1 min-w-[130px] max-w-[160px] bg-white border border-gray-200 rounded-xl px-2 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
             />
             {(dateFrom || dateTo) && (
               <button
@@ -1406,11 +1517,21 @@ export function TechnicalActiveProjectsPageInner({
                   setDateTo("");
                   setPage(1);
                 }}
-                className="h-10 sm:h-[42px] px-3 rounded-xl bg-gray-100 text-gray-600 text-xs font-semibold hover:bg-gray-200 transition-all shrink-0 whitespace-nowrap"
+                className="h-10 sm:h-[42px] px-3 rounded-xl bg-gray-100 text-gray-600 text-xs font-semibold hover:bg-gray-200 transition-all shrink-0"
               >
                 Clear
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => void fetchProjects()}
+              disabled={loading}
+              className="h-10 sm:h-[42px] px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 inline-flex items-center gap-1.5 hover:border-[#B8112D]/40 hover:text-[#B8112D] disabled:opacity-60 shrink-0 ml-auto"
+              title="Refresh"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
           </div>
         </div>
 
@@ -1649,14 +1770,14 @@ export function TechnicalActiveProjectsPageInner({
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectStatusCell
                                 p={p}
                                 editable={isPricingView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
@@ -1706,14 +1827,14 @@ export function TechnicalActiveProjectsPageInner({
                                 onChange={(mode) => void setPricingQa(p.id, mode)}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectStatusCell
                                 p={p}
                                 editable={isPricingView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
@@ -1757,7 +1878,7 @@ export function TechnicalActiveProjectsPageInner({
                                 onAddNote={addNote}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
@@ -1809,14 +1930,14 @@ export function TechnicalActiveProjectsPageInner({
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectStatusCell
                                 p={p}
                                 editable={isPricingView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
-                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}

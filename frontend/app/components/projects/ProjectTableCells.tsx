@@ -511,8 +511,8 @@ export function TechnicalWorkflowStatusBadge({
   if (list.length === 0) {
     return (
       <span
-        className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border whitespace-nowrap ${styles}`}
-        title="Updates automatically from Technical workflow"
+        className={`inline-flex items-center max-w-full px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border truncate ${styles}`}
+        title={label}
       >
         {label}
       </span>
@@ -520,7 +520,7 @@ export function TechnicalWorkflowStatusBadge({
   }
 
   return (
-    <div className="min-w-0 max-w-[200px]">
+    <div className="min-w-0 max-w-full">
       <button
         ref={anchorRef}
         type="button"
@@ -531,7 +531,7 @@ export function TechnicalWorkflowStatusBadge({
         className={`inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg text-[10px] xl:text-[11px] font-bold border text-left hover:opacity-90 ${styles}`}
         title="Click to see who is Pricing / Pending / Take Off Done"
       >
-        <span className="truncate">{label}</span>
+        <span className="truncate min-w-0">{label}</span>
         <span className="shrink-0 text-[9px] opacity-70">▾</span>
       </button>
       {popup}
