@@ -69,7 +69,7 @@ export default function EmployeeSalaryEditor({
   enableLoanLookup = true,
   variant = "technical",
 }: Props) {
-  const d = value;
+  const d = emptySalaryDetail(value);
   const dRef = useRef(d);
   dRef.current = d;
   const onChangeRef = useRef(onChange);
@@ -88,7 +88,7 @@ export default function EmployeeSalaryEditor({
   const defaultCheckOut = isTechMgr ? "18:00" : "16:00";
 
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
-    onChange({ ...d, [key]: val });
+    onChange(emptySalaryDetail({ ...d, [key]: val }));
   };
 
   const lookupLoan = useCallback(async (force = false) => {
@@ -105,7 +105,7 @@ export default function EmployeeSalaryEditor({
     );
     if (!patch) return;
     // Merge onto latest salary so in-flight edits (e.g. occasional) are not wiped
-    onChangeRef.current({ ...dRef.current, ...patch });
+    onChangeRef.current(emptySalaryDetail({ ...dRef.current, ...patch }));
   }, [enableLoanLookup, name]);
 
   useEffect(() => {
@@ -337,17 +337,19 @@ export default function EmployeeSalaryEditor({
       <div className="rounded-xl border border-teal-100 bg-teal-50/30 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-teal-800">PF & Tax</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-          <label className="flex items-center gap-2 text-xs text-crm-text-secondary h-9 col-span-2 sm:col-span-1">
+          <label className="flex items-center gap-2 text-xs font-semibold text-crm-text-secondary h-9 col-span-2 sm:col-span-1 rounded-lg border border-teal-200 bg-white px-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={d.pfAuto}
+              checked={d.pfAuto !== false}
               onChange={e => set("pfAuto", e.target.checked)}
-              className="rounded border-crm-border"
+              className="rounded border-crm-border accent-teal-600"
             />
-            PF auto 8% of basic
+            Apply PF (8%)
           </label>
-          {!d.pfAuto && (
+          {d.pfAuto === false ? (
             <Num label="PF Manual" value={d.pfOverride ?? 0} onChange={v => set("pfOverride", v)} />
+          ) : (
+            <Read label="PF auto" value="8% of basic" accent="text-teal-800" />
           )}
           <Read label="PF Deduction" value={currency(b.pf)} accent="text-teal-800" />
           <Num label="Tax Amount" value={d.incomeTax} onChange={v => set("incomeTax", v)} />

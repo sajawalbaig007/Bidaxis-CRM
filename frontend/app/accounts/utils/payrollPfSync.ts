@@ -6,7 +6,7 @@
 
 import type { IncomeStatementData, OpexRow, SubHeadEntry, TeamSalaryRow } from "../types";
 import { lineAmount, newRowId, todayIso } from "../types";
-import { computeAdminSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "./payrollFormula";
+import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "./payrollFormula";
 import {
   computeSalesEmployeePayroll,
   type SalesPayrollEmployee,
@@ -27,11 +27,11 @@ export function pfHeadForPayrollKind(kind: PayrollKind): PfHeadKey | null {
     case "sales_lead":
       return "Sales Team PF";
     case "admin":
+    case "executive":
       return "Administration PF";
     case "technical":
     case "technical_manager":
       return "Technical Team PF";
-    case "executive":
     default:
       return null;
   }
@@ -47,7 +47,10 @@ export function pfFromSalarySub(
   kind: PayrollKind,
   salesExtra = 0,
 ): number {
-  if (kind === "executive") return 0;
+  if (kind === "executive") {
+    const sal = emptySalaryDetail(sub.salary ?? { basic: Number(sub.amount) || 0 });
+    return computeExecutiveSalary(sal, 0).pf;
+  }
 
   if (kind === "sales" || kind === "sales_lead") {
     const sp = sub.salesPayroll as SalesPayrollEmployee | undefined;
@@ -62,6 +65,8 @@ export function pfFromSalarySub(
         basic: Number(sp.basic) || 0,
         allowance: Number(sp.allowance) || 0,
         homeAllowance: Number(sp.homeAllowance) || 0,
+        pfAuto: sp.pfAuto !== false,
+        pfOverride: sp.pfOverride ?? null,
       },
       salesExtra,
     ).pf;

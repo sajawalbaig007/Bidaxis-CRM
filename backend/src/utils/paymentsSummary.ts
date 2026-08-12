@@ -49,8 +49,10 @@ export type ChannelSummary = {
   key: PaymentChannel;
   label: string;
   totals: ChannelCurrencyTotals;
+  /** Sum across currencies (display / chart ranking) */
+  totalAmount: number;
   paymentCount: number;
-  /** Currencies that received money on this channel */
+  projectCount: number;
   activeCurrencies: PaymentCurrency[];
 };
 
@@ -60,17 +62,27 @@ export type PaymentsSummaryPayload = {
   generatedAt: string;
   channels: ChannelSummary[];
   totals: {
+    projectCount: number;
     quotedProjects: number;
     quotedAmount: number;
+    collectedAmount: number;
+    collectedByCurrency: ChannelCurrencyTotals;
+    outstandingAmount: number;
+    collectionRate: number;
     collectedEntries: number;
-    /** Paid in Project DB but channel/currency not set yet */
     unassignedPaidCount: number;
     fullPaidCount: number;
     partialPaidCount: number;
     unpaidWithQuoteCount: number;
   };
+  statusBreakdown: {
+    paid: number;
+    partial: number;
+    unpaid: number;
+  };
   fullPaidProjects: ProjectPaymentSummaryRow[];
   partialPaidProjects: ProjectPaymentSummaryRow[];
+  unpaidProjects: ProjectPaymentSummaryRow[];
 };
 
 function monthDisplayLabel(month: string | null): string {
@@ -101,7 +113,7 @@ function entrySummary(e: ProjectPaymentEntry): PaymentEntrySummary {
     channelLabel: channel ? PAYMENT_CHANNEL_LABELS[channel] : "—",
     accountsMonth: paymentAccountsMonth(e),
     paidAt: e.paidAt ?? null,
-    isPartialType: type.toLowerCase().includes("partial") || type === "Advance" || type === "Milestone",
+    isPartialType: type.toLowerCase().includes("partial") || type === "Milestone",
   };
 }
 
@@ -111,7 +123,7 @@ function matchesMonth(entry: ProjectPaymentEntry, month: string | null): boolean
   return paymentAccountsMonth(entry) === month;
 }
 
-/** Admin/Manager payment dashboard — per channel amounts, quoted totals, partial/full projects. */
+/** Admin/Manager payment dashboard — KPIs, sources, partial/full projects. */
 export async function buildPaymentsSummary(month?: string | null): Promise<PaymentsSummaryPayload> {
   const monthFilter =
     month && /^\d{4}-\d{2}$/.test(month.trim()) ? month.trim() : null;
@@ -134,19 +146,23 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
 
   const leads = rawLeads.filter(isDisplayableProjectLead);
 
-  const channelMap = new Map<PaymentChannel, ChannelSummary>();
+  const channelMap = new Map<PaymentChannel, ChannelSummary & { projectIds: Set<string> }>();
   for (const ch of PAYMENT_CHANNELS) {
     channelMap.set(ch, {
       key: ch,
       label: PAYMENT_CHANNEL_LABELS[ch],
       totals: emptyChannelTotals(),
+      totalAmount: 0,
       paymentCount: 0,
+      projectCount: 0,
       activeCurrencies: [],
+      projectIds: new Set(),
     });
   }
 
   const fullPaidProjects: ProjectPaymentSummaryRow[] = [];
   const partialPaidProjects: ProjectPaymentSummaryRow[] = [];
+  const unpaidProjects: ProjectPaymentSummaryRow[] = [];
 
   let quotedProjects = 0;
   let quotedAmount = 0;
@@ -155,13 +171,21 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let fullPaidCount = 0;
   let partialPaidCount = 0;
   let unpaidWithQuoteCount = 0;
+  let collectedAmount = 0;
+  let outstandingAmount = 0;
+  const collectedByCurrency = emptyChannelTotals();
+  let projectCount = 0;
 
   for (const lead of leads) {
     const allPayments = parseProjectPayments(lead.projectPayments);
     const quoted = parseMoney(lead.projectBudget);
     const paidInScope = allPayments.filter((e) => matchesMonth(e, monthFilter));
 
+    if (monthFilter && paidInScope.length === 0 && quoted <= 0) continue;
+    // Month filter: include projects that have payments in that month OR (all-time style unpaid with quote only when no month)
     if (monthFilter && paidInScope.length === 0) continue;
+
+    projectCount += 1;
 
     if (quoted > 0) {
       quotedProjects += 1;
@@ -171,6 +195,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     for (const entry of paidInScope) {
       const amt = parseMoney(entry.amount);
       if (amt <= 0) continue;
+      collectedAmount += amt;
       if (!entry.paymentChannel || !entry.currency) {
         unassignedPaidCount += 1;
         continue;
@@ -180,6 +205,9 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       ch.paymentCount += 1;
       collectedEntries += 1;
       ch.totals[entry.currency] += amt;
+      ch.totalAmount += amt;
+      ch.projectIds.add(lead.id);
+      collectedByCurrency[entry.currency] += amt;
       if (!ch.activeCurrencies.includes(entry.currency)) {
         ch.activeCurrencies.push(entry.currency);
       }
@@ -193,6 +221,10 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
         ? Math.min(100, (paidTotalAll / quoted) * 100)
         : 0
       : paymentPercent(allPayments, lead.projectBudget);
+
+    if (quoted > 0) {
+      outstandingAmount += Math.max(0, quoted - paidTotalAll);
+    }
 
     const rowPayments = paidInScope.map(entrySummary);
     const status: ProjectPaymentSummaryRow["status"] =
@@ -219,31 +251,57 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       partialPaidProjects.push(row);
     } else if (quoted > 0) {
       unpaidWithQuoteCount += 1;
+      unpaidProjects.push(row);
     }
   }
 
   fullPaidProjects.sort((a, b) => b.paidTotal - a.paidTotal);
   partialPaidProjects.sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
+  unpaidProjects.sort((a, b) => b.quoted - a.quoted);
 
-  for (const ch of channelMap.values()) {
+  const channels: ChannelSummary[] = PAYMENT_CHANNELS.map((k) => {
+    const ch = channelMap.get(k)!;
     ch.activeCurrencies.sort();
-  }
+    return {
+      key: ch.key,
+      label: ch.label,
+      totals: ch.totals,
+      totalAmount: ch.totalAmount,
+      paymentCount: ch.paymentCount,
+      projectCount: ch.projectIds.size,
+      activeCurrencies: ch.activeCurrencies,
+    };
+  });
+
+  const collectionRate =
+    quotedAmount > 0 ? Math.min(100, Math.round((collectedAmount / quotedAmount) * 1000) / 10) : 0;
 
   return {
     month: monthFilter,
     monthLabel: monthDisplayLabel(monthFilter),
     generatedAt: new Date().toISOString(),
-    channels: PAYMENT_CHANNELS.map((k) => channelMap.get(k)!),
+    channels,
     totals: {
+      projectCount,
       quotedProjects,
       quotedAmount,
+      collectedAmount,
+      collectedByCurrency,
+      outstandingAmount,
+      collectionRate,
       collectedEntries,
       unassignedPaidCount,
       fullPaidCount,
       partialPaidCount,
       unpaidWithQuoteCount,
     },
+    statusBreakdown: {
+      paid: fullPaidCount,
+      partial: partialPaidCount,
+      unpaid: unpaidWithQuoteCount,
+    },
     fullPaidProjects,
     partialPaidProjects,
+    unpaidProjects,
   };
 }

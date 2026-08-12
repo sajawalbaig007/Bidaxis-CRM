@@ -4,57 +4,101 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { apiErrorMessage } from "@/lib/api";
 import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
   DollarSign,
-  PieChart,
-  Receipt,
+  Percent,
   RefreshCw,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
+import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+import { apiErrorMessage } from "@/lib/api";
 import { useStaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import {
   CHANNEL_STYLES,
+  currentMonthIso,
   fetchPaymentsSummary,
   formatMoney,
+  formatMoneyAlways,
   type PaymentsSummaryPayload,
   type ProjectPaymentSummaryRow,
 } from "@/lib/paymentsSummary";
 
-function CurrencyBreakdown({
+const STATUS_COLORS = {
+  paid: "#22C55E",
+  partial: "#F59E0B",
+  unpaid: "#EF4444",
+};
+
+function CurrencyLines({
   totals,
-  active,
 }: {
   totals: { USD: number; CAD: number; PKR: number };
-  active: string[];
 }) {
   const rows = [
     { key: "USD", value: totals.USD },
     { key: "CAD", value: totals.CAD },
     { key: "PKR", value: totals.PKR },
-  ].filter((r) => r.value > 0 || active.includes(r.key));
+  ].filter((r) => r.value > 0);
 
   if (rows.length === 0) {
-    return <p className="text-xs text-gray-400 mt-2">No collections yet</p>;
+    return <p className="text-[11px] text-crm-text-faint mt-1">No currency yet</p>;
   }
 
   return (
-    <div className="mt-3 space-y-1.5">
+    <div className="mt-2 space-y-0.5">
       {rows.map((r) => (
-        <div key={r.key} className="flex items-center justify-between text-xs">
-          <span className="font-bold text-gray-500 uppercase">{r.key}</span>
-          <span className="font-semibold text-[#0F172A] tabular-nums">{formatMoney(r.value, r.key)}</span>
-        </div>
+        <p key={r.key} className="text-[11px] text-crm-text-muted tabular-nums">
+          <span className="font-bold text-crm-text-faint uppercase mr-1">{r.key}</span>
+          {formatMoneyAlways(r.value, r.key)}
+        </p>
       ))}
     </div>
   );
 }
 
-function ProjectPaymentsTable({
+function KpiCard({
+  title,
+  value,
+  hint,
+  border,
+  children,
+  icon: Icon,
+}: {
+  title: string;
+  value: string;
+  hint: string;
+  border: string;
+  children?: React.ReactNode;
+  icon: typeof DollarSign;
+}) {
+  return (
+    <div
+      className={`bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-4 sm:p-5 border-t-4 ${border}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-crm-text-muted">
+          {title}
+        </p>
+        <span className="w-8 h-8 rounded-xl bg-crm-muted flex items-center justify-center text-crm-text-muted shrink-0">
+          <Icon size={15} />
+        </span>
+      </div>
+      <p className="text-2xl sm:text-3xl font-extrabold text-crm-text tracking-tight tabular-nums mt-2 leading-none">
+        {value}
+      </p>
+      <p className="text-[11px] text-crm-text-faint mt-1.5">{hint}</p>
+      {children}
+    </div>
+  );
+}
+
+function ProjectList({
   title,
   subtitle,
   rows,
@@ -64,39 +108,45 @@ function ProjectPaymentsTable({
   title: string;
   subtitle: string;
   rows: ProjectPaymentSummaryRow[];
-  tone: "emerald" | "amber";
+  tone: "emerald" | "amber" | "red";
   emptyText: string;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toneCls =
+    tone === "emerald"
+      ? "border-emerald-100 bg-emerald-50/40 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+      : tone === "amber"
+        ? "border-amber-100 bg-amber-50/40 dark:border-amber-500/20 dark:bg-amber-500/10"
+        : "border-red-100 bg-red-50/40 dark:border-red-500/20 dark:bg-red-500/10";
+  const badgeCls =
+    tone === "emerald"
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
+      : tone === "amber"
+        ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
+        : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300";
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div
-        className={`px-4 sm:px-5 py-4 border-b ${
-          tone === "emerald" ? "border-emerald-100 bg-emerald-50/40" : "border-amber-100 bg-amber-50/40"
-        }`}
-      >
-        <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
+    <section className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm overflow-hidden">
+      <div className={`px-4 sm:px-5 py-4 border-b ${toneCls}`}>
+        <h2 className="text-sm font-bold text-crm-text flex items-center gap-2">
           {tone === "emerald" ? (
             <CheckCircle2 size={16} className="text-emerald-600" />
-          ) : (
+          ) : tone === "amber" ? (
             <AlertCircle size={16} className="text-amber-600" />
+          ) : (
+            <AlertCircle size={16} className="text-red-600" />
           )}
           {title}
-          <span
-            className={`ml-1 text-[11px] font-bold px-2 py-0.5 rounded-lg ${
-              tone === "emerald" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-            }`}
-          >
+          <span className={`ml-1 text-[11px] font-bold px-2 py-0.5 rounded-lg ${badgeCls}`}>
             {rows.length}
           </span>
         </h2>
-        <p className="text-[11px] text-gray-500 mt-0.5">{subtitle}</p>
+        <p className="text-[11px] text-crm-text-muted mt-0.5">{subtitle}</p>
       </div>
       {rows.length === 0 ? (
-        <p className="px-4 py-10 text-center text-sm text-gray-400">{emptyText}</p>
+        <p className="px-4 py-10 text-center text-sm text-crm-text-faint">{emptyText}</p>
       ) : (
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-crm-border-subtle max-h-[420px] overflow-y-auto">
           {rows.map((p) => {
             const open = expanded[p.leadId] ?? false;
             return (
@@ -109,27 +159,26 @@ function ProjectPaymentsTable({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       {p.projectCode ? (
-                        <span className="text-[10px] font-bold text-[#B8112D] bg-[#FFF1F3] px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-bold text-[#B8112D] bg-[#FFF1F3] dark:bg-crm-brand-soft px-1.5 py-0.5 rounded">
                           {p.projectCode}
                         </span>
                       ) : null}
-                      <span className="font-semibold text-sm text-[#0F172A] truncate">
+                      <span className="font-semibold text-sm text-crm-text truncate">
                         {p.projectTitle || "Untitled"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
+                    <p className="text-[11px] text-crm-text-muted mt-0.5">
                       Quoted {p.quotedLabel} · Collected {p.paidLabel} · {p.percent}%
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
-                        tone === "emerald" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                      }`}
-                    >
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${badgeCls}`}>
                       {p.payments.length} payment{p.payments.length === 1 ? "" : "s"}
                     </span>
-                    <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      size={14}
+                      className={`text-crm-text-faint transition-transform ${open ? "rotate-180" : ""}`}
+                    />
                   </div>
                 </button>
                 {open && p.payments.length > 0 ? (
@@ -137,26 +186,21 @@ function ProjectPaymentsTable({
                     {p.payments.map((pay) => (
                       <li
                         key={pay.id}
-                        className="text-[11px] sm:text-xs rounded-xl border border-gray-100 bg-[#FAFBFC] px-3 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                        className="text-[11px] sm:text-xs rounded-xl border border-crm-border-subtle bg-crm-surface-muted px-3 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
                       >
                         <div>
-                          <span className="font-bold text-[#0F172A]">{pay.type}</span>
-                          <span className="text-gray-400 mx-1.5">·</span>
-                          <span className="font-semibold text-emerald-700">
+                          <span className="font-bold text-crm-text">{pay.type}</span>
+                          <span className="text-crm-text-faint mx-1.5">·</span>
+                          <span className="font-semibold text-emerald-600">
                             {formatMoney(pay.amountNum, pay.currency)}
                           </span>
-                          {pay.isPartialType ? (
-                            <span className="ml-2 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                              Partial
-                            </span>
-                          ) : null}
-                          {!pay.channel && pay.amountNum > 0 ? (
-                            <span className="ml-2 text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
+                          {!pay.channel ? (
+                            <span className="ml-2 text-[10px] font-bold text-red-700 bg-red-50 dark:bg-red-500/15 px-1.5 py-0.5 rounded">
                               No channel
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-gray-500">
+                        <div className="text-crm-text-muted">
                           {pay.channelLabel}
                           {pay.currency ? ` · ${pay.currency}` : ""}
                           {pay.accountsMonth ? ` · ${pay.accountsMonth}` : ""}
@@ -200,82 +244,72 @@ export default function AdminPaymentsPage() {
     void load();
   }, [load]);
 
-  const summaryCards = useMemo(() => {
-    const t = data?.totals;
+  const t = data?.totals;
+  const status = data?.statusBreakdown;
+  const channels = data?.channels ?? [];
+
+  const statusPie = useMemo(() => {
+    if (!status) return [];
     return [
-      {
-        label: "Total quoted",
-        value: t ? formatMoney(t.quotedAmount) : "—",
-        hint: t ? `${t.quotedProjects} projects` : "",
-        icon: DollarSign,
-        tone: "from-[#0B84F3] to-[#0369A1]",
-      },
-      {
-        label: "Full paid",
-        value: t ? String(t.fullPaidCount) : "—",
-        hint: "100% collected",
-        icon: CheckCircle2,
-        tone: "from-[#059669] to-[#047857]",
-      },
-      {
-        label: "Partial paid",
-        value: t ? String(t.partialPaidCount) : "—",
-        hint: "In progress",
-        icon: PieChart,
-        tone: "from-[#D97706] to-[#B45309]",
-      },
-      {
-        label: "Payment entries",
-        value: t ? String(t.collectedEntries) : "—",
-        hint: data?.monthLabel ?? "All time",
-        icon: Receipt,
-        tone: "from-[#7C3AED] to-[#5B21B6]",
-      },
-    ];
-  }, [data]);
+      { name: "Paid", value: status.paid, color: STATUS_COLORS.paid },
+      { name: "Partial", value: status.partial, color: STATUS_COLORS.partial },
+      { name: "Unpaid", value: status.unpaid, color: STATUS_COLORS.unpaid },
+    ].filter((d) => d.value > 0);
+  }, [status]);
+
+  const sourceBars = useMemo(
+    () =>
+      channels.map((ch) => ({
+        key: ch.key,
+        name: ch.label.split(" ")[0] === "Ahmed" || ch.label.split(" ")[0] === "Sharjeel"
+          ? ch.label.split(" ").slice(0, 2).join(" ")
+          : ch.label,
+        short: ch.key,
+        amount: ch.totalAmount,
+        fill: CHANNEL_STYLES[ch.key].color,
+        payments: ch.paymentCount,
+      })),
+    [channels],
+  );
+
+  const maxSource = Math.max(...sourceBars.map((s) => s.amount), 1);
+
+  const lastUpdated = data?.generatedAt
+    ? new Date(data.generatedAt).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
+    <div className="flex min-h-screen bg-[#F0F2F8] dark:bg-crm-bg-subtle">
       <Toaster position="top-right" />
       <StaffSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-16">
         <DashboardNavbar />
         <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
+          {/* Header */}
           <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#B8112D] mb-1">
                 <Wallet size={13} />
-                Payment channels
+                Collections
               </div>
-              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
-                Collections Dashboard
+              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-crm-text tracking-tight">
+                Payments Dashboard
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 max-w-xl">
-                Live from Project DB — save payment details there and refresh here. Channel, currency & month required for source totals.
+              <p className="text-xs sm:text-sm text-crm-text-muted mt-0.5 max-w-xl">
+                Quoted · collected · outstanding · by source (Ahmed Hamza, Sharjeel Nasir, Cheque, Habib Metro)
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-              <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm">
-                <span className="text-[11px] text-gray-400 uppercase">Month</span>
-                <input
-                  type="month"
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  className="outline-none bg-transparent text-sm font-semibold text-[#0F172A]"
-                />
-                {month ? (
-                  <button
-                    type="button"
-                    onClick={() => setMonth("")}
-                    className="text-[10px] font-bold text-[#B8112D] hover:underline ml-1"
-                  >
-                    All
-                  </button>
-                ) : null}
-              </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="h-10 sm:h-11 px-3 rounded-xl border border-crm-border bg-crm-surface text-xs font-semibold text-crm-text-secondary inline-flex items-center gap-2 shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {t?.projectCount ?? 0} projects · Updated {lastUpdated}
+              </div>
               <Link
                 href={`${basePath}/active-projects`}
-                className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40"
+                className="h-10 sm:h-11 px-4 rounded-xl border border-crm-border bg-crm-surface text-sm font-semibold text-crm-text-secondary inline-flex items-center justify-center hover:border-[#B8112D]/40"
               >
                 Project DB
               </Link>
@@ -291,105 +325,284 @@ export default function AdminPaymentsPage() {
             </div>
           </header>
 
-          {(data?.totals?.unassignedPaidCount ?? 0) > 0 ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <p className="text-sm text-amber-900">
-                <span className="font-bold">{data!.totals.unassignedPaidCount} paid entr{data!.totals.unassignedPaidCount === 1 ? "y" : "ies"}</span>
-                {" "}missing channel or currency — open Project DB, mark Paid, and set Ahmed Hamza / Sharjeel / Cheque / Habib Metro + USD/CAD/PKR.
-              </p>
-              <Link
-                href={`${basePath}/active-projects`}
-                className="text-xs font-bold text-[#B8112D] hover:underline shrink-0"
+          {/* Filters */}
+          <section className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="inline-flex p-1 rounded-full bg-crm-nav-pill border border-crm-border gap-1">
+              <button
+                type="button"
+                onClick={() => setMonth("")}
+                className={`h-8 px-3 rounded-full text-xs font-bold transition-colors ${
+                  !month ? "bg-[#B8112D] text-white shadow-sm" : "text-crm-text-muted hover:text-crm-text"
+                }`}
               >
+                All Time
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonth(currentMonthIso())}
+                className={`h-8 px-3 rounded-full text-xs font-bold transition-colors ${
+                  month === currentMonthIso()
+                    ? "bg-[#B8112D] text-white shadow-sm"
+                    : "text-crm-text-muted hover:text-crm-text"
+                }`}
+              >
+                This Month
+              </button>
+            </div>
+            <label className="flex items-center gap-2 h-10 px-3 rounded-xl border border-crm-border bg-crm-input text-sm font-semibold text-crm-text-secondary">
+              <span className="text-[11px] text-crm-text-faint uppercase">Month</span>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="outline-none bg-transparent text-sm font-semibold text-crm-text"
+              />
+            </label>
+            <p className="text-xs text-crm-text-muted sm:ml-auto">
+              Showing <span className="font-bold text-crm-text">{data?.monthLabel ?? "All time"}</span>
+              {t ? ` · ${t.projectCount} projects` : ""}
+            </p>
+          </section>
+
+          {(t?.unassignedPaidCount ?? 0) > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-sm text-amber-900 dark:text-amber-200">
+                <span className="font-bold">{t!.unassignedPaidCount} paid entr{t!.unassignedPaidCount === 1 ? "y" : "ies"}</span>
+                {" "}missing channel/currency — set in Project DB so source totals update.
+              </p>
+              <Link href={`${basePath}/active-projects`} className="text-xs font-bold text-[#B8112D] hover:underline shrink-0">
                 Fix in Project DB →
               </Link>
             </div>
           ) : null}
 
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-            {summaryCards.map((c) => (
-              <div
-                key={c.label}
-                className={`bg-gradient-to-br ${c.tone} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md min-h-24 flex flex-col gap-1.5`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-white/75 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
-                    {c.label}
-                  </span>
-                  <span className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
-                    <c.icon size={14} />
-                  </span>
-                </div>
-                <span className="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums leading-none">
-                  {loading && !data ? "…" : c.value}
-                </span>
-                <p className="text-[10px] sm:text-[11px] text-white/70 mt-auto">{c.hint}</p>
+          {/* KPI cards */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <KpiCard
+              title="Total Quoted"
+              value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
+              hint={`${t?.quotedProjects ?? 0} projects with quote`}
+              border="border-t-blue-500"
+              icon={DollarSign}
+            >
+              <CurrencyLines
+                totals={{
+                  USD: t?.quotedAmount ?? 0,
+                  CAD: 0,
+                  PKR: 0,
+                }}
+              />
+            </KpiCard>
+            <KpiCard
+              title="Collected"
+              value={loading && !data ? "…" : formatMoneyAlways(t?.collectedAmount ?? 0)}
+              hint={`${t?.collectedEntries ?? 0} payment entries`}
+              border="border-t-emerald-500"
+              icon={TrendingUp}
+            >
+              {t?.collectedByCurrency ? <CurrencyLines totals={t.collectedByCurrency} /> : null}
+            </KpiCard>
+            <KpiCard
+              title="Outstanding"
+              value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
+              hint={`${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`}
+              border="border-t-red-500"
+              icon={AlertCircle}
+            />
+            <KpiCard
+              title="Collection Rate"
+              value={loading && !data ? "…" : `${t?.collectionRate ?? 0}%`}
+              hint={`of total quoted`}
+              border="border-t-sky-500"
+              icon={Percent}
+            >
+              <div className="mt-3 w-full h-2 rounded-full bg-crm-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-sky-500 transition-all"
+                  style={{ width: `${Math.min(100, t?.collectionRate ?? 0)}%` }}
+                />
               </div>
-            ))}
+              <p className="text-[11px] text-crm-text-muted mt-1.5 tabular-nums">
+                {formatMoneyAlways(t?.collectedAmount ?? 0)} of {formatMoneyAlways(t?.quotedAmount ?? 0)} quoted
+              </p>
+            </KpiCard>
           </section>
 
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-[#0F172A]">
-                By source · {data?.monthLabel ?? "All time"}
+          {/* Charts row */}
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+            {/* Payment status donut */}
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-4 sm:p-5">
+              <h2 className="text-[11px] font-bold uppercase tracking-wider text-crm-text-muted mb-3">
+                Payment Status
               </h2>
-              <p className="text-[11px] text-gray-400">Amounts shown in each entry&apos;s currency</p>
+              {statusPie.length === 0 ? (
+                <p className="text-sm text-crm-text-faint text-center py-12">No status data</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <RechartsBox height={180} className="w-full sm:w-[180px] shrink-0">
+                    <PieChart>
+                      <Pie
+                        data={statusPie}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={48}
+                        outerRadius={72}
+                        paddingAngle={2}
+                      >
+                        {statusPie.map((d) => (
+                          <Cell key={d.name} fill={d.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value) => [String(value ?? 0), "Projects"]}
+                        contentStyle={{
+                          borderRadius: 12,
+                          border: "1px solid var(--crm-border)",
+                          background: "var(--crm-surface)",
+                          fontSize: 12,
+                        }}
+                      />
+                    </PieChart>
+                  </RechartsBox>
+                  <ul className="space-y-2 w-full">
+                    {[
+                      { label: "Paid", value: status?.paid ?? 0, color: STATUS_COLORS.paid },
+                      { label: "Partial", value: status?.partial ?? 0, color: STATUS_COLORS.partial },
+                      { label: "Unpaid", value: status?.unpaid ?? 0, color: STATUS_COLORS.unpaid },
+                    ].map((row) => (
+                      <li key={row.label} className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2 text-crm-text-secondary font-medium">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: row.color }} />
+                          {row.label}
+                        </span>
+                        <span className="font-bold text-crm-text tabular-nums">{row.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
+
+            {/* Sources bar chart */}
+            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-4 sm:p-5 lg:col-span-2">
+              <h2 className="text-[11px] font-bold uppercase tracking-wider text-crm-text-muted mb-1">
+                Collected by Source
+              </h2>
+              <p className="text-[11px] text-crm-text-faint mb-3">
+                Ahmed Hamza · Sharjeel Nasir · Cheque · Habib Metro
+              </p>
+              <RechartsBox height={200}>
+                <BarChart data={sourceBars} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--crm-border-subtle)" vertical={false} />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 11, fill: "var(--crm-text-muted)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "var(--crm-text-muted)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={48}
+                  />
+                  <Tooltip
+                    formatter={(value) => [formatMoneyAlways(Number(value ?? 0)), "Collected"]}
+                    labelFormatter={(_, payload) => {
+                      const row = payload?.[0]?.payload as { name?: string } | undefined;
+                      return row?.name ?? "";
+                    }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid var(--crm-border)",
+                      background: "var(--crm-surface)",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="amount" radius={[8, 8, 0, 0]} maxBarSize={48}>
+                    {sourceBars.map((s) => (
+                      <Cell key={s.key} fill={s.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </RechartsBox>
+            </div>
+          </section>
+
+          {/* Source cards */}
+          <section>
+            <h2 className="text-sm font-bold text-crm-text mb-3">
+              Sources · {data?.monthLabel ?? "All time"}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-              {(data?.channels ?? []).map((ch) => {
+              {channels.map((ch) => {
                 const style = CHANNEL_STYLES[ch.key];
+                const pct = Math.round((ch.totalAmount / maxSource) * 100);
                 return (
                   <div
                     key={ch.key}
-                    className={`rounded-2xl border ${style.border} bg-gradient-to-br ${style.from} ${style.to} p-4 shadow-sm`}
+                    className={`rounded-2xl border ${style.border} ${style.soft} bg-crm-surface p-4 shadow-sm`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: style.dot }} />
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{ch.key}</span>
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: style.color }} />
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-crm-text-muted">
+                            {ch.key}
+                          </span>
                         </div>
-                        <h3 className="font-bold text-[#0F172A] text-sm mt-1">{ch.label}</h3>
+                        <h3 className="font-bold text-crm-text text-sm mt-1">{ch.label}</h3>
                       </div>
-                      <span className="text-[11px] font-bold bg-white/80 border border-gray-100 px-2 py-0.5 rounded-lg text-gray-600">
+                      <span className="text-[11px] font-bold bg-crm-surface border border-crm-border-subtle px-2 py-0.5 rounded-lg text-crm-text-muted">
                         {ch.paymentCount} paid
                       </span>
                     </div>
-                    {ch.activeCurrencies.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {ch.activeCurrencies.map((cur) => (
-                          <span
-                            key={cur}
-                            className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white border border-gray-100 text-gray-600"
-                          >
-                            {cur}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-gray-400 mt-2">No currency recorded</p>
-                    )}
-                    <CurrencyBreakdown totals={ch.totals} active={ch.activeCurrencies} />
+                    <p className="text-xl font-extrabold text-crm-text tabular-nums mt-3 tracking-tight">
+                      {formatMoneyAlways(ch.totalAmount)}
+                    </p>
+                    <p className="text-[11px] text-crm-text-faint mt-0.5">
+                      {ch.projectCount} project{ch.projectCount === 1 ? "" : "s"}
+                      {ch.activeCurrencies.length > 0
+                        ? ` · ${ch.activeCurrencies.join(" / ")}`
+                        : " · No currency"}
+                    </p>
+                    <div className="mt-3 w-full h-1.5 rounded-full bg-crm-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, background: style.color }}
+                      />
+                    </div>
+                    <CurrencyLines totals={ch.totals} />
                   </div>
                 );
               })}
             </div>
           </section>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <ProjectPaymentsTable
-              title="Full paid projects"
+          {/* Project lists */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <ProjectList
+              title="Full paid"
               subtitle="Quoted amount fully collected"
               rows={data?.fullPaidProjects ?? []}
               tone="emerald"
               emptyText="No fully paid projects in this period."
             />
-            <ProjectPaymentsTable
-              title="Partial paid projects"
-              subtitle="Expand to see which partial payments & channel"
+            <ProjectList
+              title="Partial paid"
+              subtitle="Expand to see channel & amount"
               rows={data?.partialPaidProjects ?? []}
               tone="amber"
               emptyText="No partial payments in this period."
+            />
+            <ProjectList
+              title="Unpaid (with quote)"
+              subtitle="Quoted but nothing collected yet"
+              rows={data?.unpaidProjects ?? []}
+              tone="red"
+              emptyText="No unpaid quoted projects."
             />
           </div>
         </div>

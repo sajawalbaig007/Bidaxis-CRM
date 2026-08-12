@@ -181,7 +181,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Executive",
     title: "Total Due (Head Amount)",
     expression:
-      "Amount due = Basic + Commission + Loan+ve − Loan−ve + Occasional",
+      "Amount due = Basic + Commission + Loan+ve − Loan−ve + Occasional − PF (Apply PF 8% of basic, default ON)",
     appliesTo: "Income Statement → Team Salaries → Executive (head amount / Total Due)",
   },
   {

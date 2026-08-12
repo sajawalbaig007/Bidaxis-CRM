@@ -410,6 +410,8 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Salary</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan +ve</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Loan −ve</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Occas.</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">PF</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] text-[#B8112D]">Total Due</th>
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Remarks</th>
                                     <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
@@ -429,6 +431,8 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{currency(ex.totalSalary)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{currency(ex.loanPositive)}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(ex.loanNegative)}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-sky-700">{currency(ex.occasionalAmount)}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-teal-800">{currency(ex.pf)}</td>
                                         <td className="px-2 py-2 text-right font-extrabold tabular-nums text-[#B8112D] bg-[#FFF6F8]/80">
                                           {currency(ex.totalPayable)}
                                         </td>
@@ -462,7 +466,7 @@ export default function ExpandableHeadsTable({
                                 </tbody>
                                 <tfoot>
                                   <tr className="border-t-2 border-indigo-100 bg-indigo-50/50">
-                                    <td colSpan={7} className="px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-indigo-900">
+                                    <td colSpan={9} className="px-2 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-indigo-900">
                                       All executives — total due
                                     </td>
                                     <td className="px-2 py-2.5 text-right font-black tabular-nums text-[#B8112D] text-sm">
@@ -492,13 +496,13 @@ export default function ExpandableHeadsTable({
                                       ).commission,
                                     0,
                                   );
-                                  return `Total Due = Salary + Loan+ve − Loan−ve · Net profit base: ${currency(base)} · Commissions: ${currency(distributed)} · Remaining (company): ${currency(base - distributed)}`;
+                                  return `Total Due = Salary + Loan+ve − Loan−ve + Occasional − PF · Net profit base: ${currency(base)} · Commissions: ${currency(distributed)} · Remaining (company): ${currency(base - distributed)}`;
                                 })()}
                               </p>
                             </div>
                           ) : salaryMode ? (
                             <div className="rounded-xl border border-crm-border-subtle overflow-x-auto bg-crm-surface shadow-sm">
-                              <table className="w-full text-xs min-w-[980px]">
+                              <table className="w-full text-xs min-w-[1080px]">
                                 <thead>
                                   <tr className="border-b bg-crm-surface-muted text-crm-text-faint">
                                     <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Employee</th>
@@ -522,6 +526,7 @@ export default function ExpandableHeadsTable({
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">PF</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Tax</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Deduct</th>
+                                    <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Occas.</th>
                                     <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px]">Net</th>
                                     <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Slip</th>
                                     {onPersist && <th className="w-10 px-1 py-2 text-center font-bold uppercase tracking-wide text-[9px]">Save</th>}
@@ -546,6 +551,7 @@ export default function ExpandableHeadsTable({
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(b.pf)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums">{currency(sp.incomeTax)}</td>
                                           <td className="px-2 py-2 text-right tabular-nums text-red-600">{currency(b.totalDeduction)}</td>
+                                          <td className="px-2 py-2 text-right tabular-nums text-sky-700">{currency(b.occasionalAmount ?? 0)}</td>
                                           <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{currency(b.netSalary)}</td>
                                           <td className="px-1 py-2 text-center">
                                             <SalarySlipDownloadButton
@@ -601,6 +607,7 @@ export default function ExpandableHeadsTable({
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.pf) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums">{b ? currency(b.incomeTax) : "—"}</td>
                                         <td className="px-2 py-2 text-right tabular-nums text-red-600">{b ? currency(b.totalDeduction) : "—"}</td>
+                                        <td className="px-2 py-2 text-right tabular-nums text-sky-700">{b ? currency(b.occasionalAmount ?? 0) : "—"}</td>
                                         <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">{b ? currency(b.totalSalary) : currency(s.amount)}</td>
                                         <td className="px-1 py-2 text-center">
                                           <SalarySlipDownloadButton

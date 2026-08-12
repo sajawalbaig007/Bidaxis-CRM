@@ -104,7 +104,7 @@ export function occasionalOf(detail: { occasionalAmount?: number | null }): numb
 }
 
 export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): EmployeeSalaryDetail {
-  return {
+  const merged: EmployeeSalaryDetail = {
     basic: 0,
     allowance: 0,
     weekdayOtHours: 0,
@@ -126,6 +126,24 @@ export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): Empl
     remarks: "",
     ...partial,
   };
+  // Missing / undefined pfAuto (older months) → always treat as ON so checkbox works every month
+  merged.pfAuto = partial?.pfAuto !== false;
+  merged.occasionalAmount = occasionalOf(merged);
+  return merged;
+}
+
+/** Whether this-period PF deduction applies (default ON). */
+export function isPfAutoEnabled(detail: { pfAuto?: boolean | null }): boolean {
+  return detail.pfAuto !== false;
+}
+
+/** PF amount for the period — auto 8% of basic, or manual override when unchecked. */
+export function resolvePfAmount(
+  detail: { pfAuto?: boolean | null; pfOverride?: number | null; basic?: number | null },
+): number {
+  const basic = Number(detail.basic) || 0;
+  if (isPfAutoEnabled(detail)) return basic * 0.08;
+  return Math.max(0, Number(detail.pfOverride) || 0);
 }
 
 /** Amount deducted from salary this month (0 if cleared via separate cash). */
@@ -249,7 +267,7 @@ export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdow
   const loanFromSalary = loanAmountFromSalary(detail);
   const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
-  const pf = detail.pfAuto ? basic * 0.08 : Number(detail.pfOverride) || 0;
+  const pf = resolvePfAmount(detail);
   const incomeTax = Number(detail.incomeTax) || 0;
 
   const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
@@ -297,20 +315,23 @@ export type ExecutiveBreakdown = {
   loanNegative: number;
   /**
    * Amount due to this executive this period:
-   * Total Salary + Loan+ve − Loan−ve + Occasional
+   * Total Salary + Loan+ve − Loan−ve + Occasional − PF
    */
   totalPayable: number;
   occasionalAmount: number;
+  pf: number;
+  pfAuto: boolean;
 };
 
 /**
  * Executive payroll:
  * Commission = % of net profit (profit before executive salaries; no commission on loss).
  * Basic Salary + Commission = Total Salary.
- * Total Payable (head amount) = Total Salary + Loan+ve − Loan−ve + Occasional
+ * Total Payable (head amount) = Total Salary + Loan+ve − Loan−ve + Occasional − PF
  *   · Loan+ve (company owes them) → add to salary / head total
  *   · Loan−ve (they owe company) → deduct from salary / head total
- *   · Occasional → add to net only (no PF/tax)
+ *   · Occasional → add to net only
+ *   · PF → Apply PF checkbox (default ON = 8% of basic)
  */
 export function computeExecutiveSalary(
   detail: Partial<EmployeeSalaryDetail>,
@@ -323,6 +344,8 @@ export function computeExecutiveSalary(
   const loanPositive = Number(detail.loanPositive) || 0;
   const loanNegative = Number(detail.loanNegative) || 0;
   const occasionalAmount = occasionalOf(detail);
+  const pfAuto = detail.pfAuto !== false;
+  const pf = resolvePfAmount(detail);
   const totalSalary = basic + commission;
   return {
     basic,
@@ -333,7 +356,9 @@ export function computeExecutiveSalary(
     loanPositive,
     loanNegative,
     occasionalAmount,
-    totalPayable: totalSalary + loanPositive - loanNegative + occasionalAmount,
+    pf,
+    pfAuto,
+    totalPayable: totalSalary + loanPositive - loanNegative + occasionalAmount - pf,
   };
 }
 
@@ -402,9 +427,7 @@ export function computeSalary(
   const loanFromSalary = loanAmountFromSalary(detail);
   const loanRemaining = Math.max(0, loanTotal - loanPaid - loanThisMonth);
 
-  const pf = detail.pfAuto
-    ? basic * 0.08
-    : Number(detail.pfOverride) || 0;
+  const pf = resolvePfAmount(detail);
 
   const incomeTax = Number(detail.incomeTax) || 0;
 

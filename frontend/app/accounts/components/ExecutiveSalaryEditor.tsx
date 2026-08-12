@@ -1,6 +1,6 @@
 "use client";
 
-import { computeExecutiveSalary, type EmployeeSalaryDetail } from "../utils/payrollFormula";
+import { computeExecutiveSalary, emptySalaryDetail, type EmployeeSalaryDetail } from "../utils/payrollFormula";
 import { currency } from "../types";
 import AmountInput from "./AmountInput";
 
@@ -49,10 +49,10 @@ function Read({ label, value, accent, hint }: { label: string; value: string; ac
 }
 
 export default function ExecutiveSalaryEditor({ name, value, onChange, profitBase, teamHint }: Props) {
-  const d = value;
+  const d = emptySalaryDetail(value);
   const b = computeExecutiveSalary(d, profitBase);
   const set = <K extends keyof EmployeeSalaryDetail>(key: K, val: EmployeeSalaryDetail[K]) => {
-    onChange({ ...d, [key]: val });
+    onChange(emptySalaryDetail({ ...d, [key]: val }));
   };
 
   return (
@@ -73,7 +73,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           Total payable this period
         </p>
         <p className="text-[10px] text-crm-text-muted">
-          Basic + Commission + Loan+ve − Loan−ve + Occasional = amount due to this executive
+          Basic + Commission + Loan+ve − Loan−ve + Occasional − PF = amount due to this executive
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Read label="Basic" value={currency(b.basic)} />
@@ -91,6 +91,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
               {b.loanPositive > 0 ? ` · + loan ${currency(b.loanPositive)}` : ""}
               {b.loanNegative > 0 ? ` · − recover ${currency(b.loanNegative)}` : ""}
               {b.occasionalAmount > 0 ? ` · + occasional ${currency(b.occasionalAmount)}` : ""}
+              {b.pf > 0 ? ` · − PF ${currency(b.pf)}` : ""}
             </p>
           </div>
           <p className="text-xl font-black tabular-nums text-[#B8112D]">{currency(b.totalPayable)}</p>
@@ -143,10 +144,31 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
         </div>
       </div>
 
+      <div className="rounded-xl border border-teal-100 bg-teal-50/30 p-2.5 space-y-2">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-teal-800">PF & Tax</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-end">
+          <label className="flex items-center gap-2 text-xs font-semibold text-crm-text-secondary h-9 rounded-lg border border-teal-200 bg-white px-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={d.pfAuto !== false}
+              onChange={e => set("pfAuto", e.target.checked)}
+              className="rounded border-crm-border accent-teal-600"
+            />
+            Apply PF (8%)
+          </label>
+          {d.pfAuto === false ? (
+            <Num label="PF Manual" value={d.pfOverride ?? 0} onChange={v => set("pfOverride", v)} />
+          ) : (
+            <Read label="PF auto" value="8% of basic" accent="text-teal-800" />
+          )}
+          <Read label="PF Deduction" value={currency(b.pf)} accent="text-teal-800" />
+        </div>
+      </div>
+
       <div className="rounded-xl border border-sky-100 bg-sky-50/30 p-2.5 space-y-2">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-sky-800">Occasional Amount</p>
         <p className="text-[10px] text-sky-700/80">
-          Rule: if filled, amount is added to Total Due only. No PF / tax formulas on this amount.
+          Rule: if filled, amount is added to Total Due only. PF is deducted separately when Apply PF is on.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Num

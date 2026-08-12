@@ -42,6 +42,9 @@ export type SalesPayrollEmployee = {
    */
   occasionalAmount?: number;
   occasionalRemark?: string;
+  /** If true (default), PF = 8% of basic; if false use pfOverride */
+  pfAuto?: boolean;
+  pfOverride?: number | null;
 };
 
 export type SalesPayrollData = {
@@ -129,7 +132,8 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
   const unpaidLeaveDeduction = unpaidDays * daySalary;
   const loanThisMonth = Number(emp.loanThisMonth) || 0;
   const loanFromSalary = emp.loanPaymentMode === "cash" ? 0 : loanThisMonth;
-  const pf = basic * 0.08;
+  const pfAuto = emp.pfAuto !== false;
+  const pf = pfAuto ? basic * 0.08 : Math.max(0, Number(emp.pfOverride) || 0);
   const incomeTax = Number(emp.incomeTax) || 0;
   const totalEarning = basic + allowance + homeAllowance + comm.totalCommission + extraEarning;
   const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
@@ -142,6 +146,7 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
     lateRuleApplied: late.rule,
     unpaidLeaveDeduction,
     pf,
+    pfAuto,
     totalEarning,
     totalDeduction,
     loanFromSalary,

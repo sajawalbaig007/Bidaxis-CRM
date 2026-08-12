@@ -480,7 +480,7 @@ export default function HeadDetailModal({
                             placeholder="Executive name"
                           />
                           <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap">{exec.commissionPct}%</span>
-                          <span className="text-xs font-black tabular-nums text-[#B8112D] whitespace-nowrap" title="Total due = Salary + Loan+ve − Loan−ve">
+                          <span className="text-xs font-black tabular-nums text-[#B8112D] whitespace-nowrap" title="Total due = Salary + Loan+ve − Loan−ve + Occasional − PF">
                             Due {currency(exec.totalPayable)}
                           </span>
                           <SalarySlipDownloadButton
@@ -568,12 +568,13 @@ export default function HeadDetailModal({
                             value={sal}
                             variant={editorVariant}
                             onChange={next => {
+                              const hydrated = emptySalaryDetail(next);
                               const total = isAdminSub
-                                ? computeAdminSalary(next).totalSalary
+                                ? computeAdminSalary(hydrated).totalSalary
                                 : isTechMgrSub
-                                  ? computeTechnicalManagerSalary(next).totalSalary
-                                  : computeSalary(next).totalSalary;
-                              updateSub(s.id, { salary: next, amount: total });
+                                  ? computeTechnicalManagerSalary(hydrated).totalSalary
+                                  : computeSalary(hydrated).totalSalary;
+                              updateSub(s.id, { salary: hydrated, amount: total });
                             }}
                           />
                         </div>

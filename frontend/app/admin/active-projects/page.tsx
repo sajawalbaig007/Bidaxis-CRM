@@ -41,6 +41,7 @@ import {
   ProjectWorkbenchData,
   CSR_ASSIGN_OTHER,
   PROJECT_PHASE_OPTIONS,
+  PAYMENT_TYPE_FILTER_OPTIONS,
 } from "@/lib/projectFields";
 
 function phaseLabel(value: string) {
@@ -89,6 +90,7 @@ type Project = {
   revisionRequestedAt?: string | null;
   revisionNotes?: string | null;
   isOldClient:       boolean;
+  createdAt?:        string;
   updatedAt:         string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
   uploadFile: { companyName: string | null } | null;
@@ -172,6 +174,7 @@ function projectAsRow(p: Project) {
     projectPayments: p.projectPayments,
     state: p.state,
     timezone: p.timezone,
+    createdAt: p.createdAt ?? null,
   };
 }
 
@@ -567,6 +570,8 @@ export default function AdminProjectsPage() {
   const [page,        setPage]        = useState(1);
   const [dateFrom,    setDateFrom]    = useState("");
   const [dateTo,      setDateTo]      = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState("");
   const deletedIdsRef = useRef<Set<string>>(new Set());
 
   // Survive remounts / refresh for this browser tab
@@ -917,7 +922,19 @@ export default function AdminProjectsPage() {
       (p.uploadFile?.companyName ?? "").toLowerCase().includes(q);
     const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
     const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
-    return matchSearch && matchState && matchPhone && (filterCSR === "all" || p.csr?.id === filterCSR);
+    const matchCsr = filterCSR === "all" || p.csr?.id === filterCSR;
+    const matchMonth = !monthFilter || (() => {
+      const iso = p.createdAt || p.updatedAt;
+      if (!iso) return false;
+      return iso.slice(0, 7) === monthFilter;
+    })();
+    const matchPaymentType = !paymentTypeFilter || (() => {
+      const payments = parsePayments(p.projectPayments);
+      return payments.some(
+        (pay) => pay.type.toLowerCase() === paymentTypeFilter.toLowerCase(),
+      );
+    })();
+    return matchSearch && matchState && matchPhone && matchCsr && matchMonth && matchPaymentType;
   });
 
   const allProjects    = baseFiltered;
@@ -1043,6 +1060,51 @@ export default function AdminProjectsPage() {
               </button>
             )}
           </div>
+
+          {!hideClientFinanceCols && (
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+              <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm w-full sm:w-auto">
+                <span className="text-[11px] text-gray-400 uppercase shrink-0">Month</span>
+                <input
+                  type="month"
+                  value={monthFilter}
+                  onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+                  className="outline-none bg-transparent text-sm font-semibold text-[#0F172A] min-w-0 flex-1"
+                />
+                {monthFilter ? (
+                  <button
+                    type="button"
+                    onClick={() => { setMonthFilter(""); setPage(1); }}
+                    className="text-[10px] font-bold text-[#B8112D] hover:underline shrink-0"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </label>
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={paymentTypeFilter}
+                  onChange={(e) => { setPaymentTypeFilter(e.target.value); setPage(1); }}
+                  className="appearance-none w-full sm:min-w-[180px] h-10 sm:h-11 bg-white border border-gray-200 rounded-xl pl-3.5 pr-9 text-sm outline-none focus:border-[#B8112D] font-semibold text-gray-700"
+                >
+                  <option value="">All payment types</option>
+                  {PAYMENT_TYPE_FILTER_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+              {(monthFilter || paymentTypeFilter) && (
+                <button
+                  type="button"
+                  onClick={() => { setMonthFilter(""); setPaymentTypeFilter(""); setPage(1); }}
+                  className="h-10 px-4 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-all w-fit"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ALL / ACTIVE TABS */}
