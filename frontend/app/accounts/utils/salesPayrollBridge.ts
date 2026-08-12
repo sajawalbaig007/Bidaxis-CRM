@@ -176,6 +176,8 @@ export function emptySalesPayrollEmployee(
     remarks: "",
     occasionalAmount: 0,
     occasionalRemark: "",
+    pfAuto: true,
+    pfOverride: null,
   };
 }
 
@@ -185,7 +187,16 @@ export function ensureSalesPayrollFromSub(
   role: "sales" | "team_lead",
 ): SalesPayrollEmployee {
   if (sub.salesPayroll) {
-    return { ...sub.salesPayroll, name: sub.label, role };
+    const sp = sub.salesPayroll;
+    return {
+      ...sp,
+      name: sub.label,
+      role,
+      occasionalAmount: Math.max(0, Number(sp.occasionalAmount) || 0),
+      occasionalRemark: sp.occasionalRemark ?? "",
+      pfAuto: sp.pfAuto !== false,
+      pfOverride: sp.pfOverride ?? null,
+    };
   }
   const sal = sub.salary;
   const basic = sal?.basic ?? (Number(sub.amount) || 0);
@@ -204,6 +215,8 @@ export function ensureSalesPayrollFromSub(
     remarks: sal?.remarks ?? "",
     occasionalAmount: Number(sal?.occasionalAmount) || 0,
     occasionalRemark: sal?.occasionalRemark ?? "",
+    pfAuto: sal?.pfAuto !== false,
+    pfOverride: sal?.pfOverride ?? null,
     ...(role === "team_lead" ? { homeAllowance: Number(sal?.homeAllowance) || 0 } : {}),
   };
 }

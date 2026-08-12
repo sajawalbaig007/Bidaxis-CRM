@@ -290,13 +290,13 @@ export function buildSalarySlipFromSub(opts: {
         { label: "Income Tax", amount: 0 },
         { label: "Unpaid Leaves", amount: 0 },
         { label: "Late Arrival Deduction", amount: 0 },
-        { label: "Employee PF Share", amount: 0 },
+        { label: "Employee PF Share", amount: ex.pf },
         { label: "Loan Deduction", amount: ex.loanNegative },
       ],
       ...occasionalPayloadFields(sal),
       comments: commentsFrom(sal),
-      employeePf: 0,
-      employerPf: 0,
+      employeePf: ex.pf,
+      employerPf: ex.pf,
     };
   }
 

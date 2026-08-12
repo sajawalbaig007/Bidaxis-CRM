@@ -570,6 +570,10 @@ export default function ProjectWorkbenchModal({
                         {PAYMENT_TYPE_OPTIONS.map((t) => (
                           <option key={t} value={t}>{t}</option>
                         ))}
+                        {p.type &&
+                        !(PAYMENT_TYPE_OPTIONS as readonly string[]).includes(p.type) ? (
+                          <option value={p.type}>{p.type} (legacy)</option>
+                        ) : null}
                       </select>
                     </div>
                     <div>

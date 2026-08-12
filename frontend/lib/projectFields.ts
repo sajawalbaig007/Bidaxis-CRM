@@ -35,12 +35,17 @@ export const PROJECT_PHASE_OPTIONS = [
 ] as const;
 
 export const PAYMENT_TYPE_OPTIONS = [
-  "Advance",
   "Partial",
   "Milestone",
   "Final",
-  "Retainer",
   "Other",
+] as const;
+
+/** Project DB filters — payment types except Other */
+export const PAYMENT_TYPE_FILTER_OPTIONS = [
+  "Partial",
+  "Milestone",
+  "Final",
 ] as const;
 
 function normalizePaymentChannel(raw: unknown): PaymentChannel | undefined {

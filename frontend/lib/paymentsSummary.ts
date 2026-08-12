@@ -34,7 +34,9 @@ export type ChannelSummary = {
   key: PaymentChannelKey;
   label: string;
   totals: ChannelCurrencyTotals;
+  totalAmount: number;
   paymentCount: number;
+  projectCount: number;
   activeCurrencies: ("USD" | "CAD" | "PKR")[];
 };
 
@@ -45,26 +47,37 @@ export type PaymentsSummaryPayload = {
   generatedAt: string;
   channels: ChannelSummary[];
   totals: {
+    projectCount: number;
     quotedProjects: number;
     quotedAmount: number;
+    collectedAmount: number;
+    collectedByCurrency: ChannelCurrencyTotals;
+    outstandingAmount: number;
+    collectionRate: number;
     collectedEntries: number;
     unassignedPaidCount: number;
     fullPaidCount: number;
     partialPaidCount: number;
     unpaidWithQuoteCount: number;
   };
+  statusBreakdown: {
+    paid: number;
+    partial: number;
+    unpaid: number;
+  };
   fullPaidProjects: ProjectPaymentSummaryRow[];
   partialPaidProjects: ProjectPaymentSummaryRow[];
+  unpaidProjects: ProjectPaymentSummaryRow[];
 };
 
 export const CHANNEL_STYLES: Record<
   PaymentChannelKey,
-  { dot: string; from: string; to: string; border: string }
+  { color: string; soft: string; border: string }
 > = {
-  AH: { dot: "#F87171", from: "from-[#FFF1F3]", to: "to-white", border: "border-red-100" },
-  SN: { dot: "#60A5FA", from: "from-[#EFF6FF]", to: "to-white", border: "border-blue-100" },
-  CHQ: { dot: "#FBBF24", from: "from-[#FFFBEB]", to: "to-white", border: "border-amber-100" },
-  HM: { dot: "#2DD4BF", from: "from-[#F0FDFA]", to: "to-white", border: "border-teal-100" },
+  AH: { color: "#EF4444", soft: "bg-red-50 dark:bg-red-500/10", border: "border-red-200 dark:border-red-500/30" },
+  SN: { color: "#3B82F6", soft: "bg-blue-50 dark:bg-blue-500/10", border: "border-blue-200 dark:border-blue-500/30" },
+  CHQ: { color: "#F59E0B", soft: "bg-amber-50 dark:bg-amber-500/10", border: "border-amber-200 dark:border-amber-500/30" },
+  HM: { color: "#14B8A6", soft: "bg-teal-50 dark:bg-teal-500/10", border: "border-teal-200 dark:border-teal-500/30" },
 };
 
 export function currentMonthIso(): string {
@@ -73,7 +86,14 @@ export function currentMonthIso(): string {
 
 export function formatMoney(n: number, currency?: string | null): string {
   if (n <= 0) return "—";
-  const prefix = currency === "PKR" ? "PKR " : currency === "CAD" ? "CAD " : currency === "USD" ? "$" : "$";
+  const prefix =
+    currency === "PKR" ? "PKR " : currency === "CAD" ? "CAD " : currency === "USD" ? "$" : "$";
+  return `${prefix}${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+export function formatMoneyAlways(n: number, currency?: string | null): string {
+  const prefix =
+    currency === "PKR" ? "PKR " : currency === "CAD" ? "CAD " : currency === "USD" ? "$" : "$";
   return `${prefix}${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 

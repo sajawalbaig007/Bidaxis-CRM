@@ -538,8 +538,8 @@ export function executiveCommissionBase(data: IncomeStatementData): number {
 
 /**
  * Keep executive sub-head amounts in sync:
- * amount = Basic + Commission + Loan+ve − Loan−ve (total payable / head total).
- * Runs on every load / edit so commissions & loans follow revenue & expense changes.
+ * amount = Basic + Commission + Loan+ve − Loan−ve + Occasional − PF (total payable).
+ * Runs on every load / edit so commissions, loans, occasional & PF follow revenue & expense changes.
  */
 export function recomputeExecutiveTeam(data: IncomeStatementData): IncomeStatementData {
   const teams = data.teamSalaries ?? [];
@@ -561,7 +561,9 @@ export function recomputeExecutiveTeam(data: IncomeStatementData): IncomeStateme
       Number(s.salary.loanPositive) !== sal.loanPositive ||
       Number(s.salary.loanNegative) !== sal.loanNegative ||
       Number(s.salary.occasionalAmount) !== Number(sal.occasionalAmount) ||
-      String(s.salary.occasionalRemark ?? "") !== String(sal.occasionalRemark ?? "");
+      String(s.salary.occasionalRemark ?? "") !== String(sal.occasionalRemark ?? "") ||
+      (s.salary.pfAuto !== false) !== sal.pfAuto ||
+      Number(s.salary.pfOverride ?? 0) !== Number(sal.pfOverride ?? 0);
     if (!salaryChanged && Math.abs((Number(s.amount) || 0) - total) < 0.005) return s;
     changed = true;
     return { ...s, salary: sal, amount: total };

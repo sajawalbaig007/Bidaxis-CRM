@@ -384,10 +384,30 @@ export default function SalesPayrollEmployeeEditor({
           {/* PF & Tax */}
           <div className="rounded-xl border border-teal-100 bg-teal-50/30 p-3 space-y-2">
             <p className="text-[11px] font-extrabold uppercase text-teal-800">PF & Tax</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <Read label="PF (8% basic)" value={currency(breakdown.pf)} accent="text-teal-800" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-end">
+              <label className="flex items-center gap-2 text-xs font-semibold text-crm-text-secondary h-9 rounded-lg border border-teal-200 bg-white px-2 cursor-pointer col-span-2 sm:col-span-1">
+                <input
+                  type="checkbox"
+                  checked={employee.pfAuto !== false}
+                  onChange={e => set("pfAuto", e.target.checked)}
+                  className="rounded border-crm-border accent-teal-600"
+                />
+                Apply PF (8%)
+              </label>
+              {employee.pfAuto === false ? (
+                <Num
+                  label="PF Manual"
+                  value={employee.pfOverride ?? 0}
+                  onChange={v => set("pfOverride", v)}
+                />
+              ) : (
+                <Read label="PF (8% basic)" value={currency(breakdown.pf)} accent="text-teal-800" />
+              )}
               <Num label="Income Tax (manual)" value={employee.incomeTax} onChange={v => set("incomeTax", v)} />
             </div>
+            {employee.pfAuto === false ? (
+              <Read label="PF Deduction" value={currency(breakdown.pf)} accent="text-teal-800" />
+            ) : null}
           </div>
 
           {/* Occasional */}
@@ -422,9 +442,7 @@ export default function SalesPayrollEmployeeEditor({
               <Read label="Total Earning" value={currency(breakdown.totalEarning)} accent="text-emerald-700" />
               <Read label="Total Deduction" value={currency(breakdown.totalDeduction)} accent="text-red-600" />
             </div>
-            {(breakdown.occasionalAmount ?? 0) > 0 ? (
-              <Read label="Occasional" value={currency(breakdown.occasionalAmount)} accent="text-sky-700" />
-            ) : null}
+            <Read label="Occasional" value={currency(breakdown.occasionalAmount ?? 0)} accent="text-sky-700" />
             <Read label="Net Total Salary" value={currency(breakdown.netSalary)} accent="text-[#B8112D]" />
           </div>
 

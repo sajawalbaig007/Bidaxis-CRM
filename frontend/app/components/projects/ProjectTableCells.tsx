@@ -46,6 +46,8 @@ export type ProjectTableRow = {
   projectPayments?: ProjectPayment[] | string | null;
   state?: string | null;
   timezone?: string | null;
+  /** When the project was added to Project DB */
+  createdAt?: string | null;
 };
 
 function cleanVal(v?: string | null): string | null {
@@ -71,11 +73,23 @@ function DetailLine({
   );
 }
 
+function formatAddedDate(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
   const company = cleanVal(p.company);
   const client = cleanVal(p.name);
   const phone = cleanVal(p.phone);
   const email = cleanVal(p.email);
+  const addedOn = formatAddedDate(p.createdAt);
 
   return (
     <div className="min-w-0 space-y-0.5">
@@ -99,7 +113,12 @@ export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
           {email}
         </DetailLine>
       )}
-      {!company && !client && !phone && !email && (
+      {addedOn && (
+        <DetailLine icon={<Calendar size={9} className="text-[#B8112D] shrink-0" />} className="text-gray-500">
+          Added {addedOn}
+        </DetailLine>
+      )}
+      {!company && !client && !phone && !email && !addedOn && (
         <span className="text-[10px] text-gray-400">—</span>
       )}
     </div>
