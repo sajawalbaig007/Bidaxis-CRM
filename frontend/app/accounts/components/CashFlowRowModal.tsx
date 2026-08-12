@@ -190,7 +190,13 @@ export default function CashFlowRowModal({
                     </div>
                     <textarea
                       value={n.text}
-                      onChange={e => setNotes(notes.map(x => (x.id === n.id ? { ...x, text: e.target.value } : x)))}
+                      onChange={e =>
+                        setNotes(
+                          [...notes.map(x => (x.id === n.id ? { ...x, text: e.target.value, date: todayIso() } : x))].sort(
+                            (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
+                          ),
+                        )
+                      }
                       placeholder="Write note…"
                       rows={2}
                       className="w-full rounded-lg border border-amber-200/80 bg-crm-surface px-2 py-1.5 text-xs outline-none resize-none focus:ring-2 focus:ring-amber-200"

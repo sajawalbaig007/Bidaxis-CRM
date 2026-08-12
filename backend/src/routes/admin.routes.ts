@@ -252,14 +252,32 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manag
 });
 
 /* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
-router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
+router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
-    const CACHE_KEY = "admin:clients:tab-counts";
-    const cached = getCache<object>(CACHE_KEY);
-    if (cached) return res.json(cached);
+    const search = req.query.search ? String(req.query.search) : undefined;
+    const state = req.query.state ? String(req.query.state) : undefined;
+    const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
+    const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
+    const areaCodesRaw = req.query.areaCodes ? String(req.query.areaCodes) : "";
+    const areaCodes = areaCodesRaw
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
 
-    const payload = await buildAdminTabCountsPayload();
-    setCache(CACHE_KEY, payload, 60_000);
+    const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length);
+    const CACHE_KEY = hasFilters
+      ? `admin:clients:tab-counts:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}`
+      : "admin:clients:tab-counts";
+
+    if (!hasFilters) {
+      const cached = getCache<object>(CACHE_KEY);
+      if (cached) return res.json(cached);
+    }
+
+    const payload = await buildAdminTabCountsPayload(
+      hasFilters ? { search, state, phonePrefix, areaCodes, scheduleDate } : undefined,
+    );
+    if (!hasFilters) setCache(CACHE_KEY, payload, 60_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -292,12 +310,21 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const csrName = req.query.csr ? String(req.query.csr) : undefined;
     const search = req.query.search ? String(req.query.search) : undefined;
     const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
+    const state = req.query.state ? String(req.query.state) : undefined;
+    const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
+    const areaCodes = req.query.areaCodes
+      ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
+      : [];
 
-    const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}`;
+    const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const where = buildAdminClientListWhere(view, csrName, search, scheduleDate);
+    const where = buildAdminClientListWhere(view, csrName, search, scheduleDate, {
+      state,
+      phonePrefix,
+      areaCodes,
+    });
 
     // Fetch more than limit so we can deduplicate by phone before slicing the page
     const FETCH_FACTOR = 4;
@@ -640,7 +667,10 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manager"
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, leadId } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
 
-    const updated = await prisma.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+    const updated = await prisma.leadNote.update({
+      where: { id: noteId },
+      data: { text: text.trim(), createdAt: new Date() },
+    });
     flushAdminClientsCache();
     return res.json({ success: true, note: updated });
   } catch {

@@ -232,7 +232,18 @@ export default function HeadDetailModal({
 
   const updateNote = (id: string, patch: Partial<DatedNote>) => {
     patchDraft({
-      notes: draft.notes.map(n => (n.id === id ? { ...n, ...patch } : n)),
+      notes: (() => {
+        const next = draft.notes.map(n => {
+          if (n.id !== id) return n;
+          const bumped =
+            patch.text !== undefined && patch.date === undefined
+              ? { date: todayIso() }
+              : {};
+          return { ...n, ...patch, ...bumped };
+        });
+        // Edited / newest date first
+        return [...next].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+      })(),
     });
   };
 

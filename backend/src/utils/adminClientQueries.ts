@@ -89,63 +89,56 @@ export function buildAdminClientViewWhere(view: AdminClientView): Prisma.LeadWhe
 
 
 export function buildAdminClientListWhere(
-
   view: AdminClientView,
-
   csrName?: string,
-
   search?: string,
-
   scheduleDate?: string,
-
+  extras?: {
+    state?: string;
+    phonePrefix?: string;
+    areaCodes?: string[];
+  },
 ): Prisma.LeadWhereInput {
-
   const parts: Prisma.LeadWhereInput[] = [buildAdminClientViewWhere(view)];
 
-
-
   if (csrName && csrName !== "all") {
-
     parts.push({ csr: { name: csrName } });
-
   }
-
-
 
   if (scheduleDate && view === "schedule") {
-
     parts.push({ nextSchedule: scheduleDate });
-
   }
-
-
 
   const q = search?.trim();
-
   if (q) {
-
     parts.push({
-
       OR: [
-
-        { name:    { contains: q } },
-
+        { name: { contains: q } },
         { company: { contains: q } },
-
-        { phone:   { contains: q } },
-
-        { email:   { contains: q } },
-
+        { phone: { contains: q } },
+        { email: { contains: q } },
       ],
-
     });
-
   }
 
+  const phonePrefix = extras?.phonePrefix?.replace(/\D/g, "") ?? "";
+  if (phonePrefix) {
+    parts.push({ phone: { contains: phonePrefix } });
+  }
 
+  const state = extras?.state?.trim() ?? "";
+  const areaCodes = (extras?.areaCodes ?? []).map(c => c.replace(/\D/g, "")).filter(c => c.length >= 3);
+  if (state) {
+    const stateOr: Prisma.LeadWhereInput[] = [
+      { state: { contains: state, mode: "insensitive" } },
+    ];
+    for (const code of areaCodes.slice(0, 40)) {
+      stateOr.push({ phone: { contains: code } });
+    }
+    parts.push({ OR: stateOr });
+  }
 
-  return parts.length === 1 ? parts[0] : { AND: parts };
-
+  return parts.length === 1 ? parts[0]! : { AND: parts };
 }
 
 

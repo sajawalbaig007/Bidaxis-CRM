@@ -22,6 +22,13 @@ export function MentionText({ text, className }: { text: string; className?: str
 
 export function PdfPreview({ url, fileName }: { url: string; fileName: string }) {
   const [open, setOpen] = useState(false);
+  const embedSrc =
+    url.includes("/raw/upload/") || (/\.pdf(\?|$)/i.test(url) && !url.includes("/image/upload/"))
+      ? `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
+      : url.includes("/image/upload/") && /\.pdf(\?|$)/i.test(url)
+        ? url
+        : url;
+
   return (
     <>
       <button
@@ -37,9 +44,19 @@ export function PdfPreview({ url, fileName }: { url: string; fileName: string })
           <div className="bg-white rounded-2xl w-full max-w-3xl h-[80vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
               <span className="text-sm font-semibold truncate">{fileName}</span>
-              <button type="button" onClick={() => setOpen(false)} className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center"><X size={14} /></button>
+              <div className="flex items-center gap-2">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-[#B8112D] hover:underline px-2"
+                >
+                  Open file
+                </a>
+                <button type="button" onClick={() => setOpen(false)} className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center"><X size={14} /></button>
+              </div>
             </div>
-            <iframe src={url} title={fileName} className="flex-1 w-full border-0" />
+            <iframe src={embedSrc} title={fileName} className="flex-1 w-full border-0" />
           </div>
         </div>
       )}

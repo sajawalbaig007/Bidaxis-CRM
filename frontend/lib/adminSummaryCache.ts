@@ -175,10 +175,40 @@ export async function getAdminSummary(force = false): Promise<AdminDashboardSumm
 }
 
 /** Lightweight tab counts — avoids full summary on leads page. */
-export async function getAdminTabCounts(force = false): Promise<AdminTabCounts> {
-  if (!force && tabCountsCached && Date.now() - tabCountsCached.at < TAB_COUNTS_TTL_MS) {
+export async function getAdminTabCounts(
+  force = false,
+  filters?: {
+    search?: string;
+    state?: string;
+    phone?: string;
+    areaCodes?: string[];
+    scheduleDate?: string;
+  },
+): Promise<AdminTabCounts> {
+  const hasFilters = !!(
+    filters?.search?.trim() ||
+    filters?.state?.trim() ||
+    filters?.phone?.trim() ||
+    filters?.scheduleDate?.trim() ||
+    (filters?.areaCodes?.length ?? 0) > 0
+  );
+
+  if (!hasFilters && !force && tabCountsCached && Date.now() - tabCountsCached.at < TAB_COUNTS_TTL_MS) {
     return tabCountsCached.data;
   }
+
+  const params: Record<string, string> = {};
+  if (filters?.search?.trim()) params.search = filters.search.trim();
+  if (filters?.state?.trim()) params.state = filters.state.trim();
+  if (filters?.phone?.trim()) params.phone = filters.phone.trim();
+  if (filters?.scheduleDate?.trim()) params.scheduleDate = filters.scheduleDate.trim();
+  if (filters?.areaCodes?.length) params.areaCodes = filters.areaCodes.join(",");
+
+  if (hasFilters) {
+    const res = await API.get("/admin/clients/tab-counts", { params });
+    return res.data.tabCounts as AdminTabCounts;
+  }
+
   if (tabCountsInflight) return tabCountsInflight;
 
   tabCountsInflight = API.get("/admin/clients/tab-counts")

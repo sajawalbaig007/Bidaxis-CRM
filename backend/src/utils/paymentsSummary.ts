@@ -27,8 +27,16 @@ export type PaymentEntrySummary = {
   currency: PaymentCurrency | null;
   channel: PaymentChannel | null;
   channelLabel: string;
-  accountsMonth: string | null;
+  /** Payment slip / invoice URL */
+  link: string | null;
+  /** Paid / Unpaid (entry-level) */
+  paymentStatus: "Paid" | "Unpaid";
+  /** When payment was marked paid (ISO) */
   paidAt: string | null;
+  /** When payment row was created (ISO) */
+  createdAt: string | null;
+  /** Accounts receive month YYYY-MM (separate from paidAt) */
+  accountsMonth: string | null;
   isPartialType: boolean;
 };
 
@@ -36,6 +44,8 @@ export type ProjectPaymentSummaryRow = {
   leadId: string;
   projectCode: string | null;
   projectTitle: string | null;
+  clientName: string | null;
+  clientEmail: string | null;
   quoted: number;
   quotedLabel: string;
   paidTotal: number;
@@ -103,6 +113,7 @@ function emptyChannelTotals(): ChannelCurrencyTotals {
 function entrySummary(e: ProjectPaymentEntry): PaymentEntrySummary {
   const channel = e.paymentChannel ?? null;
   const type = String(e.type ?? "Partial");
+  const link = typeof e.link === "string" && e.link.trim() ? e.link.trim() : null;
   return {
     id: e.id,
     type,
@@ -111,8 +122,11 @@ function entrySummary(e: ProjectPaymentEntry): PaymentEntrySummary {
     currency: e.currency ?? null,
     channel,
     channelLabel: channel ? PAYMENT_CHANNEL_LABELS[channel] : "—",
+    link,
+    paymentStatus: e.isPaid ? "Paid" : "Unpaid",
     accountsMonth: paymentAccountsMonth(e),
     paidAt: e.paidAt ?? null,
+    createdAt: e.createdAt ?? null,
     isPartialType: type.toLowerCase().includes("partial") || type === "Milestone",
   };
 }
@@ -132,6 +146,9 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     where: buildProjectLeadWhere(),
     select: {
       id: true,
+      name: true,
+      email: true,
+      company: true,
       projectTitle: true,
       projectCode: true,
       clientCode: true,
@@ -226,7 +243,13 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       outstandingAmount += Math.max(0, quoted - paidTotalAll);
     }
 
-    const rowPayments = paidInScope.map(entrySummary);
+    const rowPayments = paidInScope
+      .map(entrySummary)
+      .sort((a, b) => {
+        const ta = a.paidAt || a.createdAt || "";
+        const tb = b.paidAt || b.createdAt || "";
+        return tb.localeCompare(ta);
+      });
     const status: ProjectPaymentSummaryRow["status"] =
       pct >= 100 ? "full" : paidTotalAll > 0 || rowPayments.length > 0 ? "partial" : "unpaid";
 
@@ -234,6 +257,8 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       leadId: lead.id,
       projectCode: lead.projectCode || lead.clientCode || null,
       projectTitle: lead.projectTitle ?? null,
+      clientName: (lead.name || lead.company || "").trim() || null,
+      clientEmail: (lead.email || "").trim() || null,
       quoted,
       quotedLabel: quoted > 0 ? `$${quoted.toLocaleString()}` : "—",
       paidTotal: paidTotalAll,

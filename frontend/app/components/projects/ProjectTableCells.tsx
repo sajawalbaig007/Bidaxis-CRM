@@ -1,14 +1,18 @@
 "use client";
 
 import PaymentStatusCircle from "@/app/csr/components/shared/PaymentStatusCircle";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
+  formatPaymentMoney,
   formatPaymentWhen,
   formatQuotedAmount,
   latestPaidPayment,
   parseMoney,
   parsePayments,
+  paymentActivityAt,
+  paymentChannelLabel,
   paymentPercent,
+  sortPaymentsNewestFirst,
   getProjectWorkStatus,
   PROJECT_WORK_STATUS_OPTIONS,
   normalizeDeadlineTiming,
@@ -189,8 +193,11 @@ export function QuotedAmountCell({ p }: { p: ProjectTableRow }) {
 }
 
 export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const payments = parsePayments(p.projectPayments);
-  const latest = latestPaidPayment(payments);
+  const paidSorted = sortPaymentsNewestFirst(payments.filter((x) => x.isPaid && parseMoney(x.amount) > 0));
+  const latest = paidSorted[0] ?? latestPaidPayment(payments);
+  const older = paidSorted.slice(1);
   const pct = paymentPercent(payments, p.projectBudget);
   const paidNum = payments.length > 0
     ? payments.filter((x) => x.isPaid).reduce((s, x) => s + parseMoney(x.amount), 0)
@@ -202,10 +209,55 @@ export function PaymentDetailCell({ p }: { p: ProjectTableRow }) {
       <div className="min-w-0 flex-1">
         {latest ? (
           <>
-            <p className="text-[10px] xl:text-xs font-semibold text-[#065F46]">
-              ${parseMoney(latest.amount).toLocaleString()} · {latest.type}
-            </p>
-            <p className="text-[9px] text-gray-400 truncate">{formatPaymentWhen(latest.paidAt)}</p>
+            <div className="flex items-start gap-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] xl:text-xs font-semibold text-[#065F46]">
+                  {formatPaymentMoney(latest.amount, latest.currency)} · {latest.type}
+                </p>
+                <p className="text-[9px] text-gray-500 truncate">
+                  {paymentChannelLabel(latest.paymentChannel)}
+                  {latest.currency ? ` · ${latest.currency}` : ""}
+                  {" · "}
+                  {formatPaymentWhen(paymentActivityAt(latest))}
+                </p>
+              </div>
+              {older.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setHistoryOpen((v) => !v);
+                  }}
+                  className="shrink-0 mt-0.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md transition-colors"
+                  title={historyOpen ? "Hide payment history" : `Show ${older.length} older payment${older.length === 1 ? "" : "s"}`}
+                  aria-expanded={historyOpen}
+                >
+                  +{older.length}
+                </button>
+              )}
+            </div>
+            {historyOpen && older.length > 0 && (
+              <div className="mt-1.5 rounded-lg border border-emerald-100 bg-emerald-50/70 overflow-hidden">
+                <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-emerald-800 border-b border-emerald-100">
+                  Payment history
+                </p>
+                <ul className="max-h-40 overflow-y-auto divide-y divide-emerald-100/80">
+                  {older.map((pay) => (
+                    <li key={pay.id} className="px-2 py-1.5">
+                      <p className="text-[10px] font-bold text-emerald-800">
+                        {formatPaymentMoney(pay.amount, pay.currency)} · {pay.type}
+                      </p>
+                      <p className="text-[9px] text-gray-600">
+                        {paymentChannelLabel(pay.paymentChannel)}
+                        {pay.currency ? ` · ${pay.currency}` : ""}
+                        {" · "}
+                        {formatPaymentWhen(paymentActivityAt(pay))}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         ) : paidNum > 0 ? (
           <p className="text-[10px] text-[#065F46] font-semibold">${paidNum.toLocaleString()} received</p>

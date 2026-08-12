@@ -155,11 +155,21 @@ export default function ProjectWorkbenchModal({
   const remaining = Math.max(0, budgetNum - paidNum);
 
   const addPayment = () => {
+    const now = new Date().toISOString();
     setData((d) => ({
       ...d,
       projectPayments: [
         ...d.projectPayments,
-        { id: newPaymentId(), type: "Partial", amount: "", link: "", isPaid: false, paymentChannel: undefined, currency: undefined },
+        {
+          id: newPaymentId(),
+          type: "Partial",
+          amount: "",
+          link: "",
+          isPaid: false,
+          createdAt: now,
+          paymentChannel: undefined,
+          currency: undefined,
+        },
       ],
     }));
   };
@@ -170,6 +180,7 @@ export default function ProjectWorkbenchModal({
       projectPayments: d.projectPayments.map((p) => {
         if (p.id !== id) return p;
         const next = { ...p, ...patch };
+        if (!next.createdAt) next.createdAt = new Date().toISOString();
         if (patch.isPaid === true && !next.paidAt) next.paidAt = new Date().toISOString();
         if (patch.isPaid === true && !next.accountsMonth) {
           next.accountsMonth = new Date().toISOString().slice(0, 7);
@@ -203,6 +214,7 @@ export default function ProjectWorkbenchModal({
                 amount: "",
                 link: "",
                 isPaid: false,
+                createdAt: new Date().toISOString(),
                 paymentChannel: undefined,
                 currency: undefined,
                 accountsMonth: new Date().toISOString().slice(0, 7),

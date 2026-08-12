@@ -18,6 +18,8 @@ export type ProjectPaymentEntry = {
   link?: string;
   isPaid: boolean;
   paidAt?: string;
+  /** When this payment row was first created */
+  createdAt?: string;
   /** Accounts currency channel — set by Admin/Manager when payment arrives */
   paymentChannel?: PaymentChannel;
   /** USD / CAD / PKR — feeds Accounts dashboard for that channel */
@@ -56,7 +58,9 @@ function sanitizeEntry(raw: Partial<ProjectPaymentEntry> & Record<string, unknow
     isPaid: Boolean(raw.isPaid),
   };
   if (typeof raw.link === "string" && raw.link.trim()) entry.link = raw.link.trim();
-  if (typeof raw.paidAt === "string" && raw.paidAt.trim()) entry.paidAt = raw.paidAt;
+  if (typeof raw.paidAt === "string" && raw.paidAt.trim()) entry.paidAt = raw.paidAt.trim();
+  if (typeof raw.createdAt === "string" && raw.createdAt.trim()) entry.createdAt = raw.createdAt.trim();
+  if (!entry.createdAt && entry.paidAt) entry.createdAt = entry.paidAt;
   if (channel) entry.paymentChannel = channel;
   if (currency) entry.currency = currency;
   if (accountsMonth) entry.accountsMonth = accountsMonth;
@@ -143,6 +147,9 @@ export function preservePaymentSlipLinksForCsr(
     else delete next.currency;
     if (prev?.accountsMonth) next.accountsMonth = prev.accountsMonth;
     else delete next.accountsMonth;
+    // Keep history timestamps
+    if (prev?.createdAt && !next.createdAt) next.createdAt = prev.createdAt;
+    if (prev?.paidAt && e.isPaid && !next.paidAt) next.paidAt = prev.paidAt;
     return next;
   });
   return stringifyProjectPayments(merged);
