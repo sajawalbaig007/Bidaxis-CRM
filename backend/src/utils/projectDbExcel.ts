@@ -286,50 +286,78 @@ function exampleRow(): Record<string, string> {
   return row;
 }
 
-/** Build .xlsx buffer: Instructions + Projects (headers + 1 example). */
+/** Build .xlsx buffer: Projects sheet first (headers across columns), then Instructions. */
 export function buildProjectDbTemplateBuffer(): Buffer {
   const wb = XLSX.utils.book_new();
+
+  // Flat header list — each field = its own column (A, B, C, …)
+  const headers = PROJECT_DB_EXCEL_HEADERS.map((h) => String(h));
+  const example = exampleRow();
+  const exampleValues = headers.map((h) => String(example[h] ?? ""));
+  const blankRow = headers.map(() => "");
+
+  // Row1 = heads (separate columns), Row2 = blank for your data, Row3 = sample
+  const projectsAoa: string[][] = [headers, blankRow, exampleValues];
+  const wsProjects = XLSX.utils.aoa_to_sheet(projectsAoa);
+  // Explicit range so Excel never collapses to a single column
+  wsProjects["!ref"] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: projectsAoa.length - 1, c: headers.length - 1 },
+  });
+  wsProjects["!cols"] = headers.map((h) => ({
+    wch: Math.min(24, Math.max(14, h.length + 2)),
+  }));
+  // Freeze header row
+  wsProjects["!freeze"] = { xSplit: 0, ySplit: 1 };
+  XLSX.utils.book_append_sheet(wb, wsProjects, "Projects");
 
   const instructions: string[][] = [
     ["BEM CRM — Project DB Excel Template"],
     [""],
-    ["Required columns: name, projectTitle, interestedService, projectDeadline"],
-    ["Any past or future projectDeadline / createdAt is allowed (historical imports OK)."],
+    ["HOW TO USE"],
+    ["1. Open the Projects sheet (first tab)."],
+    ["2. Row 1 = column heads — do not delete or merge cells."],
+    ["3. Fill data starting at Row 2 (one project per row)."],
+    ["4. Row 3 is an example — delete it before upload if not needed."],
+    ["5. Each head is its own column (name | company | phone | …)."],
     [""],
-    ["interestedService values:", SERVICES.join(" | ")],
-    ["projectPhase values:", PHASES.join(" | ")],
-    ["deadlineTiming values:", "empty | morning | cob"],
-    ["projectWorkStatus values:", WORK_STATUSES.join(" | ")],
-    ["status typical:", "Close Client | completed"],
-    ["csrCode:", "Active CSR code (e.g. CSR001). Leave empty to assign to uploading admin."],
-    ["projectSource:", "Use when project is from external resource (not a CSR). Leave csrCode empty."],
-    ["createdAt:", "Optional YYYY-MM-DD — sets record date for month filters / history."],
+    ["REQUIRED COLUMNS", "name", "projectTitle", "interestedService", "projectDeadline"],
     [""],
-    ["Payments (up to 5):"],
-    ["paymentNType:", PAYMENT_TYPES.join(" | ")],
-    ["paymentNAmount:", "Number or currency string"],
-    ["paymentNIsPaid:", "yes / no / true / false / 1 / 0"],
-    ["paymentNPaidAt / paymentNCreatedAt:", "YYYY-MM-DD"],
-    ["paymentNChannel:", CHANNELS.join(" | ")],
-    ["paymentNCurrency:", CURRENCIES.join(" | ")],
-    ["paymentNAccountsMonth:", "YYYY-MM (Accounts currency month)"],
-    ["paymentNLink:", "Optional payment / slip URL"],
+    ["interestedService", ...SERVICES],
+    ["projectPhase", ...PHASES],
+    ["deadlineTiming", "(empty)", "morning", "cob"],
+    ["projectWorkStatus", ...WORK_STATUSES],
+    ["status", "Close Client", "completed"],
+    ["paymentNType", ...PAYMENT_TYPES],
+    ["paymentNChannel", ...CHANNELS],
+    ["paymentNCurrency", ...CURRENCIES],
+    ["paymentNIsPaid", "yes", "no", "true", "false", "1", "0"],
     [""],
-    ["Fill the Projects sheet. Keep the header row. Delete the example row before upload if not needed."],
-    ["Upload via Project DB → Upload Excel."],
+    ["csrCode", "Active CSR code e.g. CSR001 — leave empty to assign to you"],
+    ["projectSource", "External resource name when not a CSR (leave csrCode empty)"],
+    ["createdAt", "Optional YYYY-MM-DD for historical month filters"],
+    ["Dates", "Use YYYY-MM-DD for deadlines / paidAt / createdAt"],
+    ["Payments", "Up to 5: payment1Type … payment5Link"],
   ];
   const wsInfo = XLSX.utils.aoa_to_sheet(instructions);
-  wsInfo["!cols"] = [{ wch: 28 }, { wch: 80 }];
+  wsInfo["!cols"] = [
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+  ];
   XLSX.utils.book_append_sheet(wb, wsInfo, "Instructions");
 
-  const headers = [...PROJECT_DB_EXCEL_HEADERS];
-  const example = exampleRow();
-  const dataRows = [headers, headers.map((h) => example[h] ?? "")];
-  const ws = XLSX.utils.aoa_to_sheet(dataRows);
-  ws["!cols"] = headers.map((h) => ({ wch: Math.min(22, Math.max(12, h.length + 2)) }));
-  XLSX.utils.book_append_sheet(wb, ws, "Projects");
-
-  return Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+  const out = XLSX.write(wb, {
+    type: "buffer",
+    bookType: "xlsx",
+    bookSST: false,
+    compression: true,
+  });
+  return Buffer.isBuffer(out) ? out : Buffer.from(out as ArrayBuffer);
 }
 
 export function parseProjectDbExcel(buffer: Buffer): ProjectDbExcelParseResult {
