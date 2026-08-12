@@ -6,7 +6,11 @@ import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
   ArrowRight, BarChart3, Users, GitBranch, RefreshCw, FileText, Trophy,
 } from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
+} from "recharts";
 import TechnicalPageShell from "./components/TechnicalPageShell";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
@@ -90,6 +94,37 @@ export default function TechnicalDashboardPage() {
     };
   }, [projects]);
 
+  const statusPie = useMemo(() => {
+    const onTrack = Math.max(0, stats.active - stats.overdue);
+    return [
+      { name: "On track", value: onTrack, color: "#D97706" },
+      { name: "Overdue", value: stats.overdue, color: "#B8112D" },
+      { name: "Delivered", value: stats.delivered, color: "#059669" },
+    ].filter((d) => d.value > 0);
+  }, [stats]);
+
+  const phaseBar = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of projects) {
+      const raw = (p.projectPhase ?? "not_started").toLowerCase();
+      const label =
+        raw.includes("deliver") || raw.includes("qa")
+          ? "Final / Delivery"
+          : raw.includes("pricing")
+            ? "Pricing"
+            : raw.includes("takeoff")
+              ? "Takeoff"
+              : raw.includes("assign") || raw === "in_progress"
+                ? "In progress"
+                : "Not started";
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    const order = ["Not started", "In progress", "Takeoff", "Pricing", "Final / Delivery"];
+    return order
+      .filter((name) => (counts.get(name) ?? 0) > 0)
+      .map((name) => ({ name, count: counts.get(name) ?? 0 }));
+  }, [projects]);
+
   const recent = useMemo(
     () => [...projects]
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
@@ -163,6 +198,77 @@ export default function TechnicalDashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5">
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Project mix</h2>
+              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 mb-3">On track · overdue · delivered</p>
+              {loading ? (
+                <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
+              ) : statusPie.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-16">No project data yet</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <RechartsBox height={180} className="sm:w-[180px] shrink-0">
+                    <PieChart>
+                      <Pie
+                        data={statusPie}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={42}
+                        outerRadius={68}
+                        paddingAngle={3}
+                        stroke="#fff"
+                        strokeWidth={2}
+                      >
+                        {statusPie.map((s) => (
+                          <Cell key={s.name} fill={s.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                        formatter={(value) => [`${value} projects`, ""]}
+                      />
+                    </PieChart>
+                  </RechartsBox>
+                  <div className="flex-1 w-full grid gap-2">
+                    {statusPie.map((s) => (
+                      <div key={s.name} className="flex items-center gap-3 bg-[#FAFAFA] rounded-xl px-3 py-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        <p className="flex-1 text-xs sm:text-sm font-medium text-gray-600">{s.name}</p>
+                        <span className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5">
+              <h2 className="font-bold text-gray-800 text-sm sm:text-base">By workflow stage</h2>
+              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 mb-3">Count of projects in each stage</p>
+              {loading ? (
+                <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
+              ) : phaseBar.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-16">No phase data yet</p>
+              ) : (
+                <RechartsBox height={200}>
+                  <BarChart data={phaseBar} barSize={28}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                      cursor={{ fill: "#FFF1F3" }}
+                    />
+                    <Bar dataKey="count" fill="#B8112D" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </RechartsBox>
+              )}
             </div>
           </section>
 

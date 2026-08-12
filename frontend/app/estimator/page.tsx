@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   FolderKanban, CheckCircle2, Clock3, AlertTriangle,
   ArrowRight, RefreshCw, Star, Trophy,
 } from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
+} from "recharts";
 import EstimatorPageShell from "./components/EstimatorPageShell";
+import RechartsBox from "@/app/components/charts/RechartsBox";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
@@ -65,6 +69,26 @@ export default function EstimatorDashboardPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const statusPie = useMemo(() => {
+    const pendingOnTrack = Math.max(0, stats.pending - stats.overdue);
+    return [
+      { name: "Pending", value: pendingOnTrack, color: "#D97706" },
+      { name: "Overdue", value: stats.overdue, color: "#B8112D" },
+      { name: "Takeoff done", value: stats.takeoffDone, color: "#059669" },
+    ].filter((d) => d.value > 0);
+  }, [stats]);
+
+  const workloadBar = useMemo(
+    () =>
+      [
+        { name: "Assigned", count: stats.total, fill: "#7C3AED" },
+        { name: "Pending", count: stats.pending, fill: "#D97706" },
+        { name: "Done", count: stats.takeoffDone, fill: "#059669" },
+        { name: "Overdue", count: stats.overdue, fill: "#B8112D" },
+      ].filter((d) => d.count > 0),
+    [stats],
+  );
 
   const cards = [
     { label: "Assigned", value: stats.total, icon: FolderKanban, from: "from-[#7C3AED]", to: "to-[#5B21B6]", bar: "70%" },
@@ -162,6 +186,81 @@ export default function EstimatorDashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-crm-surface rounded-2xl sm:rounded-3xl shadow-sm border border-crm-border-subtle p-4 sm:p-5">
+              <h2 className="font-bold text-crm-text text-sm sm:text-base">Assignment mix</h2>
+              <p className="text-[11px] sm:text-xs text-crm-text-faint mt-0.5 mb-3">Pending · overdue · takeoff done</p>
+              {loading ? (
+                <div className="h-[200px] bg-crm-border-subtle/40 rounded-2xl animate-pulse" />
+              ) : statusPie.length === 0 ? (
+                <p className="text-sm text-crm-text-faint text-center py-16">No assignments yet</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <RechartsBox height={180} className="sm:w-[180px] shrink-0">
+                    <PieChart>
+                      <Pie
+                        data={statusPie}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={42}
+                        outerRadius={68}
+                        paddingAngle={3}
+                        stroke="#fff"
+                        strokeWidth={2}
+                      >
+                        {statusPie.map((s) => (
+                          <Cell key={s.name} fill={s.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                        formatter={(value) => [`${value} projects`, ""]}
+                      />
+                    </PieChart>
+                  </RechartsBox>
+                  <div className="flex-1 w-full grid gap-2">
+                    {statusPie.map((s) => (
+                      <div key={s.name} className="flex items-center gap-3 bg-[#FAFAFA] dark:bg-black/20 rounded-xl px-3 py-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        <p className="flex-1 text-xs sm:text-sm font-medium text-crm-text-secondary">{s.name}</p>
+                        <span className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-crm-surface rounded-2xl sm:rounded-3xl shadow-sm border border-crm-border-subtle p-4 sm:p-5">
+              <h2 className="font-bold text-crm-text text-sm sm:text-base">Workload snapshot</h2>
+              <p className="text-[11px] sm:text-xs text-crm-text-faint mt-0.5 mb-3">Your assigned pipeline at a glance</p>
+              {loading ? (
+                <div className="h-[200px] bg-crm-border-subtle/40 rounded-2xl animate-pulse" />
+              ) : workloadBar.length === 0 ? (
+                <p className="text-sm text-crm-text-faint text-center py-16">No workload data yet</p>
+              ) : (
+                <RechartsBox height={200}>
+                  <BarChart data={workloadBar} barSize={28}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                      cursor={{ fill: "rgba(124,58,237,0.06)" }}
+                    />
+                    <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                      {workloadBar.map((d) => (
+                        <Cell key={d.name} fill={d.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </RechartsBox>
+              )}
             </div>
           </section>
 
