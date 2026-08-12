@@ -166,7 +166,6 @@ export default function IncomeStatementPage() {
       };
     }
 
-    setPeriodRollup(null);
     API.get(`/accounts/dashboard/${acc.recordDate}`)
       .then(res => {
         if (cancelled) return;
@@ -180,6 +179,10 @@ export default function IncomeStatementPage() {
       cancelled = true;
     };
   }, [acc.recordDate, acc.periodPreset, acc.dirty, acc.saving]);
+
+  /** All-time rollup only applies in All Time preset — avoid sync clear in the effect above */
+  const activeRollup =
+    normalizePeriodPreset(acc.periodPreset) === "all_time" ? periodRollup : null;
 
   /** Always apply sales-team split + payroll migration + executive commission + PF sync */
   const data = useMemo(
@@ -225,25 +228,25 @@ export default function IncomeStatementPage() {
   }, [acc.recordDate]);
 
   const payrollExpense = useMemo(
-    () => periodRollup?.payroll ?? (data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
-    [data.teamSalaries, periodRollup],
+    () => activeRollup?.payroll ?? (data.teamSalaries ?? []).reduce((a, t) => a + lineAmount(t), 0),
+    [data.teamSalaries, activeRollup],
   );
   const operatingExpense = useMemo(
-    () => periodRollup?.opex ?? (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [data.opexHeads, periodRollup],
+    () => activeRollup?.opex ?? (data.opexHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.opexHeads, activeRollup],
   );
   const loanExpense = useMemo(
-    () => periodRollup?.loans ?? (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [data.loanHeads, periodRollup],
+    () => activeRollup?.loans ?? (data.loanHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.loanHeads, activeRollup],
   );
   const pfExpense = useMemo(
-    () => periodRollup?.pf ?? (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
-    [data.providentFundHeads, periodRollup],
+    () => activeRollup?.pf ?? (data.providentFundHeads ?? []).reduce((a, o) => a + lineAmount(o), 0),
+    [data.providentFundHeads, activeRollup],
   );
   // Total Expense = Team Salaries + OPEX only (PF/loan already sit inside net salaries — don't double-count)
-  const totalExpense = periodRollup?.expense ?? payrollExpense + operatingExpense;
-  const revenue = periodRollup?.revenue ?? currencyTotal;
-  const netProfit = periodRollup?.profit ?? revenue - totalExpense;
+  const totalExpense = activeRollup?.expense ?? payrollExpense + operatingExpense;
+  const revenue = activeRollup?.revenue ?? currencyTotal;
+  const netProfit = activeRollup?.profit ?? revenue - totalExpense;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
   const payrollChartData = (data.teamSalaries ?? []).map(t => ({
@@ -333,9 +336,9 @@ export default function IncomeStatementPage() {
 
           <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 sm:gap-3">
             {[
-              { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: periodRollup ? "All Time · sum" : "Currency Formula" },
-              { label: "Team Salaries", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: periodRollup ? "All Time · sum" : "Payroll tables" },
-              { label: "Operating Expense", value: operatingExpense, cls: "from-[#F59E0B] to-[#D97706]", hint: periodRollup ? "All Time · sum" : "OPEX table" },
+              { label: "Total Revenue", value: revenue, cls: "from-[#6D28D9] to-[#4C1D95]", hint: activeRollup ? "All Time · sum" : "Currency Formula" },
+              { label: "Team Salaries", value: payrollExpense, cls: "from-[#0B84F3] to-[#0369A1]", hint: activeRollup ? "All Time · sum" : "Payroll tables" },
+              { label: "Operating Expense", value: operatingExpense, cls: "from-[#F59E0B] to-[#D97706]", hint: activeRollup ? "All Time · sum" : "OPEX table" },
               { label: "Total Expense", value: totalExpense, cls: "from-[#B8112D] to-[#8b0d22]", hint: "Salaries + OPEX" },
               { label: "Net Profit", value: netProfit, cls: "from-[#12B76A] to-[#027A48]", hint: "Revenue − Expense" },
               { label: "Loans", value: loanExpense, cls: "from-[#EA580C] to-[#C2410C]", hint: "Pending only" },
