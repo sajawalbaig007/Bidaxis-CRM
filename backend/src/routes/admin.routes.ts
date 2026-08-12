@@ -71,6 +71,12 @@ import {
   excelRowToProjectBody,
 } from "../utils/projectDbExcel";
 import { uploadExcel } from "../middleware/upload.middleware";
+import {
+  diffProjectChangesForTm,
+  notifyTmFromActor,
+  parseChangeSummary,
+  projectLabel,
+} from "../utils/technicalNotifications";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
@@ -1141,7 +1147,7 @@ router.post(
 
           const code = String(row.csrCode ?? "").trim().toUpperCase();
           const sourceText = String(row.projectSource ?? "").trim();
-          let assignTo = adminId;
+          let assignTo: string = adminId;
           let sourceLabel: string | null = null;
 
           if (code) {
