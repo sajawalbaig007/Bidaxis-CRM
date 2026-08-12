@@ -105,7 +105,7 @@ export default function DashboardPage() {
     { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%" },
     { label: "Today Completed Calls", value: stats?.todayCompletedCalls ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%" },
     { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%" },
-    { label: "Total Completed", value: stats?.completed ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <CheckCircle2 size={15}/>, bar: "40%", href: `${staffBase}/leads?tab=closed` },
+    { label: "Total Completed", value: stats?.completed ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <CheckCircle2 size={15}/>, bar: "40%" },
     { label: "Interested",   value: stats?.interested  ?? 0, from: "from-[#2563EB]", to: "to-[#1D4ED8]",  icon: <TrendingUp   size={15}/>, bar: "60%", href: `${staffBase}/leads?tab=interested` },
     { label: "Close Client", value: stats?.projectWon  ?? 0, from: "from-[#7C3AED]", to: "to-[#6D28D9]",  icon: <Trophy       size={15}/>, bar: "30%", href: `${staffBase}/leads?tab=closed` },
     { label: "Important",    value: stats?.importantOnly ?? stats?.important ?? 0, from: "from-[#0891B2]", to: "to-[#0E7490]",  icon: <Star         size={15}/>, bar: "55%", href: `${staffBase}/leads?tab=important` },
