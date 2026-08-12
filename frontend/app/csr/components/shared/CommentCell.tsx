@@ -89,9 +89,15 @@ export default function CommentCell({
       : null
     : null;
 
+  const latestNote = displayNotes[0];
+  const latestText = (latestNote?.text?.trim() || legacyComment || "").trim();
+  const latestAt = latestNote?.createdAt || null;
+
   const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
   const displayCount = commentOnly ? 0 : localNotes !== null ? localNotes.length : preloadedCount;
   const count = displayCount + (legacyComment ? 1 : 0);
+  /** Older notes beyond the latest one shown on the chip */
+  const olderCount = Math.max(0, count - (latestText ? 1 : 0));
   const canMutate = !readOnly;
 
   useEffect(() => {
@@ -438,29 +444,55 @@ export default function CommentCell({
   );
 
   return (
-    <div className="relative inline-flex min-w-0 max-w-full">
+    <div className="relative min-w-0 w-full max-w-full">
       <button
         ref={btnRef}
         type="button"
         onClick={handleOpen}
         title={count > 0 ? `${count} sticky note${count === 1 ? "" : "s"}` : "Add sticky note"}
-        className={`relative inline-flex items-center gap-1.5 h-8 min-w-[52px] px-2 rounded-lg border text-left transition-all shadow-sm ${
+        className={`relative flex flex-col items-start gap-0.5 w-full min-w-0 max-w-full text-left rounded-xl border px-2 py-1.5 transition-all shadow-sm ${
           count > 0
-            ? "bg-[#FEF3C7] border-amber-300 text-amber-900 hover:bg-[#FDE68A] hover:-translate-y-0.5"
+            ? "bg-[#FEF3C7] border-amber-300 text-amber-900 hover:bg-[#FDE68A]"
             : "bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
         }`}
       >
-        <StickyNote size={13} className="shrink-0" />
-        {count > 0 ? (
-          <span className="text-[11px] font-extrabold tabular-nums leading-none">+{count}</span>
-        ) : (
-          <span className="text-[10px] font-bold leading-none">Note</span>
-        )}
-        {badgeLabel && (
-          <span className="absolute -top-1.5 -right-1.5 max-w-[36px] truncate rounded-full bg-amber-700 text-white text-[8px] font-bold px-1 py-px">
-            {badgeLabel}
+        <span className="flex items-center gap-1.5 w-full min-w-0">
+          <StickyNote size={12} className="shrink-0 text-amber-700" />
+          {count > 0 ? (
+            <>
+              <span className="text-[10px] font-bold text-amber-800 shrink-0">
+                {badgeLabel || "Note"}
+              </span>
+              {latestAt && (
+                <span className="text-[9px] font-medium text-amber-700/70 tabular-nums whitespace-nowrap truncate">
+                  {fmtTime(latestAt)}
+                </span>
+              )}
+              {!latestText && (
+                <span className="text-[10px] font-semibold text-amber-800/80 truncate">
+                  {count} note{count === 1 ? "" : "s"}
+                </span>
+              )}
+              {olderCount > 0 && (
+                <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums">
+                  +{olderCount}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-[10px] font-bold leading-none">
+              {badgeLabel ? `${badgeLabel} note` : "Add note"}
+            </span>
+          )}
+        </span>
+        {latestText ? (
+          <span
+            className="text-[10px] sm:text-[11px] font-medium text-amber-950/90 line-clamp-2 w-full min-w-0 leading-snug break-words"
+            title={latestText}
+          >
+            {latestText}
           </span>
-        )}
+        ) : null}
       </button>
 
       {typeof document !== "undefined" && popup && createPortal(popup, document.body)}
