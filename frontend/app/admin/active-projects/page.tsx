@@ -155,6 +155,13 @@ function notesToHistory(notes?: { id: string; text: string; createdAt: string }[
   return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
 }
 
+function techNotesAsReadOnly(p: { technicalNotes?: unknown }): NoteEntry[] {
+  return notesToHistory(parseTechnicalNotes(p.technicalNotes)).map((n) => ({
+    ...n,
+    id: n.id.startsWith("tech-") ? n.id : `tech-${n.id}`,
+  }));
+}
+
 function projectAsRow(p: Project) {
   return {
     id: p.id,
@@ -281,27 +288,16 @@ function ProjectCard({
 
       <div className="pt-1 space-y-2">
         <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Notes</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <CommentCell
-            id={p.id}
-            apiRole="admin"
-            comment={p.projectNotes ?? undefined}
-            noteHistory={notesToHistory(p.notes)}
-            onAddNote={onAddNote}
-            onNoteUpdated={onNoteUpdated}
-            onNoteDeleted={onNoteDeleted}
-          />
-          {parseTechnicalNotes(p.technicalNotes).length > 0 && (
-            <CommentCell
-              id={`${p.id}-tech`}
-              apiRole="admin"
-              readOnly
-              skipNotesFetch
-              badgeLabel="Tech"
-              noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-            />
-          )}
-        </div>
+        <CommentCell
+          id={p.id}
+          apiRole="admin"
+          comment={p.projectNotes ?? undefined}
+          noteHistory={notesToHistory(p.notes)}
+          extraReadOnlyNotes={techNotesAsReadOnly(p)}
+          onAddNote={onAddNote}
+          onNoteUpdated={onNoteUpdated}
+          onNoteDeleted={onNoteDeleted}
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -471,27 +467,16 @@ function ProjectsSection({
                       </td>
                     )}
                     <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
-                        <CommentCell
-                          id={p.id}
-                          apiRole="admin"
-                          comment={p.projectNotes ?? undefined}
-                          noteHistory={notesToHistory(p.notes)}
-                          onAddNote={onAddNote}
-                          onNoteUpdated={onNoteUpdated}
-                          onNoteDeleted={onNoteDeleted}
-                        />
-                        {parseTechnicalNotes(p.technicalNotes).length > 0 && (
-                          <CommentCell
-                            id={`${p.id}-tech`}
-                            apiRole="admin"
-                            readOnly
-                            skipNotesFetch
-                            badgeLabel="Tech"
-                            noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                          />
-                        )}
-                      </div>
+                      <CommentCell
+                        id={p.id}
+                        apiRole="admin"
+                        comment={p.projectNotes ?? undefined}
+                        noteHistory={notesToHistory(p.notes)}
+                        extraReadOnlyNotes={techNotesAsReadOnly(p)}
+                        onAddNote={onAddNote}
+                        onNoteUpdated={onNoteUpdated}
+                        onNoteDeleted={onNoteDeleted}
+                      />
                     </td>
                     <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                       <div className="flex flex-col items-start gap-1.5 min-w-0 max-w-full">
