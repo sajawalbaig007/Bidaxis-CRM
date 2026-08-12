@@ -204,9 +204,28 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
 
     projectCount += 1;
 
+    const paidTotalAllTime = paidTotalFromEntries(allPayments);
+    const paidTotalInMonth = paidInScope.reduce((s, e) => s + parseMoney(e.amount), 0);
+    const pctAllTime = paymentPercent(allPayments, lead.projectBudget);
+    const remainingDue = quoted > 0 ? Math.max(0, quoted - paidTotalAllTime) : 0;
+
+    /**
+     * Month KPIs: don't use full project quote (inflates vs this-month collected).
+     * Attributed quote = money collected this month + still-due balance.
+     * Prior-month halves already paid are neither Quoted nor Outstanding here.
+     */
     if (quoted > 0) {
       quotedProjects += 1;
-      quotedAmount += quoted;
+      if (monthFilter) {
+        quotedAmount += paidTotalInMonth + remainingDue;
+      } else {
+        quotedAmount += quoted;
+      }
+    }
+
+    // Outstanding = remaining after ALL payments (split months must not re-open balance)
+    if (quoted > 0) {
+      outstandingAmount += remainingDue;
     }
 
     for (const entry of paidInScope) {
@@ -228,15 +247,6 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       if (!ch.activeCurrencies.includes(entry.currency)) {
         ch.activeCurrencies.push(entry.currency);
       }
-    }
-
-    const paidTotalAllTime = paidTotalFromEntries(allPayments);
-    const paidTotalInMonth = paidInScope.reduce((s, e) => s + parseMoney(e.amount), 0);
-    const pctAllTime = paymentPercent(allPayments, lead.projectBudget);
-
-    // Outstanding is always vs all-time collections (split months must not re-open balance)
-    if (quoted > 0) {
-      outstandingAmount += Math.max(0, quoted - paidTotalAllTime);
     }
 
     const rowPayments = paidInScope

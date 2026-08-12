@@ -580,7 +580,11 @@ export default function AdminPaymentsPage() {
             <KpiCard
               title="Total Quoted"
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
-              hint={`${t?.quotedProjects ?? 0} projects with quote`}
+              hint={
+                month
+                  ? `${t?.quotedProjects ?? 0} projects · this month + still due`
+                  : `${t?.quotedProjects ?? 0} projects with quote`
+              }
               border="border-t-blue-500"
               icon={DollarSign}
             >
@@ -604,7 +608,11 @@ export default function AdminPaymentsPage() {
             <KpiCard
               title="Outstanding"
               value={loading && !data ? "…" : formatMoneyAlways(t?.outstandingAmount ?? 0)}
-              hint={`${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`}
+              hint={
+                month
+                  ? `Still due after all payments · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
+                  : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
+              }
               border="border-t-red-500"
               icon={AlertCircle}
             />
