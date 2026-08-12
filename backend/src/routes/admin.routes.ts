@@ -2942,7 +2942,7 @@ router.post(
       const statusPatchForPage = (
         page: string,
         lead: { nextSchedule: string | null; nextTime: string | null },
-      ): Prisma.LeadUpdateInput => {
+      ): Prisma.LeadUncheckedUpdateInput => {
         const clearSched = { nextSchedule: null, nextTime: null };
         if (page === "important") {
           return {
