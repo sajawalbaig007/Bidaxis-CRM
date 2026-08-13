@@ -8,6 +8,7 @@ import { useStaffBase } from "@/app/hooks/useStaffBase";
 import RecentActivity   from "./components/widgets/RecentActivity";
 import TopPerformers    from "./components/widgets/TopPerformer";
 import TopEstimatorsWidget from "./components/widgets/TopEstimatorsWidget";
+import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
 import { getAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
@@ -192,7 +193,7 @@ export default function DashboardPage() {
             aria-label="Dashboard bento"
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(280px,auto)_minmax(200px,auto)_minmax(240px,auto)] gap-3 sm:gap-4"
           >
-            {/* Performance — wide hero */}
+            {/* Performance — wide hero + Top Performers under graph */}
             <div className={`sm:col-span-2 md:col-span-8 md:row-span-2 md:col-start-1 md:row-start-1 ${BENTO} p-4 sm:p-5 min-w-0 flex flex-col`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3 shrink-0">
                 <div className="min-w-0">
@@ -212,6 +213,13 @@ export default function DashboardPage() {
                   <div className="h-full min-h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
                 )}
               </div>
+              <div className="border-t border-gray-100 pt-4 mt-4 shrink-0">
+                {overviewLoaded || loadingOverview ? (
+                  <TopPerformers performers={summary?.performers} />
+                ) : (
+                  <div className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
+                )}
+              </div>
             </div>
 
             {/* Lead donut — tall side */}
@@ -223,13 +231,9 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Top Performers — mid width */}
+            {/* Project DB widget — fills old Top Performers slot */}
             <div className={`sm:col-span-1 md:col-span-5 md:col-start-1 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0`}>
-              {overviewLoaded || loadingOverview ? (
-                <TopPerformers performers={summary?.performers} />
-              ) : (
-                <div className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
-              )}
+              <ActiveProjectsWidget enabled={overviewLoaded || loadingOverview} />
             </div>
 
             {/* Recent Activity — wider */}

@@ -34,6 +34,12 @@ export type SubHeadEntry = {
   salary?: EmployeeSalaryDetail;
   /** Sales team commission payroll (no overtime, 6 PM shift). */
   salesPayroll?: SalesPayrollEmployee;
+  /** Asset inventory: quantity (TOTAL = qty × unitPrice). */
+  qty?: number;
+  /** Asset inventory: unit price. */
+  unitPrice?: number;
+  /** Asset inventory category (IT / Electrical / Furniture). */
+  inventoryCategory?: string;
 };
 
 /** Date-tagged note on a table row / head. */
@@ -137,6 +143,8 @@ export type TotalAssetsData = {
   companies?: Record<AssetsCompanyKey, AssetSectionRow[]>;
   /** @deprecated legacy flat list — migrated into companies.BEM */
   sections?: AssetSectionRow[];
+  /** Once true, do not auto-reinsert the BEM Asset inventory seed. */
+  bemAssetSeeded?: boolean;
 };
 
 /** AH/SN = FX; CHQ = cheque 25% tax; HM = Habib Metro direct 1% tax */
@@ -230,13 +238,35 @@ export function currency(value: number) {
   return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
+/** qty × unitPrice when inventory fields are set; otherwise stored amount. */
+export function inventoryLineTotal(qty?: number, unitPrice?: number, fallbackAmount = 0): number {
+  if (qty != null && unitPrice != null) {
+    return Math.round((Number(qty) || 0) * (Number(unitPrice) || 0) * 100) / 100;
+  }
+  return Number(fallbackAmount) || 0;
+}
+
+export function subHeadLineAmount(s: SubHeadEntry): number {
+  if (s.qty != null && s.unitPrice != null) {
+    return inventoryLineTotal(s.qty, s.unitPrice, s.amount);
+  }
+  return Number(s.amount) || 0;
+}
+
 export function sumSubHeads(subHeads?: SubHeadEntry[]): number {
-  return (subHeads ?? []).reduce((a, s) => a + (Number(s.amount) || 0), 0);
+  return (subHeads ?? []).reduce((a, s) => a + subHeadLineAmount(s), 0);
 }
 
 export function lineAmount(item: { amount?: number; totalSalary?: number; subHeads?: SubHeadEntry[] }): number {
   if (item.subHeads && item.subHeads.length > 0) return sumSubHeads(item.subHeads);
   return Number(item.amount ?? item.totalSalary) || 0;
+}
+
+export function isInventoryAssetHead(title: string, subHeads?: SubHeadEntry[]): boolean {
+  if (/bem\s*asset/i.test(title.trim())) return true;
+  return (subHeads ?? []).some(
+    s => !!s.inventoryCategory || (s.qty != null && s.unitPrice != null),
+  );
 }
 
 /** Normalize legacy string note + notes[] into a dated list. */

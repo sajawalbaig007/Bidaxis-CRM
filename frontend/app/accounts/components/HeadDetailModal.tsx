@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Trash2, X, Plus, StickyNote, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
-import { currency, newRowId, sumSubHeads, todayIso } from "../types";
+import { currency, isInventoryAssetHead, newRowId, sumSubHeads, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail, ensureExecutiveSalaryDetail } from "../utils/payrollFormula";
 import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import { NoteComposer } from "@/lib/noteRichText";
@@ -29,6 +29,7 @@ import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import AmountInput from "./AmountInput";
 import ProofUploadField from "./ProofUploadField";
+import BemAssetInventoryEditor from "./BemAssetInventoryEditor";
 
 export type HeadDetailModel = {
   id: string;
@@ -65,6 +66,8 @@ type HeadDetailModalProps = {
   recordDate?: string;
   /** Company slip format (BEM Solutions now; GPS/BDS later). */
   salarySlipCompany?: SalarySlipCompanyKey;
+  /** BEM Asset inventory tables (qty × unit price). */
+  inventoryMode?: boolean;
 };
 
 export default function HeadDetailModal({
@@ -83,6 +86,7 @@ export default function HeadDetailModal({
   saving = false,
   recordDate = todayIso(),
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
+  inventoryMode: inventoryModeProp = false,
 }: HeadDetailModalProps) {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [openSalaryIds, setOpenSalaryIds] = useState<Set<string>>(new Set());
@@ -120,6 +124,8 @@ export default function HeadDetailModal({
     (salaryMode && /sales team/i.test(draft.title) && !/technical/i.test(draft.title)) ||
     draft.subHeads.some(s => !!s.salesPayroll);
   const salesPeers = salesSubsFromPeerRows(peerTeamRows.map(r => ({ title: r.title, subHeads: r.subHeads })));
+  const inventoryMode =
+    inventoryModeProp || isInventoryAssetHead(draft.title, draft.subHeads);
 
   const salesPayrollContext = (): SalesPayrollData => ({
     salesTeamMembers: salesPeers.map(s => ensureSalesPayrollFromSub(s, "sales")),
@@ -271,7 +277,7 @@ export default function HeadDetailModal({
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-black/40" onClick={onClose}>
       <div
         className={`bg-crm-surface rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-crm-border ${
-          salaryMode ? "max-w-3xl" : "max-w-lg"
+          salaryMode || inventoryMode ? "max-w-3xl" : "max-w-lg"
         }`}
         onClick={e => e.stopPropagation()}
       >
@@ -382,13 +388,33 @@ export default function HeadDetailModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-crm-text-secondary">
-                {salaryMode ? "Employees (full payroll)" : "People / line items"}
+                {inventoryMode
+                  ? "Inventory (IT · Electrical · Furniture)"
+                  : salaryMode
+                    ? "Employees (full payroll)"
+                    : "People / line items"}
               </p>
-              <button type="button" onClick={addSub} className="text-[11px] font-bold text-[#0B84F3]">
-                + {salaryMode ? "Add employee" : "Add person / line"}
-              </button>
+              {!inventoryMode && (
+                <button type="button" onClick={addSub} className="text-[11px] font-bold text-[#0B84F3]">
+                  + {salaryMode ? "Add employee" : "Add person / line"}
+                </button>
+              )}
             </div>
 
+            {inventoryMode ? (
+              <div className="max-h-[55vh] overflow-y-auto pr-0.5">
+                <BemAssetInventoryEditor
+                  subHeads={draft.subHeads}
+                  onChange={subHeads =>
+                    setDraft(prev =>
+                      prev
+                        ? { ...prev, subHeads, amount: sumSubHeads(subHeads) }
+                        : prev,
+                    )
+                  }
+                />
+              </div>
+            ) : (
             <div className={`space-y-2 ${salaryMode ? "max-h-[55vh]" : "max-h-64"} overflow-y-auto`}>
               {draft.subHeads.length === 0 ? (
                 <p className="text-[11px] text-crm-text-faint py-3 text-center border border-dashed rounded-xl">
@@ -634,9 +660,10 @@ export default function HeadDetailModal({
                 ))
               )}
             </div>
-            {draft.subHeads.length > 0 && (
+            )}
+            {draft.subHeads.length > 0 && !inventoryMode && (
               <p className="text-[11px] text-crm-text-muted mt-2 font-semibold">
-                Team / section sum: {currency(draft.subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0))}
+                Team / section sum: {currency(sumSubHeads(draft.subHeads))}
               </p>
             )}
           </div>

@@ -7,6 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, FolderKanban, Calendar, Users, ClipboardList, CheckCircle2,
   Calculator, Send, Layers, UserPlus, Check, Eye, Trash2, RefreshCw, RotateCcw,
+  ArrowRightLeft,
 } from "lucide-react";
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
@@ -40,6 +41,7 @@ import {
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
 import AssignEstimatorsModal from "../components/AssignEstimatorsModal";
+import MoveTechnicalStageModal from "../components/MoveTechnicalStageModal";
 import TechnicalPageShell from "../components/TechnicalPageShell";
 import API, { apiErrorMessage } from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
@@ -500,8 +502,11 @@ function AssignedToCell({
                   {a.estimatorName.charAt(0)}
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-[12px] font-bold text-[#0F172A] truncate leading-tight">
+                  <p className="text-[12px] font-bold text-[#0F172A] truncate leading-tight inline-flex items-center gap-1">
                     {a.estimatorName}
+                    {a.assignmentConfirmed ? (
+                      <Check size={12} className="text-emerald-600 shrink-0" strokeWidth={3} />
+                    ) : null}
                   </p>
                   <div className="flex flex-wrap items-center gap-1">
                     <span
@@ -608,8 +613,11 @@ function AssignedToCell({
             ))}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold text-[#0F172A] truncate leading-tight">
-              {primary.estimatorName}
+            <p className="text-[11px] font-bold text-[#0F172A] truncate leading-tight inline-flex items-center gap-1 max-w-full">
+              <span className="truncate">{primary.estimatorName}</span>
+              {primary.assignmentConfirmed ? (
+                <Check size={11} className="text-emerald-600 shrink-0" strokeWidth={3} />
+              ) : null}
             </p>
             <p className="text-[9px] font-semibold truncate leading-tight">
               {detailed ? (
@@ -795,6 +803,7 @@ function AssignmentDeadlineCell({ assignments }: { assignments: TechnicalAssignm
 function ProjectRowActions({
   onEdit,
   onDelete,
+  onMove,
   onSendPricing,
   showSendPricing = false,
   onSendFinal,
@@ -804,6 +813,7 @@ function ProjectRowActions({
 }: {
   onEdit: () => void;
   onDelete: () => void;
+  onMove?: () => void;
   onSendPricing?: () => void;
   showSendPricing?: boolean;
   onSendFinal?: () => void;
@@ -844,6 +854,17 @@ function ProjectRowActions({
         >
           <Calculator size={11} className="shrink-0" />
           <span>Back</span>
+        </button>
+      )}
+      {onMove && (
+        <button
+          type="button"
+          onClick={onMove}
+          className="h-7 px-1.5 rounded-lg bg-slate-100 text-slate-700 text-[9px] font-bold hover:bg-slate-200 inline-flex items-center gap-0.5 shrink-0"
+          title="Move to another subpage"
+        >
+          <ArrowRightLeft size={11} className="shrink-0" />
+          <span>Move</span>
         </button>
       )}
       <button
@@ -905,6 +926,8 @@ export function TechnicalActiveProjectsPageInner({
   const [workflowTab, setWorkflowTab] = useState<TechnicalWorkflowTab>("all");
   const [estimators, setEstimators] = useState<TechnicalEstimator[]>([]);
   const [assignProject, setAssignProject] = useState<Project | null>(null);
+  const [moveProject, setMoveProject] = useState<Project | null>(null);
+  const [moveSaving, setMoveSaving] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -1106,6 +1129,44 @@ export function TechnicalActiveProjectsPageInner({
       toast.error("Failed to assign estimators");
     } finally {
       setAssignSaving(false);
+    }
+  };
+
+  const saveBidInstruction = async (projectId: string, text: string) => {
+    try {
+      const res = await API.put(`/admin/project/${projectId}`, { projectNotes: text });
+      const lead = res.data.lead as Project | undefined;
+      if (lead) {
+        setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      } else {
+        setProjects((prev) =>
+          prev.map((p) => (p.id === projectId ? { ...p, projectNotes: text } : p)),
+        );
+      }
+      toast.success("Bid instruction updated");
+    } catch {
+      toast.error("Failed to update bid instruction");
+      throw new Error("bid save failed");
+    }
+  };
+
+  const moveTechnicalTab = async (tab: Exclude<TechnicalWorkflowTab, "all">) => {
+    if (!moveProject) return;
+    setMoveSaving(true);
+    try {
+      const res = await API.put(`/admin/project/${moveProject.id}/move-technical-tab`, { tab });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      setWorkflowTab(tab);
+      setMoveProject(null);
+      toast.success("Project moved");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to move project";
+      toast.error(msg);
+    } finally {
+      setMoveSaving(false);
     }
   };
 
@@ -1640,13 +1701,14 @@ export function TechnicalActiveProjectsPageInner({
                       {!isFinalView && (
                         <ProjectStatusCell
                           p={p}
-                          editable={isPricingView}
+                          editable={!isFinalView}
                           onChange={(next) => void changeTaskStatus(p.id, next)}
                         />
                       )}
                       <ProjectRowActions
                         onEdit={() => setEditProject(p)}
                         onDelete={() => void deleteProject(p)}
+                        onMove={() => setMoveProject(p)}
                         showSendPricing={isTakeoffDoneView && anyReady}
                         onSendPricing={() => void sendForPricing(p.id)}
                         showSendFinal={isPricingView}
@@ -1692,10 +1754,10 @@ export function TechnicalActiveProjectsPageInner({
                     <CommentCell
                       id={p.id}
                       apiRole="admin"
-                      readOnly
                       skipNotesFetch
                       comment={p.projectNotes ?? undefined}
                       noteHistory={notesToHistory(p.notes)}
+                      onSave={(id, text) => saveBidInstruction(id, text)}
                     />
                   </div>
                   <div>
@@ -1834,10 +1896,10 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
-                                readOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
                                 noteHistory={notesToHistory(p.notes)}
+                                onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
@@ -1881,7 +1943,7 @@ export function TechnicalActiveProjectsPageInner({
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectStatusCell
                                 p={p}
-                                editable={isPricingView}
+                                editable={!isFinalView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
@@ -1889,6 +1951,7 @@ export function TechnicalActiveProjectsPageInner({
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
+                                onMove={() => setMoveProject(p)}
                                 showSendPricing={isTakeoffDoneView && anyReady}
                                 onSendPricing={() => void sendForPricing(p.id)}
                               />
@@ -1914,10 +1977,10 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
-                                readOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
                                 noteHistory={notesToHistory(p.notes)}
+                                onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
@@ -1955,7 +2018,7 @@ export function TechnicalActiveProjectsPageInner({
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectStatusCell
                                 p={p}
-                                editable={isPricingView}
+                                editable={!isFinalView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
@@ -1963,6 +2026,7 @@ export function TechnicalActiveProjectsPageInner({
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
+                                onMove={() => setMoveProject(p)}
                                 showSendFinal
                                 onSendFinal={() => void sendForFinalSubmission(p.id)}
                               />
@@ -1988,10 +2052,10 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
-                                readOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
                                 noteHistory={notesToHistory(p.notes)}
+                                onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
@@ -2024,6 +2088,7 @@ export function TechnicalActiveProjectsPageInner({
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
+                                onMove={() => setMoveProject(p)}
                                 showReturnPricing
                                 onReturnPricing={() => void returnToPricing(p.id)}
                               />
@@ -2049,10 +2114,10 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
-                                readOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
                                 noteHistory={notesToHistory(p.notes)}
+                                onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
@@ -2092,7 +2157,7 @@ export function TechnicalActiveProjectsPageInner({
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectStatusCell
                                 p={p}
-                                editable={isPricingView}
+                                editable={!isFinalView}
                                 onChange={(next) => void changeTaskStatus(p.id, next)}
                               />
                             </td>
@@ -2100,6 +2165,7 @@ export function TechnicalActiveProjectsPageInner({
                               <ProjectRowActions
                                 onEdit={() => setEditProject(p)}
                                 onDelete={() => void deleteProject(p)}
+                                onMove={() => setMoveProject(p)}
                               />
                             </td>
                           </>
@@ -2159,6 +2225,19 @@ export function TechnicalActiveProjectsPageInner({
         saving={assignSaving}
         onClose={() => setAssignProject(null)}
         onConfirm={confirmAssign}
+      />
+
+      <MoveTechnicalStageModal
+        open={!!moveProject}
+        projectTitle={
+          moveProject?.projectTitle ||
+          moveProject?.projectCode ||
+          "Project"
+        }
+        currentTab={workflowTab}
+        saving={moveSaving}
+        onClose={() => setMoveProject(null)}
+        onMove={(tab) => void moveTechnicalTab(tab)}
       />
 
       <ProjectWorkbenchModal

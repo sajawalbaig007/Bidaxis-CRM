@@ -31,6 +31,8 @@ export type TechnicalAssignment = {
   pricingSent: boolean;
   timerSeconds: number;
   timerStartedAt: string | null;
+  /** Green tick after assign; cleared when this estimator’s details change. */
+  assignmentConfirmed: boolean;
 };
 
 function rangeDiv(from: number, to: number): string[] {
@@ -116,6 +118,7 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       pricingSent: o.pricingSent === true,
       timerSeconds: Math.max(0, Math.floor(Number(o.timerSeconds ?? 0) || 0)),
       timerStartedAt: o.timerStartedAt ? String(o.timerStartedAt).trim() || null : null,
+      assignmentConfirmed: o.assignmentConfirmed === true,
     });
   }
   return out;
