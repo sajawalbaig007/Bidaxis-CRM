@@ -62,34 +62,34 @@ export const PROJECT_GRID_HEAD =
 export const PROJECT_GRID_ROW =
   "lg:grid-cols-[minmax(160px,1.4fr)_minmax(160px,1.3fr)_minmax(88px,88px)_minmax(130px,1fr)_minmax(120px,1fr)_minmax(110px,1fr)_minmax(72px,72px)]";
 
-/** Admin Project DB table — fixed column widths (+ Status + Actions) */
+/** Admin Project DB — Client…CSR, Bid Instruction, Notes for Technical, Status, Actions */
 export const ADMIN_PROJECT_COLS = [
-  "13%", "14%", "7%", "10%", "11%", "7%", "14%", "12%", "12%",
+  "12%", "13%", "6%", "9%", "10%", "6%", "12%", "12%", "10%", "10%",
 ] as const;
 
-/** Technical Active Projects — details, receive, deadline, bid, notes, assign, status, actions */
+/** Technical Active Projects — detail, receive, deadline, bid, notes sir, notes est, assign, status, actions */
 export const TECHNICAL_PROJECT_COLS = [
-  "17%", "8%", "8%", "12%", "12%", "14%", "13%", "16%",
+  "15%", "7%", "7%", "11%", "11%", "11%", "12%", "12%", "14%",
 ] as const;
 
-/** Final Submission — detail, receive, deadline, bid, notes, actions (no Status) */
+/** Final Submission — detail, receive, deadline, bid, notes sir, notes est, actions */
 export const TECHNICAL_FINAL_COLS = [
-  "24%", "11%", "11%", "18%", "18%", "18%",
+  "22%", "10%", "10%", "16%", "16%", "16%", "10%",
 ] as const;
 
-/** Pricing — detail, receive, deadline, bid, notes, QA, status, actions */
+/** Pricing — detail, receive, deadline, bid, notes sir, notes est, QA, status, actions */
 export const TECHNICAL_PRICING_COLS = [
-  "16%", "8%", "8%", "11%", "11%", "12%", "14%", "20%",
+  "14%", "7%", "7%", "10%", "10%", "10%", "10%", "12%", "10%",
 ] as const;
 
-/** Technical Assigned tab — detail, hours, deadline, bid, notes, estimators, status, actions */
+/** Technical Assigned tab — detail, hours, deadline, bid, notes sir, notes est, estimators, status, actions */
 export const TECHNICAL_ASSIGNED_COLS = [
-  "15%", "7%", "8%", "11%", "11%", "14%", "14%", "20%",
+  "13%", "6%", "7%", "10%", "10%", "10%", "12%", "12%", "10%",
 ] as const;
 
-/** Admin Project DB when opened under /technical (legacy compact) */
+/** Admin Project DB when opened under /technical (compact) */
 export const ADMIN_TECH_VIEW_COLS = [
-  "28%", "16%", "24%", "14%", "18%",
+  "24%", "14%", "18%", "18%", "14%", "12%",
 ] as const;
 
 /** Table card — no inner vertical scroll; page scrolls instead */

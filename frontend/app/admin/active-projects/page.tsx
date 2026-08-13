@@ -22,7 +22,7 @@ import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
-import { parseTechnicalNotes, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
+import { parseTechnicalNotes, parseTechnicalNotesBundle, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
 import API from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
@@ -161,11 +161,14 @@ function notesToHistory(
   return noteHistory;
 }
 
-function techNotesAsReadOnly(p: { technicalNotes?: unknown }): NoteEntry[] {
-  return notesToHistory(parseTechnicalNotes(p.technicalNotes)).map((n) => ({
-    ...n,
-    id: n.id.startsWith("tech-") ? n.id : `tech-${n.id}`,
-  }));
+function threadNotesHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
+  return (notes ?? [])
+    .filter((n) => n.text?.trim())
+    .map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+}
+
+function sirNotesHistory(p: { technicalNotes?: unknown }): NoteEntry[] {
+  return threadNotesHistory(parseTechnicalNotes(p.technicalNotes));
 }
 
 function projectAsRow(p: Project) {
@@ -204,6 +207,7 @@ function ProjectCard({
   onRequestRevision,
   onMarkCompleted,
   onAddNote,
+  onAddTechnicalNote,
   onNoteUpdated,
   onNoteDeleted,
   onTimingChange,
@@ -215,6 +219,7 @@ function ProjectCard({
   onRequestRevision?: () => void;
   onMarkCompleted?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
@@ -293,17 +298,28 @@ function ProjectCard({
       </div>
 
       <div className="pt-1 space-y-2">
-        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Notes</p>
-        <CommentCell
-          id={p.id}
-          apiRole="admin"
-          comment={p.projectNotes ?? undefined}
-          noteHistory={notesToHistory(p.notes)}
-          extraReadOnlyNotes={techNotesAsReadOnly(p)}
-          onAddNote={onAddNote}
-          onNoteUpdated={onNoteUpdated}
-          onNoteDeleted={onNoteDeleted}
-        />
+        <div>
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Bid Instruction</p>
+          <CommentCell
+            id={p.id}
+            apiRole="admin"
+            comment={p.projectNotes ?? undefined}
+            noteHistory={notesToHistory(p.notes)}
+            onAddNote={onAddNote}
+            onNoteUpdated={onNoteUpdated}
+            onNoteDeleted={onNoteDeleted}
+          />
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1">Notes for Technical</p>
+          <CommentCell
+            id={p.id}
+            apiRole="admin"
+            skipNotesFetch
+            noteHistory={sirNotesHistory(p)}
+            onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -343,6 +359,7 @@ function ProjectsSection({
   onRequestRevision,
   onMarkCompleted,
   onAddNote,
+  onAddTechnicalNote,
   onNoteUpdated,
   onNoteDeleted,
   onTimingChange,
@@ -358,6 +375,7 @@ function ProjectsSection({
   onRequestRevision?: (p: Project) => void;
   onMarkCompleted?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
+  onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
@@ -366,8 +384,8 @@ function ProjectsSection({
   const totalPages = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   const paginated  = projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const headers = hideClientFinanceCols
-    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Status", ""]
-    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Status", ""];
+    ? ["Project Detail", "Client Deadline", "Bid Instruction", "Notes for Technical", "Status", ""]
+    : ["Client Detail", "Project Detail", "Quoted", "Payment Detail", "Client Deadline", "CSR", "Bid Instruction", "Notes for Technical", "Status", ""];
   const colCount = headers.length;
   const colWidths = hideClientFinanceCols ? ADMIN_TECH_VIEW_COLS : ADMIN_PROJECT_COLS;
 
@@ -388,6 +406,7 @@ function ProjectsSection({
               onRequestRevision={onRequestRevision ? () => onRequestRevision(p) : undefined}
               onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(p) : undefined}
               onAddNote={onAddNote}
+              onAddTechnicalNote={onAddTechnicalNote}
               onNoteUpdated={onNoteUpdated}
               onNoteDeleted={onNoteDeleted}
               onTimingChange={onTimingChange}
@@ -478,10 +497,18 @@ function ProjectsSection({
                         apiRole="admin"
                         comment={p.projectNotes ?? undefined}
                         noteHistory={notesToHistory(p.notes)}
-                        extraReadOnlyNotes={techNotesAsReadOnly(p)}
                         onAddNote={onAddNote}
                         onNoteUpdated={onNoteUpdated}
                         onNoteDeleted={onNoteDeleted}
+                      />
+                    </td>
+                    <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
+                      <CommentCell
+                        id={p.id}
+                        apiRole="admin"
+                        skipNotesFetch
+                        noteHistory={sirNotesHistory(p)}
+                        onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
                       />
                     </td>
                     <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
@@ -772,6 +799,33 @@ export default function AdminProjectsPage() {
     );
     setWorkbenchProject((prev) =>
       prev?.id === id ? { ...prev, notes: mergeNotes(prev.notes) } : prev,
+    );
+    return entry;
+  };
+
+  const addTechnicalNote = async (id: string, text: string) => {
+    const res = await API.post(`/admin/lead/${id}/technical-notes`, { text, thread: "sir" });
+    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const bundle = res.data.technicalNotesBundle as { sir?: typeof note[]; estimator?: typeof note[] } | undefined;
+    const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };
+    const nextJson = bundle
+      ? JSON.stringify(bundle)
+      : JSON.stringify({
+          ...parseTechnicalNotesBundle(
+            (projects.find((p) => p.id === id) ?? workbenchProject)?.technicalNotes,
+          ),
+          sir: [
+            ...parseTechnicalNotes(
+              (projects.find((p) => p.id === id) ?? workbenchProject)?.technicalNotes,
+            ).filter((n) => n.id !== note.id),
+            note,
+          ],
+        });
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, technicalNotes: nextJson } : p)),
+    );
+    setWorkbenchProject((prev) =>
+      prev?.id === id ? { ...prev, technicalNotes: nextJson } : prev,
     );
     return entry;
   };
@@ -1371,6 +1425,7 @@ export default function AdminProjectsPage() {
           onRequestRevision={hideClientFinanceCols ? undefined : openRevision}
           onMarkCompleted={hideClientFinanceCols ? undefined : (p) => void markProjectCompleted(p)}
           onAddNote={addAdminNote}
+          onAddTechnicalNote={addTechnicalNote}
           onNoteUpdated={updateAdminNote}
           onNoteDeleted={deleteAdminNote}
           onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}
@@ -1390,7 +1445,12 @@ export default function AdminProjectsPage() {
           onAddNote={workbenchProject ? async (text, parentId) => { await addAdminNote(workbenchProject.id, text, parentId); } : undefined}
           technicalNoteHistory={
             workbenchProject
-              ? notesToHistory(parseTechnicalNotes(workbenchProject.technicalNotes))
+              ? sirNotesHistory(workbenchProject)
+              : undefined
+          }
+          onAddTechnicalNote={
+            workbenchProject
+              ? async (text) => { await addTechnicalNote(workbenchProject.id, text); }
               : undefined
           }
           hideClientFinanceSections={hideClientFinanceCols}

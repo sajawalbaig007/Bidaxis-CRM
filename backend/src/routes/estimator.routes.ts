@@ -8,7 +8,7 @@ import {
   parseTechnicalAssignments,
   serializeTechnicalAssignments,
   appendTechnicalNote,
-  serializeTechnicalNotes,
+  serializeTechnicalNotesBundle,
   pauseAssignmentTimer,
   startAssignmentTimer,
   pauseOtherRunningTimersForEstimator,
@@ -483,11 +483,15 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
 
-    const next = appendTechnicalNote(existing.technicalNotes, text);
-    const note = next[next.length - 1];
+    const { bundle, note, list } = appendTechnicalNote(
+      existing.technicalNotes,
+      text,
+      "estimator",
+      { authorRole: "estimator", authorName: me.name },
+    );
     await prisma.lead.update({
       where: { id: leadId },
-      data: { technicalNotes: serializeTechnicalNotes(next) },
+      data: { technicalNotes: serializeTechnicalNotesBundle(bundle) },
     });
 
     const label = projectLabel(existing.projectCode || existing.clientCode, existing.projectTitle);
@@ -499,10 +503,16 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
       source: "estimator",
       title: "Estimator note",
       message: `${me.name} on ${label}: ${text.slice(0, 160)}`,
-      changes: ["Working note"],
+      changes: ["Notes for Technical Manager"],
     });
 
-    return res.json({ success: true, note, technicalNotes: next });
+    return res.json({
+      success: true,
+      note,
+      thread: "estimator",
+      technicalNotes: list,
+      technicalNotesBundle: bundle,
+    });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to add note" });

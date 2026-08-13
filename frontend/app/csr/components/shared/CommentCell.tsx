@@ -180,6 +180,7 @@ export default function CommentCell({
   ).length;
   const count = baseCount + extrasUniqueCount + (legacyComment ? 1 : 0);
   const canMutate = !readOnly;
+  const canEditDelete = canMutate && !skipNotesFetch;
 
   useEffect(() => {
     if (!noteHistory?.length) return;
@@ -446,7 +447,7 @@ export default function CommentCell({
   };
 
   const renderNoteBody = (note: NoteEntry, isReply: boolean) => {
-    const editable = canMutate && !isLegacyNoteId(note.id);
+            const editable = canEditDelete && !isLegacyNoteId(note.id);
     const isTech = note.id.startsWith("tech-") || note.id.startsWith("readonly-");
 
     if (editId === note.id) {

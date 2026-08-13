@@ -288,46 +288,102 @@ export type TechnicalNoteEntry = {
   id: string;
   text: string;
   createdAt: string;
+  authorRole?: string;
+  authorName?: string;
 };
 
-export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
-  if (!raw) return [];
-  let parsed: unknown = raw;
-  if (typeof raw === "string") {
-    const trimmed = raw.trim();
-    if (!trimmed) return [];
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      return [{ id: `legacy-${Date.now()}`, text: trimmed, createdAt: new Date().toISOString() }];
-    }
-  }
-  if (!Array.isArray(parsed)) return [];
+export type TechnicalNotesThread = "sir" | "estimator";
+
+export type TechnicalNotesBundle = {
+  sir: TechnicalNoteEntry[];
+  estimator: TechnicalNoteEntry[];
+};
+
+function normalizeNoteEntry(item: unknown, index: number): TechnicalNoteEntry | null {
+  if (!item || typeof item !== "object") return null;
+  const o = item as Record<string, unknown>;
+  const text = String(o.text ?? "").trim();
+  if (!text) return null;
+  const entry: TechnicalNoteEntry = {
+    id: String(o.id ?? `n-${Date.now()}-${index}`),
+    text,
+    createdAt: String(o.createdAt ?? new Date().toISOString()),
+  };
+  if (o.authorRole) entry.authorRole = String(o.authorRole);
+  if (o.authorName) entry.authorName = String(o.authorName);
+  return entry;
+}
+
+function parseNoteList(raw: unknown): TechnicalNoteEntry[] {
+  if (!Array.isArray(raw)) return [];
   const out: TechnicalNoteEntry[] = [];
-  for (const item of parsed) {
-    if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const text = String(o.text ?? "").trim();
-    if (!text) continue;
-    out.push({
-      id: String(o.id ?? `n-${Date.now()}-${out.length}`),
-      text,
-      createdAt: String(o.createdAt ?? new Date().toISOString()),
-    });
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry = normalizeNoteEntry(raw[i], i);
+    if (entry) out.push(entry);
   }
   return out;
 }
 
-export function serializeTechnicalNotes(list: TechnicalNoteEntry[]): string {
-  return JSON.stringify(list);
+/** Supports legacy array (sir-only) and `{ sir, estimator }` bundle. */
+export function parseTechnicalNotesBundle(raw: unknown): TechnicalNotesBundle {
+  if (!raw) return { sir: [], estimator: [] };
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return { sir: [], estimator: [] };
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return {
+        sir: [{ id: `legacy-${Date.now()}`, text: trimmed, createdAt: new Date().toISOString() }],
+        estimator: [],
+      };
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return { sir: parseNoteList(parsed), estimator: [] };
+  }
+  if (parsed && typeof parsed === "object") {
+    const o = parsed as Record<string, unknown>;
+    return {
+      sir: parseNoteList(o.sir ?? o.admin ?? o.adminThread),
+      estimator: parseNoteList(o.estimator ?? o.estimatorThread),
+    };
+  }
+  return { sir: [], estimator: [] };
 }
 
-export function appendTechnicalNote(raw: unknown, text: string): TechnicalNoteEntry[] {
-  const list = parseTechnicalNotes(raw);
+/** Legacy helper — returns Admin↔TM (sir) thread only. */
+export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
+  return parseTechnicalNotesBundle(raw).sir;
+}
+
+export function serializeTechnicalNotesBundle(bundle: TechnicalNotesBundle): string {
+  return JSON.stringify({
+    sir: bundle.sir,
+    estimator: bundle.estimator,
+  });
+}
+
+/** @deprecated Prefer serializeTechnicalNotesBundle — this only serializes a flat sir list. */
+export function serializeTechnicalNotes(list: TechnicalNoteEntry[]): string {
+  return serializeTechnicalNotesBundle({ sir: list, estimator: [] });
+}
+
+export function appendTechnicalNote(
+  raw: unknown,
+  text: string,
+  thread: TechnicalNotesThread = "sir",
+  meta?: { authorRole?: string; authorName?: string },
+): { bundle: TechnicalNotesBundle; note: TechnicalNoteEntry; list: TechnicalNoteEntry[] } {
+  const bundle = parseTechnicalNotesBundle(raw);
   const note: TechnicalNoteEntry = {
     id: `tn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     text: text.trim(),
     createdAt: new Date().toISOString(),
+    ...(meta?.authorRole ? { authorRole: meta.authorRole } : {}),
+    ...(meta?.authorName ? { authorName: meta.authorName } : {}),
   };
-  return [...list, note];
+  bundle[thread] = [...bundle[thread], note];
+  return { bundle, note, list: bundle[thread] };
 }
