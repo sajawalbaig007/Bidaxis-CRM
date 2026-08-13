@@ -144,13 +144,9 @@ export default function DashboardPage() {
             </button>
           </header>
 
-          {/* Bento: stat tiles */}
+          {/* Stat tiles — even 4×2 */}
           <section aria-label="Quick stats" className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {tiles.map((tile, idx) => {
-              const span =
-                idx === 0 ? "md:col-span-2" :
-                idx === 1 ? "md:col-span-2" :
-                "";
+            {tiles.map((tile) => {
               const inner = (
                 <>
                   <div className="flex items-start justify-between gap-2">
@@ -173,7 +169,7 @@ export default function DashboardPage() {
                   </div>
                 </>
               );
-              const cls = `bg-gradient-to-br ${tile.from} ${tile.to} rounded-[1.5rem] p-3.5 sm:p-4 text-white shadow-md flex flex-col gap-2.5 min-h-[104px] sm:min-h-[112px] ${span}`;
+              const cls = `bg-gradient-to-br ${tile.from} ${tile.to} rounded-[1.5rem] p-3.5 sm:p-4 text-white shadow-md flex flex-col gap-2.5 min-h-[104px] sm:min-h-[112px] h-full`;
               return tile.href ? (
                 <button
                   key={tile.label}
@@ -191,13 +187,14 @@ export default function DashboardPage() {
             })}
           </section>
 
-          {/* Bento: performance (hero) + lead donut */}
+          {/* Content bento — mixed spans like Upload board */}
           <section
-            aria-label="Charts"
-            className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4"
+            aria-label="Dashboard bento"
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(280px,auto)_minmax(200px,auto)_minmax(240px,auto)] gap-3 sm:gap-4"
           >
-            <div className={`xl:col-span-8 ${BENTO} p-4 sm:p-5 min-w-0 space-y-4`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {/* Performance — wide hero */}
+            <div className={`sm:col-span-2 md:col-span-8 md:row-span-2 md:col-start-1 md:row-start-1 ${BENTO} p-4 sm:p-5 min-w-0 flex flex-col`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3 shrink-0">
                 <div className="min-w-0">
                   <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">Performance Overview</h2>
                   <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
@@ -208,43 +205,44 @@ export default function DashboardPage() {
                   <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
                 )}
               </div>
-              {overviewLoaded || loadingOverview ? (
-                <PerformanceChart series={chartSeries} range={selectedRange} />
-              ) : (
-                <div className="h-[180px] sm:h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
-              )}
-              {/* Top Performers — swapped here (was Top Estimators) */}
-              <div className="border-t border-gray-100 pt-4">
+              <div className="flex-1 min-h-[200px]">
                 {overviewLoaded || loadingOverview ? (
-                  <TopPerformers performers={summary?.performers} />
+                  <PerformanceChart series={chartSeries} range={selectedRange} />
                 ) : (
-                  <div className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
+                  <div className="h-full min-h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
                 )}
               </div>
             </div>
 
-            <div className={`xl:col-span-4 ${BENTO} p-4 sm:p-5 min-w-0 xl:min-h-full`}>
+            {/* Lead donut — tall side */}
+            <div className={`sm:col-span-1 md:col-span-4 md:row-span-2 md:col-start-9 md:row-start-1 ${BENTO} p-4 sm:p-5 min-w-0 overflow-auto`}>
               {overviewLoaded || loadingOverview ? (
                 <OverviewChart distribution={summary?.distribution} />
               ) : (
                 <div className="h-[220px] rounded-2xl bg-gray-100 animate-pulse" />
               )}
             </div>
-          </section>
 
-          {/* Bento: activity + Top Estimators (swapped here) */}
-          <section
-            aria-label="Activity"
-            className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4"
-          >
-            <div className={`lg:col-span-7 xl:col-span-8 ${BENTO} p-4 sm:p-5 min-w-0`}>
+            {/* Top Performers — mid width */}
+            <div className={`sm:col-span-1 md:col-span-5 md:col-start-1 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0`}>
+              {overviewLoaded || loadingOverview ? (
+                <TopPerformers performers={summary?.performers} />
+              ) : (
+                <div className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
+              )}
+            </div>
+
+            {/* Recent Activity — wider */}
+            <div className={`sm:col-span-1 md:col-span-4 md:col-start-6 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0`}>
               {overviewLoaded || loadingOverview ? (
                 <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
               ) : (
-                <div className="h-[240px] rounded-2xl bg-gray-100 animate-pulse" />
+                <div className="h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
               )}
             </div>
-            <div className={`lg:col-span-5 xl:col-span-4 ${BENTO} p-4 sm:p-5 min-w-0 bg-gradient-to-br from-amber-50/40 via-white to-white`}>
+
+            {/* Top Estimators — compact accent tile */}
+            <div className={`sm:col-span-2 md:col-span-3 md:col-start-10 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0 bg-gradient-to-br from-amber-50/50 via-white to-sky-50/40`}>
               <TopEstimatorsWidget />
             </div>
           </section>
