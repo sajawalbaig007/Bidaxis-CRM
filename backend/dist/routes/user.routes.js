@@ -63,6 +63,10 @@ router.get("/", (0, role_middleware_1.allowRoles)("admin", "csr", "manager"), as
                     email: true,
                     role: true,
                     csrCode: true,
+                    employeeCode: true,
+                    fatherName: true,
+                    currentAddress: true,
+                    contactNo: true,
                     cnic: true,
                     cnicPdfUrl: true,
                     profilePic: true,
@@ -74,6 +78,9 @@ router.get("/", (0, role_middleware_1.allowRoles)("admin", "csr", "manager"), as
                     temporaryAccessIp: true,
                     temporaryAccessMac: true,
                     temporaryAccessUntil: true,
+                    chatEnabled: true,
+                    chatAllowedUserIds: true,
+                    chatVisibleToUserIds: true,
                     createdAt: true,
                 },
                 orderBy: { createdAt: "asc" },
@@ -127,7 +134,11 @@ router.post("/upload-cnic", (0, role_middleware_1.allowRoles)("admin"), upload_m
         const url = await new Promise((resolve, reject) => {
             const stream = cloudinary_1.default.uploader.upload_stream({
                 folder: "crm_cnic_docs",
-                resource_type: "raw",
+                // image+pdf enables inline preview / page thumbnails (raw uploads blank in iframes)
+                resource_type: "image",
+                format: "pdf",
+                type: "upload",
+                access_mode: "public",
             }, (err, result) => { if (err || !result)
                 return reject(err); resolve(result.secure_url); });
             stream_1.Readable.from(req.file.buffer).pipe(stream);

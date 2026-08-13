@@ -21,6 +21,7 @@ const captcha_1 = require("../utils/captcha");
 const passwordBreach_1 = require("../utils/passwordBreach");
 const securityEmail_1 = require("../utils/securityEmail");
 const sessions_1 = require("../utils/sessions");
+const chatSocket_1 = require("../chat/chatSocket");
 const JWT_SECRET = (0, security_1.getJwtSecret)();
 function setCookieToken(res, token, rememberMe) {
     const isProd = process.env.NODE_ENV === "production";
@@ -36,9 +37,48 @@ function setCookieToken(res, token, rememberMe) {
 function userPayload(u) {
     return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
-async function blockIfAlreadyLoggedIn(_userId, _res) {
-    /* Allow new login — registerActiveSession replaces the previous session. */
-    return false;
+async function tokenUserId(req) {
+    const token = req.cookies?.token ??
+        req.headers.authorization?.replace("Bearer ", "");
+    if (!token)
+        return null;
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        return decoded.id ?? null;
+    }
+    catch {
+        // Expired / rotated token still identifies this browser's last user
+        try {
+            const decoded = jsonwebtoken_1.default.decode(token);
+            return decoded?.id ?? null;
+        }
+        catch {
+            return null;
+        }
+    }
+}
+/**
+ * Single-device lock: block a second device.
+ * Same browser re-login (cookie / Bearer still present for this user) must not
+ * false-lock after SESSION_INVALID cleared the client but left activeSessionId in DB.
+ */
+async function blockIfAlreadyLoggedIn(userId, req, res) {
+    const active = await (0, sessions_1.hasActiveSession)(userId);
+    if (!active)
+        return false;
+    const cookieUserId = await tokenUserId(req);
+    if (cookieUserId && cookieUserId === userId) {
+        await (0, sessions_1.clearActiveSession)(userId);
+        return false;
+    }
+    const attemptId = await (0, sessions_1.recordLoginAttempt)(userId);
+    (0, chatSocket_1.notifyLoginAttempt)(userId, attemptId);
+    res.status(403).json({
+        success: false,
+        code: "ALREADY_LOGGED_IN",
+        message: "Already logged in on another device.",
+    });
+    return true;
 }
 async function issueSessionToken(res, user, rememberMe) {
     const sid = crypto_1.default.randomBytes(16).toString("hex");
@@ -84,8 +124,14 @@ function makeOTP() {
 }
 function parsePortalRole(raw) {
     const r = String(raw ?? "").toLowerCase();
-    if (r === "admin" || r === "csr" || r === "manager" || r === "technical_manager" || r === "accounts")
+    if (r === "admin" ||
+        r === "csr" ||
+        r === "manager" ||
+        r === "technical_manager" ||
+        r === "accounts" ||
+        r === "estimator") {
         return r;
+    }
     return null;
 }
 function portalRoleLabel(role) {
@@ -97,6 +143,8 @@ function portalRoleLabel(role) {
         return "Technical Manager";
     if (role === "accounts")
         return "Accounts";
+    if (role === "estimator")
+        return "Estimator";
     return "CSR";
 }
 function assertPortalRoleMatch(userRole, loginRole) {
@@ -127,7 +175,7 @@ function parseTemporaryHours(raw) {
 /* ================= REGISTER ================= */
 const register = async (req, res) => {
     try {
-        const { name, email, password, role, csrCode, cnic, cnicPdfUrl, profilePic, allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours, } = req.body;
+        const { name, email, password, role, csrCode, employeeCode, fatherName, currentAddress, contactNo, cnic, cnicPdfUrl, profilePic, allowedIps, allowedMacAddress, temporaryAccessIp, temporaryAccessMac, temporaryAccessHours, } = req.body;
         if (role === "csr" && !csrCode?.trim()) {
             return res.status(400).json({ success: false, message: "CSR Code is required for CSR accounts." });
         }
@@ -151,7 +199,10 @@ const register = async (req, res) => {
         if (role === "accounts" && req.user?.role !== "admin") {
             return res.status(403).json({ success: false, message: "Only admins can create Accounts users." });
         }
-        const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts"];
+        if (role === "estimator" && req.user?.role !== "admin") {
+            return res.status(403).json({ success: false, message: "Only admins can create Estimator accounts." });
+        }
+        const validRoles = ["admin", "csr", "manager", "technical_manager", "accounts", "estimator"];
         if (!validRoles.includes(role)) {
             return res.status(400).json({ success: false, message: "Invalid role." });
         }
@@ -165,6 +216,12 @@ const register = async (req, res) => {
                 return res.status(400).json({ success: false, message: `CSR Code "${csrCode}" is already in use.` });
             }
         }
+        if (employeeCode?.trim()) {
+            const empTaken = await db_1.default.user.findFirst({ where: { employeeCode: employeeCode.trim() } });
+            if (empTaken) {
+                return res.status(400).json({ success: false, message: `Employee Code "${employeeCode.trim()}" is already in use.` });
+            }
+        }
         const hashed = await (0, hash_1.hashPassword)(password);
         const cleanedIps = (0, networkAccess_1.sanitizeIpList)(allowedIps);
         const tempHours = parseTemporaryHours(temporaryAccessHours);
@@ -176,7 +233,11 @@ const register = async (req, res) => {
             email,
             password: hashed,
             role,
-            csrCode: role === "csr" ? csrCode.trim() : null,
+            csrCode: role === "csr" || role === "estimator" ? (csrCode?.trim() || null) : null,
+            employeeCode: typeof employeeCode === "string" && employeeCode.trim() ? employeeCode.trim() : null,
+            fatherName: typeof fatherName === "string" && fatherName.trim() ? fatherName.trim() : null,
+            currentAddress: typeof currentAddress === "string" && currentAddress.trim() ? currentAddress.trim() : null,
+            contactNo: typeof contactNo === "string" && contactNo.trim() ? contactNo.trim() : null,
             cnic: cnic?.trim() || null,
             cnicPdfUrl: typeof cnicPdfUrl === "string" && cnicPdfUrl.trim() ? cnicPdfUrl.trim() : null,
             profilePic: profilePic || null,
@@ -194,6 +255,10 @@ const register = async (req, res) => {
                 email: true,
                 role: true,
                 csrCode: true,
+                employeeCode: true,
+                fatherName: true,
+                currentAddress: true,
+                contactNo: true,
                 cnic: true,
                 cnicPdfUrl: true,
                 profilePic: true,
@@ -307,7 +372,7 @@ const login = async (req, res) => {
             });
         }
         if (user.twoFAEnabled && (0, env_1.isSmtpConfigured)()) {
-            if (await blockIfAlreadyLoggedIn(user.id, res))
+            if (await blockIfAlreadyLoggedIn(user.id, req, res))
                 return;
             const existing = sessions_1.otpAttempts.get(user.id);
             if (existing?.blockedUntil && Date.now() < existing.blockedUntil) {
@@ -330,7 +395,7 @@ const login = async (req, res) => {
                 message: `OTP sent to ${user.email}`,
             });
         }
-        if (await blockIfAlreadyLoggedIn(user.id, res))
+        if (await blockIfAlreadyLoggedIn(user.id, req, res))
             return;
         const dbUser = await db_1.default.user.findUnique({
             where: { id: user.id },
@@ -397,7 +462,7 @@ const verifyOTP = async (req, res) => {
         sessions_1.otpStore.delete(userId);
         sessions_1.otpAttempts.delete(userId);
         sessions_1.otpResendCount.delete(userId);
-        if (await blockIfAlreadyLoggedIn(userId, res))
+        if (await blockIfAlreadyLoggedIn(userId, req, res))
             return;
         const user = await db_1.default.user.findUnique({
             where: { id: userId },
@@ -483,16 +548,21 @@ const logout = async (req, res) => {
         const token = req.cookies?.token ??
             req.headers.authorization?.replace("Bearer ", "");
         if (token) {
+            let userId;
             try {
                 const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-                if (decoded.id) {
-                    await (0, sessions_1.clearActiveSession)(decoded.id);
-                    await (0, auditLog_1.writeAuditLog)({ action: "logout", userId: decoded.id, ip, userAgent: ua });
-                    await (0, accessHistory_1.recordAccessHistory)({ userId: decoded.id, ip, userAgent: ua, event: "logout" });
-                    /* Work session stays open — only Check Out / stale timeout ends the shift */
-                }
+                userId = decoded.id;
             }
-            catch { /* ignore */ }
+            catch {
+                const decoded = jsonwebtoken_1.default.decode(token);
+                userId = decoded?.id;
+            }
+            if (userId) {
+                await (0, sessions_1.clearActiveSession)(userId);
+                await (0, auditLog_1.writeAuditLog)({ action: "logout", userId, ip, userAgent: ua });
+                await (0, accessHistory_1.recordAccessHistory)({ userId, ip, userAgent: ua, event: "logout" });
+                /* Work session stays open — only Check Out / stale timeout ends the shift */
+            }
         }
     }
     catch { /* ignore */ }
@@ -557,6 +627,7 @@ const getMe = async (req, res) => {
                 id: true, name: true, email: true, role: true,
                 csrCode: true, cnic: true, profilePic: true,
                 twoFAEnabled: true, createdAt: true,
+                chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
             },
         });
         if (!user) {
@@ -694,7 +765,7 @@ const getSessionStatus = async (req, res) => {
             loginAttemptPending,
             attemptId: alert?.attemptId ?? 0,
             message: loginAttemptPending
-                ? "Someone is trying to login to your account."
+                ? "Someone is trying to login to your account from another device."
                 : undefined,
         });
     }

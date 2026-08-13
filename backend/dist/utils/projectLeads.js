@@ -15,25 +15,27 @@ function wonClientStatusWhere() {
         ],
     };
 }
+/** DB filter for Project DB / Technical Active Projects (matches isDisplayableProjectLead). */
 function buildProjectLeadWhere(csrId) {
+    // NOTE: Do not use NOT:{ inBin:true } here — unset Mongo fields break Prisma filters.
+    // Bin / deleted rows are excluded in isDisplayableProjectLead after fetch.
     const where = {
         status: { in: [...exports.PROJECT_LEAD_STATUSES] },
-        OR: [
-            { projectTitle: { not: null } },
-            { AND: [{ isOldClient: true }, { clientCode: { not: null } }] },
-        ],
+        // Require a real project title — empty/null titles are not Project DB rows
+        projectTitle: { not: null },
     };
     if (csrId)
         where.assignedTo = csrId;
     return where;
 }
 function isDisplayableProjectLead(lead) {
+    if (lead.inBin === true)
+        return false;
     const st = (lead.status ?? "").toLowerCase();
     if (st !== "close client" && st !== "completed")
         return false;
-    if (lead.projectTitle?.trim())
-        return true;
-    if (lead.isOldClient && lead.clientCode)
-        return true;
-    return lead.projectTitle != null && lead.projectTitle !== "";
+    // Must have a non-empty project title to appear in Project DB
+    if (!lead.projectTitle?.trim())
+        return false;
+    return true;
 }

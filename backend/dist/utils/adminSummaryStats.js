@@ -181,13 +181,31 @@ function performerRate(resolved, total) {
         return Math.round(pct * 100) / 100;
     return Math.round(pct * 10) / 10;
 }
-async function buildAdminTabCountsPayload() {
+async function buildAdminTabCountsPayload(filters) {
+    const extras = {
+        state: filters?.state,
+        phonePrefix: filters?.phonePrefix,
+        areaCodes: filters?.areaCodes,
+    };
+    const search = filters?.search;
+    const scheduleDate = filters?.scheduleDate;
+    const csrName = filters?.csrName;
     const [all, important, schedule, interested, closed] = await Promise.all([
-        db_1.default.lead.count(),
-        db_1.default.lead.count({ where: (0, adminClientQueries_1.importantOnlyWhere)() }),
-        db_1.default.lead.count({ where: (0, adminClientQueries_1.scheduledCallWhere)() }),
-        db_1.default.lead.count({ where: (0, adminClientQueries_1.isInterestedStatusWhere)() }),
-        db_1.default.lead.count({ where: (0, adminClientQueries_1.buildAdminClientViewWhere)("closed") }),
+        db_1.default.lead.count({
+            where: (0, adminClientQueries_1.buildAdminClientListWhere)("all", csrName, search, undefined, extras),
+        }),
+        db_1.default.lead.count({
+            where: (0, adminClientQueries_1.buildAdminClientListWhere)("important", csrName, search, undefined, extras),
+        }),
+        db_1.default.lead.count({
+            where: (0, adminClientQueries_1.buildAdminClientListWhere)("schedule", csrName, search, scheduleDate, extras),
+        }),
+        db_1.default.lead.count({
+            where: (0, adminClientQueries_1.buildAdminClientListWhere)("interested", csrName, search, undefined, extras),
+        }),
+        db_1.default.lead.count({
+            where: (0, adminClientQueries_1.buildAdminClientListWhere)("closed", csrName, search, undefined, extras),
+        }),
     ]);
     return {
         success: true,
@@ -201,12 +219,14 @@ async function buildAdminClientSummaryPayload() {
     const todayYmd = (0, businessCalendar_1.currentBusinessYmd)();
     const todayStart = (0, businessCalendar_1.businessDayStartUtc)(todayYmd);
     const tomorrowStart = (0, businessCalendar_1.businessDayStartUtc)((0, businessCalendar_1.addDaysToYmd)(todayYmd, 1));
-    const [pipeline, closedTab, todayCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
+    const [pipeline, closedTab, todayCompletedCalls, totalCompletedCalls, recent, recentStatusLogs, chartSeries, csrGroups, resolvedGroups, onlineCSRs, totalOnline,] = await Promise.all([
         pipelinePromise,
         db_1.default.lead.count({ where: (0, adminClientQueries_1.buildAdminClientViewWhere)("closed") }),
         db_1.default.callLog.count({
             where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
         }),
+        /** All-time CSR status updates (same source as Reports “Completed”) */
+        db_1.default.callLog.count(),
         db_1.default.lead.findMany({
             select: {
                 id: true,
@@ -296,7 +316,8 @@ async function buildAdminClientSummaryPayload() {
             scheduled,
             interested,
             projectWon,
-            completed: closedTab,
+            /** All-time CallLog rows = every CSR status update */
+            completed: totalCompletedCalls,
             closed: closedTab,
             todayCompletedCalls,
             other,

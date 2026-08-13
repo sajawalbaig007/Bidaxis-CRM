@@ -13,6 +13,7 @@ exports.emitConversationRead = emitConversationRead;
 exports.emitPinnedMessage = emitPinnedMessage;
 exports.emitPresence = emitPresence;
 exports.notifyCsrDataReset = notifyCsrDataReset;
+exports.notifyLoginAttempt = notifyLoginAttempt;
 exports.notifyAdminSummaryStale = notifyAdminSummaryStale;
 exports.isChatSocketReady = isChatSocketReady;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -20,6 +21,7 @@ const ws_1 = require("ws");
 const db_1 = __importDefault(require("../config/db"));
 const security_1 = require("../config/security");
 const chatMessageFormat_1 = require("./chatMessageFormat");
+const chatAccess_1 = require("../utils/chatAccess");
 const clients = new Map();
 const userSockets = new Map();
 let wss = null;
@@ -47,9 +49,14 @@ async function verifyWsToken(token) {
             return null;
         const user = await db_1.default.user.findUnique({
             where: { id: decoded.id },
-            select: { activeSessionId: true, tokenVersion: true, isActive: true, role: true, name: true },
+            select: {
+                activeSessionId: true, tokenVersion: true, isActive: true, role: true, name: true,
+                chatEnabled: true,
+            },
         });
         if (!user?.isActive)
+            return null;
+        if (user.chatEnabled === false)
             return null;
         if (!user.activeSessionId ||
             user.activeSessionId !== decoded.sid ||
@@ -202,7 +209,7 @@ function emitNewMessage(conversationId, senderId, message, members) {
             conversationId,
             lastMessage: preview,
             lastMessageAt,
-            senderName: message.sender.name,
+            senderName: (0, chatAccess_1.chatDisplayName)(message.sender),
             incrementUnread,
         });
     }
@@ -242,6 +249,14 @@ function emitPresence(userId, isOnline) {
 /** Tell a CSR browser to drop cached lists after admin reset. */
 function notifyCsrDataReset(csrId) {
     sendToUser(csrId, { type: "csr-data-reset" });
+}
+/** Notify the active session that another device tried to log in. */
+function notifyLoginAttempt(userId, attemptId) {
+    sendToUser(userId, {
+        type: "auth:login_attempt",
+        attemptId,
+        message: "Someone is trying to login to your account from another device.",
+    });
 }
 /** Tell admin/manager browsers to refresh dashboard summary counts. */
 function notifyAdminSummaryStale() {

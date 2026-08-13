@@ -533,15 +533,20 @@ router.post("/check-in", async (req: AuthRequest, res) => {
     if (!status.checkedIn) {
       status = {
         checkedIn: true,
+        paused: false,
         session: {
           id: result.sessionId,
           checkInAt: result.loginAt.toISOString(),
           checkInAtEst: formatEstDateTime(result.loginAt),
+          paused: false,
+          pausedAt: null,
           dashboardMs: 0,
           awayMs: 0,
+          pausedMs: 0,
           totalMs: 0,
           dashboardDuration: "0s",
           awayDuration: "0s",
+          pausedDuration: "0s",
           totalDuration: "0s",
         },
       };

@@ -1,0 +1,98 @@
+"use strict";
+/** Currency Payment Formula totals — shared with Income Statement Total Revenue. */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.currencyFormulaTotalFromDashboard = currencyFormulaTotalFromDashboard;
+const TAB_DEFAULTS = {
+    SN: {
+        usdAmount: 0,
+        cadAmount: 0,
+        pkrAmount: 0,
+        usdToPkrRate: 280,
+        cadToPkrRate: 200,
+        usdTaxFactor: 1,
+        cadTaxFactor: 0.945,
+    },
+    AH: {
+        usdAmount: 0,
+        cadAmount: 0,
+        pkrAmount: 0,
+        usdToPkrRate: 280,
+        cadToPkrRate: 200,
+        usdTaxFactor: 0.89,
+        cadTaxFactor: 0.89,
+    },
+    CHQ: {
+        usdAmount: 0,
+        cadAmount: 0,
+        pkrAmount: 0,
+        usdToPkrRate: 1,
+        cadToPkrRate: 1,
+        usdTaxFactor: 1,
+        cadTaxFactor: 1,
+        taxDeductionRate: 0.25,
+    },
+    HM: {
+        usdAmount: 0,
+        cadAmount: 0,
+        pkrAmount: 0,
+        usdToPkrRate: 1,
+        cadToPkrRate: 1,
+        usdTaxFactor: 1,
+        cadTaxFactor: 1,
+        taxDeductionRate: 0.01,
+    },
+};
+function calcTab(t) {
+    const rate = Number(t.taxDeductionRate);
+    if (Number.isFinite(rate) && rate > 0) {
+        const pkrGross = Number(t.pkrAmount) || 0;
+        return pkrGross - pkrGross * rate;
+    }
+    const usdAfterTax = (Number(t.usdAmount) || 0) * (Number(t.usdTaxFactor) || 1);
+    const cadAfterTax = (Number(t.cadAmount) || 0) * (Number(t.cadTaxFactor) || 1);
+    const usdInPkr = usdAfterTax * (Number(t.usdToPkrRate) || 0);
+    const cadInPkr = cadAfterTax * (Number(t.cadToPkrRate) || 0);
+    const pkrNet = Number(t.pkrAmount) || 0;
+    return usdInPkr + cadInPkr + pkrNet;
+}
+function normalize(raw) {
+    if (raw?.tabs?.SN && raw?.tabs?.AH) {
+        return {
+            AH: { ...TAB_DEFAULTS.AH, ...raw.tabs.AH, usdTaxFactor: 0.89, cadTaxFactor: 0.89 },
+            SN: { ...TAB_DEFAULTS.SN, ...raw.tabs.SN, cadTaxFactor: 0.945 },
+            CHQ: {
+                ...TAB_DEFAULTS.CHQ,
+                ...(raw.tabs.CHQ ?? {}),
+                taxDeductionRate: 0.25,
+                usdAmount: 0,
+                cadAmount: 0,
+            },
+            HM: {
+                ...TAB_DEFAULTS.HM,
+                ...(raw.tabs.HM ?? {}),
+                taxDeductionRate: 0.01,
+                usdAmount: 0,
+                cadAmount: 0,
+            },
+        };
+    }
+    return {
+        SN: {
+            ...TAB_DEFAULTS.SN,
+            usdAmount: raw?.usdAmount ?? 0,
+            cadAmount: raw?.cadAmount ?? 0,
+            pkrAmount: raw?.pkrAmount ?? 0,
+            usdToPkrRate: raw?.usdToPkrRate ?? TAB_DEFAULTS.SN.usdToPkrRate,
+            cadToPkrRate: raw?.cadToPkrRate ?? TAB_DEFAULTS.SN.cadToPkrRate,
+        },
+        AH: { ...TAB_DEFAULTS.AH },
+        CHQ: { ...TAB_DEFAULTS.CHQ },
+        HM: { ...TAB_DEFAULTS.HM },
+    };
+}
+/** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
+function currencyFormulaTotalFromDashboard(data) {
+    const currency = data?.currency ?? null;
+    const tabs = normalize(currency);
+    return calcTab(tabs.AH) + calcTab(tabs.SN) + calcTab(tabs.CHQ) + calcTab(tabs.HM);
+}

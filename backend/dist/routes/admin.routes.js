@@ -15,6 +15,7 @@ const csrResetPages_1 = require("../utils/csrResetPages");
 const uploadSourceStats_1 = require("../utils/uploadSourceStats");
 const projectLeads_1 = require("../utils/projectLeads");
 const projectPayments_1 = require("../utils/projectPayments");
+const projectCurrencyCollections_1 = require("../utils/projectCurrencyCollections");
 const binLeads_1 = require("../utils/binLeads");
 const leadPhoneLookup_1 = require("../utils/leadPhoneLookup");
 const leadDuplicateCheck_1 = require("../utils/leadDuplicateCheck");
@@ -26,18 +27,47 @@ const csrSessionTracking_1 = require("../utils/csrSessionTracking");
 const estTime_1 = require("../utils/estTime");
 const deleteLeadsCascade_1 = require("../utils/deleteLeadsCascade");
 const adminSummaryStats_1 = require("../utils/adminSummaryStats");
+const nextProjectCode_1 = require("../utils/nextProjectCode");
+const technicalMonitoring_1 = require("../utils/technicalMonitoring");
+const technicalKpiRecords_1 = require("../utils/technicalKpiRecords");
+const estimatorKpiAuto_1 = require("../utils/estimatorKpiAuto");
+const previousMonthRatings_1 = require("../utils/previousMonthRatings");
+const paymentsSummary_1 = require("../utils/paymentsSummary");
+const technicalEstimators_1 = require("../utils/technicalEstimators");
+const projectDbExcel_1 = require("../utils/projectDbExcel");
+const upload_middleware_1 = require("../middleware/upload.middleware");
+const technicalNotifications_1 = require("../utils/technicalNotifications");
 const router = express_1.default.Router();
 router.use(adminIp_middleware_1.enforceAdminIpAllowlist);
 function applyProjectPayload(updateData, body) {
     const scalars = [
-        "name", "company", "phone", "email", "state", "ownerName",
-        "projectCode", "projectTitle", "projectScope", "interestedService",
-        "projectBudget", "projectDeadline", "projectNotes", "projectPhase",
+        "name", "company", "phone", "email", "state", "ownerName", "timezone",
+        "projectCode", "clientCode", "projectTitle", "projectScope", "interestedService",
+        "projectBudget", "projectDeadline", "deadlineTiming", "projectNotes", "projectPhase",
         "takeoffDeadline", "pricingDeadline", "qaDeadline", "projectSource",
+        "projectWorkStatus",
     ];
     for (const key of scalars) {
         if (body[key] !== undefined)
             updateData[key] = body[key];
+    }
+    // Empty emergency timing clears the badge on Technical
+    if (body.deadlineTiming !== undefined) {
+        const t = String(body.deadlineTiming ?? "").trim().toLowerCase();
+        updateData.deadlineTiming = t === "morning" || t === "cob" ? t : null;
+    }
+    if (body.status !== undefined) {
+        updateData.status = body.status;
+    }
+    // Keep Project DB membership in sync with work status
+    const work = body.projectWorkStatus != null ? String(body.projectWorkStatus) : "";
+    if (work === "completed") {
+        updateData.status = "completed";
+        updateData.projectWorkStatus = "completed";
+    }
+    else if (work === "in_progress" || work === "not_completed") {
+        updateData.status = "Close Client";
+        updateData.projectWorkStatus = work;
     }
     const payments = (0, projectPayments_1.normalizePaymentsInput)(body.projectPayments);
     if (payments !== undefined) {
@@ -47,20 +77,24 @@ function applyProjectPayload(updateData, body) {
     else if (body.paidAmount !== undefined) {
         updateData.paidAmount = body.paidAmount;
     }
+    if (body.technicalAssignments !== undefined) {
+        updateData.technicalAssignments = (0, technicalEstimators_1.normalizeTechnicalAssignmentsInput)(body.technicalAssignments) ?? "[]";
+    }
+    if (body.technicalReceivedAt !== undefined) {
+        updateData.technicalReceivedAt = body.technicalReceivedAt
+            ? new Date(String(body.technicalReceivedAt))
+            : null;
+    }
 }
 /* ================= ADMIN DASHBOARD ================= */
 router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), (req, res) => {
     res.json({ success: true, message: "Welcome Admin" });
 });
-/* ================= ADMIN MEETING NOTIFICATIONS (scheduled calls) ================= */
+/* ================= ADMIN MEETING + TECHNICAL NOTE NOTIFICATIONS ================= */
 router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const today = new Date().toISOString().split("T")[0];
         const csrId = typeof req.query.csrId === "string" ? req.query.csrId : undefined;
-        const cacheKey = `admin:notifications:${csrId ?? "all"}:${today}`;
-        const cached = (0, cache_1.getCache)(cacheKey);
-        if (cached)
-            return res.json(cached);
         const rawScheduled = await db_1.default.lead.findMany({
             where: {
                 ...(csrId ? { assignedTo: csrId } : {}),
@@ -95,14 +129,49 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
             csrCode: l.csr?.csrCode ?? "",
             csrId: l.csr?.id ?? "",
         }));
-        const payload = { success: true, scheduledCalls };
-        (0, cache_1.setCache)(cacheKey, payload, 60000);
-        return res.json(payload);
+        // Alerts from Technical "Notes for Sir"
+        const techAlertLeads = await db_1.default.lead.findMany({
+            where: (0, projectLeads_1.buildProjectLeadWhere)(csrId),
+            select: {
+                id: true,
+                name: true,
+                projectTitle: true,
+                projectCode: true,
+                clientCode: true,
+                technicalNotes: true,
+                updatedAt: true,
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 120,
+        });
+        const technicalNotes = techAlertLeads
+            .map((l) => {
+            const notes = (0, technicalEstimators_1.parseTechnicalNotes)(l.technicalNotes);
+            const latest = notes[notes.length - 1];
+            if (!latest)
+                return null;
+            return {
+                id: `tn-${l.id}-${latest.id}`,
+                leadId: l.id,
+                projectTitle: l.projectTitle || l.name || "Project",
+                projectCode: l.projectCode || l.clientCode || "",
+                preview: latest.text,
+                createdAt: latest.createdAt || l.updatedAt.toISOString(),
+            };
+        })
+            .filter((x) => !!x)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 30);
+        return res.json({ success: true, scheduledCalls, technicalNotes });
     }
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to fetch notifications" });
     }
+});
+/* Mark technical-note alert as read for Admin (dismiss is primarily client-side) */
+router.put("/lead/:id/technical-notes/read", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
+    return res.json({ success: true });
 });
 /* ================= GET ALL CSRS ================= */
 router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
@@ -136,14 +205,39 @@ router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRo
     }
 });
 /* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
-router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
+router.get("/clients/tab-counts", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
-        const CACHE_KEY = "admin:clients:tab-counts";
-        const cached = (0, cache_1.getCache)(CACHE_KEY);
-        if (cached)
-            return res.json(cached);
-        const payload = await (0, adminSummaryStats_1.buildAdminTabCountsPayload)();
-        (0, cache_1.setCache)(CACHE_KEY, payload, 60000);
+        const search = req.query.search ? String(req.query.search) : undefined;
+        const state = req.query.state ? String(req.query.state) : undefined;
+        const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
+        const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
+        const csrName = req.query.csr ? String(req.query.csr) : undefined;
+        const areaCodesRaw = req.query.areaCodes ? String(req.query.areaCodes) : "";
+        const areaCodes = areaCodesRaw
+            .split(",")
+            .map(s => s.trim())
+            .filter(Boolean);
+        const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
+        const CACHE_KEY = hasFilters
+            ? `admin:clients:tab-counts:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
+            : "admin:clients:tab-counts";
+        if (!hasFilters) {
+            const cached = (0, cache_1.getCache)(CACHE_KEY);
+            if (cached)
+                return res.json(cached);
+        }
+        const payload = await (0, adminSummaryStats_1.buildAdminTabCountsPayload)(hasFilters
+            ? {
+                search,
+                state,
+                phonePrefix,
+                areaCodes,
+                scheduleDate,
+                csrName: csrName && csrName !== "all" ? csrName : undefined,
+            }
+            : undefined);
+        if (!hasFilters)
+            (0, cache_1.setCache)(CACHE_KEY, payload, 60000);
         return res.json(payload);
     }
     catch (error) {
@@ -176,11 +270,20 @@ router.get("/clients", auth_middleware_1.verifyToken, (0, role_middleware_1.allo
         const csrName = req.query.csr ? String(req.query.csr) : undefined;
         const search = req.query.search ? String(req.query.search) : undefined;
         const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
-        const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}`;
+        const state = req.query.state ? String(req.query.state) : undefined;
+        const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
+        const areaCodes = req.query.areaCodes
+            ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
+            : [];
+        const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
         const cached = (0, cache_1.getCache)(cacheKey);
         if (cached)
             return res.json(cached);
-        const where = (0, adminClientQueries_1.buildAdminClientListWhere)(view, csrName, search, scheduleDate);
+        const where = (0, adminClientQueries_1.buildAdminClientListWhere)(view, csrName, search, scheduleDate, {
+            state,
+            phonePrefix,
+            areaCodes,
+        });
         // Fetch more than limit so we can deduplicate by phone before slicing the page
         const FETCH_FACTOR = 4;
         const rawLeads = await db_1.default.lead.findMany({
@@ -295,28 +398,69 @@ router.get("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         return res.status(500).json({ success: false, message: "Failed to fetch lead" });
     }
 });
-/* ================= DELETE LEAD / PROJECT (ADMIN) ================= */
+/* ================= DELETE LEAD / PROJECT (ADMIN) — permanent Project DB delete ================= */
 router.delete("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
         const lead = await db_1.default.lead.findFirst({
             where: { id: leadId },
-            select: { id: true, assignedTo: true, name: true },
+            select: { id: true, assignedTo: true, name: true, projectTitle: true },
         });
         if (!lead) {
             return res.status(404).json({ success: false, message: "Lead not found" });
         }
         const deleted = await (0, deleteLeadsCascade_1.deleteLeadsCascade)([leadId]);
         await (0, deleteLeadsCascade_1.invalidateAllLeadCaches)(lead.assignedTo ? [lead.assignedTo] : undefined);
+        const gone = await (0, deleteLeadsCascade_1.isRemovedFromProjectDb)(leadId);
+        if (!gone) {
+            return res.status(500).json({
+                success: false,
+                message: "Failed to remove project from Project DB",
+            });
+        }
         return res.json({
             success: true,
-            message: `"${lead.name ?? "Record"}" deleted permanently`,
+            message: `"${lead.projectTitle || lead.name || "Record"}" deleted permanently`,
             deleted,
+            permanent: true,
         });
     }
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to delete lead" });
+    }
+});
+/* ================= DELETE PROJECT (Project DB only — CSR client kept) ================= */
+router.delete("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const lead = await db_1.default.lead.findFirst({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, name: true, projectTitle: true },
+        });
+        if (!lead) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const deleted = await (0, deleteLeadsCascade_1.removeProjectsKeepClients)([leadId]);
+        await (0, deleteLeadsCascade_1.invalidateAllLeadCaches)(lead.assignedTo ? [lead.assignedTo] : undefined);
+        const gone = await (0, deleteLeadsCascade_1.isRemovedFromProjectDb)(leadId);
+        if (!gone) {
+            return res.status(500).json({
+                success: false,
+                message: "Failed to remove project from Project DB",
+            });
+        }
+        return res.json({
+            success: true,
+            message: `"${lead.projectTitle || lead.name || "Project"}" removed from Project DB (CSR client kept)`,
+            deleted,
+            permanent: false,
+            clientKept: true,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to delete project" });
     }
 });
 /* ================= UPDATE LEAD DETAILS (ADMIN) ================= */
@@ -435,17 +579,28 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to save note" });
     }
 });
-/* ================= ADMIN TIMESTAMPED NOTES (shared with CSR) ================= */
+/* ================= ADMIN TIMESTAMPED NOTES (shared with CSR; parentId = reply) ================= */
 router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
-        const { text } = req.body;
+        const { text, parentId } = req.body;
         if (!text?.trim())
             return res.status(400).json({ success: false, message: "Note text required" });
         const lead = await db_1.default.lead.findFirst({ where: { id: leadId } });
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
-        const note = await db_1.default.leadNote.create({ data: { text: text.trim(), leadId } });
+        let parent;
+        if (parentId?.trim()) {
+            const p = await db_1.default.leadNote.findFirst({
+                where: { id: parentId.trim(), leadId, parentId: null },
+            });
+            if (!p)
+                return res.status(400).json({ success: false, message: "Parent note not found" });
+            parent = p.id;
+        }
+        const note = await db_1.default.leadNote.create({
+            data: { text: text.trim(), leadId, ...(parent ? { parentId: parent } : {}) },
+        });
         (0, cache_1.flushAdminClientsCache)();
         (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
         return res.json({ success: true, note });
@@ -464,7 +619,10 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
         const note = await db_1.default.leadNote.findFirst({ where: { id: noteId, leadId } });
         if (!note)
             return res.status(404).json({ success: false, message: "Note not found" });
-        const updated = await db_1.default.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+        const updated = await db_1.default.leadNote.update({
+            where: { id: noteId },
+            data: { text: text.trim(), createdAt: new Date() },
+        });
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note: updated });
     }
@@ -479,12 +637,43 @@ router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role
         const note = await db_1.default.leadNote.findFirst({ where: { id: noteId, leadId } });
         if (!note)
             return res.status(404).json({ success: false, message: "Note not found" });
-        await db_1.default.leadNote.delete({ where: { id: noteId } });
+        await db_1.default.leadNote.deleteMany({ where: { leadId, OR: [{ id: noteId }, { parentId: noteId }] } });
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true });
     }
     catch {
         return res.status(500).json({ success: false, message: "Failed to delete note" });
+    }
+});
+/* ================= TECHNICAL WORKING NOTES (not bid instructions) ================= */
+router.post("/lead/:id/technical-notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const text = String(req.body?.text ?? "").trim();
+        if (!text)
+            return res.status(400).json({ success: false, message: "Note text required" });
+        const lead = await db_1.default.lead.findFirst({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, technicalNotes: true },
+        });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        const next = (0, technicalEstimators_1.appendTechnicalNote)(lead.technicalNotes, text);
+        const note = next[next.length - 1];
+        await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                technicalNotes: (0, technicalEstimators_1.serializeTechnicalNotes)(next),
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+        return res.json({ success: true, note, technicalNotes: next });
+    }
+    catch (err) {
+        console.error("technical-notes error:", err);
+        return res.status(500).json({ success: false, message: "Failed to add technical note" });
     }
 });
 /* ================= UPDATE CSR STATUS ================= */
@@ -586,7 +775,9 @@ router.get("/csr-history/:csrId", auth_middleware_1.verifyToken, (0, role_middle
             },
             orderBy: { updatedAt: "desc" },
         });
-        const completed = leads.filter((l) => l.status?.toLowerCase() === "completed").length;
+        const completed = await db_1.default.callLog.count({
+            where: { csrId: csr.id },
+        });
         const pending = leads.filter((l) => l.status?.toLowerCase() === "pending").length;
         const important = leads.filter((l) => l.important === true || l.status?.toLowerCase() === "important").length;
         const interested = leads.filter((l) => l.interested === true || l.status?.toLowerCase() === "interested").length;
@@ -596,6 +787,7 @@ router.get("/csr-history/:csrId", auth_middleware_1.verifyToken, (0, role_middle
             csr,
             stats: {
                 totalLeads: leads.length,
+                /** Status updates performed by this CSR */
                 completed,
                 pending,
                 important,
@@ -621,12 +813,17 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         const to = typeof req.query.to === "string" ? req.query.to.trim() : undefined;
         const lite = req.query.lite !== "0" && req.query.lite !== "false";
         const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
-        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+        const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
         const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
-        const cacheKey = `admin:projects:${csrId ?? "all"}:${from ?? ""}:${to ?? ""}:${lite}:${page}:${limit}:${search}`;
-        const cached = (0, cache_1.getCache)(cacheKey);
-        if (cached)
-            return res.json(cached);
+        const technicalView = req.query.technicalView === "1" ||
+            req.query.technicalView === "true" ||
+            req.query.forTechnical === "1";
+        const revisionsView = req.query.revisions === "1" ||
+            req.query.revisions === "true";
+        const excludeRevisions = req.query.excludeRevisions === "1" ||
+            req.query.excludeRevisions === "true";
+        // v5: restore previous Admin Project DB window (page size → ~46 All / ~22 Active)
+        // No response cache — stale cache was bringing deleted projects back after toast.
         const where = { ...(0, projectLeads_1.buildProjectLeadWhere)(csrId) };
         if (search) {
             where.AND = [
@@ -663,6 +860,8 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 },
                 notes: { orderBy: { createdAt: "asc" }, take: 20 },
             };
+        // Same window Admin used before: take `limit` newest matching rows, then displayable filter.
+        // (limit 50 → All≈46 / Active≈22). Admin + Technical must use the same limit.
         const [rawLeads, total] = await Promise.all([
             db_1.default.lead.findMany({
                 where,
@@ -674,6 +873,25 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             db_1.default.lead.count({ where }),
         ]);
         let leads = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
+        // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset)
+        if (technicalView) {
+            leads = leads.filter((l) => {
+                const row = l;
+                if (row.hiddenOnTechnical === true)
+                    return false;
+                const work = String(row.projectWorkStatus ?? "").toLowerCase();
+                const st = String(row.status ?? "").toLowerCase();
+                if (work === "completed" || st === "completed")
+                    return false;
+                return true;
+            });
+        }
+        if (revisionsView) {
+            leads = leads.filter((l) => l.needsRevision === true);
+        }
+        else if (technicalView && excludeRevisions) {
+            leads = leads.filter((l) => l.needsRevision !== true);
+        }
         if (from || to) {
             leads = leads.filter((l) => {
                 const dateStr = l.projectDeadline
@@ -699,13 +917,19 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         };
         const payload = {
             success: true,
-            leads,
+            leads: technicalView
+                ? leads.map((l) => ({
+                    ...l,
+                    // Technical Manager must not see client name
+                    name: null,
+                    ownerName: null,
+                }))
+                : leads,
             stats,
             total,
             page,
             limit,
         };
-        (0, cache_1.setCache)(cacheKey, payload, 45000);
         return res.json(payload);
     }
     catch (error) {
@@ -731,6 +955,156 @@ router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to lookup client" });
     }
 });
+/* ================= PROJECT DB EXCEL TEMPLATE ================= */
+router.get("/projects/excel-template", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (_req, res) => {
+    try {
+        const buf = (0, projectDbExcel_1.buildProjectDbTemplateBuffer)();
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", 'attachment; filename="project-db-template.xlsx"');
+        res.setHeader("Content-Length", String(buf.length));
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(200).end(buf);
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to build template" });
+    }
+});
+/* ================= PROJECT DB EXCEL UPLOAD (bulk historical OK) ================= */
+router.post("/projects/excel-upload", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), upload_middleware_1.uploadExcel.single("file"), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file?.buffer?.length) {
+            return res.status(400).json({ success: false, message: "Excel file is required." });
+        }
+        const adminId = req.user?.id;
+        if (!adminId) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+        const { rows, errors: parseErrors } = (0, projectDbExcel_1.parseProjectDbExcel)(file.buffer);
+        if (!rows.length && parseErrors.length) {
+            return res.status(400).json({
+                success: false,
+                message: "Could not parse any valid project rows.",
+                errors: parseErrors.slice(0, 50),
+                created: 0,
+                failed: parseErrors.length,
+            });
+        }
+        if (!rows.length) {
+            return res.status(400).json({
+                success: false,
+                message: "No project rows found. Fill the Projects sheet using the template.",
+                errors: [],
+                created: 0,
+                failed: 0,
+            });
+        }
+        const csrList = await db_1.default.user.findMany({
+            where: { role: "csr", isActive: true },
+            select: { id: true, csrCode: true },
+        });
+        const csrByCode = new Map(csrList
+            .filter((c) => c.csrCode)
+            .map((c) => [String(c.csrCode).trim().toUpperCase(), c.id]));
+        const rowErrors = [...parseErrors];
+        let created = 0;
+        const syncDates = new Set();
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const excelRowApprox = i + 2;
+            try {
+                const body = (0, projectDbExcel_1.excelRowToProjectBody)(row);
+                const createData = {};
+                applyProjectPayload(createData, body);
+                const code = String(row.csrCode ?? "").trim().toUpperCase();
+                const sourceText = String(row.projectSource ?? "").trim();
+                let assignTo = adminId;
+                let sourceLabel = null;
+                if (code) {
+                    const csrId = csrByCode.get(code);
+                    if (!csrId) {
+                        rowErrors.push({
+                            row: excelRowApprox,
+                            message: `Unknown or inactive csrCode: ${row.csrCode}`,
+                        });
+                        continue;
+                    }
+                    assignTo = csrId;
+                }
+                else if (sourceText) {
+                    sourceLabel = sourceText;
+                }
+                createData.assignedTo = assignTo;
+                createData.projectSource = sourceLabel;
+                createData.status = body.status ?? "Close Client";
+                createData.important = false;
+                createData.interested = false;
+                createData.hiddenOnMain = true;
+                if (!createData.technicalReceivedAt) {
+                    createData.technicalReceivedAt = new Date();
+                }
+                if (row.clientCode?.trim())
+                    createData.clientCode = row.clientCode.trim();
+                if (row.timezone?.trim())
+                    createData.timezone = row.timezone.trim();
+                const phone = typeof createData.phone === "string" ? createData.phone.trim() : "";
+                if (phone) {
+                    const existingLeads = await (0, leadPhoneLookup_1.findLeadsByPhone)(phone);
+                    createData.isOldClient = existingLeads.length > 0;
+                }
+                else {
+                    createData.isOldClient = false;
+                }
+                if (row.createdAt && /^\d{4}-\d{2}-\d{2}/.test(row.createdAt)) {
+                    const d = new Date(`${row.createdAt.slice(0, 10)}T12:00:00.000Z`);
+                    if (!Number.isNaN(d.getTime())) {
+                        createData.createdAt = d;
+                        createData.updatedAt = d;
+                    }
+                }
+                await db_1.default.lead.create({
+                    data: createData,
+                });
+                created += 1;
+                if (typeof createData.projectPayments === "string") {
+                    for (const d of (0, projectCurrencyCollections_1.paidDatesFromPayments)((0, projectPayments_1.parseProjectPayments)(createData.projectPayments))) {
+                        syncDates.add(d);
+                    }
+                }
+                if (assignTo !== adminId) {
+                    (0, cache_1.invalidateCache)(`csr:dashboard:${assignTo}`, `csr:projects:${assignTo}`, `csr:leads:${assignTo}`);
+                }
+            }
+            catch (err) {
+                console.log(err);
+                rowErrors.push({
+                    row: excelRowApprox,
+                    message: "Failed to create project row.",
+                });
+            }
+        }
+        if (syncDates.size) {
+            await (0, projectCurrencyCollections_1.syncAccountsCurrencyForDates)([...syncDates], adminId);
+        }
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        return res.json({
+            success: true,
+            created,
+            failed: rowErrors.length,
+            totalRows: rows.length,
+            errors: rowErrors.slice(0, 80),
+            message: created > 0
+                ? `Imported ${created} project(s)${rowErrors.length ? `, ${rowErrors.length} row error(s)` : ""}.`
+                : "No projects imported.",
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to upload projects Excel" });
+    }
+});
 /* ================= ADD PROJECT (ADMIN) ================= */
 router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
@@ -746,11 +1120,46 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         if (!adminId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
+        const sourceClientId = body.sourceClientId ? String(body.sourceClientId).trim() : "";
+        let source = null;
+        if (sourceClientId) {
+            source = await db_1.default.lead.findFirst({
+                where: { id: sourceClientId, ...(0, binLeads_1.notInBinFilter)() },
+                select: {
+                    id: true,
+                    clientCode: true,
+                    projectCode: true,
+                    isOldClient: true,
+                    assignedTo: true,
+                    email: true,
+                    state: true,
+                    ownerName: true,
+                    company: true,
+                    phone: true,
+                    name: true,
+                },
+            });
+            if (!source) {
+                return res.status(404).json({ success: false, message: "Source client not found" });
+            }
+            if (!body.name)
+                body.name = source.name;
+            if (body.company === undefined)
+                body.company = source.company;
+            if (body.phone === undefined)
+                body.phone = source.phone;
+            if (body.email === undefined)
+                body.email = source.email;
+            if (body.state === undefined)
+                body.state = source.state;
+            if (body.ownerName === undefined)
+                body.ownerName = source.ownerName;
+        }
         const CSR_OTHER = "__other__";
         const rawCsrId = body.csrId ? String(body.csrId).trim() : "";
         const sourceText = typeof body.projectSource === "string" ? body.projectSource.trim() : "";
-        let assignTo = adminId;
-        let source = null;
+        let assignTo = source?.assignedTo || adminId;
+        let sourceLabel = null;
         if (rawCsrId && rawCsrId !== CSR_OTHER) {
             const csr = await db_1.default.user.findFirst({
                 where: { id: rawCsrId, role: "csr", isActive: true },
@@ -768,29 +1177,53 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                     message: "Please enter the external resource name for Other.",
                 });
             }
-            source = sourceText;
+            sourceLabel = sourceText;
         }
         else if (sourceText) {
-            source = sourceText;
+            sourceLabel = sourceText;
         }
         const createData = {};
         applyProjectPayload(createData, body);
         createData.assignedTo = assignTo;
-        createData.projectSource = source;
+        createData.projectSource = sourceLabel;
         createData.status = body.status ?? "Close Client";
         createData.important = false;
         createData.interested = false;
-        const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : null;
+        createData.hiddenOnMain = true;
+        if (!createData.technicalReceivedAt) {
+            createData.technicalReceivedAt = new Date();
+        }
+        const trimmedPhone = typeof body.phone === "string" ? body.phone.trim() : (source?.phone ?? null);
         if (trimmedPhone)
             createData.phone = trimmedPhone;
-        const existingLeads = trimmedPhone ? await (0, leadPhoneLookup_1.findLeadsByPhone)(trimmedPhone) : [];
-        createData.isOldClient = existingLeads.length > 0;
+        if (source) {
+            createData.isOldClient = source.isOldClient;
+            const baseCode = (source.clientCode || source.projectCode || "").trim();
+            if (baseCode) {
+                createData.clientCode = source.clientCode || baseCode;
+                if (!createData.projectCode) {
+                    createData.projectCode = await (0, nextProjectCode_1.allocateNextProjectCode)(baseCode, {
+                        assignedTo: typeof assignTo === "string" ? assignTo : undefined,
+                    });
+                }
+            }
+        }
+        else {
+            const existingLeads = trimmedPhone ? await (0, leadPhoneLookup_1.findLeadsByPhone)(trimmedPhone) : [];
+            createData.isOldClient = existingLeads.length > 0;
+        }
         const lead = await db_1.default.lead.create({
             data: createData,
             include: {
                 csr: { select: { id: true, name: true, email: true, csrCode: true } },
             },
         });
+        if (typeof createData.projectPayments === "string") {
+            const dates = (0, projectCurrencyCollections_1.paidDatesFromPayments)((0, projectPayments_1.parseProjectPayments)(createData.projectPayments));
+            if (dates.length) {
+                await (0, projectCurrencyCollections_1.syncAccountsCurrencyForDates)(dates, req.user?.id);
+            }
+        }
         (0, cache_1.flushAdminClientsCache)();
         if (assignTo !== adminId) {
             (0, cache_1.invalidateCache)(`csr:dashboard:${assignTo}`, `csr:projects:${assignTo}`, `csr:leads:${assignTo}`);
@@ -810,6 +1243,30 @@ router.put("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.
         applyProjectPayload(updateData, req.body);
         if (req.body.assignedTo !== undefined)
             updateData.assignedTo = req.body.assignedTo;
+        const prev = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                projectPayments: true,
+                projectPhase: true,
+                projectWorkStatus: true,
+                status: true,
+                projectDeadline: true,
+                deadlineTiming: true,
+                projectTitle: true,
+                projectCode: true,
+                projectScope: true,
+                projectNotes: true,
+                takeoffDeadline: true,
+                pricingDeadline: true,
+                qaDeadline: true,
+                interestedService: true,
+                technicalAssignments: true,
+                clientCode: true,
+            },
+        });
+        if (!prev) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
         const lead = await db_1.default.lead.update({
             where: { id: leadId },
             data: updateData,
@@ -818,13 +1275,845 @@ router.put("/project/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.
                 notes: { orderBy: { createdAt: "asc" } },
             },
         });
+        if (typeof updateData.projectPayments === "string") {
+            const dates = [
+                ...(0, projectCurrencyCollections_1.paidDatesFromPayments)((0, projectPayments_1.parseProjectPayments)(prev.projectPayments)),
+                ...(0, projectCurrencyCollections_1.paidDatesFromPayments)((0, projectPayments_1.parseProjectPayments)(updateData.projectPayments)),
+            ];
+            if (dates.length) {
+                await (0, projectCurrencyCollections_1.syncAccountsCurrencyForDates)(dates, req.user?.id);
+            }
+        }
+        const changes = (0, technicalNotifications_1.diffProjectChangesForTm)(prev, { ...prev, ...updateData });
+        if (changes.length > 0) {
+            const label = (0, technicalNotifications_1.projectLabel)(lead.projectCode || lead.clientCode, lead.projectTitle);
+            void (0, technicalNotifications_1.notifyTmFromActor)({
+                actorId: req.user?.id,
+                leadId: lead.id,
+                projectTitle: lead.projectTitle,
+                projectCode: lead.projectCode || lead.clientCode,
+                source: "admin",
+                title: "Project updated",
+                message: `${label}: ${changes.join(", ")}`,
+                changes,
+            });
+        }
         (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
         (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
         return res.json({ success: true, lead });
     }
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to update project" });
+    }
+});
+/* ================= SEND FOR PRICING ================= */
+router.put("/project/:id/send-pricing", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const estimatorId = String(req.body?.estimatorId ?? "").trim();
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                id: true,
+                assignedTo: true,
+                technicalAssignments: true,
+                projectPhase: true,
+                pricingReceivedAt: true,
+            },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const list = (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments);
+        let sent = 0;
+        const next = list.map((a) => {
+            const match = estimatorId
+                ? a.estimatorId === estimatorId
+                : a.takeoffDone && !a.pricingSent;
+            if (!match)
+                return a;
+            if (!a.takeoffDone)
+                return a;
+            if (a.pricingSent)
+                return a;
+            sent += 1;
+            return { ...a, pricingSent: true, timerStartedAt: null };
+        });
+        if (estimatorId) {
+            const target = list.find((a) => a.estimatorId === estimatorId);
+            if (!target) {
+                return res.status(404).json({ success: false, message: "Estimator assignment not found" });
+            }
+            if (!target.takeoffDone) {
+                return res.status(400).json({
+                    success: false,
+                    message: "That estimator must be Done before Send for Pricing.",
+                });
+            }
+            if (target.pricingSent) {
+                return res.status(400).json({
+                    success: false,
+                    message: "That estimator was already sent for pricing.",
+                });
+            }
+        }
+        if (sent === 0) {
+            return res.status(400).json({
+                success: false,
+                message: estimatorId
+                    ? "Could not send that estimator for pricing."
+                    : "No completed estimators waiting to send for pricing.",
+            });
+        }
+        const nextPhase = (0, technicalEstimators_1.syncPhaseFromAssignments)(next, existing.projectPhase);
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                technicalAssignments: (0, technicalEstimators_1.serializeTechnicalAssignments)(next),
+                projectPhase: nextPhase,
+                pricingReceivedAt: existing.pricingReceivedAt ?? new Date(),
+            },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to send for pricing" });
+    }
+});
+/* ================= PRICING QA MODE (With / Without / Quick) ================= */
+router.put("/project/:id/pricing-qa", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const mode = String(req.body?.mode ?? "")
+            .trim()
+            .toLowerCase();
+        const map = {
+            with_qa: "pricing_with_qa",
+            without_qa: "pricing_without_qa",
+            quick_qa: "pricing_quick_qa",
+        };
+        const nextPhase = map[mode];
+        if (!nextPhase) {
+            return res.status(400).json({
+                success: false,
+                message: "mode must be with_qa | without_qa | quick_qa",
+            });
+        }
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { projectPhase: nextPhase },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to update pricing QA" });
+    }
+});
+/* ================= SEND FOR FINAL SUBMISSION ================= */
+router.put("/project/:id/send-final-submission", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, projectPhase: true, technicalAssignments: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const phase = String(existing.projectPhase ?? "").toLowerCase();
+        // Already in Final — treat as success (idempotent)
+        if (phase === "qa_phase" || phase === "delivery_phase") {
+            const lead = await db_1.default.lead.findUnique({
+                where: { id: leadId },
+                include: {
+                    csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                    notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                    uploadFile: { select: { companyName: true } },
+                },
+            });
+            return res.json({ success: true, lead });
+        }
+        const list = (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments);
+        const inPricing = phase === "pricing_phase" ||
+            phase.startsWith("pricing_") ||
+            list.some((a) => a.pricingSent);
+        if (!inPricing) {
+            return res.status(400).json({
+                success: false,
+                message: "Project must be in Pricing before Final Submission.",
+            });
+        }
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { projectPhase: "qa_phase" },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to send for final submission" });
+    }
+});
+/* ================= RETURN FROM FINAL SUBMISSION → PRICING ================= */
+router.put("/project/:id/return-pricing", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, projectPhase: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const phase = String(existing.projectPhase ?? "").toLowerCase();
+        // Already in Pricing — treat as success (idempotent)
+        if (phase === "pricing_phase" || phase.startsWith("pricing_")) {
+            const lead = await db_1.default.lead.findUnique({
+                where: { id: leadId },
+                include: {
+                    csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                    notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                    uploadFile: { select: { companyName: true } },
+                },
+            });
+            return res.json({ success: true, lead });
+        }
+        if (phase !== "qa_phase" && phase !== "delivery_phase") {
+            return res.status(400).json({
+                success: false,
+                message: "Project must be in Final Submission to return to Pricing.",
+            });
+        }
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { projectPhase: "pricing_phase" },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to return to pricing" });
+    }
+});
+/* ================= HIDE FROM TECHNICAL ONLY (admin Project DB keeps it) ================= */
+router.put("/project/:id/hide-technical", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { hiddenOnTechnical: true },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to remove from technical" });
+    }
+});
+/* ================= MARK COMPLETED (Admin: after Final Submission → hide from TM) ================= */
+router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, projectPhase: true, projectWorkStatus: true, status: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const work = String(existing.projectWorkStatus ?? "").toLowerCase();
+        const st = String(existing.status ?? "").toLowerCase();
+        if (work === "completed" || st === "completed") {
+            const lead = await db_1.default.lead.findUnique({
+                where: { id: leadId },
+                include: {
+                    csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                    notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                    uploadFile: { select: { companyName: true } },
+                },
+            });
+            return res.json({ success: true, lead });
+        }
+        const phase = String(existing.projectPhase ?? "").toLowerCase();
+        if (phase !== "qa_phase" && phase !== "delivery_phase") {
+            return res.status(400).json({
+                success: false,
+                message: "Project must be in Final Submission before marking completed.",
+            });
+        }
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                projectWorkStatus: "completed",
+                status: "completed",
+                projectPhase: "delivery_phase",
+                hiddenOnTechnical: true,
+                needsRevision: false,
+            },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        if (lead.assignedTo)
+            (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to mark project completed" });
+    }
+});
+/* ================= ADMIN → TM REVISION QUEUE ================= */
+router.put("/project/:id/request-revision", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const body = req.body;
+        const revisionNotes = String(body.revisionNotes ?? "").trim().slice(0, 2000);
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                id: true,
+                projectTitle: true,
+                projectCode: true,
+                clientCode: true,
+                needsRevision: true,
+            },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                needsRevision: true,
+                revisionRequestedAt: new Date(),
+                revisionNotes: revisionNotes || null,
+                hiddenOnTechnical: false,
+            },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                uploadFile: { select: { companyName: true } },
+                notes: { orderBy: { createdAt: "desc" }, take: 5 },
+            },
+        });
+        const label = (0, technicalNotifications_1.projectLabel)(lead.projectCode || lead.clientCode, lead.projectTitle);
+        void (0, technicalNotifications_1.notifyTmFromActor)({
+            actorId: req.user?.id,
+            leadId: lead.id,
+            projectTitle: lead.projectTitle,
+            projectCode: lead.projectCode || lead.clientCode,
+            source: "admin",
+            title: "Revision requested",
+            message: revisionNotes
+                ? `${label}: sent for revision — ${revisionNotes}`
+                : `${label}: sent for revision`,
+            changes: ["Revision requested"],
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to send for revision" });
+    }
+});
+/* ================= TECHNICAL ESTIMATORS ================= */
+router.get("/technical-estimators", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
+    try {
+        return res.json({ success: true, estimators: await (0, technicalEstimators_1.listTechnicalEstimators)() });
+    }
+    catch (err) {
+        console.error("technical-estimators error:", err);
+        return res.json({ success: true, estimators: [] });
+    }
+});
+/* ================= TECHNICAL KPI + TEAM MONITORING ================= */
+router.get("/technical-monitoring", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
+    try {
+        const payload = await (0, technicalMonitoring_1.buildTechnicalMonitoring)();
+        return res.json({ success: true, ...payload });
+    }
+    catch (err) {
+        console.error("technical-monitoring error:", err);
+        return res.status(500).json({ success: false, message: "Failed to load technical monitoring" });
+    }
+});
+/* ================= TECHNICAL MANAGER INBOX NOTIFICATIONS ================= */
+router.get("/technical-notifications", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("technical_manager", "admin"), async (req, res) => {
+    try {
+        const unreadOnly = req.query.unread === "1" || req.query.unread === "true";
+        const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+        const where = unreadOnly ? { readAt: null } : {};
+        const [rows, unreadCount] = await Promise.all([
+            db_1.default.technicalNotification.findMany({
+                where,
+                orderBy: { createdAt: "desc" },
+                take: limit,
+            }),
+            db_1.default.technicalNotification.count({ where: { readAt: null } }),
+        ]);
+        const notifications = rows.map((n) => ({
+            id: n.id,
+            leadId: n.leadId,
+            projectTitle: n.projectTitle,
+            projectCode: n.projectCode,
+            source: n.source,
+            actorId: n.actorId,
+            actorName: n.actorName,
+            actorRole: n.actorRole,
+            title: n.title,
+            message: n.message,
+            changes: (0, technicalNotifications_1.parseChangeSummary)(n.changeSummary),
+            readAt: n.readAt,
+            createdAt: n.createdAt,
+        }));
+        return res.json({ success: true, notifications, unreadCount });
+    }
+    catch (err) {
+        console.error("technical-notifications list error:", err);
+        return res.status(500).json({ success: false, message: "Failed to load notifications" });
+    }
+});
+router.put("/technical-notifications/read-all", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("technical_manager", "admin"), async (_req, res) => {
+    try {
+        const result = await db_1.default.technicalNotification.updateMany({
+            where: { readAt: null },
+            data: { readAt: new Date() },
+        });
+        return res.json({ success: true, updated: result.count });
+    }
+    catch (err) {
+        console.error("technical-notifications read-all error:", err);
+        return res.status(500).json({ success: false, message: "Failed to mark all read" });
+    }
+});
+router.put("/technical-notifications/:id/read", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("technical_manager", "admin"), async (req, res) => {
+    try {
+        const id = String(req.params.id);
+        const row = await db_1.default.technicalNotification.update({
+            where: { id },
+            data: { readAt: new Date() },
+        });
+        return res.json({ success: true, notification: row });
+    }
+    catch (err) {
+        console.error("technical-notifications read error:", err);
+        return res.status(500).json({ success: false, message: "Failed to mark notification read" });
+    }
+});
+router.delete("/technical-notifications/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("technical_manager", "admin"), async (req, res) => {
+    try {
+        const id = String(req.params.id);
+        await db_1.default.technicalNotification.delete({ where: { id } });
+        return res.json({ success: true });
+    }
+    catch (err) {
+        console.error("technical-notifications delete error:", err);
+        return res.status(500).json({ success: false, message: "Failed to dismiss notification" });
+    }
+});
+/* ================= ESTIMATOR KPI RECORDS (editable ledger) ================= */
+router.get("/payments-summary", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const month = typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month.trim())
+            ? req.query.month.trim()
+            : null;
+        const payload = await (0, paymentsSummary_1.buildPaymentsSummary)(month);
+        return res.json({ success: true, ...payload });
+    }
+    catch (err) {
+        console.error("payments-summary error:", err);
+        return res.status(500).json({ success: false, message: "Failed to load payments summary" });
+    }
+});
+router.get("/technical-previous-month-ratings", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (_req, res) => {
+    try {
+        const payload = await (0, previousMonthRatings_1.buildPreviousMonthRatings)();
+        return res.json({ success: true, ...payload });
+    }
+    catch (err) {
+        console.error("technical-previous-month-ratings error:", err);
+        return res.status(500).json({ success: false, message: "Failed to load previous month ratings" });
+    }
+});
+router.get("/technical-kpi-auto", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const month = typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month.trim())
+            ? req.query.month.trim()
+            : new Date().toISOString().slice(0, 7);
+        const payload = await (0, estimatorKpiAuto_1.buildEstimatorKpiAuto)(month);
+        return res.json({ success: true, ...payload });
+    }
+    catch (err) {
+        console.error("technical-kpi-auto error:", err);
+        return res.status(500).json({ success: false, message: "Failed to build auto KPI" });
+    }
+});
+/** Seed auto values as editable records (skips fields that already have entries this month). */
+router.post("/technical-kpi-auto-seed", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const body = req.body;
+        const month = typeof body.month === "string" && /^\d{4}-\d{2}$/.test(body.month.trim())
+            ? body.month.trim()
+            : new Date().toISOString().slice(0, 7);
+        const estimatorId = String(body.estimatorId ?? "").trim();
+        const onlyEmpty = body.onlyEmpty !== false;
+        const fieldKeysRaw = Array.isArray(body.fieldKeys) ? body.fieldKeys.map(String) : null;
+        const bounds = (0, technicalKpiRecords_1.monthBounds)(month);
+        if (!bounds) {
+            return res.status(400).json({ success: false, message: "Invalid month" });
+        }
+        const snapshot = await (0, estimatorKpiAuto_1.buildEstimatorKpiAuto)(month);
+        const targets = estimatorId
+            ? snapshot.estimators.filter((e) => e.estimatorId === estimatorId)
+            : snapshot.estimators;
+        let createdByName = null;
+        if (req.user?.id) {
+            const me = await db_1.default.user.findUnique({
+                where: { id: req.user.id },
+                select: { name: true },
+            });
+            createdByName = me?.name ?? null;
+        }
+        const existing = await db_1.default.estimatorKpiRecord.findMany({
+            where: {
+                recordedAt: { gte: bounds.from, lt: bounds.to },
+                ...(estimatorId ? { estimatorId } : {}),
+            },
+            select: { estimatorId: true, fieldKey: true },
+        });
+        const existingSet = new Set(existing.map((r) => `${r.estimatorId}::${r.fieldKey}`));
+        let created = 0;
+        const now = new Date();
+        for (const row of targets) {
+            for (const field of row.fields) {
+                if (!field.auto || !field.value.trim())
+                    continue;
+                if (fieldKeysRaw && !fieldKeysRaw.includes(field.fieldKey))
+                    continue;
+                const key = `${row.estimatorId}::${field.fieldKey}`;
+                if (onlyEmpty && existingSet.has(key))
+                    continue;
+                if (!(0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(field.fieldKey))
+                    continue;
+                const validated = (0, technicalKpiRecords_1.validateKpiValue)(field.fieldKey, field.value);
+                if (!validated.ok)
+                    continue;
+                await db_1.default.estimatorKpiRecord.create({
+                    data: {
+                        estimatorId: row.estimatorId,
+                        estimatorName: row.name,
+                        fieldKey: field.fieldKey,
+                        value: validated.value,
+                        note: field.note || "Auto-filled",
+                        recordedAt: now,
+                        createdById: req.user?.id ?? null,
+                        createdByName,
+                    },
+                });
+                existingSet.add(key);
+                created += 1;
+            }
+        }
+        return res.json({ success: true, created, month });
+    }
+    catch (err) {
+        console.error("technical-kpi-auto-seed error:", err);
+        return res.status(500).json({ success: false, message: "Failed to auto-fill KPI records" });
+    }
+});
+router.get("/technical-kpi-records", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const estimatorId = typeof req.query.estimatorId === "string" ? req.query.estimatorId.trim() : "";
+        const fieldKey = typeof req.query.fieldKey === "string" ? req.query.fieldKey.trim() : "";
+        const month = typeof req.query.month === "string" ? req.query.month.trim() : "";
+        const where = {};
+        if (estimatorId)
+            where.estimatorId = estimatorId;
+        if (fieldKey && (0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(fieldKey))
+            where.fieldKey = fieldKey;
+        const bounds = month ? (0, technicalKpiRecords_1.monthBounds)(month) : null;
+        if (bounds)
+            where.recordedAt = { gte: bounds.from, lt: bounds.to };
+        const [records, estimators] = await Promise.all([
+            db_1.default.estimatorKpiRecord.findMany({
+                where,
+                orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+                take: 2000,
+            }),
+            (0, technicalEstimators_1.listTechnicalEstimators)(),
+        ]);
+        return res.json({
+            success: true,
+            fields: technicalKpiRecords_1.ESTIMATOR_KPI_FIELD_KEYS.map((key) => ({
+                key,
+                ...technicalKpiRecords_1.ESTIMATOR_KPI_FIELD_META[key],
+            })),
+            estimators,
+            records,
+        });
+    }
+    catch (err) {
+        console.error("technical-kpi-records list error:", err);
+        return res.status(500).json({ success: false, message: "Failed to load KPI records" });
+    }
+});
+router.post("/technical-kpi-records", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const body = req.body;
+        const estimatorId = String(body.estimatorId ?? "").trim();
+        const estimatorName = String(body.estimatorName ?? "").trim();
+        const fieldKey = body.fieldKey;
+        const note = body.note != null ? String(body.note).trim() : "";
+        if (!estimatorId) {
+            return res.status(400).json({ success: false, message: "estimatorId is required" });
+        }
+        if (!(0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(fieldKey)) {
+            return res.status(400).json({ success: false, message: "Invalid fieldKey" });
+        }
+        const validated = (0, technicalKpiRecords_1.validateKpiValue)(fieldKey, body.value);
+        if (!validated.ok) {
+            return res.status(400).json({ success: false, message: validated.message });
+        }
+        let name = estimatorName;
+        if (!name) {
+            const u = await db_1.default.user.findUnique({
+                where: { id: estimatorId },
+                select: { name: true },
+            });
+            name = u?.name ?? estimatorId;
+        }
+        let createdByName = null;
+        if (req.user?.id) {
+            const me = await db_1.default.user.findUnique({
+                where: { id: req.user.id },
+                select: { name: true },
+            });
+            createdByName = me?.name ?? null;
+        }
+        const record = await db_1.default.estimatorKpiRecord.create({
+            data: {
+                estimatorId,
+                estimatorName: name,
+                fieldKey,
+                value: validated.value,
+                note: note || null,
+                recordedAt: (0, technicalKpiRecords_1.parseRecordedAt)(body.recordedAt),
+                createdById: req.user?.id ?? null,
+                createdByName,
+            },
+        });
+        return res.json({ success: true, record });
+    }
+    catch (err) {
+        console.error("technical-kpi-records create error:", err);
+        return res.status(500).json({ success: false, message: "Failed to create KPI record" });
+    }
+});
+router.put("/technical-kpi-records/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const id = String(req.params.id);
+        const existing = await db_1.default.estimatorKpiRecord.findUnique({ where: { id } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Record not found" });
+        }
+        const body = req.body;
+        const fieldKey = (0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(body.fieldKey)
+            ? body.fieldKey
+            : (0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(existing.fieldKey)
+                ? existing.fieldKey
+                : null;
+        if (!fieldKey) {
+            return res.status(400).json({ success: false, message: "Invalid fieldKey on record" });
+        }
+        const data = {};
+        if (body.value !== undefined) {
+            const validated = (0, technicalKpiRecords_1.validateKpiValue)(fieldKey, body.value);
+            if (!validated.ok) {
+                return res.status(400).json({ success: false, message: validated.message });
+            }
+            data.value = validated.value;
+        }
+        if (body.note !== undefined) {
+            const note = String(body.note ?? "").trim();
+            data.note = note || null;
+        }
+        if (body.recordedAt !== undefined) {
+            data.recordedAt = (0, technicalKpiRecords_1.parseRecordedAt)(body.recordedAt, existing.recordedAt);
+        }
+        if ((0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(body.fieldKey) && body.fieldKey !== existing.fieldKey) {
+            data.fieldKey = body.fieldKey;
+        }
+        if (body.estimatorName != null && String(body.estimatorName).trim()) {
+            data.estimatorName = String(body.estimatorName).trim();
+        }
+        const record = await db_1.default.estimatorKpiRecord.update({
+            where: { id },
+            data,
+        });
+        return res.json({ success: true, record });
+    }
+    catch (err) {
+        console.error("technical-kpi-records update error:", err);
+        return res.status(500).json({ success: false, message: "Failed to update KPI record" });
+    }
+});
+router.delete("/technical-kpi-records/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const id = String(req.params.id);
+        await db_1.default.estimatorKpiRecord.delete({ where: { id } });
+        return res.json({ success: true });
+    }
+    catch (err) {
+        console.error("technical-kpi-records delete error:", err);
+        return res.status(500).json({ success: false, message: "Failed to delete KPI record" });
+    }
+});
+/* ================= ASSIGN ESTIMATORS (TECHNICAL) ================= */
+router.put("/project/:id/assign-estimators", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const body = req.body;
+        const assignments = (0, technicalEstimators_1.parseTechnicalAssignments)(body.assignments ?? body.technicalAssignments);
+        if (assignments.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Select at least one estimator.",
+            });
+        }
+        for (const a of assignments) {
+            if (!a.deadline) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Deadline is required for ${a.estimatorName}.`,
+                });
+            }
+        }
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                id: true,
+                projectPhase: true,
+                technicalReceivedAt: true,
+                assignedTo: true,
+                technicalAssignments: true,
+            },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const merged = (0, technicalEstimators_1.mergeAssignmentProgress)(assignments, (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments));
+        const nextPhase = (0, technicalEstimators_1.syncPhaseFromAssignments)(merged, existing.projectPhase);
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                technicalAssignments: (0, technicalEstimators_1.serializeTechnicalAssignments)(merged),
+                technicalReceivedAt: existing.technicalReceivedAt ?? new Date(),
+                projectPhase: nextPhase,
+            },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to assign estimators" });
+    }
+});
+/* ================= UPDATE ESTIMATOR TAKEOFF FLAGS ================= */
+router.put("/project/:id/estimator-takeoff", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const { estimatorId, takeoffDone } = req.body;
+        if (!estimatorId) {
+            return res.status(400).json({ success: false, message: "estimatorId is required" });
+        }
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: { technicalAssignments: true, assignedTo: true, projectPhase: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const list = (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments);
+        const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+        if (idx < 0) {
+            return res.status(404).json({ success: false, message: "Estimator assignment not found" });
+        }
+        list[idx] = {
+            ...(0, technicalEstimators_1.pauseAssignmentTimer)({ ...list[idx] }),
+            takeoffDone: takeoffDone === true,
+            // Reopen → back to Assigned; complete → Take Off Done (not pricing yet)
+            pricingSent: takeoffDone === true ? list[idx].pricingSent : false,
+        };
+        const nextPhase = (0, technicalEstimators_1.syncPhaseFromAssignments)(list, existing.projectPhase);
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                technicalAssignments: (0, technicalEstimators_1.serializeTechnicalAssignments)(list),
+                projectPhase: nextPhase,
+            },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to update takeoff status" });
     }
 });
 /* ================= SHUFFLE STATUS ================= */
@@ -1118,6 +2407,251 @@ router.put("/lead/:id/reassign", auth_middleware_1.verifyToken, (0, role_middlew
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to reassign lead" });
+    }
+});
+/**
+ * Bulk reassign: From CSR + page → To CSR(s) + page (equal round-robin).
+ * Destination page sets status/flags so leads land on that CSR page.
+ */
+router.post("/leads/reassign-bulk", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
+    try {
+        const body = req.body;
+        const fromCsrId = String(body.fromCsrId ?? "").trim();
+        const toCsrIds = Array.isArray(body.toCsrIds)
+            ? [...new Set(body.toCsrIds.map((id) => String(id).trim()).filter(Boolean))]
+            : [];
+        const pageKeys = new Set([
+            "important",
+            "schedule",
+            "interested",
+            "pending",
+            "not_picked",
+            "not_interested",
+            "close_client",
+        ]);
+        const fromPage = String(body.fromPage ?? body.pages?.[0] ?? "")
+            .trim()
+            .toLowerCase();
+        const toPage = String(body.toPage ?? body.fromPage ?? body.pages?.[0] ?? "")
+            .trim()
+            .toLowerCase();
+        if (!fromCsrId) {
+            return res.status(400).json({ success: false, message: "fromCsrId is required" });
+        }
+        if (!toCsrIds.length) {
+            return res.status(400).json({ success: false, message: "Select at least one destination CSR" });
+        }
+        if (!pageKeys.has(fromPage)) {
+            return res.status(400).json({ success: false, message: "Select a valid source page" });
+        }
+        if (!pageKeys.has(toPage)) {
+            return res.status(400).json({ success: false, message: "Select a valid destination page" });
+        }
+        if (toCsrIds.includes(fromCsrId) && toCsrIds.length === 1 && fromPage === toPage) {
+            return res.status(400).json({
+                success: false,
+                message: "Destination CSR/page must differ from source",
+            });
+        }
+        const fromCsr = await db_1.default.user.findFirst({
+            where: { id: fromCsrId, role: "csr" },
+            select: { id: true, name: true },
+        });
+        if (!fromCsr) {
+            return res.status(404).json({ success: false, message: "Source CSR not found" });
+        }
+        const destCsrs = await db_1.default.user.findMany({
+            where: { id: { in: toCsrIds }, role: "csr", isActive: true },
+            select: { id: true, name: true, csrCode: true },
+        });
+        if (destCsrs.length !== toCsrIds.length) {
+            return res.status(400).json({ success: false, message: "One or more destination CSRs are invalid/inactive" });
+        }
+        const pageWhere = (page) => {
+            if (page === "important")
+                return (0, adminClientQueries_1.importantOnlyWhere)();
+            if (page === "schedule")
+                return (0, adminClientQueries_1.scheduledCallWhere)();
+            if (page === "interested")
+                return (0, adminClientQueries_1.isInterestedStatusWhere)();
+            if (page === "pending")
+                return { status: { equals: "pending", mode: "insensitive" } };
+            if (page === "not_picked") {
+                return { status: { in: ["not picked", "Not Picked", "not completed", "Not Completed"] } };
+            }
+            if (page === "not_interested") {
+                return { status: { in: ["not interested", "Not Interested"] } };
+            }
+            if (page === "close_client") {
+                return {
+                    status: { in: ["Close Client", "close client", "closed", "completed", "Completed"] },
+                };
+            }
+            return null;
+        };
+        const sourceWhere = pageWhere(fromPage);
+        if (!sourceWhere) {
+            return res.status(400).json({ success: false, message: "Select a valid source page" });
+        }
+        const leads = await db_1.default.lead.findMany({
+            where: {
+                assignedTo: fromCsrId,
+                inBin: { not: true },
+                ...sourceWhere,
+            },
+            select: {
+                id: true,
+                nextSchedule: true,
+                nextTime: true,
+                clientCode: true,
+                phone: true,
+                company: true,
+            },
+            orderBy: { updatedAt: "asc" },
+        });
+        const destIds = [...new Set(toCsrIds)];
+        const finalTargets = fromPage === toPage
+            ? destIds.filter((id) => id !== fromCsrId)
+            : destIds;
+        if (!finalTargets.length) {
+            return res.status(400).json({
+                success: false,
+                message: fromPage === toPage
+                    ? "Select a different destination CSR (same page requires another CSR)"
+                    : "No valid destination CSRs",
+            });
+        }
+        const statusPatchForPage = (page, lead) => {
+            const clearSched = { nextSchedule: null, nextTime: null };
+            if (page === "important") {
+                return {
+                    status: "important",
+                    important: true,
+                    interested: false,
+                    hiddenOnMain: false,
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    ...clearSched,
+                };
+            }
+            if (page === "schedule") {
+                const hasMeeting = Boolean(lead.nextSchedule && String(lead.nextSchedule).trim());
+                return {
+                    status: "important",
+                    important: true,
+                    interested: false,
+                    hiddenOnMain: false,
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    ...(hasMeeting ? {} : clearSched),
+                };
+            }
+            if (page === "interested") {
+                return {
+                    status: "interested",
+                    important: false,
+                    interested: true,
+                    hiddenOnMain: false,
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    ...clearSched,
+                };
+            }
+            if (page === "pending") {
+                return {
+                    status: "pending",
+                    important: false,
+                    interested: false,
+                    hiddenOnMain: false,
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    ...clearSched,
+                };
+            }
+            if (page === "not_picked") {
+                return {
+                    status: "not picked",
+                    important: false,
+                    interested: false,
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    ...clearSched,
+                };
+            }
+            if (page === "not_interested") {
+                return {
+                    status: "Not Interested",
+                    important: false,
+                    interested: false,
+                    inBin: false,
+                    binReason: null,
+                    binPreviousStatus: null,
+                    ...clearSched,
+                };
+            }
+            return {
+                status: "Close Client",
+                important: false,
+                interested: false,
+                hiddenOnMain: true,
+                inBin: false,
+                binReason: null,
+                binPreviousStatus: null,
+                ...clearSched,
+            };
+        };
+        let moved = 0;
+        const perCsr = {};
+        for (const id of finalTargets)
+            perCsr[id] = 0;
+        for (let i = 0; i < leads.length; i++) {
+            const lead = leads[i];
+            const toId = finalTargets[i % finalTargets.length];
+            const pageData = statusPatchForPage(toPage, lead);
+            await db_1.default.lead.update({
+                where: { id: lead.id },
+                data: {
+                    assignedTo: toId,
+                    ...pageData,
+                },
+            });
+            perCsr[toId] = (perCsr[toId] ?? 0) + 1;
+            moved += 1;
+        }
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:bin");
+        const cacheKeys = [
+            `csr:dashboard:${fromCsrId}`,
+            `csr:leads:${fromCsrId}`,
+            `csr:not-interested:${fromCsrId}`,
+            `csr:bin:${fromCsrId}`,
+            `csr:projects:${fromCsrId}`,
+        ];
+        for (const id of finalTargets) {
+            cacheKeys.push(`csr:dashboard:${id}`, `csr:leads:${id}`, `csr:not-interested:${id}`, `csr:bin:${id}`, `csr:projects:${id}`);
+        }
+        (0, cache_1.invalidateCache)(...cacheKeys);
+        const destNames = destCsrs
+            .filter((c) => finalTargets.includes(c.id))
+            .map((c) => ({ csrId: c.id, name: c.name, leads: perCsr[c.id] ?? 0 }));
+        return res.json({
+            success: true,
+            moved,
+            fromCsr: fromCsr.name,
+            fromPage,
+            toPage,
+            distribution: destNames,
+            message: `Moved ${moved} lead(s) from ${fromCsr.name}/${fromPage} → ${toPage}.`,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to bulk reassign leads" });
     }
 });
 /* ================= UPLOAD SOURCES (admin-only — hidden from CSR) ================= */

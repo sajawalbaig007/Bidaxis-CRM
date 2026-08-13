@@ -5,6 +5,7 @@ exports.parseReactions = parseReactions;
 exports.msgStatus = msgStatus;
 exports.formatMessage = formatMessage;
 exports.messagePreviewText = messagePreviewText;
+const chatAccess_1 = require("../utils/chatAccess");
 exports.EDIT_WINDOW_MS = 10 * 60 * 1000;
 function parseReactions(raw) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw))
@@ -16,7 +17,7 @@ function msgStatus(senderId, userId, createdAt, members) {
     if (senderId === userId) {
         const readBy = others
             .filter(m => m.lastReadAt && m.lastReadAt >= createdAt)
-            .map(m => m.user.name);
+            .map(m => (0, chatAccess_1.chatDisplayName)(m.user));
         const allRead = others.length > 0 && readBy.length === others.length;
         return { status: allRead ? "read" : "delivered", readBy };
     }
@@ -39,7 +40,8 @@ function formatMessage(m, userId, members, auditMode = false) {
     return {
         id: m.id,
         senderId: m.senderId,
-        senderName: m.sender.name,
+        senderName: (0, chatAccess_1.chatDisplayName)(m.sender),
+        senderProfilePic: m.sender.profilePic ?? null,
         text: m.text,
         type: m.type,
         fileUrl: m.fileUrl,
@@ -62,7 +64,7 @@ function formatMessage(m, userId, members, auditMode = false) {
         replyTo: m.replyTo ? {
             id: m.replyTo.id,
             text: m.replyTo.text,
-            senderName: m.replyTo.sender.name,
+            senderName: (0, chatAccess_1.chatDisplayName)(m.replyTo.sender),
             type: m.replyTo.type,
         } : null,
     };

@@ -57,7 +57,7 @@ function buildAdminClientViewWhere(view) {
         default: return {};
     }
 }
-function buildAdminClientListWhere(view, csrName, search, scheduleDate) {
+function buildAdminClientListWhere(view, csrName, search, scheduleDate, extras) {
     const parts = [buildAdminClientViewWhere(view)];
     if (csrName && csrName !== "all") {
         parts.push({ csr: { name: csrName } });
@@ -73,8 +73,34 @@ function buildAdminClientListWhere(view, csrName, search, scheduleDate) {
                 { company: { contains: q } },
                 { phone: { contains: q } },
                 { email: { contains: q } },
+                { ownerName: { contains: q } },
+                { projectTitle: { contains: q } },
+                { projectCode: { contains: q } },
+                { clientCode: { contains: q } },
+                { interestedService: { contains: q } },
+                { status: { contains: q } },
+                { comments: { contains: q } },
+                { projectNotes: { contains: q } },
+                { state: { contains: q } },
+                { csr: { is: { name: { contains: q } } } },
+                { csr: { is: { csrCode: { contains: q } } } },
             ],
         });
+    }
+    const phonePrefix = extras?.phonePrefix?.replace(/\D/g, "") ?? "";
+    if (phonePrefix) {
+        parts.push({ phone: { contains: phonePrefix } });
+    }
+    const state = extras?.state?.trim() ?? "";
+    const areaCodes = (extras?.areaCodes ?? []).map(c => c.replace(/\D/g, "")).filter(c => c.length >= 3);
+    if (state) {
+        const stateOr = [
+            { state: { contains: state, mode: "insensitive" } },
+        ];
+        for (const code of areaCodes.slice(0, 40)) {
+            stateOr.push({ phone: { contains: code } });
+        }
+        parts.push({ OR: stateOr });
     }
     return parts.length === 1 ? parts[0] : { AND: parts };
 }
@@ -90,6 +116,7 @@ exports.ADMIN_LEAD_LIST_SELECT = {
     interested: true,
     isOldClient: true,
     clientCode: true,
+    projectCode: true,
     interestedService: true,
     comments: true,
     nextSchedule: true,
@@ -100,8 +127,9 @@ exports.ADMIN_LEAD_LIST_SELECT = {
     uploadFile: { select: { companyName: true } },
     _count: { select: { notes: true } },
     notes: {
+        where: { parentId: null },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { text: true, createdAt: true },
+        select: { id: true, text: true, createdAt: true, parentId: true },
     },
 };
