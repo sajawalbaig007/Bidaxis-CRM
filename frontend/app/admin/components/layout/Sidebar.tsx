@@ -21,6 +21,7 @@ import { forceDisconnectChatSocket } from "@/lib/chatSocket";
 import AdminChatPanel from "./AdminChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
+import { playChatSound, primeChatSound } from "@/lib/chatSound";
 
 const BASE = "/admin";
 
@@ -55,6 +56,7 @@ type TechnicalNoteAlert = {
   projectTitle: string;
   projectCode: string;
   preview: string;
+  authorName?: string;
   createdAt: string;
 };
 
@@ -95,6 +97,7 @@ export default function DashboardSidebar() {
   const chatEnabled   = useChatEnabled();
   const profileRef    = useRef<HTMLDivElement>(null);
   const bellRef       = useRef<HTMLDivElement>(null);
+  const seenTechNoteIdsRef = useRef<Set<string> | null>(null);
 
   const closeChat = () => {
     forceStopChatUnreadPolling();
@@ -103,6 +106,10 @@ export default function DashboardSidebar() {
 
   useEffect(() => () => {
     forceStopChatUnreadPolling();
+  }, []);
+
+  useEffect(() => {
+    primeChatSound();
   }, []);
 
   const fetchNotifications = () => {
@@ -114,8 +121,24 @@ export default function DashboardSidebar() {
         _cachedTechNotes = notes;
         _lastNotifFetch = Date.now();
         const dismissed = getDismissedNotificationIds();
+        const visibleNotes = notes.filter((n) => !dismissed.has(n.id));
         setScheduledCalls(filterDismissedCalls(all));
-        setTechNotes(notes.filter((n) => !dismissed.has(n.id)));
+        setTechNotes(visibleNotes);
+
+        if (seenTechNoteIdsRef.current === null) {
+          seenTechNoteIdsRef.current = new Set(visibleNotes.map((n) => n.id));
+        } else {
+          let rang = false;
+          for (const n of visibleNotes) {
+            if (!seenTechNoteIdsRef.current.has(n.id)) {
+              if (!rang) {
+                playChatSound();
+                rang = true;
+              }
+              seenTechNoteIdsRef.current.add(n.id);
+            }
+          }
+        }
       })
       .catch(() => {});
   };
@@ -317,7 +340,9 @@ export default function DashboardSidebar() {
                         <p className="text-[13px] font-semibold text-[#0F172A] truncate">
                           {n.projectCode ? `${n.projectCode} · ` : ""}{n.projectTitle}
                         </p>
-                        <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">{n.preview}</p>
+                        <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">
+                          {n.authorName ? `${n.authorName}: ` : ""}{n.preview}
+                        </p>
                         <Link
                           href="/admin/active-projects"
                           onClick={() => {

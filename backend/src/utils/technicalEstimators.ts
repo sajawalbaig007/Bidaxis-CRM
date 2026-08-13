@@ -288,6 +288,7 @@ export type TechnicalNoteEntry = {
   id: string;
   text: string;
   createdAt: string;
+  authorId?: string;
   authorRole?: string;
   authorName?: string;
 };
@@ -309,6 +310,7 @@ function normalizeNoteEntry(item: unknown, index: number): TechnicalNoteEntry | 
     text,
     createdAt: String(o.createdAt ?? new Date().toISOString()),
   };
+  if (o.authorId) entry.authorId = String(o.authorId);
   if (o.authorRole) entry.authorRole = String(o.authorRole);
   if (o.authorName) entry.authorName = String(o.authorName);
   return entry;
@@ -374,16 +376,72 @@ export function appendTechnicalNote(
   raw: unknown,
   text: string,
   thread: TechnicalNotesThread = "sir",
-  meta?: { authorRole?: string; authorName?: string },
+  meta?: { authorId?: string; authorRole?: string; authorName?: string },
 ): { bundle: TechnicalNotesBundle; note: TechnicalNoteEntry; list: TechnicalNoteEntry[] } {
   const bundle = parseTechnicalNotesBundle(raw);
   const note: TechnicalNoteEntry = {
     id: `tn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     text: text.trim(),
     createdAt: new Date().toISOString(),
+    ...(meta?.authorId ? { authorId: meta.authorId } : {}),
     ...(meta?.authorRole ? { authorRole: meta.authorRole } : {}),
     ...(meta?.authorName ? { authorName: meta.authorName } : {}),
   };
   bundle[thread] = [...bundle[thread], note];
   return { bundle, note, list: bundle[thread] };
+}
+
+function findNoteThread(
+  bundle: TechnicalNotesBundle,
+  noteId: string,
+): TechnicalNotesThread | null {
+  if (bundle.sir.some((n) => n.id === noteId)) return "sir";
+  if (bundle.estimator.some((n) => n.id === noteId)) return "estimator";
+  return null;
+}
+
+/** Update own note only (authorId must match unless adminForce). */
+export function updateTechnicalNote(
+  raw: unknown,
+  noteId: string,
+  text: string,
+  actorId: string,
+  opts?: { adminForce?: boolean },
+): { bundle: TechnicalNotesBundle; note: TechnicalNoteEntry; thread: TechnicalNotesThread } | { error: string } {
+  const bundle = parseTechnicalNotesBundle(raw);
+  const thread = findNoteThread(bundle, noteId);
+  if (!thread) return { error: "Note not found" };
+  const idx = bundle[thread].findIndex((n) => n.id === noteId);
+  if (idx < 0) return { error: "Note not found" };
+  const existing = bundle[thread][idx];
+  if (!opts?.adminForce && existing.authorId && existing.authorId !== actorId) {
+    return { error: "Only the author can edit this note" };
+  }
+  const note: TechnicalNoteEntry = {
+    ...existing,
+    text: text.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  bundle[thread] = [...bundle[thread]];
+  bundle[thread][idx] = note;
+  return { bundle, note, thread };
+}
+
+/** Delete own note only (authorId must match unless adminForce). */
+export function deleteTechnicalNote(
+  raw: unknown,
+  noteId: string,
+  actorId: string,
+  opts?: { adminForce?: boolean },
+): { bundle: TechnicalNotesBundle; thread: TechnicalNotesThread } | { error: string } {
+  const bundle = parseTechnicalNotesBundle(raw);
+  const thread = findNoteThread(bundle, noteId);
+  if (!thread) return { error: "Note not found" };
+  const existing = bundle[thread].find((n) => n.id === noteId);
+  if (!existing) return { error: "Note not found" };
+  if (!opts?.adminForce && existing.authorId && existing.authorId !== actorId) {
+    return { error: "Only the author can delete this note" };
+  }
+  bundle[thread] = bundle[thread].filter((n) => n.id !== noteId);
+  return { bundle, thread };
 }

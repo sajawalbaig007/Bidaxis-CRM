@@ -22,6 +22,9 @@ export interface NoteEntry {
   parentId?: string | null;
   /** Nested replies (oldest → newest) when this is a root sticky. */
   replies?: NoteEntry[];
+  authorId?: string;
+  authorRole?: string;
+  authorName?: string;
 }
 
 export type ClientLead = {

@@ -71,9 +71,38 @@ export function formatNotifTime(iso: string | null | undefined): string {
 
 export function sourceLabel(source: string, role?: string | null): string {
   if (source === "estimator") return "Estimator";
+  if (source === "tm_estimator") return "Technical";
   if (source === "admin") {
     if (role === "manager") return "Manager";
     return "Admin";
   }
   return "System";
+}
+
+export type EstimatorInboxNotification = {
+  id: string;
+  leadId: string;
+  projectTitle: string | null;
+  projectCode: string | null;
+  title: string;
+  message: string;
+  actorName: string | null;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export async function fetchEstimatorNotifications(limit = 40) {
+  const res = await API.get("/estimator/notifications", {
+    params: { limit: String(limit) },
+  });
+  return res.data as {
+    success: boolean;
+    notifications: EstimatorInboxNotification[];
+    unreadCount: number;
+  };
+}
+
+export async function markEstimatorNotificationRead(id: string) {
+  const res = await API.put(`/estimator/notifications/${id}/read`);
+  return res.data;
 }
