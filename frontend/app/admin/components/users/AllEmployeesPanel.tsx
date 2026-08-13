@@ -637,7 +637,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                           ? new Date().toISOString().slice(0, 7)
                           : e.target.value
                             ? manualForm.payrollStartMonth
-                            : "",
+                            : manualForm.payrollStartMonth,
                     })
                   }
                   className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20 bg-white"
@@ -650,20 +650,18 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   ))}
                 </select>
               </label>
-              {manualForm.payrollHead ? (
-                <label className="block text-xs font-semibold text-gray-600">
-                  Start month <RequiredMark />
-                  <span className="text-[10px] font-normal text-gray-400 ml-1">
-                    (is month se har month auto add — jab tak All Employees se remove na ho)
-                  </span>
-                  <input
-                    type="month"
-                    value={manualForm.payrollStartMonth}
-                    onChange={(e) => setManualForm({ ...manualForm, payrollStartMonth: e.target.value })}
-                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
-                  />
-                </label>
-              ) : null}
+              <label className="block text-xs font-semibold text-gray-600">
+                Start month {manualForm.payrollHead ? <RequiredMark /> : null}
+                <span className="text-[10px] font-normal text-gray-400 ml-1 block sm:inline sm:ml-1">
+                  Kis month se Accounts head mein add / auto continue
+                </span>
+                <input
+                  type="month"
+                  value={manualForm.payrollStartMonth}
+                  onChange={(e) => setManualForm({ ...manualForm, payrollStartMonth: e.target.value })}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                />
+              </label>
 
               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 pt-1">Employee Info</p>
               {(
