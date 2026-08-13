@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import { Building2, BarChart3 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -17,13 +17,15 @@ import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { AssetSectionRow, AssetsCompanyKey, TotalAssetsData } from "../types";
 import { ASSETS_COMPANIES, currency, lineAmount, newRowId, todayIso } from "../types";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
+import { buildBemAssetSection } from "../utils/bemAssetInventorySeed";
 
 function emptyCompanies(): Record<AssetsCompanyKey, AssetSectionRow[]> {
   return { BEM: [], GPS: [], BDS: [] };
 }
 
 function defaultData(): TotalAssetsData {
-  return { companies: emptyCompanies(), sections: [] };
+  const bem = buildBemAssetSection();
+  return { companies: { BEM: [bem], GPS: [], BDS: [] }, sections: [], bemAssetSeeded: true };
 }
 
 /** Migrate legacy flat `sections` into company buckets. */
@@ -78,6 +80,36 @@ export default function TotalAssetsPage() {
   const acc = useAccountsPage<TotalAssetsData>({ page: "total_assets", defaultData });
   useScrollToHash(!acc.loading);
   const companies = normalizeCompanies(acc.data);
+  const seededRef = useRef(false);
+
+  /** One-time: inject spreadsheet BEM Asset inventory if not yet seeded. */
+  useEffect(() => {
+    if (acc.loading || seededRef.current) return;
+    if (acc.data.bemAssetSeeded) {
+      seededRef.current = true;
+      return;
+    }
+    const base = normalizeCompanies(acc.data);
+    const hasBemAsset = base.BEM.some(
+      s => s.id === "bem-asset-head" || /bem\s*asset/i.test(s.title.trim()),
+    );
+    seededRef.current = true;
+    if (hasBemAsset) {
+      const marked: TotalAssetsData = { ...acc.data, companies: base, sections: [], bemAssetSeeded: true };
+      acc.setData(() => marked);
+      void acc.save(marked);
+      return;
+    }
+    const next: TotalAssetsData = {
+      ...acc.data,
+      companies: { ...base, BEM: [buildBemAssetSection(), ...base.BEM] },
+      sections: [],
+      bemAssetSeeded: true,
+    };
+    acc.setData(() => next);
+    void acc.save(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once after initial load
+  }, [acc.loading]);
 
   const companyTotals = useMemo(() => {
     const out: Record<AssetsCompanyKey, number> = { BEM: 0, GPS: 0, BDS: 0 };
@@ -153,7 +185,7 @@ export default function TotalAssetsPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Total Assets"
-          subtitle="Company-wise registers — BEM, GPS, BDS. Edit heads via pencil; sub-heads drive totals."
+          subtitle="Company-wise registers — BEM, GPS, BDS. BEM Asset inventory: TOTAL = QTY × Unit price."
           onAddNew={() => addHeadToCompany("BEM")}
           addNewLabel="Add Head (BEM)"
         >

@@ -24,6 +24,11 @@ export type TechnicalAssignment = {
   timerSeconds: number;
   /** ISO timestamp while running; null when paused/idle. */
   timerStartedAt: string | null;
+  /**
+   * TM confirmed this estimator assignment (green tick).
+   * Cleared when the same estimator’s assignment details are changed.
+   */
+  assignmentConfirmed: boolean;
 };
 
 /** Sync projectPhase from assignment complete / pricing flags. */
@@ -132,6 +137,7 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       pricingSent: o.pricingSent === true,
       timerSeconds,
       timerStartedAt: startedRaw || null,
+      assignmentConfirmed: o.assignmentConfirmed === true,
     });
   }
   return out;
@@ -257,6 +263,10 @@ export function mergeAssignmentProgress(
   incoming: TechnicalAssignment[],
   previous: TechnicalAssignment[],
 ): TechnicalAssignment[] {
+  const sameList = (a: string[], b: string[]) =>
+    JSON.stringify([...(a ?? [])].map((x) => x.trim()).filter(Boolean).sort()) ===
+    JSON.stringify([...(b ?? [])].map((x) => x.trim()).filter(Boolean).sort());
+
   return incoming.map((a) => {
     const old = previous.find(
       (p) =>
@@ -272,16 +282,92 @@ export function mergeAssignmentProgress(
         pricingSent: false,
         timerSeconds: 0,
         timerStartedAt: null,
+        assignmentConfirmed: true,
       };
     }
+    const detailsChanged =
+      (old.manHours ?? "") !== (a.manHours ?? "") ||
+      (old.deadline ?? "") !== (a.deadline ?? "") ||
+      (old.workDetail ?? "") !== (a.workDetail ?? "") ||
+      !sameList(old.scopes ?? [], a.scopes ?? []) ||
+      !sameList(old.divisions ?? [], a.divisions ?? []) ||
+      old.estimatorId !== a.estimatorId;
+
     return {
       ...a,
       takeoffDone: old.takeoffDone,
       pricingSent: old.pricingSent,
       timerSeconds: old.timerSeconds,
       timerStartedAt: old.takeoffDone ? null : old.timerStartedAt,
+      assignmentConfirmed: detailsChanged ? false : old.assignmentConfirmed === true,
     };
   });
+}
+
+export type TechnicalWorkflowTab =
+  | "all"
+  | "not_assigned"
+  | "assigned"
+  | "takeoff_done"
+  | "pricing"
+  | "final_submission";
+
+/** Force assignment flags / phase so the project lands in a workflow tab. */
+export function applyTechnicalTabMove(
+  previous: TechnicalAssignment[],
+  tab: Exclude<TechnicalWorkflowTab, "all">,
+  currentPhase: string | null | undefined,
+): { assignments: TechnicalAssignment[]; projectPhase: string; error?: string } {
+  if (tab === "not_assigned") {
+    return { assignments: [], projectPhase: "not_started" };
+  }
+
+  if (previous.length === 0) {
+    return {
+      assignments: previous,
+      projectPhase: currentPhase ?? "not_started",
+      error: "Assign at least one estimator before moving to this stage.",
+    };
+  }
+
+  if (tab === "assigned") {
+    const assignments = previous.map((a) => ({
+      ...a,
+      takeoffDone: false,
+      pricingSent: false,
+      timerStartedAt: a.takeoffDone ? null : a.timerStartedAt,
+    }));
+    return { assignments, projectPhase: syncPhaseFromAssignments(assignments, "not_started") };
+  }
+
+  if (tab === "takeoff_done") {
+    const assignments = previous.map((a) => ({
+      ...a,
+      takeoffDone: true,
+      pricingSent: false,
+      timerStartedAt: null,
+    }));
+    return { assignments, projectPhase: "takeoff_completed" };
+  }
+
+  if (tab === "pricing") {
+    const assignments = previous.map((a) => ({
+      ...a,
+      takeoffDone: true,
+      pricingSent: true,
+      timerStartedAt: null,
+    }));
+    return { assignments, projectPhase: "pricing_phase" };
+  }
+
+  /* final_submission */
+  const assignments = previous.map((a) => ({
+    ...a,
+    takeoffDone: true,
+    pricingSent: true,
+    timerStartedAt: null,
+  }));
+  return { assignments, projectPhase: "qa_phase" };
 }
 
 export type TechnicalNoteEntry = {

@@ -3,7 +3,7 @@
 import { useState, Fragment } from "react";
 import { ChevronDown, ChevronRight, FilePenLine, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import type { DatedNote, SubHeadEntry } from "../types";
-import { currency, lineAmount, normalizeNotes, newRowId, todayIso } from "../types";
+import { currency, isInventoryAssetHead, lineAmount, normalizeNotes, newRowId, subHeadLineAmount, sumSubHeads, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail, ensureExecutiveSalaryDetail } from "../utils/payrollFormula";
 import {
   resolvePayrollKind,
@@ -26,6 +26,7 @@ import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import { slipKindTitle } from "../utils/salarySlipFieldConfig";
+import { BEM_INVENTORY_CATEGORIES } from "../utils/bemAssetInventorySeed";
 
 export type ExpandableHeadRow = {
   id: string;
@@ -142,7 +143,7 @@ export default function ExpandableHeadsTable({
           ...r,
           title: next.title,
           amount: subHeads.length > 0
-            ? subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0)
+            ? sumSubHeads(subHeads)
             : next.amount,
           filledAt: next.filledAt,
           note: next.notes[0]?.text ?? next.note,
@@ -159,7 +160,7 @@ export default function ExpandableHeadsTable({
         return {
           ...r,
           subHeads,
-          amount: subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0),
+          amount: sumSubHeads(subHeads),
         };
       }
       return r;
@@ -200,7 +201,7 @@ export default function ExpandableHeadsTable({
       return {
         ...r,
         subHeads,
-        amount: subHeads.length > 0 ? subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0) : 0,
+        amount: subHeads.length > 0 ? sumSubHeads(subHeads) : 0,
       };
     });
     const handled = onDeleteSubHead?.({ parent, sub: removed, nextRows });
@@ -216,7 +217,7 @@ export default function ExpandableHeadsTable({
       onChange(
         rows.map(r =>
           r.id === row.id
-            ? { ...r, subHeads, amount: subHeads.reduce((a, s) => a + (Number(s.amount) || 0), 0) }
+            ? { ...r, subHeads, amount: sumSubHeads(subHeads) }
             : r,
         ),
       );
@@ -307,8 +308,9 @@ export default function ExpandableHeadsTable({
                   ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers)
                   : (row.subHeads ?? []);
                 const isExecRow = salaryMode && rowPayrollKind === "executive";
+                const isInventoryRow = isInventoryAssetHead(row.title, row.subHeads);
                 const amt = isSalesRow
-                  ? subs.reduce((a, s) => a + (Number(s.amount) || 0), 0)
+                  ? sumSubHeads(subs)
                   : isExecRow
                     ? subs.reduce((a, s) => {
                         const ex = computeExecutiveSalary(
@@ -398,6 +400,86 @@ export default function ExpandableHeadsTable({
                         <td colSpan={6} className="px-4 py-2.5">
                           {subs.length === 0 ? (
                             <p className="text-[11px] text-crm-text-faint py-1">No individual heads — open Edit to add sub-heads.</p>
+                          ) : isInventoryRow ? (
+                            <div className="space-y-3">
+                              {BEM_INVENTORY_CATEGORIES.map(cat => {
+                                const catRows = subs.filter(s => (s.inventoryCategory || "IT Inventory") === cat);
+                                if (catRows.length === 0) return null;
+                                return (
+                                  <div key={cat} className="rounded-xl border border-teal-100 overflow-x-auto bg-crm-surface shadow-sm">
+                                    <p className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide text-[#0F766E] bg-teal-50/80 border-b border-teal-100">
+                                      {cat}
+                                    </p>
+                                    <table className="w-full text-xs min-w-[520px]">
+                                      <thead>
+                                        <tr className="border-b bg-crm-surface-muted text-crm-text-faint">
+                                          <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px] w-10">SR#</th>
+                                          <th className="px-2 py-2 text-left font-bold uppercase tracking-wide text-[9px]">Description</th>
+                                          <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] w-16">Qty</th>
+                                          <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] w-24">Unit price</th>
+                                          <th className="px-2 py-2 text-right font-bold uppercase tracking-wide text-[9px] w-24">Total price</th>
+                                          {onPersist && <th className="w-10 px-1 py-2" />}
+                                          <th className="w-10 px-1 py-2" />
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {catRows.map((s, i) => (
+                                          <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
+                                            <td className="px-2 py-2 text-crm-text-faint tabular-nums">{i + 1}</td>
+                                            <td className="px-2 py-2 text-crm-text-secondary font-medium">{s.label}</td>
+                                            <td className="px-2 py-2 text-right tabular-nums">{s.qty ?? "—"}</td>
+                                            <td className="px-2 py-2 text-right tabular-nums">{currency(Number(s.unitPrice) || 0)}</td>
+                                            <td className="px-2 py-2 text-right font-bold tabular-nums text-[#B8112D]">
+                                              {currency(subHeadLineAmount(s))}
+                                            </td>
+                                            {onPersist && (
+                                              <td className="px-1 py-2 text-center">
+                                                <button
+                                                  type="button"
+                                                  onClick={onPersist}
+                                                  disabled={saving}
+                                                  className="w-7 h-7 rounded-lg text-emerald-600 hover:bg-emerald-50 inline-flex items-center justify-center disabled:opacity-50"
+                                                  title="Save this row"
+                                                >
+                                                  {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                                </button>
+                                              </td>
+                                            )}
+                                            <td className="px-1 py-2 text-center">
+                                              <button
+                                                type="button"
+                                                onClick={() => removeSubHead(row.id, s.id)}
+                                                className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 inline-flex items-center justify-center"
+                                                title="Delete this line"
+                                              >
+                                                <Trash2 size={12} />
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr className="border-t bg-teal-50/40">
+                                          <td colSpan={4} className="px-2 py-2 text-[10px] font-extrabold uppercase text-teal-900">
+                                            Subtotal
+                                          </td>
+                                          <td className="px-2 py-2 text-right font-black tabular-nums text-[#B8112D]">
+                                            {currency(sumSubHeads(catRows))}
+                                          </td>
+                                          <td colSpan={onPersist ? 2 : 1} />
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                );
+                              })}
+                              <p className="text-right text-xs font-extrabold text-crm-text px-1">
+                                Total Amount: {currency(sumSubHeads(subs))}
+                              </p>
+                              <p className="text-[10px] text-crm-text-faint px-1">
+                                TOTAL = QTY × Unit price · Open Edit to add / change lines.
+                              </p>
+                            </div>
                           ) : salaryMode && rowPayrollKind === "executive" ? (
                             <div className="rounded-xl border border-indigo-100 overflow-x-auto bg-crm-surface shadow-sm">
                               <table className="w-full text-xs min-w-[960px]">
@@ -761,6 +843,7 @@ export default function ExpandableHeadsTable({
         allowProofUpload={allowProofUpload}
         onUploadProof={onUploadProof}
         salaryMode={salaryMode}
+        inventoryMode={editing ? isInventoryAssetHead(editing.title, editing.subHeads) : false}
         saving={saving}
         execProfitBase={execProfitBase}
         recordDate={recordDate}

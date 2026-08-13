@@ -58,6 +58,7 @@ import {
   parseTechnicalAssignments,
   serializeTechnicalAssignments,
   mergeAssignmentProgress,
+  applyTechnicalTabMove,
   appendTechnicalNote,
   updateTechnicalNote,
   deleteTechnicalNote,
@@ -2553,6 +2554,64 @@ router.put(
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to assign estimators" });
+    }
+  },
+);
+
+/* ================= MOVE PROJECT BETWEEN TECHNICAL WORKFLOW TABS ================= */
+router.put(
+  "/project/:id/move-technical-tab",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const tabRaw = String((req.body as { tab?: string })?.tab ?? "").trim();
+      const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission"] as const;
+      if (!allowed.includes(tabRaw as (typeof allowed)[number])) {
+        return res.status(400).json({ success: false, message: "Invalid workflow tab." });
+      }
+      const tab = tabRaw as (typeof allowed)[number];
+
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: {
+          id: true,
+          projectPhase: true,
+          technicalAssignments: true,
+          assignedTo: true,
+        },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+
+      const previous = parseTechnicalAssignments(existing.technicalAssignments);
+      const moved = applyTechnicalTabMove(previous, tab, existing.projectPhase);
+      if (moved.error) {
+        return res.status(400).json({ success: false, message: moved.error });
+      }
+
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          technicalAssignments: serializeTechnicalAssignments(moved.assignments),
+          projectPhase: moved.projectPhase,
+        },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+
+      return res.json({ success: true, lead, tab });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to move project" });
     }
   },
 );
