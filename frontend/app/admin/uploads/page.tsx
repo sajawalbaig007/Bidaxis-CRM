@@ -13,7 +13,8 @@ import {
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
-import ShuffleFanStack from "../components/uploads/ShuffleFanStack";
+import UploadActionBento from "../components/uploads/UploadActionBento";
+import UploadAnalyticsBento from "../components/uploads/UploadAnalyticsBento";
 import API from "@/lib/api";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
@@ -2047,24 +2048,33 @@ export default function UploadPage() {
           ))}
         </div>
 
-        {/* ── UPLOAD FAN STACK (5 cards) ── */}
-        <div className="mb-5 sm:mb-7 rounded-[1.75rem] border border-gray-100 bg-white/80 p-4 sm:p-6 shadow-sm backdrop-blur-sm">
-          <ShuffleFanStack
+        <UploadAnalyticsBento
+          sources={uploadSources}
+          csrDistribution={latestDistribution}
+          totalLeads={latestTotalLeads}
+          filesCount={files.length}
+          distributedCount={files.filter(f => f.status === "Distributed").length}
+        />
+
+        {/* ── UPLOAD BENTO (shuffle → expand) ── */}
+        <div className="mb-5 sm:mb-7 rounded-[2rem] border border-gray-100/80 bg-white/70 p-4 sm:p-6 shadow-sm backdrop-blur-sm">
+          <UploadActionBento
             items={[
               {
                 id: "leads",
                 label: "New Leads",
                 shortLabel: "Leads",
                 accent: "#B8112D",
+                span: "hero",
                 content: (
-                  <div className="p-4 sm:p-5">
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-[#FFF1F3] via-white to-white">
                     <div
                       onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
                       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
                       onDragLeave={() => setDragging(false)}
                       onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
                       className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
-                        dragging ? "border-[#B8112D] bg-[#FFF6F8]" : "border-[#F3C6CE] hover:border-[#B8112D]"
+                        dragging ? "border-[#B8112D] bg-white" : "border-[#F3C6CE]/80 hover:border-[#B8112D] bg-white/70"
                       }`}
                     >
                       <div className="flex flex-col items-center text-center">
@@ -2095,15 +2105,16 @@ export default function UploadPage() {
                 label: "Important",
                 shortLabel: "VIP",
                 accent: "#D97706",
+                span: "wide",
                 content: (
-                  <div className="p-4 sm:p-5">
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-amber-50 via-white to-white">
                     <div
                       onClick={(e) => { e.stopPropagation(); inputRefImportant.current?.click(); }}
                       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDraggingImportant(true); }}
                       onDragLeave={() => setDraggingImportant(false)}
                       onDrop={e => { e.preventDefault(); e.stopPropagation(); setDraggingImportant(false); openImportantModal(e.dataTransfer.files); }}
                       className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
-                        draggingImportant ? "border-amber-500 bg-amber-50" : "border-amber-200 hover:border-amber-400"
+                        draggingImportant ? "border-amber-500 bg-white" : "border-amber-200 hover:border-amber-400 bg-white/70"
                       }`}
                     >
                       <div className="flex flex-col items-center text-center">
@@ -2132,11 +2143,12 @@ export default function UploadPage() {
                 label: "Reassign",
                 shortLabel: "Move",
                 accent: "#7C3AED",
+                span: "normal",
                 content: (
-                  <div className="p-4 sm:p-5">
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-violet-50 via-white to-white">
                     <div
                       onClick={(e) => { e.stopPropagation(); void openReassignModal(); }}
-                      className="border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group border-violet-200 hover:border-violet-400 hover:bg-violet-50/40"
+                      className="border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group border-violet-200 hover:border-violet-400 bg-white/70 hover:bg-white"
                     >
                       <div className="flex flex-col items-center text-center">
                         <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
@@ -2164,15 +2176,16 @@ export default function UploadPage() {
                 label: "Interested",
                 shortLabel: "Star",
                 accent: "#059669",
+                span: "normal",
                 content: (
-                  <div className="p-4 sm:p-5">
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-emerald-50 via-white to-white">
                     <div
                       onClick={(e) => { e.stopPropagation(); inputRefInterested.current?.click(); }}
                       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDraggingInterested(true); }}
                       onDragLeave={() => setDraggingInterested(false)}
                       onDrop={e => { e.preventDefault(); e.stopPropagation(); setDraggingInterested(false); openInterestedModal(e.dataTransfer.files); }}
                       className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
-                        draggingInterested ? "border-emerald-500 bg-emerald-50" : "border-emerald-200 hover:border-emerald-400"
+                        draggingInterested ? "border-emerald-500 bg-white" : "border-emerald-200 hover:border-emerald-400 bg-white/70"
                       }`}
                     >
                       <div className="flex flex-col items-center text-center">
@@ -2201,15 +2214,16 @@ export default function UploadPage() {
                 label: "Active Projects",
                 shortLabel: "Active",
                 accent: "#4F46E5",
+                span: "normal",
                 content: (
-                  <div className="p-4 sm:p-5">
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-indigo-50 via-white to-white">
                     <div
                       onClick={(e) => { e.stopPropagation(); inputRefActive.current?.click(); }}
                       onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDraggingActive(true); }}
                       onDragLeave={() => setDraggingActive(false)}
                       onDrop={e => { e.preventDefault(); e.stopPropagation(); setDraggingActive(false); openActiveModal(e.dataTransfer.files); }}
                       className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
-                        draggingActive ? "border-indigo-500 bg-indigo-50" : "border-indigo-200 hover:border-indigo-400"
+                        draggingActive ? "border-indigo-500 bg-white" : "border-indigo-200 hover:border-indigo-400 bg-white/70"
                       }`}
                     >
                       <div className="flex flex-col items-center text-center">
