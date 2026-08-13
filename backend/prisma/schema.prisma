@@ -377,6 +377,10 @@ model CsrWorkSession {
   logoutAt        DateTime?
   dashboardMs     Int       @default(0)
   awayMs          Int       @default(0)
+  /** Accumulated ms while CSR explicitly paused (left for WhatsApp etc.). */
+  pausedMs        Int       @default(0)
+  /** Set while paused — null when working / checked out. */
+  pausedAt        DateTime?
   lastHeartbeatAt DateTime?
   lastVisible     Boolean   @default(true)
   deviceId        String?

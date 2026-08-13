@@ -284,7 +284,7 @@ CRM/
 | `LoginLockout` | Failed login tracking |
 | `LoginAttemptAlert` | Concurrent login attempt — drives session notifier + WS push |
 | `RateLimitEntry` | Optional Prisma rate-limit store |
-| `CsrWorkSession` | CSR **and** Estimator check-in sessions (`dashboardMs` / `awayMs`, device, IP, `closedReason`) |
+| `CsrWorkSession` | CSR **and** Estimator check-in sessions (`dashboardMs` / `awayMs` / `pausedMs` + `pausedAt`, device, IP, `closedReason`) |
 | `PayrollLoan` | Accounts loan ledger (employee + department + paid/total) |
 | `AccountsRecord` | Day JSON keyed by `AccountsPage` enum + `recordDate` |
 | `AccountsFileUpload` | Proof / attachment uploads per accounts page/date |
@@ -508,6 +508,7 @@ Many routes allow **`admin` and `manager`**; admin-only routes noted.
 | POST | `/project` | Create project lead |
 | GET | `/work-session` | Current open check-in session |
 | POST | `/check-in` \| `/check-out` | Start/end work session |
+| POST | `/pause` \| `/resume` | Pause work clock (e.g. WhatsApp) without checkout; resume on return |
 | POST | `/heartbeat` | Presence + work-session visibility (DB write throttled) |
 | POST | `/offline` | Mark offline (beacon) |
 | POST/PUT/DELETE | `/lead/:id/notes`, `/subcontacts` | Notes & sub-contacts — **PUT bumps `createdAt`** |
@@ -1337,6 +1338,10 @@ Project DB payment filter: **Partial** (`0 < % < 100`) / **Full** (`% ≥ 100`) 
 #### `/admin/payments`
 - **File:** `admin/payments/page.tsx` · **Lib:** `lib/paymentsSummary.ts`
 - **Source:** `GET /admin/payments-summary?month=`
+  - **Quoted (month):** this-month collected + still-due (includes unpaid/partial with no payment this month)
+  - **Collected:** payments in selected month only
+  - **Outstanding:** remaining after all-time payments (never re-opens prior-month halves)
+  - **Collection rate:** collected ÷ quoted
 - **Shows:** Quoted/collected/outstanding; status donut; source bars; **AH/SN/CHQ/HM cards with USD·CAD·PKR separate**; Full/Partial/Unpaid expandable tables (proj code, client, email, link, status, amount, payment date, source, receive date, **+N**)
 - **Merge:** Read-only from `projectPayments` (write path = Project DB save). **Collected** buckets by payment month; split halves stay in their months; **outstanding uses all-time paid %** (prior-month half is not false outstanding)
 - **Backend:** `paymentsSummary.ts`

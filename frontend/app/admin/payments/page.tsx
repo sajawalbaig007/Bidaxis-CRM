@@ -582,7 +582,7 @@ export default function AdminPaymentsPage() {
               value={loading && !data ? "…" : formatMoneyAlways(t?.quotedAmount ?? 0)}
               hint={
                 month
-                  ? `${t?.quotedProjects ?? 0} projects · this month + still due`
+                  ? `${t?.quotedProjects ?? 0} projects · collected this month + still due`
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
               border="border-t-blue-500"

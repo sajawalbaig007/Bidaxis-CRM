@@ -43,6 +43,8 @@ async function finalizeOpenSession(
     loginAt: Date;
     dashboardMs: number;
     awayMs: number;
+    pausedMs?: number;
+    pausedAt?: Date | null;
     lastHeartbeatAt: Date | null;
     lastVisible: boolean;
   },
@@ -54,11 +56,18 @@ async function finalizeOpenSession(
   } catch {
     /* still close even if tick fails */
   }
+  /* Flush any open pause into pausedMs before closing */
+  let pausedMs = session.pausedMs ?? 0;
+  if (session.pausedAt) {
+    pausedMs += Math.max(0, now.getTime() - new Date(session.pausedAt).getTime());
+  }
   await prisma.csrWorkSession.update({
     where: { id: session.id },
     data: {
       logoutAt: now,
       closedReason: reason,
+      pausedAt: null,
+      pausedMs,
     },
   });
 }
@@ -92,6 +101,8 @@ async function applyHeartbeatTick(
     loginAt: Date;
     dashboardMs: number;
     awayMs: number;
+    pausedMs?: number;
+    pausedAt?: Date | null;
     lastHeartbeatAt: Date | null;
     lastVisible: boolean;
   },
@@ -104,10 +115,16 @@ async function applyHeartbeatTick(
 
   let dashboardMs = session.dashboardMs;
   let awayMs = session.awayMs;
+  let pausedMs = session.pausedMs ?? 0;
+  const isPaused = !!session.pausedAt;
 
-  if (rawDelta > SILENCE_MS) {
+  if (isPaused) {
+    /* Explicit pause — don't count as dashboard work; accumulate pausedMs */
+    const deltaMs = Math.min(MAX_TICK_MS, rawDelta > SILENCE_MS ? rawDelta : rawDelta);
+    pausedMs += deltaMs;
+  } else if (rawDelta > SILENCE_MS) {
     // Lock / sleep / no network — count gap as away, but never past wall-clock.
-    const room = Math.max(0, wallMs - (dashboardMs + awayMs));
+    const room = Math.max(0, wallMs - (dashboardMs + awayMs + pausedMs));
     awayMs += Math.min(rawDelta, room);
   } else {
     const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
@@ -116,11 +133,12 @@ async function applyHeartbeatTick(
   }
 
   /* Clamp so stored counters never exceed elapsed wall time */
-  const sum = dashboardMs + awayMs;
+  const sum = dashboardMs + awayMs + pausedMs;
   if (sum > wallMs && sum > 0) {
     const scale = wallMs / sum;
     dashboardMs = Math.round(dashboardMs * scale);
-    awayMs = Math.max(0, wallMs - dashboardMs);
+    awayMs = Math.round(awayMs * scale);
+    pausedMs = Math.max(0, wallMs - dashboardMs - awayMs);
   }
 
   return prisma.csrWorkSession.update({
@@ -128,6 +146,7 @@ async function applyHeartbeatTick(
     data: {
       dashboardMs,
       awayMs,
+      pausedMs,
       lastHeartbeatAt: now,
       lastVisible: tabVisible,
     },
@@ -198,24 +217,64 @@ export async function getCsrWorkSessionStatus(userId: string) {
   if (!session) {
     return {
       checkedIn: false as const,
+      paused: false as const,
       session: null,
     };
   }
-  const { dashboardMs, awayMs, totalMs } = liveTotals(session);
+  const { dashboardMs, awayMs, pausedMs, totalMs } = liveTotals(session);
+  const paused = !!session.pausedAt;
   return {
     checkedIn: true as const,
+    paused,
     session: {
       id: session.id,
       checkInAt: session.loginAt.toISOString(),
       checkInAtEst: formatEstDateTime(session.loginAt),
+      paused,
+      pausedAt: session.pausedAt ? session.pausedAt.toISOString() : null,
       dashboardMs,
       awayMs,
+      pausedMs,
       totalMs,
       dashboardDuration: formatDurationMs(dashboardMs),
       awayDuration: formatDurationMs(awayMs),
+      pausedDuration: formatDurationMs(pausedMs),
       totalDuration: formatDurationMs(totalMs),
     },
   };
+}
+
+/** CSR left dashboard (e.g. WhatsApp) — pause work clock without checking out. */
+export async function pauseCsrWorkSession(userId: string): Promise<boolean> {
+  const session = await reconcileOpenSessions(userId);
+  if (!session) return false;
+  if (session.pausedAt) return true;
+  const now = new Date();
+  await applyHeartbeatTick(session, session.lastVisible, now);
+  await prisma.csrWorkSession.update({
+    where: { id: session.id },
+    data: { pausedAt: now, lastHeartbeatAt: now },
+  });
+  return true;
+}
+
+/** CSR back on dashboard — resume work clock. */
+export async function resumeCsrWorkSession(userId: string): Promise<boolean> {
+  const session = await reconcileOpenSessions(userId);
+  if (!session) return false;
+  if (!session.pausedAt) return true;
+  const now = new Date();
+  const extra = Math.max(0, now.getTime() - new Date(session.pausedAt).getTime());
+  await prisma.csrWorkSession.update({
+    where: { id: session.id },
+    data: {
+      pausedAt: null,
+      pausedMs: (session.pausedMs ?? 0) + extra,
+      lastHeartbeatAt: now,
+      lastVisible: true,
+    },
+  });
+  return true;
 }
 
 export async function tickCsrWorkSession(opts: {
@@ -315,38 +374,46 @@ function liveTotals(session: {
   logoutAt: Date | null;
   dashboardMs: number;
   awayMs: number;
+  pausedMs?: number;
+  pausedAt?: Date | null;
   lastHeartbeatAt: Date | null;
   lastVisible: boolean;
 }) {
   const now = new Date();
   let dashboardMs = session.dashboardMs;
   let awayMs = session.awayMs;
+  let pausedMs = session.pausedMs ?? 0;
 
   const endAt = session.logoutAt ?? now;
   const totalMs = Math.max(0, endAt.getTime() - new Date(session.loginAt).getTime());
 
   if (!session.logoutAt) {
-    const prevAt = session.lastHeartbeatAt ?? session.loginAt;
-    const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
-
-    if (rawDelta > SILENCE_MS) {
-      const room = Math.max(0, totalMs - (dashboardMs + awayMs));
-      awayMs += Math.min(rawDelta, room);
+    if (session.pausedAt) {
+      pausedMs += Math.max(0, now.getTime() - new Date(session.pausedAt).getTime());
     } else {
-      const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
-      if (session.lastVisible) dashboardMs += deltaMs;
-      else awayMs += deltaMs;
+      const prevAt = session.lastHeartbeatAt ?? session.loginAt;
+      const rawDelta = Math.max(0, now.getTime() - new Date(prevAt).getTime());
+
+      if (rawDelta > SILENCE_MS) {
+        const room = Math.max(0, totalMs - (dashboardMs + awayMs + pausedMs));
+        awayMs += Math.min(rawDelta, room);
+      } else {
+        const deltaMs = Math.min(MAX_TICK_MS, rawDelta);
+        if (session.lastVisible) dashboardMs += deltaMs;
+        else awayMs += deltaMs;
+      }
     }
   }
 
-  const sum = dashboardMs + awayMs;
+  const sum = dashboardMs + awayMs + pausedMs;
   if (sum > totalMs && sum > 0) {
     const scale = totalMs / sum;
     dashboardMs = Math.round(dashboardMs * scale);
-    awayMs = Math.max(0, totalMs - dashboardMs);
+    awayMs = Math.round(awayMs * scale);
+    pausedMs = Math.max(0, totalMs - dashboardMs - awayMs);
   }
 
-  return { dashboardMs, awayMs, totalMs };
+  return { dashboardMs, awayMs, pausedMs, totalMs };
 }
 
 export async function buildCsrSessionReport(opts: {
