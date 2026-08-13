@@ -462,17 +462,26 @@ export default function ProjectWorkbenchModal({
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <ReqLabel required={!sourceClientId}>Project Code</ReqLabel>
+                <ReqLabel required={!sourceClientId && !hideClientFinanceSections}>Project Code</ReqLabel>
                 <input
-                  className={inputCls}
+                  className={`${inputCls}${
+                    hideClientFinanceSections || (!!sourceClientId && !data.projectCode)
+                      ? " cursor-default bg-gray-100 dark:bg-crm-muted text-crm-text-secondary"
+                      : ""
+                  }`}
                   value={data.projectCode}
                   placeholder={sourceClientId ? "Auto: clientCode-N" : undefined}
-                  readOnly={!!sourceClientId && !data.projectCode}
-                  onChange={(e) => setData((d) => ({ ...d, projectCode: e.target.value }))}
+                  readOnly={hideClientFinanceSections || (!!sourceClientId && !data.projectCode)}
+                  onChange={(e) => {
+                    if (hideClientFinanceSections) return;
+                    setData((d) => ({ ...d, projectCode: e.target.value }));
+                  }}
                 />
-                {sourceClientId && !data.projectCode && (
+                {hideClientFinanceSections ? (
+                  <p className="text-[10px] text-gray-400 mt-1">Preview only</p>
+                ) : sourceClientId && !data.projectCode ? (
                   <p className="text-[10px] text-gray-400 mt-1">Assigned automatically from client code</p>
-                )}
+                ) : null}
               </div>
               <div>
                 <ReqLabel required>Project Title</ReqLabel>

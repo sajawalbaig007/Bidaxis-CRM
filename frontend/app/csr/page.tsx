@@ -78,7 +78,7 @@ export default function CSRPage() {
   const loading = statsLoading || tabLoading;
   const refetch = () => { void refetchStats(); void refetchTab(true); };
 
-  const { updateLead, addNote } = useLeadActions(setLeads);
+  const { updateLead, addNote, onNoteUpdated, onNoteDeleted } = useLeadActions(setLeads);
 
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
@@ -591,40 +591,8 @@ export default function CSRPage() {
                         noteCount={currentLink.noteCount}
                         comment={currentLink.comments?.trim() || undefined}
                         onAddNote={addNote}
-                        onNoteUpdated={(leadId, noteId, text, createdAt) => {
-                          const at = createdAt ?? new Date().toISOString();
-                          setLeads(prev => prev.map(l => {
-                            if (l.id !== leadId) return l;
-                            const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
-                              notes.map((n) => {
-                                if (n.id === noteId) return { ...n, text, createdAt: at };
-                                if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
-                                return n;
-                              });
-                            const noteHistory = patchDeep([...l.noteHistory]).sort(
-                              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-                            );
-                            return { ...l, noteHistory };
-                          }));
-                        }}
-                        onNoteDeleted={(leadId, noteId) => {
-                          setLeads(prev => prev.map(l => {
-                            if (l.id !== leadId) return l;
-                            const strip = (notes: NoteEntry[]): NoteEntry[] =>
-                              notes
-                                .filter((n) => n.id !== noteId)
-                                .map((n) => ({
-                                  ...n,
-                                  replies: (n.replies ?? []).filter((r) => r.id !== noteId),
-                                }));
-                            const noteHistory = strip(l.noteHistory);
-                            const deep = noteHistory.reduce(
-                              (s, n) => s + 1 + (n.replies?.length ?? 0),
-                              0,
-                            );
-                            return { ...l, noteHistory, noteCount: deep };
-                          }));
-                        }}
+                        onNoteUpdated={onNoteUpdated}
+                        onNoteDeleted={onNoteDeleted}
                       />
                     </td>
 

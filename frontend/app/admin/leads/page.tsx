@@ -35,6 +35,7 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
 import type { NoteEntry } from "../../csr/hooks/useLeadsData";
+import { bumpToFront } from "@/lib/bumpToFront";
 import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
 import { STATE_AREA_CODES } from "@/app/csr/constants/locations";
@@ -844,50 +845,55 @@ function ClientsPageContent() {
                                   createdAt: String(note?.createdAt ?? new Date().toISOString()),
                                   parentId: note?.parentId ?? parentId ?? null,
                                 };
-                                setClients(prev => prev.map(c => {
-                                  if (c.id !== id) return c;
-                                  const hist = c.noteHistory ?? [];
-                                  if (parentId) {
+                                setClients((prev) =>
+                                  bumpToFront(prev, id, (c) => {
+                                    const hist = c.noteHistory ?? [];
+                                    if (parentId) {
+                                      return {
+                                        ...c,
+                                        noteHistory: hist.map((n) =>
+                                          n.id === parentId
+                                            ? { ...n, replies: [...(n.replies ?? []), entry] }
+                                            : n,
+                                        ),
+                                        noteCount: (c.noteCount ?? hist.length) + 1,
+                                      };
+                                    }
                                     return {
                                       ...c,
-                                      noteHistory: hist.map((n) =>
-                                        n.id === parentId
-                                          ? { ...n, replies: [...(n.replies ?? []), entry] }
-                                          : n,
-                                      ),
+                                      lastComment: entry.text,
+                                      noteHistory: [entry, ...hist],
                                       noteCount: (c.noteCount ?? hist.length) + 1,
                                     };
-                                  }
-                                  return {
-                                    ...c,
-                                    lastComment: entry.text,
-                                    noteHistory: [entry, ...hist],
-                                    noteCount: (c.noteCount ?? hist.length) + 1,
-                                  };
-                                }));
+                                  }),
+                                );
+                                if (page !== 1) setPage(1);
                                 return entry;
                               }}
                               onNoteUpdated={(leadId, noteId, text, createdAt) => {
                                 const at = createdAt ?? new Date().toISOString();
-                                setClients(prev => prev.map(c => {
-                                  if (c.id !== leadId) return c;
-                                  const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
-                                    notes.map((n) => {
-                                      if (n.id === noteId) return { ...n, text, createdAt: at };
-                                      if (n.replies?.length) {
-                                        return { ...n, replies: patchDeep(n.replies) };
-                                      }
-                                      return n;
-                                    });
-                                  const noteHistory = patchDeep([...(c.noteHistory ?? [])]).sort(
-                                    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-                                  );
-                                  return {
-                                    ...c,
-                                    noteHistory,
-                                    lastComment: noteHistory[0]?.text ?? c.lastComment,
-                                  };
-                                }));
+                                setClients((prev) =>
+                                  bumpToFront(prev, leadId, (c) => {
+                                    const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
+                                      notes.map((n) => {
+                                        if (n.id === noteId) return { ...n, text, createdAt: at };
+                                        if (n.replies?.length) {
+                                          return { ...n, replies: patchDeep(n.replies) };
+                                        }
+                                        return n;
+                                      });
+                                    const noteHistory = patchDeep([...(c.noteHistory ?? [])]).sort(
+                                      (a, b) =>
+                                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                                    );
+                                    return {
+                                      ...c,
+                                      noteHistory,
+                                      lastComment: noteHistory[0]?.text ?? c.lastComment,
+                                    };
+                                  }),
+                                );
+                                if (page !== 1) setPage(1);
                               }}
                               onNoteDeleted={(leadId, noteId) => {
                                 setClients(prev => prev.map(c => {

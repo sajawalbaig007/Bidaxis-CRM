@@ -35,6 +35,7 @@ import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
 import CommentCell from "../components/shared/CommentCell";
 import { NoteRichText } from "@/lib/noteRichText";
+import { bumpToFront } from "@/lib/bumpToFront";
 import { apiErrorMessage } from "@/lib/api";
 import { formatQuotedAmount, parseMoney, emptyWorkbench, ProjectWorkbenchData } from "@/lib/projectFields";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
@@ -85,6 +86,8 @@ export default function LeadsPage() {
   const [page,      setPage]      = useState(1);
   const [sortBy,    setSortBy]    = useState<ClientListSortBy>("clientCode");
   const [sortDir,   setSortDir]   = useState<SortDir>("asc");
+  /** After note add/update, pin that client to the top of the current list. */
+  const [boostedLeadId, setBoostedLeadId] = useState<string | null>(null);
 
   /* ── detail / edit modal ── */
   const [viewing,      setViewing]      = useState<ClientLead | null>(null);
@@ -175,8 +178,9 @@ export default function LeadsPage() {
         l.email.toLowerCase().includes(q)
       ))
     );
-    return sortClientRows(list, sortBy, sortDir);
-  }, [baseList, search, stateFilter, phoneFilter, sortBy, sortDir]);
+    const sorted = sortClientRows(list, sortBy, sortDir);
+    return boostedLeadId ? bumpToFront(sorted, boostedLeadId) : sorted;
+  }, [baseList, search, stateFilter, phoneFilter, sortBy, sortDir, boostedLeadId]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -577,8 +581,7 @@ export default function LeadsPage() {
                                   parentId: parentId || null,
                                 };
                             setLeads((prev) =>
-                              prev.map((l) => {
-                                if (l.id !== id) return l;
+                              bumpToFront(prev, id, (l) => {
                                 const hist = l.noteHistory ?? [];
                                 if (parentId) {
                                   return {
@@ -590,26 +593,36 @@ export default function LeadsPage() {
                                     ),
                                   };
                                 }
-                                return { ...l, noteHistory: [saved, ...hist.filter((n) => n.id !== saved.id)] };
+                                return {
+                                  ...l,
+                                  noteHistory: [saved, ...hist.filter((n) => n.id !== saved.id)],
+                                };
                               }),
                             );
+                            setBoostedLeadId(id);
+                            setPage(1);
                             invalidateAllCsrListCaches();
                             return saved;
                           }}
                           onNoteUpdated={(leadId, noteId, text, createdAt) => {
                             const at = createdAt ?? new Date().toISOString();
                             setLeads((prev) =>
-                              prev.map((l) => {
-                                if (l.id !== leadId) return l;
+                              bumpToFront(prev, leadId, (l) => {
                                 const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
                                   notes.map((n) => {
                                     if (n.id === noteId) return { ...n, text, createdAt: at };
                                     if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
                                     return n;
                                   });
-                                return { ...l, noteHistory: patchDeep(l.noteHistory ?? []) };
+                                const noteHistory = patchDeep(l.noteHistory ?? []).sort(
+                                  (a, b) =>
+                                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                                );
+                                return { ...l, noteHistory };
                               }),
                             );
+                            setBoostedLeadId(leadId);
+                            setPage(1);
                           }}
                           onNoteDeleted={(leadId, noteId) => {
                             setLeads((prev) =>
@@ -723,8 +736,7 @@ export default function LeadsPage() {
                           parentId: parentId || null,
                         };
                     setLeads((prev) =>
-                      prev.map((l) => {
-                        if (l.id !== id) return l;
+                      bumpToFront(prev, id, (l) => {
                         const hist = l.noteHistory ?? [];
                         if (parentId) {
                           return {
@@ -739,23 +751,30 @@ export default function LeadsPage() {
                         return { ...l, noteHistory: [saved, ...hist.filter((n) => n.id !== saved.id)] };
                       }),
                     );
+                    setBoostedLeadId(id);
+                    setPage(1);
                     invalidateAllCsrListCaches();
                     return saved;
                   }}
                   onNoteUpdated={(leadId, noteId, text, createdAt) => {
                     const at = createdAt ?? new Date().toISOString();
                     setLeads((prev) =>
-                      prev.map((l) => {
-                        if (l.id !== leadId) return l;
+                      bumpToFront(prev, leadId, (l) => {
                         const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
                           notes.map((n) => {
                             if (n.id === noteId) return { ...n, text, createdAt: at };
                             if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
                             return n;
                           });
-                        return { ...l, noteHistory: patchDeep(l.noteHistory ?? []) };
+                        const noteHistory = patchDeep(l.noteHistory ?? []).sort(
+                          (a, b) =>
+                            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                        );
+                        return { ...l, noteHistory };
                       }),
                     );
+                    setBoostedLeadId(leadId);
+                    setPage(1);
                   }}
                   onNoteDeleted={(leadId, noteId) => {
                     setLeads((prev) =>
