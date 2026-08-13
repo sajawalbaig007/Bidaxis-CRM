@@ -9,6 +9,7 @@ import ServicePicker from "@/app/csr/components/shared/ServicePicker";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { ReqLabel } from "@/app/components/form/RequiredMark";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
+import { peekAuthMe } from "@/lib/authMeCache";
 import {
   PAYMENT_TYPE_OPTIONS,
   PAYMENT_CHANNEL_OPTIONS,
@@ -51,7 +52,7 @@ type Props = {
   onAddNote?: (text: string, parentId?: string) => Promise<void>;
   /** Admin↔TM thread — Notes for Technical / Notes for Sir */
   technicalNoteHistory?: NoteEntry[];
-  onAddTechnicalNote?: (text: string) => Promise<void>;
+  onAddTechnicalNote?: (text: string) => Promise<unknown>;
   phoneLookup?: PhoneLookupProps;
   /** Technical portal — hide Client / Quoted / Payment / CSR sections */
   hideClientFinanceSections?: boolean;
@@ -808,10 +809,14 @@ export default function ProjectWorkbenchModal({
                     id={data.id || "tech-thread"}
                     apiRole="admin"
                     skipNotesFetch
+                    chatStyle
+                    notesKind="technical"
+                    currentUserId={peekAuthMe()?.id}
+                    badgeLabel={hideClientFinanceSections ? "Notes for Sir" : "Notes for Technical"}
                     noteHistory={technicalNoteHistory ?? []}
                     onAddNote={
                       onAddTechnicalNote
-                        ? async (_id, text) => { await onAddTechnicalNote(text); }
+                        ? async (_id, text) => onAddTechnicalNote(text)
                         : undefined
                     }
                     readOnly={!onAddTechnicalNote}

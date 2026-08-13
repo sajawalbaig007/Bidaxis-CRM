@@ -59,6 +59,8 @@ import {
   serializeTechnicalAssignments,
   mergeAssignmentProgress,
   appendTechnicalNote,
+  updateTechnicalNote,
+  deleteTechnicalNote,
   serializeTechnicalNotesBundle,
   parseTechnicalNotes,
   parseTechnicalNotesBundle,
@@ -76,6 +78,7 @@ import { uploadExcel } from "../middleware/upload.middleware";
 import {
   diffProjectChangesForTm,
   notifyTmFromActor,
+  pushTechnicalNotification,
   parseChangeSummary,
   projectLabel,
 } from "../utils/technicalNotifications";
@@ -192,9 +195,12 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager", "techni
       take: 120,
     });
 
+    // Only TM replies on Admin↔TM ("sir") thread — not admin's own messages
     const technicalNotes = techAlertLeads
       .map((l) => {
-        const notes = parseTechnicalNotes(l.technicalNotes);
+        const notes = parseTechnicalNotes(l.technicalNotes).filter(
+          (n) => n.authorRole === "technical_manager",
+        );
         const latest = notes[notes.length - 1];
         if (!latest) return null;
         return {
@@ -203,6 +209,7 @@ router.get("/notifications", verifyToken, allowRoles("admin", "manager", "techni
           projectTitle: l.projectTitle || l.name || "Project",
           projectCode: l.projectCode || l.clientCode || "",
           preview: latest.text,
+          authorName: latest.authorName || "Technical",
           createdAt: latest.createdAt || l.updatedAt.toISOString(),
         };
       })
@@ -741,13 +748,22 @@ router.post(
 
       const lead = await prisma.lead.findFirst({
         where: { id: leadId },
-        select: { id: true, assignedTo: true, technicalNotes: true },
+        select: {
+          id: true,
+          assignedTo: true,
+          technicalNotes: true,
+          projectTitle: true,
+          projectCode: true,
+          clientCode: true,
+        },
       });
       if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
       const authUser = (req as { user?: { id?: string; name?: string; role?: string } }).user;
+      const role = authUser?.role ?? "admin";
       const { bundle, note, list } = appendTechnicalNote(lead.technicalNotes, text, thread, {
-        authorRole: authUser?.role ?? "admin",
+        authorId: authUser?.id,
+        authorRole: role,
         authorName: authUser?.name ?? undefined,
       });
       await prisma.lead.update({
@@ -759,6 +775,35 @@ router.post(
       flushAdminClientsCache();
       invalidatePattern("admin:projects:");
       invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+
+      const label = projectLabel(lead.projectCode || lead.clientCode, lead.projectTitle);
+      if (thread === "sir" && role !== "technical_manager") {
+        void notifyTmFromActor({
+          actorId: authUser?.id,
+          leadId,
+          projectTitle: lead.projectTitle,
+          projectCode: lead.projectCode || lead.clientCode,
+          source: "admin",
+          title: "Notes for Sir",
+          message: `${authUser?.name ?? "Admin"} on ${label}: ${text.slice(0, 160)}`,
+          changes: ["Notes for Sir"],
+        });
+      }
+      if (thread === "estimator" && (role === "technical_manager" || role === "admin" || role === "manager")) {
+        void pushTechnicalNotification({
+          leadId,
+          projectTitle: lead.projectTitle,
+          projectCode: lead.projectCode || lead.clientCode,
+          source: "tm_estimator",
+          actorId: authUser?.id,
+          actorName: authUser?.name,
+          actorRole: role,
+          title: "Notes for Technical Manager",
+          message: `${authUser?.name ?? "Technical"} on ${label}: ${text.slice(0, 160)}`,
+          changes: ["Notes for Estimator"],
+        });
+      }
+
       return res.json({
         success: true,
         note,
@@ -769,6 +814,93 @@ router.post(
     } catch (err) {
       console.error("technical-notes error:", err);
       return res.status(500).json({ success: false, message: "Failed to add technical note" });
+    }
+  },
+);
+
+router.put(
+  "/lead/:id/technical-notes/:noteId",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const noteId = String(req.params.noteId);
+      const text = String((req.body as { text?: string })?.text ?? "").trim();
+      if (!text) return res.status(400).json({ success: false, message: "Note text required" });
+
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId },
+        select: { id: true, assignedTo: true, technicalNotes: true },
+      });
+      if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+      const authUser = (req as { user?: { id?: string } }).user;
+      const actorId = authUser?.id ?? "";
+      if (!actorId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+      const result = updateTechnicalNote(lead.technicalNotes, noteId, text, actorId);
+      if ("error" in result) {
+        const status = result.error.includes("author") ? 403 : 404;
+        return res.status(status).json({ success: false, message: result.error });
+      }
+
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { technicalNotes: serializeTechnicalNotesBundle(result.bundle) },
+      });
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+      return res.json({
+        success: true,
+        note: result.note,
+        thread: result.thread,
+        technicalNotesBundle: result.bundle,
+      });
+    } catch (err) {
+      console.error("technical-notes update error:", err);
+      return res.status(500).json({ success: false, message: "Failed to update note" });
+    }
+  },
+);
+
+router.delete(
+  "/lead/:id/technical-notes/:noteId",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const noteId = String(req.params.noteId);
+
+      const lead = await prisma.lead.findFirst({
+        where: { id: leadId },
+        select: { id: true, assignedTo: true, technicalNotes: true },
+      });
+      if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
+
+      const authUser = (req as { user?: { id?: string } }).user;
+      const actorId = authUser?.id ?? "";
+      if (!actorId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+      const result = deleteTechnicalNote(lead.technicalNotes, noteId, actorId);
+      if ("error" in result) {
+        const status = result.error.includes("author") ? 403 : 404;
+        return res.status(status).json({ success: false, message: result.error });
+      }
+
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { technicalNotes: serializeTechnicalNotesBundle(result.bundle) },
+      });
+      flushAdminClientsCache();
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+      return res.json({ success: true, thread: result.thread, technicalNotesBundle: result.bundle });
+    } catch (err) {
+      console.error("technical-notes delete error:", err);
+      return res.status(500).json({ success: false, message: "Failed to delete note" });
     }
   },
 );
@@ -1939,7 +2071,10 @@ router.get(
     try {
       const unreadOnly = req.query.unread === "1" || req.query.unread === "true";
       const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
-      const where: Prisma.TechnicalNotificationWhereInput = unreadOnly ? { readAt: null } : {};
+      const where: Prisma.TechnicalNotificationWhereInput = {
+        source: { not: "tm_estimator" },
+        ...(unreadOnly ? { readAt: null } : {}),
+      };
 
       const [rows, unreadCount] = await Promise.all([
         prisma.technicalNotification.findMany({
@@ -1981,7 +2116,7 @@ router.put(
   async (_req, res) => {
     try {
       const result = await prisma.technicalNotification.updateMany({
-        where: { readAt: null },
+        where: { readAt: null, source: { not: "tm_estimator" } },
         data: { readAt: new Date() },
       });
       return res.json({ success: true, updated: result.count });

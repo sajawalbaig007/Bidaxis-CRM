@@ -8,6 +8,7 @@ import {
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { peekAuthMe } from "@/lib/authMeCache";
 import EstimatorPageShell from "../components/EstimatorPageShell";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
@@ -78,6 +79,28 @@ function notesToHistory(
   notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[],
 ): NoteEntry[] {
   return buildNoteHistory({ notes: notes ?? [] }).noteHistory;
+}
+
+function threadNotesHistory(
+  notes?: {
+    id: string;
+    text: string;
+    createdAt: string;
+    authorId?: string;
+    authorRole?: string;
+    authorName?: string;
+  }[],
+): NoteEntry[] {
+  return (notes ?? [])
+    .filter((n) => n.text?.trim())
+    .map((n) => ({
+      id: n.id,
+      text: n.text,
+      createdAt: n.createdAt,
+      authorId: n.authorId,
+      authorRole: n.authorRole,
+      authorName: n.authorName,
+    }));
 }
 
 function projectAsRow(p: Project) {
@@ -350,7 +373,14 @@ export default function EstimatorMyProjectsPage() {
 
   const addTechnicalNote = async (id: string, text: string) => {
     const res = await API.post(`/estimator/lead/${id}/notes`, { text });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const note = res.data.note as {
+      id: string;
+      text: string;
+      createdAt: string;
+      authorId?: string;
+      authorRole?: string;
+      authorName?: string;
+    };
     const bundle = res.data.technicalNotesBundle ?? {
       ...parseTechnicalNotesBundle(projects.find((p) => p.id === id)?.technicalNotes),
       estimator: res.data.technicalNotes,
@@ -360,7 +390,14 @@ export default function EstimatorMyProjectsPage() {
         p.id === id ? { ...p, technicalNotes: JSON.stringify(bundle) } : p,
       ),
     );
-    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
+    return {
+      id: note.id,
+      text: note.text,
+      createdAt: note.createdAt,
+      authorId: note.authorId,
+      authorRole: note.authorRole,
+      authorName: note.authorName,
+    } as NoteEntry;
   };
 
   const runTimer = async (projectId: string, action: "start" | "pause") => {
@@ -745,7 +782,11 @@ export default function EstimatorMyProjectsPage() {
                     id={p.id}
                     apiRole="estimator"
                     skipNotesFetch
-                    noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                    chatStyle
+                    notesKind="technical"
+                    currentUserId={peekAuthMe()?.id}
+                    badgeLabel="Notes for Technical Manager"
+                    noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                     onAddNote={addTechnicalNote}
                   />
                 </div>
@@ -829,7 +870,11 @@ export default function EstimatorMyProjectsPage() {
                           id={p.id}
                           apiRole="estimator"
                           skipNotesFetch
-                          noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                          chatStyle
+                          notesKind="technical"
+                          currentUserId={peekAuthMe()?.id}
+                          badgeLabel="Notes for Technical Manager"
+                          noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                           onAddNote={addTechnicalNote}
                         />
                       </td>

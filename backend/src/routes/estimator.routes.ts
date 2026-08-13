@@ -8,6 +8,8 @@ import {
   parseTechnicalAssignments,
   serializeTechnicalAssignments,
   appendTechnicalNote,
+  updateTechnicalNote,
+  deleteTechnicalNote,
   serializeTechnicalNotesBundle,
   pauseAssignmentTimer,
   startAssignmentTimer,
@@ -487,7 +489,7 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
       existing.technicalNotes,
       text,
       "estimator",
-      { authorRole: "estimator", authorName: me.name },
+      { authorId: me.id, authorRole: "estimator", authorName: me.name },
     );
     await prisma.lead.update({
       where: { id: leadId },
@@ -516,6 +518,157 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Failed to add note" });
+  }
+});
+
+router.put("/lead/:id/notes/:noteId", async (req: AuthRequest, res) => {
+  try {
+    const me = await currentEstimator(req);
+    if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const leadId = String(req.params.id);
+    const noteId = String(req.params.noteId);
+    const text = String(req.body?.text ?? "").trim();
+    if (!text) return res.status(400).json({ success: false, message: "Note text is required" });
+
+    const existing = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { technicalAssignments: true, technicalNotes: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
+
+    const allowed = parseTechnicalAssignments(existing.technicalAssignments).some((a) =>
+      assignmentBelongsToEstimator(a, me),
+    );
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "This project is not assigned to you" });
+    }
+
+    const result = updateTechnicalNote(existing.technicalNotes, noteId, text, me.id);
+    if ("error" in result) {
+      const status = result.error.includes("author") ? 403 : 404;
+      return res.status(status).json({ success: false, message: result.error });
+    }
+    if (result.thread !== "estimator") {
+      return res.status(403).json({ success: false, message: "Cannot edit this note thread" });
+    }
+
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { technicalNotes: serializeTechnicalNotesBundle(result.bundle) },
+    });
+    return res.json({ success: true, note: result.note, technicalNotesBundle: result.bundle });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to update note" });
+  }
+});
+
+router.delete("/lead/:id/notes/:noteId", async (req: AuthRequest, res) => {
+  try {
+    const me = await currentEstimator(req);
+    if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const leadId = String(req.params.id);
+    const noteId = String(req.params.noteId);
+
+    const existing = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { technicalAssignments: true, technicalNotes: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: "Project not found" });
+
+    const allowed = parseTechnicalAssignments(existing.technicalAssignments).some((a) =>
+      assignmentBelongsToEstimator(a, me),
+    );
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "This project is not assigned to you" });
+    }
+
+    const result = deleteTechnicalNote(existing.technicalNotes, noteId, me.id);
+    if ("error" in result) {
+      const status = result.error.includes("author") ? 403 : 404;
+      return res.status(status).json({ success: false, message: result.error });
+    }
+    if (result.thread !== "estimator") {
+      return res.status(403).json({ success: false, message: "Cannot delete this note thread" });
+    }
+
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { technicalNotes: serializeTechnicalNotesBundle(result.bundle) },
+    });
+    return res.json({ success: true, technicalNotesBundle: result.bundle });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to delete note" });
+  }
+});
+
+/** TM → Estimator note alerts (source tm_estimator), scoped to assigned projects. */
+router.get("/notifications", async (req: AuthRequest, res) => {
+  try {
+    const me = await currentEstimator(req);
+    if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const leads = await prisma.lead.findMany({
+      where: buildProjectLeadWhere({}),
+      select: { id: true, technicalAssignments: true },
+      take: 500,
+    });
+    const myLeadIds = leads
+      .filter((l) =>
+        parseTechnicalAssignments(l.technicalAssignments).some((a) =>
+          assignmentBelongsToEstimator(a, me),
+        ),
+      )
+      .map((l) => l.id);
+
+    if (myLeadIds.length === 0) {
+      return res.json({ success: true, notifications: [], unreadCount: 0 });
+    }
+
+    const rows = await prisma.technicalNotification.findMany({
+      where: {
+        source: "tm_estimator",
+        leadId: { in: myLeadIds },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    });
+
+    const notifications = rows.map((n) => ({
+      id: n.id,
+      leadId: n.leadId,
+      projectTitle: n.projectTitle,
+      projectCode: n.projectCode,
+      title: n.title,
+      message: n.message,
+      actorName: n.actorName,
+      createdAt: n.createdAt.toISOString(),
+      readAt: n.readAt?.toISOString() ?? null,
+    }));
+    const unreadCount = notifications.filter((n) => !n.readAt).length;
+    return res.json({ success: true, notifications, unreadCount });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to load notifications" });
+  }
+});
+
+router.put("/notifications/:id/read", async (req: AuthRequest, res) => {
+  try {
+    const me = await currentEstimator(req);
+    if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
+    const id = String(req.params.id);
+    await prisma.technicalNotification.updateMany({
+      where: { id, source: "tm_estimator" },
+      data: { readAt: new Date() },
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Failed to mark read" });
   }
 });
 

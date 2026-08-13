@@ -38,6 +38,12 @@ interface CommentCellProps {
    * Always shown in history / latest pick; never editable via this cell.
    */
   extraReadOnlyNotes?: NoteEntry[];
+  /** Chat bubble layout for Admin↔TM / TM↔Estimator threads. */
+  chatStyle?: boolean;
+  /** Current user id — only this author can edit/delete their own notes. */
+  currentUserId?: string;
+  /** Use technical-notes API (bundle threads) instead of LeadNote CRUD. */
+  notesKind?: "lead" | "technical";
   onAddNote?: (id: string, text: string, parentId?: string) => Promise<unknown>;
   onSave?: (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
@@ -103,6 +109,9 @@ export default function CommentCell({
   skipNotesFetch = false,
   badgeLabel,
   extraReadOnlyNotes,
+  chatStyle = false,
+  currentUserId,
+  notesKind = "lead",
   onAddNote,
   onSave,
   onNoteUpdated,
@@ -152,9 +161,11 @@ export default function CommentCell({
       if (roots.some((n) => n.id === extra.id || n.text === extra.text)) continue;
       roots.push(extra);
     }
-    return roots.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    return roots.sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      // Chat: oldest → newest (conversation flow). Sticky: newest first.
+      return chatStyle ? diff : -diff;
+    });
   })();
 
   const legacyComment = comment?.trim()
@@ -163,7 +174,9 @@ export default function CommentCell({
       : null
     : null;
 
-  const latestRoot = displayNotes[0];
+  const latestRoot = [...displayNotes].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )[0];
   const latestAt = latestRoot?.createdAt || null;
 
   const preloadedDeep = noteHistory ? countNotesDeep(noteHistory) : 0;
@@ -180,7 +193,20 @@ export default function CommentCell({
   ).length;
   const count = baseCount + extrasUniqueCount + (legacyComment ? 1 : 0);
   const canMutate = !readOnly;
-  const canEditDelete = canMutate && !skipNotesFetch;
+  /** Technical thread notes use skipNotesFetch but still allow own-note edit/delete. */
+  const canEditDelete = canMutate && (notesKind === "technical" || !skipNotesFetch);
+
+  const noteApiPath = (noteId: string) =>
+    notesKind === "technical"
+      ? apiRole === "estimator"
+        ? `/estimator/lead/${id}/notes/${noteId}`
+        : `/admin/lead/${id}/technical-notes/${noteId}`
+      : `/${apiRole}/lead/${id}/notes/${noteId}`;
+
+  const isOwnNote = (note: NoteEntry) =>
+    notesKind === "technical"
+      ? !!currentUserId && !!note.authorId && note.authorId === currentUserId
+      : !note.authorId || (!!currentUserId && note.authorId === currentUserId);
 
   useEffect(() => {
     if (!noteHistory?.length) return;
@@ -325,6 +351,9 @@ export default function CommentCell({
         text: n.text ?? text,
         createdAt: n.createdAt ?? new Date().toISOString(),
         parentId: n.parentId ?? parentId ?? null,
+        authorId: n.authorId,
+        authorRole: n.authorRole,
+        authorName: n.authorName,
       };
     }
     return {
@@ -332,6 +361,7 @@ export default function CommentCell({
       text,
       createdAt: new Date().toISOString(),
       parentId: parentId || null,
+      authorId: currentUserId,
     };
   };
 
@@ -343,6 +373,7 @@ export default function CommentCell({
       text,
       createdAt: new Date().toISOString(),
       parentId: null,
+      authorId: currentUserId,
     };
     setLocalNotes((prev) => upsertLocalNote(prev, tempNote, noteHistory ?? []));
     setDraft("");
@@ -395,7 +426,7 @@ export default function CommentCell({
     if (!text || isLegacyNoteId(noteId)) return;
     setEditSaving(true);
     try {
-      const res = await API.put(`/${apiRole}/lead/${id}/notes/${noteId}`, { text });
+      const res = await API.put(noteApiPath(noteId), { text });
       const serverNote = res.data?.note as
         | { id?: string; text?: string; createdAt?: string; parentId?: string | null }
         | undefined;
@@ -426,7 +457,7 @@ export default function CommentCell({
     if (isLegacyNoteId(noteId)) return;
     setDeleting(noteId);
     try {
-      await API.delete(`/${apiRole}/lead/${id}/notes/${noteId}`);
+      await API.delete(noteApiPath(noteId));
       deletedNoteIdsRef.current.add(noteId);
       setLocalNotes((prev) => removeLocalNote(prev, noteId, noteHistory ?? []));
       onNoteDeleted?.(id, noteId);
@@ -442,13 +473,15 @@ export default function CommentCell({
   const openCtx = (e: React.MouseEvent, noteId: string, isReply: boolean) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!canMutate || isLegacyNoteId(noteId)) return;
+    const note = flattenNotes(displayNotes).find((n) => n.id === noteId);
+    if (!canMutate || isLegacyNoteId(noteId) || (note && !isOwnNote(note))) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, noteId, isReply });
   };
 
   const renderNoteBody = (note: NoteEntry, isReply: boolean) => {
-            const editable = canEditDelete && !isLegacyNoteId(note.id);
+            const editable = canEditDelete && !isLegacyNoteId(note.id) && isOwnNote(note);
     const isTech = note.id.startsWith("tech-") || note.id.startsWith("readonly-");
+    const mine = isOwnNote(note) && !!currentUserId;
 
     if (editId === note.id) {
       return (
@@ -488,28 +521,33 @@ export default function CommentCell({
         onContextMenu={(e) => openCtx(e, note.id, isReply)}
         className={editable ? "cursor-context-menu" : undefined}
       >
+        {chatStyle && (
+          <p className={`text-[9px] font-bold mb-0.5 truncate ${mine ? "text-white/80" : "text-amber-800/70"}`}>
+            {mine ? "You" : note.authorName || note.authorRole || "Teammate"}
+          </p>
+        )}
         {isTech && (
           <span className="inline-flex mb-1 text-[9px] font-extrabold uppercase tracking-wide text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-md">
             Tech
           </span>
         )}
-        {isReply && (
+        {isReply && !chatStyle && (
           <span className="inline-flex mb-1 items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-amber-700/80">
             <CornerDownRight size={9} />
             Reply
           </span>
         )}
-        <p className="text-[12px] text-amber-950 leading-snug">
+        <p className={`text-[12px] leading-snug ${chatStyle ? "text-inherit" : "text-amber-950"}`}>
           <NoteRichText text={note.text} />
         </p>
         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
           {note.createdAt && (
-            <span className="text-[9px] text-amber-700/70 inline-flex items-center gap-1 mr-auto">
+            <span className={`text-[9px] inline-flex items-center gap-1 mr-auto ${chatStyle ? "opacity-70" : "text-amber-700/70"}`}>
               <Clock size={9} />
               {fmtTime(note.createdAt)}
             </span>
           )}
-          {editable && !isReply && (
+          {editable && !isReply && !chatStyle && (
             <button
               type="button"
               onClick={() => {
@@ -533,7 +571,11 @@ export default function CommentCell({
                   setEditText(note.text);
                   setReplyToId(null);
                 }}
-                className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white/80 border border-amber-200 text-amber-800 hover:bg-white text-[10px] font-bold"
+                className={
+                  chatStyle && mine
+                    ? "inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white/20 border border-white/30 text-white hover:bg-white/30 text-[10px] font-bold"
+                    : "inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white/80 border border-amber-200 text-amber-800 hover:bg-white text-[10px] font-bold"
+                }
               >
                 <Pencil size={9} />
                 Edit
@@ -542,7 +584,11 @@ export default function CommentCell({
                 type="button"
                 onClick={() => void handleDelete(note.id)}
                 disabled={deleting === note.id}
-                className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 text-[10px] font-bold disabled:opacity-50"
+                className={
+                  chatStyle && mine
+                    ? "inline-flex items-center gap-1 h-6 px-2 rounded-md bg-black/20 border border-white/20 text-white hover:bg-black/30 text-[10px] font-bold disabled:opacity-50"
+                    : "inline-flex items-center gap-1 h-6 px-2 rounded-md bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 text-[10px] font-bold disabled:opacity-50"
+                }
               >
                 {deleting === note.id ? (
                   <Loader2 size={9} className="animate-spin" />
@@ -606,12 +652,13 @@ export default function CommentCell({
           </span>
           <div className="min-w-0">
             <p className="text-[13px] font-bold text-amber-900 truncate">
-              {readOnly ? "Bid Instruction" : "Sticky Notes"}
-              {badgeLabel ? ` · ${badgeLabel}` : ""}
+              {readOnly ? "Bid Instruction" : chatStyle ? (badgeLabel || "Chat") : "Sticky Notes"}
+              {!chatStyle && badgeLabel ? ` · ${badgeLabel}` : ""}
             </p>
             <p className="text-[10px] text-amber-700/80">
               {count} note{count === 1 ? "" : "s"}
-              {canMutate ? " · right-click to reply" : ""}
+              {canMutate && !chatStyle ? " · right-click to reply" : ""}
+              {chatStyle ? " · only your messages can be edited" : ""}
             </p>
           </div>
         </div>
@@ -645,12 +692,34 @@ export default function CommentCell({
         {!notesLoading && displayNotes.length === 0 && !legacyComment && (
           <div className="py-8 text-center">
             <StickyNote size={28} className="text-amber-200 mx-auto mb-2" />
-            <p className="text-[12px] text-amber-700/60">No sticky notes yet</p>
+            <p className="text-[12px] text-amber-700/60">
+              {chatStyle ? "No messages yet — start the conversation" : "No sticky notes yet"}
+            </p>
           </div>
         )}
 
         {!notesLoading &&
-          displayNotes.map((note, idx) => (
+          displayNotes.map((note, idx) => {
+            const mineBubble = !!currentUserId && note.authorId === currentUserId;
+            if (chatStyle) {
+              return (
+                <div
+                  key={note.id}
+                  className={`flex ${mineBubble ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[88%] rounded-2xl px-3 py-2 shadow-sm border ${
+                      mineBubble
+                        ? "bg-[#B8112D] text-white border-[#B8112D] rounded-br-md"
+                        : "bg-white text-gray-800 border-amber-200 rounded-bl-md"
+                    }`}
+                  >
+                    {renderNoteBody(note, false)}
+                  </div>
+                </div>
+              );
+            }
+            return (
             <div key={note.id} className="space-y-1.5">
               <div
                 className={`rounded-xl border border-amber-200/90 bg-[#FEF3C7] px-3 py-2.5 shadow-sm ${
@@ -673,7 +742,8 @@ export default function CommentCell({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
       </div>
 
       {canMutate && (
@@ -682,7 +752,7 @@ export default function CommentCell({
             value={draft}
             onChange={setDraft}
             rows={2}
-            placeholder="Write a sticky note… (Ctrl+Enter)"
+            placeholder={chatStyle ? "Type a message… (Ctrl+Enter)" : "Write a sticky note… (Ctrl+Enter)"}
             onSubmit={() => void handleAdd()}
             disabled={saving}
           />
@@ -693,7 +763,7 @@ export default function CommentCell({
             className="mt-2 w-full h-8 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {saving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-            {saving ? "Saving…" : "Add sticky"}
+            {saving ? "Sending…" : chatStyle ? "Send" : "Add sticky"}
           </button>
         </div>
       )}

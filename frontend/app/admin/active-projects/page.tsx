@@ -24,6 +24,7 @@ import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { parseTechnicalNotes, parseTechnicalNotesBundle, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
+import { peekAuthMe } from "@/lib/authMeCache";
 import API from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
@@ -162,10 +163,24 @@ function notesToHistory(
   return noteHistory;
 }
 
-function threadNotesHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
+function threadNotesHistory(notes?: {
+  id: string;
+  text: string;
+  createdAt: string;
+  authorId?: string;
+  authorRole?: string;
+  authorName?: string;
+}[]): NoteEntry[] {
   return (notes ?? [])
     .filter((n) => n.text?.trim())
-    .map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+    .map((n) => ({
+      id: n.id,
+      text: n.text,
+      createdAt: n.createdAt,
+      authorId: n.authorId,
+      authorRole: n.authorRole,
+      authorName: n.authorName,
+    }));
 }
 
 function sirNotesHistory(p: { technicalNotes?: unknown }): NoteEntry[] {
@@ -317,6 +332,10 @@ function ProjectCard({
             id={p.id}
             apiRole="admin"
             skipNotesFetch
+            chatStyle
+            notesKind="technical"
+            currentUserId={peekAuthMe()?.id}
+            badgeLabel="Notes for Technical"
             noteHistory={sirNotesHistory(p)}
             onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
           />
@@ -508,6 +527,10 @@ function ProjectsSection({
                         id={p.id}
                         apiRole="admin"
                         skipNotesFetch
+                        chatStyle
+                        notesKind="technical"
+                        currentUserId={peekAuthMe()?.id}
+                        badgeLabel="Notes for Technical"
                         noteHistory={sirNotesHistory(p)}
                         onAddNote={async (_id, text) => onAddTechnicalNote(p.id, text)}
                       />
@@ -806,9 +829,23 @@ export default function AdminProjectsPage() {
 
   const addTechnicalNote = async (id: string, text: string) => {
     const res = await API.post(`/admin/lead/${id}/technical-notes`, { text, thread: "sir" });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const note = res.data.note as {
+      id: string;
+      text: string;
+      createdAt: string;
+      authorId?: string;
+      authorRole?: string;
+      authorName?: string;
+    };
     const bundle = res.data.technicalNotesBundle as { sir?: typeof note[]; estimator?: typeof note[] } | undefined;
-    const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };
+    const entry: NoteEntry = {
+      id: note.id,
+      text: note.text,
+      createdAt: note.createdAt,
+      authorId: note.authorId,
+      authorRole: note.authorRole,
+      authorName: note.authorName,
+    };
     const nextJson = bundle
       ? JSON.stringify(bundle)
       : JSON.stringify({

@@ -33,16 +33,22 @@ export type TechnicalAssignment = {
   timerStartedAt: string | null;
 };
 
+function rangeDiv(from: number, to: number): string[] {
+  const out: string[] = [];
+  for (let n = from; n <= to; n += 1) {
+    out.push(`Div ${String(n).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+/** CSI-style divisions available when assigning estimators (gaps between 1–48 skipped). */
 export const DIVISION_OPTIONS = [
-  "Division 1",
-  "Division 2",
-  "Division 3",
-  "Division 4",
-  "Division 5",
-  "Division 6",
-  "Division 7",
-  "Division 8",
-  "Division 9",
+  ...rangeDiv(1, 14),
+  ...rangeDiv(21, 23),
+  ...rangeDiv(25, 28),
+  ...rangeDiv(31, 35),
+  ...rangeDiv(40, 46),
+  "Div 48",
 ] as const;
 
 function asStringList(raw: unknown): string[] {
@@ -400,6 +406,7 @@ export type TechnicalNoteEntry = {
   id: string;
   text: string;
   createdAt: string;
+  authorId?: string;
   authorRole?: string;
   authorName?: string;
 };
@@ -421,6 +428,7 @@ function normalizeNoteEntry(item: unknown, index: number): TechnicalNoteEntry | 
     text,
     createdAt: String(o.createdAt ?? ""),
   };
+  if (o.authorId) entry.authorId = String(o.authorId);
   if (o.authorRole) entry.authorRole = String(o.authorRole);
   if (o.authorName) entry.authorName = String(o.authorName);
   return entry;

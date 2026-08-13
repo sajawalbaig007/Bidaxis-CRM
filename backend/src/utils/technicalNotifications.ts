@@ -1,6 +1,6 @@
 import prisma from "../config/db";
 
-export type TechnicalNotificationSource = "admin" | "estimator" | "system";
+export type TechnicalNotificationSource = "admin" | "estimator" | "system" | "tm_estimator";
 
 export type PushTechnicalNotificationInput = {
   leadId: string;

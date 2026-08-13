@@ -12,7 +12,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
 
-import TechnicalPageShell from "../components/TechnicalPageShell";
+import { peekAuthMe } from "@/lib/authMeCache";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -40,6 +40,7 @@ import {
   PROJECT_TABLE_HEAD,
 } from "@/app/components/projects/ProjectTableCells";
 import AssignEstimatorsModal from "../components/AssignEstimatorsModal";
+import TechnicalPageShell from "../components/TechnicalPageShell";
 import API, { apiErrorMessage } from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
@@ -129,6 +130,28 @@ function notesToHistory(
   notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[],
 ): NoteEntry[] {
   return buildNoteHistory({ notes: notes ?? [] }).noteHistory;
+}
+
+function threadNotesHistory(
+  notes?: {
+    id: string;
+    text: string;
+    createdAt: string;
+    authorId?: string;
+    authorRole?: string;
+    authorName?: string;
+  }[],
+): NoteEntry[] {
+  return (notes ?? [])
+    .filter((n) => n.text?.trim())
+    .map((n) => ({
+      id: n.id,
+      text: n.text,
+      createdAt: n.createdAt,
+      authorId: n.authorId,
+      authorRole: n.authorRole,
+      authorName: n.authorName,
+    }));
 }
 
 function projectToWorkbench(p: Project): ProjectWorkbenchData {
@@ -889,6 +912,7 @@ export function TechnicalActiveProjectsPageInner({
   const focusHandledRef = useRef<string | null>(null);
   const isRevisions = variant === "revisions";
   const basePath = isRevisions ? "/technical/revisions" : "/technical/active-projects";
+  const meId = peekAuthMe()?.id;
 
   const fetchProjects = useCallback(async (silent = false) => {
     try {
@@ -1015,7 +1039,14 @@ export function TechnicalActiveProjectsPageInner({
 
   const addSirNote = async (id: string, text: string) => {
     const res = await API.post(`/admin/lead/${id}/technical-notes`, { text, thread: "sir" });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const note = res.data.note as {
+      id: string;
+      text: string;
+      createdAt: string;
+      authorId?: string;
+      authorRole?: string;
+      authorName?: string;
+    };
     const bundle = res.data.technicalNotesBundle ?? {
       ...parseTechnicalNotesBundle(projects.find((p) => p.id === id)?.technicalNotes),
       sir: res.data.technicalNotes,
@@ -1023,12 +1054,26 @@ export function TechnicalActiveProjectsPageInner({
     setProjects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, technicalNotes: JSON.stringify(bundle) } : p)),
     );
-    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
+    return {
+      id: note.id,
+      text: note.text,
+      createdAt: note.createdAt,
+      authorId: note.authorId,
+      authorRole: note.authorRole,
+      authorName: note.authorName,
+    } as NoteEntry;
   };
 
   const addEstimatorNote = async (id: string, text: string) => {
     const res = await API.post(`/admin/lead/${id}/technical-notes`, { text, thread: "estimator" });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const note = res.data.note as {
+      id: string;
+      text: string;
+      createdAt: string;
+      authorId?: string;
+      authorRole?: string;
+      authorName?: string;
+    };
     const bundle = res.data.technicalNotesBundle ?? {
       ...parseTechnicalNotesBundle(projects.find((p) => p.id === id)?.technicalNotes),
       estimator: res.data.technicalNotes,
@@ -1036,7 +1081,14 @@ export function TechnicalActiveProjectsPageInner({
     setProjects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, technicalNotes: JSON.stringify(bundle) } : p)),
     );
-    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
+    return {
+      id: note.id,
+      text: note.text,
+      createdAt: note.createdAt,
+      authorId: note.authorId,
+      authorRole: note.authorRole,
+      authorName: note.authorName,
+    } as NoteEntry;
   };
 
   const confirmAssign = async (assignments: TechnicalAssignment[]) => {
@@ -1652,7 +1704,11 @@ export function TechnicalActiveProjectsPageInner({
                       id={p.id}
                       apiRole="admin"
                       skipNotesFetch
-                      noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                      chatStyle
+                      notesKind="technical"
+                      currentUserId={meId}
+                      badgeLabel="Notes for Sir"
+                      noteHistory={threadNotesHistory(parseTechnicalNotes(p.technicalNotes))}
                       onAddNote={async (_id, text) => addSirNote(p.id, text)}
                     />
                   </div>
@@ -1662,7 +1718,11 @@ export function TechnicalActiveProjectsPageInner({
                       id={p.id}
                       apiRole="admin"
                       skipNotesFetch
-                      noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                      chatStyle
+                      notesKind="technical"
+                      currentUserId={meId}
+                      badgeLabel="Notes for Estimator"
+                      noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                       onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                     />
                   </div>
@@ -1785,7 +1845,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Sir"
+                                noteHistory={threadNotesHistory(parseTechnicalNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addSirNote(p.id, text)}
                               />
                             </td>
@@ -1794,7 +1858,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Estimator"
+                                noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
@@ -1857,7 +1925,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Sir"
+                                noteHistory={threadNotesHistory(parseTechnicalNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addSirNote(p.id, text)}
                               />
                             </td>
@@ -1866,7 +1938,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Estimator"
+                                noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
@@ -1923,7 +1999,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Sir"
+                                noteHistory={threadNotesHistory(parseTechnicalNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addSirNote(p.id, text)}
                               />
                             </td>
@@ -1932,7 +2012,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Estimator"
+                                noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
@@ -1976,7 +2060,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Sir"
+                                noteHistory={threadNotesHistory(parseTechnicalNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addSirNote(p.id, text)}
                               />
                             </td>
@@ -1985,7 +2073,11 @@ export function TechnicalActiveProjectsPageInner({
                                 id={p.id}
                                 apiRole="admin"
                                 skipNotesFetch
-                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                chatStyle
+                                notesKind="technical"
+                                currentUserId={meId}
+                                badgeLabel="Notes for Estimator"
+                                noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                                 onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
@@ -2080,7 +2172,7 @@ export function TechnicalActiveProjectsPageInner({
         noteHistory={editProject ? notesToHistory(editProject.notes) : undefined}
         onAddNote={undefined}
         technicalNoteHistory={
-          editProject ? notesToHistory(parseTechnicalNotes(editProject.technicalNotes)) : undefined
+          editProject ? threadNotesHistory(parseTechnicalNotes(editProject.technicalNotes)) : undefined
         }
         onAddTechnicalNote={
           editProject

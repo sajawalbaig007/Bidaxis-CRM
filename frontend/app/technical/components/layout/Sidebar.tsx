@@ -19,6 +19,7 @@ import ChatPanel from "@/app/components/chat/ChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import API from "@/lib/api";
+import { playChatSound, primeChatSound } from "@/lib/chatSound";
 import {
   dismissTechnicalNotification,
   fetchTechnicalNotifications,
@@ -57,6 +58,7 @@ export default function TechnicalSidebar() {
   const chatEnabled = useChatEnabled();
   const profileRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+  const prevUnreadRef = useRef<number | null>(null);
 
   const closeChat = () => {
     forceStopChatUnreadPolling();
@@ -72,6 +74,19 @@ export default function TechnicalSidebar() {
       /* keep previous */
     }
   }, []);
+
+  useEffect(() => {
+    primeChatSound();
+  }, []);
+
+  useEffect(() => {
+    if (prevUnreadRef.current === null) {
+      prevUnreadRef.current = unreadCount;
+      return;
+    }
+    if (unreadCount > prevUnreadRef.current) playChatSound();
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
 
   useEffect(() => () => {
     forceStopChatUnreadPolling();
