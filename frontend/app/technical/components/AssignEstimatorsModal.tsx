@@ -353,7 +353,8 @@ export default function AssignEstimatorsModal({
                   <div className="text-center py-8 space-y-2">
                     <p className="text-sm font-semibold text-gray-600">No estimators available.</p>
                     <p className="text-xs text-gray-500 px-4 leading-relaxed">
-                      Admin → Users mein role <span className="font-bold text-[#B8112D]">Estimator</span> wale users add / activate karein, phir yeh modal dubara kholen.
+                      In Admin → Users, add or activate users with the{" "}
+                      <span className="font-bold text-[#B8112D]">Estimator</span> role, then open this modal again.
                     </p>
                   </div>
                 ) : (
@@ -447,7 +448,7 @@ export default function AssignEstimatorsModal({
                           <textarea
                             value={d.workDetail}
                             onChange={(e) => patchDraft(est.id, { workDetail: e.target.value })}
-                            placeholder="Is scope me kya work karna hai — detail message for estimator…"
+                            placeholder="Describe the work for this estimator…"
                             rows={3}
                             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#B8112D] bg-[#FAFAFA] resize-none"
                           />

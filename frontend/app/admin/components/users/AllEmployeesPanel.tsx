@@ -460,7 +460,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
               <div>
                 <h3 className="font-bold text-[#0F172A] text-sm">Add from dashboard users</h3>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  Checkbox se select karein — role aur details auto aayengi
+                  Select users with checkboxes — role and details fill in automatically
                 </p>
               </div>
               <button type="button" onClick={() => setPickOpen(false)} className="w-8 h-8 rounded-xl hover:bg-gray-100 inline-flex items-center justify-center">
@@ -653,7 +653,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
               <label className="block text-xs font-semibold text-gray-600">
                 Start month {manualForm.payrollHead ? <RequiredMark /> : null}
                 <span className="text-[10px] font-normal text-gray-400 ml-1 block sm:inline sm:ml-1">
-                  Kis month se Accounts head mein add / auto continue
+                  Month when they join this Accounts head (auto-continues after)
                 </span>
                 <input
                   type="month"

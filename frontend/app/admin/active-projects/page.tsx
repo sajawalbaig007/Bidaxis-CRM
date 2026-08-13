@@ -224,6 +224,7 @@ function ProjectCard({
   onMarkCompleted,
   onAddNote,
   onAddTechnicalNote,
+  onSaveBidInstruction,
   onNoteUpdated,
   onNoteDeleted,
   onTimingChange,
@@ -236,6 +237,7 @@ function ProjectCard({
   onMarkCompleted?: () => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
+  onSaveBidInstruction: (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
@@ -319,11 +321,10 @@ function ProjectCard({
           <CommentCell
             id={p.id}
             apiRole="admin"
+            commentOnly
+            skipNotesFetch
             comment={p.projectNotes ?? undefined}
-            noteHistory={notesToHistory(p.notes)}
-            onAddNote={onAddNote}
-            onNoteUpdated={onNoteUpdated}
-            onNoteDeleted={onNoteDeleted}
+            onSave={(id, text) => onSaveBidInstruction(id, text)}
           />
         </div>
         <div>
@@ -380,6 +381,7 @@ function ProjectsSection({
   onMarkCompleted,
   onAddNote,
   onAddTechnicalNote,
+  onSaveBidInstruction,
   onNoteUpdated,
   onNoteDeleted,
   onTimingChange,
@@ -396,6 +398,7 @@ function ProjectsSection({
   onMarkCompleted?: (p: Project) => void;
   onAddNote: (id: string, text: string) => Promise<unknown>;
   onAddTechnicalNote: (id: string, text: string) => Promise<unknown>;
+  onSaveBidInstruction: (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
   onTimingChange?: (id: string, timing: "" | "morning" | "cob") => void;
@@ -427,6 +430,7 @@ function ProjectsSection({
               onMarkCompleted={onMarkCompleted ? () => onMarkCompleted(p) : undefined}
               onAddNote={onAddNote}
               onAddTechnicalNote={onAddTechnicalNote}
+              onSaveBidInstruction={onSaveBidInstruction}
               onNoteUpdated={onNoteUpdated}
               onNoteDeleted={onNoteDeleted}
               onTimingChange={onTimingChange}
@@ -515,11 +519,10 @@ function ProjectsSection({
                       <CommentCell
                         id={p.id}
                         apiRole="admin"
+                        commentOnly
+                        skipNotesFetch
                         comment={p.projectNotes ?? undefined}
-                        noteHistory={notesToHistory(p.notes)}
-                        onAddNote={onAddNote}
-                        onNoteUpdated={onNoteUpdated}
-                        onNoteDeleted={onNoteDeleted}
+                        onSave={(id, text) => onSaveBidInstruction(id, text)}
                       />
                     </td>
                     <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
@@ -926,6 +929,28 @@ export default function AdminProjectsPage() {
       toast.error("Failed to save project");
     } finally {
       setWorkbenchSaving(false);
+    }
+  };
+
+  const saveBidInstruction = async (projectId: string, text: string) => {
+    try {
+      const res = await API.put(`/admin/project/${projectId}`, { projectNotes: text });
+      const lead = res.data.lead as Project | undefined;
+      if (lead) {
+        setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+        setWorkbenchProject((prev) => (prev?.id === lead.id ? { ...prev, ...lead } : prev));
+      } else {
+        setProjects((prev) =>
+          prev.map((p) => (p.id === projectId ? { ...p, projectNotes: text } : p)),
+        );
+        setWorkbenchProject((prev) =>
+          prev?.id === projectId ? { ...prev, projectNotes: text } : prev,
+        );
+      }
+      toast.success(text.trim() ? "Bid instruction updated" : "Bid instruction deleted");
+    } catch {
+      toast.error("Failed to update bid instruction");
+      throw new Error("bid save failed");
     }
   };
 
@@ -1451,6 +1476,7 @@ export default function AdminProjectsPage() {
           onMarkCompleted={hideClientFinanceCols ? undefined : (p) => void markProjectCompleted(p)}
           onAddNote={addAdminNote}
           onAddTechnicalNote={addTechnicalNote}
+          onSaveBidInstruction={saveBidInstruction}
           onNoteUpdated={updateAdminNote}
           onNoteDeleted={deleteAdminNote}
           onTimingChange={(id, timing) => void changeDeadlineTiming(id, timing)}

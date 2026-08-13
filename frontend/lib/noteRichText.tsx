@@ -209,8 +209,8 @@ export function NoteComposer({
   };
 
   return (
-    <div className={`rounded-xl border border-amber-200 bg-[#FFFBEB] overflow-hidden focus-within:border-amber-400 ${className}`}>
-      <div className="flex items-center justify-between px-2 py-1 border-b border-amber-100 bg-amber-50/80">
+    <div className={`rounded-xl border border-amber-200 !bg-[#FFFBEB] overflow-hidden focus-within:border-amber-400 ${className}`}>
+      <div className="flex items-center justify-between px-2 py-1 border-b border-amber-100 !bg-amber-50/90">
         <NoteFormatToolbar textareaRef={ref} value={value} onChange={onChange} />
         <span className="text-[9px] text-amber-700/60 font-medium pr-1 hidden sm:inline">Ctrl+B / I / U</span>
       </div>
@@ -223,7 +223,7 @@ export function NoteComposer({
         rows={rows}
         disabled={disabled}
         placeholder={placeholder}
-        className="w-full text-[12px] px-3 py-2 outline-none resize-none text-amber-950 placeholder:text-amber-400 bg-transparent disabled:opacity-50"
+        className="w-full text-[12px] px-3 py-2 outline-none resize-none !text-amber-950 placeholder:text-amber-400 !bg-transparent disabled:opacity-50"
       />
     </div>
   );

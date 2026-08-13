@@ -179,7 +179,7 @@ export default function CashFlowRowModal({
                         type="date"
                         value={n.date}
                         onChange={e => setNotes(notes.map(x => (x.id === n.id ? { ...x, date: e.target.value } : x)))}
-                        className="h-8 rounded-lg border border-amber-200/80 bg-crm-surface px-2 text-[11px] flex-1"
+                        className="h-8 rounded-lg border border-amber-200/80 bg-white px-2 text-[11px] text-amber-950 dark:text-amber-950 flex-1"
                       />
                       <button
                         type="button"
@@ -200,7 +200,7 @@ export default function CashFlowRowModal({
                       }
                       placeholder="Write note… (Ctrl+B / I / U)"
                       rows={2}
-                      className="!bg-crm-surface !border-amber-200"
+                      className="!border-amber-200"
                     />
                   </div>
                 ))
