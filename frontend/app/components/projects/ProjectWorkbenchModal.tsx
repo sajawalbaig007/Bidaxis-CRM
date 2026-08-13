@@ -256,7 +256,6 @@ export default function ProjectWorkbenchModal({
     if (!hideClientFinanceSections) {
       if (!req(data.name)) { toast.error("Client name is required"); return; }
       if (!req(data.company)) { toast.error("Company name is required"); return; }
-      if (!req(data.ownerName)) { toast.error("Owner name is required"); return; }
       if (!req(data.phone)) { toast.error("Phone is required"); return; }
       if (!req(data.email)) { toast.error("Email is required"); return; }
       if (mode === "admin" && data.assignedTo === CSR_ASSIGN_OTHER && !req(data.projectSource)) {
@@ -360,8 +359,8 @@ export default function ProjectWorkbenchModal({
                   onChange={(e) => setData((d) => ({ ...d, company: e.target.value }))} />
               </div>
               <div>
-                <ReqLabel required>Owner Name</ReqLabel>
-                <input className={inputCls} value={data.ownerName} placeholder="If available"
+                <ReqLabel>Owner Name</ReqLabel>
+                <input className={inputCls} value={data.ownerName} placeholder="Optional"
                   onChange={(e) => setData((d) => ({ ...d, ownerName: e.target.value }))} />
               </div>
               <div>

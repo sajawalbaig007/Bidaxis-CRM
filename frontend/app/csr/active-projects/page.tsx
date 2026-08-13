@@ -176,11 +176,15 @@ export default function CSRProjectsPage() {
       return matchesDate && matchesState && matchesPhone && matchesSearch;
     });
     return sortClientRows(
-      list.map(p => ({ ...p, clientCode: p.clientCode || p.projectCode || null })),
-      sortBy,
+      list.map(p => ({
+        ...p,
+        // PROJECT DETAIL "Code" prefers projectCode, then clientCode
+        clientCode: p.projectCode || p.clientCode || null,
+      })),
+      "clientCode",
       sortDir,
     );
-  }, [dateFrom, dateTo, search, stateFilter, phoneFilter, projects, sortBy, sortDir]);
+  }, [dateFrom, dateTo, search, stateFilter, phoneFilter, projects, sortDir]);
 
   const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -416,6 +420,7 @@ export default function CSRProjectsPage() {
               className="shrink-0 flex-nowrap"
               sortBy={sortBy}
               sortDir={sortDir}
+              dirOnly
               onSortBy={v => { setSortBy(v); setPage(1); }}
               onSortDir={v => { setSortDir(v); setPage(1); }}
             />

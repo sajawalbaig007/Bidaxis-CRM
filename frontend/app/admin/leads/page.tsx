@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API, { apiErrorMessage } from "@/lib/api";
 import { getAdminTabCounts } from "@/lib/adminSummaryCache";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_TOP_POPOVER, COL_7_ADMIN, COL_8_CLOSED, COL_8_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_TOP_POPOVER, COL_6_ADMIN, COL_7_CLOSED, COL_7_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import toast, { Toaster } from "react-hot-toast";
@@ -354,8 +354,8 @@ function ClientsPageContent() {
       textColumnMatch(c.clientName, v) ||
       textColumnMatch(c.email, v) ||
       textColumnMatch(c.contact, v) ||
+      textColumnMatch(c.company, v) ||
       textColumnMatch(c.createdAt, v),
-    company: (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.company, v),
     scope:   (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.scope, v),
     csr:     (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.csr, v),
     status:  (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.status, v),
@@ -411,7 +411,7 @@ function ClientsPageContent() {
   const isScheduleView = effectiveView === "schedule";
   const isClosedView   = effectiveView === "closed";
   const tableMinWidth  = isScheduleView || isClosedView ? "1200px" : "1100px";
-  const tableColWidths = isScheduleView ? COL_8_SCHEDULE_ADMIN : isClosedView ? COL_8_CLOSED : COL_7_ADMIN;
+  const tableColWidths = isScheduleView ? COL_7_SCHEDULE_ADMIN : isClosedView ? COL_7_CLOSED : COL_6_ADMIN;
 
   const tableTitle =
     effectiveView === "interested" ? "Interested Clients"
@@ -421,13 +421,13 @@ function ClientsPageContent() {
     : "Important Clients";
 
   const tableHeaders = isScheduleView
-    ? ["Client", "Company", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]
+    ? ["Client", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]
     : isClosedView
-    ? ["Client", "Company", "Type", "Scope", "CSR", "Status", "Notes", ""]
-    : ["Client", "Company", "Scope", "CSR", "Status", "Notes", ""];
+    ? ["Client", "Type", "Scope", "CSR", "Status", "Notes", ""]
+    : ["Client", "Scope", "CSR", "Status", "Notes", ""];
 
   const headerFilterKey: Record<string, string> = {
-    Client: "client", Company: "company", Scope: "scope",
+    Client: "client", Scope: "scope",
     CSR: "csr", Status: "status", "Next Schedule": "schedule", Time: "time", Type: "type",
   };
 
@@ -815,10 +815,6 @@ function ClientsPageContent() {
                                 </div>
                               );
                             })()}
-                          </td>
-
-                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-600`}>
-                            <span className="truncate block">{client.company}</span>
                           </td>
 
                           {isClosedView && (
