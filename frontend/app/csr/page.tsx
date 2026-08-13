@@ -18,7 +18,7 @@ import PhoneAreaCodeFilterInput from "./components/shared/PhoneAreaCodeFilterInp
 import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD } from "./components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD } from "./components/shared/csrTableStyles";
 import InterestedServicesCell from "./components/shared/InterestedServicesCell";
 import { decomposeInterestedServices, formatInterestedServices } from "./utils/parseInterestedServices";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
@@ -584,7 +584,7 @@ export default function CSRPage() {
                     </td>
 
                     {/* NOTES */}
-                    <td className={CSR_TD}>
+                    <td className={CSR_TD_TOP}>
                       <CommentCell
                         id={currentLink.id}
                         noteHistory={currentLink.noteHistory}

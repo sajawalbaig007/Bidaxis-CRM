@@ -1,5 +1,6 @@
 /** Map API lead row → admin leads table Client shape */
 
+import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { adminLeadStatusLabel } from "./leadStatus";
 
 export function formatAdminLead(lead: {
@@ -13,6 +14,8 @@ export function formatAdminLead(lead: {
   projectCode?: string | null;
   interestedService?: string;
   comments?: string;
+  followUpNotes?: string | null;
+  createdAt?: string;
   updatedAt?: string;
   status?: string;
   important?: boolean;
@@ -23,7 +26,8 @@ export function formatAdminLead(lead: {
   state?: string | null;
   uploadFile?: { companyName?: string };
   csr?: { name?: string; csrCode?: string | null };
-  notes?: { id?: string; text: string; createdAt?: string }[];
+  notes?: { id?: string; text: string; createdAt?: string; parentId?: string | null }[];
+  latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   _count?: { notes?: number };
 }): {
   id: string;
@@ -49,7 +53,7 @@ export function formatAdminLead(lead: {
   isOldClient: boolean;
   state: string;
   noteCount: number;
-  noteHistory: { id: string; text: string; createdAt: string }[];
+  noteHistory: { id: string; text: string; createdAt: string; parentId?: string | null; replies?: { id: string; text: string; createdAt: string; parentId?: string | null }[] }[];
 } {
   const rawStatus = (lead.status || "pending").toLowerCase();
   const raw = lead.important && rawStatus !== "important" ? "important" : rawStatus;
@@ -65,13 +69,20 @@ export function formatAdminLead(lead: {
 
   const nextFollowup = lead.nextSchedule || "";
 
-  const noteHistory = (lead.notes ?? [])
-    .filter((n) => !!n.text?.trim())
-    .map((n, idx) => ({
-      id: n.id ?? `legacy-${lead.id}-${idx}`,
-      text: n.text.trim(),
-      createdAt: n.createdAt || lead.updatedAt || new Date().toISOString(),
-    }));
+  const { noteHistory, noteCount } = buildNoteHistory({
+    notes: lead.notes,
+    latestNote: lead.latestNote,
+    comments: lead.comments,
+    followUpNotes: lead.followUpNotes,
+    createdAt: lead.createdAt,
+    updatedAt: lead.updatedAt,
+    noteCount: lead._count?.notes,
+  });
+
+  const latestFlat = noteHistory
+    .flatMap((n) => [n, ...(n.replies ?? [])])
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const latestNoteText = latestFlat?.text || lead.comments?.trim() || "";
 
   return {
     id: lead.id,
@@ -84,7 +95,7 @@ export function formatAdminLead(lead: {
     scope: lead.interestedService?.trim() || "N/A",
     lastEmail: "",
     lastCall: lead.updatedAt?.split("T")[0] || "",
-    lastComment: lead.notes?.[0]?.text || lead.comments || "No comments",
+    lastComment: latestNoteText || "No comments",
     rawStatus: raw,
     status: adminLeadStatusLabel(raw, nextFollowup),
     csr: lead.csr?.name || "Unassigned",
@@ -96,7 +107,7 @@ export function formatAdminLead(lead: {
     timezone: lead.timezone || "N/A",
     isOldClient: lead.isOldClient ?? false,
     state: lead.state?.trim() || "",
-    noteCount: Math.max(lead._count?.notes ?? 0, noteHistory.length),
+    noteCount,
     noteHistory,
   };
 }

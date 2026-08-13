@@ -10,7 +10,7 @@ import LeadDetailModal from "../components/LeadDetailModal";
 import CommentCell from "../components/shared/CommentCell";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_7_IMPORTANT_SUB, COL_9_SCHEDULE, COL_8_INTERESTED_SUB, CSR_TABLE_CARD, CSR_TABLE_WRAP, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import EditClientModal, { EditAction } from "../components/modals/EditClientModal";
 import AddLeadModal from "../components/modals/AddLeadModal";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
@@ -473,7 +473,7 @@ export default function ImportantCallsPage() {
                           onEdit={() => openScopeEditor(lead)}
                         />
                       </td>
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_TOP}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
@@ -598,8 +598,8 @@ export default function ImportantCallsPage() {
                           </p>
                         </div>
                       </td>
-                      <td className={CSR_TD}>
-                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
+                      <td className={CSR_TD_TOP}>
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
                         <div className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
@@ -735,7 +735,7 @@ export default function ImportantCallsPage() {
                           onEdit={() => openScopeEditor(lead)}
                         />
                       </td>
-                      <td className={CSR_TD}>
+                      <td className={CSR_TD_TOP}>
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
