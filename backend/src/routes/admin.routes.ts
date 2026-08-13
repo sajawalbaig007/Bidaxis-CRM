@@ -686,6 +686,7 @@ router.post("/lead/:id/notes", verifyToken, allowRoles("admin", "manager", "tech
     const note = await prisma.leadNote.create({
       data: { text: text.trim(), leadId, ...(parent ? { parentId: parent } : {}) },
     });
+    await prisma.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } });
     flushAdminClientsCache();
     invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
     return res.json({ success: true, note });
@@ -708,6 +709,7 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manager"
       where: { id: noteId },
       data: { text: text.trim(), createdAt: new Date() },
     });
+    await prisma.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } });
     flushAdminClientsCache();
     return res.json({ success: true, note: updated });
   } catch {

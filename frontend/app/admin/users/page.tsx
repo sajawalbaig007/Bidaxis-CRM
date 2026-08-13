@@ -744,13 +744,16 @@ export default function UsersPage() {
             toast.dismiss(t.id);
             const tid = toast.loading("Deleting...");
             try {
-              const res  = await fetch(`${apiBase()}/users/${id}`, { method: "DELETE", credentials: "include" });
-              const data = await res.json();
-              if (!res.ok) { toast.error(data.message || "Delete failed.", { id: tid }); return; }
+              await API.delete(`/users/${id}`);
               toast.success("User deleted.", { id: tid });
               broadcastAdminSummaryStale();
               fetchUsers();
-            } catch { toast.error("Something went wrong.", { id: tid }); }
+            } catch (err: unknown) {
+              const msg =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+                || "Something went wrong.";
+              toast.error(msg, { id: tid });
+            }
           }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Delete</button>
           <button onClick={() => toast.dismiss(t.id)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-600">Cancel</button>
         </div>

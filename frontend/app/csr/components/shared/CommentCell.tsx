@@ -219,6 +219,9 @@ export default function CommentCell({
   const canEditDelete = canMutate && (notesKind === "technical" || !skipNotesFetch);
   /** Bid Instruction / projectNotes via onSave */
   const canEditComment = canMutate && !!onSave && (commentOnly || !!legacyComment || skipNotesFetch);
+  const previewText = (latestRoot?.text || legacyComment || "").trim();
+  const showRowPreview = !chatStyle && !commentOnly && count > 0 && !!previewText;
+  const extraNotesCount = showRowPreview ? Math.max(0, count - 1) : 0;
 
   const noteApiPath = (noteId: string) =>
     notesKind === "technical"
@@ -1020,13 +1023,26 @@ export default function CommentCell({
             : "Add sticky note"
         }
         className={`relative inline-flex items-center justify-center gap-1.5 min-w-[44px] h-8 px-2 rounded-xl border transition-all shadow-sm ${
+          showRowPreview ? "max-w-full min-w-0" : ""
+        } ${
           count > 0
             ? "bg-[#FEF3C7] border-amber-300 text-amber-900 hover:bg-[#FDE68A]"
             : "bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
         }`}
       >
         <StickyNote size={13} className="shrink-0 text-amber-700" />
-        {count > 0 ? (
+        {showRowPreview ? (
+          <>
+            <span className="min-w-0 max-w-[110px] sm:max-w-[140px] truncate text-left text-[10px] sm:text-[11px] font-semibold text-amber-950 dark:text-amber-950 leading-tight">
+              <NoteRichText text={previewText} className="text-amber-950 dark:text-amber-950" />
+            </span>
+            {extraNotesCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0">
+                +{extraNotesCount}
+              </span>
+            )}
+          </>
+        ) : count > 0 ? (
           <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums">
             +{count}
           </span>

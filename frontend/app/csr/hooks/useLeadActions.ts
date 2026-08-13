@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction } from "react";
 import API from "@/lib/api";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { invalidateCsrTabCaches } from "@/lib/csrTabApiCache";
+import { bumpToFront } from "@/lib/bumpToFront";
 import { Lead } from "../types/lead";
 import { NoteEntry } from "./useLeadsData";
 import { normStatus } from "../constants/leadStatuses";
@@ -97,8 +98,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
       createdAt: new Date().toISOString(),
       parentId: parentId || null,
     };
-    setLeads(prev => prev.map(l => {
-      if (l.id !== id) return l;
+    setLeads(prev => bumpToFront(prev, id, (l) => {
       const hist = l.noteHistory ?? [];
       let nextHistory: NoteEntry[];
       if (parentId) {
@@ -131,8 +131,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
           }
         : { id: Date.now().toString(), text, createdAt: new Date().toISOString(), parentId: parentId || null };
 
-      setLeads(prev => prev.map(l => {
-        if (l.id !== id) return l;
+      setLeads(prev => bumpToFront(prev, id, (l) => {
         const hist = l.noteHistory ?? [];
         if (parentId) {
           return {
@@ -222,5 +221,46 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
     return res.data;
   };
 
-  return { saveComment, addNote, updateLead };
+  const onNoteUpdated = (
+    leadId: string,
+    noteId: string,
+    text: string,
+    createdAt?: string,
+  ) => {
+    const at = createdAt ?? new Date().toISOString();
+    setLeads((prev) =>
+      bumpToFront(prev, leadId, (l) => {
+        const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
+          notes.map((n) => {
+            if (n.id === noteId) return { ...n, text, createdAt: at };
+            if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
+            return n;
+          });
+        const noteHistory = patchDeep([...(l.noteHistory ?? [])]).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        return { ...l, noteHistory };
+      }),
+    );
+  };
+
+  const onNoteDeleted = (leadId: string, noteId: string) => {
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id !== leadId) return l;
+        const strip = (notes: NoteEntry[]): NoteEntry[] =>
+          notes
+            .filter((n) => n.id !== noteId)
+            .map((n) => ({
+              ...n,
+              replies: (n.replies ?? []).filter((r) => r.id !== noteId),
+            }));
+        const noteHistory = strip(l.noteHistory ?? []);
+        const deep = noteHistory.reduce((s, n) => s + 1 + (n.replies?.length ?? 0), 0);
+        return { ...l, noteHistory, noteCount: deep };
+      }),
+    );
+  };
+
+  return { saveComment, addNote, updateLead, onNoteUpdated, onNoteDeleted };
 }

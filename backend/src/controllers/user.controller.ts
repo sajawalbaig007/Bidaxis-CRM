@@ -191,7 +191,14 @@ export const deleteUser = async (req: Request, res: Response) => {
     /* 5. Reports — just nullify the FK, keep the report */
     await prisma.report.updateMany({ where: { generatedBy: id }, data: { generatedBy: null } });
 
-    /* 6. Delete the user */
+    /* 6. Session / audit / access rows that block User delete (required FKs) */
+    await prisma.accessHistory.deleteMany({ where: { userId: id } });
+    await prisma.csrWorkSession.deleteMany({ where: { userId: id } });
+    await prisma.securityAuditLog.updateMany({ where: { userId: id }, data: { userId: null } });
+    await prisma.loginAttemptAlert.deleteMany({ where: { userId: id } });
+    await prisma.staffEmployee.updateMany({ where: { userId: id }, data: { userId: null } });
+
+    /* 7. Delete the user */
     await prisma.user.delete({ where: { id } });
 
     flushAdminClientsCache();
@@ -201,6 +208,14 @@ export const deleteUser = async (req: Request, res: Response) => {
     res.json({ success: true, message: "User deleted" });
   } catch (err) {
     console.log("[deleteUser]", err);
-    res.status(500).json({ message: "Delete failed" });
+    const detail =
+      err && typeof err === "object" && "message" in err
+        ? String((err as { message?: unknown }).message ?? "")
+        : "";
+    res.status(500).json({
+      message: detail.includes("Foreign key") || detail.includes("constraint")
+        ? "Delete failed — linked records could not be cleared. Try again or contact support."
+        : "Delete failed",
+    });
   }
 };

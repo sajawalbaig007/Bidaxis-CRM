@@ -24,6 +24,7 @@ import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_POPOVER
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
+import { bumpToFront } from "@/lib/bumpToFront";
 import ProjectDetailsForm from "../components/shared/ProjectDetailsForm";
 import EmailField from "../components/shared/EmailField";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
@@ -326,8 +327,7 @@ export default function NotInterestedPage() {
           parentId: res.data.note.parentId ?? parentId ?? null,
         }
       : { id: Date.now().toString(), text, createdAt: new Date().toISOString(), parentId: parentId || null };
-    setLeads(prev => prev.map(l => {
-      if (l.id !== id) return l;
+    setLeads(prev => bumpToFront(prev, id, (l) => {
       const hist = l.noteHistory ?? [];
       if (parentId) {
         return {
