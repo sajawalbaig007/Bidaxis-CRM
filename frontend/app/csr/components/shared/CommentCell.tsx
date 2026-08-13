@@ -205,10 +205,10 @@ export default function CommentCell({
       : null
     : null;
 
-  const latestRoot = [...displayNotes].sort(
+  const latestAny = flattenNotes(displayNotes).sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )[0];
-  const latestAt = latestRoot?.createdAt || null;
+  const latestAt = latestAny?.createdAt || null;
 
   const preloadedDeep = noteHistory ? countNotesDeep(noteHistory) : 0;
   const baseCount = commentOnly
@@ -228,9 +228,13 @@ export default function CommentCell({
   const canEditDelete = canMutate && (notesKind === "technical" || !skipNotesFetch);
   /** Bid Instruction / projectNotes via onSave */
   const canEditComment = canMutate && !!onSave && (commentOnly || !!legacyComment || skipNotesFetch);
-  const previewText = plainNotePreview(latestRoot?.text || legacyComment || "");
-  const showRowPreview = !chatStyle && !commentOnly && count > 0 && !!previewText;
-  const extraNotesCount = showRowPreview ? Math.max(0, count - 1) : 0;
+  const previewRaw = latestAny?.text || legacyComment || comment || "";
+  const previewText = plainNotePreview(previewRaw);
+  // Always prefer text + optional +N (never bare +N when we have previewable text from any source).
+  const showRowPreview = !chatStyle && !commentOnly && !!previewText;
+  const extraNotesCount = showRowPreview
+    ? Math.max(0, count > 0 ? count - 1 : 0)
+    : 0;
 
   const noteApiPath = (noteId: string) =>
     notesKind === "technical"
@@ -1033,22 +1037,24 @@ export default function CommentCell({
               }`
             : "Add sticky note"
         }
-        className={`relative inline-flex items-center gap-1.5 h-8 px-2 rounded-xl border transition-all shadow-sm overflow-hidden ${
-          showRowPreview ? "w-full max-w-full min-w-0" : "min-w-[44px] justify-center"
+        className={`relative inline-flex gap-1.5 px-2 py-1.5 rounded-xl border transition-all shadow-sm overflow-hidden ${
+          showRowPreview
+            ? "w-full max-w-full min-w-0 min-h-[48px] items-start"
+            : "min-w-[44px] h-9 items-center justify-center"
         } ${
           count > 0
             ? "bg-[#FEF3C7] border-amber-300 text-amber-900 hover:bg-[#FDE68A]"
             : "bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
         }`}
       >
-        <StickyNote size={13} className="shrink-0 text-amber-700" />
+        <StickyNote size={13} className="shrink-0 text-amber-700 mt-0.5" />
         {showRowPreview ? (
           <>
-            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[10px] sm:text-[11px] font-semibold text-amber-950">
+            <span className="min-w-0 flex-1 text-left text-[10px] sm:text-[11px] font-semibold text-amber-950 leading-snug line-clamp-2 break-words">
               {previewText}
             </span>
             {extraNotesCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0">
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0 mt-0.5">
                 +{extraNotesCount}
               </span>
             )}

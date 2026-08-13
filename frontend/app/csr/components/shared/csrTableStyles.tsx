@@ -8,10 +8,10 @@ export const CSR_THEAD =
   "crm-thead sticky top-0 z-10 border-b border-crm-border-subtle bg-crm-surface-raised";
 export const CSR_TH =
   "text-left py-2 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-semibold text-crm-text-muted";
-export const CSR_TD = "py-2 px-1.5 sm:px-2 align-middle max-w-0 overflow-hidden";
+export const CSR_TD = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-hidden";
 /** Phone / email cells — allow +N badge and popover menus to show */
-export const CSR_TD_POPOVER = "py-2 px-1.5 sm:px-2 align-middle max-w-0 overflow-visible";
-export const CSR_TD_TOP = "py-2 px-1.5 sm:px-2 align-top max-w-0 overflow-hidden";
+export const CSR_TD_POPOVER = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-visible";
+export const CSR_TD_TOP = "py-3 px-1.5 sm:px-2 align-top max-w-0 overflow-hidden";
 /** Shrink-wrap action column so buttons sit under the header */
 export const CSR_TH_ACTION = `${CSR_TH} w-[1%] whitespace-nowrap`;
 export const CSR_TD_ACTION = `${CSR_TD_FLUID} w-[1%] whitespace-nowrap`;
@@ -30,9 +30,9 @@ export const COL_7_INTERESTED_SUB = COL_8_INTERESTED_SUB;
 export const COL_5_POTENTIAL = COL_6_POTENTIAL;
 export const COL_9_BIN = ["4%", "14%", "11%", "10%", "9%", "10%", "12%", "9%", "21%"] as const;
 export const COL_7_INTERESTED = ["18%", "13%", "14%", "14%", "12%", "10%", "19%"] as const;
-export const COL_6_DASHBOARD = ["22%", "14%", "14%", "12%", "13%", "25%"] as const;
-export const COL_7_DASHBOARD = ["16%", "12%", "12%", "12%", "10%", "13%", "25%"] as const;
-export const COL_8_ADMIN = ["16%", "12%", "12%", "11%", "9%", "10%", "18%", "12%"] as const;
+export const COL_6_DASHBOARD = ["20%", "13%", "13%", "12%", "12%", "30%"] as const;
+export const COL_7_DASHBOARD = ["15%", "11%", "11%", "11%", "10%", "12%", "30%"] as const;
+export const COL_8_ADMIN = ["15%", "11%", "11%", "10%", "9%", "9%", "22%", "13%"] as const;
 export const COL_9_CLOSED = ["15%", "12%", "9%", "11%", "11%", "10%", "9%", "10%", "13%"] as const;
 export const COL_9_SCHEDULE_ADMIN = ["15%", "11%", "12%", "12%", "9%", "10%", "9%", "10%", "12%"] as const;
 

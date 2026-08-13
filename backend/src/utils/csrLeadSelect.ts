@@ -67,8 +67,7 @@ export const CSR_CLIENT_LIST_SELECT = {
 } as const;
 
 export const CSR_LIST_NOTES_SELECT = {
-  where: { parentId: null },
   orderBy: { createdAt: "desc" as const },
-  take: 1,
+  take: 5,
   select: { id: true, text: true, createdAt: true, parentId: true },
 } as const;

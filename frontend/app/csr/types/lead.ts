@@ -25,9 +25,9 @@ export interface BackendLead {
   interested?: boolean;
   updatedAt?: string;
   uploadFile?: { companyName?: string; source?: { sudoName?: string | null } };
-  notes?: { id: string; text?: string; createdAt?: string; }[];
+  notes?: { id: string; text?: string; createdAt?: string; parentId?: string | null }[];
   noteCount?: number;
-  latestNote?: { id: string; text: string; createdAt: string } | null;
+  latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
   trade?: string | null;

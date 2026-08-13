@@ -184,11 +184,15 @@ export const ADMIN_LEAD_LIST_SELECT = {
 
   comments:          true,
 
+  followUpNotes:     true,
+
   nextSchedule:      true,
 
   nextTime:          true,
 
   timezone:          true,
+
+  createdAt:         true,
 
   updatedAt:         true,
 
@@ -199,9 +203,8 @@ export const ADMIN_LEAD_LIST_SELECT = {
   _count: { select: { notes: true } },
 
   notes: {
-    where: { parentId: null },
     orderBy: { createdAt: "desc" as const },
-    take: 1,
+    take: 5,
     select: { id: true, text: true, createdAt: true, parentId: true },
   },
 
