@@ -400,33 +400,73 @@ export type TechnicalNoteEntry = {
   id: string;
   text: string;
   createdAt: string;
+  authorRole?: string;
+  authorName?: string;
 };
 
-export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
-  if (!raw) return [];
+export type TechnicalNotesThread = "sir" | "estimator";
+
+export type TechnicalNotesBundle = {
+  sir: TechnicalNoteEntry[];
+  estimator: TechnicalNoteEntry[];
+};
+
+function normalizeNoteEntry(item: unknown, index: number): TechnicalNoteEntry | null {
+  if (!item || typeof item !== "object") return null;
+  const o = item as Record<string, unknown>;
+  const text = String(o.text ?? "").trim();
+  if (!text) return null;
+  const entry: TechnicalNoteEntry = {
+    id: String(o.id ?? `n-${index}`),
+    text,
+    createdAt: String(o.createdAt ?? ""),
+  };
+  if (o.authorRole) entry.authorRole = String(o.authorRole);
+  if (o.authorName) entry.authorName = String(o.authorName);
+  return entry;
+}
+
+function parseNoteList(raw: unknown): TechnicalNoteEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TechnicalNoteEntry[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry = normalizeNoteEntry(raw[i], i);
+    if (entry) out.push(entry);
+  }
+  return out;
+}
+
+/** Supports legacy array (sir-only) and `{ sir, estimator }` bundle. */
+export function parseTechnicalNotesBundle(raw: unknown): TechnicalNotesBundle {
+  if (!raw) return { sir: [], estimator: [] };
   if (Array.isArray(raw)) {
-    return raw
-      .map((item) => {
-        if (!item || typeof item !== "object") return null;
-        const o = item as Record<string, unknown>;
-        const text = String(o.text ?? "").trim();
-        if (!text) return null;
-        return {
-          id: String(o.id ?? ""),
-          text,
-          createdAt: String(o.createdAt ?? ""),
-        };
-      })
-      .filter((x): x is TechnicalNoteEntry => !!x && !!x.id);
+    return { sir: parseNoteList(raw), estimator: [] };
   }
   if (typeof raw === "string") {
     const trimmed = raw.trim();
-    if (!trimmed) return [];
+    if (!trimmed) return { sir: [], estimator: [] };
     try {
-      return parseTechnicalNotes(JSON.parse(trimmed));
+      return parseTechnicalNotesBundle(JSON.parse(trimmed));
     } catch {
-      return [];
+      return { sir: [], estimator: [] };
     }
   }
-  return [];
+  if (typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    return {
+      sir: parseNoteList(o.sir ?? o.admin ?? o.adminThread),
+      estimator: parseNoteList(o.estimator ?? o.estimatorThread),
+    };
+  }
+  return { sir: [], estimator: [] };
+}
+
+/** Admin↔TM thread (Notes for Sir / Notes for Technical). */
+export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
+  return parseTechnicalNotesBundle(raw).sir;
+}
+
+/** TM↔Estimator thread (Notes for Estimator / Notes for Technical Manager). */
+export function parseEstimatorNotes(raw: unknown): TechnicalNoteEntry[] {
+  return parseTechnicalNotesBundle(raw).estimator;
 }

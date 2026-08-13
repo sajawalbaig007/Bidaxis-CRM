@@ -29,7 +29,8 @@ import {
   formatElapsed,
   canCompleteAfterTimer,
   MIN_COMPLETE_TIMER_SECONDS,
-  parseTechnicalNotes,
+  parseEstimatorNotes,
+  parseTechnicalNotesBundle,
   type TechnicalAssignment,
 } from "@/lib/technicalAssignments";
 
@@ -350,17 +351,13 @@ export default function EstimatorMyProjectsPage() {
   const addTechnicalNote = async (id: string, text: string) => {
     const res = await API.post(`/estimator/lead/${id}/notes`, { text });
     const note = res.data.note as { id: string; text: string; createdAt: string };
-    const list = res.data.technicalNotes as { id: string; text: string; createdAt: string }[] | undefined;
+    const bundle = res.data.technicalNotesBundle ?? {
+      ...parseTechnicalNotesBundle(projects.find((p) => p.id === id)?.technicalNotes),
+      estimator: res.data.technicalNotes,
+    };
     setProjects((prev) =>
       prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              technicalNotes: list
-                ? JSON.stringify(list)
-                : JSON.stringify([...parseTechnicalNotes(p.technicalNotes), note]),
-            }
-          : p,
+        p.id === id ? { ...p, technicalNotes: JSON.stringify(bundle) } : p,
       ),
     );
     return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
@@ -568,7 +565,7 @@ export default function EstimatorMyProjectsPage() {
     "Receive",
     "Deadline",
     "Bid Instruction",
-    "Notes for Sir",
+    "Notes for Technical Manager",
     "Work Detail",
     "Hours",
     "Timer / Task",
@@ -743,12 +740,12 @@ export default function EstimatorMyProjectsPage() {
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Notes for Sir</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Notes for Technical Manager</p>
                   <CommentCell
                     id={p.id}
                     apiRole="estimator"
                     skipNotesFetch
-                    noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                    noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
                     onAddNote={addTechnicalNote}
                   />
                 </div>
@@ -832,7 +829,7 @@ export default function EstimatorMyProjectsPage() {
                           id={p.id}
                           apiRole="estimator"
                           skipNotesFetch
-                          noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
+                          noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
                           onAddNote={addTechnicalNote}
                         />
                       </td>

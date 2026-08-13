@@ -107,7 +107,7 @@ model Lead {
   pricingReceivedAt    DateTime?
   /** JSON: [{ estimatorId, estimatorName, manHours, deadline, takeoffDone }] */
   technicalAssignments String?
-  /** JSON: [{ id, text, createdAt }] — technical/estimator working notes (not bid instructions). */
+  /** JSON: { sir: [], estimator: [] } — Admin↔TM and TM↔Estimator note threads (legacy array = sir). */
   technicalNotes       String?
   /** Manual work status: completed | in_progress | not_completed (overrides derived badge). */
   projectWorkStatus    String?

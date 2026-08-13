@@ -51,6 +51,8 @@ import {
   matchesTechnicalTab,
   parseTechnicalAssignments,
   parseTechnicalNotes,
+  parseEstimatorNotes,
+  parseTechnicalNotesBundle,
   projectReceiveDate,
   pricingReceiveDate,
   formatDivisionSummary,
@@ -1011,24 +1013,30 @@ export function TechnicalActiveProjectsPageInner({
     if (assignProject) loadEstimators();
   }, [assignProject, loadEstimators]);
 
-  const addNote = async (id: string, text: string, _parentId?: string) => {
-    const res = await API.post(`/admin/lead/${id}/technical-notes`, { text });
+  const addSirNote = async (id: string, text: string) => {
+    const res = await API.post(`/admin/lead/${id}/technical-notes`, { text, thread: "sir" });
     const note = res.data.note as { id: string; text: string; createdAt: string };
-    const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };
-    const list = (res.data.technicalNotes as { id: string; text: string; createdAt: string }[]) ?? null;
+    const bundle = res.data.technicalNotesBundle ?? {
+      ...parseTechnicalNotesBundle(projects.find((p) => p.id === id)?.technicalNotes),
+      sir: res.data.technicalNotes,
+    };
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              technicalNotes: list
-                ? JSON.stringify(list)
-                : JSON.stringify([...parseTechnicalNotes(p.technicalNotes), note]),
-            }
-          : p,
-      ),
+      prev.map((p) => (p.id === id ? { ...p, technicalNotes: JSON.stringify(bundle) } : p)),
     );
-    return entry;
+    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
+  };
+
+  const addEstimatorNote = async (id: string, text: string) => {
+    const res = await API.post(`/admin/lead/${id}/technical-notes`, { text, thread: "estimator" });
+    const note = res.data.note as { id: string; text: string; createdAt: string };
+    const bundle = res.data.technicalNotesBundle ?? {
+      ...parseTechnicalNotesBundle(projects.find((p) => p.id === id)?.technicalNotes),
+      estimator: res.data.technicalNotes,
+    };
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, technicalNotes: JSON.stringify(bundle) } : p)),
+    );
+    return { id: note.id, text: note.text, createdAt: note.createdAt } as NoteEntry;
   };
 
   const confirmAssign = async (assignments: TechnicalAssignment[]) => {
@@ -1289,17 +1297,18 @@ export function TechnicalActiveProjectsPageInner({
   const isTakeoffDoneView = workflowTab === "takeoff_done";
 
   const headers = isAssignedView
-    ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Estimators", "Status", "Actions"]
+    ? ["Project Details", "Man Hours", "Deadline", "Bid Instruction", "Notes for Sir", "Notes for Estimator", "Estimators", "Status", "Actions"]
     : isPricingView
-      ? ["Project / Scope", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "QA Status", "Status", "Actions"]
+      ? ["Project / Scope", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "Notes for Estimator", "QA Status", "Status", "Actions"]
       : isFinalView
-        ? ["Project Details", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "Actions"]
+        ? ["Project Details", "Receive Date", "Deadline", "Bid Instruction", "Notes for Sir", "Notes for Estimator", "Actions"]
         : [
             "Project Details",
             "Receive Date",
             "Deadline",
             "Bid Instruction",
             "Notes for Sir",
+            "Notes for Estimator",
             "Assigned To",
             "Status",
             "Actions",
@@ -1644,7 +1653,17 @@ export function TechnicalActiveProjectsPageInner({
                       apiRole="admin"
                       skipNotesFetch
                       noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                      onAddNote={addNote}
+                      onAddNote={async (_id, text) => addSirNote(p.id, text)}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Notes for Estimator</p>
+                    <CommentCell
+                      id={p.id}
+                      apiRole="admin"
+                      skipNotesFetch
+                      noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                      onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                     />
                   </div>
                   {isPricingView && (
@@ -1767,7 +1786,16 @@ export function TechnicalActiveProjectsPageInner({
                                 apiRole="admin"
                                 skipNotesFetch
                                 noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                                onAddNote={addNote}
+                                onAddNote={async (_id, text) => addSirNote(p.id, text)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-visible">
@@ -1830,7 +1858,16 @@ export function TechnicalActiveProjectsPageInner({
                                 apiRole="admin"
                                 skipNotesFetch
                                 noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                                onAddNote={addNote}
+                                onAddNote={async (_id, text) => addSirNote(p.id, text)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
@@ -1887,7 +1924,16 @@ export function TechnicalActiveProjectsPageInner({
                                 apiRole="admin"
                                 skipNotesFetch
                                 noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                                onAddNote={addNote}
+                                onAddNote={async (_id, text) => addSirNote(p.id, text)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
@@ -1931,7 +1977,16 @@ export function TechnicalActiveProjectsPageInner({
                                 apiRole="admin"
                                 skipNotesFetch
                                 noteHistory={notesToHistory(parseTechnicalNotes(p.technicalNotes))}
-                                onAddNote={addNote}
+                                onAddNote={async (_id, text) => addSirNote(p.id, text)}
+                              />
+                            </td>
+                            <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
+                              <CommentCell
+                                id={p.id}
+                                apiRole="admin"
+                                skipNotesFetch
+                                noteHistory={notesToHistory(parseEstimatorNotes(p.technicalNotes))}
+                                onAddNote={async (_id, text) => addEstimatorNote(p.id, text)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0">
@@ -2023,10 +2078,14 @@ export function TechnicalActiveProjectsPageInner({
         onSave={saveEdit}
         onDelete={editProject ? async () => { await deleteProject(editProject, { skipConfirm: true }); } : undefined}
         noteHistory={editProject ? notesToHistory(editProject.notes) : undefined}
-        onAddNote={
+        onAddNote={undefined}
+        technicalNoteHistory={
+          editProject ? notesToHistory(parseTechnicalNotes(editProject.technicalNotes)) : undefined
+        }
+        onAddTechnicalNote={
           editProject
             ? async (text) => {
-                await addNote(editProject.id, text);
+                await addSirNote(editProject.id, text);
               }
             : undefined
         }

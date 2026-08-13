@@ -59,11 +59,13 @@ import {
   serializeTechnicalAssignments,
   mergeAssignmentProgress,
   appendTechnicalNote,
-  serializeTechnicalNotes,
+  serializeTechnicalNotesBundle,
   parseTechnicalNotes,
+  parseTechnicalNotesBundle,
   pauseAssignmentTimer,
   syncPhaseFromAssignments,
   type TechnicalAssignment,
+  type TechnicalNotesThread,
 } from "../utils/technicalEstimators";
 import {
   buildProjectDbTemplateBuffer,
@@ -721,7 +723,7 @@ router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("admin", "manag
   }
 });
 
-/* ================= TECHNICAL WORKING NOTES (not bid instructions) ================= */
+/* ================= TECHNICAL WORKING NOTES (Admin↔TM / TM↔Estimator threads) ================= */
 router.post(
   "/lead/:id/technical-notes",
   verifyToken,
@@ -729,8 +731,13 @@ router.post(
   async (req, res) => {
     try {
       const leadId = String(req.params.id);
-      const text = String((req.body as { text?: string })?.text ?? "").trim();
+      const body = req.body as { text?: string; thread?: string };
+      const text = String(body?.text ?? "").trim();
       if (!text) return res.status(400).json({ success: false, message: "Note text required" });
+
+      const threadRaw = String(body?.thread ?? "sir").toLowerCase();
+      const thread: TechnicalNotesThread =
+        threadRaw === "estimator" ? "estimator" : "sir";
 
       const lead = await prisma.lead.findFirst({
         where: { id: leadId },
@@ -738,18 +745,27 @@ router.post(
       });
       if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
-      const next = appendTechnicalNote(lead.technicalNotes, text);
-      const note = next[next.length - 1];
+      const authUser = (req as { user?: { id?: string; name?: string; role?: string } }).user;
+      const { bundle, note, list } = appendTechnicalNote(lead.technicalNotes, text, thread, {
+        authorRole: authUser?.role ?? "admin",
+        authorName: authUser?.name ?? undefined,
+      });
       await prisma.lead.update({
         where: { id: leadId },
         data: {
-          technicalNotes: serializeTechnicalNotes(next),
+          technicalNotes: serializeTechnicalNotesBundle(bundle),
         },
       });
       flushAdminClientsCache();
       invalidatePattern("admin:projects:");
       invalidateCache(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
-      return res.json({ success: true, note, technicalNotes: next });
+      return res.json({
+        success: true,
+        note,
+        thread,
+        technicalNotes: list,
+        technicalNotesBundle: bundle,
+      });
     } catch (err) {
       console.error("technical-notes error:", err);
       return res.status(500).json({ success: false, message: "Failed to add technical note" });

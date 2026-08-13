@@ -49,8 +49,9 @@ type Props = {
   onDelete?: () => Promise<void>;
   noteHistory?: NoteEntry[];
   onAddNote?: (text: string, parentId?: string) => Promise<void>;
-  /** Notes written by Technical for Sir — shown under Bid Instruction */
+  /** Admin↔TM thread — Notes for Technical / Notes for Sir */
   technicalNoteHistory?: NoteEntry[];
+  onAddTechnicalNote?: (text: string) => Promise<void>;
   phoneLookup?: PhoneLookupProps;
   /** Technical portal — hide Client / Quoted / Payment / CSR sections */
   hideClientFinanceSections?: boolean;
@@ -116,6 +117,7 @@ export default function ProjectWorkbenchModal({
   noteHistory,
   onAddNote,
   technicalNoteHistory,
+  onAddTechnicalNote,
   phoneLookup,
   hideClientFinanceSections = false,
 }: Props) {
@@ -763,9 +765,9 @@ export default function ProjectWorkbenchModal({
           </Section>
           )}
 
-          {(createMode || (noteHistory && onAddNote) || mode === "admin") && (
+          {(createMode || noteHistory || mode === "admin") && (
             <div className="space-y-3">
-              {(createMode || (noteHistory && onAddNote)) && (
+              {(createMode || noteHistory) && (
                 <div className="bg-white rounded-2xl border-2 border-gray-100 p-4">
                   <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <StickyNote size={12} className="text-[#B8112D]" /> Bid Instruction
@@ -778,36 +780,42 @@ export default function ProjectWorkbenchModal({
                       placeholder="Bid Instruction notes…"
                       onChange={(e) => setData((d) => ({ ...d, projectNotes: e.target.value }))}
                     />
-                  ) : noteHistory && onAddNote ? (
+                  ) : noteHistory ? (
                     <CommentCell
                       id={data.id}
                       apiRole={mode === "admin" ? "admin" : "csr"}
+                      skipNotesFetch
                       noteHistory={noteHistory}
-                      onAddNote={async (_id, text, parentId) => { await onAddNote(text, parentId); }}
+                      onAddNote={
+                        onAddNote
+                          ? async (_id, text, parentId) => { await onAddNote(text, parentId); }
+                          : undefined
+                      }
+                      readOnly={!onAddNote}
                     />
                   ) : null}
                 </div>
               )}
 
-              {/* Always visible for Admin — Technical "Notes for Sir" land here */}
+              {/* Admin↔TM thread */}
               {mode === "admin" && !createMode && (
                 <div className="bg-[#FFF8F0] rounded-2xl border-2 border-amber-200 p-4">
                   <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <StickyNote size={12} className="text-amber-700" /> Notes by Technical
+                    <StickyNote size={12} className="text-amber-700" />
+                    {hideClientFinanceSections ? "Notes for Sir" : "Notes for Technical"}
                   </p>
-                  {technicalNoteHistory && technicalNoteHistory.length > 0 ? (
-                    <CommentCell
-                      id={`${data.id}-tech-notes`}
-                      apiRole="admin"
-                      readOnly
-                      skipNotesFetch
-                      noteHistory={technicalNoteHistory}
-                    />
-                  ) : (
-                    <p className="text-xs text-amber-700/70 font-medium py-2">
-                      Abhi koi note nahi — Technical “Notes for Sir” yahan dikhega.
-                    </p>
-                  )}
+                  <CommentCell
+                    id={data.id || "tech-thread"}
+                    apiRole="admin"
+                    skipNotesFetch
+                    noteHistory={technicalNoteHistory ?? []}
+                    onAddNote={
+                      onAddTechnicalNote
+                        ? async (_id, text) => { await onAddTechnicalNote(text); }
+                        : undefined
+                    }
+                    readOnly={!onAddTechnicalNote}
+                  />
                 </div>
               )}
             </div>
