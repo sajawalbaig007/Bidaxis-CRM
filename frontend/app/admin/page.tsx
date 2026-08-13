@@ -16,12 +16,12 @@ import {
 
 const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
   ssr: false,
-  loading: () => <div className="h-[180px] sm:h-[200px] rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-[180px] sm:h-[200px] rounded-2xl bg-gray-100 animate-pulse" />,
 });
 
 const OverviewChart = dynamic(() => import("./components/charts/OverviewChart"), {
   ssr: false,
-  loading: () => <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-[220px] rounded-2xl bg-gray-100 animate-pulse" />,
 });
 
 type QuickStats = {
@@ -53,6 +53,9 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
     totalOnline: s.stats?.totalOnline ?? 0,
   };
 }
+
+const BENTO =
+  "rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -113,19 +116,20 @@ export default function DashboardPage() {
   ], [stats, staffBase]);
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8]">
+    <div className="flex min-h-screen bg-[#EEF1F7]">
       <StaffSidebar />
 
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
+        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
 
-          {/* 1 — Header */}
+          {/* Header */}
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Overview</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
                 Dashboard
               </h1>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Pipeline overview · CSR activity · live presence
               </p>
             </div>
@@ -133,68 +137,70 @@ export default function DashboardPage() {
               type="button"
               onClick={() => void loadOverview(true)}
               disabled={loadingOverview}
-              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+              className="h-11 px-5 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
             >
               <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
               {loadingOverview ? "Refreshing…" : "Refresh stats"}
             </button>
           </header>
 
-          {/* 2 — Stat tiles: 2 → 4 → 4 (2 rows), never cramped 8-across */}
-          <section aria-label="Quick stats">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-              {tiles.map(tile => {
-                const inner = (
-                  <>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-white/75 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-snug line-clamp-2">
-                        {tile.label}
-                      </span>
-                      <span className="w-6 h-6 sm:w-7 sm:h-7 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0">
-                        {tile.icon}
-                      </span>
-                    </div>
-                    {loadingOverview ? (
-                      <div className="h-7 sm:h-8 w-12 sm:w-14 bg-white/25 rounded-lg animate-pulse" />
-                    ) : (
-                      <span className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
-                        {overviewLoaded ? tile.value.toLocaleString() : "—"}
-                      </span>
-                    )}
-                    <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden mt-auto">
-                      <div className="h-full bg-white/60 rounded-full" style={{ width: tile.bar }} />
-                    </div>
-                  </>
-                );
-                const cls = `bg-gradient-to-br ${tile.from} ${tile.to} rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-md flex flex-col gap-2 sm:gap-2.5 min-h-[96px] sm:min-h-[108px]`;
-                return tile.href ? (
-                  <button
-                    key={tile.label}
-                    type="button"
-                    onClick={() => router.push(tile.href!)}
-                    className={`${cls} text-left hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer`}
-                  >
-                    {inner}
-                  </button>
-                ) : (
-                  <div key={tile.label} className={cls}>
-                    {inner}
+          {/* Bento: stat tiles */}
+          <section aria-label="Quick stats" className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {tiles.map((tile, idx) => {
+              const span =
+                idx === 0 ? "md:col-span-2" :
+                idx === 1 ? "md:col-span-2" :
+                "";
+              const inner = (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-white/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-snug line-clamp-2">
+                      {tile.label}
+                    </span>
+                    <span className="w-7 h-7 sm:w-8 sm:h-8 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                      {tile.icon}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  {loadingOverview ? (
+                    <div className="h-8 w-14 bg-white/25 rounded-lg animate-pulse" />
+                  ) : (
+                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
+                      {overviewLoaded ? tile.value.toLocaleString() : "—"}
+                    </span>
+                  )}
+                  <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden mt-auto">
+                    <div className="h-full bg-white/70 rounded-full" style={{ width: tile.bar }} />
+                  </div>
+                </>
+              );
+              const cls = `bg-gradient-to-br ${tile.from} ${tile.to} rounded-[1.5rem] p-3.5 sm:p-4 text-white shadow-md flex flex-col gap-2.5 min-h-[104px] sm:min-h-[112px] ${span}`;
+              return tile.href ? (
+                <button
+                  key={tile.label}
+                  type="button"
+                  onClick={() => router.push(tile.href!)}
+                  className={`${cls} text-left hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer`}
+                >
+                  {inner}
+                </button>
+              ) : (
+                <div key={tile.label} className={cls}>
+                  {inner}
+                </div>
+              );
+            })}
           </section>
 
-          {/* 3 — Charts: performance + distribution */}
+          {/* Bento: performance (hero) + lead donut */}
           <section
             aria-label="Charts"
-            className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 md:gap-5"
+            className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4"
           >
-            <div className="xl:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0 space-y-4">
+            <div className={`xl:col-span-8 ${BENTO} p-4 sm:p-5 min-w-0 space-y-4`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                  <h2 className="font-bold text-gray-800 text-sm sm:text-base">Performance Overview</h2>
-                  <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+                  <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">Performance Overview</h2>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
                     CSR call activity · day resets 4:00 AM (PKT)
                   </p>
                 </div>
@@ -205,40 +211,41 @@ export default function DashboardPage() {
               {overviewLoaded || loadingOverview ? (
                 <PerformanceChart series={chartSeries} range={selectedRange} />
               ) : (
-                <div className="h-[180px] sm:h-[200px] rounded-xl bg-gray-100 animate-pulse" />
+                <div className="h-[180px] sm:h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
               )}
-              <div className="border-t border-gray-100 pt-3">
-                <TopEstimatorsWidget />
+              {/* Top Performers — swapped here (was Top Estimators) */}
+              <div className="border-t border-gray-100 pt-4">
+                {overviewLoaded || loadingOverview ? (
+                  <TopPerformers performers={summary?.performers} />
+                ) : (
+                  <div className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
+                )}
               </div>
             </div>
 
-            <div className="xl:col-span-4 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+            <div className={`xl:col-span-4 ${BENTO} p-4 sm:p-5 min-w-0 xl:min-h-full`}>
               {overviewLoaded || loadingOverview ? (
                 <OverviewChart distribution={summary?.distribution} />
               ) : (
-                <div className="h-[220px] rounded-xl bg-gray-100 animate-pulse" />
+                <div className="h-[220px] rounded-2xl bg-gray-100 animate-pulse" />
               )}
             </div>
           </section>
 
-          {/* 4 — Activity + performers */}
+          {/* Bento: activity + Top Estimators (swapped here) */}
           <section
             aria-label="Activity"
-            className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 md:gap-5"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4"
           >
-            <div className="lg:col-span-7 xl:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
+            <div className={`lg:col-span-7 xl:col-span-8 ${BENTO} p-4 sm:p-5 min-w-0`}>
               {overviewLoaded || loadingOverview ? (
                 <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
               ) : (
-                <div className="h-[240px] rounded-xl bg-gray-100 animate-pulse" />
+                <div className="h-[240px] rounded-2xl bg-gray-100 animate-pulse" />
               )}
             </div>
-            <div className="lg:col-span-5 xl:col-span-4 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 min-w-0">
-              {overviewLoaded || loadingOverview ? (
-                <TopPerformers performers={summary?.performers} />
-              ) : (
-                <div className="h-[240px] rounded-xl bg-gray-100 animate-pulse" />
-              )}
+            <div className={`lg:col-span-5 xl:col-span-4 ${BENTO} p-4 sm:p-5 min-w-0 bg-gradient-to-br from-amber-50/40 via-white to-white`}>
+              <TopEstimatorsWidget />
             </div>
           </section>
 
@@ -260,7 +267,7 @@ const DateRangePicker = ({ selected, onChange }: { selected: string; onChange: (
         key={r.key}
         type="button"
         onClick={() => onChange(r.key)}
-        className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold transition-all whitespace-nowrap ${
+        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
           selected === r.key
             ? "bg-[#B8112D] text-white shadow-sm"
             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
