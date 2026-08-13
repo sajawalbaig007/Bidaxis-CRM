@@ -7,6 +7,7 @@ import {
   BEM_INVENTORY_CATEGORIES,
   type BemInventoryCategory,
   emptyInventoryLine,
+  matchInventoryCategory,
   patchInventoryLine,
 } from "../utils/bemAssetInventorySeed";
 import AmountInput from "./AmountInput";
@@ -14,9 +15,21 @@ import AmountInput from "./AmountInput";
 type BemAssetInventoryEditorProps = {
   subHeads: SubHeadEntry[];
   onChange: (next: SubHeadEntry[]) => void;
+  /** When editing a single head (IT / Electrical / Furniture), lock to that category. */
+  lockedCategory?: BemInventoryCategory | null;
+  /** Head title — used to infer locked category when not passed. */
+  headTitle?: string;
 };
 
-export default function BemAssetInventoryEditor({ subHeads, onChange }: BemAssetInventoryEditorProps) {
+export default function BemAssetInventoryEditor({
+  subHeads,
+  onChange,
+  lockedCategory,
+  headTitle,
+}: BemAssetInventoryEditorProps) {
+  const inferred = lockedCategory ?? (headTitle ? matchInventoryCategory(headTitle) : null);
+  const categories = inferred ? [inferred] : [...BEM_INVENTORY_CATEGORIES];
+
   const updateOne = (id: string, patch: Partial<SubHeadEntry>) => {
     onChange(subHeads.map(s => (s.id === id ? patchInventoryLine(s, patch) : s)));
   };
@@ -32,10 +45,12 @@ export default function BemAssetInventoryEditor({ subHeads, onChange }: BemAsset
   return (
     <div className="space-y-5">
       <p className="text-[11px] text-crm-text-muted font-medium">
-        TOTAL PRICE = QTY × Unit price · Add, edit, or delete lines in each inventory.
+        TOTAL PRICE = QTY × Unit price · Add, edit, or delete lines.
       </p>
-      {BEM_INVENTORY_CATEGORIES.map(cat => {
-        const rows = subHeads.filter(s => (s.inventoryCategory || "IT Inventory") === cat);
+      {categories.map(cat => {
+        const rows = inferred
+          ? subHeads
+          : subHeads.filter(s => (s.inventoryCategory || "IT Inventory") === cat);
         const subtotal = sumSubHeads(rows);
         return (
           <div key={cat} className="rounded-xl border border-crm-border overflow-hidden bg-crm-surface">
@@ -77,7 +92,7 @@ export default function BemAssetInventoryEditor({ subHeads, onChange }: BemAsset
                           <td className="px-2 py-1.5">
                             <input
                               value={s.label}
-                              onChange={e => updateOne(s.id, { label: e.target.value })}
+                              onChange={e => updateOne(s.id, { label: e.target.value, inventoryCategory: cat })}
                               className="h-8 w-full rounded-lg border border-crm-border px-2 text-xs bg-crm-surface outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                               placeholder="Description"
                             />
@@ -85,14 +100,14 @@ export default function BemAssetInventoryEditor({ subHeads, onChange }: BemAsset
                           <td className="px-2 py-1.5">
                             <AmountInput
                               value={Number(s.qty) || 0}
-                              onChange={n => updateOne(s.id, { qty: n })}
+                              onChange={n => updateOne(s.id, { qty: n, inventoryCategory: cat })}
                               className="h-8 w-full rounded-lg border border-crm-border px-2 text-xs text-right bg-crm-surface outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                             />
                           </td>
                           <td className="px-2 py-1.5">
                             <AmountInput
                               value={Number(s.unitPrice) || 0}
-                              onChange={n => updateOne(s.id, { unitPrice: n })}
+                              onChange={n => updateOne(s.id, { unitPrice: n, inventoryCategory: cat })}
                               className="h-8 w-full rounded-lg border border-crm-border px-2 text-xs text-right bg-crm-surface outline-none focus:ring-2 focus:ring-[#0D9488]/30"
                             />
                           </td>
@@ -130,9 +145,11 @@ export default function BemAssetInventoryEditor({ subHeads, onChange }: BemAsset
           </div>
         );
       })}
-      <p className="text-right text-sm font-extrabold text-crm-text">
-        Total Amount: {currency(sumSubHeads(subHeads))}
-      </p>
+      {!inferred && (
+        <p className="text-right text-sm font-extrabold text-crm-text">
+          Total Amount: {currency(sumSubHeads(subHeads))}
+        </p>
+      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ import {
   quarterMonths,
   type OpexHeadBucket,
 } from "../utils/incomeBudget";
+import { applyStaffPayrollToIncomeData } from "../utils/loadStaffPayroll";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -138,7 +139,10 @@ export async function getAccountsRecord(req: AuthRequest, res: Response) {
     }
 
     const record = await findRecord(pageParam, recordDate);
-    const raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
+    let raw = (record?.data as Record<string, unknown> | undefined) ?? defaultAccountsData(pageParam);
+    if (pageParam === "income_statement") {
+      raw = await applyStaffPayrollToIncomeData(raw, recordDate);
+    }
     let responseData = preparePageData(pageParam, raw);
 
     if (pageParam === "dashboard") {
@@ -188,7 +192,11 @@ export async function saveAccountsRecord(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Missing data payload." });
     }
 
-    let payload = preparePageData(pageParam, data);
+    let incoming = data;
+    if (pageParam === "income_statement") {
+      incoming = await applyStaffPayrollToIncomeData(data, recordDate);
+    }
+    let payload = preparePageData(pageParam, incoming);
 
     if (pageParam === "dashboard") {
       const collections = await aggregateCollectionsForDate(recordDate);

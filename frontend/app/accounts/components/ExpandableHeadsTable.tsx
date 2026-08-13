@@ -26,7 +26,7 @@ import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import { slipKindTitle } from "../utils/salarySlipFieldConfig";
-import { BEM_INVENTORY_CATEGORIES } from "../utils/bemAssetInventorySeed";
+import { BEM_INVENTORY_CATEGORIES, matchInventoryCategory } from "../utils/bemAssetInventorySeed";
 
 export type ExpandableHeadRow = {
   id: string;
@@ -402,9 +402,14 @@ export default function ExpandableHeadsTable({
                             <p className="text-[11px] text-crm-text-faint py-1">No individual heads — open Edit to add sub-heads.</p>
                           ) : isInventoryRow ? (
                             <div className="space-y-3">
-                              {BEM_INVENTORY_CATEGORIES.map(cat => {
-                                const catRows = subs.filter(s => (s.inventoryCategory || "IT Inventory") === cat);
-                                if (catRows.length === 0) return null;
+                              {(matchInventoryCategory(row.title)
+                                ? [matchInventoryCategory(row.title)!]
+                                : [...BEM_INVENTORY_CATEGORIES]
+                              ).map(cat => {
+                                const catRows = matchInventoryCategory(row.title)
+                                  ? subs
+                                  : subs.filter(s => (s.inventoryCategory || "IT Inventory") === cat);
+                                if (catRows.length === 0 && !matchInventoryCategory(row.title)) return null;
                                 return (
                                   <div key={cat} className="rounded-xl border border-teal-100 overflow-x-auto bg-crm-surface shadow-sm">
                                     <p className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide text-[#0F766E] bg-teal-50/80 border-b border-teal-100">
@@ -473,9 +478,6 @@ export default function ExpandableHeadsTable({
                                   </div>
                                 );
                               })}
-                              <p className="text-right text-xs font-extrabold text-crm-text px-1">
-                                Total Amount: {currency(sumSubHeads(subs))}
-                              </p>
                               <p className="text-[10px] text-crm-text-faint px-1">
                                 TOTAL = QTY × Unit price · Open Edit to add / change lines.
                               </p>

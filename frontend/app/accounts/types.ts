@@ -143,7 +143,9 @@ export type TotalAssetsData = {
   companies?: Record<AssetsCompanyKey, AssetSectionRow[]>;
   /** @deprecated legacy flat list — migrated into companies.BEM */
   sections?: AssetSectionRow[];
-  /** Once true, do not auto-reinsert the BEM Asset inventory seed. */
+  /** Once true, inventory lines live under IT / Electrical / Furniture (not BEM Asset). */
+  bemInventoryHeadsSeeded?: boolean;
+  /** @deprecated use bemInventoryHeadsSeeded */
   bemAssetSeeded?: boolean;
 };
 
@@ -263,7 +265,15 @@ export function lineAmount(item: { amount?: number; totalSalary?: number; subHea
 }
 
 export function isInventoryAssetHead(title: string, subHeads?: SubHeadEntry[]): boolean {
-  if (/bem\s*asset/i.test(title.trim())) return true;
+  const t = title.trim().toLowerCase();
+  if (
+    t === "it inventory" ||
+    t === "electrical inventory" ||
+    t === "furniture inventory" ||
+    /bem\s*asset/i.test(t)
+  ) {
+    return true;
+  }
   return (subHeads ?? []).some(
     s => !!s.inventoryCategory || (s.qty != null && s.unitPrice != null),
   );

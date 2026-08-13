@@ -545,10 +545,18 @@ model StaffEmployee {
   cnic           String?
   profilePic     String?
   notes          String?
+  /**
+   * Accounts Income Statement team head
+   * e.g. "Technical Team Salaries", "Administration Salaries"
+   */
+  payrollHead    String?
+  /** YYYY-MM — appear on Income Statement from this month until unassigned / removed */
+  payrollStartMonth String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([userId])
   @@index([company])
+  @@index([payrollHead])
   @@map("staff_employees")
 }
