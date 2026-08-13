@@ -544,7 +544,9 @@ router.put("/lead/:id/notes/:noteId", async (req: AuthRequest, res) => {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
 
-    const result = updateTechnicalNote(existing.technicalNotes, noteId, text, me.id);
+    const result = updateTechnicalNote(existing.technicalNotes, noteId, text, me.id, {
+      actorRole: "estimator",
+    });
     if ("error" in result) {
       const status = result.error.includes("author") ? 403 : 404;
       return res.status(status).json({ success: false, message: result.error });
@@ -585,7 +587,9 @@ router.delete("/lead/:id/notes/:noteId", async (req: AuthRequest, res) => {
       return res.status(403).json({ success: false, message: "This project is not assigned to you" });
     }
 
-    const result = deleteTechnicalNote(existing.technicalNotes, noteId, me.id);
+    const result = deleteTechnicalNote(existing.technicalNotes, noteId, me.id, {
+      actorRole: "estimator",
+    });
     if ("error" in result) {
       const status = result.error.includes("author") ? 403 : 404;
       return res.status(status).json({ success: false, message: result.error });
@@ -612,7 +616,7 @@ router.get("/notifications", async (req: AuthRequest, res) => {
     if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const leads = await prisma.lead.findMany({
-      where: buildProjectLeadWhere({}),
+      where: buildProjectLeadWhere(),
       select: { id: true, technicalAssignments: true },
       take: 500,
     });

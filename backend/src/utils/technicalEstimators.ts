@@ -400,13 +400,33 @@ function findNoteThread(
   return null;
 }
 
-/** Update own note only (authorId must match unless adminForce). */
+function rolesCompatible(noteRole?: string, actorRole?: string): boolean {
+  if (!noteRole || !actorRole) return false;
+  const adminish = (r: string) => r === "admin" || r === "manager";
+  if (adminish(noteRole) && adminish(actorRole)) return true;
+  return noteRole === actorRole;
+}
+
+function canMutateTechnicalNote(
+  existing: TechnicalNoteEntry,
+  actorId: string,
+  actorRole?: string,
+  opts?: { adminForce?: boolean },
+): boolean {
+  if (opts?.adminForce) return true;
+  if (existing.authorId) return existing.authorId === actorId;
+  if (existing.authorRole) return rolesCompatible(existing.authorRole, actorRole);
+  // Legacy notes with no author meta — allow signed-in actor
+  return !!actorId;
+}
+
+/** Update own note only (authorId / authorRole must match unless adminForce). */
 export function updateTechnicalNote(
   raw: unknown,
   noteId: string,
   text: string,
   actorId: string,
-  opts?: { adminForce?: boolean },
+  opts?: { adminForce?: boolean; actorRole?: string },
 ): { bundle: TechnicalNotesBundle; note: TechnicalNoteEntry; thread: TechnicalNotesThread } | { error: string } {
   const bundle = parseTechnicalNotesBundle(raw);
   const thread = findNoteThread(bundle, noteId);
@@ -414,7 +434,7 @@ export function updateTechnicalNote(
   const idx = bundle[thread].findIndex((n) => n.id === noteId);
   if (idx < 0) return { error: "Note not found" };
   const existing = bundle[thread][idx];
-  if (!opts?.adminForce && existing.authorId && existing.authorId !== actorId) {
+  if (!canMutateTechnicalNote(existing, actorId, opts?.actorRole, opts)) {
     return { error: "Only the author can edit this note" };
   }
   const note: TechnicalNoteEntry = {
@@ -427,19 +447,19 @@ export function updateTechnicalNote(
   return { bundle, note, thread };
 }
 
-/** Delete own note only (authorId must match unless adminForce). */
+/** Delete own note only (authorId / authorRole must match unless adminForce). */
 export function deleteTechnicalNote(
   raw: unknown,
   noteId: string,
   actorId: string,
-  opts?: { adminForce?: boolean },
+  opts?: { adminForce?: boolean; actorRole?: string },
 ): { bundle: TechnicalNotesBundle; thread: TechnicalNotesThread } | { error: string } {
   const bundle = parseTechnicalNotesBundle(raw);
   const thread = findNoteThread(bundle, noteId);
   if (!thread) return { error: "Note not found" };
   const existing = bundle[thread].find((n) => n.id === noteId);
   if (!existing) return { error: "Note not found" };
-  if (!opts?.adminForce && existing.authorId && existing.authorId !== actorId) {
+  if (!canMutateTechnicalNote(existing, actorId, opts?.actorRole, opts)) {
     return { error: "Only the author can delete this note" };
   }
   bundle[thread] = bundle[thread].filter((n) => n.id !== noteId);

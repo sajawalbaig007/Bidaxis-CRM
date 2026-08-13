@@ -761,10 +761,18 @@ router.post(
 
       const authUser = (req as { user?: { id?: string; name?: string; role?: string } }).user;
       const role = authUser?.role ?? "admin";
+      let authorName = authUser?.name?.trim() || "";
+      if (!authorName && authUser?.id) {
+        const u = await prisma.user.findUnique({
+          where: { id: authUser.id },
+          select: { name: true },
+        });
+        authorName = u?.name?.trim() || "";
+      }
       const { bundle, note, list } = appendTechnicalNote(lead.technicalNotes, text, thread, {
         authorId: authUser?.id,
         authorRole: role,
-        authorName: authUser?.name ?? undefined,
+        authorName: authorName || undefined,
       });
       await prisma.lead.update({
         where: { id: leadId },
@@ -785,7 +793,7 @@ router.post(
           projectCode: lead.projectCode || lead.clientCode,
           source: "admin",
           title: "Notes for Sir",
-          message: `${authUser?.name ?? "Admin"} on ${label}: ${text.slice(0, 160)}`,
+          message: `${authorName || "Admin"} on ${label}: ${text.slice(0, 160)}`,
           changes: ["Notes for Sir"],
         });
       }
@@ -796,10 +804,10 @@ router.post(
           projectCode: lead.projectCode || lead.clientCode,
           source: "tm_estimator",
           actorId: authUser?.id,
-          actorName: authUser?.name,
+          actorName: authorName || authUser?.name,
           actorRole: role,
           title: "Notes for Technical Manager",
-          message: `${authUser?.name ?? "Technical"} on ${label}: ${text.slice(0, 160)}`,
+          message: `${authorName || "Technical"} on ${label}: ${text.slice(0, 160)}`,
           changes: ["Notes for Estimator"],
         });
       }
@@ -835,11 +843,13 @@ router.put(
       });
       if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
-      const authUser = (req as { user?: { id?: string } }).user;
+      const authUser = (req as { user?: { id?: string; role?: string } }).user;
       const actorId = authUser?.id ?? "";
       if (!actorId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-      const result = updateTechnicalNote(lead.technicalNotes, noteId, text, actorId);
+      const result = updateTechnicalNote(lead.technicalNotes, noteId, text, actorId, {
+        actorRole: authUser?.role,
+      });
       if ("error" in result) {
         const status = result.error.includes("author") ? 403 : 404;
         return res.status(status).json({ success: false, message: result.error });
@@ -880,11 +890,13 @@ router.delete(
       });
       if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
-      const authUser = (req as { user?: { id?: string } }).user;
+      const authUser = (req as { user?: { id?: string; role?: string } }).user;
       const actorId = authUser?.id ?? "";
       if (!actorId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-      const result = deleteTechnicalNote(lead.technicalNotes, noteId, actorId);
+      const result = deleteTechnicalNote(lead.technicalNotes, noteId, actorId, {
+        actorRole: authUser?.role,
+      });
       if ("error" in result) {
         const status = result.error.includes("author") ? 403 : 404;
         return res.status(status).json({ success: false, message: result.error });

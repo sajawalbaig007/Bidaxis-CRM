@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { NoteEntry } from "../../hooks/useLeadsData";
 import API from "@/lib/api";
+import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
 import { buildNoteHistory, countNotesDeep, nestNoteReplies } from "../../utils/noteHistory";
 import { NoteComposer, NoteRichText } from "@/lib/noteRichText";
 
@@ -42,12 +43,24 @@ interface CommentCellProps {
   chatStyle?: boolean;
   /** Current user id — only this author can edit/delete their own notes. */
   currentUserId?: string;
+  /** Current user role — used when note has authorRole but no authorId (legacy). */
+  currentUserRole?: string;
   /** Use technical-notes API (bundle threads) instead of LeadNote CRUD. */
   notesKind?: "lead" | "technical";
   onAddNote?: (id: string, text: string, parentId?: string) => Promise<unknown>;
   onSave?: (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
+}
+
+function adminishRole(role?: string | null): boolean {
+  return role === "admin" || role === "manager";
+}
+
+function roleOwnsNote(noteRole?: string | null, myRole?: string | null): boolean {
+  if (!noteRole || !myRole) return false;
+  if (adminishRole(noteRole) && adminishRole(myRole)) return true;
+  return noteRole === myRole;
 }
 
 function fmtTime(iso: string): string {
@@ -111,12 +124,16 @@ export default function CommentCell({
   extraReadOnlyNotes,
   chatStyle = false,
   currentUserId,
+  currentUserRole,
   notesKind = "lead",
   onAddNote,
   onSave,
   onNoteUpdated,
   onNoteDeleted,
 }: CommentCellProps) {
+  const peeked = peekAuthMe();
+  const [meId, setMeId] = useState<string | undefined>(currentUserId || peeked?.id);
+  const [meRole, setMeRole] = useState<string | undefined>(currentUserRole || peeked?.role);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -203,10 +220,37 @@ export default function CommentCell({
         : `/admin/lead/${id}/technical-notes/${noteId}`
       : `/${apiRole}/lead/${id}/notes/${noteId}`;
 
-  const isOwnNote = (note: NoteEntry) =>
-    notesKind === "technical"
-      ? !!currentUserId && !!note.authorId && note.authorId === currentUserId
-      : !note.authorId || (!!currentUserId && note.authorId === currentUserId);
+  useEffect(() => {
+    if (currentUserId) setMeId(currentUserId);
+    if (currentUserRole) setMeRole(currentUserRole);
+  }, [currentUserId, currentUserRole]);
+
+  useEffect(() => {
+    const apply = () => {
+      const u = peekAuthMe();
+      if (u?.id) setMeId((prev) => prev || u.id);
+      if (u?.role) setMeRole((prev) => prev || u.role);
+    };
+    apply();
+    void getAuthMe().then((u) => {
+      if (u?.id) setMeId(u.id);
+      if (u?.role) setMeRole(u.role);
+    }).catch(() => {});
+    const onAuth = () => apply();
+    window.addEventListener("crm-auth-me-updated", onAuth);
+    return () => window.removeEventListener("crm-auth-me-updated", onAuth);
+  }, []);
+
+  const isOwnNote = (note: NoteEntry) => {
+    if (notesKind === "technical") {
+      if (note.authorId && meId) return note.authorId === meId;
+      if (note.authorRole && meRole) return roleOwnsNote(note.authorRole, meRole);
+      // Legacy notes (no author meta): allow signed-in user so old threads remain manageable.
+      return !!meId && !note.authorId && !note.authorRole;
+    }
+    if (!note.authorId) return true;
+    return !!meId && note.authorId === meId;
+  };
 
   useEffect(() => {
     if (!noteHistory?.length) return;
@@ -361,7 +405,7 @@ export default function CommentCell({
       text,
       createdAt: new Date().toISOString(),
       parentId: parentId || null,
-      authorId: currentUserId,
+      authorId: meId,
     };
   };
 
@@ -373,7 +417,7 @@ export default function CommentCell({
       text,
       createdAt: new Date().toISOString(),
       parentId: null,
-      authorId: currentUserId,
+      authorId: meId,
     };
     setLocalNotes((prev) => upsertLocalNote(prev, tempNote, noteHistory ?? []));
     setDraft("");
@@ -481,7 +525,7 @@ export default function CommentCell({
   const renderNoteBody = (note: NoteEntry, isReply: boolean) => {
             const editable = canEditDelete && !isLegacyNoteId(note.id) && isOwnNote(note);
     const isTech = note.id.startsWith("tech-") || note.id.startsWith("readonly-");
-    const mine = isOwnNote(note) && !!currentUserId;
+    const mine = isOwnNote(note);
 
     if (editId === note.id) {
       return (
@@ -700,7 +744,7 @@ export default function CommentCell({
 
         {!notesLoading &&
           displayNotes.map((note, idx) => {
-            const mineBubble = !!currentUserId && note.authorId === currentUserId;
+            const mineBubble = isOwnNote(note);
             if (chatStyle) {
               return (
                 <div
