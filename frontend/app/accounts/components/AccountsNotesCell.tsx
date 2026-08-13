@@ -50,20 +50,20 @@ export default function AccountsNotesCell({
 
       {open && (
         <div
-          className="absolute z-40 mt-1 left-0 min-w-[200px] max-w-[260px] rounded-xl border border-amber-200 bg-[#FFFBEB] shadow-xl overflow-hidden"
+          className="absolute z-40 mt-1 left-0 min-w-[200px] max-w-[260px] rounded-xl border border-amber-200 bg-[#FFFBEB] dark:bg-[#FFFBEB] shadow-xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-2.5 py-1.5 border-b border-amber-100 bg-amber-50">
-            <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
+          <div className="px-2.5 py-1.5 border-b border-amber-100 bg-amber-50 dark:bg-amber-50">
+            <p className="text-[10px] font-bold text-amber-900 dark:text-amber-900 uppercase tracking-wide">
               Notes · {count}
             </p>
           </div>
           <ul className="max-h-40 overflow-y-auto divide-y divide-amber-100/80">
             {sorted.map((n) => (
               <li key={n.id} className="px-2.5 py-1.5">
-                <p className="text-[10px] font-bold text-amber-700 tabular-nums">{n.date}</p>
-                <p className="text-[11px] text-crm-text-secondary leading-snug">
-                  <NoteRichText text={n.text || "—"} />
+                <p className="text-[10px] font-bold text-amber-700 dark:text-amber-700 tabular-nums">{n.date}</p>
+                <p className="text-[11px] text-amber-950 dark:text-amber-950 leading-snug">
+                  <NoteRichText text={n.text || "—"} className="text-amber-950 dark:text-amber-950" />
                 </p>
               </li>
             ))}

@@ -366,7 +366,7 @@ export default function HeadDetailModal({
                         type="date"
                         value={n.date}
                         onChange={e => updateNote(n.id, { date: e.target.value })}
-                        className="h-8 rounded-lg border border-amber-200 bg-crm-surface px-2 text-[11px]"
+                        className="h-8 rounded-lg border border-amber-200 bg-white px-2 text-[11px] text-amber-950 dark:text-amber-950"
                       />
                       <button type="button" onClick={() => removeNote(n.id)} className="ml-auto text-red-500">
                         <Trash2 size={13} />
@@ -377,7 +377,7 @@ export default function HeadDetailModal({
                       onChange={(text) => updateNote(n.id, { text })}
                       rows={2}
                       placeholder="Note… (Ctrl+B / I / U)"
-                      className="!bg-crm-surface !border-amber-200"
+                      className="!border-amber-200"
                     />
                   </div>
                 ))

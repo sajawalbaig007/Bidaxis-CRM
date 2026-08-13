@@ -1754,9 +1754,9 @@ export function TechnicalActiveProjectsPageInner({
                     <CommentCell
                       id={p.id}
                       apiRole="admin"
+                      commentOnly
                       skipNotesFetch
                       comment={p.projectNotes ?? undefined}
-                      noteHistory={notesToHistory(p.notes)}
                       onSave={(id, text) => saveBidInstruction(id, text)}
                     />
                   </div>
@@ -1896,9 +1896,9 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
+                                commentOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
-                                noteHistory={notesToHistory(p.notes)}
                                 onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
@@ -1977,9 +1977,9 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
+                                commentOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
-                                noteHistory={notesToHistory(p.notes)}
                                 onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
@@ -2052,9 +2052,9 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
+                                commentOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
-                                noteHistory={notesToHistory(p.notes)}
                                 onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>
@@ -2114,9 +2114,9 @@ export function TechnicalActiveProjectsPageInner({
                               <CommentCell
                                 id={p.id}
                                 apiRole="admin"
+                                commentOnly
                                 skipNotesFetch
                                 comment={p.projectNotes ?? undefined}
-                                noteHistory={notesToHistory(p.notes)}
                                 onSave={(id, text) => saveBidInstruction(id, text)}
                               />
                             </td>

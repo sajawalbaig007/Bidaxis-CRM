@@ -149,6 +149,10 @@ export default function CommentCell({
 
   const [localNotes, setLocalNotes] = useState<NoteEntry[] | null>(null);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [commentOverride, setCommentOverride] = useState<string | null>(null);
+  const [editingComment, setEditingComment] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
 
   const popupRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -185,9 +189,10 @@ export default function CommentCell({
     });
   })();
 
-  const legacyComment = comment?.trim()
-    ? commentOnly || !flattenNotes(displayNotes).some((n) => n.text === comment.trim())
-      ? comment.trim()
+  const effectiveComment = (commentOverride !== null ? commentOverride : comment)?.trim() || "";
+  const legacyComment = effectiveComment
+    ? commentOnly || !flattenNotes(displayNotes).some((n) => n.text === effectiveComment)
+      ? effectiveComment
       : null
     : null;
 
@@ -212,6 +217,8 @@ export default function CommentCell({
   const canMutate = !readOnly;
   /** Technical thread notes use skipNotesFetch but still allow own-note edit/delete. */
   const canEditDelete = canMutate && (notesKind === "technical" || !skipNotesFetch);
+  /** Bid Instruction / projectNotes via onSave */
+  const canEditComment = canMutate && !!onSave && (commentOnly || !!legacyComment || skipNotesFetch);
 
   const noteApiPath = (noteId: string) =>
     notesKind === "technical"
@@ -514,6 +521,34 @@ export default function CommentCell({
     }
   };
 
+  const saveCommentField = async (text: string) => {
+    if (!onSave) return;
+    setCommentSaving(true);
+    try {
+      await onSave(id, text);
+      setCommentOverride(text);
+      setEditingComment(false);
+      setCommentDraft("");
+      setDraft("");
+    } finally {
+      setCommentSaving(false);
+    }
+  };
+
+  const deleteCommentField = async () => {
+    if (!onSave) return;
+    if (!confirm("Delete this bid instruction?")) return;
+    setCommentSaving(true);
+    try {
+      await onSave(id, "");
+      setCommentOverride("");
+      setEditingComment(false);
+      setCommentDraft("");
+    } finally {
+      setCommentSaving(false);
+    }
+  };
+
   const openCtx = (e: React.MouseEvent, noteId: string, isReply: boolean) => {
     e.preventDefault();
     e.stopPropagation();
@@ -581,8 +616,8 @@ export default function CommentCell({
             Reply
           </span>
         )}
-        <p className={`text-[12px] leading-snug ${chatStyle ? "text-inherit" : "text-amber-950"}`}>
-          <NoteRichText text={note.text} />
+        <p className={`text-[12px] leading-snug ${chatStyle ? "text-inherit" : "text-amber-950 dark:text-amber-950"}`}>
+          <NoteRichText text={note.text} className={chatStyle ? undefined : "text-amber-950 dark:text-amber-950"} />
         </p>
         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
           {note.createdAt && (
@@ -695,14 +730,19 @@ export default function CommentCell({
             <StickyNote size={14} />
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-bold text-amber-900 truncate">
-              {readOnly ? "Bid Instruction" : chatStyle ? (badgeLabel || "Chat") : "Sticky Notes"}
-              {!chatStyle && badgeLabel ? ` · ${badgeLabel}` : ""}
+            <p className="text-[13px] font-bold text-amber-900 dark:text-amber-950 truncate">
+              {commentOnly || (readOnly && !chatStyle)
+                ? "Bid Instruction"
+                : chatStyle
+                  ? badgeLabel || "Chat"
+                  : "Sticky Notes"}
+              {!chatStyle && !commentOnly && badgeLabel ? ` · ${badgeLabel}` : ""}
             </p>
-            <p className="text-[10px] text-amber-700/80">
+            <p className="text-[10px] text-amber-800/80">
               {count} note{count === 1 ? "" : "s"}
-              {canMutate && !chatStyle ? " · right-click to reply" : ""}
+              {canMutate && !chatStyle && !commentOnly ? " · right-click to reply" : ""}
               {chatStyle ? " · only your messages can be edited" : ""}
+              {commentOnly && canEditComment ? " · edit or delete below" : ""}
             </p>
           </div>
         </div>
@@ -719,10 +759,71 @@ export default function CommentCell({
       <div className="max-h-[300px] overflow-y-auto p-2.5 space-y-2 bg-[#FFFDF5]">
         {legacyComment && (
           <div className="rounded-xl border border-amber-200 bg-[#FEF3C7] px-3 py-2.5 shadow-sm rotate-[-0.3deg]">
-            <p className="text-[12px] text-amber-950 leading-snug">
-              <NoteRichText text={legacyComment} />
-            </p>
-            <p className="text-[9px] text-amber-700/70 mt-1.5 font-medium">Legacy note</p>
+            {editingComment ? (
+              <div className="space-y-2">
+                <NoteComposer
+                  autoFocus
+                  value={commentDraft}
+                  onChange={setCommentDraft}
+                  rows={3}
+                  placeholder="Edit bid instruction…"
+                  onSubmit={() => void saveCommentField(commentDraft.trim())}
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void saveCommentField(commentDraft.trim())}
+                    disabled={commentSaving || !commentDraft.trim()}
+                    className="flex-1 h-7 rounded-lg bg-amber-600 text-white text-[11px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    {commentSaving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingComment(false);
+                      setCommentDraft("");
+                    }}
+                    className="flex-1 h-7 rounded-lg bg-white/80 text-amber-900 text-[11px] font-semibold border border-amber-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-[12px] text-amber-950 dark:text-amber-950 leading-snug">
+                  <NoteRichText text={legacyComment} className="text-amber-950 dark:text-amber-950" />
+                </p>
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <p className="text-[9px] text-amber-800/80 font-medium mr-auto">Bid instruction</p>
+                  {canEditComment && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingComment(true);
+                          setCommentDraft(legacyComment);
+                        }}
+                        className="h-6 px-2 rounded-md text-[10px] font-bold text-amber-900 bg-white/70 border border-amber-200 hover:bg-white inline-flex items-center gap-1"
+                      >
+                        <Pencil size={10} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteCommentField()}
+                        disabled={commentSaving}
+                        className="h-6 px-2 rounded-md text-[10px] font-bold text-red-600 bg-white/70 border border-red-200 hover:bg-red-50 inline-flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {commentSaving ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -736,8 +837,12 @@ export default function CommentCell({
         {!notesLoading && displayNotes.length === 0 && !legacyComment && (
           <div className="py-8 text-center">
             <StickyNote size={28} className="text-amber-200 mx-auto mb-2" />
-            <p className="text-[12px] text-amber-700/60">
-              {chatStyle ? "No messages yet — start the conversation" : "No sticky notes yet"}
+            <p className="text-[12px] text-amber-700/60 dark:text-amber-800/70">
+              {commentOnly
+                ? "No bid instruction yet"
+                : chatStyle
+                  ? "No messages yet — start the conversation"
+                  : "No sticky notes yet"}
             </p>
           </div>
         )}
@@ -790,7 +895,7 @@ export default function CommentCell({
           })}
       </div>
 
-      {canMutate && (
+      {canMutate && !commentOnly && (
         <div className="border-t border-amber-200/80 p-3 bg-amber-50/90">
           <NoteComposer
             value={draft}
@@ -808,6 +913,27 @@ export default function CommentCell({
           >
             {saving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
             {saving ? "Sending…" : chatStyle ? "Send" : "Add sticky"}
+          </button>
+        </div>
+      )}
+      {canMutate && commentOnly && canEditComment && !legacyComment && !editingComment && (
+        <div className="border-t border-amber-200/80 p-3 bg-amber-50/90">
+          <NoteComposer
+            value={draft}
+            onChange={setDraft}
+            rows={3}
+            placeholder="Write bid instruction… (Ctrl+Enter)"
+            onSubmit={() => void saveCommentField(draft.trim())}
+            disabled={commentSaving}
+          />
+          <button
+            type="button"
+            onClick={() => void saveCommentField(draft.trim())}
+            disabled={commentSaving || !draft.trim()}
+            className="mt-2 w-full h-8 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {commentSaving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+            {commentSaving ? "Saving…" : "Save bid instruction"}
           </button>
         </div>
       )}
