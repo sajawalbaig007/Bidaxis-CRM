@@ -2,6 +2,8 @@ import express from "express";
 import prisma from "../config/db";
 import { verifyToken, AuthRequest } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
+import { isAccountsPayrollHead } from "../utils/staffPayrollSync";
+import { invalidatePattern } from "../utils/cache";
 
 const router = express.Router();
 
@@ -26,6 +28,28 @@ function strOrNull(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
   return s ? s : null;
+}
+
+function normalizePayrollHead(v: unknown): string | null {
+  const s = strOrNull(v);
+  if (!s) return null;
+  return isAccountsPayrollHead(s) ? s : null;
+}
+
+/** YYYY-MM */
+function normalizeStartMonth(v: unknown): string | null {
+  const s = strOrNull(v);
+  if (!s) return null;
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.slice(0, 7);
+  return null;
+}
+
+function payrollFields(r: { payrollHead?: string | null; payrollStartMonth?: string | null }) {
+  return {
+    payrollHead: r.payrollHead ?? null,
+    payrollStartMonth: r.payrollStartMonth ?? null,
+  };
 }
 
 /** Enrich roster rows: linked users get live User details. */
@@ -80,6 +104,7 @@ async function listEnriched() {
           isOnline: u.isOnline,
           lastActive: u.lastActive,
           notes: r.notes,
+          ...payrollFields(r),
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,
         };
@@ -104,6 +129,7 @@ async function listEnriched() {
         isOnline: false,
         lastActive: null as Date | null,
         notes: r.notes,
+        ...payrollFields(r),
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       };
@@ -128,6 +154,7 @@ async function listEnriched() {
       isOnline: false,
       lastActive: null as Date | null,
       notes: r.notes,
+      ...payrollFields(r),
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     };
@@ -223,6 +250,8 @@ router.post("/", async (req: AuthRequest, res) => {
         cnic: strOrNull(req.body?.cnic),
         profilePic: strOrNull(req.body?.profilePic),
         notes: strOrNull(req.body?.notes),
+        payrollHead: normalizePayrollHead(req.body?.payrollHead),
+        payrollStartMonth: normalizeStartMonth(req.body?.payrollStartMonth),
       },
     });
 
@@ -240,17 +269,70 @@ router.put("/:id", async (req: AuthRequest, res) => {
     const existing = await prisma.staffEmployee.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, message: "Employee not found." });
 
-    // Linked dashboard rows: only notes editable (details live from User)
+    const name = strOrNull(req.body?.name);
+    const notes = strOrNull(req.body?.notes);
+    const employeeCode = strOrNull(req.body?.employeeCode);
+    const fatherName = strOrNull(req.body?.fatherName);
+    const currentAddress = strOrNull(req.body?.currentAddress);
+    const contactNo = strOrNull(req.body?.contactNo);
+    const cnic = strOrNull(req.body?.cnic);
+    const email = strOrNull(req.body?.email);
+    const payrollPatch =
+      req.body?.payrollHead !== undefined || req.body?.payrollStartMonth !== undefined
+        ? {
+            payrollHead:
+              req.body?.payrollHead !== undefined
+                ? normalizePayrollHead(req.body.payrollHead)
+                : existing.payrollHead,
+            payrollStartMonth:
+              req.body?.payrollStartMonth !== undefined
+                ? normalizeStartMonth(req.body.payrollStartMonth)
+                : existing.payrollStartMonth,
+          }
+        : {};
+
+    // If head cleared, also clear start month
+    if (payrollPatch.payrollHead === null) {
+      payrollPatch.payrollStartMonth = null;
+    }
+
+    // Linked dashboard rows: update User profile + roster notes
     if (existing.userId) {
+      if (!name) return res.status(400).json({ success: false, message: "Name is required." });
+      await prisma.user.update({
+        where: { id: existing.userId },
+        data: {
+          name,
+          ...(typeof req.body?.email === "string" && email ? { email } : {}),
+          employeeCode,
+          fatherName,
+          currentAddress,
+          contactNo,
+          cnic,
+          ...(req.body?.csrCode !== undefined
+            ? { csrCode: strOrNull(req.body.csrCode) }
+            : {}),
+        },
+      });
       await prisma.staffEmployee.update({
         where: { id },
-        data: { notes: strOrNull(req.body?.notes) },
+        data: {
+          notes,
+          name,
+          email,
+          employeeCode,
+          fatherName,
+          currentAddress,
+          contactNo,
+          cnic,
+          ...payrollPatch,
+        },
       });
+      invalidatePattern("users:list:");
       const employees = await listEnriched();
       return res.json({ success: true, employees });
     }
 
-    const name = strOrNull(req.body?.name);
     const manualRole = strOrNull(req.body?.manualRole);
     if (!name) return res.status(400).json({ success: false, message: "Name is required." });
     if (!manualRole) return res.status(400).json({ success: false, message: "Role is required." });
@@ -262,14 +344,15 @@ router.put("/:id", async (req: AuthRequest, res) => {
         company,
         manualRole,
         name,
-        email: strOrNull(req.body?.email),
-        employeeCode: strOrNull(req.body?.employeeCode),
-        fatherName: strOrNull(req.body?.fatherName),
-        currentAddress: strOrNull(req.body?.currentAddress),
-        contactNo: strOrNull(req.body?.contactNo),
-        cnic: strOrNull(req.body?.cnic),
+        email,
+        employeeCode,
+        fatherName,
+        currentAddress,
+        contactNo,
+        cnic,
         profilePic: strOrNull(req.body?.profilePic),
-        notes: strOrNull(req.body?.notes),
+        notes,
+        ...payrollPatch,
       },
     });
 

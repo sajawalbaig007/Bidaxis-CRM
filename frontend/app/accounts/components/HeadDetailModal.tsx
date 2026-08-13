@@ -405,6 +405,7 @@ export default function HeadDetailModal({
               <div className="max-h-[55vh] overflow-y-auto pr-0.5">
                 <BemAssetInventoryEditor
                   subHeads={draft.subHeads}
+                  headTitle={draft.title}
                   onChange={subHeads =>
                     setDraft(prev =>
                       prev

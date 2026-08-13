@@ -237,6 +237,9 @@ export function buildSalarySlipFromSub(opts: {
       remarks: sp?.remarks || "",
       occasionalAmount: Number(sp?.occasionalAmount) || 0,
       occasionalRemark: sp?.occasionalRemark || "",
+      cnic: sp?.cnic || "",
+      address: sp?.address || "",
+      phone: sp?.phone || "",
     };
     const b = computeSalesEmployeePayroll(emp, salesExtra);
     return {
@@ -246,6 +249,9 @@ export function buildSalarySlipFromSub(opts: {
       monthCompact,
       employeeName: emp.name,
       employeeId: emp.code || undefined,
+      address: emp.address || undefined,
+      phone: emp.phone || undefined,
+      cnic: emp.cnic || undefined,
       earnings: buildSalesSlipEarnings(emp, b, kind, salesExtra, template),
       deductions: standardDeductions(
         {

@@ -45,6 +45,10 @@ export type SalesPayrollEmployee = {
   /** If true (default), PF = 8% of basic; if false use pfOverride */
   pfAuto?: boolean;
   pfOverride?: number | null;
+  /** HR profile for salary slip */
+  cnic?: string;
+  address?: string;
+  phone?: string;
 };
 
 export type SalesPayrollData = {

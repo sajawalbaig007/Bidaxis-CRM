@@ -17,15 +17,19 @@ import { useScrollToHash } from "../hooks/useScrollToHash";
 import type { AssetSectionRow, AssetsCompanyKey, TotalAssetsData } from "../types";
 import { ASSETS_COMPANIES, currency, lineAmount, newRowId, todayIso } from "../types";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
-import { buildBemAssetSection } from "../utils/bemAssetInventorySeed";
+import { buildInventorySections, migrateInventoryIntoCategoryHeads } from "../utils/bemAssetInventorySeed";
 
 function emptyCompanies(): Record<AssetsCompanyKey, AssetSectionRow[]> {
   return { BEM: [], GPS: [], BDS: [] };
 }
 
 function defaultData(): TotalAssetsData {
-  const bem = buildBemAssetSection();
-  return { companies: { BEM: [bem], GPS: [], BDS: [] }, sections: [], bemAssetSeeded: true };
+  return {
+    companies: { BEM: buildInventorySections(), GPS: [], BDS: [] },
+    sections: [],
+    bemInventoryHeadsSeeded: true,
+    bemAssetSeeded: true,
+  };
 }
 
 /** Migrate legacy flat `sections` into company buckets. */
@@ -82,33 +86,26 @@ export default function TotalAssetsPage() {
   const companies = normalizeCompanies(acc.data);
   const seededRef = useRef(false);
 
-  /** One-time: inject spreadsheet BEM Asset inventory if not yet seeded. */
+  /** One-time: move inventory into IT / Electrical / Furniture; drop BEM Asset. */
   useEffect(() => {
     if (acc.loading || seededRef.current) return;
-    if (acc.data.bemAssetSeeded) {
+    if (acc.data.bemInventoryHeadsSeeded) {
       seededRef.current = true;
       return;
     }
-    const base = normalizeCompanies(acc.data);
-    const hasBemAsset = base.BEM.some(
-      s => s.id === "bem-asset-head" || /bem\s*asset/i.test(s.title.trim()),
-    );
     seededRef.current = true;
-    if (hasBemAsset) {
-      const marked: TotalAssetsData = { ...acc.data, companies: base, sections: [], bemAssetSeeded: true };
-      acc.setData(() => marked);
-      void acc.save(marked);
-      return;
-    }
+    const base = normalizeCompanies(acc.data);
+    const bem = migrateInventoryIntoCategoryHeads(base.BEM);
     const next: TotalAssetsData = {
       ...acc.data,
-      companies: { ...base, BEM: [buildBemAssetSection(), ...base.BEM] },
+      companies: { ...base, BEM: bem },
       sections: [],
+      bemInventoryHeadsSeeded: true,
       bemAssetSeeded: true,
     };
     acc.setData(() => next);
     void acc.save(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once after initial load
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- migrate once after initial load
   }, [acc.loading]);
 
   const companyTotals = useMemo(() => {
@@ -185,7 +182,7 @@ export default function TotalAssetsPage() {
         <AccountsPageShell
           {...accountsShellProps(acc)}
           title="Total Assets"
-          subtitle="Company-wise registers — BEM, GPS, BDS. BEM Asset inventory: TOTAL = QTY × Unit price."
+          subtitle="Company-wise registers — BEM, GPS, BDS. Inventory heads: TOTAL = QTY × Unit price."
           onAddNew={() => addHeadToCompany("BEM")}
           addNewLabel="Add Head (BEM)"
         >
