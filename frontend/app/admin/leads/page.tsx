@@ -34,7 +34,9 @@ import { useStaffBase } from "@/app/hooks/useStaffBase";
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
+import EmailWithExtraCell from "../../csr/components/shared/EmailWithExtraCell";
 import type { NoteEntry } from "../../csr/hooks/useLeadsData";
+import { parseEmails } from "../../csr/utils/parseEmails";
 import { bumpToFront } from "@/lib/bumpToFront";
 import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
@@ -733,30 +735,51 @@ function ClientsPageContent() {
                           key={client.id}
                           className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-colors"
                         >
-                          {/* Client name + email */}
-                          <td className={CSR_TD}>
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm">
-                                {client.clientName.charAt(0)}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  {(client.clientCode || client.projectCode) && (
-                                    <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
-                                      {client.clientCode || client.projectCode}
-                                    </span>
-                                  )}
-                                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
-                                    {client.clientName}
-                                  </h3>
+                          {/* Client: name + company / email underneath */}
+                          <td className={CSR_TD_TOP}>
+                            {(() => {
+                              const emails = parseEmails(client.email !== "N/A" ? client.email : "");
+                              const company =
+                                client.company && client.company !== "N/A" ? client.company.trim() : "";
+                              return (
+                                <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+                                  <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm mt-0.5">
+                                    {client.clientName.charAt(0)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                      {(client.clientCode || client.projectCode) && (
+                                        <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
+                                          {client.clientCode || client.projectCode}
+                                        </span>
+                                      )}
+                                      <h3 className="text-[13px] sm:text-sm font-semibold text-[#0F172A] dark:text-gray-100 leading-tight truncate">
+                                        {client.clientName}
+                                      </h3>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 mt-1 min-w-0">
+                                      {company ? (
+                                        <p className="text-[10px] sm:text-[11px] text-gray-500 truncate">
+                                          <span className="text-gray-400">Co:</span> {company}
+                                        </p>
+                                      ) : null}
+                                      {emails.length > 0 ? (
+                                        <div className="flex items-center gap-1 min-w-0 max-w-full overflow-visible">
+                                          <span className="text-[10px] sm:text-[11px] text-gray-400 shrink-0">Email:</span>
+                                          <EmailWithExtraCell
+                                            email={emails[0]}
+                                            allEmails={emails}
+                                            variant="plain"
+                                            className="text-[10px] sm:text-[11px] text-gray-500"
+                                            emptyLabel=""
+                                          />
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
                                 </div>
-                                {client.email !== "N/A" && (
-                                  <p className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[160px] lg:max-w-none">
-                                    {client.email}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
+                              );
+                            })()}
                           </td>
 
                           <td className={`${CSR_TD} text-xs sm:text-sm text-gray-600`}>

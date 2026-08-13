@@ -32,9 +32,9 @@ export const COL_9_BIN = ["4%", "14%", "11%", "10%", "9%", "10%", "12%", "9%", "
 export const COL_7_INTERESTED = ["18%", "13%", "14%", "14%", "12%", "10%", "19%"] as const;
 export const COL_6_DASHBOARD = ["20%", "13%", "13%", "12%", "12%", "30%"] as const;
 export const COL_7_DASHBOARD = ["15%", "11%", "11%", "11%", "10%", "12%", "30%"] as const;
-export const COL_8_ADMIN = ["15%", "11%", "11%", "10%", "9%", "9%", "22%", "13%"] as const;
-export const COL_9_CLOSED = ["15%", "12%", "9%", "11%", "11%", "10%", "9%", "10%", "13%"] as const;
-export const COL_9_SCHEDULE_ADMIN = ["15%", "11%", "12%", "12%", "9%", "10%", "9%", "10%", "12%"] as const;
+export const COL_8_ADMIN = ["22%", "10%", "10%", "10%", "8%", "8%", "20%", "12%"] as const;
+export const COL_9_CLOSED = ["20%", "10%", "8%", "10%", "10%", "9%", "8%", "14%", "11%"] as const;
+export const COL_9_SCHEDULE_ADMIN = ["20%", "10%", "10%", "10%", "8%", "8%", "8%", "15%", "11%"] as const;
 
 export function CsrColGroup({ widths }: { widths: readonly string[] }) {
   return (
