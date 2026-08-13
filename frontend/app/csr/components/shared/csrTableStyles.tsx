@@ -20,11 +20,11 @@ export const COL_8_FOLLOWUP = ["22%", "14%", "18%", "12%", "14%", "20%"] as cons
 export const COL_9_FOLLOWUP = ["14%", "10%", "11%", "9%", "10%", "9%", "7%", "9%", "21%"] as const;
 export const COL_8_IMPORTANT = ["16%", "11%", "12%", "11%", "10%", "9%", "10%", "21%"] as const;
 /** Potential Important / Interested: Client, Phone, Scope, Notes, Status, Action */
-export const COL_7_IMPORTANT_SUB = ["24%", "14%", "16%", "20%", "12%", "14%"] as const;
-export const COL_6_POTENTIAL = ["24%", "14%", "14%", "16%", "12%", "20%"] as const;
+export const COL_7_IMPORTANT_SUB = ["22%", "13%", "15%", "24%", "12%", "14%"] as const;
+export const COL_6_POTENTIAL = ["22%", "13%", "14%", "22%", "12%", "17%"] as const;
 /** Potential Schedule: Client, Phone, When, Notes, Status, Action */
-export const COL_9_SCHEDULE = ["22%", "13%", "20%", "18%", "13%", "14%"] as const;
-export const COL_8_INTERESTED_SUB = ["24%", "14%", "16%", "20%", "12%", "14%"] as const;
+export const COL_9_SCHEDULE = ["20%", "12%", "18%", "22%", "12%", "16%"] as const;
+export const COL_8_INTERESTED_SUB = ["22%", "13%", "15%", "24%", "12%", "14%"] as const;
 export const COL_8_SCHEDULE = COL_9_SCHEDULE;
 export const COL_7_INTERESTED_SUB = COL_8_INTERESTED_SUB;
 export const COL_5_POTENTIAL = COL_6_POTENTIAL;
@@ -32,7 +32,7 @@ export const COL_9_BIN = ["4%", "14%", "11%", "10%", "9%", "10%", "12%", "9%", "
 export const COL_7_INTERESTED = ["18%", "13%", "14%", "14%", "12%", "10%", "19%"] as const;
 export const COL_6_DASHBOARD = ["22%", "14%", "14%", "12%", "13%", "25%"] as const;
 export const COL_7_DASHBOARD = ["16%", "12%", "12%", "12%", "10%", "13%", "25%"] as const;
-export const COL_8_ADMIN = ["18%", "13%", "13%", "12%", "10%", "11%", "10%", "13%"] as const;
+export const COL_8_ADMIN = ["16%", "12%", "12%", "11%", "9%", "10%", "18%", "12%"] as const;
 export const COL_9_CLOSED = ["15%", "12%", "9%", "11%", "11%", "10%", "9%", "10%", "13%"] as const;
 export const COL_9_SCHEDULE_ADMIN = ["15%", "11%", "12%", "12%", "9%", "10%", "9%", "10%", "12%"] as const;
 

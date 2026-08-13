@@ -78,6 +78,15 @@ function fmtTime(iso: string): string {
   }
 }
 
+function plainNotePreview(text: string): string {
+  return text
+    .replace(/\*\*/g, "")
+    .replace(/__/g, "")
+    .replace(/\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function isLegacyNoteId(noteId: string) {
   return (
     noteId.startsWith("legacy-") ||
@@ -219,7 +228,7 @@ export default function CommentCell({
   const canEditDelete = canMutate && (notesKind === "technical" || !skipNotesFetch);
   /** Bid Instruction / projectNotes via onSave */
   const canEditComment = canMutate && !!onSave && (commentOnly || !!legacyComment || skipNotesFetch);
-  const previewText = (latestRoot?.text || legacyComment || "").trim();
+  const previewText = plainNotePreview(latestRoot?.text || legacyComment || "");
   const showRowPreview = !chatStyle && !commentOnly && count > 0 && !!previewText;
   const extraNotesCount = showRowPreview ? Math.max(0, count - 1) : 0;
 
@@ -1019,11 +1028,13 @@ export default function CommentCell({
         onClick={handleOpen}
         title={
           count > 0
-            ? `${count} sticky note${count === 1 ? "" : "s"}${latestAt ? ` · latest ${fmtTime(latestAt)}` : ""}`
+            ? `${count} sticky note${count === 1 ? "" : "s"}${latestAt ? ` · latest ${fmtTime(latestAt)}` : ""}${
+                previewText ? ` · ${previewText}` : ""
+              }`
             : "Add sticky note"
         }
-        className={`relative inline-flex items-center justify-center gap-1.5 min-w-[44px] h-8 px-2 rounded-xl border transition-all shadow-sm ${
-          showRowPreview ? "max-w-full min-w-0" : ""
+        className={`relative inline-flex items-center gap-1.5 h-8 px-2 rounded-xl border transition-all shadow-sm overflow-hidden ${
+          showRowPreview ? "w-full max-w-full min-w-0" : "min-w-[44px] justify-center"
         } ${
           count > 0
             ? "bg-[#FEF3C7] border-amber-300 text-amber-900 hover:bg-[#FDE68A]"
@@ -1033,8 +1044,8 @@ export default function CommentCell({
         <StickyNote size={13} className="shrink-0 text-amber-700" />
         {showRowPreview ? (
           <>
-            <span className="min-w-0 max-w-[110px] sm:max-w-[140px] truncate text-left text-[10px] sm:text-[11px] font-semibold text-amber-950 dark:text-amber-950 leading-tight">
-              <NoteRichText text={previewText} className="text-amber-950 dark:text-amber-950" />
+            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-[10px] sm:text-[11px] font-semibold text-amber-950">
+              {previewText}
             </span>
             {extraNotesCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0">

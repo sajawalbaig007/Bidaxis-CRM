@@ -223,7 +223,7 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   return (
     <div className={`inline-flex items-center gap-1 sm:gap-1.5 ${compact ? "h-9" : "h-10"} shrink-0`}>
       <div
-        className={`flex items-center gap-1.5 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl border text-[11px] font-semibold ${
+        className={`flex items-center gap-1.5 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl border text-[11px] font-semibold max-w-[140px] sm:max-w-none overflow-hidden ${
           paused
             ? "bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-200/80 dark:border-amber-500/30"
             : "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-500/30"
@@ -239,18 +239,18 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
         }
       >
         <span
-          className={`w-1.5 h-1.5 rounded-full ${
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
             paused ? "bg-amber-500" : "bg-emerald-500 animate-pulse"
           }`}
         />
-        <span className="hidden sm:inline">{paused ? "Paused" : "In"}</span>
+        <span className="hidden xl:inline shrink-0">{paused ? "Paused" : "In"}</span>
         {session ? (
-          <span className="opacity-80 font-medium">
-            <span className="hidden sm:inline">{formatCheckInLabel(session.checkInAt)} · </span>
+          <span className="opacity-80 font-medium truncate tabular-nums">
+            <span className="hidden xl:inline">{formatCheckInLabel(session.checkInAt)} · </span>
             {liveDuration}
           </span>
         ) : (
-          <span>{paused ? "Paused" : "Checked in"}</span>
+          <span className="truncate">{paused ? "Paused" : "Checked in"}</span>
         )}
       </div>
 
@@ -260,10 +260,10 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
           onClick={() => void resume()}
           disabled={busy}
           title="Resume work time — back on dashboard"
-          className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-emerald-500/25 disabled:opacity-60 transition-colors`}
+          className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-emerald-500/25 disabled:opacity-60 transition-colors`}
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-          <span>Resume</span>
+          <span className="hidden sm:inline">Resume</span>
         </button>
       ) : (
         <button
@@ -271,10 +271,10 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
           onClick={() => void pause()}
           disabled={busy}
           title="Pause work time — leaving for WhatsApp / break"
-          className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2.5" : "h-10 px-3"} rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-sky-500/25 disabled:opacity-60 transition-colors`}
+          className={`inline-flex items-center gap-1 ${compact ? "h-9 px-2" : "h-10 px-3"} rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[11px] sm:text-xs font-bold shadow-sm shadow-sky-500/25 disabled:opacity-60 transition-colors`}
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Pause size={13} />}
-          <span>Pause</span>
+          <span className="hidden sm:inline">Pause</span>
         </button>
       )}
 

@@ -288,10 +288,9 @@ export default function TopNavbar() {
   return (
     <>
     <header className="sticky top-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
-      <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
-        <div className="flex-1 min-w-0 flex items-center">
-        <Link href={BASE} prefetch={false} className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1">
+      <div className="h-[64px] px-2 sm:px-3 lg:px-4 flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <Link href={BASE} prefetch={false} className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-[14px] bg-[#B8112D] flex items-center justify-center shadow-sm overflow-hidden p-1 shrink-0">
             <Image
               src="/images/image.png"
               alt="logo"
@@ -301,22 +300,21 @@ export default function TopNavbar() {
             />
           </div>
 
-          <div className="hidden sm:block min-w-[170px]">
-            <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">
+          <div className="hidden lg:block min-w-0 max-w-[140px] xl:max-w-none">
+            <h2 className="text-[16px] xl:text-[18px] font-extrabold leading-none text-crm-text tracking-tight truncate">
               CRM Dashboard
             </h2>
-            <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
+            <p className="text-[10px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
               BEM Solutions
             </p>
           </div>
         </Link>
-        </div>
 
-        <div className="min-w-0 shrink">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <CapsuleChipNav items={navItems} baseHref={BASE} accent="#B8112D" variant="inline" />
         </div>
 
-        <div className="flex-1 min-w-0 flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
         <CsrCheckInControl compact />
 
         <ThemeToggle />
@@ -581,7 +579,6 @@ export default function TopNavbar() {
               </div>
             )}
           </div>
-        </div>
         </div>
       </div>
     </header>
