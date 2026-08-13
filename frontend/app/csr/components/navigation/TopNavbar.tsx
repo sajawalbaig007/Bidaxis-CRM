@@ -580,6 +580,7 @@ export default function TopNavbar() {
             )}
           </div>
         </div>
+        </div>
       </div>
     </header>
 
