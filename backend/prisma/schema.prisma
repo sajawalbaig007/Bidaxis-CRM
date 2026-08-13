@@ -523,3 +523,32 @@ model TechnicalNotification {
   @@index([source, createdAt])
   @@map("technical_notifications")
 }
+
+/**
+ * Admin → Users → All Employees roster.
+ * Linked rows (userId) pull live details from User; manual rows use free-text role.
+ */
+model StaffEmployee {
+  id             String   @id @default(cuid()) @map("_id")
+  /** Dashboard user — when set, profile fields are resolved from User */
+  userId         String?
+  /** BEM | GPS */
+  company        String   @default("BEM")
+  /** Job title / role when no dashboard account */
+  manualRole     String?
+  name           String?
+  email          String?
+  employeeCode   String?
+  fatherName     String?
+  currentAddress String?
+  contactNo      String?
+  cnic           String?
+  profilePic     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([company])
+  @@map("staff_employees")
+}
