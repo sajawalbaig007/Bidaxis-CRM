@@ -158,7 +158,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       inBin: true,
     },
     orderBy: { updatedAt: "desc" },
-    take: 500,
+    take: 5000,
   });
 
   const leads = rawLeads.filter(isDisplayableProjectLead);
@@ -198,21 +198,30 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const quoted = parseMoney(lead.projectBudget);
     const paidInScope = allPayments.filter((e) => matchesMonth(e, monthFilter));
 
-    if (monthFilter && paidInScope.length === 0 && quoted <= 0) continue;
-    // Month filter: include projects that have payments in that month OR (all-time style unpaid with quote only when no month)
-    if (monthFilter && paidInScope.length === 0) continue;
-
-    projectCount += 1;
-
     const paidTotalAllTime = paidTotalFromEntries(allPayments);
     const paidTotalInMonth = paidInScope.reduce((s, e) => s + parseMoney(e.amount), 0);
     const pctAllTime = paymentPercent(allPayments, lead.projectBudget);
     const remainingDue = quoted > 0 ? Math.max(0, quoted - paidTotalAllTime) : 0;
+    const hasMonthPay = paidInScope.length > 0;
 
     /**
-     * Month KPIs: don't use full project quote (inflates vs this-month collected).
-     * Attributed quote = money collected this month + still-due balance.
-     * Prior-month halves already paid are neither Quoted nor Outstanding here.
+     * Month filter:
+     * - Include projects with payments this month (activity)
+     * - Also include projects still owing money (so Outstanding / Quoted aren't incomplete)
+     * - Skip fully-paid-earlier projects with no activity this month
+     */
+    if (monthFilter) {
+      if (!hasMonthPay && remainingDue <= 0) continue;
+    } else if (quoted <= 0 && allPayments.length === 0) {
+      continue;
+    }
+
+    projectCount += 1;
+
+    /**
+     * Quoted:
+     * - All time → sum of budgets
+     * - Month → collected this month + still-due (Quoted = Collected + Outstanding)
      */
     if (quoted > 0) {
       quotedProjects += 1;
@@ -223,7 +232,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    // Outstanding = remaining after ALL payments (split months must not re-open balance)
+    // Outstanding = remaining after ALL payments (never re-opens for prior-month halves)
     if (quoted > 0) {
       outstandingAmount += remainingDue;
     }
@@ -232,6 +241,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       const amt = parseMoney(entry.amount);
       if (amt <= 0) continue;
       collectedAmount += amt;
+      collectedEntries += 1;
       if (!entry.paymentChannel || !entry.currency) {
         unassignedPaidCount += 1;
         continue;
@@ -239,7 +249,6 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       const ch = channelMap.get(entry.paymentChannel);
       if (!ch) continue;
       ch.paymentCount += 1;
-      collectedEntries += 1;
       ch.totals[entry.currency] += amt;
       ch.totalAmount += amt;
       ch.projectIds.add(lead.id);
@@ -257,20 +266,15 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
         return tb.localeCompare(ta);
       });
 
-    // Month view: list projects that paid this month; bucket by all-time % so prior halves aren't "outstanding"
+    // Status by all-time collection % (month activity doesn't reclassify prior full pays)
     const status: ProjectPaymentSummaryRow["status"] =
       pctAllTime >= 100
         ? "full"
-        : paidTotalInMonth > 0 || (!monthFilter && paidTotalAllTime > 0)
+        : paidTotalAllTime > 0
           ? "partial"
           : "unpaid";
 
     const paidTotalDisplay = monthFilter ? paidTotalInMonth : paidTotalAllTime;
-    const pctDisplay = monthFilter
-      ? quoted > 0
-        ? Math.min(100, (paidTotalInMonth / quoted) * 100)
-        : pctAllTime
-      : pctAllTime;
 
     const row: ProjectPaymentSummaryRow = {
       leadId: lead.id,
@@ -282,14 +286,17 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       quotedLabel: quoted > 0 ? `$${quoted.toLocaleString()}` : "—",
       paidTotal: paidTotalDisplay,
       paidLabel: paidTotalDisplay > 0 ? `$${paidTotalDisplay.toLocaleString()}` : "—",
-      percent: Math.round((monthFilter ? pctAllTime : pctDisplay) * 10) / 10,
+      percent: Math.round(pctAllTime * 10) / 10,
       status,
       payments: rowPayments,
     };
 
     if (status === "full") {
-      fullPaidCount += 1;
-      fullPaidProjects.push(row);
+      // Month view: only list full if they paid this month (otherwise noise from old completes)
+      if (!monthFilter || hasMonthPay) {
+        fullPaidCount += 1;
+        fullPaidProjects.push(row);
+      }
     } else if (status === "partial") {
       partialPaidCount += 1;
       partialPaidProjects.push(row);

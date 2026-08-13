@@ -4,7 +4,7 @@ import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { userBrowserMap, detectBrowser } from "../utils/sessions";
 import { recordHeartbeatAccess } from "../utils/accessHistory";
-import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus } from "../utils/csrSessionTracking";
+import { tickCsrWorkSession, checkInCsrWorkSession, checkOutCsrWorkSession, getCsrWorkSessionStatus, pauseCsrWorkSession, resumeCsrWorkSession } from "../utils/csrSessionTracking";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
 import { formatEstDateTime } from "../utils/estTime";
 import { getCache, setCache, invalidateCache, flushAdminClientsCache, shouldSkipThrottledHeal, markThrottledHeal } from "../utils/cache";
@@ -1358,15 +1358,20 @@ router.post("/check-in", verifyToken, allowRoles("csr"), async (req: any, res) =
     if (!status.checkedIn) {
       status = {
         checkedIn: true,
+        paused: false,
         session: {
           id: result.sessionId,
           checkInAt: result.loginAt.toISOString(),
           checkInAtEst: formatEstDateTime(result.loginAt),
+          paused: false,
+          pausedAt: null,
           dashboardMs: 0,
           awayMs: 0,
+          pausedMs: 0,
           totalMs: 0,
           dashboardDuration: "0s",
           awayDuration: "0s",
+          pausedDuration: "0s",
           totalDuration: "0s",
         },
       };
@@ -1390,12 +1395,49 @@ router.post("/check-out", verifyToken, allowRoles("csr"), async (req: any, res) 
       success: true,
       closed,
       checkedIn: false,
+      paused: false,
       session: null,
       message: closed ? "Checked out successfully." : "No active check-in.",
     });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ success: false, message: "Check-out failed." });
+  }
+});
+
+router.post("/pause", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const ok = await pauseCsrWorkSession(req.user.id);
+    if (!ok) {
+      return res.status(400).json({ success: false, message: "Check in first before pausing." });
+    }
+    const status = await getCsrWorkSessionStatus(req.user.id);
+    return res.json({
+      success: true,
+      message: "Paused — resume when you return to the dashboard.",
+      ...status,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Pause failed." });
+  }
+});
+
+router.post("/resume", verifyToken, allowRoles("csr"), async (req: any, res) => {
+  try {
+    const ok = await resumeCsrWorkSession(req.user.id);
+    if (!ok) {
+      return res.status(400).json({ success: false, message: "Check in first before resuming." });
+    }
+    const status = await getCsrWorkSessionStatus(req.user.id);
+    return res.json({
+      success: true,
+      message: "Resumed — work time tracking again.",
+      ...status,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Resume failed." });
   }
 });
 

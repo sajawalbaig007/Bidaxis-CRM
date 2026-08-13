@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import toast, { Toaster } from "react-hot-toast";
 import {
-  Search, Plus, Users, Pencil, Trash2, Ban,
+  Search, Plus, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
   Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare, ArrowUpDown,
 } from "lucide-react";
@@ -12,13 +13,9 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
-import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
-import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
-import RechartsBox from "@/app/components/charts/RechartsBox";
 import {
   ALL_CSR_RESET_SCOPE_IDS,
   CSR_RESET_GROUPS,
@@ -297,47 +294,6 @@ function BrowserBadge({ browser }: { browser: string | null }) {
   );
 }
 
-const actionBtnBase =
-  "rounded-xl flex items-center justify-center transition-all shrink-0";
-
-const actionBtnStyles = {
-  details: `${actionBtnBase} px-4 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-crm-muted dark:text-crm-text dark:hover:bg-crm-nav-pill`,
-  edit:    `${actionBtnBase} w-9 h-9 bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60`,
-  block:   `${actionBtnBase} w-9 h-9 bg-yellow-100 text-yellow-600 hover:bg-yellow-200 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60`,
-  unblock: `${actionBtnBase} w-9 h-9 bg-green-100 text-green-600 hover:bg-green-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60`,
-  reset:   `${actionBtnBase} w-9 h-9 bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:hover:bg-orange-900/60`,
-  password:`${actionBtnBase} w-9 h-9 bg-violet-100 text-violet-600 hover:bg-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-900/60`,
-  chat:    `${actionBtnBase} w-9 h-9 bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:hover:bg-cyan-900/60`,
-  delete:  `${actionBtnBase} w-9 h-9 bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60`,
-};
-
-function ActionTip({
-  label,
-  onClick,
-  className,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  className: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="relative group shrink-0">
-      <button type="button" onClick={onClick} aria-label={label} title={label} className={className}>
-        {children}
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-2 px-2 py-1 rounded-lg bg-[#111827] text-white text-[10px] font-semibold whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity z-[200] shadow-lg dark:bg-[#eef0f4] dark:text-[#111827]"
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
-
-/* Tab status — On Dashboard vs Away */
 /* ── Render elapsed seconds as human string ── */
 function formatElapsed(totalSecs: number): string {
   if (totalSecs < 60)  return `${totalSecs}s`;
@@ -439,7 +395,7 @@ export default function UsersPage() {
   const [showModal,    setShowModal]    = useState(false);
   const [editingUser,  setEditingUser]  = useState<User | null>(null);
   const [detailUser,   setDetailUser]   = useState<User | null>(null);
-  const [openMenu,     setOpenMenu]     = useState<string | null>(null);
+  const [openMenu,     setOpenMenu]     = useState<{ id: string; top: number; right: number } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [pwUser, setPwUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -618,18 +574,6 @@ export default function UsersPage() {
     const names = activityDashboards.map((d) => d.role).join(", ");
     return companyFilter === "GPS" ? `GPS · ${names}` : `BEM · ${names}`;
   }, [activityDashboards, companyFilter]);
-  const activityStatCards = useMemo(() => {
-    const roleCards = activityDashboards.map((d, i) => ({
-      label: d.onlineLabel,
-      value: onlineByRole[d.role] ?? 0,
-      color: i % 2 === 0 ? "text-[#B8112D]" : "text-blue-600",
-    }));
-    return [
-      { label: "Total Users", value: totalUsers, color: "text-[#111827]" },
-      { label: "Online Now", value: onlineNow, color: "text-green-600" },
-      ...roleCards,
-    ];
-  }, [activityDashboards, onlineByRole, onlineNow, totalUsers]);
   const countByCompany = {
     BEM: users.filter(u => companyForRole(u.role) === "BEM").length,
     GPS: users.filter(u => companyForRole(u.role) === "GPS").length,
@@ -651,20 +595,9 @@ export default function UsersPage() {
     );
   });
 
-  const userColPredicates = useMemo(() => ({
-    user:    (u: User, v: string) => textColumnMatch(u.name, v) || textColumnMatch(u.email, v),
-    role:    (u: User, v: string) => textColumnMatch(u.role, v),
-    online:  (u: User, v: string) => textColumnMatch(u.isOnline ? "online" : "offline", v),
-    browser: (u: User, v: string) => textColumnMatch(u.browser, v),
-    account: (u: User, v: string) => textColumnMatch(u.status, v),
-  }), []);
-
-  const { filters: userColFilters, setFilter: setUserColFilter, filtered: colFilteredUsers } =
-    useColumnFilters(filteredUsers, userColPredicates);
-
   const sortedUsers = useMemo(
-    () => sortUsersList(colFilteredUsers, sortKey),
-    [colFilteredUsers, sortKey],
+    () => sortUsersList(filteredUsers, sortKey),
+    [filteredUsers, sortKey],
   );
 
   const totalPagesUsers = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
@@ -1007,6 +940,52 @@ export default function UsersPage() {
     }
   };
 
+  const openEditUser = useCallback((u: User) => {
+    setEditingUser(u);
+    setForm({
+      ...EMPTY_USER_FORM,
+      name: u.name,
+      email: u.email,
+      company: companyForRole(u.role),
+      role: u.role,
+      employeeCode: u.employeeCode ?? "",
+      fatherName: u.fatherName ?? "",
+      currentAddress: u.currentAddress ?? "",
+      contactNo: u.contactNo ?? "",
+      csrCode: u.csrCode ?? "",
+      cnic: u.cnic ?? "",
+      cnicPdfUrl: u.cnicPdfUrl ?? "",
+      profilePic: u.profilePic ?? "",
+      allowedIps: u.allowedIps?.length ? u.allowedIps : [""],
+      allowedMacAddress: u.allowedMacAddress ?? "",
+      temporaryAccessIp: u.temporaryAccessIp ?? "",
+      temporaryAccessMac: u.temporaryAccessMac ?? "",
+    });
+    setShowModal(true);
+  }, []);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const onDoc = () => setOpenMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenMenu(null); };
+    const onScroll = () => setOpenMenu(null);
+    const t = window.setTimeout(() => {
+      document.addEventListener("click", onDoc);
+      document.addEventListener("keydown", onKey);
+      window.addEventListener("scroll", onScroll, true);
+      window.addEventListener("resize", onScroll);
+    }, 0);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("click", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [openMenu]);
+
+  const menuUser = openMenu ? users.find((x) => x.id === openMenu.id) ?? null : null;
+
   return (
     <div className="flex min-h-screen bg-[#F5F6FA]">
       <Toaster position="top-right" toastOptions={{
@@ -1020,70 +999,103 @@ export default function UsersPage() {
       <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden mt-[64px]">
         <DashboardNavbar/>
 
-        {/* USER ACTIVITY CHART */}
-        <div className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        {/* USER ACTIVITY OVERVIEW */}
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
-              <h3 className="font-bold text-[#111827] text-base">User Activity Overview</h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {activitySubtitle}
-              </p>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">Users</h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{activitySubtitle}</p>
             </div>
-            <div className="flex items-center gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#12B76A] inline-block"/>Online</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#E5E7EB] inline-block"/>Offline</span>
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-500">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {onlineNow} online
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                {Math.max(0, totalUsers - onlineNow)} offline
+              </span>
             </div>
           </div>
-          {loading ? (
-            <div className="h-[150px] bg-gray-50 rounded-2xl animate-pulse" />
-          ) : (
-            <RechartsBox height={150}>
-              <BarChart
-                data={activityChartData}
-                barGap={8} barSize={Math.min(52, Math.max(28, Math.floor(320 / Math.max(1, activityChartData.length))))}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false}/>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize:13, fontWeight:700, fill:"#374151" }}/>
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize:11, fill:"#9CA3AF" }} width={28}/>
-                <Tooltip contentStyle={{ borderRadius:"14px", border:"1px solid #e5e7eb", fontSize:"12px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}/>
-                <Bar dataKey="online"  fill="#12B76A" radius={[7,7,0,0]} name="Online"/>
-                <Bar dataKey="offline" fill="#E5E7EB" radius={[7,7,0,0]} name="Offline"/>
-              </BarChart>
-            </RechartsBox>
-          )}
-          <div className={`grid gap-3 mt-4 pt-4 border-t border-gray-100 ${
-            activityStatCards.length <= 4
-              ? "grid-cols-2 sm:grid-cols-4"
-              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
-          }`}>
-            {activityStatCards.map(s => (
-              <div key={s.label} className="text-center">
-                {loading
-                  ? <div className="h-7 w-8 bg-gray-100 rounded-lg animate-pulse mx-auto mb-1"/>
-                  : <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
-                }
-                <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
-              </div>
-            ))}
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total users</p>
+              {loading ? (
+                <div className="h-8 w-12 bg-gray-100 rounded-lg animate-pulse mt-2" />
+              ) : (
+                <p className="text-3xl font-bold text-[#0F172A] mt-1 tabular-nums">{totalUsers}</p>
+              )}
+            </div>
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700/70">Online now</p>
+              {loading ? (
+                <div className="h-8 w-12 bg-emerald-100/60 rounded-lg animate-pulse mt-2" />
+              ) : (
+                <p className="text-3xl font-bold text-emerald-700 mt-1 tabular-nums">{onlineNow}</p>
+              )}
+              {!loading && totalUsers > 0 && (
+                <div className="mt-3 h-1.5 rounded-full bg-emerald-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${Math.min(100, (onlineNow / totalUsers) * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm col-span-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Presence by role</p>
+              {loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-8 bg-gray-50 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {activityChartData.map((row) => {
+                    const total = row.online + row.offline;
+                    const pct = total > 0 ? (row.online / total) * 100 : 0;
+                    return (
+                      <div key={row.name} className="flex items-center gap-3">
+                        <span className="w-16 sm:w-20 text-[11px] font-bold text-gray-700 shrink-0 truncate">
+                          {row.name}
+                        </span>
+                        <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden flex">
+                          <div
+                            className="h-full bg-emerald-500 transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-semibold tabular-nums text-gray-500 w-14 text-right shrink-0">
+                          <span className="text-emerald-600">{row.online}</span>
+                          <span className="text-gray-300">/</span>
+                          {total}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* SEARCH + SORT + CREATE */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:flex-1">
-            <div className="relative w-full sm:w-[300px]">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input type="text" placeholder="Search users..." value={search}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto sm:flex-1">
+            <div className="relative w-full sm:w-[280px]">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
+              <input type="text" placeholder="Search name, email, code…" value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full bg-white border border-gray-200 rounded-2xl pl-11 pr-4 py-3 text-sm outline-none focus:border-[#B8112D]"/>
+                className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-[#B8112D]"/>
             </div>
-            <div className="relative w-full sm:w-[240px]">
-              <ArrowUpDown size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+            <div className="relative w-full sm:w-[200px]">
+              <ArrowUpDown size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
               <select
                 value={sortKey}
                 onChange={e => { setSortKey(e.target.value as UserSortKey); setPage(1); }}
                 aria-label="Sort users"
-                className="w-full appearance-none bg-white border border-gray-200 rounded-2xl pl-11 pr-9 py-3 text-sm outline-none focus:border-[#B8112D] cursor-pointer"
+                className="w-full appearance-none bg-white border border-gray-200 rounded-2xl pl-10 pr-9 py-2.5 text-sm outline-none focus:border-[#B8112D] cursor-pointer"
               >
                 {USER_SORT_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1093,7 +1105,7 @@ export default function UsersPage() {
             </div>
           </div>
           <button onClick={() => { setEditingUser(null); setForm({ ...EMPTY_USER_FORM }); setShowModal(true); }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-3 rounded-2xl text-sm font-medium shadow-sm hover:bg-[#a30f27] transition-all">
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#B8112D] text-white px-5 py-2.5 rounded-2xl text-sm font-semibold shadow-sm shadow-[#B8112D]/20 hover:bg-[#a30f27] transition-all">
             <Plus size={16}/>Create User
           </button>
         </div>
@@ -1130,256 +1142,166 @@ export default function UsersPage() {
         </div>
 
         {/* TABLE */}
-        <div className="bg-white border border-gray-100 rounded-3xl overflow-x-auto">
-          <div className="min-w-[700px]">
-            <table className="w-full">
-              <thead className={CSR_THEAD}>
-                <tr className="text-left text-sm text-crm-text-faint">
-                  <FilterableTh title="User" filter={userColFilters.user ?? ""} onFilter={v => { setUserColFilter("user", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Name/email…" />
-                  <FilterableTh title="Role" filter={userColFilters.role ?? ""} onFilter={v => { setUserColFilter("role", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Role…" />
-                  <FilterableTh title="Online Status" filter={userColFilters.online ?? ""} onFilter={v => { setUserColFilter("online", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Online…" />
-                  <FilterableTh title="Browser / Tab" filter={userColFilters.browser ?? ""} onFilter={v => { setUserColFilter("browser", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Browser…" />
-                  <FilterableTh title="Account" filter={userColFilters.account ?? ""} onFilter={v => { setUserColFilter("account", v); setPage(1); }} className="px-6 py-4 font-medium" placeholder="Status…" />
-                  <th className="px-6 py-4 font-medium text-right">Actions</th>
+        <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
+              <thead>
+                <tr className="text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-[#FAFBFC] border-b border-gray-100">
+                  <th className="px-5 py-3.5">User</th>
+                  <th className="px-4 py-3.5">Role</th>
+                  <th className="px-4 py-3.5">Presence</th>
+                  <th className="px-4 py-3.5">Account</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   [1,2,3,4].map(i => (
-                    <tr key={i} className="border-b border-gray-100">
-                      <td className="px-6 py-5">
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-full bg-gray-100 animate-pulse"/>
+                          <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse"/>
                           <div className="space-y-1.5">
-                            <div className="h-4 w-32 bg-gray-100 rounded animate-pulse"/>
-                            <div className="h-3 w-24 bg-gray-100 rounded animate-pulse"/>
+                            <div className="h-3.5 w-28 bg-gray-100 rounded animate-pulse"/>
+                            <div className="h-3 w-36 bg-gray-100 rounded animate-pulse"/>
                           </div>
                         </div>
                       </td>
-                      {[1,2,3,4,5].map(j => (
-                        <td key={j} className="px-6 py-5"><div className="h-6 w-20 bg-gray-100 rounded-xl animate-pulse"/></td>
+                      {[1,2,3,4].map(j => (
+                        <td key={j} className="px-4 py-4"><div className="h-6 w-16 bg-gray-100 rounded-lg animate-pulse"/></td>
                       ))}
                     </tr>
                   ))
                 ) : paginatedUsers.length > 0 ? paginatedUsers.map(u => (
-                  <tr key={u.id} className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-all">
+                  <tr key={u.id} className="border-b border-gray-50 hover:bg-[#FAFBFC] transition-colors">
 
                     {/* USER */}
-                    <td className="px-4 sm:px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm relative overflow-hidden ${u.profilePic ? "" : roleColor(u.role)}`}>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm relative overflow-hidden shrink-0 ${u.profilePic ? "" : roleColor(u.role)}`}>
                           {u.profilePic
                             ? <img src={u.profilePic} alt={u.name} className="w-full h-full object-cover" />
                             : u.name.charAt(0).toUpperCase()
                           }
-                          <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${u.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${u.isOnline ? "bg-[#12B76A]" : "bg-gray-300"}`}/>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-semibold text-gray-700">{u.name}</h3>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="text-sm font-semibold text-[#0F172A] truncate">{u.name}</h3>
                             {u.employeeCode && (
-                              <span className="inline-flex items-center bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-lg tracking-wider font-mono">
+                              <span className="inline-flex items-center bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wider font-mono">
                                 {u.employeeCode}
                               </span>
                             )}
                             {u.role === "CSR" && u.csrCode && (
-                              <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[10px] font-bold px-2 py-0.5 rounded-lg tracking-wider">
+                              <span className="inline-flex items-center bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wider">
                                 CSR {u.csrCode}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-400">{u.email}</p>
-                          {u.fatherName && <p className="text-[10px] text-gray-400 mt-0.5">S/O {u.fatherName}</p>}
-                          {u.contactNo && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{u.contactNo}</p>}
-                          {u.cnic && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{u.cnic}</p>}
+                          <p className="text-[11px] text-gray-400 truncate">{u.email}</p>
                         </div>
                       </div>
                     </td>
 
                     {/* ROLE */}
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${roleColor(u.role)}`}>{u.role}</span>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${roleColor(u.role)}`}>{u.role}</span>
                     </td>
 
-                    {/* ONLINE STATUS */}
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive} now={now}/>
-                    </td>
-
-                    {/* BROWSER / TAB STATUS */}
-                    <td className="px-4 sm:px-6 py-4">
-                      {u.isOnline ? (
-                        <TabStatusBadge
-                          tabVisible={u.tabVisible}
-                          hiddenAt={u.hiddenAt}
-                          openedAt={u.openedAt}
-                          browser={u.browser}
-                          now={now}
-                        />
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-
-                    {/* ACCOUNT STATUS */}
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        u.status === "Active"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-600"
-                      }`}>{u.status}</span>
-                    </td>
-
-                    {/* ACTIONS */}
-                    <td className="px-4 sm:px-6 py-4 overflow-visible">
-                      <div className="hidden md:flex items-center justify-end gap-2">
-                        <ActionTip label="View Details" onClick={() => setDetailUser(users.find(x => x.id === u.id) ?? u)} className={actionBtnStyles.details}>
-                          Details
-                        </ActionTip>
-                        <ActionTip
-                          label="Edit User"
-                          onClick={() => {
-                            setEditingUser(u);
-                            setForm({
-                              ...EMPTY_USER_FORM,
-                              name: u.name,
-                              email: u.email,
-                              company: companyForRole(u.role),
-                              role: u.role,
-                              employeeCode: u.employeeCode ?? "",
-                              fatherName: u.fatherName ?? "",
-                              currentAddress: u.currentAddress ?? "",
-                              contactNo: u.contactNo ?? "",
-                              csrCode: u.csrCode ?? "",
-                              cnic: u.cnic ?? "",
-                              cnicPdfUrl: u.cnicPdfUrl ?? "",
-                              profilePic: u.profilePic ?? "",
-                              allowedIps: u.allowedIps?.length ? u.allowedIps : [""],
-                              allowedMacAddress: u.allowedMacAddress ?? "",
-                              temporaryAccessIp: u.temporaryAccessIp ?? "",
-                              temporaryAccessMac: u.temporaryAccessMac ?? "",
-                            });
-                            setShowModal(true);
-                          }}
-                          className={actionBtnStyles.edit}
-                        >
-                          <Pencil size={16}/>
-                        </ActionTip>
-                        <ActionTip
-                          label="Change Password"
-                          onClick={() => openPasswordModal(u)}
-                          className={actionBtnStyles.password}
-                        >
-                          <KeyRound size={16}/>
-                        </ActionTip>
-                        <ActionTip
-                          label="Chat Restrictions"
-                          onClick={() => openChatRestrictions(u)}
-                          className={
-                            u.chatEnabled === false ||
-                            (u.chatAllowedUserIds?.length ?? 0) > 0 ||
-                            (u.chatVisibleToUserIds?.length ?? 0) > 0
-                              ? `${actionBtnStyles.chat} ring-2 ring-cyan-400/60`
-                              : actionBtnStyles.chat
-                          }
-                        >
-                          <MessageSquare size={16}/>
-                        </ActionTip>
-                        <ActionTip
-                          label={u.status === "Active" ? "Block User" : "Unblock User"}
-                          onClick={() => toggleStatus(u)}
-                          className={u.status === "Active" ? actionBtnStyles.block : actionBtnStyles.unblock}
-                        >
-                          <Ban size={16}/>
-                        </ActionTip>
-                        {u.role === "CSR" && (
-                          <ActionTip
-                            label="Reset CSR Data"
-                            onClick={() => handleResetCSR(u)}
-                            className={actionBtnStyles.reset}
-                          >
-                            <RotateCcw size={16}/>
-                          </ActionTip>
-                        )}
-                        <ActionTip
-                          label="Delete User"
-                          onClick={() => handleDelete(u.id)}
-                          className={actionBtnStyles.delete}
-                        >
-                          <Trash2 size={16}/>
-                        </ActionTip>
+                    {/* PRESENCE (online + browser) */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-col gap-1 min-w-[140px]">
+                        <OnlineBadge isOnline={u.isOnline} lastActive={u.lastActive} now={now}/>
+                        {u.isOnline ? (
+                          <TabStatusBadge
+                            tabVisible={u.tabVisible}
+                            hiddenAt={u.hiddenAt}
+                            openedAt={u.openedAt}
+                            browser={u.browser}
+                            now={now}
+                          />
+                        ) : null}
                       </div>
-                      <div className="relative md:hidden flex justify-end">
-                        <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
-                          className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center bg-white">
-                          <MoreVertical size={18}/>
+                    </td>
+
+                    {/* ACCOUNT */}
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                        u.status === "Active"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-red-50 text-red-600"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${u.status === "Active" ? "bg-emerald-500" : "bg-red-400"}`} />
+                        {u.status}
+                      </span>
+                    </td>
+
+                    {/* ACTIONS — primary + overflow */}
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setDetailUser(users.find(x => x.id === u.id) ?? u)}
+                          className="h-8 px-3 rounded-xl text-[11px] font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                        >
+                          View
                         </button>
-                        {openMenu === u.id && (
-                          <div className="absolute right-0 top-11 w-48 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50">
-                            {[
-                              { label:"View Details", action:() => {
-                                const latest = users.find(x => x.id === u.id) ?? u;
-                                setDetailUser(latest);
-                                setOpenMenu(null);
-                              }},
-                              { label:"Edit User",    action:() => {
-                                setEditingUser(u);
-                                setForm({
-                                  ...EMPTY_USER_FORM,
-                                  name: u.name,
-                                  email: u.email,
-                                  company: companyForRole(u.role),
-                                  role: u.role,
-                                  employeeCode: u.employeeCode ?? "",
-                                  fatherName: u.fatherName ?? "",
-                                  currentAddress: u.currentAddress ?? "",
-                                  contactNo: u.contactNo ?? "",
-                                  csrCode: u.csrCode ?? "",
-                                  cnic: u.cnic ?? "",
-                                  cnicPdfUrl: u.cnicPdfUrl ?? "",
-                                  profilePic: u.profilePic ?? "",
-                                  allowedIps: u.allowedIps?.length ? u.allowedIps : [""],
-                                  allowedMacAddress: u.allowedMacAddress ?? "",
-                                  temporaryAccessIp: u.temporaryAccessIp ?? "",
-                                  temporaryAccessMac: u.temporaryAccessMac ?? "",
-                                });
-                                setShowModal(true);
-                                setOpenMenu(null);
-                              }},
-                              { label:"Change Password", action:() => { openPasswordModal(u); setOpenMenu(null); }},
-                              { label:"Chat Restrictions", action:() => { openChatRestrictions(u); setOpenMenu(null); }},
-                              { label: u.status==="Active" ? "Block User" : "Unblock User", action:() => { toggleStatus(u); setOpenMenu(null); }},
-                            ].map(({ label, action }) => (
-                              <button key={label} onClick={action} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-all">{label}</button>
-                            ))}
-                            {u.role === "CSR" && (
-                              <button onClick={() => { handleResetCSR(u); setOpenMenu(null); }}
-                                className="w-full text-left px-4 py-3 text-sm text-orange-600 hover:bg-orange-50 transition-all">Reset Data</button>
-                            )}
-                            <button onClick={() => { handleDelete(u.id); setOpenMenu(null); }}
-                              className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-all">Delete User</button>
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => openEditUser(u)}
+                          className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition-colors"
+                          title="Edit"
+                          aria-label="Edit user"
+                        >
+                          <Pencil size={14}/>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (openMenu?.id === u.id) {
+                              setOpenMenu(null);
+                              return;
+                            }
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const menuH = u.role === "CSR" ? 240 : 200;
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const top = spaceBelow < menuH + 8
+                              ? Math.max(8, rect.top - menuH - 4)
+                              : rect.bottom + 4;
+                            setOpenMenu({
+                              id: u.id,
+                              top,
+                              right: Math.max(8, window.innerWidth - rect.right),
+                            });
+                          }}
+                          className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center transition-colors"
+                          aria-label="More actions"
+                          aria-expanded={openMenu?.id === u.id}
+                        >
+                          <MoreVertical size={16}/>
+                        </button>
                       </div>
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={6} className="py-16 text-center text-gray-400">No users found.</td></tr>
+                  <tr><td colSpan={5} className="py-16 text-center text-gray-400 text-sm">No users found.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {totalPagesUsers > 1 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-[#FAFBFC]">
               <p className="text-xs text-gray-400">
                 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sortedUsers.length)} of {sortedUsers.length}
               </p>
               <div className="flex items-center gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
-                <span className="text-sm font-semibold text-gray-700 min-w-[60px] text-center">{page} / {totalPagesUsers}</span>
+                  className="w-8 h-8 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center text-lg transition-all">‹</button>
+                <span className="text-xs font-semibold text-gray-700 min-w-[48px] text-center">{page} / {totalPagesUsers}</span>
                 <button onClick={() => setPage(p => Math.min(totalPagesUsers, p + 1))} disabled={page === totalPagesUsers}
-                  className="w-9 h-9 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
+                  className="w-8 h-8 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center text-lg transition-all">›</button>
               </div>
             </div>
           )}
@@ -2415,6 +2337,60 @@ export default function UsersPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {openMenu && menuUser && createPortal(
+          <div
+            className="fixed w-52 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-[200] py-1"
+            style={{ top: openMenu.top, right: openMenu.right }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => { openPasswordModal(menuUser); setOpenMenu(null); }}
+              className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <KeyRound size={13} className="text-violet-500"/> Change Password
+            </button>
+            <button
+              type="button"
+              onClick={() => { openChatRestrictions(menuUser); setOpenMenu(null); }}
+              className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <MessageSquare size={13} className="text-cyan-600"/> Chat Restrictions
+              {(menuUser.chatEnabled === false ||
+                (menuUser.chatAllowedUserIds?.length ?? 0) > 0 ||
+                (menuUser.chatVisibleToUserIds?.length ?? 0) > 0) && (
+                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-500" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => { toggleStatus(menuUser); setOpenMenu(null); }}
+              className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <Ban size={13} className="text-amber-600"/>
+              {menuUser.status === "Active" ? "Block User" : "Unblock User"}
+            </button>
+            {menuUser.role === "CSR" && (
+              <button
+                type="button"
+                onClick={() => { handleResetCSR(menuUser); setOpenMenu(null); }}
+                className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+              >
+                <RotateCcw size={13}/> Reset Data
+              </button>
+            )}
+            <div className="border-t border-gray-100 my-1" />
+            <button
+              type="button"
+              onClick={() => { handleDelete(menuUser.id); setOpenMenu(null); }}
+              className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+            >
+              <Trash2 size={13}/> Delete User
+            </button>
+          </div>,
+          document.body,
         )}
       </main>
     </div>
