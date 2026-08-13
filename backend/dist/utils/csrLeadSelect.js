@@ -56,17 +56,19 @@ exports.CSR_CLIENT_LIST_SELECT = {
     uploadFile: { select: uploadSourceSelect_1.CSR_UPLOAD_FILE_SELECT },
     isOldClient: true,
     clientCode: true,
+    projectCode: true,
     projectBudget: true,
     paidAmount: true,
     projectPayments: true,
     notes: {
         orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, text: true, createdAt: true },
+        take: 20,
+        select: { id: true, text: true, createdAt: true, parentId: true },
     },
 };
 exports.CSR_LIST_NOTES_SELECT = {
+    where: { parentId: null },
     orderBy: { createdAt: "desc" },
     take: 1,
-    select: { id: true, text: true, createdAt: true },
+    select: { id: true, text: true, createdAt: true, parentId: true },
 };

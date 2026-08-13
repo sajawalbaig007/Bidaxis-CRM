@@ -27,9 +27,19 @@ let loginAttemptSeq = 0;
 async function hasActiveSession(userId) {
     const user = await db_1.default.user.findUnique({
         where: { id: userId },
-        select: { activeSessionId: true },
+        select: { activeSessionId: true, lastActive: true },
     });
-    return !!user?.activeSessionId;
+    if (!user?.activeSessionId)
+        return false;
+    // Stale session (closed browser / crash) — free the seat so they can log in again.
+    // Active clients touch lastActive ~every 60s, so 15m means the other device is gone.
+    const STALE_MS = Number(process.env.SESSION_STALE_MS ?? 15 * 60 * 1000);
+    const last = user.lastActive?.getTime() ?? 0;
+    if (!last || Date.now() - last > STALE_MS) {
+        await clearActiveSession(userId);
+        return false;
+    }
+    return true;
 }
 async function registerActiveSession(userId, sid) {
     await db_1.default.user.update({

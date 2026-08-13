@@ -25,6 +25,7 @@ const binLeads_1 = require("../utils/binLeads");
 const uploadSourceSelect_1 = require("../utils/uploadSourceSelect");
 const csrLeadSelect_1 = require("../utils/csrLeadSelect");
 const csrDashboardQueries_1 = require("../utils/csrDashboardQueries");
+const nextProjectCode_1 = require("../utils/nextProjectCode");
 const router = express_1.default.Router();
 async function logStatusChange(csrId, leadId, status) {
     try {
@@ -262,9 +263,10 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
             select: {
                 ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
                 notes: {
+                    where: { parentId: null },
                     orderBy: { createdAt: "desc" },
                     take: 1,
-                    select: { id: true, text: true, createdAt: true },
+                    select: { id: true, text: true, createdAt: true, parentId: true },
                 },
             },
             orderBy: { updatedAt: "desc" },
@@ -293,8 +295,8 @@ router.get("/not-interested", auth_middleware_1.verifyToken, (0, role_middleware
                 ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
                 notes: {
                     orderBy: { createdAt: "desc" },
-                    take: 5,
-                    select: { id: true, text: true, createdAt: true },
+                    take: 20,
+                    select: { id: true, text: true, createdAt: true, parentId: true },
                 },
             },
             orderBy: { updatedAt: "desc" },
@@ -331,7 +333,7 @@ router.get("/lookup-by-phone", auth_middleware_1.verifyToken, (0, role_middlewar
 router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
-        const { name, company, phone, projectTitle, projectCode, interestedService, projectDeadline, projectBudget, projectNotes, status, } = req.body;
+        const { name, company, phone, email, state, ownerName, projectTitle, projectCode, projectScope, interestedService, projectDeadline, projectBudget, projectNotes, status, sourceClientId, } = req.body;
         /* Validate required fields */
         if (!name || !projectTitle || !interestedService || !projectDeadline) {
             return res.status(400).json({
@@ -339,18 +341,58 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 message: "name, projectTitle, interestedService and projectDeadline are required.",
             });
         }
-        const trimmedPhone = phone?.trim() || null;
-        const isOldClient = trimmedPhone || company?.trim()
-            ? await (0, leadClientPromotion_1.hasPriorWonClient)(trimmedPhone, company?.trim() ?? null)
-            : false;
+        let source = null;
+        if (sourceClientId) {
+            source = await db_1.default.lead.findFirst({
+                where: { id: String(sourceClientId), assignedTo: csrId, ...(0, binLeads_1.notInBinFilter)() },
+                select: {
+                    id: true,
+                    clientCode: true,
+                    projectCode: true,
+                    isOldClient: true,
+                    email: true,
+                    state: true,
+                    ownerName: true,
+                    company: true,
+                    phone: true,
+                },
+            });
+            if (!source) {
+                return res.status(404).json({ success: false, message: "Source client not found" });
+            }
+        }
+        const trimmedPhone = (phone?.trim() || source?.phone?.trim() || null);
+        const baseCode = (source?.clientCode || source?.projectCode || "").trim();
+        let resolvedProjectCode = typeof projectCode === "string" && projectCode.trim()
+            ? projectCode.trim()
+            : null;
+        let clientCode = source?.clientCode ?? null;
+        if (source && baseCode) {
+            if (!clientCode)
+                clientCode = baseCode;
+            if (!resolvedProjectCode) {
+                resolvedProjectCode = await (0, nextProjectCode_1.allocateNextProjectCode)(baseCode, { assignedTo: csrId });
+            }
+        }
+        /* From an existing client: keep their New/Old flag — do not promote via prior-win check */
+        const isOldClient = source
+            ? source.isOldClient
+            : (trimmedPhone || company?.trim()
+                ? await (0, leadClientPromotion_1.hasPriorWonClient)(trimmedPhone, company?.trim() ?? null)
+                : false);
         const lead = await db_1.default.lead.create({
             data: {
                 name,
-                company: company ?? null,
+                company: company ?? source?.company ?? null,
                 phone: trimmedPhone,
+                email: email ?? source?.email ?? null,
+                state: state ?? source?.state ?? null,
+                ownerName: ownerName ?? source?.ownerName ?? null,
                 status: status ?? "Close Client",
                 projectTitle,
-                projectCode: projectCode ?? null,
+                projectCode: resolvedProjectCode,
+                clientCode,
+                projectScope: projectScope ?? null,
                 interestedService,
                 projectDeadline,
                 projectBudget: projectBudget ?? null,
@@ -360,15 +402,18 @@ router.post("/project", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 interested: false,
                 isOldClient,
                 hiddenOnMain: true,
+                technicalReceivedAt: new Date(),
             },
         });
         if (trimmedPhone) {
             await (0, leadClientPromotion_1.clearPendingDuplicatesForPhone)(trimmedPhone, csrId, lead.id);
         }
-        if (company?.trim()) {
-            await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)(company.trim(), csrId, lead.id);
+        if ((company ?? source?.company)?.trim()) {
+            await (0, leadClientPromotion_1.clearPendingDuplicatesForCompany)((company ?? source?.company).trim(), csrId, lead.id);
         }
-        await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
+        if (!source) {
+            await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
+        }
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.status(201).json({ success: true, lead });
@@ -421,18 +466,29 @@ router.patch("/lead/:id/note", auth_middleware_1.verifyToken, (0, role_middlewar
         return res.status(500).json({ success: false, message: "Failed to save note" });
     }
 });
-/* ================= ADD TIMESTAMPED NOTE ================= */
+/* ================= ADD TIMESTAMPED NOTE (optional parentId = reply) ================= */
 router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
         const leadId = req.params.id;
-        const { text } = req.body;
+        const { text, parentId } = req.body;
         if (!text?.trim())
             return res.status(400).json({ success: false, message: "Note text required" });
         const lead = await db_1.default.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
-        const note = await db_1.default.leadNote.create({ data: { text: text.trim(), leadId } });
+        let parent;
+        if (parentId?.trim()) {
+            const p = await db_1.default.leadNote.findFirst({
+                where: { id: parentId.trim(), leadId, parentId: null },
+            });
+            if (!p)
+                return res.status(400).json({ success: false, message: "Parent note not found" });
+            parent = p.id;
+        }
+        const note = await db_1.default.leadNote.create({
+            data: { text: text.trim(), leadId, ...(parent ? { parentId: parent } : {}) },
+        });
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note });
@@ -452,7 +508,10 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
         const note = await db_1.default.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
         if (!note)
             return res.status(404).json({ success: false, message: "Note not found" });
-        const updated = await db_1.default.leadNote.update({ where: { id: noteId }, data: { text: text.trim() } });
+        const updated = await db_1.default.leadNote.update({
+            where: { id: noteId },
+            data: { text: text.trim(), createdAt: new Date() },
+        });
         (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note: updated });
@@ -461,7 +520,7 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
         return res.status(500).json({ success: false, message: "Failed to update note" });
     }
 });
-/* ================= DELETE NOTE ================= */
+/* ================= DELETE NOTE (+ nested replies) ================= */
 router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
     try {
         const csrId = req.user.id;
@@ -469,7 +528,7 @@ router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role
         const note = await db_1.default.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
         if (!note)
             return res.status(404).json({ success: false, message: "Note not found" });
-        await db_1.default.leadNote.delete({ where: { id: noteId } });
+        await db_1.default.leadNote.deleteMany({ where: { OR: [{ id: noteId }, { parentId: noteId }] } });
         (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true });
@@ -600,8 +659,10 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             updateData.clientCode = req.body.clientCode;
         const payments = (0, projectPayments_1.normalizePaymentsInput)(req.body.projectPayments);
         if (payments !== undefined) {
-            updateData.projectPayments = payments;
-            updateData.paidAmount = String((0, projectPayments_1.paidTotalFromEntries)((0, projectPayments_1.parseProjectPayments)(payments)));
+            // CSR cannot add/change payment slip links — Admin / Manager only
+            const safePayments = (0, projectPayments_1.preservePaymentSlipLinksForCsr)(payments, lead.projectPayments) ?? payments;
+            updateData.projectPayments = safePayments;
+            updateData.paidAmount = String((0, projectPayments_1.paidTotalFromEntries)((0, projectPayments_1.parseProjectPayments)(safePayments)));
         }
         /* ── STATUS HANDLING ── */
         if (status !== undefined) {
@@ -722,6 +783,9 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
                 updateData.nextSchedule = null;
                 updateData.nextTime = null;
                 updateData.isOldClient = await (0, leadClientPromotion_1.hasPriorWonClient)(lead.phone, lead.company, leadId);
+                if (!lead.technicalReceivedAt) {
+                    updateData.technicalReceivedAt = new Date();
+                }
                 /* ── AUTO clientCode: {csrCode}-{padded_seq} ── */
                 if (!lead.clientCode) {
                     const csr = await db_1.default.user.findUnique({
@@ -761,7 +825,9 @@ router.put("/lead/:id", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             }
             await (0, leadClientPromotion_1.reconcileClientOldFlagsForCsr)(csrId);
         }
-        if (status !== undefined && status !== lead.status) {
+        // Always log when CSR submits a status (including same status again) —
+        // Admin reports Completed / status buckets are CallLog-based.
+        if (status !== undefined) {
             await logStatusChange(csrId, leadId, status);
         }
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
@@ -1142,15 +1208,20 @@ router.post("/check-in", auth_middleware_1.verifyToken, (0, role_middleware_1.al
         if (!status.checkedIn) {
             status = {
                 checkedIn: true,
+                paused: false,
                 session: {
                     id: result.sessionId,
                     checkInAt: result.loginAt.toISOString(),
                     checkInAtEst: (0, estTime_1.formatEstDateTime)(result.loginAt),
+                    paused: false,
+                    pausedAt: null,
                     dashboardMs: 0,
                     awayMs: 0,
+                    pausedMs: 0,
                     totalMs: 0,
                     dashboardDuration: "0s",
                     awayDuration: "0s",
+                    pausedDuration: "0s",
                     totalDuration: "0s",
                 },
             };
@@ -1174,6 +1245,7 @@ router.post("/check-out", auth_middleware_1.verifyToken, (0, role_middleware_1.a
             success: true,
             closed,
             checkedIn: false,
+            paused: false,
             session: null,
             message: closed ? "Checked out successfully." : "No active check-in.",
         });
@@ -1181,6 +1253,42 @@ router.post("/check-out", auth_middleware_1.verifyToken, (0, role_middleware_1.a
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Check-out failed." });
+    }
+});
+router.post("/pause", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const ok = await (0, csrSessionTracking_1.pauseCsrWorkSession)(req.user.id);
+        if (!ok) {
+            return res.status(400).json({ success: false, message: "Check in first before pausing." });
+        }
+        const status = await (0, csrSessionTracking_1.getCsrWorkSessionStatus)(req.user.id);
+        return res.json({
+            success: true,
+            message: "Paused — resume when you return to the dashboard.",
+            ...status,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Pause failed." });
+    }
+});
+router.post("/resume", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("csr"), async (req, res) => {
+    try {
+        const ok = await (0, csrSessionTracking_1.resumeCsrWorkSession)(req.user.id);
+        if (!ok) {
+            return res.status(400).json({ success: false, message: "Check in first before resuming." });
+        }
+        const status = await (0, csrSessionTracking_1.getCsrWorkSessionStatus)(req.user.id);
+        return res.json({
+            success: true,
+            message: "Resumed — work time tracking again.",
+            ...status,
+        });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Resume failed." });
     }
 });
 /* ================= HEARTBEAT ================= */

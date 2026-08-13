@@ -5,13 +5,16 @@ exports.toPrismaAccountsPage = toPrismaAccountsPage;
 exports.defaultAccountsData = defaultAccountsData;
 exports.isValidRecordDate = isValidRecordDate;
 const salesPayrollDefaults_1 = require("./salesPayrollDefaults");
+const technicalPayrollDefaults_1 = require("./technicalPayrollDefaults");
 function isAccountsPageKey(v) {
     return (v === "dashboard" ||
         v === "balance_sheet" ||
         v === "income_statement" ||
         v === "cash_flow" ||
         v === "total_assets" ||
-        v === "sales_payroll");
+        v === "sales_payroll" ||
+        v === "technical_payroll" ||
+        v === "income_budget");
 }
 function toPrismaAccountsPage(key) {
     return key;
@@ -24,12 +27,48 @@ function defaultAccountsData(page) {
         case "dashboard":
             return {
                 currency: {
-                    usdAmount: 3200,
-                    cadAmount: 1800,
-                    pkrAmount: 950000,
-                    usdToPkrRate: 278,
-                    cadToPkrRate: 204,
+                    tabs: {
+                        AH: {
+                            usdAmount: 0,
+                            cadAmount: 0,
+                            pkrAmount: 0,
+                            usdToPkrRate: 285,
+                            cadToPkrRate: 204,
+                            usdTaxFactor: 0.89,
+                            cadTaxFactor: 0.89,
+                        },
+                        SN: {
+                            usdAmount: 0,
+                            cadAmount: 0,
+                            pkrAmount: 0,
+                            usdToPkrRate: 285,
+                            cadToPkrRate: 196,
+                            usdTaxFactor: 0.89,
+                            cadTaxFactor: 0.945,
+                        },
+                        CHQ: {
+                            usdAmount: 0,
+                            cadAmount: 0,
+                            pkrAmount: 0,
+                            usdToPkrRate: 1,
+                            cadToPkrRate: 1,
+                            usdTaxFactor: 1,
+                            cadTaxFactor: 1,
+                            taxDeductionRate: 0.25,
+                        },
+                        HM: {
+                            usdAmount: 0,
+                            cadAmount: 0,
+                            pkrAmount: 0,
+                            usdToPkrRate: 1,
+                            cadToPkrRate: 1,
+                            usdTaxFactor: 1,
+                            cadTaxFactor: 1,
+                            taxDeductionRate: 0.01,
+                        },
+                    },
                 },
+                formulas: { overrides: {}, custom: [] },
             };
         case "balance_sheet":
             return {
@@ -38,21 +77,21 @@ function defaultAccountsData(page) {
                         id: rid("as", 1),
                         title: "Non-Current Assets",
                         items: [
-                            { id: rid("a", 1), label: "Property, Plant & Equipment", note: "1", amount: 1825000 },
-                            { id: rid("a", 2), label: "Intangible Assets", note: "2", amount: 420000 },
-                            { id: rid("a", 3), label: "Investments", note: "3", amount: 760000 },
-                            { id: rid("a", 4), label: "Other Non-Current Assets", note: "4", amount: 240000 },
+                            { id: rid("a", 1), label: "Property, Plant & Equipment", note: "1", amount: 0 },
+                            { id: rid("a", 2), label: "Intangible Assets", note: "2", amount: 0 },
+                            { id: rid("a", 3), label: "Investments", note: "3", amount: 0 },
+                            { id: rid("a", 4), label: "Other Non-Current Assets", note: "4", amount: 0 },
                         ],
                     },
                     {
                         id: rid("as", 2),
                         title: "Current Assets",
                         items: [
-                            { id: rid("a", 5), label: "Inventories", note: "5", amount: 535000 },
-                            { id: rid("a", 6), label: "Investments", note: "6", amount: 315000 },
-                            { id: rid("a", 7), label: "Trade Receivables", note: "7", amount: 650000 },
-                            { id: rid("a", 8), label: "Cash and Cash Equivalents", note: "8", amount: 280000 },
-                            { id: rid("a", 9), label: "Other Current Assets", note: "9", amount: 145000 },
+                            { id: rid("a", 5), label: "Inventories", note: "5", amount: 0 },
+                            { id: rid("a", 6), label: "Investments", note: "6", amount: 0 },
+                            { id: rid("a", 7), label: "Trade Receivables", note: "7", amount: 0 },
+                            { id: rid("a", 8), label: "Cash and Cash Equivalents", note: "8", amount: 0 },
+                            { id: rid("a", 9), label: "Other Current Assets", note: "9", amount: 0 },
                         ],
                     },
                 ],
@@ -61,29 +100,29 @@ function defaultAccountsData(page) {
                         id: rid("es", 1),
                         title: "Equity",
                         items: [
-                            { id: rid("e", 1), label: "Share Capital", note: "10", amount: 1800000 },
-                            { id: rid("e", 2), label: "Retained Earnings", note: "11", amount: 970000 },
-                            { id: rid("e", 3), label: "Other Equity", note: "12", amount: 345000 },
+                            { id: rid("e", 1), label: "Share Capital", note: "10", amount: 0 },
+                            { id: rid("e", 2), label: "Retained Earnings", note: "11", amount: 0 },
+                            { id: rid("e", 3), label: "Other Equity", note: "12", amount: 0 },
                         ],
                     },
                     {
                         id: rid("es", 2),
                         title: "Non-Current Liabilities",
                         items: [
-                            { id: rid("e", 4), label: "Long-Term Borrowings", note: "13", amount: 620000 },
-                            { id: rid("e", 5), label: "Long-Term Provisions", note: "14", amount: 215000 },
-                            { id: rid("e", 6), label: "Deferred Tax Liabilities (Net)", note: "15", amount: 260000 },
-                            { id: rid("e", 7), label: "Other Non-Current Liabilities", note: "16", amount: 170000 },
+                            { id: rid("e", 4), label: "Long-Term Borrowings", note: "13", amount: 0 },
+                            { id: rid("e", 5), label: "Long-Term Provisions", note: "14", amount: 0 },
+                            { id: rid("e", 6), label: "Deferred Tax Liabilities (Net)", note: "15", amount: 0 },
+                            { id: rid("e", 7), label: "Other Non-Current Liabilities", note: "16", amount: 0 },
                         ],
                     },
                     {
                         id: rid("es", 3),
                         title: "Current Liabilities",
                         items: [
-                            { id: rid("e", 8), label: "Short-Term Borrowings", note: "17", amount: 330000 },
-                            { id: rid("e", 9), label: "Trade Payables", note: "18", amount: 380000 },
-                            { id: rid("e", 10), label: "Other Current Liabilities", note: "19", amount: 235000 },
-                            { id: rid("e", 11), label: "Short-Term Provisions", note: "20", amount: 145000 },
+                            { id: rid("e", 8), label: "Short-Term Borrowings", note: "17", amount: 0 },
+                            { id: rid("e", 9), label: "Trade Payables", note: "18", amount: 0 },
+                            { id: rid("e", 10), label: "Other Current Liabilities", note: "19", amount: 0 },
+                            { id: rid("e", 11), label: "Short-Term Provisions", note: "20", amount: 0 },
                         ],
                     },
                 ],
@@ -95,80 +134,93 @@ function defaultAccountsData(page) {
                 amount,
                 filledAt: "",
             });
+            const execSub = (prefix, n, label, commissionPct) => ({
+                id: rid(prefix, n),
+                label,
+                amount: 0,
+                filledAt: "",
+                salary: {
+                    basic: 0,
+                    commissionPct,
+                    loanPositive: 0,
+                    loanNegative: 0,
+                    remarks: "",
+                },
+            });
             return {
-                totalRevenue: 2659822,
+                totalRevenue: 0,
                 teamSalaries: [
                     {
                         id: rid("t", 1),
                         team: "Technical Team Salaries",
-                        totalSalary: 162645,
+                        totalSalary: 0,
                         subHeads: [
-                            sub("ts", 1, "Noman Khan", 19512),
-                            sub("ts", 2, "Muhammad Abdullah", 18458),
-                            sub("ts", 3, "Rizwan Sabir", 19682),
-                            sub("ts", 4, "Usama Jameel", 20849),
-                            sub("ts", 5, "Khaldoon Abrar", 19733),
-                            sub("ts", 6, "Muhammad Zaid", 19682),
-                            sub("ts", 7, "Muhammad Bariq", 23896),
-                            sub("ts", 8, "Afaq", 20833),
+                            sub("ts", 1, "Noman Khan", 0),
+                            sub("ts", 2, "Muhammad Abdullah", 0),
+                            sub("ts", 3, "Rizwan Sabir", 0),
+                            sub("ts", 4, "Usama Jameel", 0),
+                            sub("ts", 5, "Khaldoon Abrar", 0),
+                            sub("ts", 6, "Muhammad Zaid", 0),
+                            sub("ts", 7, "Muhammad Bariq", 0),
+                            sub("ts", 8, "Afaq", 0),
                         ],
                     },
                     {
                         id: rid("t", 2),
                         team: "Sales Team Salaries",
-                        totalSalary: 358853,
+                        totalSalary: 0,
                         subHeads: [
-                            sub("ss", 2, "Huraira", 71055),
-                            sub("ss", 3, "Faris", 43763),
-                            sub("ss", 4, "Ali", 71979),
-                            sub("ss", 5, "Faizan", 93856),
-                            sub("ss", 6, "Asim", 31400),
-                            sub("ss", 7, "Anam", 46800),
+                            sub("ss", 2, "Huraira", 0),
+                            sub("ss", 3, "Faris", 0),
+                            sub("ss", 4, "Ali", 0),
+                            sub("ss", 5, "Faizan", 0),
+                            sub("ss", 6, "Asim", 0),
+                            sub("ss", 7, "Anam", 0),
                         ],
                     },
                     {
                         id: rid("t", 6),
                         team: "Sales Team Lead Salaries",
-                        totalSalary: 61450,
+                        totalSalary: 0,
                         subHeads: [
-                            sub("stl", 1, "Hammad", 61450),
+                            sub("stl", 1, "Hammad", 0),
                         ],
                     },
                     {
                         id: rid("t", 3),
                         team: "Email Marketing Team Salaries",
-                        totalSalary: 10000,
+                        totalSalary: 0,
                         subHeads: [
-                            sub("es", 1, "Aftab", 10000),
+                            sub("es", 1, "Aftab", 0),
                         ],
                     },
                     {
                         id: rid("t", 4),
                         team: "Administration Salaries",
-                        totalSalary: 178693,
+                        totalSalary: 0,
                         subHeads: [
-                            sub("as", 1, "Qasim (Admin)", 15955),
-                            sub("as", 2, "Shakeela (HR)", 19864),
-                            sub("as", 3, "Attiq Rehman (Account Officer)", 18000),
-                            sub("as", 4, "Muhammad Bilal (Accounts Officer)", 14973),
-                            sub("as", 5, "Mr. Noreed (Chartered)", 20000),
-                            sub("as", 6, "Hamza (Floor Manager)", 7400),
-                            sub("as", 7, "Sajawal", 16000),
-                            sub("as", 8, "Ahmer", 16000),
-                            sub("as", 9, "Mahnoor", 16501),
-                            sub("as", 10, "Office Boy", 14000),
-                            sub("as", 11, "Guard", 20000),
+                            sub("as", 1, "Qasim (Admin)", 0),
+                            sub("as", 2, "Shakeela (HR)", 0),
+                            sub("as", 3, "Attiq Rehman (Account Officer)", 0),
+                            sub("as", 4, "Muhammad Bilal (Accounts Officer)", 0),
+                            sub("as", 5, "Mr. Noreed (Chartered)", 0),
+                            sub("as", 6, "Hamza (Floor Manager)", 0),
+                            sub("as", 7, "Sajawal", 0),
+                            sub("as", 8, "Ahmer", 0),
+                            sub("as", 9, "Mahnoor", 0),
+                            sub("as", 10, "Office Boy", 0),
+                            sub("as", 11, "Guard", 0),
                         ],
                     },
                     {
                         id: rid("t", 5),
                         team: "Executive Salaries",
-                        totalSalary: 40000,
+                        totalSalary: 0,
                         subHeads: [
-                            sub("xs", 1, "Mr. Mohsin Qayyum (80%)", 10000),
-                            sub("xs", 2, "Mr. Sharjeel Nasir (60%)", 10000),
-                            sub("xs", 3, "Mr. Talha Ahmed (60%)", 10000),
-                            sub("xs", 4, "Muhammad Irtaza (60%)", 10000),
+                            execSub("xs", 1, "Mr. Mohsin Qayyum", 15),
+                            execSub("xs", 2, "Mr. Sharjeel Nasir", 7.5),
+                            execSub("xs", 3, "Mr. Talha Ahmed", 7.5),
+                            execSub("xs", 4, "Irtaza Hassan", 7.5),
                         ],
                     },
                 ],
@@ -176,9 +228,9 @@ function defaultAccountsData(page) {
                     {
                         id: rid("o", 1),
                         label: "Office Management Expenses",
-                        amount: 10000,
+                        amount: 0,
                         subHeads: [
-                            sub("om", 1, "BEM Rent & Electricity Bill", 10000),
+                            sub("om", 1, "BEM Rent & Electricity Bill", 0),
                         ],
                     },
                     {
@@ -190,35 +242,24 @@ function defaultAccountsData(page) {
                     {
                         id: rid("o", 3),
                         label: "Regular IT Expenses",
-                        amount: 90000,
+                        amount: 0,
                         subHeads: [
-                            sub("it", 1, "Ptcl Bill payment", 10000),
-                            sub("it", 2, "Claude payment hamza bhai", 10000),
-                            sub("it", 3, "Devcon server", 10000),
-                            sub("it", 4, "Zoom payment devcon", 10000),
-                            sub("it", 5, "Zoom payment of two dialer", 10000),
-                            sub("it", 6, "Storm fibre bill payment", 10000),
-                            sub("it", 7, "LLC Tax Payment", 10000),
-                            sub("it", 8, "100 CAD shopdrawing structure review", 10000),
-                            sub("it", 9, "Gmails monthly payments", 10000),
+                            sub("it", 1, "Ptcl Bill payment", 0),
+                            sub("it", 2, "Claude payment hamza bhai", 0),
+                            sub("it", 3, "Devcon server", 0),
+                            sub("it", 4, "Zoom payment devcon", 0),
+                            sub("it", 5, "Zoom payment of two dialer", 0),
+                            sub("it", 6, "Storm fibre bill payment", 0),
+                            sub("it", 7, "LLC Tax Payment", 0),
+                            sub("it", 8, "100 CAD shopdrawing structure review", 0),
+                            sub("it", 9, "Gmails monthly payments", 0),
                         ],
                     },
                     {
                         id: rid("o", 4),
                         label: "Outsourcing Expenses",
-                        amount: 100000,
-                        subHeads: [
-                            sub("out", 1, "Payment to Sir shafaqat", 10000),
-                            sub("out", 2, "Mohsin Mughal", 10000),
-                            sub("out", 3, "Ayesha", 10000),
-                            sub("out", 4, "Irtiza (April)", 10000),
-                            sub("out", 5, "Ahmed's Reference", 10000),
-                            sub("out", 6, "Ahmed", 10000),
-                            sub("out", 7, "Irtaza (May)", 10000),
-                            sub("out", 8, "Ayesha (May)", 10000),
-                            sub("out", 9, "Mohsin Mughal (May)", 10000),
-                            sub("out", 10, "Outsourcing — other", 10000),
-                        ],
+                        amount: 0,
+                        subHeads: [],
                     },
                     {
                         id: rid("o", 5),
@@ -229,13 +270,12 @@ function defaultAccountsData(page) {
                     {
                         id: rid("o", 6),
                         label: "Miscellaneous Expenses",
-                        amount: 50000,
+                        amount: 0,
                         subHeads: [
-                            sub("misc", 1, "Kitchen Grocery", 10000),
-                            sub("misc", 2, "Miscellaneous — other", 10000),
-                            sub("misc", 3, "Notepad, Ballpen", 10000),
-                            sub("misc", 4, "Hand wash", 10000),
-                            sub("misc", 5, "Tissue boxes and rolls", 10000),
+                            sub("misc", 1, "Kitchen Grocery", 0),
+                            sub("misc", 2, "Notepad, Ballpen", 0),
+                            sub("misc", 3, "Hand wash", 0),
+                            sub("misc", 4, "Tissue boxes and rolls", 0),
                         ],
                     },
                 ],
@@ -243,61 +283,56 @@ function defaultAccountsData(page) {
                     {
                         id: rid("ln", 1),
                         label: "Loan Issued",
-                        amount: 8000,
-                        subHeads: [
-                            sub("loan", 1, "Office Boy — Loan 1", 4000),
-                            sub("loan", 2, "Office Boy — Loan 2 (12/05/2026)", 1000),
-                            sub("loan", 3, "Office Boy — Loan 3 (16/05/2026)", 1000),
-                            sub("loan", 4, "Office Boy — Loan 4 (20/05/2026)", 2000),
-                        ],
+                        amount: 0,
+                        subHeads: [],
                     },
                 ],
                 providentFundHeads: [
                     {
                         id: rid("pf", 1),
                         label: "Sales Team PF",
-                        amount: 70000,
+                        amount: 0,
                         subHeads: [
-                            sub("pfs", 1, "Hammad", 10000),
-                            sub("pfs", 2, "Huraira", 10000),
-                            sub("pfs", 3, "Faris", 10000),
-                            sub("pfs", 4, "Ali", 10000),
-                            sub("pfs", 5, "Faizan", 10000),
-                            sub("pfs", 6, "Asim", 10000),
-                            sub("pfs", 7, "Anam", 10000),
+                            sub("pfs", 1, "Hammad", 0),
+                            sub("pfs", 2, "Huraira", 0),
+                            sub("pfs", 3, "Faris", 0),
+                            sub("pfs", 4, "Ali", 0),
+                            sub("pfs", 5, "Faizan", 0),
+                            sub("pfs", 6, "Asim", 0),
+                            sub("pfs", 7, "Anam", 0),
                         ],
                     },
                     {
                         id: rid("pf", 2),
                         label: "Administration PF",
-                        amount: 100000,
+                        amount: 0,
                         subHeads: [
-                            sub("pfa", 1, "Qasim (Admin)", 10000),
-                            sub("pfa", 2, "Shakeela (HR)", 10000),
-                            sub("pfa", 3, "Attiq Rehman (Account Officer)", 10000),
-                            sub("pfa", 4, "Muhammad Bilal (Accounts Officer)", 10000),
-                            sub("pfa", 5, "Hamza (Floor Manager)", 10000),
-                            sub("pfa", 6, "Sajawal", 10000),
-                            sub("pfa", 7, "Ahmer", 10000),
-                            sub("pfa", 8, "Mahnoor", 10000),
-                            sub("pfa", 9, "Office Boy", 10000),
-                            sub("pfa", 10, "Guard", 10000),
+                            sub("pfa", 1, "Qasim (Admin)", 0),
+                            sub("pfa", 2, "Shakeela (HR)", 0),
+                            sub("pfa", 3, "Attiq Rehman (Account Officer)", 0),
+                            sub("pfa", 4, "Muhammad Bilal (Accounts Officer)", 0),
+                            sub("pfa", 5, "Hamza (Floor Manager)", 0),
+                            sub("pfa", 6, "Sajawal", 0),
+                            sub("pfa", 7, "Ahmer", 0),
+                            sub("pfa", 8, "Mahnoor", 0),
+                            sub("pfa", 9, "Office Boy", 0),
+                            sub("pfa", 10, "Guard", 0),
                         ],
                     },
                     {
                         id: rid("pf", 3),
                         label: "Technical Team PF",
-                        amount: 90000,
+                        amount: 0,
                         subHeads: [
-                            sub("pft", 1, "Muhammad Abdullah", 10000),
-                            sub("pft", 2, "Rizwan Sabir", 10000),
-                            sub("pft", 3, "Usama Jameel", 10000),
-                            sub("pft", 4, "Muhammad Afaq Amin", 10000),
-                            sub("pft", 5, "Khaldoon Abrar", 10000),
-                            sub("pft", 6, "Muhammad Bariq", 10000),
-                            sub("pft", 7, "Ayesha Ashraf", 10000),
-                            sub("pft", 8, "Manal Younas", 10000),
-                            sub("pft", 9, "Zainab Khalil", 10000),
+                            sub("pft", 1, "Muhammad Abdullah", 0),
+                            sub("pft", 2, "Rizwan Sabir", 0),
+                            sub("pft", 3, "Usama Jameel", 0),
+                            sub("pft", 4, "Muhammad Afaq Amin", 0),
+                            sub("pft", 5, "Khaldoon Abrar", 0),
+                            sub("pft", 6, "Muhammad Bariq", 0),
+                            sub("pft", 7, "Ayesha Ashraf", 0),
+                            sub("pft", 8, "Manal Younas", 0),
+                            sub("pft", 9, "Zainab Khalil", 0),
                         ],
                     },
                 ],
@@ -306,44 +341,7 @@ function defaultAccountsData(page) {
         case "cash_flow":
             return {
                 bankHeads: ["AH Paypal", "SN Paypal", "CO. Habib Metro", "Qasim Habib Metro"],
-                months: [
-                    {
-                        id: rid("m", 1),
-                        month: "May 2026",
-                        rows: [
-                            {
-                                id: rid("r", 1),
-                                date: "2026-04-30",
-                                description: "Closing Balance at the end of April",
-                                bankAmounts: {
-                                    "AH Paypal": { debit: 0, credit: 0 },
-                                    "SN Paypal": { debit: 0, credit: 0 },
-                                    "CO. Habib Metro": { debit: 0, credit: 0 },
-                                    "Qasim Habib Metro": { debit: 0, credit: 0 },
-                                },
-                                netAmount: 200000,
-                            },
-                        ],
-                    },
-                    {
-                        id: rid("m", 2),
-                        month: "June 2026",
-                        rows: [
-                            {
-                                id: rid("r", 2),
-                                date: "2026-05-31",
-                                description: "Closing Balance at the end of May",
-                                bankAmounts: {
-                                    "AH Paypal": { debit: 0, credit: 0 },
-                                    "SN Paypal": { debit: 0, credit: 0 },
-                                    "CO. Habib Metro": { debit: 0, credit: 0 },
-                                    "Qasim Habib Metro": { debit: 0, credit: 0 },
-                                },
-                                netAmount: 200000,
-                            },
-                        ],
-                    },
-                ],
+                months: [],
             };
         case "total_assets":
             return {
@@ -366,6 +364,10 @@ function defaultAccountsData(page) {
             };
         case "sales_payroll":
             return (0, salesPayrollDefaults_1.defaultSalesPayrollData)();
+        case "technical_payroll":
+            return (0, technicalPayrollDefaults_1.defaultTechnicalPayrollData)();
+        case "income_budget":
+            return { quarters: [] };
         default:
             return {};
     }

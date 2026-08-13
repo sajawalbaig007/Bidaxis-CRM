@@ -12,6 +12,7 @@ const role_middleware_1 = require("../middleware/role.middleware");
 const cache_1 = require("../utils/cache");
 const chatMessageFormat_1 = require("../chat/chatMessageFormat");
 const chatSocket_1 = require("../chat/chatSocket");
+const chatAccess_1 = require("../utils/chatAccess");
 const router = express_1.default.Router();
 /* ── multer: 200 MB in-memory ── */
 const chatUpload = (0, multer_1.default)({
@@ -39,17 +40,39 @@ async function getConversationMemberIds(conversationId) {
     });
     return rows.map(r => r.userId);
 }
-async function fetchConversationsForUser(viewUserId, showArchived) {
+async function fetchConversationsForUser(viewUserId, showArchived, opts) {
+    const includeEmpty = opts?.includeEmpty === true;
+    const includeCleared = opts?.includeCleared === true;
+    const viewerAccess = await (0, chatAccess_1.getChatAccess)(viewUserId);
+    if (!viewerAccess?.chatEnabled)
+        return [];
     const memberships = await db_1.default.conversationMember.findMany({
         where: { userId: viewUserId },
         include: {
             conversation: {
                 include: {
                     members: {
-                        include: { user: { select: { id: true, name: true, isOnline: true } } },
+                        include: {
+                            user: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    email: true,
+                                    role: true,
+                                    csrCode: true,
+                                    profilePic: true,
+                                    isOnline: true,
+                                    isActive: true,
+                                    chatEnabled: true,
+                                    chatAllowedUserIds: true,
+                                    chatVisibleToUserIds: true,
+                                },
+                            },
+                        },
                     },
                     messages: {
-                        where: notDeletedMessageWhere(),
+                        // Admin peek: include soft-deleted so empty/cleared threads still have preview context
+                        ...(includeEmpty ? {} : { where: notDeletedMessageWhere() }),
                         orderBy: { createdAt: "desc" },
                         take: 15,
                         select: { text: true, type: true, createdAt: true, senderId: true, hiddenForUserIds: true, deletedAt: true },
@@ -59,8 +82,28 @@ async function fetchConversationsForUser(viewUserId, showArchived) {
         },
         orderBy: { conversation: { updatedAt: "desc" } },
     });
-    const filteredMemberships = memberships.filter(m => showArchived ? Boolean(m.archivedAt) : !m.archivedAt);
-    const unreadCounts = await Promise.all(filteredMemberships.map(m => db_1.default.message.count({
+    const filteredMemberships = memberships.filter(m => {
+        if (!includeCleared && m.clearedAt)
+            return false;
+        if (showArchived ? !m.archivedAt : Boolean(m.archivedAt))
+            return false;
+        const otherMembers = m.conversation.members.filter(member => member.userId !== viewUserId);
+        return otherMembers.every(member => member.user.isActive &&
+            (0, chatAccess_1.canMessageUser)(viewerAccess, member.userId) &&
+            (0, chatAccess_1.canSeeRoleByOrg)(viewerAccess.role, String(member.user.role)) &&
+            (0, chatAccess_1.isVisibleToUser)(member.user, viewUserId));
+    });
+    const withPreview = filteredMemberships.map((m) => {
+        const conv = m.conversation;
+        const lastMsg = includeEmpty
+            ? (conv.messages.find(msg => messageVisibleForUser(msg, viewUserId))
+                ?? conv.messages[0]
+                ?? null)
+            : (conv.messages.find(msg => messageVisibleForUser(msg, viewUserId)) ?? null);
+        const hasVisible = conv.messages.some(msg => messageVisibleForUser(msg, viewUserId));
+        return { m, lastMsg, hasVisible };
+    }).filter(({ hasVisible }) => includeEmpty || hasVisible);
+    const unreadCounts = await Promise.all(withPreview.map(({ m }) => db_1.default.message.count({
         where: {
             conversationId: m.conversationId,
             senderId: { not: viewUserId },
@@ -68,28 +111,34 @@ async function fetchConversationsForUser(viewUserId, showArchived) {
             ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
         },
     })));
-    return filteredMemberships.map((m, idx) => {
+    return withPreview.map(({ m, lastMsg }, idx) => {
         const conv = m.conversation;
-        const lastMsg = conv.messages.find(msg => messageVisibleForUser(msg, viewUserId));
         const otherMember = conv.type === "direct"
             ? conv.members.find(mem => mem.userId !== viewUserId)
+            : null;
+        const preview = lastMsg
+            ? (lastMsg.deletedAt
+                ? "Deleted message"
+                : lastMsg.type !== "text"
+                    ? `Sent a ${lastMsg.type}`
+                    : lastMsg.text)
             : null;
         return {
             id: conv.id,
             type: conv.type,
             name: conv.type === "direct"
-                ? (otherMember?.user?.name ?? "Unknown")
+                ? (0, chatAccess_1.chatDisplayName)(otherMember?.user)
                 : (conv.name ?? "Group"),
             otherUserId: otherMember?.userId ?? null,
-            lastMessage: lastMsg
-                ? (lastMsg.type !== "text" ? `Sent a ${lastMsg.type}` : lastMsg.text)
-                : null,
+            lastMessage: preview,
             lastMessageAt: lastMsg?.createdAt ?? null,
             unreadCount: unreadCounts[idx],
             memberCount: conv.members.length,
             isOnline: otherMember?.user?.isOnline ?? false,
+            profilePic: otherMember?.user?.profilePic ?? null,
             pinnedMessageId: conv.pinnedMessageId ?? null,
             archived: Boolean(m.archivedAt),
+            cleared: Boolean(m.clearedAt),
         };
     });
 }
@@ -98,19 +147,37 @@ function messageVisibleForUser(m, viewUserId) {
         return false;
     return !(m.hiddenForUserIds ?? []).includes(viewUserId);
 }
+/** If the user has no visible messages left, soft-hide the chat from their recent list. */
+async function clearConversationIfEmptyForUser(conversationId, userId) {
+    const anyVisible = await db_1.default.message.findFirst({
+        where: {
+            conversationId,
+            deletedAt: null,
+            NOT: { hiddenForUserIds: { has: userId } },
+        },
+        select: { id: true },
+    });
+    if (anyVisible)
+        return false;
+    await db_1.default.conversationMember.updateMany({
+        where: { conversationId, userId },
+        data: { clearedAt: new Date(), archivedAt: null },
+    });
+    return true;
+}
 async function fetchMessagesForUser(conversationId, viewUserId, opts) {
     const members = await db_1.default.conversationMember.findMany({
         where: { conversationId },
-        include: { user: { select: { id: true, name: true } } },
+        include: { user: { select: { id: true, name: true, email: true, role: true, profilePic: true } } },
     });
     const raw = await db_1.default.message.findMany({
         where: { conversationId },
         include: {
-            sender: { select: { id: true, name: true } },
+            sender: { select: { id: true, name: true, email: true, role: true, profilePic: true } },
             replyTo: {
                 select: {
                     id: true, text: true, type: true,
-                    sender: { select: { name: true } },
+                    sender: { select: { name: true, email: true, role: true } },
                 },
             },
         },
@@ -163,11 +230,18 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
         const meId = req.user.id;
         const body = req.body;
         const { type, userId: targetId, name, memberIds = [] } = body;
+        const chatGate = await (0, chatAccess_1.assertSenderCanChat)(meId);
+        if (!chatGate.ok)
+            return res.status(chatGate.status).json({ message: chatGate.message });
         if (type === "direct") {
             if (!targetId)
                 return res.status(400).json({ message: "userId required" });
+            const allowed = await (0, chatAccess_1.assertCanMessageTarget)(meId, targetId);
+            if (!allowed.ok)
+                return res.status(allowed.status).json({ message: allowed.message });
             const targetUser = await db_1.default.user.findUnique({
-                where: { id: targetId }, select: { name: true, isOnline: true },
+                where: { id: targetId },
+                select: { name: true, email: true, role: true, csrCode: true, isOnline: true, profilePic: true },
             });
             const convId = await db_1.default.$transaction(async (tx) => {
                 const myConvIds = (await tx.conversationMember.findMany({
@@ -192,9 +266,10 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
                 id: convId,
                 conversation: {
                     id: convId, type: "direct",
-                    name: targetUser?.name ?? "Unknown",
+                    name: (0, chatAccess_1.chatDisplayName)(targetUser),
                     otherUserId: targetId,
                     unreadCount: 0, isOnline: targetUser?.isOnline ?? false,
+                    profilePic: targetUser?.profilePic ?? null,
                     lastMessageAt: new Date().toISOString(),
                 },
             });
@@ -202,7 +277,14 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
         if (type === "group") {
             if (!name?.trim())
                 return res.status(400).json({ message: "name required" });
-            const allIds = Array.from(new Set([meId, ...memberIds]));
+            const uniqueMembers = Array.from(new Set(memberIds.filter(id => id && id !== meId)));
+            for (const mid of uniqueMembers) {
+                const allowed = await (0, chatAccess_1.assertCanMessageTarget)(meId, mid);
+                if (!allowed.ok) {
+                    return res.status(allowed.status).json({ message: allowed.message });
+                }
+            }
+            const allIds = Array.from(new Set([meId, ...uniqueMembers]));
             const conv = await db_1.default.conversation.create({
                 data: {
                     type: "group",
@@ -230,21 +312,18 @@ router.post("/conversations", auth_middleware_1.verifyToken, async (req, res) =>
     }
 });
 /* ═══════════════════════════════════════════════════════
-   DELETE /chat/conversations/:id
+   DELETE /chat/conversations/:id — soft-hide from recent chats
+   Membership stays so admin peek can still open the thread.
 ═══════════════════════════════════════════════════════ */
 router.delete("/conversations/:id", auth_middleware_1.verifyToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const convId = p(req.params.id);
-        await db_1.default.conversationMember.deleteMany({
+        await db_1.default.conversationMember.updateMany({
             where: { conversationId: convId, userId },
+            data: { clearedAt: new Date(), archivedAt: null },
         });
-        const remaining = await db_1.default.conversationMember.count({
-            where: { conversationId: convId },
-        });
-        if (remaining === 0) {
-            await db_1.default.conversation.delete({ where: { id: convId } });
-        }
+        (0, cache_1.invalidatePattern)("chat:convs:");
         return res.json({ success: true });
     }
     catch {
@@ -263,6 +342,16 @@ router.get("/conversations/:id/messages", auth_middleware_1.verifyToken, async (
         });
         if (!member)
             return res.status(403).json({ message: "Not a member" });
+        const otherMembers = await db_1.default.conversationMember.findMany({
+            where: { conversationId, userId: { not: userId } },
+            select: { userId: true },
+        });
+        for (const other of otherMembers) {
+            const allowed = await (0, chatAccess_1.assertCanMessageTarget)(userId, other.userId);
+            if (!allowed.ok) {
+                return res.status(allowed.status).json({ message: allowed.message });
+            }
+        }
         const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId);
         return res.json({ messages, pinnedMessage });
     }
@@ -285,11 +374,25 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
         const mentionIds = Array.isArray(body.mentionIds)
             ? body.mentionIds.filter(id => typeof id === "string")
             : [];
+        const chatGate = await (0, chatAccess_1.assertSenderCanChat)(userId);
+        if (!chatGate.ok)
+            return res.status(chatGate.status).json({ message: chatGate.message });
         const member = await db_1.default.conversationMember.findUnique({
             where: { conversationId_userId: { conversationId, userId } },
         });
         if (!member)
             return res.status(403).json({ message: "Not a member" });
+        /* Existing DMs/groups must also respect current admin restrictions. */
+        const otherMembers = await db_1.default.conversationMember.findMany({
+            where: { conversationId, userId: { not: userId } },
+            select: { userId: true },
+        });
+        for (const other of otherMembers) {
+            const allowed = await (0, chatAccess_1.assertCanMessageTarget)(userId, other.userId);
+            if (!allowed.ok) {
+                return res.status(allowed.status).json({ message: allowed.message });
+            }
+        }
         let fileUrl;
         let fileName;
         let fileSize;
@@ -342,11 +445,11 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
                 mentions: mentionIds,
             },
             include: {
-                sender: { select: { id: true, name: true } },
+                sender: { select: { id: true, name: true, email: true, role: true, profilePic: true } },
                 replyTo: {
                     select: {
                         id: true, text: true, type: true,
-                        sender: { select: { name: true } },
+                        sender: { select: { name: true, email: true, role: true } },
                     },
                 },
             },
@@ -355,10 +458,15 @@ router.post("/conversations/:id/messages", auth_middleware_1.verifyToken, chatUp
             where: { id: conversationId },
             data: { updatedAt: new Date() },
         });
+        // New activity restores the thread on everyone's recent list
+        await db_1.default.conversationMember.updateMany({
+            where: { conversationId },
+            data: { clearedAt: null },
+        });
         (0, cache_1.invalidatePattern)("chat:convs:");
         const members = await db_1.default.conversationMember.findMany({
             where: { conversationId },
-            include: { user: { select: { id: true, name: true } } },
+            include: { user: { select: { id: true, name: true, email: true, role: true, profilePic: true } } },
         });
         (0, chatSocket_1.emitNewMessage)(conversationId, userId, message, members);
         return res.json({
@@ -397,8 +505,9 @@ router.delete("/messages/:id", auth_middleware_1.verifyToken, async (req, res) =
                     data: { hiddenForUserIds: [...hidden, userId] },
                 });
             }
+            const cleared = await clearConversationIfEmptyForUser(msg.conversationId, userId);
             (0, cache_1.invalidatePattern)("chat:convs:");
-            return res.json({ success: true, mode: "for_me" });
+            return res.json({ success: true, mode: "for_me", conversationCleared: cleared });
         }
         if (msg.deletedAt)
             return res.json({ success: true, mode: "for_everyone" });
@@ -419,6 +528,10 @@ router.delete("/messages/:id", auth_middleware_1.verifyToken, async (req, res) =
         });
         const memberIds = await getConversationMemberIds(msg.conversationId);
         (0, chatSocket_1.emitMessageDelete)(msg.conversationId, msgId, memberIds);
+        // Soft-hide for each member who no longer has any visible messages
+        for (const mid of memberIds) {
+            await clearConversationIfEmptyForUser(msg.conversationId, mid);
+        }
         (0, cache_1.invalidatePattern)("chat:convs:");
         return res.json({ success: true, mode: "for_everyone" });
     }
@@ -511,12 +624,34 @@ router.post("/status", auth_middleware_1.verifyToken, async (req, res) => {
 router.get("/users", auth_middleware_1.verifyToken, async (req, res) => {
     try {
         const meId = req.user.id;
+        const access = await (0, chatAccess_1.getChatAccess)(meId);
+        if (!access || access.chatEnabled === false) {
+            return res.json({ users: [] });
+        }
+        const allow = access.chatAllowedUserIds.filter(id => id !== meId);
         const users = await db_1.default.user.findMany({
-            where: { isActive: true, id: { not: meId } },
-            select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
+            where: allow.length
+                ? { isActive: true, id: { in: allow } }
+                : { isActive: true, id: { not: meId } },
+            select: {
+                id: true, name: true, email: true, role: true, csrCode: true, isOnline: true, profilePic: true,
+                chatEnabled: true, chatAllowedUserIds: true, chatVisibleToUserIds: true,
+            },
             orderBy: [{ name: "asc" }],
         });
-        return res.json({ users });
+        return res.json({
+            users: users
+                .filter(u => (0, chatAccess_1.isVisibleToUser)(u, meId) && (0, chatAccess_1.canSeeRoleByOrg)(access.role, String(u.role)))
+                .map(u => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role: u.role,
+                csrCode: u.csrCode,
+                isOnline: u.isOnline,
+                profilePic: u.profilePic ?? null,
+            })),
+        });
     }
     catch (err) {
         console.error("[chat] GET /users", err);
@@ -537,7 +672,7 @@ router.get("/conversations/:id/members", auth_middleware_1.verifyToken, async (r
             return res.status(403).json({ message: "Not a member" });
         const members = await db_1.default.conversationMember.findMany({
             where: { conversationId },
-            include: { user: { select: { id: true, name: true, role: true, csrCode: true, isOnline: true } } },
+            include: { user: { select: { id: true, name: true, role: true, csrCode: true, isOnline: true, profilePic: true } } },
         });
         return res.json({
             members: members.map(m => ({
@@ -546,6 +681,7 @@ router.get("/conversations/:id/members", auth_middleware_1.verifyToken, async (r
                 role: m.user.role,
                 csrCode: m.user.csrCode,
                 isOnline: m.user.isOnline,
+                profilePic: m.user.profilePic ?? null,
             })),
         });
     }
@@ -574,13 +710,13 @@ router.patch("/messages/:id", auth_middleware_1.verifyToken, async (req, res) =>
             where: { id: msgId },
             data: { text, editedAt: new Date() },
             include: {
-                sender: { select: { id: true, name: true } },
-                replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
+                sender: { select: { id: true, name: true, email: true, role: true, profilePic: true } },
+                replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true, email: true, role: true } } } },
             },
         });
         const members = await db_1.default.conversationMember.findMany({
             where: { conversationId: msg.conversationId },
-            include: { user: { select: { id: true, name: true } } },
+            include: { user: { select: { id: true, name: true, email: true, role: true, profilePic: true } } },
         });
         (0, cache_1.invalidatePattern)("chat:convs:");
         (0, chatSocket_1.emitMessageEdit)(msg.conversationId, updated, members);
@@ -655,15 +791,15 @@ router.post("/conversations/:id/pin", auth_middleware_1.verifyToken, async (req,
         (0, cache_1.invalidatePattern)("chat:convs:");
         const members = await db_1.default.conversationMember.findMany({
             where: { conversationId },
-            include: { user: { select: { id: true, name: true } } },
+            include: { user: { select: { id: true, name: true, email: true, role: true, profilePic: true } } },
         });
         let pinnedMessage = null;
         if (messageId) {
             const pin = await db_1.default.message.findFirst({
                 where: { id: messageId, conversationId },
                 include: {
-                    sender: { select: { id: true, name: true } },
-                    replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true } } } },
+                    sender: { select: { id: true, name: true, email: true, role: true, profilePic: true } },
+                    replyTo: { select: { id: true, text: true, type: true, sender: { select: { name: true, email: true, role: true } } } },
                 },
             });
             if (pin)
@@ -711,42 +847,75 @@ router.post("/conversations/:id/unarchive", auth_middleware_1.verifyToken, async
     }
 });
 /* ═══════════════════════════════════════════════════════
-   Admin stealth view — read CSR chats without notifying them
+   Admin stealth — list of users whose chats admin can open
 ═══════════════════════════════════════════════════════ */
-router.get("/admin/view/:csrId/conversations", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/admin/viewable-users", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
     try {
-        const csrId = p(req.params.csrId);
+        const meId = req.user.id;
+        const users = await db_1.default.user.findMany({
+            where: {
+                isActive: true,
+                id: { not: meId },
+                role: { in: ["csr", "manager", "accounts", "technical_manager", "estimator", "admin"] },
+            },
+            select: { id: true, name: true, email: true, role: true, csrCode: true, isOnline: true },
+            orderBy: [{ role: "asc" }, { name: "asc" }],
+        });
+        return res.json({
+            users: users.map((u) => ({
+                id: u.id,
+                name: (0, chatAccess_1.chatDisplayName)(u),
+                role: u.role,
+                csrCode: u.csrCode,
+                isOnline: u.isOnline,
+            })),
+        });
+    }
+    catch (err) {
+        console.error("[chat] admin viewable-users", err);
+        return res.status(500).json({ message: "Failed to fetch users" });
+    }
+});
+/* ═══════════════════════════════════════════════════════
+   Admin stealth view — read any staff chats without notifying them
+═══════════════════════════════════════════════════════ */
+router.get("/admin/view/:userId/conversations", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+    try {
+        const userId = p(req.params.userId);
         const showArchived = req.query.archived === "1";
-        const csr = await db_1.default.user.findFirst({
-            where: { id: csrId, role: "csr" },
+        const target = await db_1.default.user.findFirst({
+            where: { id: userId, isActive: true },
             select: { id: true },
         });
-        if (!csr)
-            return res.status(404).json({ message: "CSR not found" });
-        const conversations = await fetchConversationsForUser(csrId, showArchived);
+        if (!target)
+            return res.status(404).json({ message: "User not found" });
+        const conversations = await fetchConversationsForUser(userId, showArchived, {
+            includeEmpty: true,
+            includeCleared: true,
+        });
         return res.json({ conversations });
     }
     catch (err) {
         console.error("[chat] admin view conversations", err);
-        return res.status(500).json({ message: "Failed to fetch CSR conversations" });
+        return res.status(500).json({ message: "Failed to fetch conversations" });
     }
 });
-router.get("/admin/view/:csrId/conversations/:convId/messages", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
+router.get("/admin/view/:userId/conversations/:convId/messages", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin"), async (req, res) => {
     try {
-        const csrId = p(req.params.csrId);
+        const userId = p(req.params.userId);
         const conversationId = p(req.params.convId);
-        const csr = await db_1.default.user.findFirst({
-            where: { id: csrId, role: "csr" },
+        const target = await db_1.default.user.findFirst({
+            where: { id: userId, isActive: true },
             select: { id: true },
         });
-        if (!csr)
-            return res.status(404).json({ message: "CSR not found" });
+        if (!target)
+            return res.status(404).json({ message: "User not found" });
         const member = await db_1.default.conversationMember.findUnique({
-            where: { conversationId_userId: { conversationId, userId: csrId } },
+            where: { conversationId_userId: { conversationId, userId } },
         });
         if (!member)
-            return res.status(403).json({ message: "CSR is not in this conversation" });
-        const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, csrId, { includeDeleted: true });
+            return res.status(403).json({ message: "User is not in this conversation" });
+        const { messages, pinnedMessage } = await fetchMessagesForUser(conversationId, userId, { includeDeleted: true });
         return res.json({ messages, pinnedMessage });
     }
     catch (err) {

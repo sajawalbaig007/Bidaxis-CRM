@@ -53,12 +53,14 @@ const REPORT_TYPES = new Set([
     "application/json",
     "text/plain",
     "text/csv",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-excel",
 ]);
 function reportFilter(_req, file, cb) {
     const name = file.originalname?.toLowerCase() ?? "";
-    const okExt = [".pdf", ".json", ".csv", ".xlsx", ".xls", ".txt"].some(ext => name.endsWith(ext));
+    const okExt = [".pdf", ".json", ".csv", ".xlsx", ".xls", ".txt", ".doc", ".docx"].some(ext => name.endsWith(ext));
     if (REPORT_TYPES.has(file.mimetype) || okExt)
         cb(null, true);
     else
