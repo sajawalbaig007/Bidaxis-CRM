@@ -16,6 +16,7 @@ import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
+import AllEmployeesPanel from "../components/users/AllEmployeesPanel";
 import {
   ALL_CSR_RESET_SCOPE_IDS,
   CSR_RESET_GROUPS,
@@ -46,7 +47,8 @@ function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string 
 
 type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts" | "Estimator";
 
-type CompanyFilter = "BEM" | "GPS";
+type PortalCompany = "BEM" | "GPS";
+type CompanyFilter = PortalCompany | "EMPLOYEES";
 
 /**
  * Single source for Admin → Users activity chart / role tabs / create-user options.
@@ -54,7 +56,7 @@ type CompanyFilter = "BEM" | "GPS";
  */
 type PortalDashboard = {
   role: UserRole;
-  company: CompanyFilter;
+  company: PortalCompany;
   /** Short label on the activity chart X-axis */
   shortLabel: string;
   /** Footer / stats label */
@@ -75,15 +77,15 @@ const PORTAL_DASHBOARDS: PortalDashboard[] = [
 const BEM_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "BEM").map((d) => d.role);
 const GPS_ROLES: UserRole[] = PORTAL_DASHBOARDS.filter((d) => d.company === "GPS").map((d) => d.role);
 
-function rolesForCompany(company: CompanyFilter): UserRole[] {
+function rolesForCompany(company: PortalCompany): UserRole[] {
   return company === "GPS" ? GPS_ROLES : BEM_ROLES;
 }
 
-function companyForRole(role: UserRole): CompanyFilter {
+function companyForRole(role: UserRole): PortalCompany {
   return GPS_ROLES.includes(role) ? "GPS" : "BEM";
 }
 
-function dashboardsForCompany(company: CompanyFilter, presentRoles: UserRole[]): PortalDashboard[] {
+function dashboardsForCompany(company: PortalCompany, presentRoles: UserRole[]): PortalDashboard[] {
   const known = PORTAL_DASHBOARDS.filter((d) => d.company === company);
   const knownSet = new Set(known.map((d) => d.role));
   const extras = presentRoles
@@ -130,7 +132,7 @@ const EMPTY_USER_FORM = {
   name: "",
   email: "",
   password: "",
-  company: "BEM" as CompanyFilter,
+  company: "BEM" as PortalCompany,
   role: "CSR" as UserRole,
   employeeCode: "",
   fatherName: "",
@@ -155,11 +157,11 @@ const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
   .filter((d) => d.company === "GPS")
   .map((d) => ({ value: d.role, label: d.formLabel }));
 
-function defaultRoleForCompany(company: CompanyFilter): UserRole {
+function defaultRoleForCompany(company: PortalCompany): UserRole {
   return company === "GPS" ? "Technical Manager" : "CSR";
 }
 
-function roleOptionsForCompany(company: CompanyFilter) {
+function roleOptionsForCompany(company: PortalCompany) {
   return company === "GPS" ? GPS_ROLE_OPTIONS : BEM_ROLE_OPTIONS;
 }
 
@@ -546,16 +548,19 @@ export default function UsersPage() {
     return map;
   }, [users]);
 
+  const portalCompany: PortalCompany = companyFilter === "GPS" ? "GPS" : "BEM";
+  const isEmployeesView = companyFilter === "EMPLOYEES";
+
   const companyRoles = useMemo(() => {
-    const base = rolesForCompany(companyFilter);
+    const base = rolesForCompany(portalCompany);
     const extras = [...new Set(users.map((u) => u.role))].filter(
-      (r) => !base.includes(r) && companyForRole(r) === companyFilter,
+      (r) => !base.includes(r) && companyForRole(r) === portalCompany,
     );
     return [...base, ...extras];
-  }, [companyFilter, users]);
+  }, [portalCompany, users]);
   const activityDashboards = useMemo(
-    () => dashboardsForCompany(companyFilter, [...new Set(users.map((u) => u.role))]),
-    [companyFilter, users],
+    () => dashboardsForCompany(portalCompany, [...new Set(users.map((u) => u.role))]),
+    [portalCompany, users],
   );
   const activityChartData = useMemo(
     () =>
@@ -571,14 +576,29 @@ export default function UsersPage() {
     [activityDashboards, countByRole, onlineByRole],
   );
   const activitySubtitle = useMemo(() => {
+    if (isEmployeesView) return "All Employees · dashboard linked + manual staff";
     const names = activityDashboards.map((d) => d.role).join(", ");
-    return companyFilter === "GPS" ? `GPS · ${names}` : `BEM · ${names}`;
-  }, [activityDashboards, companyFilter]);
+    return portalCompany === "GPS" ? `GPS · ${names}` : `BEM · ${names}`;
+  }, [activityDashboards, isEmployeesView, portalCompany]);
   const countByCompany = {
     BEM: users.filter(u => companyForRole(u.role) === "BEM").length,
     GPS: users.filter(u => companyForRole(u.role) === "GPS").length,
   };
   const companyAllCount = users.filter(u => companyRoles.includes(u.role)).length;
+
+  const dashboardPickOptions = useMemo(
+    () =>
+      users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        employeeCode: u.employeeCode,
+        profilePic: u.profilePic,
+        company: companyForRole(u.role),
+      })),
+    [users],
+  );
 
   const filteredUsers = users.filter(u => {
     if (!companyRoles.includes(u.role)) return false;
@@ -1081,6 +1101,7 @@ export default function UsersPage() {
         </div>
 
         {/* SEARCH + SORT + CREATE */}
+        {!isEmployeesView && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto sm:flex-1">
             <div className="relative w-full sm:w-[280px]">
@@ -1109,6 +1130,7 @@ export default function UsersPage() {
             <Plus size={16}/>Create User
           </button>
         </div>
+        )}
 
         {/* COMPANY + ROLE TABS */}
         <div className="mb-5 space-y-3">
@@ -1119,28 +1141,35 @@ export default function UsersPage() {
               setRoleFilter("All");
               setPage(1);
             }}
-            accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
+            accent={companyFilter === "GPS" ? "#0F398A" : companyFilter === "EMPLOYEES" ? "#0F766E" : "#B8112D"}
             tabs={[
               { key: "BEM", label: "BEM Solutions", shortLabel: "BEM", count: countByCompany.BEM },
               { key: "GPS", label: "GPS · Global", shortLabel: "GPS", count: countByCompany.GPS },
+              { key: "EMPLOYEES", label: "All Employees", shortLabel: "Employees", count: undefined },
             ]}
           />
-          <CapsuleTabs
-            activeKey={roleFilter}
-            onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
-            accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
-            tabs={[
-              { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BEM", count: companyAllCount },
-              ...activityDashboards.map(d => ({
-                key: d.role,
-                label: d.role,
-                shortLabel: d.shortLabel,
-                count: countByRole[d.role] ?? 0,
-              })),
-            ]}
-          />
+          {!isEmployeesView && (
+            <CapsuleTabs
+              activeKey={roleFilter}
+              onChange={key => { setRoleFilter(key as "All" | UserRole); setPage(1); }}
+              accent={companyFilter === "GPS" ? "#0F398A" : "#B8112D"}
+              tabs={[
+                { key: "All", label: companyFilter === "GPS" ? "All GPS" : "All BEM", count: companyAllCount },
+                ...activityDashboards.map(d => ({
+                  key: d.role,
+                  label: d.role,
+                  shortLabel: d.shortLabel,
+                  count: countByRole[d.role] ?? 0,
+                })),
+              ]}
+            />
+          )}
         </div>
 
+        {isEmployeesView ? (
+          <AllEmployeesPanel dashboardUsers={dashboardPickOptions} />
+        ) : (
+        <>
         {/* TABLE */}
         <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
@@ -1306,6 +1335,8 @@ export default function UsersPage() {
             </div>
           )}
         </div>
+        </>
+        )}
 
         {/* DETAIL MODAL */}
         {detailUser && (

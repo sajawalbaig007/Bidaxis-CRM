@@ -271,6 +271,7 @@ export default function AssignEstimatorsModal({
         pricingSent: false,
         timerSeconds: 0,
         timerStartedAt: null,
+        assignmentConfirmed: true,
       };
     });
     if (assignments.some((a) => !a.deadline)) return;
