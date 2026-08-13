@@ -277,16 +277,34 @@ export default function CSRProjectsPage() {
     } catch (error) { console.log(error); }
   };
 
-  const addNote = async (id: string, text: string) => {
-    const res = await API.post(`/csr/lead/${id}/notes`, { text });
+  const addNote = async (id: string, text: string, parentId?: string) => {
+    const res = await API.post(`/csr/lead/${id}/notes`, {
+      text,
+      ...(parentId ? { parentId } : {}),
+    });
     const note: NoteEntry = res.data.note
-      ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
-      : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
+      ? {
+          id: res.data.note.id,
+          text: res.data.note.text,
+          createdAt: res.data.note.createdAt,
+          parentId: res.data.note.parentId ?? parentId ?? null,
+        }
+      : { id: Date.now().toString(), text, createdAt: new Date().toISOString(), parentId: parentId || null };
+    const merge = (hist: NoteEntry[] | undefined): NoteEntry[] => {
+      const base = hist ?? [];
+      if (parentId) {
+        return base.map((n) =>
+          n.id === parentId ? { ...n, replies: [...(n.replies ?? []), note] } : n,
+        );
+      }
+      return [note, ...base];
+    };
     setProjects(prev => prev.map(p =>
-      p.id === id ? { ...p, noteHistory: [...(p.noteHistory ?? []), note] } : p
+      p.id === id ? { ...p, noteHistory: merge(p.noteHistory) } : p
     ));
     if (viewingProject?.id === id)
-      setViewingProject(prev => prev ? { ...prev, noteHistory: [...(prev.noteHistory ?? []), note] } : prev);
+      setViewingProject(prev => prev ? { ...prev, noteHistory: merge(prev.noteHistory) } : prev);
+    return note;
   };
 
   const handleAddProject = async () => {
@@ -782,7 +800,7 @@ export default function CSRProjectsPage() {
           saving={workbenchSaving}
           onSave={saveWorkbench}
           noteHistory={viewingProject?.noteHistory}
-          onAddNote={async (text) => { if (viewingProject) await addNote(viewingProject.id, text); }}
+          onAddNote={async (text, parentId) => { if (viewingProject) await addNote(viewingProject.id, text, parentId); }}
         />
 
       </main>

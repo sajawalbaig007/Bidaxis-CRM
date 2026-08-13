@@ -27,7 +27,7 @@ interface EditClientModalProps {
   leadId?: string;
   noteHistory?: NoteEntry[];
   noteCount?: number;
-  onAddNote?: (id: string, text: string) => Promise<unknown>;
+  onAddNote?: (id: string, text: string, parentId?: string) => Promise<unknown>;
   company: string;
   email: string; onEmailChange: (v: string) => void;
   editAction: EditAction;

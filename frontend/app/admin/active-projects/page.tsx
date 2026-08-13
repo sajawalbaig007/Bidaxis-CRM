@@ -19,6 +19,7 @@ import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown
 import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
+import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useClientPhoneLookup, ClientLookupData } from "@/app/csr/hooks/useClientPhoneLookup";
 import { ADMIN_PROJECT_COLS, ADMIN_TECH_VIEW_COLS, CsrColGroup, CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { parseTechnicalNotes, getTechnicalWorkflowStatus } from "@/lib/technicalAssignments";
@@ -97,7 +98,7 @@ type Project = {
   updatedAt:         string;
   csr: { id: string; name: string; email: string; csrCode: string | null };
   uploadFile: { companyName: string | null } | null;
-  notes?: { id: string; text: string; createdAt: string }[];
+  notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[];
 };
 
 function projectToWorkbench(p: Project): ProjectWorkbenchData {
@@ -153,8 +154,11 @@ const formatDate = (iso: string | null | undefined) => {
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date();
 
 
-function notesToHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
-  return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+function notesToHistory(
+  notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[],
+): NoteEntry[] {
+  const { noteHistory } = buildNoteHistory({ notes: notes ?? [] });
+  return noteHistory;
 }
 
 function techNotesAsReadOnly(p: { technicalNotes?: unknown }): NoteEntry[] {
@@ -742,54 +746,57 @@ export default function AdminProjectsPage() {
     }
   };
 
-  const addAdminNote = async (id: string, text: string) => {
-    const res = await API.post(`/admin/lead/${id}/notes`, { text });
-    const note = res.data.note as { id: string; text: string; createdAt: string };
-    const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };
+  const addAdminNote = async (id: string, text: string, parentId?: string) => {
+    const res = await API.post(`/admin/lead/${id}/notes`, {
+      text,
+      ...(parentId ? { parentId } : {}),
+    });
+    const note = res.data.note as {
+      id: string;
+      text: string;
+      createdAt: string;
+      parentId?: string | null;
+    };
+    const entry: NoteEntry = {
+      id: note.id,
+      text: note.text,
+      createdAt: note.createdAt,
+      parentId: note.parentId ?? parentId ?? null,
+    };
+    const mergeNotes = (list: { id: string; text: string; createdAt: string; parentId?: string | null }[] | undefined) => {
+      const prev = list ?? [];
+      return [...prev.filter((n) => n.id !== note.id), note];
+    };
     setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, notes: [...(p.notes ?? []), note] } : p))
+      prev.map((p) => (p.id === id ? { ...p, notes: mergeNotes(p.notes) } : p)),
     );
     setWorkbenchProject((prev) =>
-      prev?.id === id ? { ...prev, notes: [...(prev.notes ?? []), note] } : prev
+      prev?.id === id ? { ...prev, notes: mergeNotes(prev.notes) } : prev,
     );
     return entry;
   };
 
   const updateAdminNote = (id: string, noteId: string, text: string, createdAt?: string) => {
+    const patch = (list: { id: string; text: string; createdAt: string; parentId?: string | null }[] | undefined) =>
+      (list ?? []).map((n) =>
+        n.id === noteId ? { ...n, text, createdAt: createdAt ?? n.createdAt } : n,
+      );
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              notes: (p.notes ?? []).map((n) =>
-                n.id === noteId ? { ...n, text, createdAt: createdAt ?? n.createdAt } : n,
-              ),
-            }
-          : p,
-      ),
+      prev.map((p) => (p.id === id ? { ...p, notes: patch(p.notes) } : p)),
     );
     setWorkbenchProject((prev) =>
-      prev?.id === id
-        ? {
-            ...prev,
-            notes: (prev.notes ?? []).map((n) =>
-              n.id === noteId ? { ...n, text, createdAt: createdAt ?? n.createdAt } : n,
-            ),
-          }
-        : prev,
+      prev?.id === id ? { ...prev, notes: patch(prev.notes) } : prev,
     );
   };
 
   const deleteAdminNote = (id: string, noteId: string) => {
+    const drop = (list: { id: string; text: string; createdAt: string; parentId?: string | null }[] | undefined) =>
+      (list ?? []).filter((n) => n.id !== noteId && n.parentId !== noteId);
     setProjects((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, notes: (p.notes ?? []).filter((n) => n.id !== noteId) } : p,
-      ),
+      prev.map((p) => (p.id === id ? { ...p, notes: drop(p.notes) } : p)),
     );
     setWorkbenchProject((prev) =>
-      prev?.id === id
-        ? { ...prev, notes: (prev.notes ?? []).filter((n) => n.id !== noteId) }
-        : prev,
+      prev?.id === id ? { ...prev, notes: drop(prev.notes) } : prev,
     );
   };
 
@@ -1380,7 +1387,7 @@ export default function AdminProjectsPage() {
           onSave={saveWorkbench}
           onDelete={deleteWorkbenchProject}
           noteHistory={workbenchProject ? notesToHistory(workbenchProject.notes) : undefined}
-          onAddNote={workbenchProject ? async (text) => { await addAdminNote(workbenchProject.id, text); } : undefined}
+          onAddNote={workbenchProject ? async (text, parentId) => { await addAdminNote(workbenchProject.id, text, parentId); } : undefined}
           technicalNoteHistory={
             workbenchProject
               ? notesToHistory(parseTechnicalNotes(workbenchProject.technicalNotes))

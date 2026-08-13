@@ -18,6 +18,10 @@ export interface NoteEntry {
   id: string;
   text: string;
   createdAt: string;
+  /** Set when this row is a reply to another sticky on the same lead. */
+  parentId?: string | null;
+  /** Nested replies (oldest → newest) when this is a root sticky. */
+  replies?: NoteEntry[];
 }
 
 export type ClientLead = {
@@ -45,7 +49,7 @@ export type ClientLead = {
 };
 
 type RawContact = { id?: string; name?: string; designation?: string; phone?: string; email?: string; };
-type RawNote   = { id?: string; text?: string; createdAt?: string; };
+type RawNote   = { id?: string; text?: string; createdAt?: string; parentId?: string | null };
 export type RawClientLead = {
   id: string;
   name?: string; company?: string; phone?: string; email?: string; website?: string; state?: string;

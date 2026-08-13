@@ -594,21 +594,34 @@ export default function CSRPage() {
                           const at = createdAt ?? new Date().toISOString();
                           setLeads(prev => prev.map(l => {
                             if (l.id !== leadId) return l;
-                            const noteHistory = [...l.noteHistory]
-                              .map(n => (n.id === noteId ? { ...n, text, createdAt: at } : n))
-                              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                            const patchDeep = (notes: typeof l.noteHistory) =>
+                              notes.map((n) => {
+                                if (n.id === noteId) return { ...n, text, createdAt: at };
+                                if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
+                                return n;
+                              });
+                            const noteHistory = patchDeep([...l.noteHistory]).sort(
+                              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                            );
                             return { ...l, noteHistory };
                           }));
                         }}
                         onNoteDeleted={(leadId, noteId) => {
                           setLeads(prev => prev.map(l => {
                             if (l.id !== leadId) return l;
-                            const noteHistory = l.noteHistory.filter((n) => n.id !== noteId);
-                            return {
-                              ...l,
-                              noteHistory,
-                              noteCount: Math.max(0, noteHistory.length),
-                            };
+                            const strip = (notes: typeof l.noteHistory) =>
+                              notes
+                                .filter((n) => n.id !== noteId)
+                                .map((n) => ({
+                                  ...n,
+                                  replies: (n.replies ?? []).filter((r) => r.id !== noteId),
+                                }));
+                            const noteHistory = strip(l.noteHistory);
+                            const deep = noteHistory.reduce(
+                              (s, n) => s + 1 + (n.replies?.length ?? 0),
+                              0,
+                            );
+                            return { ...l, noteHistory, noteCount: deep };
                           }));
                         }}
                       />

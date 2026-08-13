@@ -11,6 +11,7 @@ import {
 import EstimatorPageShell from "../components/EstimatorPageShell";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
+import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import {
   CsrColGroup,
   CSR_THEAD,
@@ -72,8 +73,10 @@ const formatDate = (iso: string | null | undefined) => {
   });
 };
 
-function notesToHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
-  return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+function notesToHistory(
+  notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[],
+): NoteEntry[] {
+  return buildNoteHistory({ notes: notes ?? [] }).noteHistory;
 }
 
 function projectAsRow(p: Project) {

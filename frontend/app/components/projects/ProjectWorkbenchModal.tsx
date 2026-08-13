@@ -48,7 +48,7 @@ type Props = {
   onSave: (data: ProjectWorkbenchData) => Promise<void>;
   onDelete?: () => Promise<void>;
   noteHistory?: NoteEntry[];
-  onAddNote?: (text: string) => Promise<void>;
+  onAddNote?: (text: string, parentId?: string) => Promise<void>;
   /** Notes written by Technical for Sir — shown under Bid Instruction */
   technicalNoteHistory?: NoteEntry[];
   phoneLookup?: PhoneLookupProps;
@@ -783,7 +783,7 @@ export default function ProjectWorkbenchModal({
                       id={data.id}
                       apiRole={mode === "admin" ? "admin" : "csr"}
                       noteHistory={noteHistory}
-                      onAddNote={async (_id, text) => { await onAddNote(text); }}
+                      onAddNote={async (_id, text, parentId) => { await onAddNote(text, parentId); }}
                     />
                   ) : null}
                 </div>

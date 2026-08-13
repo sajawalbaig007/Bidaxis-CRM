@@ -86,48 +86,94 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
     await API.put(`/csr/lead/${id}`, { comments: comment });
   };
 
-  const addNote = async (id: string, text: string): Promise<NoteEntry | null> => {
+  const addNote = async (
+    id: string,
+    text: string,
+    parentId?: string,
+  ): Promise<NoteEntry | null> => {
     const optimistic: NoteEntry = {
       id: `tmp-${Date.now()}`,
       text,
       createdAt: new Date().toISOString(),
+      parentId: parentId || null,
     };
-    setLeads(prev => prev.map(l =>
-      l.id === id
-        ? {
-            ...l,
-            noteCount: (l.noteCount ?? 0) + 1,
-            noteHistory: [optimistic, ...(l.noteHistory ?? [])],
-          }
-        : l
-    ));
+    setLeads(prev => prev.map(l => {
+      if (l.id !== id) return l;
+      const hist = l.noteHistory ?? [];
+      let nextHistory: NoteEntry[];
+      if (parentId) {
+        nextHistory = hist.map((n) =>
+          n.id === parentId
+            ? { ...n, replies: [...(n.replies ?? []), optimistic] }
+            : n,
+        );
+      } else {
+        nextHistory = [optimistic, ...hist];
+      }
+      return {
+        ...l,
+        noteCount: (l.noteCount ?? 0) + 1,
+        noteHistory: nextHistory,
+      };
+    }));
 
     try {
-      const res = await API.post(`/csr/lead/${id}/notes`, { text });
+      const res = await API.post(`/csr/lead/${id}/notes`, {
+        text,
+        ...(parentId ? { parentId } : {}),
+      });
       const note: NoteEntry = res.data.note
-        ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
-        : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
+        ? {
+            id: res.data.note.id,
+            text: res.data.note.text,
+            createdAt: res.data.note.createdAt,
+            parentId: res.data.note.parentId ?? parentId ?? null,
+          }
+        : { id: Date.now().toString(), text, createdAt: new Date().toISOString(), parentId: parentId || null };
 
-      setLeads(prev => prev.map(l =>
-        l.id === id
-          ? {
-              ...l,
-              noteHistory: [note, ...(l.noteHistory ?? []).filter(n => n.id !== optimistic.id)],
-            }
-          : l
-      ));
+      setLeads(prev => prev.map(l => {
+        if (l.id !== id) return l;
+        const hist = l.noteHistory ?? [];
+        if (parentId) {
+          return {
+            ...l,
+            noteHistory: hist.map((n) => {
+              if (n.id !== parentId) return n;
+              const replies = (n.replies ?? [])
+                .filter((r) => r.id !== optimistic.id)
+                .concat(note);
+              return { ...n, replies };
+            }),
+          };
+        }
+        return {
+          ...l,
+          noteHistory: [note, ...hist.filter(n => n.id !== optimistic.id)],
+        };
+      }));
       return note;
     } catch (err) {
-      setLeads(prev => prev.map(l =>
-        l.id === id
-          ? {
-              ...l,
-              noteCount: Math.max(0, (l.noteCount ?? 1) - 1),
-              noteHistory: (l.noteHistory ?? []).filter(n => n.id !== optimistic.id),
-            }
-          : l
-      ));
-      throw err;
+      setLeads(prev => prev.map(l => {
+        if (l.id !== id) return l;
+        const hist = l.noteHistory ?? [];
+        if (parentId) {
+          return {
+            ...l,
+            noteCount: Math.max(0, (l.noteCount ?? 1) - 1),
+            noteHistory: hist.map((n) =>
+              n.id === parentId
+                ? { ...n, replies: (n.replies ?? []).filter((r) => r.id !== optimistic.id) }
+                : n,
+            ),
+          };
+        }
+        return {
+          ...l,
+          noteCount: Math.max(0, (l.noteCount ?? 1) - 1),
+          noteHistory: hist.filter(n => n.id !== optimistic.id),
+        };
+      }));
+      return null;
     }
   };
 

@@ -144,9 +144,10 @@ export function mapDashboardLead<T extends {
 const LEAD_LIST_SELECT = {
   ...CSR_DASHBOARD_LEAD_SELECT,
   notes: {
+    where: { parentId: null },
     orderBy: { createdAt: "desc" as const },
     take: 1,
-    select: { id: true, text: true, createdAt: true },
+    select: { id: true, text: true, createdAt: true, parentId: true },
   },
 };
 

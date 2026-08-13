@@ -61,13 +61,14 @@ export const CSR_CLIENT_LIST_SELECT = {
   projectPayments:    true,
   notes: {
     orderBy: { createdAt: "desc" as const },
-    take: 5,
-    select: { id: true, text: true, createdAt: true },
+    take: 20,
+    select: { id: true, text: true, createdAt: true, parentId: true },
   },
 } as const;
 
 export const CSR_LIST_NOTES_SELECT = {
+  where: { parentId: null },
   orderBy: { createdAt: "desc" as const },
   take: 1,
-  select: { id: true, text: true, createdAt: true },
+  select: { id: true, text: true, createdAt: true, parentId: true },
 } as const;

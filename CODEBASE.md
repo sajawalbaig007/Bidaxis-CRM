@@ -269,7 +269,7 @@ CRM/
 
 | Model | Purpose |
 |-------|---------|
-| `LeadNote` | Timestamped notes per lead — **edit bumps `createdAt`** so note sorts to top as latest |
+| `LeadNote` | Timestamped notes per lead — optional `parentId` for replies; **edit bumps `createdAt`** so note sorts as latest |
 | `SubContact` | Extra contacts on a lead |
 | `CallLog` | CSR status change history (feeds CSR 24h notification stats) |
 | `UploadSource` | Admin source label + `sudoName` (shown to CSRs) |
@@ -447,7 +447,7 @@ Many routes allow **`admin` and `manager`**; admin-only routes noted.
 | GET/PUT/DELETE | `/lead/:id` | admin, manager | Lead CRUD |
 | PUT | `/lead/:id/reassign` | admin, manager | Reassign to CSR |
 | POST | `/leads/reassign-bulk` | admin, manager | Bulk move: From CSR+page → To CSR(s)+page (equal round-robin; destination page sets status) |
-| POST/PUT/DELETE | `/lead/:id/notes[/:noteId]` | admin, manager, TM | Notes CRUD — **PUT bumps `createdAt`** (edited note → latest); UI DELETE uses CommentCell `deletedNoteIdsRef` |
+| POST/PUT/DELETE | `/lead/:id/notes[/:noteId]` | admin, manager, TM | Notes CRUD — POST accepts `parentId` (reply); **PUT bumps `createdAt`**; DELETE removes nested replies; UI via CommentCell `+N` sticky |
 | POST/PUT/DELETE | `/lead/:id/subcontacts[/:subId]` | admin, manager | Sub-contacts |
 | GET | `/projects` | admin, manager | Paginated active projects |
 | GET | `/projects/excel-template` | admin, manager | Download Project DB Excel template (all fields) |
@@ -688,7 +688,7 @@ Manager routes **re-export** admin page components (including `/payments`). `use
 
 - **CSR tables:** `csrTableStyles.tsx` — shared column layout
 - **Column filters:** `components/table/columnFilters.tsx`
-- **Notes UI:** `CommentCell.tsx` — add/edit/delete; edited notes re-sort to top (timestamp bump)
+- **Notes UI:** `CommentCell.tsx` — compact `+N` chip; sticky popup with **Bold / Italic / Underline** (`**` / `*` / `__`, Ctrl+B/I/U); add/edit/delete; right-click reply; timestamps on every entry
 - **Project editor:** `ProjectWorkbenchModal.tsx` — admin + CSR + technical (payment channel / currency / accounts month)
 - **Payment detail cell:** `ProjectTableCells.tsx` — latest payment + **+N** expandable history (date · source · amount · currency)
 - **Client history:** `ClientHistoryModal.tsx` — old client services & revenue
