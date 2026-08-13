@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, ShieldCheck, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage, getClientAuthToken } from "@/lib/api";
+import API, { apiErrorMessage, getClientAuthToken, setClientAuthToken } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
@@ -99,11 +99,22 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
     if (!token) return;
     try {
       const part = token.split(".")[1];
-      if (!part) return;
-      const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))) as { role?: string };
+      if (!part) {
+        setClientAuthToken(null);
+        return;
+      }
+      const payload = JSON.parse(
+        atob(part.replace(/-/g, "+").replace(/_/g, "/")),
+      ) as { role?: string; exp?: number; sid?: string };
+      if (!payload.sid || (payload.exp != null && payload.exp * 1000 < Date.now())) {
+        setClientAuthToken(null);
+        return;
+      }
       const role = resolveLoginRole({ role: payload.role });
       if (role) window.location.href = dashboardPathForRole(role);
-    } catch { /* ignore */ }
+    } catch {
+      setClientAuthToken(null);
+    }
   }, []);
 
   function hardRedirect(path: string) {
