@@ -5,6 +5,7 @@ import type { CashFlowRow, DatedNote } from "../types";
 import { currency, newRowId, normalizeNotes, todayIso } from "../types";
 import { bankColor } from "./accountsTheme";
 import AmountInput from "./AmountInput";
+import { NoteComposer } from "@/lib/noteRichText";
 
 export type CashFlowEditModel = CashFlowRow & { monthId: string };
 
@@ -188,18 +189,18 @@ export default function CashFlowRowModal({
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <textarea
+                    <NoteComposer
                       value={n.text}
-                      onChange={e =>
+                      onChange={(text) =>
                         setNotes(
-                          [...notes.map(x => (x.id === n.id ? { ...x, text: e.target.value, date: todayIso() } : x))].sort(
+                          [...notes.map(x => (x.id === n.id ? { ...x, text, date: todayIso() } : x))].sort(
                             (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
                           ),
                         )
                       }
-                      placeholder="Write note…"
+                      placeholder="Write note… (Ctrl+B / I / U)"
                       rows={2}
-                      className="w-full rounded-lg border border-amber-200/80 bg-crm-surface px-2 py-1.5 text-xs outline-none resize-none focus:ring-2 focus:ring-amber-200"
+                      className="!bg-crm-surface !border-amber-200"
                     />
                   </div>
                 ))

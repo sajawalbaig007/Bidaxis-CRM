@@ -309,9 +309,10 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
       select: {
         ...CSR_DASHBOARD_LEAD_SELECT,
         notes: {
+          where: { parentId: null },
           orderBy: { createdAt: "desc" },
           take: 1,
-          select: { id: true, text: true, createdAt: true },
+          select: { id: true, text: true, createdAt: true, parentId: true },
         },
       },
       orderBy: { updatedAt: "desc" },
@@ -343,8 +344,8 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
         ...CSR_DASHBOARD_LEAD_SELECT,
         notes: {
           orderBy: { createdAt: "desc" as const },
-          take: 5,
-          select: { id: true, text: true, createdAt: true },
+          take: 20,
+          select: { id: true, text: true, createdAt: true, parentId: true },
         },
       },
       orderBy: { updatedAt: "desc" },
@@ -557,19 +558,30 @@ router.patch("/lead/:id/note", verifyToken, allowRoles("csr"), async (req: any, 
   }
 });
 
-/* ================= ADD TIMESTAMPED NOTE ================= */
+/* ================= ADD TIMESTAMPED NOTE (optional parentId = reply) ================= */
 router.post("/lead/:id/notes", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId  = req.user.id;
     const leadId = req.params.id as string;
-    const { text } = req.body as { text: string };
+    const { text, parentId } = req.body as { text: string; parentId?: string };
 
     if (!text?.trim()) return res.status(400).json({ success: false, message: "Note text required" });
 
     const lead = await prisma.lead.findFirst({ where: { id: leadId, assignedTo: csrId } });
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found" });
 
-    const note = await prisma.leadNote.create({ data: { text: text.trim(), leadId } });
+    let parent: string | undefined;
+    if (parentId?.trim()) {
+      const p = await prisma.leadNote.findFirst({
+        where: { id: parentId.trim(), leadId, parentId: null },
+      });
+      if (!p) return res.status(400).json({ success: false, message: "Parent note not found" });
+      parent = p.id;
+    }
+
+    const note = await prisma.leadNote.create({
+      data: { text: text.trim(), leadId, ...(parent ? { parentId: parent } : {}) },
+    });
     invalidateCsrLeadCaches(csrId);
     flushAdminClientsCache();
     return res.json({ success: true, note });
@@ -599,14 +611,14 @@ router.put("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req
   }
 });
 
-/* ================= DELETE NOTE ================= */
+/* ================= DELETE NOTE (+ nested replies) ================= */
 router.delete("/lead/:id/notes/:noteId", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId  = req.user.id;
     const { noteId } = req.params as { noteId: string };
     const note = await prisma.leadNote.findFirst({ where: { id: noteId, lead: { assignedTo: csrId } } });
     if (!note) return res.status(404).json({ success: false, message: "Note not found" });
-    await prisma.leadNote.delete({ where: { id: noteId } });
+    await prisma.leadNote.deleteMany({ where: { OR: [{ id: noteId }, { parentId: noteId }] } });
     invalidateCache(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
     flushAdminClientsCache();
     return res.json({ success: true });

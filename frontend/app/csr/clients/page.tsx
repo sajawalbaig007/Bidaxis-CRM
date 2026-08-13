@@ -33,6 +33,8 @@ import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
 import SubContactsCell from "@/app/components/clients/SubContactsCell";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
+import CommentCell from "../components/shared/CommentCell";
+import { NoteRichText } from "@/lib/noteRichText";
 import { apiErrorMessage } from "@/lib/api";
 import { formatQuotedAmount, parseMoney, emptyWorkbench, ProjectWorkbenchData } from "@/lib/projectFields";
 import StateFilterDropdown from "../components/shared/StateFilterDropdown";
@@ -62,22 +64,6 @@ const emptyAdd  = { name: "", phone: "", email: "", company: "", website: "", st
 const emptyContact = { name: "", designation: "", phone: "", email: "" };
 
 /* ─── Helpers ────────────────────────────────────────────── */
-function fmtTime(iso: string) {
-  try {
-    const d = new Date(iso);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1)   return "Just now";
-    if (diffMin < 60)  return `${diffMin}m ago`;
-    const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24)    return `${diffH}h ago`;
-    const diffD = Math.floor(diffH / 24);
-    if (diffD < 7)     return `${diffD}d ago`;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  } catch { return ""; }
-}
-
 function fmtFull(iso: string) {
   try {
     return new Date(iso).toLocaleString("en-US", {
@@ -151,9 +137,7 @@ export default function LeadsPage() {
   }, [resetLookup]);
 
   /* ── note history modal ── */
-  const [noteLeadId,  setNoteLeadId]  = useState<string | null>(null);
-  const [noteNewText, setNoteNewText] = useState("");
-  const [noteSaving,  setNoteSaving]  = useState(false);
+  const [noteLeadId, setNoteLeadId] = useState<string | null>(null);
 
   /* ── sub-contacts (inside detail modal) ── */
   const [showContactForm, setShowContactForm]   = useState(false);
@@ -221,8 +205,7 @@ export default function LeadsPage() {
   ], [newLeads, oldLeads, importantCount, interestedCount, pendingCount, stats.totalAssigned]);
 
   /* ─── Note helpers ─────────────────────────────────────── */
-  const getLatestNote = (lead: ClientLead): NoteEntry | null =>
-    lead.noteHistory.length > 0 ? lead.noteHistory[0] : null;
+  /* unused getLatestNote removed — CommentCell shows +N */
 
   const noteHistoryLead = useMemo(
     () => leads.find(l => l.id === noteLeadId) ?? null,
@@ -327,7 +310,6 @@ export default function LeadsPage() {
   /* ─── Notes ────────────────────────────────────────────── */
   const openNoteHistory = async (leadId: string) => {
     setNoteLeadId(leadId);
-    setNoteNewText("");
     try {
       const res = await API.get(`/csr/lead/${leadId}`);
       const raw = res.data.lead;
@@ -337,26 +319,6 @@ export default function LeadsPage() {
     } catch {
       /* keep preloaded notes */
     }
-  };
-
-  const addNote = async () => {
-    if (!noteNewText.trim() || !noteLeadId) return;
-    setNoteSaving(true);
-    try {
-      const res = await API.post(`/csr/lead/${noteLeadId}/notes`, { text: noteNewText.trim() });
-      const saved: NoteEntry = res.data.note
-        ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
-        : { id: String(Date.now()), text: noteNewText.trim(), createdAt: new Date().toISOString() };
-      setLeads(prev => prev.map(l =>
-        l.id === noteLeadId
-          ? { ...l, noteHistory: [saved, ...l.noteHistory.filter(n => n.id !== saved.id)] }
-          : l
-      ));
-      setNoteNewText("");
-      invalidateAllCsrListCaches();
-      toast.success("Note added");
-    } catch { toast.error("Failed to save note"); }
-    setNoteSaving(false);
   };
 
   /* ─── Sub-contacts ─────────────────────────────────────── */
@@ -493,14 +455,13 @@ export default function LeadsPage() {
               <div className="overflow-x-auto">
               {/* Desktop header — min width so actions (3 buttons) never clip */}
               <div className={`hidden lg:grid gap-2 px-4 lg:px-5 py-2.5 w-full min-w-[1100px] ${CRM_GRID_HEAD_ROW} ${CLIENT_GRID_HEAD}`}>
-                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Latest Note", "Actions"].map(h => (
+                {["Code", "Client", "Company", "Phone", "Sub Contacts", "Email", "Service", "Notes", "Actions"].map(h => (
                   <span key={h} className={PROJECT_TABLE_HEAD}>{h}</span>
                 ))}
               </div>
 
               <div className="divide-y divide-[#F3F3F3] w-full min-w-[1100px] lg:min-w-[1100px]">
                 {paginated.map(lead => {
-                  const latestNote = getLatestNote(lead);
                   const displayName = lead.name;
                   /* Prefer clientCode from DB; fall back to projectCode only if client code missing */
                   const displayCode = (lead.clientCode?.trim() || lead.projectCode?.trim() || null);
@@ -591,26 +552,81 @@ export default function LeadsPage() {
                         {lead.interestedService || "—"}
                       </p>
 
-                      {/* Latest Note (sticky note style) */}
+                      {/* Notes (+N sticky) */}
                       <div className="hidden lg:block">
-                        {latestNote ? (
-                          <button
-                            onClick={() => void openNoteHistory(lead.id)}
-                            className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-left hover:bg-amber-100 transition-colors w-full max-w-[200px] group"
-                          >
-                            <p className="text-[10px] text-amber-900 leading-snug line-clamp-2 whitespace-pre-wrap">{latestNote.text}</p>
-                            <p className="text-[9px] text-amber-400 mt-1 flex items-center gap-1">
-                              <Clock3 size={8} />{fmtTime(latestNote.createdAt)}
-                            </p>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => void openNoteHistory(lead.id)}
-                            className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-2 text-left hover:bg-gray-100 transition-colors w-full max-w-[200px]"
-                          >
-                            <p className="text-[10px] text-gray-400 italic">No notes yet</p>
-                          </button>
-                        )}
+                        <CommentCell
+                          id={lead.id}
+                          noteHistory={lead.noteHistory}
+                          noteCount={lead.noteHistory?.length}
+                          onAddNote={async (id, text, parentId) => {
+                            const res = await API.post(`/csr/lead/${id}/notes`, {
+                              text,
+                              ...(parentId ? { parentId } : {}),
+                            });
+                            const saved: NoteEntry = res.data.note
+                              ? {
+                                  id: res.data.note.id,
+                                  text: res.data.note.text,
+                                  createdAt: res.data.note.createdAt,
+                                  parentId: res.data.note.parentId ?? parentId ?? null,
+                                }
+                              : {
+                                  id: String(Date.now()),
+                                  text,
+                                  createdAt: new Date().toISOString(),
+                                  parentId: parentId || null,
+                                };
+                            setLeads((prev) =>
+                              prev.map((l) => {
+                                if (l.id !== id) return l;
+                                const hist = l.noteHistory ?? [];
+                                if (parentId) {
+                                  return {
+                                    ...l,
+                                    noteHistory: hist.map((n) =>
+                                      n.id === parentId
+                                        ? { ...n, replies: [...(n.replies ?? []), saved] }
+                                        : n,
+                                    ),
+                                  };
+                                }
+                                return { ...l, noteHistory: [saved, ...hist.filter((n) => n.id !== saved.id)] };
+                              }),
+                            );
+                            invalidateAllCsrListCaches();
+                            return saved;
+                          }}
+                          onNoteUpdated={(leadId, noteId, text, createdAt) => {
+                            const at = createdAt ?? new Date().toISOString();
+                            setLeads((prev) =>
+                              prev.map((l) => {
+                                if (l.id !== leadId) return l;
+                                const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
+                                  notes.map((n) => {
+                                    if (n.id === noteId) return { ...n, text, createdAt: at };
+                                    if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
+                                    return n;
+                                  });
+                                return { ...l, noteHistory: patchDeep(l.noteHistory ?? []) };
+                              }),
+                            );
+                          }}
+                          onNoteDeleted={(leadId, noteId) => {
+                            setLeads((prev) =>
+                              prev.map((l) => {
+                                if (l.id !== leadId) return l;
+                                const strip = (notes: NoteEntry[]): NoteEntry[] =>
+                                  notes
+                                    .filter((n) => n.id !== noteId)
+                                    .map((n) => ({
+                                      ...n,
+                                      replies: (n.replies ?? []).filter((r) => r.id !== noteId),
+                                    }));
+                                return { ...l, noteHistory: strip(l.noteHistory ?? []) };
+                              }),
+                            );
+                          }}
+                        />
                       </div>
 
                       {/* Actions */}
@@ -661,73 +677,102 @@ export default function LeadsPage() {
           )}
         </div>
 
-        {/* ══ NOTE HISTORY MODAL ══ */}
+        {/* ══ NOTE HISTORY MODAL (same CommentCell sticky as tables) ══ */}
         {noteLeadId && noteHistoryLead && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
-            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "86vh" }}>
-              {/* Header */}
-              <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col p-4 sm:p-5" style={{ maxHeight: "86vh" }}>
+              <div className="flex items-center justify-between mb-3 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                     <History size={16} />
                   </div>
-                  <div>
-                    <h2 className="text-base font-bold text-[#0F172A]">Note History</h2>
-                    <p className="text-[11px] text-gray-400">{noteHistoryLead.name}</p>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-[#0F172A]">Sticky Notes</h2>
+                    <p className="text-[11px] text-gray-400 truncate">{noteHistoryLead.name}</p>
                   </div>
                 </div>
-                <button onClick={() => setNoteLeadId(null)}
-                  className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all">
+                <button
+                  type="button"
+                  onClick={() => setNoteLeadId(null)}
+                  className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all"
+                >
                   <X size={14} />
                 </button>
               </div>
-
-              {/* Add note */}
-              <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 shrink-0">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Add New Note</p>
-                <textarea
-                  value={noteNewText}
-                  onChange={e => setNoteNewText(e.target.value)}
-                  placeholder="Write your note here..."
-                  rows={2}
-                  className="w-full rounded-xl border border-gray-200 bg-[#FAFAFA] px-3 py-2.5 text-xs sm:text-sm outline-none focus:border-[#B8112D] resize-none transition-colors"
+              <div className="overflow-y-auto">
+                <CommentCell
+                  id={noteHistoryLead.id}
+                  noteHistory={noteHistoryLead.noteHistory}
+                  noteCount={noteHistoryLead.noteHistory.length}
+                  onAddNote={async (id, text, parentId) => {
+                    const res = await API.post(`/csr/lead/${id}/notes`, {
+                      text,
+                      ...(parentId ? { parentId } : {}),
+                    });
+                    const saved: NoteEntry = res.data.note
+                      ? {
+                          id: res.data.note.id,
+                          text: res.data.note.text,
+                          createdAt: res.data.note.createdAt,
+                          parentId: res.data.note.parentId ?? parentId ?? null,
+                        }
+                      : {
+                          id: String(Date.now()),
+                          text,
+                          createdAt: new Date().toISOString(),
+                          parentId: parentId || null,
+                        };
+                    setLeads((prev) =>
+                      prev.map((l) => {
+                        if (l.id !== id) return l;
+                        const hist = l.noteHistory ?? [];
+                        if (parentId) {
+                          return {
+                            ...l,
+                            noteHistory: hist.map((n) =>
+                              n.id === parentId
+                                ? { ...n, replies: [...(n.replies ?? []), saved] }
+                                : n,
+                            ),
+                          };
+                        }
+                        return { ...l, noteHistory: [saved, ...hist.filter((n) => n.id !== saved.id)] };
+                      }),
+                    );
+                    invalidateAllCsrListCaches();
+                    return saved;
+                  }}
+                  onNoteUpdated={(leadId, noteId, text, createdAt) => {
+                    const at = createdAt ?? new Date().toISOString();
+                    setLeads((prev) =>
+                      prev.map((l) => {
+                        if (l.id !== leadId) return l;
+                        const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
+                          notes.map((n) => {
+                            if (n.id === noteId) return { ...n, text, createdAt: at };
+                            if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
+                            return n;
+                          });
+                        return { ...l, noteHistory: patchDeep(l.noteHistory ?? []) };
+                      }),
+                    );
+                  }}
+                  onNoteDeleted={(leadId, noteId) => {
+                    setLeads((prev) =>
+                      prev.map((l) => {
+                        if (l.id !== leadId) return l;
+                        const strip = (notes: NoteEntry[]): NoteEntry[] =>
+                          notes
+                            .filter((n) => n.id !== noteId)
+                            .map((n) => ({
+                              ...n,
+                              replies: (n.replies ?? []).filter((r) => r.id !== noteId),
+                            }));
+                        return { ...l, noteHistory: strip(l.noteHistory ?? []) };
+                      }),
+                    );
+                  }}
                 />
-                <button
-                  onClick={addNote}
-                  disabled={noteSaving || !noteNewText.trim()}
-                  className="mt-2 w-full h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold hover:bg-[#a30f27] disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
-                >
-                  {noteSaving ? "Saving…" : "Add Note"}
-                </button>
-              </div>
-
-              {/* History timeline */}
-              <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 sm:py-4 space-y-2.5">
-                {noteHistoryLead.noteHistory.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <StickyNote size={28} className="text-gray-200 mx-auto mb-2" />
-                    <p className="text-gray-400 text-sm">No notes yet. Add the first one above.</p>
-                  </div>
-                ) : (
-                  noteHistoryLead.noteHistory.map((note, idx) => (
-                    <div key={note.id} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-2 h-2 rounded-full shrink-0 mt-2 ${idx === 0 ? "bg-amber-500" : "bg-gray-300"}`} />
-                        {idx < noteHistoryLead.noteHistory.length - 1 && (
-                          <div className="w-px flex-1 bg-gray-100 mt-1" />
-                        )}
-                      </div>
-                      <div className={`flex-1 rounded-xl p-3 mb-1 ${idx === 0 ? "bg-amber-50 border border-amber-200" : "bg-gray-50 border border-gray-100"}`}>
-                        <p className={`text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap ${idx === 0 ? "text-amber-900" : "text-gray-700"}`}>
-                          {note.text}
-                        </p>
-                        <p className={`text-[10px] mt-1.5 flex items-center gap-1 ${idx === 0 ? "text-amber-400" : "text-gray-400"}`}>
-                          <Clock3 size={8} />{fmtFull(note.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
               </div>
             </div>
           </div>
@@ -1028,8 +1073,8 @@ export default function LeadsPage() {
                             <StickyNote size={11} className="text-amber-600" />
                             <p className="text-amber-600 text-[10px] font-semibold">Latest Note</p>
                           </div>
-                          <p className="text-[#0F172A] text-[12px] sm:text-[13px] leading-relaxed whitespace-pre-wrap">
-                            {viewing.noteHistory[0].text}
+                          <p className="text-[#0F172A] text-[12px] sm:text-[13px] leading-relaxed">
+                            <NoteRichText text={viewing.noteHistory[0].text} />
                           </p>
                           <p className="text-amber-400 text-[10px] mt-1.5">{fmtFull(viewing.noteHistory[0].createdAt)}</p>
                         </div>

@@ -2,10 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { StickyNote, Plus, Pencil, Trash2, Check, X, Clock, Loader2 } from "lucide-react";
+import {
+  StickyNote,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Clock,
+  Loader2,
+  CornerDownRight,
+  MessageSquareReply,
+} from "lucide-react";
 import { NoteEntry } from "../../hooks/useLeadsData";
 import API from "@/lib/api";
-import { buildNoteHistory } from "../../utils/noteHistory";
+import { buildNoteHistory, countNotesDeep, nestNoteReplies } from "../../utils/noteHistory";
+import { NoteComposer, NoteRichText } from "@/lib/noteRichText";
 
 interface CommentCellProps {
   id: string;
@@ -26,7 +38,7 @@ interface CommentCellProps {
    * Always shown in history / latest pick; never editable via this cell.
    */
   extraReadOnlyNotes?: NoteEntry[];
-  onAddNote?: (id: string, text: string) => Promise<unknown>;
+  onAddNote?: (id: string, text: string, parentId?: string) => Promise<unknown>;
   onSave?: (id: string, text: string) => Promise<void>;
   onNoteUpdated?: (id: string, noteId: string, text: string, createdAt?: string) => void;
   onNoteDeleted?: (id: string, noteId: string) => void;
@@ -56,11 +68,29 @@ function isLegacyNoteId(noteId: string) {
   );
 }
 
-function sortNotesNewestFirst(notes: NoteEntry[]) {
-  return [...notes].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+function flattenNotes(notes: NoteEntry[]): NoteEntry[] {
+  const out: NoteEntry[] = [];
+  for (const n of notes) {
+    out.push({ ...n, replies: undefined });
+    for (const r of n.replies ?? []) out.push({ ...r, parentId: n.id, replies: undefined });
+  }
+  return out;
 }
+
+function upsertLocalNote(prev: NoteEntry[] | null, note: NoteEntry, fallback: NoteEntry[]): NoteEntry[] {
+  const flat = flattenNotes(prev ?? fallback).filter((n) => n.id !== note.id);
+  flat.push(note);
+  return nestNoteReplies(flat);
+}
+
+function removeLocalNote(prev: NoteEntry[] | null, noteId: string, fallback: NoteEntry[]): NoteEntry[] {
+  const flat = flattenNotes(prev ?? fallback).filter(
+    (n) => n.id !== noteId && n.parentId !== noteId,
+  );
+  return nestNoteReplies(flat);
+}
+
+type CtxMenu = { x: number; y: number; noteId: string; isReply: boolean };
 
 export default function CommentCell({
   id,
@@ -85,6 +115,10 @@ export default function CommentCell({
   const [editText, setEditText] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [replySaving, setReplySaving] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({});
 
   const [localNotes, setLocalNotes] = useState<NoteEntry[] | null>(null);
@@ -100,47 +134,64 @@ export default function CommentCell({
     .map((n) => ({
       ...n,
       id: n.id.startsWith("tech-") || n.id.startsWith("readonly-") ? n.id : `readonly-${n.id}`,
+      parentId: null as string | null,
+      replies: [] as NoteEntry[],
     }));
 
   const baseNotes = commentOnly
     ? []
-    : (localNotes !== null ? localNotes : (noteHistory ?? [])).filter((n) => n.text?.trim());
+    : nestNoteReplies(
+        flattenNotes(localNotes !== null ? localNotes : (noteHistory ?? [])).filter(
+          (n) => n.text?.trim() && !deletedNoteIdsRef.current.has(n.id),
+        ),
+      );
 
-  const displayNotes = sortNotesNewestFirst([
-    ...baseNotes,
-    ...readonlyExtras.filter((extra) => !baseNotes.some((n) => n.id === extra.id || n.text === extra.text)),
-  ]);
+  const displayNotes = (() => {
+    const roots = [...baseNotes];
+    for (const extra of readonlyExtras) {
+      if (roots.some((n) => n.id === extra.id || n.text === extra.text)) continue;
+      roots.push(extra);
+    }
+    return roots.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  })();
 
   const legacyComment = comment?.trim()
-    ? commentOnly || !displayNotes.some((n) => n.text === comment.trim())
+    ? commentOnly || !flattenNotes(displayNotes).some((n) => n.text === comment.trim())
       ? comment.trim()
       : null
     : null;
 
-  const latestNote = displayNotes[0];
-  const latestText = (latestNote?.text?.trim() || legacyComment || "").trim();
-  const latestAt = latestNote?.createdAt || null;
+  const latestRoot = displayNotes[0];
+  const latestAt = latestRoot?.createdAt || null;
 
-  const preloadedCount = (noteHistory?.length ?? 0) > 0 ? noteHistory!.length : (noteCount ?? 0);
-  const baseCount = commentOnly ? 0 : localNotes !== null ? localNotes.length : preloadedCount;
+  const preloadedDeep = noteHistory ? countNotesDeep(noteHistory) : 0;
+  const baseCount = commentOnly
+    ? 0
+    : localNotes !== null
+      ? countNotesDeep(localNotes)
+      : Math.max(preloadedDeep, noteCount ?? 0);
   const extrasUniqueCount = readonlyExtras.filter(
-    (extra) => !(localNotes ?? noteHistory ?? []).some((n) => n.id === extra.id || n.text === extra.text),
+    (extra) =>
+      !flattenNotes(localNotes ?? noteHistory ?? []).some(
+        (n) => n.id === extra.id || n.text === extra.text,
+      ),
   ).length;
   const count = baseCount + extrasUniqueCount + (legacyComment ? 1 : 0);
-  /** Older notes beyond the latest one shown on the chip */
-  const olderCount = Math.max(0, count - (latestText ? 1 : 0));
   const canMutate = !readOnly;
 
   useEffect(() => {
     if (!noteHistory?.length) return;
     setLocalNotes((prev) => {
       if (prev === null) return null;
-      const ids = new Set(prev.map((n) => n.id));
-      const incoming = noteHistory.filter(
+      const flatPrev = flattenNotes(prev);
+      const ids = new Set(flatPrev.map((n) => n.id));
+      const incoming = flattenNotes(noteHistory).filter(
         (n) => !ids.has(n.id) && !deletedNoteIdsRef.current.has(n.id),
       );
       if (!incoming.length) return prev;
-      return [...incoming, ...prev];
+      return nestNoteReplies([...flatPrev, ...incoming]);
     });
   }, [noteHistory]);
 
@@ -154,17 +205,29 @@ export default function CommentCell({
         !btnRef.current.contains(e.target as Node)
       ) {
         setOpen(false);
+        setCtxMenu(null);
       }
     };
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, [open]);
 
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [ctxMenu]);
+
   const calcStyle = () => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    const popupH = 420;
-    const popupW = Math.min(340, Math.max(260, window.innerWidth - 16));
+    const popupH = 440;
+    const popupW = Math.min(360, Math.max(280, window.innerWidth - 16));
     const spaceBelow = window.innerHeight - rect.bottom;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - popupW - 8));
 
@@ -202,7 +265,7 @@ export default function CommentCell({
     if (commentOnly || skipNotesFetch) return;
     if (localNotes !== null || fetchStartedRef.current) return;
 
-    const loadedCount = (noteHistory ?? []).filter((n) => n.text?.trim()).length;
+    const loadedCount = noteHistory ? countNotesDeep(noteHistory) : 0;
     const shouldFetch = (noteCount ?? 0) > loadedCount || loadedCount === 0;
     if (!shouldFetch && !comment?.trim()) return;
 
@@ -212,10 +275,11 @@ export default function CommentCell({
       const res = await API.get(`/${apiRole}/lead/${id}`);
       const raw = res.data.lead;
       const fetched: NoteEntry[] = (raw?.notes ?? []).map(
-        (n: { id: string; text: string; createdAt: string }) => ({
+        (n: { id: string; text: string; createdAt: string; parentId?: string | null }) => ({
           id: n.id,
           text: n.text,
           createdAt: n.createdAt,
+          parentId: n.parentId ?? null,
         }),
       );
       const { noteHistory: built } = buildNoteHistory({
@@ -237,35 +301,91 @@ export default function CommentCell({
     calcStyle();
     const willOpen = !open;
     setOpen(willOpen);
+    setCtxMenu(null);
     if (willOpen) void loadNotesIfNeeded();
+  };
+
+  const persistNewNote = async (text: string, parentId?: string): Promise<NoteEntry | null> => {
+    let result: unknown;
+    if (onAddNote) result = await onAddNote(id, text, parentId);
+    else if (!parentId && onSave) await onSave(id, text);
+    else {
+      const res = await API.post(`/${apiRole}/lead/${id}/notes`, {
+        text,
+        ...(parentId ? { parentId } : {}),
+      });
+      result = res.data?.note;
+    }
+
+    if (result && typeof result === "object" && "id" in (result as object)) {
+      const n = result as NoteEntry & { parentId?: string | null };
+      return {
+        id: n.id,
+        text: n.text ?? text,
+        createdAt: n.createdAt ?? new Date().toISOString(),
+        parentId: n.parentId ?? parentId ?? null,
+      };
+    }
+    return {
+      id: Date.now().toString(),
+      text,
+      createdAt: new Date().toISOString(),
+      parentId: parentId || null,
+    };
   };
 
   const handleAdd = async () => {
     const text = draft.trim();
     if (!text) return;
-    const tempNote: NoteEntry = { id: `tmp-${Date.now()}`, text, createdAt: new Date().toISOString() };
-    setLocalNotes((prev) => [tempNote, ...(prev ?? [])]);
+    const tempNote: NoteEntry = {
+      id: `tmp-${Date.now()}`,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId: null,
+    };
+    setLocalNotes((prev) => upsertLocalNote(prev, tempNote, noteHistory ?? []));
     setDraft("");
     setSaving(true);
     try {
-      let result: unknown;
-      if (onAddNote) result = await onAddNote(id, text);
-      else if (onSave) await onSave(id, text);
-
-      let newNote: NoteEntry | null = null;
-      if (result && typeof result === "object" && "id" in (result as object)) {
-        newNote = result as NoteEntry;
+      const newNote = await persistNewNote(text);
+      if (newNote) {
+        setLocalNotes((prev) => {
+          const withoutTmp = removeLocalNote(prev, tempNote.id, noteHistory ?? []);
+          return upsertLocalNote(withoutTmp, newNote, []);
+        });
       }
-      if (!newNote) {
-        newNote = { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
-      }
-      setLocalNotes((prev) =>
-        prev !== null ? [newNote!, ...prev.filter((n) => n.id !== tempNote.id)] : [newNote!],
-      );
     } catch {
-      setLocalNotes((prev) => (prev !== null ? prev.filter((n) => n.id !== tempNote.id) : null));
+      setLocalNotes((prev) => removeLocalNote(prev, tempNote.id, noteHistory ?? []));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleReply = async (parentId: string) => {
+    const text = replyDraft.trim();
+    if (!text || isLegacyNoteId(parentId)) return;
+    const tempNote: NoteEntry = {
+      id: `tmp-${Date.now()}`,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId,
+    };
+    setLocalNotes((prev) => upsertLocalNote(prev, tempNote, noteHistory ?? []));
+    setReplyDraft("");
+    setReplySaving(true);
+    try {
+      const newNote = await persistNewNote(text, parentId);
+      if (newNote) {
+        setLocalNotes((prev) => {
+          const withoutTmp = removeLocalNote(prev, tempNote.id, noteHistory ?? []);
+          return upsertLocalNote(withoutTmp, newNote, []);
+        });
+      }
+      setReplyToId(null);
+    } catch {
+      setLocalNotes((prev) => removeLocalNote(prev, tempNote.id, noteHistory ?? []));
+    } finally {
+      setReplySaving(false);
     }
   };
 
@@ -275,20 +395,22 @@ export default function CommentCell({
     setEditSaving(true);
     try {
       const res = await API.put(`/${apiRole}/lead/${id}/notes/${noteId}`, { text });
-      const serverNote = res.data?.note as { id?: string; text?: string; createdAt?: string } | undefined;
+      const serverNote = res.data?.note as
+        | { id?: string; text?: string; createdAt?: string; parentId?: string | null }
+        | undefined;
       const bumpedAt = serverNote?.createdAt ?? new Date().toISOString();
       setLocalNotes((prev) => {
-        const base = prev ?? noteHistory ?? [];
-        const next = base.map((n) =>
-          n.id === noteId ? { ...n, text: serverNote?.text ?? text, createdAt: bumpedAt } : n,
+        const flat = flattenNotes(prev ?? noteHistory ?? []).map((n) =>
+          n.id === noteId
+            ? {
+                ...n,
+                text: serverNote?.text ?? text,
+                createdAt: bumpedAt,
+                parentId: serverNote?.parentId ?? n.parentId ?? null,
+              }
+            : n,
         );
-        const has = next.some((n) => n.id === noteId);
-        const withNote = has
-          ? next
-          : [{ id: noteId, text: serverNote?.text ?? text, createdAt: bumpedAt }, ...next];
-        return [...withNote].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
+        return nestNoteReplies(flat);
       });
       onNoteUpdated?.(id, noteId, text, bumpedAt);
       setEditId(null);
@@ -305,11 +427,10 @@ export default function CommentCell({
     try {
       await API.delete(`/${apiRole}/lead/${id}/notes/${noteId}`);
       deletedNoteIdsRef.current.add(noteId);
-      setLocalNotes((prev) => {
-        const base = prev !== null ? prev : (noteHistory ?? []);
-        return base.filter((n) => n.id !== noteId);
-      });
+      setLocalNotes((prev) => removeLocalNote(prev, noteId, noteHistory ?? []));
       onNoteDeleted?.(id, noteId);
+      if (replyToId === noteId) setReplyToId(null);
+      if (editId === noteId) setEditId(null);
     } catch {
       /* toast from interceptor */
     } finally {
@@ -317,11 +438,165 @@ export default function CommentCell({
     }
   };
 
+  const openCtx = (e: React.MouseEvent, noteId: string, isReply: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!canMutate || isLegacyNoteId(noteId)) return;
+    setCtxMenu({ x: e.clientX, y: e.clientY, noteId, isReply });
+  };
+
+  const renderNoteBody = (note: NoteEntry, isReply: boolean) => {
+    const editable = canMutate && !isLegacyNoteId(note.id);
+    const isTech = note.id.startsWith("tech-") || note.id.startsWith("readonly-");
+
+    if (editId === note.id) {
+      return (
+        <div className="space-y-2">
+          <NoteComposer
+            autoFocus
+            value={editText}
+            onChange={setEditText}
+            rows={3}
+            placeholder="Edit note…"
+            onSubmit={() => void handleUpdate(note.id)}
+          />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => void handleUpdate(note.id)}
+              disabled={editSaving || !editText.trim()}
+              className="flex-1 h-7 rounded-lg bg-amber-600 text-white text-[11px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              {editSaving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditId(null)}
+              className="flex-1 h-7 rounded-lg bg-white/80 text-amber-800 text-[11px] font-semibold border border-amber-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        onContextMenu={(e) => openCtx(e, note.id, isReply)}
+        className={editable ? "cursor-context-menu" : undefined}
+      >
+        {isTech && (
+          <span className="inline-flex mb-1 text-[9px] font-extrabold uppercase tracking-wide text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-md">
+            Tech
+          </span>
+        )}
+        {isReply && (
+          <span className="inline-flex mb-1 items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-amber-700/80">
+            <CornerDownRight size={9} />
+            Reply
+          </span>
+        )}
+        <p className="text-[12px] text-amber-950 leading-snug">
+          <NoteRichText text={note.text} />
+        </p>
+        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+          {note.createdAt && (
+            <span className="text-[9px] text-amber-700/70 inline-flex items-center gap-1 mr-auto">
+              <Clock size={9} />
+              {fmtTime(note.createdAt)}
+            </span>
+          )}
+          {editable && !isReply && (
+            <button
+              type="button"
+              onClick={() => {
+                setReplyToId(note.id);
+                setReplyDraft("");
+                setEditId(null);
+              }}
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white/80 border border-amber-200 text-amber-800 hover:bg-white text-[10px] font-bold"
+              title="Reply (or right-click)"
+            >
+              <MessageSquareReply size={9} />
+              Reply
+            </button>
+          )}
+          {editable && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditId(note.id);
+                  setEditText(note.text);
+                  setReplyToId(null);
+                }}
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white/80 border border-amber-200 text-amber-800 hover:bg-white text-[10px] font-bold"
+              >
+                <Pencil size={9} />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete(note.id)}
+                disabled={deleting === note.id}
+                className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 text-[10px] font-bold disabled:opacity-50"
+              >
+                {deleting === note.id ? (
+                  <Loader2 size={9} className="animate-spin" />
+                ) : (
+                  <Trash2 size={9} />
+                )}
+                Del
+              </button>
+            </>
+          )}
+        </div>
+
+        {replyToId === note.id && (
+          <div className="mt-2 pt-2 border-t border-amber-200/70 space-y-1.5">
+            <NoteComposer
+              autoFocus
+              value={replyDraft}
+              onChange={setReplyDraft}
+              rows={2}
+              placeholder="Write a reply… (Ctrl+Enter)"
+              onSubmit={() => void handleReply(note.id)}
+            />
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handleReply(note.id)}
+                disabled={replySaving || !replyDraft.trim()}
+                className="flex-1 h-7 rounded-lg bg-amber-600 text-white text-[11px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
+              >
+                {replySaving ? <Loader2 size={10} className="animate-spin" /> : <MessageSquareReply size={10} />}
+                Send reply
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyToId(null);
+                  setReplyDraft("");
+                }}
+                className="h-7 px-3 rounded-lg bg-white/80 text-amber-800 text-[11px] font-semibold border border-amber-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const popup = open && (
     <div
       ref={popupRef}
       style={{ ...popupStyle, zIndex: 9999 }}
-      className="rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] border border-amber-200/80 overflow-hidden w-[min(340px,calc(100vw-16px))] bg-[#FFFBEB]"
+      className="rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] border border-amber-200/80 overflow-hidden w-[min(360px,calc(100vw-16px))] bg-[#FFFBEB]"
+      onContextMenu={(e) => e.preventDefault()}
     >
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-amber-200/70 bg-gradient-to-r from-amber-100 to-amber-50">
         <div className="flex items-center gap-2 min-w-0">
@@ -333,7 +608,10 @@ export default function CommentCell({
               {readOnly ? "Bid Instruction" : "Sticky Notes"}
               {badgeLabel ? ` · ${badgeLabel}` : ""}
             </p>
-            <p className="text-[10px] text-amber-700/80">{count} note{count === 1 ? "" : "s"}</p>
+            <p className="text-[10px] text-amber-700/80">
+              {count} note{count === 1 ? "" : "s"}
+              {canMutate ? " · right-click to reply" : ""}
+            </p>
           </div>
         </div>
         <button
@@ -346,10 +624,12 @@ export default function CommentCell({
         </button>
       </div>
 
-      <div className="max-h-[280px] overflow-y-auto p-2.5 space-y-2 bg-[#FFFDF5]">
+      <div className="max-h-[300px] overflow-y-auto p-2.5 space-y-2 bg-[#FFFDF5]">
         {legacyComment && (
           <div className="rounded-xl border border-amber-200 bg-[#FEF3C7] px-3 py-2.5 shadow-sm rotate-[-0.3deg]">
-            <p className="text-[12px] text-amber-950 leading-snug whitespace-pre-wrap break-words">{legacyComment}</p>
+            <p className="text-[12px] text-amber-950 leading-snug">
+              <NoteRichText text={legacyComment} />
+            </p>
             <p className="text-[9px] text-amber-700/70 mt-1.5 font-medium">Legacy note</p>
           </div>
         )}
@@ -369,108 +649,41 @@ export default function CommentCell({
         )}
 
         {!notesLoading &&
-          displayNotes.map((note, idx) => {
-            const editable = canMutate && !isLegacyNoteId(note.id);
-            const isTech = note.id.startsWith("tech-") || note.id.startsWith("readonly-");
-            return (
+          displayNotes.map((note, idx) => (
+            <div key={note.id} className="space-y-1.5">
               <div
-                key={note.id}
                 className={`rounded-xl border border-amber-200/90 bg-[#FEF3C7] px-3 py-2.5 shadow-sm ${
                   idx % 2 === 0 ? "rotate-[-0.4deg]" : "rotate-[0.35deg]"
                 }`}
               >
-                {editId === note.id ? (
-                  <div className="space-y-2">
-                    <textarea
-                      autoFocus
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      rows={3}
-                      className="w-full text-[12px] rounded-lg border border-amber-300 bg-[#FFFBEB] px-2.5 py-2 outline-none resize-none text-amber-950"
-                    />
-                    <div className="flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => void handleUpdate(note.id)}
-                        disabled={editSaving || !editText.trim()}
-                        className="flex-1 h-7 rounded-lg bg-amber-600 text-white text-[11px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
-                      >
-                        {editSaving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditId(null)}
-                        className="flex-1 h-7 rounded-lg bg-white/80 text-amber-800 text-[11px] font-semibold border border-amber-200"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    {isTech && (
-                      <span className="inline-flex mb-1 text-[9px] font-extrabold uppercase tracking-wide text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded-md">
-                        Tech
-                      </span>
-                    )}
-                    <p className="text-[12px] text-amber-950 leading-snug whitespace-pre-wrap break-words">
-                      {note.text}
-                    </p>
-                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                      {note.createdAt && (
-                        <span className="text-[9px] text-amber-700/70 inline-flex items-center gap-1 mr-auto">
-                          <Clock size={9} />
-                          {fmtTime(note.createdAt)}
-                        </span>
-                      )}
-                      {editable && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditId(note.id);
-                              setEditText(note.text);
-                            }}
-                            className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-white/80 border border-amber-200 text-amber-800 hover:bg-white text-[10px] font-bold"
-                          >
-                            <Pencil size={9} />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDelete(note.id)}
-                            disabled={deleting === note.id}
-                            className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 text-[10px] font-bold disabled:opacity-50"
-                          >
-                            {deleting === note.id ? (
-                              <Loader2 size={9} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={9} />
-                            )}
-                            Del
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {renderNoteBody(note, false)}
               </div>
-            );
-          })}
+
+              {(note.replies?.length ?? 0) > 0 && (
+                <div className="ml-3 pl-2 border-l-2 border-amber-300/80 space-y-1.5">
+                  {note.replies!.map((reply) => (
+                    <div
+                      key={reply.id}
+                      className="rounded-xl border border-amber-200/70 bg-[#FFF7D6] px-2.5 py-2 shadow-sm"
+                    >
+                      {renderNoteBody(reply, true)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
       </div>
 
       {canMutate && (
         <div className="border-t border-amber-200/80 p-3 bg-amber-50/90">
-          <textarea
+          <NoteComposer
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void handleAdd();
-            }}
+            onChange={setDraft}
             rows={2}
             placeholder="Write a sticky note… (Ctrl+Enter)"
-            className="w-full text-[12px] rounded-xl border border-amber-200 bg-[#FFFBEB] px-3 py-2 outline-none resize-none text-amber-950 placeholder:text-amber-400 focus:border-amber-400"
+            onSubmit={() => void handleAdd()}
+            disabled={saving}
           />
           <button
             type="button"
@@ -486,59 +699,105 @@ export default function CommentCell({
     </div>
   );
 
+  const contextMenuPortal =
+    ctxMenu &&
+    createPortal(
+      <div
+        className="fixed inset-0 z-[10000]"
+        onMouseDown={() => setCtxMenu(null)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtxMenu(null);
+        }}
+      >
+        <div
+          role="menu"
+          style={{ position: "fixed", top: ctxMenu.y, left: ctxMenu.x }}
+          className="min-w-[140px] rounded-xl border border-amber-200 bg-white shadow-xl py-1 overflow-hidden"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {!ctxMenu.isReply && (
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full px-3 py-2 text-left text-[12px] font-semibold text-amber-900 hover:bg-amber-50 inline-flex items-center gap-2"
+              onClick={() => {
+                setReplyToId(ctxMenu.noteId);
+                setReplyDraft("");
+                setEditId(null);
+                setCtxMenu(null);
+              }}
+            >
+              <MessageSquareReply size={12} />
+              Reply
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            className="w-full px-3 py-2 text-left text-[12px] font-semibold text-amber-900 hover:bg-amber-50 inline-flex items-center gap-2"
+            onClick={() => {
+              const flat = flattenNotes(displayNotes);
+              const n = flat.find((x) => x.id === ctxMenu.noteId);
+              if (n) {
+                setEditId(n.id);
+                setEditText(n.text);
+                setReplyToId(null);
+              }
+              setCtxMenu(null);
+            }}
+          >
+            <Pencil size={12} />
+            Edit
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="w-full px-3 py-2 text-left text-[12px] font-semibold text-red-600 hover:bg-red-50 inline-flex items-center gap-2"
+            onClick={() => {
+              void handleDelete(ctxMenu.noteId);
+              setCtxMenu(null);
+            }}
+          >
+            <Trash2 size={12} />
+            Delete
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
+
   return (
-    <div className="relative min-w-0 w-full max-w-full">
+    <div className="relative min-w-0 w-full max-w-full flex justify-center sm:justify-start">
       <button
         ref={btnRef}
         type="button"
         onClick={handleOpen}
-        title={count > 0 ? `${count} sticky note${count === 1 ? "" : "s"}` : "Add sticky note"}
-        className={`relative flex flex-col items-start gap-0.5 w-full min-w-0 max-w-full text-left rounded-xl border px-2 py-1.5 transition-all shadow-sm ${
+        title={
+          count > 0
+            ? `${count} sticky note${count === 1 ? "" : "s"}${latestAt ? ` · latest ${fmtTime(latestAt)}` : ""}`
+            : "Add sticky note"
+        }
+        className={`relative inline-flex items-center justify-center gap-1.5 min-w-[44px] h-8 px-2 rounded-xl border transition-all shadow-sm ${
           count > 0
             ? "bg-[#FEF3C7] border-amber-300 text-amber-900 hover:bg-[#FDE68A]"
             : "bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
         }`}
       >
-        <span className="flex items-center gap-1.5 w-full min-w-0">
-          <StickyNote size={12} className="shrink-0 text-amber-700" />
-          {count > 0 ? (
-            <>
-              <span className="text-[10px] font-bold text-amber-800 shrink-0">
-                {badgeLabel || "Note"}
-              </span>
-              {latestAt && (
-                <span className="text-[9px] font-medium text-amber-700/70 tabular-nums whitespace-nowrap truncate">
-                  {fmtTime(latestAt)}
-                </span>
-              )}
-              {!latestText && (
-                <span className="text-[10px] font-semibold text-amber-800/80 truncate">
-                  {count} note{count === 1 ? "" : "s"}
-                </span>
-              )}
-              {olderCount > 0 && (
-                <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums">
-                  +{olderCount}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-[10px] font-bold leading-none">
-              {badgeLabel ? `${badgeLabel} note` : "Add note"}
-            </span>
-          )}
-        </span>
-        {latestText ? (
-          <span
-            className="text-[10px] sm:text-[11px] font-medium text-amber-950/90 line-clamp-2 w-full min-w-0 leading-snug break-words"
-            title={latestText}
-          >
-            {latestText}
+        <StickyNote size={13} className="shrink-0 text-amber-700" />
+        {count > 0 ? (
+          <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums">
+            +{count}
           </span>
-        ) : null}
+        ) : (
+          <span className="text-[10px] font-bold leading-none whitespace-nowrap">
+            {badgeLabel ? `${badgeLabel}` : "Add"}
+          </span>
+        )}
       </button>
 
       {typeof document !== "undefined" && popup && createPortal(popup, document.body)}
+      {typeof document !== "undefined" && contextMenuPortal}
     </div>
   );
 }

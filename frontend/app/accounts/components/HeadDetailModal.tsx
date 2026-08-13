@@ -6,6 +6,7 @@ import type { DatedNote, SubHeadEntry } from "../types";
 import { currency, newRowId, sumSubHeads, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail, ensureExecutiveSalaryDetail } from "../utils/payrollFormula";
 import EmployeeSalaryEditor, { ensureSalaryDetail } from "./EmployeeSalaryEditor";
+import { NoteComposer } from "@/lib/noteRichText";
 import ExecutiveSalaryEditor from "./ExecutiveSalaryEditor";
 import SalesPayrollEmployeeEditor from "./salesPayroll/SalesPayrollEmployeeEditor";
 import {
@@ -365,12 +366,12 @@ export default function HeadDetailModal({
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <textarea
+                    <NoteComposer
                       value={n.text}
-                      onChange={e => updateNote(n.id, { text: e.target.value })}
+                      onChange={(text) => updateNote(n.id, { text })}
                       rows={2}
-                      placeholder="Note…"
-                      className="w-full rounded-lg border border-amber-200 bg-crm-surface px-2 py-1.5 text-xs outline-none resize-none"
+                      placeholder="Note… (Ctrl+B / I / U)"
+                      className="!bg-crm-surface !border-amber-200"
                     />
                   </div>
                 ))

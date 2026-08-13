@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { StickyNote } from "lucide-react";
 import type { DatedNote } from "../types";
 import { normalizeNotes } from "../types";
+import { NoteRichText } from "@/lib/noteRichText";
 
 type AccountsNotesCellProps = {
   notes?: DatedNote[];
@@ -11,7 +13,7 @@ type AccountsNotesCellProps = {
   className?: string;
 };
 
-/** Latest note on top; +N expands older notes history underneath (CSR/Admin style). */
+/** Compact +N sticky chip — same pattern as CommentCell across CRM. */
 export default function AccountsNotesCell({
   notes,
   legacyNote,
@@ -22,51 +24,47 @@ export default function AccountsNotesCell({
   const sorted = [...normalizeNotes(notes, legacyNote, fallbackDate)].sort((a, b) =>
     b.date.localeCompare(a.date),
   );
-  const latest = sorted[0];
-  const older = sorted.slice(1);
+  const count = sorted.length;
 
-  if (!latest) {
+  if (!count) {
     return <span className={`text-crm-text-faint text-xs ${className}`}>—</span>;
   }
 
-  const preview =
-    latest.text.length > 56 ? `${latest.text.slice(0, 56)}…` : latest.text || "—";
-
   return (
-    <div className={`min-w-0 max-w-[220px] ${className}`}>
-      <div className="flex items-start gap-1.5">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold text-amber-700 tabular-nums leading-tight">{latest.date}</p>
-          <p className="text-xs text-crm-text-secondary leading-snug line-clamp-2" title={latest.text}>
-            {preview}
-          </p>
-        </div>
-        {older.length > 0 && (
-          <button
-            type="button"
-            onClick={e => {
-              e.stopPropagation();
-              setOpen(v => !v);
-            }}
-            className="shrink-0 mt-0.5 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md transition-colors"
-            title={open ? "Hide note history" : `Show ${older.length} older note${older.length === 1 ? "" : "s"}`}
-            aria-expanded={open}
-          >
-            +{older.length}
-          </button>
-        )}
-      </div>
+    <div className={`relative min-w-0 ${className}`}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        title={`${count} note${count === 1 ? "" : "s"}`}
+        className="inline-flex items-center justify-center gap-1.5 min-w-11 h-8 px-2 rounded-xl border border-amber-300 bg-[#FEF3C7] text-amber-900 hover:bg-[#FDE68A] shadow-sm transition-all"
+        aria-expanded={open}
+      >
+        <StickyNote size={13} className="shrink-0 text-amber-700" />
+        <span className="inline-flex items-center justify-center min-w-5.5 h-4.5 px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums">
+          +{count}
+        </span>
+      </button>
 
-      {open && older.length > 0 && (
-        <div className="mt-1.5 rounded-lg border border-amber-100 bg-amber-50/60 overflow-hidden">
-          <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-800 border-b border-amber-100">
-            History
-          </p>
-          <ul className="max-h-36 overflow-y-auto divide-y divide-amber-100/80">
-            {older.map(n => (
-              <li key={n.id} className="px-2 py-1.5">
+      {open && (
+        <div
+          className="absolute z-40 mt-1 left-0 min-w-[200px] max-w-[260px] rounded-xl border border-amber-200 bg-[#FFFBEB] shadow-xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2.5 py-1.5 border-b border-amber-100 bg-amber-50">
+            <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide">
+              Notes · {count}
+            </p>
+          </div>
+          <ul className="max-h-40 overflow-y-auto divide-y divide-amber-100/80">
+            {sorted.map((n) => (
+              <li key={n.id} className="px-2.5 py-1.5">
                 <p className="text-[10px] font-bold text-amber-700 tabular-nums">{n.date}</p>
-                <p className="text-[11px] text-crm-text-secondary leading-snug whitespace-pre-wrap">{n.text || "—"}</p>
+                <p className="text-[11px] text-crm-text-secondary leading-snug">
+                  <NoteRichText text={n.text || "—"} />
+                </p>
               </li>
             ))}
           </ul>

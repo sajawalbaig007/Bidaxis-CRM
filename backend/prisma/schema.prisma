@@ -165,11 +165,14 @@ model LeadNote {
   text      String
   createdAt DateTime @default(now())
   leadId    String
+  /** Parent LeadNote id — threaded reply under that sticky. */
+  parentId  String?
 
   lead Lead @relation(fields: [leadId], references: [id])
 
   @@index([leadId])
   @@index([leadId, createdAt])
+  @@index([parentId])
 }
 
 model SubContact {

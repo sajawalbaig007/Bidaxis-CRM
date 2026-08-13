@@ -832,33 +832,56 @@ function ClientsPageContent() {
                               noteHistory={client.noteHistory}
                               noteCount={client.noteCount}
                               comment={client.lastComment === "No comments" ? "" : client.lastComment}
-                              onAddNote={async (id, text) => {
-                                const res = await API.post(`/admin/lead/${id}/notes`, { text });
+                              onAddNote={async (id, text, parentId) => {
+                                const res = await API.post(`/admin/lead/${id}/notes`, {
+                                  text,
+                                  ...(parentId ? { parentId } : {}),
+                                });
                                 const note = res.data?.note;
                                 const entry: NoteEntry = {
                                   id: String(note?.id ?? `tmp-${Date.now()}`),
                                   text: String(note?.text ?? text),
                                   createdAt: String(note?.createdAt ?? new Date().toISOString()),
+                                  parentId: note?.parentId ?? parentId ?? null,
                                 };
-                                setClients(prev => prev.map(c => (
-                                  c.id === id
-                                    ? {
-                                        ...c,
-                                        lastComment: entry.text,
-                                        noteHistory: [entry, ...(c.noteHistory ?? [])],
-                                        noteCount: (c.noteCount ?? c.noteHistory?.length ?? 0) + 1,
-                                      }
-                                    : c
-                                )));
+                                setClients(prev => prev.map(c => {
+                                  if (c.id !== id) return c;
+                                  const hist = c.noteHistory ?? [];
+                                  if (parentId) {
+                                    return {
+                                      ...c,
+                                      noteHistory: hist.map((n) =>
+                                        n.id === parentId
+                                          ? { ...n, replies: [...(n.replies ?? []), entry] }
+                                          : n,
+                                      ),
+                                      noteCount: (c.noteCount ?? hist.length) + 1,
+                                    };
+                                  }
+                                  return {
+                                    ...c,
+                                    lastComment: entry.text,
+                                    noteHistory: [entry, ...hist],
+                                    noteCount: (c.noteCount ?? hist.length) + 1,
+                                  };
+                                }));
                                 return entry;
                               }}
                               onNoteUpdated={(leadId, noteId, text, createdAt) => {
                                 const at = createdAt ?? new Date().toISOString();
                                 setClients(prev => prev.map(c => {
                                   if (c.id !== leadId) return c;
-                                  const noteHistory = [...(c.noteHistory ?? [])]
-                                    .map(n => (n.id === noteId ? { ...n, text, createdAt: at } : n))
-                                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                                  const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
+                                    notes.map((n) => {
+                                      if (n.id === noteId) return { ...n, text, createdAt: at };
+                                      if (n.replies?.length) {
+                                        return { ...n, replies: patchDeep(n.replies) };
+                                      }
+                                      return n;
+                                    });
+                                  const noteHistory = patchDeep([...(c.noteHistory ?? [])]).sort(
+                                    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                                  );
                                   return {
                                     ...c,
                                     noteHistory,
@@ -869,11 +892,23 @@ function ClientsPageContent() {
                               onNoteDeleted={(leadId, noteId) => {
                                 setClients(prev => prev.map(c => {
                                   if (c.id !== leadId) return c;
-                                  const noteHistory = (c.noteHistory ?? []).filter(n => n.id !== noteId);
+                                  const strip = (notes: NoteEntry[]): NoteEntry[] =>
+                                    notes
+                                      .filter((n) => n.id !== noteId)
+                                      .map((n) => ({
+                                        ...n,
+                                        replies: (n.replies ?? []).filter((r) => r.id !== noteId),
+                                      }));
+                                  const noteHistory = strip(c.noteHistory ?? []);
+                                  const deep =
+                                    noteHistory.reduce(
+                                      (s, n) => s + 1 + (n.replies?.length ?? 0),
+                                      0,
+                                    );
                                   return {
                                     ...c,
                                     noteHistory,
-                                    noteCount: Math.max(0, (c.noteCount ?? noteHistory.length + 1) - 1),
+                                    noteCount: deep,
                                     lastComment: noteHistory[0]?.text ?? "No comments",
                                   };
                                 }));

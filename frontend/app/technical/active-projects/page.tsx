@@ -22,6 +22,7 @@ import StateFilterDropdown from "@/app/csr/components/shared/StateFilterDropdown
 import PhoneAreaCodeFilterInput from "@/app/csr/components/shared/PhoneAreaCodeFilterInput";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
+import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
 import { useFixedPopover } from "@/app/csr/hooks/useFixedPopover";
 import {
   TECHNICAL_PROJECT_COLS,
@@ -122,8 +123,10 @@ const formatDate = (iso: string | null | undefined) => {
   });
 };
 
-function notesToHistory(notes?: { id: string; text: string; createdAt: string }[]): NoteEntry[] {
-  return (notes ?? []).map((n) => ({ id: n.id, text: n.text, createdAt: n.createdAt }));
+function notesToHistory(
+  notes?: { id: string; text: string; createdAt: string; parentId?: string | null }[],
+): NoteEntry[] {
+  return buildNoteHistory({ notes: notes ?? [] }).noteHistory;
 }
 
 function projectToWorkbench(p: Project): ProjectWorkbenchData {
@@ -1008,7 +1011,7 @@ export function TechnicalActiveProjectsPageInner({
     if (assignProject) loadEstimators();
   }, [assignProject, loadEstimators]);
 
-  const addNote = async (id: string, text: string) => {
+  const addNote = async (id: string, text: string, _parentId?: string) => {
     const res = await API.post(`/admin/lead/${id}/technical-notes`, { text });
     const note = res.data.note as { id: string; text: string; createdAt: string };
     const entry: NoteEntry = { id: note.id, text: note.text, createdAt: note.createdAt };

@@ -313,20 +313,38 @@ export default function NotInterestedPage() {
     showToast("Client closed & moved to Projects.");
   };
 
-  const addNote = async (id: string, text: string) => {
-    const res = await API.post(`/csr/lead/${id}/notes`, { text });
+  const addNote = async (id: string, text: string, parentId?: string) => {
+    const res = await API.post(`/csr/lead/${id}/notes`, {
+      text,
+      ...(parentId ? { parentId } : {}),
+    });
     const note = res.data.note
-      ? { id: res.data.note.id, text: res.data.note.text, createdAt: res.data.note.createdAt }
-      : { id: Date.now().toString(), text, createdAt: new Date().toISOString() };
-    setLeads(prev => prev.map(l =>
-      l.id === id
-        ? {
-            ...l,
-            noteCount: (l.noteCount ?? 0) + 1,
-            noteHistory: [note, ...(l.noteHistory ?? [])],
-          }
-        : l
-    ));
+      ? {
+          id: res.data.note.id,
+          text: res.data.note.text,
+          createdAt: res.data.note.createdAt,
+          parentId: res.data.note.parentId ?? parentId ?? null,
+        }
+      : { id: Date.now().toString(), text, createdAt: new Date().toISOString(), parentId: parentId || null };
+    setLeads(prev => prev.map(l => {
+      if (l.id !== id) return l;
+      const hist = l.noteHistory ?? [];
+      if (parentId) {
+        return {
+          ...l,
+          noteCount: (l.noteCount ?? 0) + 1,
+          noteHistory: hist.map((n) =>
+            n.id === parentId ? { ...n, replies: [...(n.replies ?? []), note] } : n,
+          ),
+        };
+      }
+      return {
+        ...l,
+        noteCount: (l.noteCount ?? 0) + 1,
+        noteHistory: [note, ...hist],
+      };
+    }));
+    return note;
   };
 
   return (
