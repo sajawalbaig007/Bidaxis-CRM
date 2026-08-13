@@ -37,10 +37,14 @@ export const COL_7_DASHBOARD = ["15%", "11%", "11%", "11%", "10%", "12%", "30%"]
 export const COL_8_ADMIN = ["22%", "10%", "10%", "10%", "8%", "8%", "20%", "12%"] as const;
 /** Admin leads — Contact folded into Client column */
 export const COL_7_ADMIN = ["28%", "12%", "12%", "8%", "8%", "20%", "12%"] as const;
+/** Admin leads — Company + Contact folded into Client */
+export const COL_6_ADMIN = ["34%", "14%", "9%", "9%", "22%", "12%"] as const;
 export const COL_9_CLOSED = ["20%", "10%", "8%", "10%", "10%", "9%", "8%", "14%", "11%"] as const;
 export const COL_8_CLOSED = ["24%", "12%", "8%", "12%", "8%", "8%", "16%", "12%"] as const;
+export const COL_7_CLOSED = ["30%", "10%", "14%", "9%", "9%", "16%", "12%"] as const;
 export const COL_9_SCHEDULE_ADMIN = ["20%", "10%", "10%", "10%", "8%", "8%", "8%", "15%", "11%"] as const;
 export const COL_8_SCHEDULE_ADMIN = ["26%", "12%", "12%", "10%", "8%", "8%", "14%", "10%"] as const;
+export const COL_7_SCHEDULE_ADMIN = ["32%", "14%", "12%", "9%", "9%", "14%", "10%"] as const;
 
 export function CsrColGroup({ widths }: { widths: readonly string[] }) {
   return (
