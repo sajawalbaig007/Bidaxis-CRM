@@ -12,6 +12,8 @@ export const CSR_TD = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-hidden"
 /** Phone / email cells — allow +N badge and popover menus to show */
 export const CSR_TD_POPOVER = "py-3 px-1.5 sm:px-2 align-middle max-w-0 overflow-visible";
 export const CSR_TD_TOP = "py-3 px-1.5 sm:px-2 align-top max-w-0 overflow-hidden";
+/** Top-aligned + allow +N / popover overflow (Client column with contact/email chips) */
+export const CSR_TD_TOP_POPOVER = "py-3 px-1.5 sm:px-2 align-top max-w-0 overflow-visible";
 /** Shrink-wrap action column so buttons sit under the header */
 export const CSR_TH_ACTION = `${CSR_TH} w-[1%] whitespace-nowrap`;
 export const CSR_TD_ACTION = `${CSR_TD_FLUID} w-[1%] whitespace-nowrap`;
@@ -33,8 +35,12 @@ export const COL_7_INTERESTED = ["18%", "13%", "14%", "14%", "12%", "10%", "19%"
 export const COL_6_DASHBOARD = ["20%", "13%", "13%", "12%", "12%", "30%"] as const;
 export const COL_7_DASHBOARD = ["15%", "11%", "11%", "11%", "10%", "12%", "30%"] as const;
 export const COL_8_ADMIN = ["22%", "10%", "10%", "10%", "8%", "8%", "20%", "12%"] as const;
+/** Admin leads — Contact folded into Client column */
+export const COL_7_ADMIN = ["28%", "12%", "12%", "8%", "8%", "20%", "12%"] as const;
 export const COL_9_CLOSED = ["20%", "10%", "8%", "10%", "10%", "9%", "8%", "14%", "11%"] as const;
+export const COL_8_CLOSED = ["24%", "12%", "8%", "12%", "8%", "8%", "16%", "12%"] as const;
 export const COL_9_SCHEDULE_ADMIN = ["20%", "10%", "10%", "10%", "8%", "8%", "8%", "15%", "11%"] as const;
+export const COL_8_SCHEDULE_ADMIN = ["26%", "12%", "12%", "10%", "8%", "8%", "14%", "10%"] as const;
 
 export function CsrColGroup({ widths }: { widths: readonly string[] }) {
   return (

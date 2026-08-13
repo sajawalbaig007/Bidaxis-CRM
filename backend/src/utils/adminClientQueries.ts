@@ -200,6 +200,10 @@ export const ADMIN_LEAD_LIST_SELECT = {
 
   uploadFile: { select: { companyName: true } },
 
+  subContacts: {
+    select: { id: true, phone: true, email: true, name: true },
+  },
+
   _count: { select: { notes: true } },
 
   notes: {
