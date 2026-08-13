@@ -474,7 +474,7 @@ export default function ImportantCallsPage() {
                         />
                       </td>
                       <td className={CSR_TD}>
-                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
                         <span className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">Important</span>
@@ -599,7 +599,7 @@ export default function ImportantCallsPage() {
                         </div>
                       </td>
                       <td className={CSR_TD}>
-                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
                         <div className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap bg-[#EAF5FF] text-[#0B84F3]">
@@ -736,7 +736,7 @@ export default function ImportantCallsPage() {
                         />
                       </td>
                       <td className={CSR_TD}>
-                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
+                        <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
                         <div className="bg-[#FFF1F3] text-[#B8112D] px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold w-fit whitespace-nowrap">
