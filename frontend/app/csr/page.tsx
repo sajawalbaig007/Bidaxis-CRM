@@ -40,6 +40,7 @@ import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/st
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
 import { Lead } from "./types/lead";
+import type { NoteEntry } from "./hooks/useLeadsData";
 import {
   STATUS_NO_OWNER,
   STATUS_NOT_IN_SERVICE,
@@ -594,7 +595,7 @@ export default function CSRPage() {
                           const at = createdAt ?? new Date().toISOString();
                           setLeads(prev => prev.map(l => {
                             if (l.id !== leadId) return l;
-                            const patchDeep = (notes: typeof l.noteHistory) =>
+                            const patchDeep = (notes: NoteEntry[]): NoteEntry[] =>
                               notes.map((n) => {
                                 if (n.id === noteId) return { ...n, text, createdAt: at };
                                 if (n.replies?.length) return { ...n, replies: patchDeep(n.replies) };
@@ -609,7 +610,7 @@ export default function CSRPage() {
                         onNoteDeleted={(leadId, noteId) => {
                           setLeads(prev => prev.map(l => {
                             if (l.id !== leadId) return l;
-                            const strip = (notes: typeof l.noteHistory) =>
+                            const strip = (notes: NoteEntry[]): NoteEntry[] =>
                               notes
                                 .filter((n) => n.id !== noteId)
                                 .map((n) => ({
