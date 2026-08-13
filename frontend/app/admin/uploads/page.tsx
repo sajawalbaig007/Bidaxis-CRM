@@ -13,6 +13,8 @@ import {
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
+import UploadActionBento from "../components/uploads/UploadActionBento";
+import UploadAnalyticsBento from "../components/uploads/UploadAnalyticsBento";
 import API from "@/lib/api";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
@@ -204,8 +206,8 @@ export default function UploadPage() {
   const [previewLive,        setPreviewLive]        = useState(false);
   const [resultsExpanded,    setResultsExpanded]    = useState(true);
   const [sourcesManageOpen, setSourcesManageOpen]  = useState(false);
-  const [sourceHistoryOpen, setSourceHistoryOpen]    = useState(true);
-  const [latestDistributionOpen, setLatestDistributionOpen] = useState(true);
+  const [sourceHistoryOpen, setSourceHistoryOpen]    = useState(false);
+  const [latestDistributionOpen, setLatestDistributionOpen] = useState(false);
 
   const [showCSRModal,  setShowCSRModal]  = useState(false);
   const [selectedFile,  setSelectedFile]  = useState<File | null>(null);
@@ -2002,18 +2004,19 @@ export default function UploadPage() {
         <DashboardNavbar />
 
         {/* ── HEADER ── */}
-        <div className="mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
+        <div className="mb-5 sm:mb-7 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800">
-              Upload & Distribute Leads
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Data intake</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
+              Upload &amp; Distribute
             </h1>
-            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">
-              Upload Excel or CSV files and auto distribute leads equally among active CSRs.
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">
+              Pick an action card, download the template, then drop your Excel / CSV. Leads auto-split across active CSRs.
             </p>
           </div>
           <button
             onClick={openHistoryModal}
-            className="inline-flex items-center justify-center gap-2 h-10 sm:h-12 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#B8112D] text-white font-semibold text-sm hover:bg-[#a30f27] transition-all shrink-0"
+            className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-2xl bg-[#B8112D] text-white font-semibold text-sm shadow-md shadow-[#B8112D]/25 hover:bg-[#a30f27] transition-all shrink-0"
           >
             <History size={16} />
             Upload History
@@ -2021,26 +2024,231 @@ export default function UploadPage() {
         </div>
 
         {/* ── STAT CARDS ── */}
-        {/* 2-col mobile → 2-col sm → 4-col xl */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mb-4 sm:mb-6">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-7">
           {[
-            { label: "Uploaded Files",    value: files.length,                                    bg: "bg-[#F8ECEF]",  color: "text-[#B8112D]",  icon: <FileText size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
-            { label: "Distributed",       value: files.filter(f => f.status === "Distributed").length, bg: "bg-green-100", color: "text-green-600",  icon: <CheckCircle2 size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
-            { label: "Total Leads",       value: latestTotalLeads,                                bg: "bg-blue-100",   color: "text-blue-600",   icon: <Database size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
-            { label: "Active CSRs",       value: latestDistribution.length,                      bg: "bg-yellow-100", color: "text-yellow-600", icon: <Users size={20} className="sm:w-6 sm:h-6 lg:w-[26px] lg:h-[26px]" /> },
+            { label: "Uploaded Files",    value: files.length,                                    tint: "from-[#FFF1F3] to-white", ring: "border-[#F3C6CE]",  color: "text-[#B8112D]",  icon: <FileText size={20} /> },
+            { label: "Distributed",       value: files.filter(f => f.status === "Distributed").length, tint: "from-emerald-50 to-white", ring: "border-emerald-100", color: "text-emerald-600",  icon: <CheckCircle2 size={20} /> },
+            { label: "Total Leads",       value: latestTotalLeads,                                tint: "from-sky-50 to-white", ring: "border-sky-100", color: "text-sky-600",   icon: <Database size={20} /> },
+            { label: "Active CSRs",       value: latestDistribution.length,                      tint: "from-amber-50 to-white", ring: "border-amber-100", color: "text-amber-600", icon: <Users size={20} /> },
           ].map((c, i) => (
-            <div key={i} className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-3 sm:p-4 lg:p-5 shadow-sm">
+            <div
+              key={i}
+              className={`rounded-2xl border bg-gradient-to-br ${c.tint} ${c.ring} p-3.5 sm:p-4 shadow-sm`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-[11px] sm:text-sm text-gray-400 truncate">{c.label}</p>
-                  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 mt-1 sm:mt-2">{c.value}</h2>
+                  <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-gray-400 truncate">{c.label}</p>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-[#0F172A] mt-1 tabular-nums">{c.value}</h2>
                 </div>
-                <div className={`w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl sm:rounded-2xl ${c.bg} ${c.color} flex items-center justify-center shrink-0`}>
+                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/80 ${c.color} flex items-center justify-center shrink-0 shadow-sm`}>
                   {c.icon}
                 </div>
               </div>
             </div>
           ))}
+        </div>
+
+        <UploadAnalyticsBento
+          sources={uploadSources}
+          csrDistribution={latestDistribution}
+          totalLeads={latestTotalLeads}
+          filesCount={files.length}
+          distributedCount={files.filter(f => f.status === "Distributed").length}
+        />
+
+        {/* ── UPLOAD BENTO (shuffle → expand) ── */}
+        <div className="mb-5 sm:mb-7 rounded-[2rem] border border-gray-100/80 bg-white/70 p-4 sm:p-6 shadow-sm backdrop-blur-sm">
+          <UploadActionBento
+            items={[
+              {
+                id: "leads",
+                label: "New Leads",
+                shortLabel: "Leads",
+                accent: "#B8112D",
+                span: "hero",
+                content: (
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-[#FFF1F3] via-white to-white">
+                    <div
+                      onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
+                      className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
+                        dragging ? "border-[#B8112D] bg-white" : "border-[#F3C6CE]/80 hover:border-[#B8112D] bg-white/70"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-[#FFF1F3] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <UploadCloud size={28} className="text-[#B8112D]" />
+                        </div>
+                        <h3 className="text-base font-bold text-[#0F172A]">Upload New Leads</h3>
+                        <p className="text-xs text-gray-400 mt-1.5 max-w-[240px] leading-relaxed">
+                          Call Data (today) or Clients (New / Old). Download the matching template first.
+                        </p>
+                        <span className="mt-4 inline-flex bg-[#B8112D] text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm shadow-[#B8112D]/25">
+                          Browse Files
+                        </span>
+                      </div>
+                      <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv"
+                        onChange={e => openCSRModal(e.target.files)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.callData} className="border-[#0B84F3]/30 text-[#0B84F3] bg-[#EAF5FF]" />
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.newClient} className="border-green-300 text-green-700 bg-green-50" />
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.oldClient} className="border-amber-300 text-amber-700 bg-amber-50" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "important",
+                label: "Important",
+                shortLabel: "VIP",
+                accent: "#D97706",
+                span: "wide",
+                content: (
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-amber-50 via-white to-white">
+                    <div
+                      onClick={(e) => { e.stopPropagation(); inputRefImportant.current?.click(); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDraggingImportant(true); }}
+                      onDragLeave={() => setDraggingImportant(false)}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); setDraggingImportant(false); openImportantModal(e.dataTransfer.files); }}
+                      className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
+                        draggingImportant ? "border-amber-500 bg-white" : "border-amber-200 hover:border-amber-400 bg-white/70"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <PhoneCall size={26} className="text-amber-600" />
+                        </div>
+                        <h3 className="text-base font-bold text-[#0F172A]">Previous Important Clients</h3>
+                        <p className="text-xs text-gray-400 mt-1.5 max-w-[240px] leading-relaxed">
+                          Known / VIP clients + Notes — status <span className="font-semibold text-amber-600">Important</span>.
+                        </p>
+                        <span className="mt-4 inline-flex bg-amber-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
+                          Browse Files
+                        </span>
+                      </div>
+                      <input ref={inputRefImportant} type="file" hidden accept=".xlsx,.xls,.csv"
+                        onChange={e => openImportantModal(e.target.files)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.important} className="border-amber-300 text-amber-700 bg-amber-50" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "reassign",
+                label: "Reassign",
+                shortLabel: "Move",
+                accent: "#7C3AED",
+                span: "normal",
+                content: (
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-violet-50 via-white to-white">
+                    <div
+                      onClick={(e) => { e.stopPropagation(); void openReassignModal(); }}
+                      className="border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group border-violet-200 hover:border-violet-400 bg-white/70 hover:bg-white"
+                    >
+                      <div className="flex flex-col items-center text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <ArrowLeftRight size={26} className="text-violet-600" />
+                        </div>
+                        <h3 className="text-base font-bold text-[#0F172A]">Reassign CSR Leads</h3>
+                        <p className="text-xs text-gray-400 mt-1.5 max-w-[240px] leading-relaxed">
+                          From CSR + page → To CSR(s) + page. Multi-CSR = equal split.
+                        </p>
+                        <span className="mt-4 inline-flex bg-violet-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
+                          Open Reassign
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50 text-[10px] font-semibold text-violet-700">
+                        Source &amp; destination · No Excel
+                      </span>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "interested",
+                label: "Interested",
+                shortLabel: "Star",
+                accent: "#059669",
+                span: "normal",
+                content: (
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-emerald-50 via-white to-white">
+                    <div
+                      onClick={(e) => { e.stopPropagation(); inputRefInterested.current?.click(); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDraggingInterested(true); }}
+                      onDragLeave={() => setDraggingInterested(false)}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); setDraggingInterested(false); openInterestedModal(e.dataTransfer.files); }}
+                      className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
+                        draggingInterested ? "border-emerald-500 bg-white" : "border-emerald-200 hover:border-emerald-400 bg-white/70"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <Star size={26} className="text-emerald-600" />
+                        </div>
+                        <h3 className="text-base font-bold text-[#0F172A]">Interested Clients</h3>
+                        <p className="text-xs text-gray-400 mt-1.5 max-w-[240px] leading-relaxed">
+                          Interested Service + Notes — status <span className="font-semibold text-emerald-600">Interested</span>.
+                        </p>
+                        <span className="mt-4 inline-flex bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
+                          Browse Files
+                        </span>
+                      </div>
+                      <input ref={inputRefInterested} type="file" hidden accept=".xlsx,.xls,.csv"
+                        onChange={e => openInterestedModal(e.target.files)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.interested} className="border-emerald-300 text-emerald-700 bg-emerald-50" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "active",
+                label: "Active Projects",
+                shortLabel: "Active",
+                accent: "#4F46E5",
+                span: "normal",
+                content: (
+                  <div className="p-4 sm:p-5 h-full bg-gradient-to-br from-indigo-50 via-white to-white">
+                    <div
+                      onClick={(e) => { e.stopPropagation(); inputRefActive.current?.click(); }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDraggingActive(true); }}
+                      onDragLeave={() => setDraggingActive(false)}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); setDraggingActive(false); openActiveModal(e.dataTransfer.files); }}
+                      className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition-all cursor-pointer group ${
+                        draggingActive ? "border-indigo-500 bg-white" : "border-indigo-200 hover:border-indigo-400 bg-white/70"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center text-center">
+                        <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <Briefcase size={26} className="text-indigo-600" />
+                        </div>
+                        <h3 className="text-base font-bold text-[#0F172A]">Active Projects</h3>
+                        <p className="text-xs text-gray-400 mt-1.5 max-w-[240px] leading-relaxed">
+                          Client Code + Project Detail + Quotation — ongoing projects.
+                        </p>
+                        <span className="mt-4 inline-flex bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold">
+                          Browse Files
+                        </span>
+                      </div>
+                      <input ref={inputRefActive} type="file" hidden accept=".xlsx,.xls,.csv"
+                        onChange={e => openActiveModal(e.target.files)} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                      <TemplateDownloadLink {...UPLOAD_TEMPLATES.active} className="border-indigo-300 text-indigo-700 bg-indigo-50" />
+                    </div>
+                  </div>
+                ),
+              },
+            ]}
+          />
         </div>
 
         {/* ── SOURCE HISTORY (admin only — CSRs never see this) ── */}
@@ -2301,167 +2509,6 @@ export default function UploadPage() {
             ))}
           </div>
           )}
-        </div>
-
-        {/* ── UPLOAD BOXES — shared grid (incl. reassign) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
-
-          {/* Regular leads upload */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-            <div
-              onClick={() => inputRef.current?.click()}
-              onDragOver={e => { e.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={e => { e.preventDefault(); setDragging(false); openCSRModal(e.dataTransfer.files); }}
-              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
-                dragging ? "border-[#B8112D] bg-[#FFF6F8]" : "border-gray-200 hover:border-[#B8112D]"
-              }`}
-            >
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#F8ECEF] flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
-                  <UploadCloud size={28} className="text-[#B8112D] sm:w-8 sm:h-8" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-800">Upload New Leads</h3>
-                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Call Data (today) or Clients (New / Old). Download the matching template first.
-                </p>
-                <button className="mt-4 bg-[#B8112D] hover:bg-[#a30f27] transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
-                  Browse Files
-                </button>
-              </div>
-              <input ref={inputRef} type="file" hidden accept=".xlsx,.xls,.csv"
-                onChange={e => openCSRModal(e.target.files)} />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-[10px] text-gray-400 font-medium w-full text-center sm:w-auto sm:mr-1">Download format:</span>
-              <TemplateDownloadLink {...UPLOAD_TEMPLATES.callData} className="border-[#0B84F3]/30 text-[#0B84F3] bg-[#EAF5FF]" />
-              <TemplateDownloadLink {...UPLOAD_TEMPLATES.newClient} className="border-green-300 text-green-700 bg-green-50" />
-              <TemplateDownloadLink {...UPLOAD_TEMPLATES.oldClient} className="border-amber-300 text-amber-700 bg-amber-50" />
-            </div>
-          </div>
-
-          {/* Importants / previous clients upload */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-            <div
-              onClick={() => inputRefImportant.current?.click()}
-              onDragOver={e => { e.preventDefault(); setDraggingImportant(true); }}
-              onDragLeave={() => setDraggingImportant(false)}
-              onDrop={e => { e.preventDefault(); setDraggingImportant(false); openImportantModal(e.dataTransfer.files); }}
-              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
-                draggingImportant ? "border-amber-500 bg-amber-50" : "border-amber-200 hover:border-amber-400"
-              }`}
-            >
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
-                  <PhoneCall size={26} className="text-amber-600 sm:w-7 sm:h-7" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-800">Previous Important Clients</h3>
-                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Known / VIP clients + Notes — status <span className="font-semibold text-amber-600">Important</span>.
-                </p>
-                <button className="mt-4 bg-amber-500 hover:bg-amber-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
-                  Browse Files
-                </button>
-              </div>
-              <input ref={inputRefImportant} type="file" hidden accept=".xlsx,.xls,.csv"
-                onChange={e => openImportantModal(e.target.files)} />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <TemplateDownloadLink {...UPLOAD_TEMPLATES.important} className="border-amber-300 text-amber-700 bg-amber-50" />
-            </div>
-          </div>
-
-          {/* Reassign between CSRs — same card shell as uploads */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm md:col-span-2 xl:col-span-1">
-            <div
-              onClick={() => void openReassignModal()}
-              className="border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group border-violet-200 hover:border-violet-400 hover:bg-violet-50/40"
-            >
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-violet-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
-                  <ArrowLeftRight size={26} className="text-violet-600 sm:w-7 sm:h-7" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-800">Reassign CSR Leads</h3>
-                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  From CSR + page → To CSR(s) + page. Multi-CSR = equal split.
-                </p>
-                <button
-                  type="button"
-                  className="mt-4 bg-violet-600 hover:bg-violet-700 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium"
-                >
-                  Open Reassign
-                </button>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50 text-[10px] font-semibold text-violet-700">
-                Source &amp; destination page · No Excel
-              </span>
-            </div>
-          </div>
-
-          {/* Interested clients uploads */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-            <div
-              onClick={() => inputRefInterested.current?.click()}
-              onDragOver={e => { e.preventDefault(); setDraggingInterested(true); }}
-              onDragLeave={() => setDraggingInterested(false)}
-              onDrop={e => { e.preventDefault(); setDraggingInterested(false); openInterestedModal(e.dataTransfer.files); }}
-              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
-                draggingInterested ? "border-emerald-500 bg-emerald-50" : "border-emerald-200 hover:border-emerald-400"
-              }`}
-            >
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
-                  <Star size={26} className="text-emerald-600 sm:w-7 sm:h-7" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-800">Interested Clients</h3>
-                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Interested Service + Notes — status <span className="font-semibold text-emerald-600">Interested</span>.
-                </p>
-                <button className="mt-4 bg-emerald-500 hover:bg-emerald-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
-                  Browse Files
-                </button>
-              </div>
-              <input ref={inputRefInterested} type="file" hidden accept=".xlsx,.xls,.csv"
-                onChange={e => openInterestedModal(e.target.files)} />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <TemplateDownloadLink {...UPLOAD_TEMPLATES.interested} className="border-emerald-300 text-emerald-700 bg-emerald-50" />
-            </div>
-          </div>
-
-          {/* Active projects uploads */}
-          <div className="bg-white rounded-2xl lg:rounded-3xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-            <div
-              onClick={() => inputRefActive.current?.click()}
-              onDragOver={e => { e.preventDefault(); setDraggingActive(true); }}
-              onDragLeave={() => setDraggingActive(false)}
-              onDrop={e => { e.preventDefault(); setDraggingActive(false); openActiveModal(e.dataTransfer.files); }}
-              className={`border-2 border-dashed rounded-2xl lg:rounded-3xl p-6 sm:p-8 transition-all cursor-pointer group ${
-                draggingActive ? "border-indigo-500 bg-indigo-50" : "border-indigo-200 hover:border-indigo-400"
-              }`}
-            >
-              <div className="flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-indigo-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-105 transition-all">
-                  <Briefcase size={26} className="text-indigo-600 sm:w-7 sm:h-7" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-800">Active Projects</h3>
-                <p className="text-xs sm:text-sm text-gray-400 mt-1.5 sm:mt-2 max-w-xs leading-relaxed">
-                  Client Code + Project Detail + Quotation — ongoing projects.
-                </p>
-                <button className="mt-4 bg-indigo-500 hover:bg-indigo-600 transition-all text-white px-5 py-2.5 rounded-xl sm:rounded-2xl text-sm font-medium">
-                  Browse Files
-                </button>
-              </div>
-              <input ref={inputRefActive} type="file" hidden accept=".xlsx,.xls,.csv"
-                onChange={e => openActiveModal(e.target.files)} />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <TemplateDownloadLink {...UPLOAD_TEMPLATES.active} className="border-indigo-300 text-indigo-700 bg-indigo-50" />
-            </div>
-          </div>
-
         </div>
 
         {/* ── FILES LISTs ── */}

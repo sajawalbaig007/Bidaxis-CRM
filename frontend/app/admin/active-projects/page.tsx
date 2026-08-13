@@ -11,6 +11,7 @@ import {
   Plus, GitBranch, CheckCircle2, Download, Upload,
 } from "lucide-react";
 
+import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import ProjectWorkbenchModal from "@/app/components/projects/ProjectWorkbenchModal";
@@ -1369,12 +1370,13 @@ export default function AdminProjectsPage() {
 
           {!hideClientFinanceCols && (
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm w-full sm:w-auto">
-                <span className="text-[11px] text-gray-400 uppercase shrink-0">Month</span>
+              <div className="relative flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white shadow-sm w-full sm:w-auto sm:min-w-[200px]">
+                <Calendar size={14} className="text-gray-400 shrink-0" />
                 <input
                   type="month"
                   value={monthFilter}
                   onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+                  aria-label="Filter by month"
                   className="outline-none bg-transparent text-sm font-semibold text-[#0F172A] min-w-0 flex-1"
                 />
                 {monthFilter ? (
@@ -1386,7 +1388,7 @@ export default function AdminProjectsPage() {
                     Clear
                   </button>
                 ) : null}
-              </label>
+              </div>
               <div className="relative w-full sm:w-auto">
                 <select
                   value={paymentTypeFilter}
@@ -1413,39 +1415,25 @@ export default function AdminProjectsPage() {
           )}
         </div>
 
-        {/* ALL / ACTIVE / COMPLETED TABS */}
-        <div className="flex flex-wrap gap-2 mb-4 sm:mb-5">
-          {([
-            { key: "all" as const,       label: "All Projects",       count: allProjects.length,       sub: "New, old, completed & in-progress" },
-            { key: "active" as const,    label: "Active Projects",    count: activeProjects.length,    sub: "Currently in progress only" },
-            { key: "completed" as const, label: "Completed",          count: completedProjects.length, sub: "Final submission marked done by Admin" },
-          ]).map(tab => {
-            const active = projectTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => { setProjectTab(tab.key); setPage(1); }}
-                className={`flex flex-col items-start px-4 py-3 rounded-xl sm:rounded-2xl border-2 transition-all text-left min-w-[140px] sm:min-w-[180px] ${
-                  active
-                    ? "border-[#B8112D] bg-[#FFF1F3] shadow-sm"
-                    : "border-gray-100 bg-white hover:border-gray-200"
-                }`}
-              >
-                <div className="flex items-center gap-2 w-full">
-                  <span className={`text-sm font-bold ${active ? "text-[#B8112D]" : "text-gray-800"}`}>
-                    {tab.label}
-                  </span>
-                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-lg ${
-                    active ? "bg-[#B8112D] text-white" : "bg-gray-100 text-gray-600"
-                  }`}>
-                    {tab.count}
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-xs text-gray-400 mt-1 leading-snug">{tab.sub}</p>
-              </button>
-            );
-          })}
+        {/* ALL / ACTIVE / COMPLETED — sliding capsule */}
+        <div className="mb-4 sm:mb-5">
+          <CapsuleTabs
+            activeKey={projectTab}
+            onChange={(key) => { setProjectTab(key); setPage(1); }}
+            accent="#B8112D"
+            tabs={[
+              { key: "all", label: "All Projects", shortLabel: "All", count: allProjects.length },
+              { key: "active", label: "Active Projects", shortLabel: "Active", count: activeProjects.length },
+              { key: "completed", label: "Completed", shortLabel: "Done", count: completedProjects.length },
+            ]}
+          />
+          <p className="mt-2 text-[11px] sm:text-xs text-gray-400">
+            {projectTab === "all"
+              ? "New, old, completed & in-progress"
+              : projectTab === "active"
+                ? "Currently in progress only"
+                : "Final submission marked done by Admin"}
+          </p>
         </div>
 
         <ProjectsSection
