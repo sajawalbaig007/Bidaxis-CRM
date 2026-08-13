@@ -1,6 +1,8 @@
 /** Map API lead row → admin leads table Client shape */
 
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
+import { collectLeadEmails } from "@/app/csr/utils/parseEmails";
+import { collectLeadPhones } from "@/app/csr/utils/parsePhones";
 import { adminLeadStatusLabel } from "./leadStatus";
 
 export function formatAdminLead(lead: {
@@ -26,6 +28,7 @@ export function formatAdminLead(lead: {
   state?: string | null;
   uploadFile?: { companyName?: string };
   csr?: { name?: string; csrCode?: string | null };
+  subContacts?: { id?: string; phone?: string | null; email?: string | null; name?: string }[];
   notes?: { id?: string; text: string; createdAt?: string; parentId?: string | null }[];
   latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   _count?: { notes?: number };
@@ -34,6 +37,8 @@ export function formatAdminLead(lead: {
   clientName: string;
   email: string;
   contact: string;
+  contactPhones: string[];
+  emails: string[];
   company: string;
   website: string;
   parentCompany: string;
@@ -54,6 +59,7 @@ export function formatAdminLead(lead: {
   state: string;
   noteCount: number;
   noteHistory: { id: string; text: string; createdAt: string; parentId?: string | null; replies?: { id: string; text: string; createdAt: string; parentId?: string | null }[] }[];
+  createdAt: string;
 } {
   const rawStatus = (lead.status || "pending").toLowerCase();
   const raw = lead.important && rawStatus !== "important" ? "important" : rawStatus;
@@ -84,11 +90,29 @@ export function formatAdminLead(lead: {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   const latestNoteText = latestFlat?.text || lead.comments?.trim() || "";
 
+  let createdLabel = "";
+  if (lead.createdAt) {
+    try {
+      createdLabel = new Date(lead.createdAt).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      createdLabel = lead.createdAt.split("T")[0] || "";
+    }
+  }
+
+  const contactPhones = collectLeadPhones(lead.phone, lead.subContacts);
+  const emails = collectLeadEmails(lead.email, lead.subContacts);
+
   return {
     id: lead.id,
     clientName: displayName,
-    email: lead.email?.trim() || "N/A",
-    contact: lead.phone?.trim() || "N/A",
+    email: emails[0] || lead.email?.trim() || "N/A",
+    contact: contactPhones[0] || lead.phone?.trim() || "N/A",
+    contactPhones,
+    emails,
     company: displayCompany,
     website: lead.website?.trim() || "",
     parentCompany: lead.uploadFile?.companyName || lead.company || "N/A",
@@ -109,5 +133,6 @@ export function formatAdminLead(lead: {
     state: lead.state?.trim() || "",
     noteCount,
     noteHistory,
+    createdAt: createdLabel,
   };
 }

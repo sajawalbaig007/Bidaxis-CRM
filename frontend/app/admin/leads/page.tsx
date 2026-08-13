@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API, { apiErrorMessage } from "@/lib/api";
 import { getAdminTabCounts } from "@/lib/adminSummaryCache";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, COL_8_ADMIN, COL_9_CLOSED, COL_9_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_TOP_POPOVER, COL_7_ADMIN, COL_8_CLOSED, COL_8_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import toast, { Toaster } from "react-hot-toast";
@@ -35,8 +35,8 @@ import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import CommentCell from "../../csr/components/shared/CommentCell";
 import EmailWithExtraCell from "../../csr/components/shared/EmailWithExtraCell";
+import PhoneWithTzCell from "../../csr/components/shared/PhoneWithTzCell";
 import type { NoteEntry } from "../../csr/hooks/useLeadsData";
-import { parseEmails } from "../../csr/utils/parseEmails";
 import { bumpToFront } from "@/lib/bumpToFront";
 import StateFilterDropdown from "../../csr/components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "../../csr/components/shared/PhoneAreaCodeFilterInput";
@@ -53,6 +53,8 @@ type Client = {
   clientName: string;
   email: string;
   contact: string;
+  contactPhones: string[];
+  emails: string[];
   company: string;
   website: string;
   parentCompany: string;
@@ -73,6 +75,7 @@ type Client = {
   state: string;
   noteCount: number;
   noteHistory: NoteEntry[];
+  createdAt: string;
 };
 
 const PAGE_SIZE = 30;
@@ -180,6 +183,8 @@ function ClientsPageContent() {
     clientName: "",
     email: "",
     contact: "",
+    contactPhones: [],
+    emails: [],
     company: "",
     website: "",
     parentCompany: "",
@@ -199,6 +204,7 @@ function ClientsPageContent() {
     projectCode: null,
     noteCount: 0,
     noteHistory: [],
+    createdAt: "",
   };
 
   const [newClient, setNewClient] = useState<Client>(emptyClient);
@@ -345,9 +351,11 @@ function ClientsPageContent() {
 
   const leadColPredicates = useMemo(() => ({
     client:  (c: ReturnType<typeof formatAdminLead>, v: string) =>
-      textColumnMatch(c.clientName, v) || textColumnMatch(c.email, v),
+      textColumnMatch(c.clientName, v) ||
+      textColumnMatch(c.email, v) ||
+      textColumnMatch(c.contact, v) ||
+      textColumnMatch(c.createdAt, v),
     company: (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.company, v),
-    contact: (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.contact, v),
     scope:   (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.scope, v),
     csr:     (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.csr, v),
     status:  (c: ReturnType<typeof formatAdminLead>, v: string) => textColumnMatch(c.status, v),
@@ -403,7 +411,7 @@ function ClientsPageContent() {
   const isScheduleView = effectiveView === "schedule";
   const isClosedView   = effectiveView === "closed";
   const tableMinWidth  = isScheduleView || isClosedView ? "1200px" : "1100px";
-  const tableColWidths = isScheduleView ? COL_9_SCHEDULE_ADMIN : isClosedView ? COL_9_CLOSED : COL_8_ADMIN;
+  const tableColWidths = isScheduleView ? COL_8_SCHEDULE_ADMIN : isClosedView ? COL_8_CLOSED : COL_7_ADMIN;
 
   const tableTitle =
     effectiveView === "interested" ? "Interested Clients"
@@ -413,13 +421,13 @@ function ClientsPageContent() {
     : "Important Clients";
 
   const tableHeaders = isScheduleView
-    ? ["Client", "Company", "Contact", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]
+    ? ["Client", "Company", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]
     : isClosedView
-    ? ["Client", "Company", "Type", "Scope", "Contact", "CSR", "Status", "Notes", ""]
-    : ["Client", "Company", "Scope", "Contact", "CSR", "Status", "Notes", ""];
+    ? ["Client", "Company", "Type", "Scope", "CSR", "Status", "Notes", ""]
+    : ["Client", "Company", "Scope", "CSR", "Status", "Notes", ""];
 
   const headerFilterKey: Record<string, string> = {
-    Client: "client", Company: "company", Contact: "contact", Scope: "scope",
+    Client: "client", Company: "company", Scope: "scope",
     CSR: "csr", Status: "status", "Next Schedule": "schedule", Time: "time", Type: "type",
   };
 
@@ -735,10 +743,21 @@ function ClientsPageContent() {
                           key={client.id}
                           className="border-b border-gray-100 hover:bg-[#FAFAFB] transition-colors"
                         >
-                          {/* Client: name + company / email underneath */}
-                          <td className={CSR_TD_TOP}>
+                          {/* Client: name + company / email / contact / created */}
+                          <td className={CSR_TD_TOP_POPOVER}>
                             {(() => {
-                              const emails = parseEmails(client.email !== "N/A" ? client.email : "");
+                              const emails =
+                                client.emails?.length > 0
+                                  ? client.emails
+                                  : client.email && client.email !== "N/A"
+                                    ? [client.email]
+                                    : [];
+                              const phones =
+                                client.contactPhones?.length > 0
+                                  ? client.contactPhones
+                                  : client.contact && client.contact !== "N/A"
+                                    ? [client.contact]
+                                    : [];
                               const company =
                                 client.company && client.company !== "N/A" ? client.company.trim() : "";
                               return (
@@ -746,7 +765,7 @@ function ClientsPageContent() {
                                   <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm mt-0.5">
                                     {client.clientName.charAt(0)}
                                   </div>
-                                  <div className="min-w-0 flex-1">
+                                  <div className="min-w-0 flex-1 overflow-visible">
                                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                       {(client.clientCode || client.projectCode) && (
                                         <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">
@@ -757,7 +776,7 @@ function ClientsPageContent() {
                                         {client.clientName}
                                       </h3>
                                     </div>
-                                    <div className="flex flex-col gap-0.5 mt-1 min-w-0">
+                                    <div className="flex flex-col gap-0.5 mt-1 min-w-0 overflow-visible">
                                       {company ? (
                                         <p className="text-[10px] sm:text-[11px] text-gray-500 truncate">
                                           <span className="text-gray-400">Co:</span> {company}
@@ -774,6 +793,22 @@ function ClientsPageContent() {
                                             emptyLabel=""
                                           />
                                         </div>
+                                      ) : null}
+                                      {phones.length > 0 ? (
+                                        <div className="flex items-center gap-1 min-w-0 max-w-full overflow-visible">
+                                          <span className="text-[10px] sm:text-[11px] text-gray-400 shrink-0">Contact:</span>
+                                          <PhoneWithTzCell
+                                            phone={phones[0]}
+                                            allPhones={phones}
+                                            variant="plain"
+                                            className="text-[10px] sm:text-[11px] text-gray-500"
+                                          />
+                                        </div>
+                                      ) : null}
+                                      {client.createdAt ? (
+                                        <p className="text-[10px] sm:text-[11px] text-gray-500 truncate">
+                                          <span className="text-gray-400">Created:</span> {client.createdAt}
+                                        </p>
                                       ) : null}
                                     </div>
                                   </div>
@@ -803,10 +838,6 @@ function ClientsPageContent() {
                               <span className="truncate block">{client.scope}</span>
                             </td>
                           )}
-
-                          <td className={`${CSR_TD} text-xs sm:text-sm text-gray-500 whitespace-nowrap`}>
-                            {client.contact}
-                          </td>
 
                           {isScheduleView && (
                             <>
