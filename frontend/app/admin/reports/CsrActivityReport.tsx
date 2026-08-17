@@ -45,22 +45,22 @@ type ReportResponse = {
   summary: SummaryRow[];
 };
 
-function estTodayYmd(): string {
+function pstTodayYmd(): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
+    timeZone: "America/Los_Angeles",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
 }
 
-/** ISO → YYYY-MM-DDTHH:mm in America/New_York for datetime-local. */
-function toEstLocalInput(iso: string | null | undefined): string {
+/** ISO → YYYY-MM-DDTHH:mm in America/Los_Angeles for datetime-local. */
+function toPstLocalInput(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
+    timeZone: "America/Los_Angeles",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -77,8 +77,8 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) 
   const headers = [
     personLabel,
     "Code",
-    "Check In (EST)",
-    "Check Out (EST)",
+    "Check In (PST)",
+    "Check Out (PST)",
     "On Dashboard",
     "Away",
     "Total",
@@ -118,10 +118,11 @@ export default function CsrActivityReport({
 }: {
   staffRole?: "csr" | "estimator";
 }) {
-  const today = estTodayYmd();
+  const today = pstTodayYmd();
   const isEstimator = staffRole === "estimator";
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
   const personLabel = isEstimator ? "Estimator" : "CSR";
+  const peopleLabel = isEstimator ? "Estimators" : "CSRs";
   const allLabel = isEstimator ? "All Estimators" : "All CSRs";
 
   const [fromDate, setFromDate] = useState(today);
@@ -130,7 +131,7 @@ export default function CsrActivityReport({
   const [csrs, setCsrs] = useState<CsrOption[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [timezoneLabel, setTimezoneLabel] = useState("Eastern Time (EST/EDT)");
+  const [timezoneLabel, setTimezoneLabel] = useState("Pacific Time (PST/PDT)");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"sessions" | "summary">("sessions");
@@ -147,8 +148,8 @@ export default function CsrActivityReport({
 
   const openEdit = (row: SessionRow) => {
     setEditing(row);
-    setEditCheckIn(toEstLocalInput(row.loginAt));
-    setEditCheckOut(toEstLocalInput(row.logoutAt));
+    setEditCheckIn(toPstLocalInput(row.loginAt));
+    setEditCheckOut(toPstLocalInput(row.logoutAt));
     setEditStillOpen(row.status === "active" || !row.logoutAt);
     setEditNote("admin_adjusted");
   };
@@ -211,14 +212,14 @@ export default function CsrActivityReport({
       const res = await API.get<ReportResponse>(`/admin/csr-session-report?${params}`);
       setSessions(res.data.sessions ?? []);
       setSummary(res.data.summary ?? []);
-      setTimezoneLabel(res.data.timezoneLabel ?? "Eastern Time (EST/EDT)");
+      setTimezoneLabel(res.data.timezoneLabel ?? "Pacific Time (PST/PDT)");
       setHasLoaded(true);
     } catch (err) {
-      toast.error(apiErrorMessage(err, "Failed to load CSR activity report."));
+      toast.error(apiErrorMessage(err, `Failed to load ${personLabel} activity report.`));
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, csrId, staffRole]);
+  }, [fromDate, toDate, csrId, staffRole, personLabel]);
 
   useEffect(() => {
     if (!open) return;
@@ -352,7 +353,7 @@ export default function CsrActivityReport({
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2 text-xs sm:text-sm">
               <Users size={14} className="text-blue-600" />
-              <span className="text-gray-500">CSRs:</span>
+              <span className="text-gray-500">{peopleLabel}:</span>
               <span className="font-bold text-gray-800">{totals.csrs}</span>
             </div>
             <div className="flex rounded-xl border border-gray-200 overflow-hidden text-xs sm:text-sm">
@@ -368,7 +369,7 @@ export default function CsrActivityReport({
                 onClick={() => setView("summary")}
                 className={`px-3 py-2 font-semibold ${view === "summary" ? "bg-[#B8112D] text-white" : "bg-white text-gray-600"}`}
               >
-                Per CSR
+                Per {personLabel}
               </button>
             </div>
           </div>
@@ -378,7 +379,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {["CSR", "Check In (EST)", "Check Out (EST)", "On Dashboard", "Away", "Total", "Status", "Closed By", ""].map(h => (
+                    {[personLabel, "Check In (PST)", "Check Out (PST)", "On Dashboard", "Away", "Total", "Status", "Closed By", ""].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -399,7 +400,7 @@ export default function CsrActivityReport({
                   ) : sessions.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">
-                        No CSR check-in sessions in this date range
+                        No {personLabel.toLowerCase()} check-in sessions in this date range
                       </td>
                     </tr>
                   ) : sessions.map(row => (
@@ -451,7 +452,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "700px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {["CSR", "Sessions", "On Dashboard", "Away", "Total"].map(h => (
+                    {[personLabel, "Sessions", "On Dashboard", "Away", "Total"].map(h => (
                       <th key={h} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -500,7 +501,7 @@ export default function CsrActivityReport({
               <div>
                 <h3 className="text-base font-bold text-[#111827]">Adjust session times</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {editing.csrName} · times in Eastern (EST/EDT)
+                  {editing.csrName} · times in Pacific (PST/PDT)
                 </p>
               </div>
               <button

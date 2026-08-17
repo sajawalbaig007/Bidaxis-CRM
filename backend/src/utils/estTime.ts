@@ -1,12 +1,21 @@
-/** CSR reports and activity logs use US Eastern Time by default. */
+/** CSR live check-in labels stay Eastern. Admin session reports display Pacific. */
 export const CSR_REPORT_TIMEZONE = "America/New_York";
+export const ADMIN_SESSION_TIMEZONE = "America/Los_Angeles";
+export const ADMIN_SESSION_TZ_LABEL = "Pacific Time (PST/PDT)";
 
-export function formatEstDateTime(value: Date | string | null | undefined): string {
+function offsetFallback(timeZone: string) {
+  return timeZone === ADMIN_SESSION_TIMEZONE ? "GMT-8" : "GMT-5";
+}
+
+export function formatEstDateTime(
+  value: Date | string | null | undefined,
+  timeZone: string = CSR_REPORT_TIMEZONE,
+): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: CSR_REPORT_TIMEZONE,
+    timeZone,
     month: "short",
     day: "2-digit",
     year: "numeric",
@@ -30,8 +39,11 @@ export function formatEstDate(value: Date | string | null | undefined): string {
   }).format(d);
 }
 
-/** Parse YYYY-MM-DD as start/end of that calendar day in Eastern Time (UTC instants). */
-export function estDayBoundsUtc(ymd: string): { start: Date; end: Date } | null {
+/** Parse YYYY-MM-DD as start/end of that calendar day in the given timezone (UTC instants). */
+export function estDayBoundsUtc(
+  ymd: string,
+  timeZone: string = CSR_REPORT_TIMEZONE,
+): { start: Date; end: Date } | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
   if (!m) return null;
   const y = Number(m[1]);
@@ -41,10 +53,10 @@ export function estDayBoundsUtc(ymd: string): { start: Date; end: Date } | null 
 
   const probe = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: CSR_REPORT_TIMEZONE,
+    timeZone,
     timeZoneName: "shortOffset",
   }).formatToParts(probe);
-  const tz = parts.find(p => p.type === "timeZoneName")?.value ?? "GMT-5";
+  const tz = parts.find(p => p.type === "timeZoneName")?.value ?? offsetFallback(timeZone);
   const offMatch = /GMT([+-])(\d{1,2})(?::?(\d{2}))?/.exec(tz);
   const sign = offMatch?.[1] === "-" ? -1 : 1;
   const oh = Number(offMatch?.[2] ?? 5);
@@ -68,27 +80,30 @@ export function formatDurationMs(ms: number): string {
   return `${s}s`;
 }
 
-/** Calendar date YYYY-MM-DD in Eastern Time. */
-export function estDateYmd(value: Date = new Date()): string {
+/** Calendar date YYYY-MM-DD in the given timezone (default Eastern). */
+export function estDateYmd(value: Date = new Date(), timeZone: string = CSR_REPORT_TIMEZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: CSR_REPORT_TIMEZONE,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(value);
 }
 
-export function addEstDays(ymd: string, days: number): string {
-  const bounds = estDayBoundsUtc(ymd);
+export function addEstDays(ymd: string, days: number, timeZone: string = CSR_REPORT_TIMEZONE): string {
+  const bounds = estDayBoundsUtc(ymd, timeZone);
   if (!bounds) return ymd;
   const shifted = new Date(bounds.start.getTime() + days * 86_400_000);
-  return estDateYmd(shifted);
+  return estDateYmd(shifted, timeZone);
 }
 
 /**
- * Parse "YYYY-MM-DDTHH:mm" or "YYYY-MM-DDTHH:mm:ss" as Eastern wall-clock → UTC Date.
+ * Parse "YYYY-MM-DDTHH:mm" or "YYYY-MM-DDTHH:mm:ss" as wall-clock in `timeZone` → UTC Date.
  */
-export function parseEstDateTimeLocal(value: string): Date | null {
+export function parseEstDateTimeLocal(
+  value: string,
+  timeZone: string = CSR_REPORT_TIMEZONE,
+): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
   if (!m) return null;
   const y = Number(m[1]);
@@ -102,10 +117,10 @@ export function parseEstDateTimeLocal(value: string): Date | null {
 
   const probe = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: CSR_REPORT_TIMEZONE,
+    timeZone,
     timeZoneName: "shortOffset",
   }).formatToParts(probe);
-  const tz = parts.find(p => p.type === "timeZoneName")?.value ?? "GMT-5";
+  const tz = parts.find(p => p.type === "timeZoneName")?.value ?? offsetFallback(timeZone);
   const offMatch = /GMT([+-])(\d{1,2})(?::?(\d{2}))?/.exec(tz);
   const sign = offMatch?.[1] === "-" ? -1 : 1;
   const oh = Number(offMatch?.[2] ?? 5);
@@ -117,13 +132,16 @@ export function parseEstDateTimeLocal(value: string): Date | null {
   return utc;
 }
 
-/** Format a Date as YYYY-MM-DDTHH:mm in Eastern Time (for datetime-local inputs). */
-export function formatEstDateTimeLocalInput(value: Date | string | null | undefined): string {
+/** Format a Date as YYYY-MM-DDTHH:mm in the given timezone (for datetime-local inputs). */
+export function formatEstDateTimeLocalInput(
+  value: Date | string | null | undefined,
+  timeZone: string = CSR_REPORT_TIMEZONE,
+): string {
   if (!value) return "";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: CSR_REPORT_TIMEZONE,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
