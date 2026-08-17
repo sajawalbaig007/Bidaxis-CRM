@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type ReactElement, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -71,17 +71,19 @@ function ChartCard({
   );
 }
 
+type KpiChartsBentoProps = {
+  rows: KpiChartRow[];
+  periodLabel: string;
+  deliveredTimeline: KpiDeliveredPoint[];
+  toolbar?: ReactNode;
+};
+
 export default function KpiChartsBento({
   rows,
   periodLabel,
   deliveredTimeline,
   toolbar,
-}: {
-  rows: KpiChartRow[];
-  periodLabel: string;
-  deliveredTimeline: KpiDeliveredPoint[];
-  toolbar?: ReactNode;
-}) {
+}: KpiChartsBentoProps): ReactElement {
   const totals = useMemo(() => {
     const n = Math.max(1, rows.length);
     const sum = (k: keyof KpiChartRow) =>
@@ -119,7 +121,20 @@ export default function KpiChartsBento({
     return data.length ? data : [{ name: "No data", value: 1, color: "#E5E7EB", pct: 0 }];
   }, [totals]);
 
-  const radar = useMemo(() => {
+  const sharePie = useMemo(() => {
+    const data = barRows
+      .filter((r) => r.projects_delivered > 0)
+      .map((r, i) => ({
+        name: r.name,
+        fullName: r.fullName,
+        value: r.projects_delivered,
+        pct: r.deliveredPct,
+        color: DONUT[i % DONUT.length],
+      }));
+    return data.length ? data : [{ name: "No data", fullName: "No data", value: 1, pct: 0, color: "#E5E7EB" }];
+  }, [barRows]);
+
+  const radarData = useMemo(() => {
     const retainedRate = pctOf(totals.retained, Math.max(totals.delivered, 1));
     return [
       {
@@ -298,7 +313,7 @@ export default function KpiChartsBento({
             hint="0–100% on every axis — rounder shape means more even performance."
           >
             <RechartsBox height={190}>
-              <RadarChart data={radar} cx="50%" cy="50%" outerRadius="75%">
+              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
                 <PolarGrid stroke="#E2E8F0" />
                 <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "#64748B" }} />
                 <PolarRadiusAxis
@@ -328,48 +343,96 @@ export default function KpiChartsBento({
         shortLabel: "Donut",
         accent: "#D97706",
         content: (
-          <ChartCard eyebrow="Share" title="Delivered · retained · mistakes">
-            <div className="h-full min-h-0 flex flex-col">
-              <div className="flex-1 min-h-[160px]">
-                <RechartsBox height={180}>
-                  <PieChart>
-                    <Pie
-                      data={donut}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="48%"
-                      outerRadius="78%"
-                      paddingAngle={3}
-                      strokeWidth={0}
-                    >
-                      {donut.map((d) => (
-                        <Cell key={d.name} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={TIP}
-                      formatter={(v, name, item) => {
-                        const pct = Number(item?.payload?.pct ?? 0);
-                        return [`${v} (${pct}%)`, String(name)];
-                      }}
-                    />
-                  </PieChart>
-                </RechartsBox>
+          <ChartCard eyebrow="Share" title="Outcome mix · by estimator">
+            <div className="h-full min-h-0 grid grid-cols-2 gap-2">
+              <div className="min-w-0 flex flex-col">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 text-center">Donut · mix</p>
+                <div className="flex-1 min-h-[140px]">
+                  <RechartsBox height={150}>
+                    <PieChart>
+                      <Pie
+                        data={donut}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="42%"
+                        outerRadius="72%"
+                        paddingAngle={3}
+                        strokeWidth={0}
+                      >
+                        {donut.map((d) => (
+                          <Cell key={d.name} fill={d.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={TIP}
+                        formatter={(v, name, item) => {
+                          const pct = Number(item?.payload?.pct ?? 0);
+                          return [`${v} (${pct}%)`, String(name)];
+                        }}
+                      />
+                    </PieChart>
+                  </RechartsBox>
+                </div>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {donut
+                    .filter((d) => d.name !== "No data")
+                    .map((d) => (
+                      <span
+                        key={d.name}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-50 text-[9px] font-semibold text-gray-600"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: d.color }} />
+                        {d.name} {d.value} · {d.pct}%
+                      </span>
+                    ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5 justify-center mt-1">
-                {donut
-                  .filter((d) => d.name !== "No data")
-                  .map((d) => (
-                    <span
-                      key={d.name}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-[10px] font-semibold text-gray-600"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: d.color }} />
-                      {d.name} {d.value} · {d.pct}%
-                    </span>
-                  ))}
+              <div className="min-w-0 flex flex-col">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 text-center">Pie · estimators</p>
+                <div className="flex-1 min-h-[140px]">
+                  <RechartsBox height={150}>
+                    <PieChart>
+                      <Pie
+                        data={sharePie}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={0}
+                        outerRadius="72%"
+                        paddingAngle={2}
+                        strokeWidth={0}
+                      >
+                        {sharePie.map((d) => (
+                          <Cell key={d.fullName} fill={d.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={TIP}
+                        labelFormatter={(_, p) => String(p?.[0]?.payload?.fullName ?? "")}
+                        formatter={(v, _n, item) => {
+                          const pct = Number(item?.payload?.pct ?? 0);
+                          return [`${v} (${pct}%)`, "Delivered"];
+                        }}
+                      />
+                    </PieChart>
+                  </RechartsBox>
+                </div>
+                <div className="flex flex-wrap gap-1 justify-center max-h-10 overflow-hidden">
+                  {sharePie
+                    .filter((d) => d.name !== "No data")
+                    .map((d) => (
+                      <span
+                        key={d.fullName}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-50 text-[9px] font-semibold text-gray-600"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: d.color }} />
+                        {d.name} {d.pct}%
+                      </span>
+                    ))}
+                </div>
               </div>
             </div>
           </ChartCard>
@@ -447,7 +510,7 @@ export default function KpiChartsBento({
         ),
       },
     ],
-    [rows, barRows, donut, radar, totals, periodLabel, maxMarks, prodMax, deliveredTimeline],
+    [rows, barRows, donut, sharePie, radarData, totals, periodLabel, maxMarks, prodMax, deliveredTimeline],
   );
 
   return (

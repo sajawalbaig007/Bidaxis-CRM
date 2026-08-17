@@ -35,7 +35,7 @@ import {
 } from "../utils/adminClientQueries";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
-import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal } from "../utils/estTime";
+import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_SESSION_TIMEZONE, ADMIN_SESSION_TZ_LABEL } from "../utils/estTime";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { deleteLeadsCascade, removeProjectsKeepClients, invalidateAllLeadCaches, isRemovedFromProjectDb } from "../utils/deleteLeadsCascade";
 import { buildAdminClientSummaryPayload, buildAdminTabCountsPayload } from "../utils/adminSummaryStats";
@@ -3550,7 +3550,7 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manage
   }
 });
 
-/* ================= CSR LOGIN / ACTIVITY REPORT (EST) ================= */
+/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (PST) ================= */
 router.get(
   "/csr-session-report",
   verifyToken,
@@ -3565,29 +3565,30 @@ router.get(
       let to: Date | undefined;
       const fromStr = typeof req.query.from === "string" ? req.query.from : "";
       const toStr = typeof req.query.to === "string" ? req.query.to : "";
+      const tz = ADMIN_SESSION_TIMEZONE;
 
       if (fromStr) {
-        const b = estDayBoundsUtc(fromStr);
+        const b = estDayBoundsUtc(fromStr, tz);
         if (b) from = b.start;
       }
       if (toStr) {
-        const b = estDayBoundsUtc(toStr);
+        const b = estDayBoundsUtc(toStr, tz);
         if (b) to = b.end;
       }
 
       if (!from && !to) {
-        const toYmd = estDateYmd();
-        const fromYmd = addEstDays(toYmd, -6);
-        from = estDayBoundsUtc(fromYmd)!.start;
-        to = estDayBoundsUtc(toYmd)!.end;
+        const toYmd = estDateYmd(new Date(), tz);
+        const fromYmd = addEstDays(toYmd, -6, tz);
+        from = estDayBoundsUtc(fromYmd, tz)!.start;
+        to = estDayBoundsUtc(toYmd, tz)!.end;
       }
 
       const staffRole = req.query.role === "estimator" ? "estimator" as const : "csr" as const;
-      const report = await buildCsrSessionReport({ from, to, csrId, role: staffRole });
+      const report = await buildCsrSessionReport({ from, to, csrId, role: staffRole, timeZone: tz });
       return res.json({
         success: true,
-        timezone: "America/New_York",
-        timezoneLabel: "Eastern Time (EST/EDT)",
+        timezone: tz,
+        timezoneLabel: ADMIN_SESSION_TZ_LABEL,
         from: from?.toISOString() ?? null,
         to: to?.toISOString() ?? null,
         ...report,
@@ -3620,11 +3621,11 @@ router.put(
       } = req.body ?? {};
 
       if (!checkInAt || typeof checkInAt !== "string") {
-        return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
+        return res.status(400).json({ success: false, message: "checkInAt is required (PST datetime)." });
       }
 
       const checkInDate =
-        parseEstDateTimeLocal(checkInAt) ??
+        parseEstDateTimeLocal(checkInAt, ADMIN_SESSION_TIMEZONE) ??
         (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
       if (!checkInDate) {
         return res.status(400).json({ success: false, message: "Invalid check-in time." });
@@ -3636,7 +3637,7 @@ router.put(
           return res.status(400).json({ success: false, message: "Invalid check-out time." });
         }
         checkOutDate =
-          parseEstDateTimeLocal(checkOutAt) ??
+          parseEstDateTimeLocal(checkOutAt, ADMIN_SESSION_TIMEZONE) ??
           (!Number.isNaN(Date.parse(checkOutAt)) ? new Date(checkOutAt) : null);
         if (!checkOutDate) {
           return res.status(400).json({ success: false, message: "Invalid check-out time." });

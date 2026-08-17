@@ -422,8 +422,10 @@ export async function buildCsrSessionReport(opts: {
   to?: Date;
   csrId?: string;
   role?: "csr" | "estimator";
+  timeZone?: string;
 }): Promise<{ sessions: CsrSessionReportRow[]; summary: CsrSessionSummary[] }> {
   const staffRole: "csr" | "estimator" = opts.role === "estimator" ? "estimator" : "csr";
+  const tz = opts.timeZone;
   /* Clean zombies before reporting so Totals / Still checked-in stay accurate */
   try {
     const openWhere: Prisma.CsrWorkSessionWhereInput = {
@@ -470,17 +472,17 @@ export async function buildCsrSessionReport(opts: {
 
   const sessions: CsrSessionReportRow[] = rows.map(row => {
     const { dashboardMs, awayMs, totalMs } = liveTotals(row);
-    const logoutAtEst = row.logoutAt ? formatEstDateTime(row.logoutAt) : "Still checked in";
+    const logoutAtEst = row.logoutAt ? formatEstDateTime(row.logoutAt, tz) : "Still checked in";
     return {
       id: row.id,
       csrId: row.user.id,
       csrName: row.user.name,
       csrCode: row.user.csrCode,
       loginAt: row.loginAt.toISOString(),
-      loginAtEst: formatEstDateTime(row.loginAt),
+      loginAtEst: formatEstDateTime(row.loginAt, tz),
       logoutAt: row.logoutAt?.toISOString() ?? null,
       logoutAtEst,
-      checkInAtEst: formatEstDateTime(row.loginAt),
+      checkInAtEst: formatEstDateTime(row.loginAt, tz),
       checkOutAtEst: logoutAtEst,
       dashboardDuration: formatDurationMs(dashboardMs),
       awayDuration: formatDurationMs(awayMs),
