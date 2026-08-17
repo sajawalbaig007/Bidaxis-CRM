@@ -37,6 +37,7 @@ import {
   stopChatStatusHeartbeat,
 } from "@/lib/chatStatusHeartbeat";
 import { playChatSound } from "@/lib/chatSound";
+import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
 import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
 import ChatActionRail from "./ChatActionRail";
@@ -302,17 +303,6 @@ function ConvItem({ conv, active, onClick, selectMode, selected, onSelect, pinne
 /* ---- */
 export type ViewAsCsr = { id: string; name: string; role?: string };
 
-function roleShort(role?: string) {
-  const r = (role || "").toLowerCase();
-  if (r === "csr") return "CSR";
-  if (r === "admin") return "Admin";
-  if (r === "manager") return "Manager";
-  if (r === "accounts") return "Accounts";
-  if (r === "technical_manager") return "Tech Mgr";
-  if (r === "estimator") return "Estimator";
-  return role ? role.replace(/_/g, " ") : "";
-}
-
 function AdminViewAsPicker({
   options,
   value,
@@ -341,7 +331,7 @@ function AdminViewAsPicker({
     const needle = q.trim().toLowerCase();
     if (!needle) return options;
     return options.filter((o) => {
-      const hay = `${o.name} ${o.role ?? ""} ${roleShort(o.role)}`.toLowerCase();
+      const hay = `${o.name} ${o.role ?? ""} ${roleDisplayLabel(o.role)}`.toLowerCase();
       return hay.includes(needle);
     });
   }, [options, q]);
@@ -354,7 +344,7 @@ function AdminViewAsPicker({
         onClick={() => setOpen((v) => !v)}
         className="mt-1 w-full h-9 px-2.5 rounded-xl border border-gray-200 text-[12px] font-semibold bg-[#FAFAFA] outline-none focus:border-[#B8112D] flex items-center justify-between gap-2 text-left"
       >
-        <span className="truncate">{value ? `${value.name}${value.role ? ` · ${roleShort(value.role)}` : ""}` : "My chats (Admin)"}</span>
+        <span className="truncate">{value ? `${value.name}${value.role ? ` · ${roleDisplayLabel(value.role)}` : ""}` : "My chats (CEO)"}</span>
         <ChevronLeft size={14} className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : "-rotate-90"}`} />
       </button>
       {open && (
@@ -392,7 +382,7 @@ function AdminViewAsPicker({
                   }`}
                 >
                   <span className="truncate">{c.name}</span>
-                  <span className="text-[10px] text-gray-400 shrink-0">{roleShort(c.role)}</span>
+                  <span className="text-[10px] text-gray-400 shrink-0">{roleDisplayLabel(c.role)}</span>
                 </button>
               ))
             )}
@@ -877,13 +867,13 @@ export default function ChatPanel({
       const email = u.email ? String(u.email) : undefined;
       const role = u.role ? String(u.role) : undefined;
       const roleLabel =
-        role === "technical_manager" ? "Technical Manager"
+        role === "technical_manager" ? "Chief Estimation"
         : role === "accounts" ? "Accounts"
         : role === "estimator" ? "Estimator"
         : role === "csr" ? "CSR"
-        : role === "manager" ? "Manager"
-        : role === "admin" ? "Admin"
-        : role?.replace(/_/g, " ");
+        : role === "manager" ? "Admin"
+        : role === "admin" ? "CEO"
+        : roleDisplayLabel(role);
       const display =
         name && name.toLowerCase() !== "unknown"
           ? name

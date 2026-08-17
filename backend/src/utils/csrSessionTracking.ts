@@ -420,13 +420,15 @@ export async function buildCsrSessionReport(opts: {
   from?: Date;
   to?: Date;
   csrId?: string;
+  role?: "csr" | "estimator";
 }): Promise<{ sessions: CsrSessionReportRow[]; summary: CsrSessionSummary[] }> {
+  const staffRole = opts.role === "estimator" ? "estimator" : "csr";
   /* Clean zombies before reporting so Totals / Still checked-in stay accurate */
   try {
     const openWhere = {
       ...(opts.csrId ? { userId: opts.csrId } : {}),
       OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
-      user: { role: "csr" as const },
+      user: { role: staffRole },
     };
     const openRows = await prisma.csrWorkSession.findMany({
       where: openWhere,
@@ -453,7 +455,7 @@ export async function buildCsrSessionReport(opts: {
   const where = {
     ...(opts.csrId ? { userId: opts.csrId } : {}),
     ...(range.gte || range.lte ? { loginAt: range } : {}),
-    user: { role: "csr" as const },
+    user: { role: staffRole },
   };
 
   const rows = await prisma.csrWorkSession.findMany({
@@ -540,7 +542,7 @@ export async function adminAdjustCsrWorkSession(opts: {
     where: { id: opts.sessionId },
     include: { user: { select: { id: true, name: true, role: true } } },
   });
-  if (!session || session.user.role !== "csr") {
+  if (!session || (session.user.role !== "csr" && session.user.role !== "estimator")) {
     return { ok: false as const, message: "Session not found." };
   }
 

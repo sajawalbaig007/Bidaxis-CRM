@@ -7,7 +7,6 @@ export const ESTIMATOR_KPI_FIELD_KEYS = [
   "checkin_checkout",
   "retained_clients",
   "punctuality",
-  "avg_takeoff",
   "team_query_mistakes",
   "trades_history",
   "final_remarks",
@@ -30,9 +29,9 @@ export const ESTIMATOR_KPI_FIELD_META: Record<
 > = {
   projects_delivered: { label: "Projects delivered", input: "number", hint: "Auto from completed takeoffs" },
   productivity: {
-    label: "Productivity (time track)",
-    input: "textarea",
-    hint: "Auto from timers + planned hours",
+    label: "Productivity %",
+    input: "number",
+    hint: "Auto % — logged hours vs planned (or delivered vs assigned)",
   },
   project_time_spent: {
     label: "Project time spent",
@@ -44,14 +43,13 @@ export const ESTIMATOR_KPI_FIELD_META: Record<
     input: "textarea",
     hint: "Auto from estimator daily sessions",
   },
-  retained_clients: { label: "Retained clients", input: "number", hint: "Auto from returning-client projects" },
+  retained_clients: { label: "Retained clients", input: "number", hint: "Auto — second+ project for the same client" },
   punctuality: { label: "Punctuality", input: "text", hint: "Auto from overdue vs assigned" },
-  avg_takeoff: { label: "Avg takeoff", input: "text", hint: "Auto average timer on completed" },
   team_query_mistakes: { label: "Team query mistakes", input: "text", hint: "Auto from overdue follow-ups" },
   trades_history: { label: "Trades history", input: "textarea", hint: "Auto from scopes/trades" },
-  final_remarks: { label: "Final remarks", input: "textarea", hint: "Auto monthly performance summary" },
-  marks_out_of_10: { label: "Marks (out of 10)", input: "marks10", hint: "Auto score from KPI metrics" },
-  rating_stars: { label: "Rating (out of 5)", input: "stars5", hint: "Auto from marks" },
+  final_remarks: { label: "Evaluation remarks (avg / month)", input: "textarea", hint: "Month-end summary of project-wise remarks" },
+  marks_out_of_10: { label: "Marks (out of 10)", input: "marks10", hint: "Month average of Take Off Done evaluations" },
+  rating_stars: { label: "Rating (out of 5)", input: "stars5", hint: "Auto from evaluation marks" },
 };
 
 export type EstimatorKpiRecord = {

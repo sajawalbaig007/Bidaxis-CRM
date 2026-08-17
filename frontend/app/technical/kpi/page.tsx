@@ -20,12 +20,14 @@ import {
   RefreshCw,
   Sparkles,
   Star,
-  Target,
   Timer,
   Trash2,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
 import TechnicalPageShell from "../components/TechnicalPageShell";
 import EstimatorKpiEntryModal from "../components/EstimatorKpiEntryModal";
 import {
@@ -70,7 +72,6 @@ const FIELD_ICONS: Record<EstimatorKpiFieldKey, LucideIcon> = {
   checkin_checkout: LogIn,
   retained_clients: Users,
   punctuality: Clock3,
-  avg_takeoff: Target,
   team_query_mistakes: MessageSquareWarning,
   trades_history: Hammer,
   final_remarks: FileText,
@@ -82,6 +83,22 @@ function latestByField(records: EstimatorKpiRecord[], fieldKey: string) {
   return [...records]
     .filter((r) => r.fieldKey === fieldKey)
     .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())[0] ?? null;
+}
+
+const KPI_CHART_FIELDS: { key: EstimatorKpiFieldKey; label: string }[] = [
+  { key: "projects_delivered", label: "Projects delivered" },
+  { key: "productivity", label: "Productivity %" },
+  { key: "retained_clients", label: "Retained clients" },
+  { key: "punctuality", label: "Punctuality %" },
+  { key: "team_query_mistakes", label: "Query mistakes" },
+  { key: "marks_out_of_10", label: "Marks / 10" },
+  { key: "rating_stars", label: "Rating / 5" },
+];
+
+function kpiNumeric(raw: string | undefined | null): number {
+  if (!raw) return 0;
+  const m = String(raw).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
 }
 
 export default function TechnicalKpiPage() {
@@ -97,6 +114,7 @@ export default function TechnicalKpiPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [search, setSearch] = useState("");
+  const [chartEstimatorId, setChartEstimatorId] = useState<string>("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,7 +165,7 @@ export default function TechnicalKpiPage() {
     return map;
   }, [records]);
 
-  const roster = useMemo(() => {
+  const allRoster = useMemo(() => {
     const byId = new Map<string, EstimatorKpiRosterItem>();
     for (const e of estimators) byId.set(e.id, e);
     for (const r of records) {
@@ -159,11 +177,15 @@ export default function TechnicalKpiPage() {
         });
       }
     }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [estimators, records]);
+
+  const roster = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return [...byId.values()]
-      .filter((e) => !needle || e.name.toLowerCase().includes(needle) || e.code.toLowerCase().includes(needle))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [estimators, records, search]);
+    return allRoster.filter(
+      (e) => !needle || e.name.toLowerCase().includes(needle) || e.code.toLowerCase().includes(needle),
+    );
+  }, [allRoster, search]);
 
   const monthStats = useMemo(() => {
     const withEntries = new Set(records.map((r) => r.estimatorId)).size;
@@ -187,6 +209,33 @@ export default function TechnicalKpiPage() {
     }
     return map;
   }, [autoRows]);
+
+  const chartRows = useMemo(() => {
+    const pickValue = (estimatorId: string, key: EstimatorKpiFieldKey) => {
+      const saved = latestByField(recordsByEstimator.get(estimatorId) ?? [], key);
+      if (saved?.value) return kpiNumeric(saved.value);
+      const auto = autoByEstimator.get(estimatorId)?.get(key)?.value;
+      return kpiNumeric(auto);
+    };
+    const list =
+      chartEstimatorId === "all"
+        ? allRoster
+        : allRoster.filter((e) => e.id === chartEstimatorId);
+    return list.map((e) => {
+      const row: Record<string, string | number> = { name: e.name.split(" ")[0] || e.name, fullName: e.name };
+      for (const f of KPI_CHART_FIELDS) row[f.key] = pickValue(e.id, f.key);
+      return row;
+    });
+  }, [allRoster, recordsByEstimator, autoByEstimator, chartEstimatorId]);
+
+  const singleEstimatorMetricRows = useMemo(() => {
+    if (chartEstimatorId === "all" || chartRows.length !== 1) return null;
+    const row = chartRows[0];
+    return KPI_CHART_FIELDS.map((f) => ({
+      name: f.label,
+      value: Number(row[f.key] ?? 0) || 0,
+    }));
+  }, [chartEstimatorId, chartRows]);
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -308,6 +357,10 @@ export default function TechnicalKpiPage() {
   const displayValue = (fieldKey: EstimatorKpiFieldKey, value: string) => {
     if (fieldKey === "rating_stars") return starsLabel(value);
     if (fieldKey === "marks_out_of_10") return `${value} / 10`;
+    if (fieldKey === "productivity") {
+      const n = String(value).replace(/%/g, "").trim();
+      return n ? `${n}%` : value;
+    }
     return value;
   };
 
@@ -427,6 +480,70 @@ export default function TechnicalKpiPage() {
                 <p className="text-[10px] sm:text-[11px] text-white/70 mt-auto">{c.hint}</p>
               </div>
             ))}
+          </section>
+
+          <section className="rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-[#0F172A]">KPI graphs</h2>
+                <p className="text-[11px] text-gray-400">Month fields — pick one estimator or All</p>
+              </div>
+              <select
+                value={chartEstimatorId}
+                onChange={(e) => setChartEstimatorId(e.target.value)}
+                className="h-10 rounded-xl border border-gray-200 bg-[#FAFAFA] px-3 text-sm font-semibold text-[#0F172A] outline-none"
+              >
+                <option value="all">All estimators</option>
+                {allRoster.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {chartRows.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">No estimator data for this month</p>
+            ) : singleEstimatorMetricRows ? (
+              <div className="rounded-xl border border-gray-100 bg-[#FAFBFD] p-2.5">
+                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 px-1">
+                  {String(chartRows[0]?.fullName ?? "Estimator")} — field snapshot
+                </p>
+                <div className="h-[220px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={singleEstimatorMetricRows} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+                      <Bar dataKey="value" fill="#B8112D" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {KPI_CHART_FIELDS.map((f) => (
+                  <div key={f.key} className="rounded-xl border border-gray-100 bg-[#FAFBFD] p-2.5">
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 px-1">{f.label}</p>
+                    <div className="h-[180px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                          <Tooltip
+                            formatter={(v) => [v, f.label]}
+                            labelFormatter={(_, payload) => String(payload?.[0]?.payload?.fullName ?? "")}
+                            contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                          />
+                          <Bar dataKey={f.key} fill="#B8112D" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">

@@ -30,14 +30,14 @@ type LandingPortal = {
 const PORTALS: LandingPortal[] = [
   {
     value: "admin",
-    label: "Admin",
+    label: "CEO",
     hint: "Users, leads, uploads & company reports",
     icon: LayoutDashboard,
     accent: "#B8112D",
   },
   {
     value: "manager",
-    label: "Manager",
+    label: "Admin",
     hint: "Leads, reports & project oversight",
     icon: BarChart3,
     accent: "#0F766E",
@@ -51,7 +51,7 @@ const PORTALS: LandingPortal[] = [
   },
   {
     value: "technical_manager",
-    label: "Technical",
+    label: "Chief Estimation",
     hint: "Projects, revisions, KPI & delivery",
     icon: Wrench,
     accent: "#D97706",

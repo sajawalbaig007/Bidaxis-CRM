@@ -22,6 +22,7 @@ import AdminChatPanel from "./AdminChatPanel";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import { playChatSound, primeChatSound } from "@/lib/chatSound";
+import { roleDisplayLabel } from "@/lib/roleDisplay";
 
 const BASE = "/admin";
 
@@ -249,7 +250,7 @@ export default function DashboardSidebar() {
                 CRM Dashboard
               </h2>
               <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-                Admin Panel
+                CEO Panel
               </p>
             </div>
           </Link>
@@ -448,10 +449,10 @@ export default function DashboardSidebar() {
                 )}
               </div>
               <div className="hidden 2xl:block text-left">
-                <p className="text-[12px] font-bold leading-none text-crm-text max-w-[110px] truncate">
-                  {user?.name ?? "Admin"}
+                    <p className="text-[12px] font-bold leading-none text-crm-text max-w-[110px] truncate">
+                  {user?.name ?? "CEO"}
                 </p>
-                <p className="text-[10px] text-crm-text-muted mt-1">Administration</p>
+                <p className="text-[10px] text-crm-text-muted mt-1">CEO</p>
               </div>
               <ChevronDown
                 size={13}
@@ -471,14 +472,14 @@ export default function DashboardSidebar() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Admin"}</p>
+                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "CEO"}</p>
                     <p className="text-white/65 text-[11px] truncate mt-0.5">{user?.email ?? "—"}</p>
                   </div>
                 </div>
                 <div className="p-3 space-y-1.5">
                   <div className="flex items-center justify-between gap-2 px-2.5 py-2 bg-[#F5F6FA] rounded-xl">
                     <span className="text-[10px] text-gray-400 font-medium shrink-0">Role</span>
-                    <span className="text-[11px] font-semibold text-[#0F172A]">{user?.role ?? "Admin"}</span>
+                    <span className="text-[11px] font-semibold text-[#0F172A]">{roleDisplayLabel(user?.role) || "CEO"}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2 px-2.5 py-2 bg-[#F5F6FA] rounded-xl">
                     <span className="text-[10px] text-gray-400 font-medium shrink-0">Email</span>

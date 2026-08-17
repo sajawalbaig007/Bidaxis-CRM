@@ -259,7 +259,7 @@ function ProjectCard({
               type="button"
               onClick={onMarkCompleted}
               className="h-8 px-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-bold inline-flex items-center gap-1 hover:bg-emerald-100"
-              title="Mark as completed — remove from Technical Manager"
+              title="Mark as completed — stays on Chief Estimation"
             >
               <CheckCircle2 size={12} />
               Complete
@@ -552,7 +552,7 @@ function ProjectsSection({
                             type="button"
                             onClick={() => onMarkCompleted(p)}
                             className="h-7 px-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold hover:bg-emerald-100 inline-flex items-center gap-1 shrink-0 border border-emerald-200"
-                            title="Mark as completed — remove from Technical Manager"
+                            title="Mark as completed — stays on Chief Estimation"
                           >
                             <CheckCircle2 size={12} />
                             Complete
@@ -1054,7 +1054,7 @@ export default function AdminProjectsPage() {
       });
       const lead = res.data.lead as Project;
       setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
-      toast.success("Sent to Technical Manager → Revisions");
+      toast.success("Sent to Chief Estimation → Revisions");
       setShowRevision(false);
       setRevisionProj(null);
       setRevisionNotes("");
@@ -1072,7 +1072,7 @@ export default function AdminProjectsPage() {
       const res = await API.put(`/admin/project/${p.id}/mark-completed`);
       const lead = res.data.lead as Project;
       setProjects((prev) => prev.map((row) => (row.id === lead.id ? { ...row, ...lead } : row)));
-      toast.success("Marked completed — removed from Technical Manager");
+      toast.success("Marked completed — still on Chief Estimation");
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -1538,7 +1538,7 @@ export default function AdminProjectsPage() {
                     Send for Revision
                   </h2>
                   <p className="text-white/70 text-xs sm:text-sm mt-0.5">
-                    {revisionProj.projectTitle ?? revisionProj.name ?? "Project"} → Technical Manager Revisions
+                    {revisionProj.projectTitle ?? revisionProj.name ?? "Project"} → Chief Estimation Revisions
                   </p>
                 </div>
                 <button
@@ -1563,7 +1563,7 @@ export default function AdminProjectsPage() {
               </label>
               {revisionProj.needsRevision ? (
                 <p className="text-xs text-violet-700 bg-violet-50 px-3 py-2 rounded-xl">
-                  Already in revision queue — sending again will update notes and notify Technical Manager.
+                  Already in revision queue — sending again will update notes and notify Chief Estimation.
                 </p>
               ) : null}
             </div>

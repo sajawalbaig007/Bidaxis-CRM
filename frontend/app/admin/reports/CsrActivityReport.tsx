@@ -73,9 +73,9 @@ function toEstLocalInput(iso: string | null | undefined): string {
   return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
 }
 
-function downloadCsv(rows: SessionRow[], filename: string) {
+function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) {
   const headers = [
-    "CSR",
+    personLabel,
     "Code",
     "Check In (EST)",
     "Check Out (EST)",
@@ -113,8 +113,16 @@ function downloadCsv(rows: SessionRow[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function CsrActivityReport() {
+export default function CsrActivityReport({
+  staffRole = "csr",
+}: {
+  staffRole?: "csr" | "estimator";
+}) {
   const today = estTodayYmd();
+  const isEstimator = staffRole === "estimator";
+  const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
+  const personLabel = isEstimator ? "Estimator" : "CSR";
+  const allLabel = isEstimator ? "All Estimators" : "All CSRs";
 
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
@@ -178,10 +186,10 @@ export default function CsrActivityReport() {
   };
 
   useEffect(() => {
-    API.get("/admin/csrs")
+    API.get(isEstimator ? "/admin/csrs?role=estimator" : "/admin/csrs")
       .then(res => setCsrs(res.data.csrs ?? []))
       .catch(() => {});
-  }, []);
+  }, [isEstimator]);
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -198,7 +206,7 @@ export default function CsrActivityReport() {
     if (!fromDate || !toDate) return;
     try {
       setLoading(true);
-      const params = new URLSearchParams({ from: fromDate, to: toDate });
+      const params = new URLSearchParams({ from: fromDate, to: toDate, role: staffRole });
       if (csrId !== "all") params.set("csrId", csrId);
       const res = await API.get<ReportResponse>(`/admin/csr-session-report?${params}`);
       setSessions(res.data.sessions ?? []);
@@ -210,7 +218,7 @@ export default function CsrActivityReport() {
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate, csrId]);
+  }, [fromDate, toDate, csrId, staffRole]);
 
   useEffect(() => {
     if (!open) return;
@@ -218,7 +226,7 @@ export default function CsrActivityReport() {
   }, [open, loadReport]);
 
   const selectedCsr = csrs.find(c => c.id === csrId) ?? null;
-  const dropdownLabel = selectedCsr ? selectedCsr.name : "All CSRs";
+  const dropdownLabel = selectedCsr ? selectedCsr.name : allLabel;
 
   const totals = useMemo(() => ({
     sessions: sessions.length,
@@ -239,7 +247,7 @@ export default function CsrActivityReport() {
           </div>
           <div className="text-left min-w-0">
             <h2 className="text-base sm:text-lg font-bold text-[#111827] dark:text-gray-100 truncate">
-              CSR Check In / Check Out
+              {title}
             </h2>
             <p className="text-xs text-gray-400 truncate">
               {open
@@ -300,7 +308,7 @@ export default function CsrActivityReport() {
                     onClick={() => { setCsrId("all"); setDropdownOpen(false); }}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${csrId === "all" ? "text-[#B8112D] font-semibold" : "text-gray-700"}`}
                   >
-                    All CSRs
+                    {allLabel}
                   </button>
                   {csrs.map(c => (
                     <button
@@ -327,7 +335,7 @@ export default function CsrActivityReport() {
 
             <button
               type="button"
-              onClick={() => downloadCsv(sessions, `csr-activity-${fromDate}-${toDate}.csv`)}
+              onClick={() => downloadCsv(sessions, `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}.csv`, personLabel)}
               disabled={!sessions.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
             >

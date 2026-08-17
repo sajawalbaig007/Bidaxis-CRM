@@ -37,7 +37,10 @@ export default function EstimatorKpiEntryModal({
   onClose,
   onSubmit,
 }: Props) {
-  const meta = ESTIMATOR_KPI_FIELD_META[fieldKey];
+  const meta = ESTIMATOR_KPI_FIELD_META[fieldKey] ?? {
+    label: String(fieldKey).replace(/_/g, " "),
+    input: "text" as const,
+  };
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
   const [recordedAt, setRecordedAt] = useState(toDatetimeLocalValue(new Date()));

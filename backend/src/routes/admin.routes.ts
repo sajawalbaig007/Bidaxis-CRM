@@ -238,12 +238,13 @@ router.put(
 /* ================= GET ALL CSRS ================= */
 router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
-    const CACHE_KEY = "admin:csrs";
+    const role = req.query.role === "estimator" ? "estimator" : "csr";
+    const CACHE_KEY = role === "estimator" ? "admin:estimators:list" : "admin:csrs";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
     const csrs = await prisma.user.findMany({
-      where: { role: "csr" },
+      where: { role },
       select: {
         id: true,
         name: true,
@@ -809,7 +810,7 @@ router.post(
           actorId: authUser?.id,
           actorName: authorName || authUser?.name,
           actorRole: role,
-          title: "Notes for Technical Manager",
+          title: "Notes for Chief Estimation",
           message: `${authorName || "Technical"} on ${label}: ${text.slice(0, 160)}`,
           changes: ["Notes for Estimator"],
         });
@@ -1089,13 +1090,14 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
     const from  = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
     const to    = typeof req.query.to   === "string" ? req.query.to.trim()   : undefined;
     const lite  = req.query.lite !== "0" && req.query.lite !== "false";
-    const page  = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
-    const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
-    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const technicalView =
       req.query.technicalView === "1" ||
       req.query.technicalView === "true" ||
       req.query.forTechnical === "1";
+    const page  = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const maxLimit = technicalView ? 2000 : 500;
+    const limit = Math.min(maxLimit, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const revisionsView =
       req.query.revisions === "1" ||
       req.query.revisions === "true";
@@ -1159,7 +1161,8 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
 
     let leads = rawLeads.filter(isDisplayableProjectLead);
 
-    // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset)
+    // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset).
+    // Completed projects always stay on Chief Estimation, even if previously hidden by mark-complete.
     if (technicalView) {
       leads = leads.filter((l) => {
         const row = l as {
@@ -1167,11 +1170,11 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
           projectWorkStatus?: string | null;
           status?: string | null;
         };
-        if (row.hiddenOnTechnical === true) return false;
-        const work = String(row.projectWorkStatus ?? "").toLowerCase();
-        const st = String(row.status ?? "").toLowerCase();
-        if (work === "completed" || st === "completed") return false;
-        return true;
+        const completed =
+          String(row.projectWorkStatus ?? "").toLowerCase() === "completed" ||
+          String(row.status ?? "").toLowerCase() === "completed";
+        if (completed) return true;
+        return row.hiddenOnTechnical !== true;
       });
     }
 
@@ -1921,7 +1924,7 @@ router.put(
   },
 );
 
-/* ================= MARK COMPLETED (Admin: after Final Submission → hide from TM) ================= */
+/* ================= MARK COMPLETED (Admin: keep visible on Chief Estimation) ================= */
 router.put(
   "/project/:id/mark-completed",
   verifyToken,
@@ -1949,21 +1952,14 @@ router.put(
         });
         return res.json({ success: true, lead });
       }
-      const phase = String(existing.projectPhase ?? "").toLowerCase();
-      if (phase !== "qa_phase" && phase !== "delivery_phase") {
-        return res.status(400).json({
-          success: false,
-          message: "Project must be in Final Submission before marking completed.",
-        });
-      }
       const lead = await prisma.lead.update({
         where: { id: leadId },
         data: {
           projectWorkStatus: "completed",
           status: "completed",
           projectPhase: "delivery_phase",
-          hiddenOnTechnical: true,
           needsRevision: false,
+          hiddenOnTechnical: false,
         },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
@@ -2569,7 +2565,7 @@ router.put(
     try {
       const leadId = String(req.params.id);
       const tabRaw = String((req.body as { tab?: string })?.tab ?? "").trim();
-      const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission"] as const;
+      const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed"] as const;
       if (!allowed.includes(tabRaw as (typeof allowed)[number])) {
         return res.status(400).json({ success: false, message: "Invalid workflow tab." });
       }
@@ -2599,6 +2595,13 @@ router.put(
         data: {
           technicalAssignments: serializeTechnicalAssignments(moved.assignments),
           projectPhase: moved.projectPhase,
+          ...(moved.projectWorkStatus
+            ? {
+                projectWorkStatus: moved.projectWorkStatus,
+                status: "completed",
+                hiddenOnTechnical: false,
+              }
+            : {}),
         },
         include: {
           csr: { select: { id: true, name: true, email: true, csrCode: true } },
@@ -2675,6 +2678,67 @@ router.put(
     } catch (error) {
       console.log(error);
       return res.status(500).json({ success: false, message: "Failed to update takeoff status" });
+    }
+  },
+);
+
+/* ================= TM EVALUATION (marks / remarks per estimator on a project) ================= */
+router.put(
+  "/project/:id/estimator-evaluation",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const { estimatorId, marks, remarks } = req.body as {
+        estimatorId?: string;
+        marks?: number | string;
+        remarks?: string;
+      };
+      if (!estimatorId) {
+        return res.status(400).json({ success: false, message: "estimatorId is required" });
+      }
+      const n = Number(marks);
+      if (!Number.isFinite(n) || n < 0 || n > 10) {
+        return res.status(400).json({ success: false, message: "Marks must be between 0 and 10." });
+      }
+
+      const existing = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { technicalAssignments: true, assignedTo: true },
+      });
+      if (!existing) {
+        return res.status(404).json({ success: false, message: "Project not found" });
+      }
+
+      const list = parseTechnicalAssignments(existing.technicalAssignments);
+      const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+      if (idx < 0) {
+        return res.status(404).json({ success: false, message: "Estimator assignment not found" });
+      }
+      list[idx] = {
+        ...list[idx]!,
+        evaluationMarks: Math.round(n * 10) / 10,
+        evaluationRemarks: String(remarks ?? "").trim(),
+        evaluatedAt: new Date().toISOString(),
+      };
+
+      const lead = await prisma.lead.update({
+        where: { id: leadId },
+        data: { technicalAssignments: serializeTechnicalAssignments(list) },
+        include: {
+          csr: { select: { id: true, name: true, email: true, csrCode: true } },
+          notes: { orderBy: { createdAt: "asc" }, take: 20 },
+          uploadFile: { select: { companyName: true } },
+        },
+      });
+
+      invalidatePattern("admin:projects:");
+      invalidateCache(`csr:projects:${lead.assignedTo}`);
+      return res.json({ success: true, lead });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ success: false, message: "Failed to save evaluation" });
     }
   },
 );
@@ -3507,7 +3571,8 @@ router.get(
         to = estDayBoundsUtc(toYmd)!.end;
       }
 
-      const report = await buildCsrSessionReport({ from, to, csrId });
+      const staffRole = req.query.role === "estimator" ? "estimator" as const : "csr" as const;
+      const report = await buildCsrSessionReport({ from, to, csrId, role: staffRole });
       return res.json({
         success: true,
         timezone: "America/New_York",

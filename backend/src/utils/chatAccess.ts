@@ -137,10 +137,10 @@ export async function assertCanMessageTarget(
 }
 
 const ROLE_DISPLAY: Record<string, string> = {
-  admin: "Admin",
+  admin: "CEO",
   csr: "CSR",
-  manager: "Manager",
-  technical_manager: "Technical Manager",
+  manager: "Admin",
+  technical_manager: "Chief Estimation",
   estimator: "Estimator",
   accounts: "Accounts",
 };

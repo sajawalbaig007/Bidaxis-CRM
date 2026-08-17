@@ -1,10 +1,10 @@
 export type PortalRole = "admin" | "csr" | "manager" | "technical_manager" | "accounts" | "estimator";
 
 export const PORTAL_OPTIONS: { value: PortalRole; label: string; hint: string }[] = [
-  { value: "admin", label: "Admin", hint: "Full admin dashboard" },
+  { value: "admin", label: "CEO", hint: "Full CEO dashboard" },
   { value: "csr", label: "CSR", hint: "Client calls & leads" },
-  { value: "manager", label: "Manager", hint: "Leads, reports & projects" },
-  { value: "technical_manager", label: "Technical", hint: "Projects, KPI & team" },
+  { value: "manager", label: "Admin", hint: "Leads, reports & projects" },
+  { value: "technical_manager", label: "Chief Estimation", hint: "Projects, KPI & team" },
   { value: "estimator", label: "Estimator", hint: "Assigned takeoffs & deadlines" },
   { value: "accounts", label: "Accounts", hint: "Statements, payroll & assets" },
 ];
@@ -26,21 +26,21 @@ export const PORTAL_LOGIN_COPY: Record<
   }
 > = {
   admin: {
-    eyebrow: "Admin Portal",
-    heading: "Admin Sign In",
+    eyebrow: "CEO Portal",
+    heading: "CEO Sign In",
     subheading: "Manage users, leads, uploads, and company-wide reports.",
     slides: [
-      { title: "Admin Dashboard", subtitle: "Full control across users, data, and reporting." },
+      { title: "CEO Dashboard", subtitle: "Full control across users, data, and reporting." },
       { title: "Team & Access", subtitle: "Create accounts, assign roles, and keep access secure." },
       { title: "Company Overview", subtitle: "Leads, projects, and performance in one place." },
     ],
   },
   manager: {
-    eyebrow: "Manager Portal",
-    heading: "Manager Sign In",
+    eyebrow: "Admin Portal",
+    heading: "Admin Sign In",
     subheading: "Oversee leads, reports, and active projects for your team.",
     slides: [
-      { title: "Manager Dashboard", subtitle: "Track leads, reports, and project health." },
+      { title: "Admin Dashboard", subtitle: "Track leads, reports, and project health." },
       { title: "Team Visibility", subtitle: "See progress across CSR and delivery pipelines." },
       { title: "Faster Decisions", subtitle: "Reports and filters built for day-to-day management." },
     ],
@@ -56,11 +56,11 @@ export const PORTAL_LOGIN_COPY: Record<
     ],
   },
   technical_manager: {
-    eyebrow: "Technical Portal",
-    heading: "Technical Sign In",
+    eyebrow: "Chief Estimation Portal",
+    heading: "Chief Estimation Sign In",
     subheading: "Monitor projects, revisions, KPI, and delivery teams.",
     slides: [
-      { title: "Technical Dashboard", subtitle: "Projects, revisions, and delivery status." },
+      { title: "Estimation Dashboard", subtitle: "Projects, revisions, and delivery status." },
       { title: "Team & KPI", subtitle: "Track capacity, quality, and milestones." },
       { title: "Delivery Focus", subtitle: "Keep active work and revisions under control." },
     ],

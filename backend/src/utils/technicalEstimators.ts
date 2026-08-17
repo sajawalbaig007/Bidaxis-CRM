@@ -29,6 +29,9 @@ export type TechnicalAssignment = {
    * Cleared when the same estimator’s assignment details are changed.
    */
   assignmentConfirmed: boolean;
+  evaluationMarks?: number | null;
+  evaluationRemarks?: string;
+  evaluatedAt?: string | null;
 };
 
 /** Sync projectPhase from assignment complete / pricing flags. */
@@ -138,6 +141,9 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       timerSeconds,
       timerStartedAt: startedRaw || null,
       assignmentConfirmed: o.assignmentConfirmed === true,
+      evaluationMarks: parseEvalMarks(o.evaluationMarks),
+      evaluationRemarks: String(o.evaluationRemarks ?? "").trim(),
+      evaluatedAt: o.evaluatedAt ? String(o.evaluatedAt).trim() || null : null,
     });
   }
   return out;
@@ -300,8 +306,18 @@ export function mergeAssignmentProgress(
       timerSeconds: old.timerSeconds,
       timerStartedAt: old.takeoffDone ? null : old.timerStartedAt,
       assignmentConfirmed: detailsChanged ? false : old.assignmentConfirmed === true,
+      evaluationMarks: old.evaluationMarks ?? a.evaluationMarks ?? null,
+      evaluationRemarks: old.evaluationRemarks ?? a.evaluationRemarks ?? "",
+      evaluatedAt: old.evaluatedAt ?? a.evaluatedAt ?? null,
     };
   });
+}
+
+function parseEvalMarks(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(10, Math.round(n * 10) / 10));
 }
 
 export type TechnicalWorkflowTab =
@@ -310,14 +326,28 @@ export type TechnicalWorkflowTab =
   | "assigned"
   | "takeoff_done"
   | "pricing"
-  | "final_submission";
+  | "final_submission"
+  | "completed";
 
 /** Force assignment flags / phase so the project lands in a workflow tab. */
 export function applyTechnicalTabMove(
   previous: TechnicalAssignment[],
   tab: Exclude<TechnicalWorkflowTab, "all">,
   currentPhase: string | null | undefined,
-): { assignments: TechnicalAssignment[]; projectPhase: string; error?: string } {
+): {
+  assignments: TechnicalAssignment[];
+  projectPhase: string;
+  projectWorkStatus?: string;
+  error?: string;
+} {
+  if (tab === "completed") {
+    return {
+      assignments: previous,
+      projectPhase: "delivery_phase",
+      projectWorkStatus: "completed",
+    };
+  }
+
   if (tab === "not_assigned") {
     return { assignments: [], projectPhase: "not_started" };
   }

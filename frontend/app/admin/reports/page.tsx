@@ -493,8 +493,9 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-4 sm:mb-6 space-y-4">
           <CsrActivityReport />
+          <CsrActivityReport staffRole="estimator" />
         </div>
 
         {/* ── CSR PERFORMANCE TABLE ── */}
