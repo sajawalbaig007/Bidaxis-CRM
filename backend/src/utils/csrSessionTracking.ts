@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { detectBrowser } from "./sessions";
 import { formatDurationMs, formatEstDateTime } from "./estTime";
@@ -422,13 +423,13 @@ export async function buildCsrSessionReport(opts: {
   csrId?: string;
   role?: "csr" | "estimator";
 }): Promise<{ sessions: CsrSessionReportRow[]; summary: CsrSessionSummary[] }> {
-  const staffRole = opts.role === "estimator" ? "estimator" : "csr";
+  const staffRole: "csr" | "estimator" = opts.role === "estimator" ? "estimator" : "csr";
   /* Clean zombies before reporting so Totals / Still checked-in stay accurate */
   try {
-    const openWhere = {
+    const openWhere: Prisma.CsrWorkSessionWhereInput = {
       ...(opts.csrId ? { userId: opts.csrId } : {}),
       OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
-      user: { role: staffRole },
+      user: { is: { role: staffRole } },
     };
     const openRows = await prisma.csrWorkSession.findMany({
       where: openWhere,
@@ -452,10 +453,10 @@ export async function buildCsrSessionReport(opts: {
   if (opts.from) range.gte = opts.from;
   if (opts.to) range.lte = opts.to;
 
-  const where = {
+  const where: Prisma.CsrWorkSessionWhereInput = {
     ...(opts.csrId ? { userId: opts.csrId } : {}),
     ...(range.gte || range.lte ? { loginAt: range } : {}),
-    user: { role: staffRole },
+    user: { is: { role: staffRole } },
   };
 
   const rows = await prisma.csrWorkSession.findMany({
