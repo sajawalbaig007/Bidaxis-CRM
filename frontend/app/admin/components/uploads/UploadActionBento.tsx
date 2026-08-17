@@ -18,6 +18,7 @@ type Props = {
   title?: string;
   subtitle?: string;
   replayLabel?: string;
+  toolbar?: ReactNode;
 };
 
 const DECK_OFFSETS = [
@@ -52,6 +53,7 @@ export default function UploadActionBento({
   title = "Upload board",
   subtitle = "Deck expands into a bento board — tap a capsule or card to focus.",
   replayLabel = "Replay expand",
+  toolbar,
 }: Props) {
   const ids = useMemo(() => items.map((i) => i.id), [items]);
   const [order, setOrder] = useState(ids);
@@ -97,15 +99,18 @@ export default function UploadActionBento({
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">{title}</h2>
-            <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+            {subtitle ? <p className="text-sm text-gray-500 mt-1">{subtitle}</p> : null}
           </div>
-          <button
-            type="button"
-            onClick={replayIntro}
-            className="self-start h-10 px-4 rounded-full text-sm font-semibold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm shrink-0"
-          >
-            {replayLabel}
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {toolbar}
+            <button
+              type="button"
+              onClick={replayIntro}
+              className="self-start h-10 px-4 rounded-full text-sm font-semibold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm shrink-0"
+            >
+              {replayLabel}
+            </button>
+          </div>
         </div>
 
         {focusId ? (

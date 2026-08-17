@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import TechnicalPageShell from "../components/TechnicalPageShell";
 import EstimatorKpiEntryModal from "../components/EstimatorKpiEntryModal";
-import KpiChartsBento, { type KpiChartRow } from "../components/KpiChartsBento";
+import KpiChartsBento, { type KpiChartRow, type KpiDeliveredPoint } from "../components/KpiChartsBento";
 import {
   ESTIMATOR_KPI_FIELD_KEYS,
   ESTIMATOR_KPI_FIELD_META,
@@ -106,7 +106,7 @@ const FIELD_BENTO_SPAN: Record<EstimatorKpiFieldKey, string> = {
   checkin_checkout: "md:col-span-4",
   retained_clients: "md:col-span-4",
   punctuality: "md:col-span-4",
-  team_query_mistakes: "md:col-span-4",
+  team_query_mistakes: "md:col-span-4 md:row-span-2 min-h-[320px]",
   trades_history: "md:col-span-8",
   final_remarks: "md:col-span-12",
   marks_out_of_10: "md:col-span-6",
@@ -183,7 +183,15 @@ export default function TechnicalKpiPage() {
   }, [month, periodMode, rangeFrom, rangeTo]);
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      await load();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   const liveByEstimator = useMemo(() => {
@@ -274,6 +282,38 @@ export default function TechnicalKpiPage() {
       return row;
     });
   }, [allRoster, recordsByEstimator, autoByEstimator, chartEstimatorId]);
+
+  const deliveredTimeline = useMemo((): KpiDeliveredPoint[] => {
+    const merged = new Map<string, number>();
+    const fromAuto = autoRows
+      .filter((r) => chartEstimatorId === "all" || r.estimatorId === chartEstimatorId)
+      .flatMap((r) => r.deliveredByDate ?? []);
+    if (fromAuto.length > 0) {
+      for (const p of fromAuto) merged.set(p.date, (merged.get(p.date) ?? 0) + p.count);
+    } else {
+      const bucket = periodMode === "all" ? "month" : "day";
+      for (const r of records) {
+        if (r.fieldKey !== "projects_delivered") continue;
+        if (chartEstimatorId !== "all" && r.estimatorId !== chartEstimatorId) continue;
+        const d = new Date(r.recordedAt);
+        if (Number.isNaN(d.getTime())) continue;
+        const key =
+          bucket === "month"
+            ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+            : d.toISOString().slice(0, 10);
+        merged.set(key, (merged.get(key) ?? 0) + Math.max(0, kpiNumeric(r.value)));
+      }
+    }
+    const points = [...merged.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const total = points.reduce((s, [, c]) => s + c, 0);
+    return points.map(([date, count]) => {
+      const isMonth = date.length === 7;
+      const label = isMonth
+        ? new Date(`${date}-01T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "numeric" })
+        : new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+      return { label, count, pct: total > 0 ? Math.round((count / total) * 1000) / 10 : 0 };
+    });
+  }, [autoRows, records, chartEstimatorId, periodMode]);
 
   const downloadReport = () => {
     if (periodMode === "range" && (!rangeFrom || !rangeTo)) {
@@ -601,22 +641,26 @@ export default function TechnicalKpiPage() {
             ))}
           </section>
 
-          <section className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
-              <select
-                value={chartEstimatorId}
-                onChange={(e) => setChartEstimatorId(e.target.value)}
-                className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none sm:w-64"
-              >
-                <option value="all">Graphs: all estimators</option>
-                {allRoster.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    Graphs: {e.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <KpiChartsBento rows={chartRows} periodLabel={kpiReportPeriodLabel(reportPeriod)} />
+          <section>
+            <KpiChartsBento
+              rows={chartRows}
+              periodLabel={kpiReportPeriodLabel(reportPeriod)}
+              deliveredTimeline={deliveredTimeline}
+              toolbar={
+                <select
+                  value={chartEstimatorId}
+                  onChange={(e) => setChartEstimatorId(e.target.value)}
+                  className="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none min-w-[11rem] sm:w-56"
+                >
+                  <option value="all">All estimators</option>
+                  {allRoster.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              }
+            />
           </section>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
@@ -788,7 +832,7 @@ export default function TechnicalKpiPage() {
                                 return (
                                   <div
                                     key={fieldKey}
-                                    className={`rounded-[1.5rem] border overflow-hidden bg-white shadow-sm ${FIELD_BENTO_SPAN[fieldKey]} ${
+                                    className={`rounded-[1.5rem] border overflow-hidden bg-white shadow-sm flex flex-col h-full ${FIELD_BENTO_SPAN[fieldKey]} ${
                                       hasEntries ? "border-emerald-100" : "border-gray-200"
                                     }`}
                                   >
@@ -874,7 +918,7 @@ export default function TechnicalKpiPage() {
                                     ) : null}
 
                                     {fieldRecords.length === 0 ? (
-                                      <div className="px-3 py-3 border-t border-dashed border-gray-100">
+                                      <div className="px-3 py-3 border-t border-dashed border-gray-100 flex-1 flex items-center justify-center min-h-[72px]">
                                         <p className="text-[11px] text-gray-400 text-center">
                                           {showAuto
                                             ? "Not saved yet — tap Use or Add (prefilled) to keep an editable row"
@@ -882,7 +926,7 @@ export default function TechnicalKpiPage() {
                                         </p>
                                       </div>
                                     ) : (
-                                      <ul className="divide-y divide-gray-50 border-t border-gray-50">
+                                      <ul className="divide-y divide-gray-50 border-t border-gray-50 flex-1">
                                         {fieldRecords.map((rec) => (
                                           <li
                                             key={rec.id}

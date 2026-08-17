@@ -27,7 +27,15 @@ export type EstimatorKpiAutoRow = {
   name: string;
   code: string;
   fields: EstimatorKpiAutoField[];
+  deliveredByDate?: { date: string; count: number }[];
 };
+
+function ymdFromUnknown(value: unknown): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
 
 function formatShortEst(value: Date): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -255,6 +263,7 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
     retainedLines: string[];
     evalMarks: number[];
     evalRemarkLines: string[];
+    deliveredDates: string[];
   };
 
   const byId = new Map<string, Acc>();
@@ -278,6 +287,7 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       retainedLines: [],
       evalMarks: [],
       evalRemarkLines: [],
+      deliveredDates: [],
     });
   }
 
@@ -307,6 +317,7 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       retainedLines: [],
       evalMarks: [],
       evalRemarkLines: [],
+      deliveredDates: [],
     };
     byId.set(estimatorId, created);
     return created;
@@ -333,6 +344,11 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
 
       if (a.takeoffDone) {
         acc.delivered += 1;
+        acc.deliveredDates.push(
+          ymdFromUnknown(a.evaluatedAt) ||
+            ymdFromUnknown(lead.updatedAt) ||
+            bounds.from.toISOString().slice(0, 10),
+        );
         if (logged > 0) acc.timerHoursSamples.push(logged / 3600);
         if (a.deadline) {
           acc.doneWithDeadline += 1;
@@ -543,11 +559,20 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         return { fieldKey: key, value: f.value, note: f.note, auto: f.auto && !!f.value.trim() };
       });
 
+      const countByDate = new Map<string, number>();
+      for (const day of acc.deliveredDates) {
+        countByDate.set(day, (countByDate.get(day) ?? 0) + 1);
+      }
+      const deliveredByDate = [...countByDate.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, count]) => ({ date, count }));
+
       return {
         estimatorId: acc.id,
         name: acc.name,
         code: acc.code,
         fields,
+        deliveredByDate,
       };
     });
 

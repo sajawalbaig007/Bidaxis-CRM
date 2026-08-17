@@ -84,6 +84,7 @@ export type EstimatorKpiAutoRow = {
   name: string;
   code: string;
   fields: EstimatorKpiAutoField[];
+  deliveredByDate?: { date: string; count: number }[];
 };
 
 export async function fetchEstimatorKpiRecords(opts?: {
