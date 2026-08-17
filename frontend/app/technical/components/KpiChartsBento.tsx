@@ -66,7 +66,7 @@ function ChartCard({
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{eyebrow}</p>
       <h3 className="text-sm sm:text-base font-bold text-[#0F172A]">{title}</h3>
       {hint ? <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">{hint}</p> : null}
-      <div className="flex-1 min-h-0 mt-1">{children}</div>
+      <div className="flex-1 min-h-[180px] mt-1">{children}</div>
     </div>
   );
 }
@@ -252,12 +252,12 @@ export default function KpiChartsBento({
         shortLabel: "Prod %",
         accent: "#0B84F3",
         content: (
-          <ChartCard eyebrow="Efficiency" title="Productivity %" hint="Y-axis is % of planned hours (or delivered vs assigned).">
+          <ChartCard eyebrow="Efficiency" title="Productivity %">
             {rows.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-10">No data</p>
             ) : (
-              <RechartsBox height="100%">
-                <AreaChart data={rows}>
+              <RechartsBox height={180}>
+                <AreaChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="kpiProdFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#0B84F3" stopOpacity={0.35} />
@@ -295,10 +295,10 @@ export default function KpiChartsBento({
           <ChartCard
             eyebrow="Shape"
             title="Evaluation radar"
-            hint="One snapshot of balance: all axes 0–100%. Rounder shape = more even marks, stars, productivity, punctuality, and retain rate."
+            hint="0–100% on every axis — rounder shape means more even performance."
           >
-            <RechartsBox height="100%">
-              <RadarChart data={radar} cx="50%" cy="52%" outerRadius="62%">
+            <RechartsBox height={190}>
+              <RadarChart data={radar} cx="50%" cy="50%" outerRadius="75%">
                 <PolarGrid stroke="#E2E8F0" />
                 <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "#64748B" }} />
                 <PolarRadiusAxis
@@ -328,17 +328,19 @@ export default function KpiChartsBento({
         shortLabel: "Donut",
         accent: "#D97706",
         content: (
-          <ChartCard eyebrow="Share" title="Delivered · retained · mistakes" hint="Count and % of this mix.">
+          <ChartCard eyebrow="Share" title="Delivered · retained · mistakes">
             <div className="h-full min-h-0 flex flex-col">
-              <div className="flex-1 min-h-[120px]">
-                <RechartsBox height="100%">
+              <div className="flex-1 min-h-[160px]">
+                <RechartsBox height={180}>
                   <PieChart>
                     <Pie
                       data={donut}
                       dataKey="value"
                       nameKey="name"
-                      innerRadius={44}
-                      outerRadius={66}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="48%"
+                      outerRadius="78%"
                       paddingAngle={3}
                       strokeWidth={0}
                     >
@@ -421,7 +423,7 @@ export default function KpiChartsBento({
               {rows.length === 0 ? (
                 <p className="text-xs text-gray-400">No estimators</p>
               ) : (
-                <div className="space-y-2 flex-1 overflow-y-auto pr-1 min-h-0">
+                <div className="space-y-2 max-h-36 overflow-y-scroll overscroll-contain pr-1 custom-kpi-scroll">
                   {rows.map((r) => (
                     <div key={r.fullName}>
                       <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
