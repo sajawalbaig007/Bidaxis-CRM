@@ -2,8 +2,23 @@
 
 import { useMemo, type ReactNode } from "react";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
-  PolarAngleAxis, PolarGrid, Radar, RadarChart, Tooltip, XAxis, YAxis,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Pie,
+  PieChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import { Activity, Percent, Star, TrendingUp, Users } from "lucide-react";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -21,23 +36,37 @@ export type KpiChartRow = {
   rating_stars: number;
 };
 
+export type KpiDeliveredPoint = {
+  label: string;
+  count: number;
+  pct: number;
+};
+
 const TIP = { borderRadius: 12, fontSize: 12, border: "1px solid #eee" } as const;
 const DONUT = ["#B8112D", "#0B84F3", "#D97706", "#059669", "#7C3AED", "#38BDF8"];
+
+function pctOf(part: number, whole: number) {
+  if (!(whole > 0)) return 0;
+  return Math.round((part / whole) * 1000) / 10;
+}
 
 function ChartCard({
   eyebrow,
   title,
+  hint,
   children,
 }: {
   eyebrow: string;
   title: string;
+  hint?: string;
   children: ReactNode;
 }) {
   return (
     <div className="flex-1 min-h-0 p-3 sm:p-4 flex flex-col">
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{eyebrow}</p>
-      <h3 className="text-sm sm:text-base font-bold text-[#0F172A] mb-1">{title}</h3>
-      <div className="flex-1 min-h-[160px]">{children}</div>
+      <h3 className="text-sm sm:text-base font-bold text-[#0F172A]">{title}</h3>
+      {hint ? <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">{hint}</p> : null}
+      <div className="flex-1 min-h-0 mt-1">{children}</div>
     </div>
   );
 }
@@ -45,9 +74,13 @@ function ChartCard({
 export default function KpiChartsBento({
   rows,
   periodLabel,
+  deliveredTimeline,
+  toolbar,
 }: {
   rows: KpiChartRow[];
   periodLabel: string;
+  deliveredTimeline: KpiDeliveredPoint[];
+  toolbar?: ReactNode;
 }) {
   const totals = useMemo(() => {
     const n = Math.max(1, rows.length);
@@ -64,27 +97,61 @@ export default function KpiChartsBento({
     };
   }, [rows]);
 
+  const barRows = useMemo(
+    () =>
+      rows.map((r) => ({
+        ...r,
+        deliveredPct: pctOf(r.projects_delivered, totals.delivered),
+        retainedPct: pctOf(r.retained_clients, Math.max(r.projects_delivered, 1)),
+      })),
+    [rows, totals.delivered],
+  );
+
   const donut = useMemo(() => {
+    const mixTotal = totals.delivered + totals.retained + totals.mistakes;
     const data = [
       { name: "Delivered", value: totals.delivered, color: DONUT[0] },
       { name: "Retained", value: totals.retained, color: DONUT[1] },
       { name: "Mistakes", value: totals.mistakes, color: DONUT[2] },
-    ].filter((d) => d.value > 0);
-    return data.length ? data : [{ name: "No data", value: 1, color: "#E5E7EB" }];
+    ]
+      .filter((d) => d.value > 0)
+      .map((d) => ({ ...d, pct: pctOf(d.value, mixTotal) }));
+    return data.length ? data : [{ name: "No data", value: 1, color: "#E5E7EB", pct: 0 }];
   }, [totals]);
 
-  const radar = useMemo(
-    () => [
-      { metric: "Marks", value: Math.min(10, totals.avgMarks) },
-      { metric: "Stars×2", value: Math.min(10, totals.avgStars * 2) },
-      { metric: "Prod /10", value: Math.min(10, totals.avgProd / 10) },
-      { metric: "Punct /10", value: Math.min(10, totals.avgPunct / 10) },
-      { metric: "Delivered", value: Math.min(10, totals.delivered) },
-    ],
-    [totals],
-  );
+  const radar = useMemo(() => {
+    const retainedRate = pctOf(totals.retained, Math.max(totals.delivered, 1));
+    return [
+      {
+        metric: "Marks %",
+        value: Math.min(100, (totals.avgMarks / 10) * 100),
+        raw: `${totals.avgMarks || 0}/10`,
+      },
+      {
+        metric: "Stars %",
+        value: Math.min(100, (totals.avgStars / 5) * 100),
+        raw: `${totals.avgStars || 0}/5`,
+      },
+      {
+        metric: "Prod %",
+        value: Math.min(100, totals.avgProd),
+        raw: `${totals.avgProd}%`,
+      },
+      {
+        metric: "Punct %",
+        value: Math.min(100, totals.avgPunct),
+        raw: `${totals.avgPunct}%`,
+      },
+      {
+        metric: "Retain %",
+        value: Math.min(100, retainedRate),
+        raw: `${totals.retained} of ${totals.delivered} (${retainedRate}%)`,
+      },
+    ];
+  }, [totals]);
 
   const maxMarks = Math.max(1, ...rows.map((r) => r.marks_out_of_10));
+  const prodMax = Math.max(100, ...rows.map((r) => r.productivity), 0);
 
   const items = useMemo(
     () => [
@@ -94,19 +161,87 @@ export default function KpiChartsBento({
         shortLabel: "Done",
         accent: "#B8112D",
         content: (
-          <ChartCard eyebrow="Volume" title="Projects delivered">
+          <ChartCard
+            eyebrow="Volume"
+            title="Projects delivered"
+            hint="Top: by estimator (count + share). Bottom: date-wise takeoffs."
+          >
             {rows.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-10">No data</p>
             ) : (
-              <RechartsBox height={180}>
-                <BarChart data={rows} barCategoryGap="22%">
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                  <Tooltip contentStyle={TIP} labelFormatter={(_, p) => String(p?.[0]?.payload?.fullName ?? "")} />
-                  <Bar dataKey="projects_delivered" fill="#B8112D" radius={[8, 8, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </RechartsBox>
+              <div className="h-full min-h-0 flex flex-col gap-2">
+                <div className="flex-[1.15] min-h-[130px]">
+                  <RechartsBox height="100%">
+                    <BarChart data={barRows} barCategoryGap="22%">
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={28}
+                        label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 9, fill: "#94A3B8" }}
+                      />
+                      <Tooltip
+                        contentStyle={TIP}
+                        labelFormatter={(_, p) => String(p?.[0]?.payload?.fullName ?? "")}
+                        formatter={(v, _n, item) => {
+                          const pct = Number(item?.payload?.deliveredPct ?? 0);
+                          return [`${v} (${pct}% of team)`, "Delivered"];
+                        }}
+                      />
+                      <Bar dataKey="projects_delivered" fill="#B8112D" radius={[8, 8, 0, 0]} maxBarSize={28}>
+                        <LabelList
+                          dataKey="deliveredPct"
+                          position="top"
+                          fontSize={9}
+                          fill="#64748B"
+                          formatter={(v) => (Number(v) > 0 ? `${v}%` : "")}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </RechartsBox>
+                </div>
+                <div className="flex-1 min-h-[110px] border-t border-dashed border-gray-100 pt-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                    By date · count + % of period
+                  </p>
+                  {deliveredTimeline.length === 0 ? (
+                    <p className="text-[11px] text-gray-400 text-center py-6">No date-wise deliveries yet</p>
+                  ) : (
+                    <RechartsBox height="100%">
+                      <BarChart data={deliveredTimeline} barCategoryGap="18%">
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="label" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={28}
+                        />
+                        <Tooltip
+                          contentStyle={TIP}
+                          formatter={(v, _n, item) => {
+                            const pct = Number(item?.payload?.pct ?? 0);
+                            return [`${v} (${pct}% of period)`, "Delivered"];
+                          }}
+                        />
+                        <Bar dataKey="count" fill="#F43F5E" radius={[6, 6, 0, 0]} maxBarSize={22}>
+                          <LabelList
+                            dataKey="pct"
+                            position="top"
+                            fontSize={8}
+                            fill="#64748B"
+                            formatter={(v) => (Number(v) > 0 ? `${v}%` : "")}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </RechartsBox>
+                  )}
+                </div>
+              </div>
             )}
           </ChartCard>
         ),
@@ -117,11 +252,11 @@ export default function KpiChartsBento({
         shortLabel: "Prod %",
         accent: "#0B84F3",
         content: (
-          <ChartCard eyebrow="Efficiency" title="Productivity %">
+          <ChartCard eyebrow="Efficiency" title="Productivity %" hint="Y-axis is % of planned hours (or delivered vs assigned).">
             {rows.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-10">No data</p>
             ) : (
-              <RechartsBox height={180}>
+              <RechartsBox height="100%">
                 <AreaChart data={rows}>
                   <defs>
                     <linearGradient id="kpiProdFill" x1="0" y1="0" x2="0" y2="1">
@@ -131,8 +266,19 @@ export default function KpiChartsBento({
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                  <Tooltip contentStyle={TIP} formatter={(v) => [`${v}%`, "Productivity"]} />
+                  <YAxis
+                    domain={[0, prodMax]}
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={40}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <Tooltip
+                    contentStyle={TIP}
+                    labelFormatter={(_, p) => String(p?.[0]?.payload?.fullName ?? "")}
+                    formatter={(v) => [`${v}%`, "Productivity"]}
+                  />
                   <Area type="monotone" dataKey="productivity" stroke="#0B84F3" strokeWidth={2} fill="url(#kpiProdFill)" />
                 </AreaChart>
               </RechartsBox>
@@ -146,13 +292,31 @@ export default function KpiChartsBento({
         shortLabel: "Radar",
         accent: "#7C3AED",
         content: (
-          <ChartCard eyebrow="Shape" title="Evaluation radar">
-            <RechartsBox height={190}>
-              <RadarChart data={radar} cx="50%" cy="50%" outerRadius="70%">
+          <ChartCard
+            eyebrow="Shape"
+            title="Evaluation radar"
+            hint="One snapshot of balance: all axes 0–100%. Rounder shape = more even marks, stars, productivity, punctuality, and retain rate."
+          >
+            <RechartsBox height="100%">
+              <RadarChart data={radar} cx="50%" cy="52%" outerRadius="62%">
                 <PolarGrid stroke="#E2E8F0" />
                 <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "#64748B" }} />
+                <PolarRadiusAxis
+                  angle={90}
+                  domain={[0, 100]}
+                  tick={{ fontSize: 8, fill: "#94A3B8" }}
+                  tickFormatter={(v) => `${v}%`}
+                  axisLine={false}
+                />
                 <Radar dataKey="value" stroke="#7C3AED" fill="#7C3AED" fillOpacity={0.28} />
-                <Tooltip contentStyle={TIP} />
+                <Tooltip
+                  contentStyle={TIP}
+                  formatter={(_v, _n, item) => {
+                    const raw = String(item?.payload?.raw ?? "");
+                    const val = Number(item?.payload?.value ?? 0);
+                    return [`${Math.round(val)}% · ${raw}`, "Score"];
+                  }}
+                />
               </RadarChart>
             </RechartsBox>
           </ChartCard>
@@ -164,24 +328,47 @@ export default function KpiChartsBento({
         shortLabel: "Donut",
         accent: "#D97706",
         content: (
-          <ChartCard eyebrow="Share" title="Delivered · retained · mistakes">
-            <RechartsBox height={170}>
-              <PieChart>
-                <Pie data={donut} dataKey="value" nameKey="name" innerRadius={48} outerRadius={70} paddingAngle={3} strokeWidth={0}>
-                  {donut.map((d) => (
-                    <Cell key={d.name} fill={d.color} />
+          <ChartCard eyebrow="Share" title="Delivered · retained · mistakes" hint="Count and % of this mix.">
+            <div className="h-full min-h-0 flex flex-col">
+              <div className="flex-1 min-h-[120px]">
+                <RechartsBox height="100%">
+                  <PieChart>
+                    <Pie
+                      data={donut}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={44}
+                      outerRadius={66}
+                      paddingAngle={3}
+                      strokeWidth={0}
+                    >
+                      {donut.map((d) => (
+                        <Cell key={d.name} fill={d.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={TIP}
+                      formatter={(v, name, item) => {
+                        const pct = Number(item?.payload?.pct ?? 0);
+                        return [`${v} (${pct}%)`, String(name)];
+                      }}
+                    />
+                  </PieChart>
+                </RechartsBox>
+              </div>
+              <div className="flex flex-wrap gap-1.5 justify-center mt-1">
+                {donut
+                  .filter((d) => d.name !== "No data")
+                  .map((d) => (
+                    <span
+                      key={d.name}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-[10px] font-semibold text-gray-600"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: d.color }} />
+                      {d.name} {d.value} · {d.pct}%
+                    </span>
                   ))}
-                </Pie>
-                <Tooltip contentStyle={TIP} />
-              </PieChart>
-            </RechartsBox>
-            <div className="flex flex-wrap gap-1.5 justify-center mt-1">
-              {donut.filter((d) => d.name !== "No data").map((d) => (
-                <span key={d.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-[10px] font-semibold text-gray-600">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: d.color }} />
-                  {d.name} {d.value}
-                </span>
-              ))}
+              </div>
             </div>
           </ChartCard>
         ),
@@ -193,13 +380,15 @@ export default function KpiChartsBento({
         accent: "#059669",
         content: (
           <div className="flex-1 min-h-0 flex flex-col gap-3 p-3 sm:p-4">
-            <div className="rounded-[1.25rem] bg-[#38BDF8] text-white p-4 shadow-md shadow-sky-200/50">
+            <div className="rounded-[1.25rem] bg-[#38BDF8] text-white p-4 shadow-md shadow-sky-200/50 shrink-0">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">Snapshot · {periodLabel}</p>
                 <Activity size={16} />
               </div>
               <p className="text-3xl font-bold mt-1 tabular-nums">{totals.avgMarks || "—"}</p>
-              <p className="text-xs text-white/85">Avg marks / 10</p>
+              <p className="text-xs text-white/85">
+                Avg marks / 10 · {pctOf(totals.avgMarks, 10)}%
+              </p>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <span className="rounded-2xl bg-white/20 px-2 py-2 text-center">
                   <p className="text-base font-bold tabular-nums inline-flex items-center justify-center gap-0.5">
@@ -211,29 +400,35 @@ export default function KpiChartsBento({
                   <p className="text-base font-bold tabular-nums inline-flex items-center justify-center gap-0.5">
                     <Star size={12} /> {totals.avgStars}
                   </p>
-                  <p className="text-[9px] uppercase tracking-wide text-white/80">Stars</p>
+                  <p className="text-[9px] uppercase tracking-wide text-white/80">
+                    Stars · {pctOf(totals.avgStars, 5)}%
+                  </p>
                 </span>
                 <span className="rounded-2xl bg-white/20 px-2 py-2 text-center">
                   <p className="text-base font-bold tabular-nums inline-flex items-center justify-center gap-0.5">
                     <Users size={12} /> {totals.retained}
                   </p>
-                  <p className="text-[9px] uppercase tracking-wide text-white/80">Retain</p>
+                  <p className="text-[9px] uppercase tracking-wide text-white/80">
+                    Retain · {pctOf(totals.retained, Math.max(totals.delivered, 1))}%
+                  </p>
                 </span>
               </div>
             </div>
-            <div className="rounded-[1.25rem] border border-gray-100 bg-white p-3 flex-1 min-h-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 inline-flex items-center gap-1">
-                <Percent size={12} /> Marks split
+            <div className="rounded-[1.25rem] border border-gray-100 bg-white p-3 flex-1 min-h-0 flex flex-col">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 inline-flex items-center gap-1 shrink-0">
+                <Percent size={12} /> Marks split · /10 and %
               </p>
               {rows.length === 0 ? (
                 <p className="text-xs text-gray-400">No estimators</p>
               ) : (
-                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                  {rows.slice(0, 8).map((r) => (
+                <div className="space-y-2 flex-1 overflow-y-auto pr-1 min-h-0">
+                  {rows.map((r) => (
                     <div key={r.fullName}>
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="font-semibold text-gray-700 truncate max-w-[70%]">{r.fullName}</span>
-                        <span className="tabular-nums font-bold text-[#B8112D]">{r.marks_out_of_10 || "—"}</span>
+                      <div className="flex items-center justify-between text-[11px] mb-1 gap-2">
+                        <span className="font-semibold text-gray-700 truncate">{r.fullName}</span>
+                        <span className="tabular-nums font-bold text-[#B8112D] shrink-0">
+                          {r.marks_out_of_10 || "—"} · {pctOf(r.marks_out_of_10, 10)}%
+                        </span>
                       </div>
                       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                         <div
@@ -250,14 +445,15 @@ export default function KpiChartsBento({
         ),
       },
     ],
-    [rows, donut, radar, totals, periodLabel, maxMarks],
+    [rows, barRows, donut, radar, totals, periodLabel, maxMarks, prodMax, deliveredTimeline],
   );
 
   return (
     <UploadActionBento
       title="KPI graphs"
-      subtitle="Shuffle like Uploads — tap a capsule or card to focus. Each tile is a different chart."
+      subtitle=""
       replayLabel="Replay shuffle"
+      toolbar={toolbar}
       items={items}
     />
   );
