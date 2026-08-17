@@ -15,7 +15,7 @@ type FetchAdminProjectsParams = {
 
 /**
  * Same project set for Admin Project DB and Technical Active Projects.
- * Uses limit 50 — matches previous Admin All≈46 / Active≈22 window.
+ * TM All Projects fetches up to 2000 rows; Admin Project DB keeps the 50-row window.
  */
 export async function fetchAllAdminProjects<T = Record<string, unknown>>(
   params: FetchAdminProjectsParams = {},
@@ -23,7 +23,7 @@ export async function fetchAllAdminProjects<T = Record<string, unknown>>(
   const query: Record<string, string> = {
     lite: "1",
     page: "1",
-    limit: "50",
+    limit: params.technicalView ? "2000" : "50",
   };
   if (params.csrId) query.csrId = params.csrId;
   if (params.from) query.from = params.from;

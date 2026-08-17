@@ -1,6 +1,7 @@
 import prisma from "../config/db";
 import { notInBinFilter } from "./binLeads";
-import { clientIdentityKey, isWonClientStatus } from "./leadClientPromotion";
+import { isWonClientStatus } from "./leadClientPromotion";
+import { normalizePhone } from "./phone";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "./projectLeads";
 import {
   assignmentElapsedSeconds,
@@ -79,26 +80,48 @@ type WonIdentityLead = {
   id: string;
   phone?: string | null;
   company?: string | null;
+  clientCode?: string | null;
+  projectTitle?: string | null;
   status?: string | null;
-  isOldClient?: boolean;
   createdAt: Date;
 };
 
-/** Returning client = flagged old OR had a prior won project before this lead. */
+const PORTAL_COMPANY_KEYS = new Set(["bem", "gps", "n/a", "na", "-", "—"]);
+
+/** Strong identity only — never treat GPS/BEM portal company or a Close Client row without a project as retained. */
+function retainedProjectIdentityKey(lead: {
+  id: string;
+  phone?: string | null;
+  company?: string | null;
+  clientCode?: string | null;
+}): string | null {
+  const digits = normalizePhone(lead.phone ?? "");
+  if (digits.length >= 7) return `phone:${digits}`;
+  const code = String(lead.clientCode ?? "").trim().toLowerCase();
+  if (code.length >= 3) return `code:${code}`;
+  const co = String(lead.company ?? "").trim().toLowerCase();
+  if (!co || co.length < 3 || PORTAL_COMPANY_KEYS.has(co)) return null;
+  return `company:${co}`;
+}
+
+/** Returning client = an earlier won/completed *project* for the same client (second+ job). */
 function isRetainedClientLead(
   lead: {
     id: string;
     phone?: string | null;
     company?: string | null;
-    isOldClient?: boolean;
+    clientCode?: string | null;
     createdAt: Date;
   },
   priorWinsByKey: Map<string, WonIdentityLead[]>,
 ): boolean {
-  if (lead.isOldClient) return true;
-  const key = clientIdentityKey(lead);
+  const key = retainedProjectIdentityKey(lead);
+  if (!key) return false;
   const prior = (priorWinsByKey.get(key) ?? []).filter(
-    (w) => w.id !== lead.id && w.createdAt.getTime() < lead.createdAt.getTime(),
+    (w) =>
+      w.id !== lead.id &&
+      !!String(w.projectTitle ?? "").trim() &&
+      w.createdAt.getTime() < lead.createdAt.getTime(),
   );
   return prior.length > 0;
 }
@@ -237,6 +260,7 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
     prisma.lead.findMany({
       where: {
         ...notInBinFilter(),
+        projectTitle: { not: null },
         OR: [
           { status: { equals: "Close Client", mode: "insensitive" } },
           { status: { equals: "completed", mode: "insensitive" } },
@@ -247,8 +271,9 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         id: true,
         phone: true,
         company: true,
+        clientCode: true,
+        projectTitle: true,
         status: true,
-        isOldClient: true,
         createdAt: true,
       },
       orderBy: { createdAt: "asc" },
@@ -279,7 +304,9 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
   const priorWinsByKey = new Map<string, WonIdentityLead[]>();
   for (const w of wonIdentityLeads) {
     if (!isWonClientStatus(w.status)) continue;
-    const key = clientIdentityKey(w);
+    if (!String(w.projectTitle ?? "").trim()) continue;
+    const key = retainedProjectIdentityKey(w);
+    if (!key) continue;
     const list = priorWinsByKey.get(key) ?? [];
     list.push(w);
     priorWinsByKey.set(key, list);
@@ -302,6 +329,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
     timerHoursSamples: number[];
     retainedProjects: number;
     retainedLines: string[];
+    evalMarks: number[];
+    evalRemarkLines: string[];
   };
 
   const byId = new Map<string, Acc>();
@@ -323,6 +352,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       timerHoursSamples: [],
       retainedProjects: 0,
       retainedLines: [],
+      evalMarks: [],
+      evalRemarkLines: [],
     });
   }
 
@@ -350,6 +381,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
       timerHoursSamples: [],
       retainedProjects: 0,
       retainedLines: [],
+      evalMarks: [],
+      evalRemarkLines: [],
     };
     byId.set(estimatorId, created);
     return created;
@@ -381,12 +414,22 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         if (logged > 0) acc.timerHoursSamples.push(logged / 3600);
         if (a.deadline) {
           acc.doneWithDeadline += 1;
-          // completed with a deadline set counts as on-time for KPI auto (deadline was met before reopen)
           acc.onTimeDone += 1;
         }
       } else {
         acc.pending += 1;
         if (assignmentOverdue(a.deadline, false, todayYmd)) acc.overdue += 1;
+      }
+
+      if (a.evaluationMarks != null && Number.isFinite(a.evaluationMarks)) {
+        acc.evalMarks.push(a.evaluationMarks);
+        const remark = (a.evaluationRemarks ?? "").trim();
+        const when = a.evaluatedAt
+          ? new Date(a.evaluatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : "";
+        acc.evalRemarkLines.push(
+          `${code} ${title}: ${a.evaluationMarks}/10${remark ? ` — ${remark}` : ""}${when ? ` (${when})` : ""}`,
+        );
       }
 
       if (logged > 0 || a.takeoffDone || !a.takeoffDone) {
@@ -449,13 +492,28 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
           : acc.delivered > 0
             ? `${acc.delivered} completed (no timer samples)`
             : "No completed takeoffs";
+      void avgTakeoff;
 
-      const productivity =
-        acc.assigned > 0
-          ? `${hoursLabel(acc.loggedSeconds)} logged · ${acc.plannedHours || 0}h planned · ${acc.delivered}/${acc.assigned} done`
-          : userSessions.length > 0
-            ? `${formatDurationMs(totalDash)} dashboard time this month`
-            : "No timer / session data";
+      const loggedHours = acc.loggedSeconds / 3600;
+      let productivityPct = 0;
+      if (acc.plannedHours > 0) {
+        productivityPct = (loggedHours / acc.plannedHours) * 100;
+      } else if (acc.assigned > 0) {
+        productivityPct = (acc.delivered / acc.assigned) * 100;
+      }
+      productivityPct = Math.max(0, Math.min(200, Math.round(productivityPct)));
+      const productivity = `${productivityPct}`;
+
+      const evalAvg =
+        acc.evalMarks.length > 0
+          ? Math.round((acc.evalMarks.reduce((s, n) => s + n, 0) / acc.evalMarks.length) * 10) / 10
+          : null;
+      const evalStars =
+        evalAvg == null ? "" : String(evalAvg <= 0 ? 1 : Math.min(5, Math.max(1, Math.round(evalAvg / 2))));
+      const evalRemarks =
+        acc.evalRemarkLines.length > 0
+          ? `Avg ${evalAvg}/10 from ${acc.evalMarks.length} project(s)\n${acc.evalRemarkLines.slice(0, 40).join("\n")}`
+          : "";
 
       const projectTime =
         acc.projectLines.length > 0
@@ -479,8 +537,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
           auto: true,
         },
         productivity: {
-          value: productivity,
-          note: `Auto: assignment timers + planned hours (${month})`,
+          value: acc.assigned > 0 || acc.loggedSeconds > 0 ? productivity : "",
+          note: `Auto: ${hoursLabel(acc.loggedSeconds)} logged / ${acc.plannedHours || 0}h planned · ${acc.delivered}/${acc.assigned} done (${month})`,
           auto: true,
         },
         project_time_spent: {
@@ -496,11 +554,6 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         punctuality: {
           value: punctuality,
           note: `Auto: pending overdue vs assigned (${month})`,
-          auto: true,
-        },
-        avg_takeoff: {
-          value: avgTakeoff,
-          note: `Auto: average timer hours on completed takeoffs (${month})`,
           auto: true,
         },
         trades_history: {
@@ -522,19 +575,25 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
           auto: review.hasData,
         },
         final_remarks: {
-          value: review.remarks,
-          note: `Auto: monthly performance summary (${month})`,
-          auto: review.hasData,
+          value: evalRemarks || review.remarks,
+          note: evalRemarks
+            ? `Auto: project-wise evaluation remarks this month (${month})`
+            : `Auto: monthly performance summary (${month})`,
+          auto: !!evalRemarks || review.hasData,
         },
         marks_out_of_10: {
-          value: review.marks,
-          note: `Auto: score from delivery, punctuality, activity, attendance & retained clients (${month})`,
-          auto: review.hasData,
+          value: evalAvg != null ? String(evalAvg) : "",
+          note: evalAvg != null
+            ? `Auto: average of ${acc.evalMarks.length} Take Off Done evaluation(s) (${month})`
+            : `No project evaluations this month (${month})`,
+          auto: evalAvg != null,
         },
         rating_stars: {
-          value: review.stars,
-          note: `Auto: rating derived from marks out of 10 (${month})`,
-          auto: review.hasData,
+          value: evalStars,
+          note: evalAvg != null
+            ? `Auto: rating derived from evaluation average ${evalAvg}/10 (${month})`
+            : `No project evaluations this month (${month})`,
+          auto: !!evalStars,
         },
       };
 

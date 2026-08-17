@@ -45,6 +45,13 @@ const MOVE_OPTIONS: {
     Icon: Send,
     iconBg: "bg-emerald-50 text-emerald-700",
   },
+  {
+    tab: "completed",
+    title: "Completed",
+    sub: "Mark project completed — no assign required",
+    Icon: CheckCircle2,
+    iconBg: "bg-green-50 text-green-700",
+  },
 ];
 
 type Props = {

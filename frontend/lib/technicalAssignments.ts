@@ -33,6 +33,10 @@ export type TechnicalAssignment = {
   timerStartedAt: string | null;
   /** Green tick after assign; cleared when this estimator’s details change. */
   assignmentConfirmed: boolean;
+  /** TM evaluation on Take Off Done — marks 0–10. */
+  evaluationMarks?: number | null;
+  evaluationRemarks?: string;
+  evaluatedAt?: string | null;
 };
 
 function rangeDiv(from: number, to: number): string[] {
@@ -83,7 +87,24 @@ export type TechnicalWorkflowTab =
   | "assigned"
   | "takeoff_done"
   | "pricing"
-  | "final_submission";
+  | "final_submission"
+  | "completed";
+
+function parseEvalMarks(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(10, Math.round(n * 10) / 10));
+}
+
+export function isLeadCompleted(p: {
+  status?: string | null;
+  projectWorkStatus?: string | null;
+}): boolean {
+  const work = String(p.projectWorkStatus ?? "").toLowerCase();
+  const st = String(p.status ?? "").toLowerCase();
+  return work === "completed" || st === "completed";
+}
 
 export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
   if (!raw) return [];
@@ -119,6 +140,9 @@ export function parseTechnicalAssignments(raw: unknown): TechnicalAssignment[] {
       timerSeconds: Math.max(0, Math.floor(Number(o.timerSeconds ?? 0) || 0)),
       timerStartedAt: o.timerStartedAt ? String(o.timerStartedAt).trim() || null : null,
       assignmentConfirmed: o.assignmentConfirmed === true,
+      evaluationMarks: parseEvalMarks(o.evaluationMarks),
+      evaluationRemarks: String(o.evaluationRemarks ?? "").trim(),
+      evaluatedAt: o.evaluatedAt ? String(o.evaluatedAt).trim() || null : null,
     });
   }
   return out;
@@ -302,34 +326,32 @@ export function matchesTechnicalTab(
   const hasAssign = assignments.length > 0;
   const inFinal = phase === "qa_phase" || phase === "delivery_phase";
   const legacyPricing = legacyWholeProjectPricing(phase, assignments);
+  const completed = isLeadCompleted(p);
 
   switch (tab) {
     case "all":
       return true;
+    case "completed":
+      return completed;
     case "not_assigned":
-      return !hasAssign && isProjectActive(p);
+      return !completed && !hasAssign && isProjectActive(p);
     case "assigned":
-      // Only estimators still working — others may already be in Take Off / Pricing
-      return !inFinal && assignments.some(isAssignmentWorking);
+      return !completed && !inFinal && assignments.some(isAssignmentWorking);
     case "takeoff_done":
-      // Only estimators Done but not yet sent for pricing
       return (
+        !completed &&
         !inFinal &&
         !legacyPricing &&
         assignments.some(isAssignmentTakeoffReady)
       );
     case "pricing":
-      // Only when at least one estimator was individually sent (or legacy whole-project pricing)
       return (
+        !completed &&
         !inFinal &&
         (assignments.some(isAssignmentPricingSent) || legacyPricing)
       );
-    case "final_submission": {
-      const work = (p.projectWorkStatus ?? "").toLowerCase();
-      const st = (p.status ?? "").toLowerCase();
-      if (work === "completed" || st === "completed") return false;
-      return inFinal;
-    }
+    case "final_submission":
+      return !completed && inFinal;
     default:
       return true;
   }
@@ -477,7 +499,7 @@ export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
   return parseTechnicalNotesBundle(raw).sir;
 }
 
-/** TM↔Estimator thread (Notes for Estimator / Notes for Technical Manager). */
+/** TM↔Estimator thread (Notes for Estimator / Notes for Chief Estimation). */
 export function parseEstimatorNotes(raw: unknown): TechnicalNoteEntry[] {
   return parseTechnicalNotesBundle(raw).estimator;
 }

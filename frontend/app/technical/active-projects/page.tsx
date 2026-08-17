@@ -61,8 +61,6 @@ import {
   formatDivisionSummary,
   formatElapsed,
   assignmentElapsedSeconds,
-  getTechTaskStatus,
-  TECH_TASK_STATUS_OPTIONS,
   getPricingQaMode,
   PRICING_QA_OPTIONS,
   isAssignmentWorking,
@@ -72,7 +70,6 @@ import {
   type TechnicalAssignment,
   type TechnicalEstimator,
   type TechnicalWorkflowTab,
-  type TechTaskStatus,
   type PricingQaMode,
 } from "@/lib/technicalAssignments";
 
@@ -316,23 +313,76 @@ function PricingProjectDetailCell({
   );
 }
 
+function EstimatorEvalForm({
+  assignment,
+  onSave,
+}: {
+  assignment: TechnicalAssignment;
+  onSave: (marks: number, remarks: string) => void;
+}) {
+  const [marks, setMarks] = useState(
+    assignment.evaluationMarks != null ? String(assignment.evaluationMarks) : "",
+  );
+  const [remarks, setRemarks] = useState(assignment.evaluationRemarks ?? "");
+
+  const stamp = assignment.evaluatedAt
+    ? new Date(assignment.evaluatedAt).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/70 p-1.5 space-y-1">
+      <p className="text-[9px] font-extrabold uppercase tracking-wide text-amber-800">Evaluation</p>
+      <div className="flex items-center gap-1">
+        <input
+          type="number"
+          min={0}
+          max={10}
+          step={0.5}
+          value={marks}
+          onChange={(e) => setMarks(e.target.value)}
+          placeholder="0–10"
+          className="h-6 w-14 rounded-md border border-amber-200 bg-white px-1.5 text-[10px] font-bold tabular-nums outline-none"
+        />
+        <span className="text-[9px] font-semibold text-amber-800 shrink-0">/ 10</span>
+      </div>
+      <textarea
+        value={remarks}
+        onChange={(e) => setRemarks(e.target.value)}
+        placeholder="Remarks"
+        rows={2}
+        className="w-full rounded-md border border-amber-200 bg-white px-1.5 py-1 text-[10px] outline-none resize-none"
+      />
+      <div className="flex items-center justify-between gap-1">
+        {stamp ? <span className="text-[8px] text-amber-700/80 tabular-nums">{stamp}</span> : <span />}
+        <button
+          type="button"
+          onClick={() => {
+            const n = Number(marks);
+            if (!Number.isFinite(n) || n < 0 || n > 10) {
+              toast.error("Marks must be 0–10");
+              return;
+            }
+            onSave(n, remarks.trim());
+          }}
+          className="h-6 px-2 rounded-md bg-[#B8112D] text-white text-[9px] font-bold"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ProjectStatusCell({
   p,
-  editable,
-  onChange,
 }: {
   p: Project;
-  editable: boolean;
-  onChange: (next: TechTaskStatus) => void;
 }) {
-  if (editable) {
-    return (
-      <TechTaskStatusSelect
-        value={getTechTaskStatus(p)}
-        onChange={onChange}
-      />
-    );
-  }
   return (
     <TechnicalWorkflowStatusBadge
       status={p.status}
@@ -341,38 +391,6 @@ function ProjectStatusCell({
       projectPhase={p.projectPhase}
       technicalAssignments={p.technicalAssignments}
     />
-  );
-}
-
-function TechTaskStatusSelect({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: TechTaskStatus;
-  disabled?: boolean;
-  onChange: (next: TechTaskStatus) => void;
-}) {
-  const styles =
-    value === "completed"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : value === "in_progress"
-        ? "bg-sky-50 text-sky-700 border-sky-200"
-        : "bg-amber-50 text-amber-800 border-amber-200";
-  return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value as TechTaskStatus)}
-      className={`h-8 max-w-full rounded-lg border px-2 text-[10px] xl:text-[11px] font-bold outline-none cursor-pointer disabled:opacity-60 ${styles}`}
-      title="Task status"
-    >
-      {TECH_TASK_STATUS_OPTIONS.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
   );
 }
 
@@ -418,6 +436,8 @@ function AssignedToCell({
   onSendPricing,
   showSendPricing = false,
   assignmentFilter = "all",
+  showEvaluation = false,
+  onSaveEvaluation,
 }: {
   assignments: TechnicalAssignment[];
   onAssign: () => void;
@@ -426,8 +446,9 @@ function AssignedToCell({
   detailed?: boolean;
   onSendPricing?: (estimatorId: string) => void;
   showSendPricing?: boolean;
-  /** assigned tab = working only; takeoff_done = ready only */
   assignmentFilter?: "all" | "working" | "takeoff_ready";
+  showEvaluation?: boolean;
+  onSaveEvaluation?: (estimatorId: string, marks: number, remarks: string) => void;
 }) {
   const panelW = 300;
   const { open, toggle, anchorRef, panelRef, style } = useFixedPopover(panelW, 320, "end");
@@ -570,6 +591,13 @@ function AssignedToCell({
                       )}
                     </div>
                   )}
+                  {showEvaluation && onSaveEvaluation && a.takeoffDone ? (
+                    <EstimatorEvalForm
+                      key={`${a.estimatorId}-${a.evaluatedAt ?? "new"}`}
+                      assignment={a}
+                      onSave={(marks, remarks) => onSaveEvaluation(a.estimatorId, marks, remarks)}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1132,6 +1160,21 @@ export function TechnicalActiveProjectsPageInner({
     }
   };
 
+  const saveEvaluation = async (projectId: string, estimatorId: string, marks: number, remarks: string) => {
+    try {
+      const res = await API.put(`/admin/project/${projectId}/estimator-evaluation`, {
+        estimatorId,
+        marks,
+        remarks,
+      });
+      const lead = res.data.lead as Project;
+      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
+      toast.success("Evaluation saved");
+    } catch {
+      toast.error("Failed to save evaluation");
+    }
+  };
+
   const saveBidInstruction = async (projectId: string, text: string) => {
     try {
       const res = await API.put(`/admin/project/${projectId}`, { projectNotes: text });
@@ -1267,19 +1310,6 @@ export function TechnicalActiveProjectsPageInner({
     }
   };
 
-  const changeTaskStatus = async (projectId: string, status: TechTaskStatus) => {
-    try {
-      const projectWorkStatus =
-        status === "pending" ? "pending" : status === "completed" ? "completed" : "in_progress";
-      const res = await API.put(`/admin/project/${projectId}`, { projectWorkStatus });
-      const lead = res.data.lead as Project;
-      setProjects((prev) => prev.map((p) => (p.id === lead.id ? { ...p, ...lead } : p)));
-      toast.success("Status updated");
-    } catch {
-      toast.error("Failed to update status");
-    }
-  };
-
   const saveEdit = async (data: ProjectWorkbenchData) => {
     setEditSaving(true);
     try {
@@ -1353,9 +1383,10 @@ export function TechnicalActiveProjectsPageInner({
       takeoff_done: 0,
       pricing: 0,
       final_submission: 0,
+      completed: 0,
     };
     for (const p of baseFiltered) {
-      (["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission"] as const).forEach(
+      (["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed"] as const).forEach(
         (tab) => {
           if (matchesTechnicalTab(tab, p)) counts[tab] += 1;
         },
@@ -1390,6 +1421,7 @@ export function TechnicalActiveProjectsPageInner({
         { name: "Takeoff", count: tabCounts.takeoff_done, fill: "#8B5CF6" },
         { name: "Pricing", count: tabCounts.pricing, fill: "#F59E0B" },
         { name: "Final", count: tabCounts.final_submission, fill: "#6366F1" },
+        { name: "Completed", count: tabCounts.completed, fill: "#059669" },
       ].filter((d) => d.count > 0),
     [tabCounts],
   );
@@ -1405,7 +1437,8 @@ export function TechnicalActiveProjectsPageInner({
   const isAssignedView = workflowTab === "assigned" || workflowTab === "takeoff_done";
   const isPricingView = workflowTab === "pricing";
   const isFinalView = workflowTab === "final_submission";
-  const showAssignColumn = !isAssignedView && !isPricingView && !isFinalView;
+  const isCompletedView = workflowTab === "completed";
+  const showAssignColumn = !isAssignedView && !isPricingView && !isFinalView && !isCompletedView;
   const assignmentFilter = "all" as const;
   const isTakeoffDoneView = workflowTab === "takeoff_done";
 
@@ -1584,6 +1617,13 @@ export function TechnicalActiveProjectsPageInner({
               count: tabCounts.final_submission,
               icon: Send,
             },
+            {
+              key: "completed",
+              label: "Completed",
+              shortLabel: "Done",
+              count: tabCounts.completed,
+              icon: CheckCircle2,
+            },
           ]}
         />
 
@@ -1699,11 +1739,7 @@ export function TechnicalActiveProjectsPageInner({
                     </div>
                     <div className="flex flex-col items-start gap-2 shrink-0">
                       {!isFinalView && (
-                        <ProjectStatusCell
-                          p={p}
-                          editable={!isFinalView}
-                          onChange={(next) => void changeTaskStatus(p.id, next)}
-                        />
+                        <ProjectStatusCell p={p} />
                       )}
                       <ProjectRowActions
                         onEdit={() => setEditProject(p)}
@@ -1818,6 +1854,8 @@ export function TechnicalActiveProjectsPageInner({
                         detailed
                         assignmentFilter={assignmentFilter}
                         showSendPricing={isTakeoffDoneView}
+                        showEvaluation={isTakeoffDoneView}
+                        onSaveEvaluation={(eid, marks, remarks) => void saveEvaluation(p.id, eid, marks, remarks)}
                         onSendPricing={(eid) => void sendForPricing(p.id, eid)}
                         onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                       />
@@ -1936,16 +1974,14 @@ export function TechnicalActiveProjectsPageInner({
                                 showTakeoff
                                 assignmentFilter={assignmentFilter}
                                 showSendPricing={isTakeoffDoneView}
+                                showEvaluation={isTakeoffDoneView}
+                                onSaveEvaluation={(eid, marks, remarks) => void saveEvaluation(p.id, eid, marks, remarks)}
                                 onSendPricing={(eid) => void sendForPricing(p.id, eid)}
                                 onToggleTakeoff={(eid, done) => void toggleTakeoff(p.id, eid, done)}
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
-                              <ProjectStatusCell
-                                p={p}
-                                editable={!isFinalView}
-                                onChange={(next) => void changeTaskStatus(p.id, next)}
-                              />
+                              <ProjectStatusCell p={p} />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions
@@ -2016,11 +2052,7 @@ export function TechnicalActiveProjectsPageInner({
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
-                              <ProjectStatusCell
-                                p={p}
-                                editable={!isFinalView}
-                                onChange={(next) => void changeTaskStatus(p.id, next)}
-                              />
+                              <ProjectStatusCell p={p} />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions
@@ -2155,11 +2187,7 @@ export function TechnicalActiveProjectsPageInner({
                               />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
-                              <ProjectStatusCell
-                                p={p}
-                                editable={!isFinalView}
-                                onChange={(next) => void changeTaskStatus(p.id, next)}
-                              />
+                              <ProjectStatusCell p={p} />
                             </td>
                             <td className="px-2 xl:px-3 py-3 xl:py-4 min-w-0 overflow-hidden align-top">
                               <ProjectRowActions

@@ -10,10 +10,10 @@ const router = express.Router();
 router.use(verifyToken, allowRoles("admin"));
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: "Admin",
+  admin: "CEO",
   csr: "CSR",
-  manager: "Manager",
-  technical_manager: "Technical Manager",
+  manager: "Admin",
+  technical_manager: "Chief Estimation",
   accounts: "Accounts",
   estimator: "Estimator",
 };

@@ -218,7 +218,7 @@ export default function TechnicalSidebar() {
                 CRM Dashboard
               </h2>
               <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-                Technical Manager
+                Chief Estimation
               </p>
             </div>
           </Link>
@@ -380,7 +380,7 @@ export default function TechnicalSidebar() {
                 <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
                   {user?.name ?? "TM"}
                 </p>
-                <p className="text-[10px] text-crm-text-muted mt-1">Technical Manager</p>
+                <p className="text-[10px] text-crm-text-muted mt-1">Chief Estimation</p>
               </div>
               <ChevronDown
                 size={13}
@@ -399,7 +399,7 @@ export default function TechnicalSidebar() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Technical Manager"}</p>
+                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Chief Estimation"}</p>
                     <p className="text-white/65 text-[11px] truncate mt-0.5">{user?.email ?? "—"}</p>
                   </div>
                 </div>

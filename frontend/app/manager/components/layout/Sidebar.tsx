@@ -163,7 +163,7 @@ export default function ManagerSidebar() {
             </div>
             <div className="hidden sm:block">
               <h2 className="text-[18px] md:text-[20px] font-extrabold leading-none text-crm-text tracking-tight">CRM Dashboard</h2>
-              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">Manager Panel</p>
+              <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">Admin Panel</p>
             </div>
           </Link>
           </div>
@@ -246,7 +246,7 @@ export default function ManagerSidebar() {
             </button>
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border shadow-2xl z-50 p-3">
-                <p className="font-bold text-sm truncate">{user?.name ?? "Manager"}</p>
+                <p className="font-bold text-sm truncate">{user?.name ?? "Admin"}</p>
                 <p className="text-xs text-gray-400 truncate">{user?.email}</p>
                 <button
                   type="button"

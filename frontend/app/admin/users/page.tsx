@@ -45,7 +45,7 @@ function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string 
   return { kind: "pdf", src: u };
 }
 
-type UserRole = "CSR" | "Admin" | "Manager" | "Technical Manager" | "Accounts" | "Estimator";
+type UserRole = "CSR" | "CEO" | "Admin" | "Chief Estimation" | "Accounts" | "Estimator";
 
 type PortalCompany = "BEM" | "GPS";
 type CompanyFilter = PortalCompany | "EMPLOYEES";
@@ -67,10 +67,10 @@ type PortalDashboard = {
 
 const PORTAL_DASHBOARDS: PortalDashboard[] = [
   { role: "CSR", company: "BEM", shortLabel: "CSR", onlineLabel: "CSR Online", formLabel: "CSR (Customer Support)" },
-  { role: "Manager", company: "BEM", shortLabel: "Manager", onlineLabel: "Managers Online", formLabel: "Manager" },
-  { role: "Accounts", company: "BEM", shortLabel: "Accounts", onlineLabel: "Accounts Online", formLabel: "Accounts" },
   { role: "Admin", company: "BEM", shortLabel: "Admin", onlineLabel: "Admins Online", formLabel: "Admin" },
-  { role: "Technical Manager", company: "GPS", shortLabel: "Tech Mgr", onlineLabel: "Tech Mgr Online", formLabel: "Technical Manager" },
+  { role: "Accounts", company: "BEM", shortLabel: "Accounts", onlineLabel: "Accounts Online", formLabel: "Accounts" },
+  { role: "CEO", company: "BEM", shortLabel: "CEO", onlineLabel: "CEO Online", formLabel: "CEO" },
+  { role: "Chief Estimation", company: "GPS", shortLabel: "Chief Est.", onlineLabel: "Chief Estimation Online", formLabel: "Chief Estimation" },
   { role: "Estimator", company: "GPS", shortLabel: "Estimator", onlineLabel: "Estimators Online", formLabel: "Estimator" },
 ];
 
@@ -158,7 +158,7 @@ const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
   .map((d) => ({ value: d.role, label: d.formLabel }));
 
 function defaultRoleForCompany(company: PortalCompany): UserRole {
-  return company === "GPS" ? "Technical Manager" : "CSR";
+  return company === "GPS" ? "Chief Estimation" : "CSR";
 }
 
 function roleOptionsForCompany(company: PortalCompany) {
@@ -246,9 +246,9 @@ type AccessHistoryRow = {
 const apiBase = () => getApiBase();
 
 const roleColor = (role: UserRole) => {
-  if (role === "Admin") return "bg-blue-100 text-blue-600";
-  if (role === "Manager") return "bg-violet-100 text-violet-600";
-  if (role === "Technical Manager") return "bg-amber-100 text-amber-700";
+  if (role === "CEO") return "bg-blue-100 text-blue-600";
+  if (role === "Admin") return "bg-violet-100 text-violet-600";
+  if (role === "Chief Estimation") return "bg-amber-100 text-amber-700";
   if (role === "Accounts") return "bg-cyan-100 text-cyan-700";
   if (role === "Estimator") return "bg-purple-100 text-purple-700";
   return "bg-emerald-100 text-emerald-600";
@@ -460,11 +460,11 @@ export default function UsersPage() {
         name:       u.name,
         email:      u.email,
         role:       u.role === "csr" ? "CSR"
-                  : u.role === "manager" ? "Manager"
-                  : u.role === "technical_manager" ? "Technical Manager"
+                  : u.role === "manager" ? "Admin"
+                  : u.role === "technical_manager" ? "Chief Estimation"
                   : u.role === "accounts" ? "Accounts"
                   : u.role === "estimator" ? "Estimator"
-                  : "Admin",
+                  : "CEO",
         csrCode:    u.csrCode    ?? null,
         employeeCode: u.employeeCode ?? null,
         fatherName: u.fatherName ?? null,
@@ -664,8 +664,8 @@ export default function UsersPage() {
     try {
       const role =
         form.role === "CSR" ? "csr"
-        : form.role === "Manager" ? "manager"
-        : form.role === "Technical Manager" ? "technical_manager"
+        : form.role === "Admin" ? "manager"
+        : form.role === "Chief Estimation" ? "technical_manager"
         : form.role === "Accounts" ? "accounts"
         : form.role === "Estimator" ? "estimator"
         : "admin";
