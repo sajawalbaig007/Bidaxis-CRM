@@ -191,7 +191,13 @@ const deleteUser = async (req, res) => {
         await db_1.default.conversationMember.deleteMany({ where: { userId: id } });
         /* 5. Reports — just nullify the FK, keep the report */
         await db_1.default.report.updateMany({ where: { generatedBy: id }, data: { generatedBy: null } });
-        /* 6. Delete the user */
+        /* 6. Session / audit / access rows that block User delete (required FKs) */
+        await db_1.default.accessHistory.deleteMany({ where: { userId: id } });
+        await db_1.default.csrWorkSession.deleteMany({ where: { userId: id } });
+        await db_1.default.securityAuditLog.updateMany({ where: { userId: id }, data: { userId: null } });
+        await db_1.default.loginAttemptAlert.deleteMany({ where: { userId: id } });
+        await db_1.default.staffEmployee.updateMany({ where: { userId: id }, data: { userId: null } });
+        /* 7. Delete the user */
         await db_1.default.user.delete({ where: { id } });
         (0, cache_1.flushAdminClientsCache)();
         (0, report_controller_1.flushReportCache)();
@@ -201,7 +207,14 @@ const deleteUser = async (req, res) => {
     }
     catch (err) {
         console.log("[deleteUser]", err);
-        res.status(500).json({ message: "Delete failed" });
+        const detail = err && typeof err === "object" && "message" in err
+            ? String(err.message ?? "")
+            : "";
+        res.status(500).json({
+            message: detail.includes("Foreign key") || detail.includes("constraint")
+                ? "Delete failed — linked records could not be cleared. Try again or contact support."
+                : "Delete failed",
+        });
     }
 };
 exports.deleteUser = deleteUser;

@@ -67,8 +67,7 @@ exports.CSR_CLIENT_LIST_SELECT = {
     },
 };
 exports.CSR_LIST_NOTES_SELECT = {
-    where: { parentId: null },
     orderBy: { createdAt: "desc" },
-    take: 1,
+    take: 5,
     select: { id: true, text: true, createdAt: true, parentId: true },
 };

@@ -144,9 +144,10 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
             orderBy: { updatedAt: "desc" },
             take: 120,
         });
+        // Only TM replies on Admin↔TM ("sir") thread — not admin's own messages
         const technicalNotes = techAlertLeads
             .map((l) => {
-            const notes = (0, technicalEstimators_1.parseTechnicalNotes)(l.technicalNotes);
+            const notes = (0, technicalEstimators_1.parseTechnicalNotes)(l.technicalNotes).filter((n) => n.authorRole === "technical_manager");
             const latest = notes[notes.length - 1];
             if (!latest)
                 return null;
@@ -156,6 +157,7 @@ router.get("/notifications", auth_middleware_1.verifyToken, (0, role_middleware_
                 projectTitle: l.projectTitle || l.name || "Project",
                 projectCode: l.projectCode || l.clientCode || "",
                 preview: latest.text,
+                authorName: latest.authorName || "Technical",
                 createdAt: latest.createdAt || l.updatedAt.toISOString(),
             };
         })
@@ -176,12 +178,13 @@ router.put("/lead/:id/technical-notes/read", auth_middleware_1.verifyToken, (0, 
 /* ================= GET ALL CSRS ================= */
 router.get("/csrs", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
-        const CACHE_KEY = "admin:csrs";
+        const role = req.query.role === "estimator" ? "estimator" : "csr";
+        const CACHE_KEY = role === "estimator" ? "admin:estimators:list" : "admin:csrs";
         const cached = (0, cache_1.getCache)(CACHE_KEY);
         if (cached)
             return res.json(cached);
         const csrs = await db_1.default.user.findMany({
-            where: { role: "csr" },
+            where: { role },
             select: {
                 id: true,
                 name: true,
@@ -601,6 +604,7 @@ router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middlewar
         const note = await db_1.default.leadNote.create({
             data: { text: text.trim(), leadId, ...(parent ? { parentId: parent } : {}) },
         });
+        await db_1.default.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } });
         (0, cache_1.flushAdminClientsCache)();
         (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
         return res.json({ success: true, note });
@@ -623,6 +627,7 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
             where: { id: noteId },
             data: { text: text.trim(), createdAt: new Date() },
         });
+        await db_1.default.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } });
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note: updated });
     }
@@ -645,10 +650,97 @@ router.delete("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role
         return res.status(500).json({ success: false, message: "Failed to delete note" });
     }
 });
-/* ================= TECHNICAL WORKING NOTES (not bid instructions) ================= */
+/* ================= TECHNICAL WORKING NOTES (Admin↔TM / TM↔Estimator threads) ================= */
 router.post("/lead/:id/technical-notes", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
+        const body = req.body;
+        const text = String(body?.text ?? "").trim();
+        if (!text)
+            return res.status(400).json({ success: false, message: "Note text required" });
+        const threadRaw = String(body?.thread ?? "sir").toLowerCase();
+        const thread = threadRaw === "estimator" ? "estimator" : "sir";
+        const lead = await db_1.default.lead.findFirst({
+            where: { id: leadId },
+            select: {
+                id: true,
+                assignedTo: true,
+                technicalNotes: true,
+                projectTitle: true,
+                projectCode: true,
+                clientCode: true,
+            },
+        });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        const authUser = req.user;
+        const role = authUser?.role ?? "admin";
+        let authorName = authUser?.name?.trim() || "";
+        if (!authorName && authUser?.id) {
+            const u = await db_1.default.user.findUnique({
+                where: { id: authUser.id },
+                select: { name: true },
+            });
+            authorName = u?.name?.trim() || "";
+        }
+        const { bundle, note, list } = (0, technicalEstimators_1.appendTechnicalNote)(lead.technicalNotes, text, thread, {
+            authorId: authUser?.id,
+            authorRole: role,
+            authorName: authorName || undefined,
+        });
+        await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                technicalNotes: (0, technicalEstimators_1.serializeTechnicalNotesBundle)(bundle),
+            },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+        const label = (0, technicalNotifications_1.projectLabel)(lead.projectCode || lead.clientCode, lead.projectTitle);
+        if (thread === "sir" && role !== "technical_manager") {
+            void (0, technicalNotifications_1.notifyTmFromActor)({
+                actorId: authUser?.id,
+                leadId,
+                projectTitle: lead.projectTitle,
+                projectCode: lead.projectCode || lead.clientCode,
+                source: "admin",
+                title: "Notes for Sir",
+                message: `${authorName || "Admin"} on ${label}: ${text.slice(0, 160)}`,
+                changes: ["Notes for Sir"],
+            });
+        }
+        if (thread === "estimator" && (role === "technical_manager" || role === "admin" || role === "manager")) {
+            void (0, technicalNotifications_1.pushTechnicalNotification)({
+                leadId,
+                projectTitle: lead.projectTitle,
+                projectCode: lead.projectCode || lead.clientCode,
+                source: "tm_estimator",
+                actorId: authUser?.id,
+                actorName: authorName || authUser?.name,
+                actorRole: role,
+                title: "Notes for Chief Estimation",
+                message: `${authorName || "Technical"} on ${label}: ${text.slice(0, 160)}`,
+                changes: ["Notes for Estimator"],
+            });
+        }
+        return res.json({
+            success: true,
+            note,
+            thread,
+            technicalNotes: list,
+            technicalNotesBundle: bundle,
+        });
+    }
+    catch (err) {
+        console.error("technical-notes error:", err);
+        return res.status(500).json({ success: false, message: "Failed to add technical note" });
+    }
+});
+router.put("/lead/:id/technical-notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const noteId = String(req.params.noteId);
         const text = String(req.body?.text ?? "").trim();
         if (!text)
             return res.status(400).json({ success: false, message: "Note text required" });
@@ -658,22 +750,69 @@ router.post("/lead/:id/technical-notes", auth_middleware_1.verifyToken, (0, role
         });
         if (!lead)
             return res.status(404).json({ success: false, message: "Lead not found" });
-        const next = (0, technicalEstimators_1.appendTechnicalNote)(lead.technicalNotes, text);
-        const note = next[next.length - 1];
+        const authUser = req.user;
+        const actorId = authUser?.id ?? "";
+        if (!actorId)
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const result = (0, technicalEstimators_1.updateTechnicalNote)(lead.technicalNotes, noteId, text, actorId, {
+            actorRole: authUser?.role,
+        });
+        if ("error" in result) {
+            const status = result.error.includes("author") ? 403 : 404;
+            return res.status(status).json({ success: false, message: result.error });
+        }
         await db_1.default.lead.update({
             where: { id: leadId },
-            data: {
-                technicalNotes: (0, technicalEstimators_1.serializeTechnicalNotes)(next),
-            },
+            data: { technicalNotes: (0, technicalEstimators_1.serializeTechnicalNotesBundle)(result.bundle) },
         });
         (0, cache_1.flushAdminClientsCache)();
         (0, cache_1.invalidatePattern)("admin:projects:");
         (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
-        return res.json({ success: true, note, technicalNotes: next });
+        return res.json({
+            success: true,
+            note: result.note,
+            thread: result.thread,
+            technicalNotesBundle: result.bundle,
+        });
     }
     catch (err) {
-        console.error("technical-notes error:", err);
-        return res.status(500).json({ success: false, message: "Failed to add technical note" });
+        console.error("technical-notes update error:", err);
+        return res.status(500).json({ success: false, message: "Failed to update note" });
+    }
+});
+router.delete("/lead/:id/technical-notes/:noteId", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const noteId = String(req.params.noteId);
+        const lead = await db_1.default.lead.findFirst({
+            where: { id: leadId },
+            select: { id: true, assignedTo: true, technicalNotes: true },
+        });
+        if (!lead)
+            return res.status(404).json({ success: false, message: "Lead not found" });
+        const authUser = req.user;
+        const actorId = authUser?.id ?? "";
+        if (!actorId)
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const result = (0, technicalEstimators_1.deleteTechnicalNote)(lead.technicalNotes, noteId, actorId, {
+            actorRole: authUser?.role,
+        });
+        if ("error" in result) {
+            const status = result.error.includes("author") ? 403 : 404;
+            return res.status(status).json({ success: false, message: result.error });
+        }
+        await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { technicalNotes: (0, technicalEstimators_1.serializeTechnicalNotesBundle)(result.bundle) },
+        });
+        (0, cache_1.flushAdminClientsCache)();
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`, `csr:leads:${lead.assignedTo}`);
+        return res.json({ success: true, thread: result.thread, technicalNotesBundle: result.bundle });
+    }
+    catch (err) {
+        console.error("technical-notes delete error:", err);
+        return res.status(500).json({ success: false, message: "Failed to delete note" });
     }
 });
 /* ================= UPDATE CSR STATUS ================= */
@@ -812,12 +951,13 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
         const from = typeof req.query.from === "string" ? req.query.from.trim() : undefined;
         const to = typeof req.query.to === "string" ? req.query.to.trim() : undefined;
         const lite = req.query.lite !== "0" && req.query.lite !== "false";
-        const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
-        const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
-        const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
         const technicalView = req.query.technicalView === "1" ||
             req.query.technicalView === "true" ||
             req.query.forTechnical === "1";
+        const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+        const maxLimit = technicalView ? 2000 : 500;
+        const limit = Math.min(maxLimit, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
+        const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
         const revisionsView = req.query.revisions === "1" ||
             req.query.revisions === "true";
         const excludeRevisions = req.query.excludeRevisions === "1" ||
@@ -873,17 +1013,16 @@ router.get("/projects", auth_middleware_1.verifyToken, (0, role_middleware_1.all
             db_1.default.lead.count({ where }),
         ]);
         let leads = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
-        // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset)
+        // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset).
+        // Completed projects always stay on Chief Estimation, even if previously hidden by mark-complete.
         if (technicalView) {
             leads = leads.filter((l) => {
                 const row = l;
-                if (row.hiddenOnTechnical === true)
-                    return false;
-                const work = String(row.projectWorkStatus ?? "").toLowerCase();
-                const st = String(row.status ?? "").toLowerCase();
-                if (work === "completed" || st === "completed")
-                    return false;
-                return true;
+                const completed = String(row.projectWorkStatus ?? "").toLowerCase() === "completed" ||
+                    String(row.status ?? "").toLowerCase() === "completed";
+                if (completed)
+                    return true;
+                return row.hiddenOnTechnical !== true;
             });
         }
         if (revisionsView) {
@@ -1547,7 +1686,7 @@ router.put("/project/:id/hide-technical", auth_middleware_1.verifyToken, (0, rol
         return res.status(500).json({ success: false, message: "Failed to remove from technical" });
     }
 });
-/* ================= MARK COMPLETED (Admin: after Final Submission → hide from TM) ================= */
+/* ================= MARK COMPLETED (Admin: keep visible on Chief Estimation) ================= */
 router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager"), async (req, res) => {
     try {
         const leadId = String(req.params.id);
@@ -1571,21 +1710,14 @@ router.put("/project/:id/mark-completed", auth_middleware_1.verifyToken, (0, rol
             });
             return res.json({ success: true, lead });
         }
-        const phase = String(existing.projectPhase ?? "").toLowerCase();
-        if (phase !== "qa_phase" && phase !== "delivery_phase") {
-            return res.status(400).json({
-                success: false,
-                message: "Project must be in Final Submission before marking completed.",
-            });
-        }
         const lead = await db_1.default.lead.update({
             where: { id: leadId },
             data: {
                 projectWorkStatus: "completed",
                 status: "completed",
                 projectPhase: "delivery_phase",
-                hiddenOnTechnical: true,
                 needsRevision: false,
+                hiddenOnTechnical: false,
             },
             include: {
                 csr: { select: { id: true, name: true, email: true, csrCode: true } },
@@ -1685,7 +1817,10 @@ router.get("/technical-notifications", auth_middleware_1.verifyToken, (0, role_m
     try {
         const unreadOnly = req.query.unread === "1" || req.query.unread === "true";
         const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "50"), 10) || 50));
-        const where = unreadOnly ? { readAt: null } : {};
+        const where = {
+            source: { not: "tm_estimator" },
+            ...(unreadOnly ? { readAt: null } : {}),
+        };
         const [rows, unreadCount] = await Promise.all([
             db_1.default.technicalNotification.findMany({
                 where,
@@ -1719,7 +1854,7 @@ router.get("/technical-notifications", auth_middleware_1.verifyToken, (0, role_m
 router.put("/technical-notifications/read-all", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("technical_manager", "admin"), async (_req, res) => {
     try {
         const result = await db_1.default.technicalNotification.updateMany({
-            where: { readAt: null },
+            where: { readAt: null, source: { not: "tm_estimator" } },
             data: { readAt: new Date() },
         });
         return res.json({ success: true, updated: result.count });
@@ -1869,14 +2004,25 @@ router.get("/technical-kpi-records", auth_middleware_1.verifyToken, (0, role_mid
         const estimatorId = typeof req.query.estimatorId === "string" ? req.query.estimatorId.trim() : "";
         const fieldKey = typeof req.query.fieldKey === "string" ? req.query.fieldKey.trim() : "";
         const month = typeof req.query.month === "string" ? req.query.month.trim() : "";
+        const fromStr = typeof req.query.from === "string" ? req.query.from.trim() : "";
+        const toStr = typeof req.query.to === "string" ? req.query.to.trim() : "";
         const where = {};
         if (estimatorId)
             where.estimatorId = estimatorId;
         if (fieldKey && (0, technicalKpiRecords_1.isEstimatorKpiFieldKey)(fieldKey))
             where.fieldKey = fieldKey;
-        const bounds = month ? (0, technicalKpiRecords_1.monthBounds)(month) : null;
-        if (bounds)
-            where.recordedAt = { gte: bounds.from, lt: bounds.to };
+        const ymd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+        if (ymd(fromStr) || ymd(toStr)) {
+            where.recordedAt = {
+                ...(ymd(fromStr) ? { gte: new Date(`${fromStr}T00:00:00.000Z`) } : {}),
+                ...(ymd(toStr) ? { lte: new Date(`${toStr}T23:59:59.999Z`) } : {}),
+            };
+        }
+        else {
+            const bounds = month ? (0, technicalKpiRecords_1.monthBounds)(month) : null;
+            if (bounds)
+                where.recordedAt = { gte: bounds.from, lt: bounds.to };
+        }
         const [records, estimators] = await Promise.all([
             db_1.default.estimatorKpiRecord.findMany({
                 where,
@@ -2068,6 +2214,61 @@ router.put("/project/:id/assign-estimators", auth_middleware_1.verifyToken, (0, 
         return res.status(500).json({ success: false, message: "Failed to assign estimators" });
     }
 });
+/* ================= MOVE PROJECT BETWEEN TECHNICAL WORKFLOW TABS ================= */
+router.put("/project/:id/move-technical-tab", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const tabRaw = String(req.body?.tab ?? "").trim();
+        const allowed = ["not_assigned", "assigned", "takeoff_done", "pricing", "final_submission", "completed"];
+        if (!allowed.includes(tabRaw)) {
+            return res.status(400).json({ success: false, message: "Invalid workflow tab." });
+        }
+        const tab = tabRaw;
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                id: true,
+                projectPhase: true,
+                technicalAssignments: true,
+                assignedTo: true,
+            },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const previous = (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments);
+        const moved = (0, technicalEstimators_1.applyTechnicalTabMove)(previous, tab, existing.projectPhase);
+        if (moved.error) {
+            return res.status(400).json({ success: false, message: moved.error });
+        }
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: {
+                technicalAssignments: (0, technicalEstimators_1.serializeTechnicalAssignments)(moved.assignments),
+                projectPhase: moved.projectPhase,
+                ...(moved.projectWorkStatus
+                    ? {
+                        projectWorkStatus: moved.projectWorkStatus,
+                        status: "completed",
+                        hiddenOnTechnical: false,
+                    }
+                    : {}),
+            },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead, tab });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to move project" });
+    }
+});
 /* ================= UPDATE ESTIMATOR TAKEOFF FLAGS ================= */
 router.put("/project/:id/estimator-takeoff", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
@@ -2114,6 +2315,54 @@ router.put("/project/:id/estimator-takeoff", auth_middleware_1.verifyToken, (0, 
     catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Failed to update takeoff status" });
+    }
+});
+/* ================= TM EVALUATION (marks / remarks per estimator on a project) ================= */
+router.put("/project/:id/estimator-evaluation", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
+    try {
+        const leadId = String(req.params.id);
+        const { estimatorId, marks, remarks } = req.body;
+        if (!estimatorId) {
+            return res.status(400).json({ success: false, message: "estimatorId is required" });
+        }
+        const n = Number(marks);
+        if (!Number.isFinite(n) || n < 0 || n > 10) {
+            return res.status(400).json({ success: false, message: "Marks must be between 0 and 10." });
+        }
+        const existing = await db_1.default.lead.findUnique({
+            where: { id: leadId },
+            select: { technicalAssignments: true, assignedTo: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Project not found" });
+        }
+        const list = (0, technicalEstimators_1.parseTechnicalAssignments)(existing.technicalAssignments);
+        const idx = list.findIndex((a) => a.estimatorId === estimatorId);
+        if (idx < 0) {
+            return res.status(404).json({ success: false, message: "Estimator assignment not found" });
+        }
+        list[idx] = {
+            ...list[idx],
+            evaluationMarks: Math.round(n * 10) / 10,
+            evaluationRemarks: String(remarks ?? "").trim(),
+            evaluatedAt: new Date().toISOString(),
+        };
+        const lead = await db_1.default.lead.update({
+            where: { id: leadId },
+            data: { technicalAssignments: (0, technicalEstimators_1.serializeTechnicalAssignments)(list) },
+            include: {
+                csr: { select: { id: true, name: true, email: true, csrCode: true } },
+                notes: { orderBy: { createdAt: "asc" }, take: 20 },
+                uploadFile: { select: { companyName: true } },
+            },
+        });
+        (0, cache_1.invalidatePattern)("admin:projects:");
+        (0, cache_1.invalidateCache)(`csr:projects:${lead.assignedTo}`);
+        return res.json({ success: true, lead });
+    }
+    catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Failed to save evaluation" });
     }
 });
 /* ================= SHUFFLE STATUS ================= */
@@ -2796,7 +3045,7 @@ router.get("/upload-sources/:sourceId", auth_middleware_1.verifyToken, (0, role_
         return res.status(500).json({ success: false, message: "Failed to fetch source details" });
     }
 });
-/* ================= CSR LOGIN / ACTIVITY REPORT (EST) ================= */
+/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (PST) ================= */
 router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middleware_1.allowRoles)("admin", "manager", "technical_manager"), async (req, res) => {
     try {
         const csrId = typeof req.query.csrId === "string" && req.query.csrId !== "all"
@@ -2806,27 +3055,29 @@ router.get("/csr-session-report", auth_middleware_1.verifyToken, (0, role_middle
         let to;
         const fromStr = typeof req.query.from === "string" ? req.query.from : "";
         const toStr = typeof req.query.to === "string" ? req.query.to : "";
+        const tz = estTime_1.ADMIN_SESSION_TIMEZONE;
         if (fromStr) {
-            const b = (0, estTime_1.estDayBoundsUtc)(fromStr);
+            const b = (0, estTime_1.estDayBoundsUtc)(fromStr, tz);
             if (b)
                 from = b.start;
         }
         if (toStr) {
-            const b = (0, estTime_1.estDayBoundsUtc)(toStr);
+            const b = (0, estTime_1.estDayBoundsUtc)(toStr, tz);
             if (b)
                 to = b.end;
         }
         if (!from && !to) {
-            const toYmd = (0, estTime_1.estDateYmd)();
-            const fromYmd = (0, estTime_1.addEstDays)(toYmd, -6);
-            from = (0, estTime_1.estDayBoundsUtc)(fromYmd).start;
-            to = (0, estTime_1.estDayBoundsUtc)(toYmd).end;
+            const toYmd = (0, estTime_1.estDateYmd)(new Date(), tz);
+            const fromYmd = (0, estTime_1.addEstDays)(toYmd, -6, tz);
+            from = (0, estTime_1.estDayBoundsUtc)(fromYmd, tz).start;
+            to = (0, estTime_1.estDayBoundsUtc)(toYmd, tz).end;
         }
-        const report = await (0, csrSessionTracking_1.buildCsrSessionReport)({ from, to, csrId });
+        const staffRole = req.query.role === "estimator" ? "estimator" : "csr";
+        const report = await (0, csrSessionTracking_1.buildCsrSessionReport)({ from, to, csrId, role: staffRole, timeZone: tz });
         return res.json({
             success: true,
-            timezone: "America/New_York",
-            timezoneLabel: "Eastern Time (EST/EDT)",
+            timezone: tz,
+            timezoneLabel: estTime_1.ADMIN_SESSION_TZ_LABEL,
             from: from?.toISOString() ?? null,
             to: to?.toISOString() ?? null,
             ...report,
@@ -2846,9 +3097,9 @@ router.put("/csr-work-session/:id", auth_middleware_1.verifyToken, (0, role_midd
         }
         const { checkInAt, checkOutAt, clearCheckOut, dashboardMs, awayMs, note, } = req.body ?? {};
         if (!checkInAt || typeof checkInAt !== "string") {
-            return res.status(400).json({ success: false, message: "checkInAt is required (EST datetime)." });
+            return res.status(400).json({ success: false, message: "checkInAt is required (PST datetime)." });
         }
-        const checkInDate = (0, estTime_1.parseEstDateTimeLocal)(checkInAt) ??
+        const checkInDate = (0, estTime_1.parseEstDateTimeLocal)(checkInAt, estTime_1.ADMIN_SESSION_TIMEZONE) ??
             (!Number.isNaN(Date.parse(checkInAt)) ? new Date(checkInAt) : null);
         if (!checkInDate) {
             return res.status(400).json({ success: false, message: "Invalid check-in time." });
@@ -2859,7 +3110,7 @@ router.put("/csr-work-session/:id", auth_middleware_1.verifyToken, (0, role_midd
                 return res.status(400).json({ success: false, message: "Invalid check-out time." });
             }
             checkOutDate =
-                (0, estTime_1.parseEstDateTimeLocal)(checkOutAt) ??
+                (0, estTime_1.parseEstDateTimeLocal)(checkOutAt, estTime_1.ADMIN_SESSION_TIMEZONE) ??
                     (!Number.isNaN(Date.parse(checkOutAt)) ? new Date(checkOutAt) : null);
             if (!checkOutDate) {
                 return res.status(400).json({ success: false, message: "Invalid check-out time." });

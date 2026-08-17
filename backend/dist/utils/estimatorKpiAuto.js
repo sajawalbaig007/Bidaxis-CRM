@@ -7,13 +7,20 @@ exports.isEstimatorKpiFieldKey = void 0;
 exports.buildEstimatorKpiAuto = buildEstimatorKpiAuto;
 exports.autoFieldsForEstimator = autoFieldsForEstimator;
 const db_1 = __importDefault(require("../config/db"));
-const binLeads_1 = require("./binLeads");
-const leadClientPromotion_1 = require("./leadClientPromotion");
 const projectLeads_1 = require("./projectLeads");
+const nextProjectCode_1 = require("./nextProjectCode");
 const technicalEstimators_1 = require("./technicalEstimators");
 const technicalKpiRecords_1 = require("./technicalKpiRecords");
 Object.defineProperty(exports, "isEstimatorKpiFieldKey", { enumerable: true, get: function () { return technicalKpiRecords_1.isEstimatorKpiFieldKey; } });
 const estTime_1 = require("./estTime");
+function ymdFromUnknown(value) {
+    if (!value)
+        return null;
+    const d = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(d.getTime()))
+        return null;
+    return d.toISOString().slice(0, 10);
+}
 function formatShortEst(value) {
     return new Intl.DateTimeFormat("en-US", {
         timeZone: estTime_1.CSR_REPORT_TIMEZONE,
@@ -52,14 +59,6 @@ function leadTouchesMonth(lead, bounds) {
     if (received >= bounds.from && received < bounds.to)
         return true;
     return lead.updatedAt >= bounds.from && lead.updatedAt < bounds.to;
-}
-/** Returning client = flagged old OR had a prior won project before this lead. */
-function isRetainedClientLead(lead, priorWinsByKey) {
-    if (lead.isOldClient)
-        return true;
-    const key = (0, leadClientPromotion_1.clientIdentityKey)(lead);
-    const prior = (priorWinsByKey.get(key) ?? []).filter((w) => w.id !== lead.id && w.createdAt.getTime() < lead.createdAt.getTime());
-    return prior.length > 0;
 }
 function clientLabel(lead) {
     return (lead.company?.trim() ||
@@ -126,7 +125,7 @@ async function buildEstimatorKpiAuto(month) {
     }
     const now = Date.now();
     const todayYmd = new Date().toISOString().split("T")[0] ?? "";
-    const [roster, rawLeads, wonIdentityLeads, sessions] = await Promise.all([
+    const [roster, rawLeads, sessions] = await Promise.all([
         (0, technicalEstimators_1.listTechnicalEstimators)(),
         db_1.default.lead.findMany({
             where: (0, projectLeads_1.buildProjectLeadWhere)(),
@@ -139,7 +138,6 @@ async function buildEstimatorKpiAuto(month) {
                 projectTitle: true,
                 projectCode: true,
                 clientCode: true,
-                isOldClient: true,
                 projectPhase: true,
                 projectDeadline: true,
                 projectWorkStatus: true,
@@ -153,27 +151,7 @@ async function buildEstimatorKpiAuto(month) {
                 updatedAt: true,
             },
             orderBy: { updatedAt: "desc" },
-            take: 500,
-        }),
-        db_1.default.lead.findMany({
-            where: {
-                ...(0, binLeads_1.notInBinFilter)(),
-                OR: [
-                    { status: { equals: "Close Client", mode: "insensitive" } },
-                    { status: { equals: "completed", mode: "insensitive" } },
-                    { status: { equals: "closed", mode: "insensitive" } },
-                ],
-            },
-            select: {
-                id: true,
-                phone: true,
-                company: true,
-                status: true,
-                isOldClient: true,
-                createdAt: true,
-            },
-            orderBy: { createdAt: "asc" },
-            take: 5000,
+            take: 2000,
         }),
         db_1.default.csrWorkSession.findMany({
             where: {
@@ -191,18 +169,19 @@ async function buildEstimatorKpiAuto(month) {
             take: 5000,
         }),
     ]);
-    const leads = rawLeads
-        .filter(projectLeads_1.isDisplayableProjectLead)
+    const allProjects = rawLeads.filter(projectLeads_1.isDisplayableProjectLead);
+    const leads = allProjects
         .filter((l) => l.hiddenOnTechnical !== true)
         .filter((l) => leadTouchesMonth(l, bounds));
-    const priorWinsByKey = new Map();
-    for (const w of wonIdentityLeads) {
-        if (!(0, leadClientPromotion_1.isWonClientStatus)(w.status))
+    const byBaseSeq = new Map();
+    for (const p of allProjects) {
+        const parsed = (0, nextProjectCode_1.projectCodeSeqOf)(p);
+        if (!parsed)
             continue;
-        const key = (0, leadClientPromotion_1.clientIdentityKey)(w);
-        const list = priorWinsByKey.get(key) ?? [];
-        list.push(w);
-        priorWinsByKey.set(key, list);
+        const key = `${parsed.base.toLowerCase()}::${parsed.seq}`;
+        const list = byBaseSeq.get(key) ?? [];
+        list.push(p);
+        byBaseSeq.set(key, list);
     }
     const byId = new Map();
     for (const e of roster) {
@@ -223,6 +202,9 @@ async function buildEstimatorKpiAuto(month) {
             timerHoursSamples: [],
             retainedProjects: 0,
             retainedLines: [],
+            evalMarks: [],
+            evalRemarkLines: [],
+            deliveredDates: [],
         });
     }
     const ensure = (estimatorId, estimatorName) => {
@@ -249,6 +231,9 @@ async function buildEstimatorKpiAuto(month) {
             timerHoursSamples: [],
             retainedProjects: 0,
             retainedLines: [],
+            evalMarks: [],
+            evalRemarkLines: [],
+            deliveredDates: [],
         };
         byId.set(estimatorId, created);
         return created;
@@ -259,8 +244,6 @@ async function buildEstimatorKpiAuto(month) {
             continue;
         const code = (lead.projectCode ?? lead.clientCode ?? "").trim() || "—";
         const title = (lead.projectTitle ?? "").trim() || "Untitled";
-        const retained = isRetainedClientLead(lead, priorWinsByKey);
-        const retainedLabel = clientLabel(lead);
         const tradeBits = [
             ...(lead.interestedService ? [lead.interestedService] : []),
             ...(lead.trade ? [lead.trade] : []),
@@ -279,11 +262,13 @@ async function buildEstimatorKpiAuto(month) {
                     acc.trades.add(s.trim());
             if (a.takeoffDone) {
                 acc.delivered += 1;
+                acc.deliveredDates.push(ymdFromUnknown(a.evaluatedAt) ||
+                    ymdFromUnknown(lead.updatedAt) ||
+                    bounds.from.toISOString().slice(0, 10));
                 if (logged > 0)
                     acc.timerHoursSamples.push(logged / 3600);
                 if (a.deadline) {
                     acc.doneWithDeadline += 1;
-                    // completed with a deadline set counts as on-time for KPI auto (deadline was met before reopen)
                     acc.onTimeDone += 1;
                 }
             }
@@ -292,21 +277,52 @@ async function buildEstimatorKpiAuto(month) {
                 if (assignmentOverdue(a.deadline, false, todayYmd))
                     acc.overdue += 1;
             }
+            if (a.evaluationMarks != null && Number.isFinite(a.evaluationMarks)) {
+                acc.evalMarks.push(a.evaluationMarks);
+                const remark = (a.evaluationRemarks ?? "").trim();
+                const when = a.evaluatedAt
+                    ? new Date(a.evaluatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                    : "";
+                acc.evalRemarkLines.push(`${code} ${title}: ${a.evaluationMarks}/10${remark ? ` — ${remark}` : ""}${when ? ` (${when})` : ""}`);
+            }
             if (logged > 0 || a.takeoffDone || !a.takeoffDone) {
                 const status = a.takeoffDone ? "done" : assignmentOverdue(a.deadline, false, todayYmd) ? "overdue" : "pending";
                 acc.projectLines.push(`${code} ${title}: ${hoursLabel(logged)}${a.manHours ? ` / ${a.manHours}h planned` : ""} (${status})`);
             }
         }
-        if (retained) {
-            const credited = new Set();
-            for (const a of assignments) {
-                if (credited.has(a.estimatorId))
-                    continue;
-                credited.add(a.estimatorId);
-                const acc = ensure(a.estimatorId, a.estimatorName);
-                acc.retainedProjects += 1;
-                acc.retainedLines.push(`${retainedLabel} · ${code} ${title}`);
-            }
+    }
+    for (const lead of leads) {
+        const secondAssignments = (0, technicalEstimators_1.parseTechnicalAssignments)(lead.technicalAssignments);
+        if (secondAssignments.length === 0)
+            continue;
+        if (!(0, nextProjectCode_1.isRetainedSecondProjectCode)(lead))
+            continue;
+        const parsed = (0, nextProjectCode_1.projectCodeSeqOf)(lead);
+        if (!parsed)
+            continue;
+        const firsts = byBaseSeq.get(`${parsed.base.toLowerCase()}::1`) ?? [];
+        const first = firsts.find((p) => p.id !== lead.id) ?? firsts[0];
+        if (!first)
+            continue;
+        const firstAssignments = (0, technicalEstimators_1.parseTechnicalAssignments)(first.technicalAssignments);
+        if (firstAssignments.length === 0)
+            continue;
+        const firstDelivered = firstAssignments.some((a) => a.takeoffDone) ||
+            String(first.projectWorkStatus ?? "").toLowerCase() === "completed" ||
+            String(first.status ?? "").toLowerCase() === "completed";
+        if (!firstDelivered)
+            continue;
+        const retainedLabel = clientLabel(lead);
+        const code = (lead.projectCode ?? lead.clientCode ?? "").trim() || "—";
+        const title = (lead.projectTitle ?? "").trim() || "Untitled";
+        const credited = new Set();
+        for (const a of firstAssignments) {
+            if (!a.estimatorId || credited.has(a.estimatorId))
+                continue;
+            credited.add(a.estimatorId);
+            const acc = ensure(a.estimatorId, a.estimatorName);
+            acc.retainedProjects += 1;
+            acc.retainedLines.push(`${retainedLabel} · ${code} ${title} (from ${parsed.base}-01)`);
         }
     }
     const sessionsByUser = new Map();
@@ -342,11 +358,24 @@ async function buildEstimatorKpiAuto(month) {
             : acc.delivered > 0
                 ? `${acc.delivered} completed (no timer samples)`
                 : "No completed takeoffs";
-        const productivity = acc.assigned > 0
-            ? `${hoursLabel(acc.loggedSeconds)} logged · ${acc.plannedHours || 0}h planned · ${acc.delivered}/${acc.assigned} done`
-            : userSessions.length > 0
-                ? `${(0, estTime_1.formatDurationMs)(totalDash)} dashboard time this month`
-                : "No timer / session data";
+        void avgTakeoff;
+        const loggedHours = acc.loggedSeconds / 3600;
+        let productivityPct = 0;
+        if (acc.plannedHours > 0) {
+            productivityPct = (loggedHours / acc.plannedHours) * 100;
+        }
+        else if (acc.assigned > 0) {
+            productivityPct = (acc.delivered / acc.assigned) * 100;
+        }
+        productivityPct = Math.max(0, Math.min(200, Math.round(productivityPct)));
+        const productivity = `${productivityPct}`;
+        const evalAvg = acc.evalMarks.length > 0
+            ? Math.round((acc.evalMarks.reduce((s, n) => s + n, 0) / acc.evalMarks.length) * 10) / 10
+            : null;
+        const evalStars = evalAvg == null ? "" : String(evalAvg <= 0 ? 1 : Math.min(5, Math.max(1, Math.round(evalAvg / 2))));
+        const evalRemarks = acc.evalRemarkLines.length > 0
+            ? `Avg ${evalAvg}/10 from ${acc.evalMarks.length} project(s)\n${acc.evalRemarkLines.slice(0, 40).join("\n")}`
+            : "";
         const projectTime = acc.projectLines.length > 0
             ? acc.projectLines.slice(0, 40).join("\n")
             : "No project timer data";
@@ -362,8 +391,8 @@ async function buildEstimatorKpiAuto(month) {
                 auto: true,
             },
             productivity: {
-                value: productivity,
-                note: `Auto: assignment timers + planned hours (${month})`,
+                value: acc.assigned > 0 || acc.loggedSeconds > 0 ? productivity : "",
+                note: `Auto: ${hoursLabel(acc.loggedSeconds)} logged / ${acc.plannedHours || 0}h planned · ${acc.delivered}/${acc.assigned} done (${month})`,
                 auto: true,
             },
             project_time_spent: {
@@ -381,11 +410,6 @@ async function buildEstimatorKpiAuto(month) {
                 note: `Auto: pending overdue vs assigned (${month})`,
                 auto: true,
             },
-            avg_takeoff: {
-                value: avgTakeoff,
-                note: `Auto: average timer hours on completed takeoffs (${month})`,
-                auto: true,
-            },
             trades_history: {
                 value: trades,
                 note: `Auto: scopes / trades from assigned projects (${month})`,
@@ -394,8 +418,8 @@ async function buildEstimatorKpiAuto(month) {
             retained_clients: {
                 value: acc.retainedProjects > 0 ? String(acc.retainedProjects) : "",
                 note: acc.retainedLines.length > 0
-                    ? `Auto: returning-client projects this month — ${acc.retainedLines.slice(0, 12).join("; ")}`
-                    : `Auto: returning-client projects credited to estimator (${month})`,
+                    ? `Auto: -01 → -02 retained this month — ${acc.retainedLines.slice(0, 12).join("; ")}`
+                    : `Auto: retained only when project code goes -01 → -02 and the second job is assigned (${month})`,
                 auto: true,
             },
             team_query_mistakes: {
@@ -404,30 +428,44 @@ async function buildEstimatorKpiAuto(month) {
                 auto: review.hasData,
             },
             final_remarks: {
-                value: review.remarks,
-                note: `Auto: monthly performance summary (${month})`,
-                auto: review.hasData,
+                value: evalRemarks || review.remarks,
+                note: evalRemarks
+                    ? `Auto: project-wise evaluation remarks this month (${month})`
+                    : `Auto: monthly performance summary (${month})`,
+                auto: !!evalRemarks || review.hasData,
             },
             marks_out_of_10: {
-                value: review.marks,
-                note: `Auto: score from delivery, punctuality, activity, attendance & retained clients (${month})`,
-                auto: review.hasData,
+                value: evalAvg != null ? String(evalAvg) : "",
+                note: evalAvg != null
+                    ? `Auto: average of ${acc.evalMarks.length} Take Off Done evaluation(s) (${month})`
+                    : `No project evaluations this month (${month})`,
+                auto: evalAvg != null,
             },
             rating_stars: {
-                value: review.stars,
-                note: `Auto: rating derived from marks out of 10 (${month})`,
-                auto: review.hasData,
+                value: evalStars,
+                note: evalAvg != null
+                    ? `Auto: rating derived from evaluation average ${evalAvg}/10 (${month})`
+                    : `No project evaluations this month (${month})`,
+                auto: !!evalStars,
             },
         };
         const fields = technicalKpiRecords_1.ESTIMATOR_KPI_FIELD_KEYS.map((key) => {
             const f = fieldMap[key] ?? { value: "", note: "Manual", auto: false };
             return { fieldKey: key, value: f.value, note: f.note, auto: f.auto && !!f.value.trim() };
         });
+        const countByDate = new Map();
+        for (const day of acc.deliveredDates) {
+            countByDate.set(day, (countByDate.get(day) ?? 0) + 1);
+        }
+        const deliveredByDate = [...countByDate.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, count]) => ({ date, count }));
         return {
             estimatorId: acc.id,
             name: acc.name,
             code: acc.code,
             fields,
+            deliveredByDate,
         };
     });
     return {

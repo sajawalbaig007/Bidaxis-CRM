@@ -263,9 +263,8 @@ router.get("/dashboard", auth_middleware_1.verifyToken, (0, role_middleware_1.al
             select: {
                 ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
                 notes: {
-                    where: { parentId: null },
                     orderBy: { createdAt: "desc" },
-                    take: 1,
+                    take: 5,
                     select: { id: true, text: true, createdAt: true, parentId: true },
                 },
             },
@@ -489,6 +488,7 @@ router.post("/lead/:id/notes", auth_middleware_1.verifyToken, (0, role_middlewar
         const note = await db_1.default.leadNote.create({
             data: { text: text.trim(), leadId, ...(parent ? { parentId: parent } : {}) },
         });
+        await db_1.default.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } });
         (0, csrCache_1.invalidateCsrLeadCaches)(csrId);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note });
@@ -512,6 +512,7 @@ router.put("/lead/:id/notes/:noteId", auth_middleware_1.verifyToken, (0, role_mi
             where: { id: noteId },
             data: { text: text.trim(), createdAt: new Date() },
         });
+        await db_1.default.lead.update({ where: { id: note.leadId }, data: { updatedAt: new Date() } });
         (0, cache_1.invalidateCache)(`csr:leads:${csrId}`, `csr:not-interested:${csrId}`);
         (0, cache_1.flushAdminClientsCache)();
         return res.json({ success: true, note: updated });

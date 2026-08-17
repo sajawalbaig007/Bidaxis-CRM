@@ -21,6 +21,7 @@ const currencyFormula_1 = require("../utils/currencyFormula");
 const projectCurrencyCollections_1 = require("../utils/projectCurrencyCollections");
 const accountsStorage_1 = require("../utils/accountsStorage");
 const incomeBudget_1 = require("../utils/incomeBudget");
+const loadStaffPayroll_1 = require("../utils/loadStaffPayroll");
 function todayIsoDate() {
     return new Date().toISOString().slice(0, 10);
 }
@@ -107,7 +108,10 @@ async function getAccountsRecord(req, res) {
             return res.status(400).json({ success: false, message: "Invalid date. Use YYYY-MM-DD." });
         }
         const record = await findRecord(pageParam, recordDate);
-        const raw = record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(pageParam);
+        let raw = record?.data ?? (0, accountsDefaults_1.defaultAccountsData)(pageParam);
+        if (pageParam === "income_statement") {
+            raw = await (0, loadStaffPayroll_1.applyStaffPayrollToIncomeData)(raw, recordDate);
+        }
         let responseData = preparePageData(pageParam, raw);
         if (pageParam === "dashboard") {
             const collections = await (0, projectCurrencyCollections_1.aggregateCollectionsForDate)(recordDate);
@@ -152,7 +156,11 @@ async function saveAccountsRecord(req, res) {
         if (!data || typeof data !== "object") {
             return res.status(400).json({ success: false, message: "Missing data payload." });
         }
-        let payload = preparePageData(pageParam, data);
+        let incoming = data;
+        if (pageParam === "income_statement") {
+            incoming = await (0, loadStaffPayroll_1.applyStaffPayrollToIncomeData)(data, recordDate);
+        }
+        let payload = preparePageData(pageParam, incoming);
         if (pageParam === "dashboard") {
             const collections = await (0, projectCurrencyCollections_1.aggregateCollectionsForDate)(recordDate);
             payload = (0, projectCurrencyCollections_1.applyCollectionsToDashboardData)(payload, collections);

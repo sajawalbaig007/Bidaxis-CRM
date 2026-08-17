@@ -136,11 +136,11 @@ function parsePortalRole(raw) {
 }
 function portalRoleLabel(role) {
     if (role === "admin")
-        return "Admin";
+        return "CEO";
     if (role === "manager")
-        return "Manager";
+        return "Admin";
     if (role === "technical_manager")
-        return "Technical Manager";
+        return "Chief Estimation";
     if (role === "accounts")
         return "Accounts";
     if (role === "estimator")
@@ -194,7 +194,7 @@ const register = async (req, res) => {
             return res.status(403).json({ success: false, message: "Only admins can create manager accounts." });
         }
         if (role === "technical_manager" && req.user?.role !== "admin") {
-            return res.status(403).json({ success: false, message: "Only admins can create Technical Manager accounts." });
+            return res.status(403).json({ success: false, message: "Only CEO can create Chief Estimation accounts." });
         }
         if (role === "accounts" && req.user?.role !== "admin") {
             return res.status(403).json({ success: false, message: "Only admins can create Accounts users." });

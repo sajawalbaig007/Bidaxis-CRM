@@ -119,17 +119,21 @@ exports.ADMIN_LEAD_LIST_SELECT = {
     projectCode: true,
     interestedService: true,
     comments: true,
+    followUpNotes: true,
     nextSchedule: true,
     nextTime: true,
     timezone: true,
+    createdAt: true,
     updatedAt: true,
     csr: { select: { id: true, name: true, csrCode: true } },
     uploadFile: { select: { companyName: true } },
+    subContacts: {
+        select: { id: true, phone: true, email: true, name: true },
+    },
     _count: { select: { notes: true } },
     notes: {
-        where: { parentId: null },
         orderBy: { createdAt: "desc" },
-        take: 1,
+        take: 5,
         select: { id: true, text: true, createdAt: true, parentId: true },
     },
 };

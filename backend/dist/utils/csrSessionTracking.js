@@ -325,12 +325,14 @@ function liveTotals(session) {
     return { dashboardMs, awayMs, pausedMs, totalMs };
 }
 async function buildCsrSessionReport(opts) {
+    const staffRole = opts.role === "estimator" ? "estimator" : "csr";
+    const tz = opts.timeZone;
     /* Clean zombies before reporting so Totals / Still checked-in stay accurate */
     try {
         const openWhere = {
             ...(opts.csrId ? { userId: opts.csrId } : {}),
             OR: [{ logoutAt: null }, { logoutAt: { isSet: false } }],
-            user: { role: "csr" },
+            user: { is: { role: staffRole } },
         };
         const openRows = await db_1.default.csrWorkSession.findMany({
             where: openWhere,
@@ -358,7 +360,7 @@ async function buildCsrSessionReport(opts) {
     const where = {
         ...(opts.csrId ? { userId: opts.csrId } : {}),
         ...(range.gte || range.lte ? { loginAt: range } : {}),
-        user: { role: "csr" },
+        user: { is: { role: staffRole } },
     };
     const rows = await db_1.default.csrWorkSession.findMany({
         where,
@@ -370,17 +372,17 @@ async function buildCsrSessionReport(opts) {
     });
     const sessions = rows.map(row => {
         const { dashboardMs, awayMs, totalMs } = liveTotals(row);
-        const logoutAtEst = row.logoutAt ? (0, estTime_1.formatEstDateTime)(row.logoutAt) : "Still checked in";
+        const logoutAtEst = row.logoutAt ? (0, estTime_1.formatEstDateTime)(row.logoutAt, tz) : "Still checked in";
         return {
             id: row.id,
             csrId: row.user.id,
             csrName: row.user.name,
             csrCode: row.user.csrCode,
             loginAt: row.loginAt.toISOString(),
-            loginAtEst: (0, estTime_1.formatEstDateTime)(row.loginAt),
+            loginAtEst: (0, estTime_1.formatEstDateTime)(row.loginAt, tz),
             logoutAt: row.logoutAt?.toISOString() ?? null,
             logoutAtEst,
-            checkInAtEst: (0, estTime_1.formatEstDateTime)(row.loginAt),
+            checkInAtEst: (0, estTime_1.formatEstDateTime)(row.loginAt, tz),
             checkOutAtEst: logoutAtEst,
             dashboardDuration: (0, estTime_1.formatDurationMs)(dashboardMs),
             awayDuration: (0, estTime_1.formatDurationMs)(awayMs),
@@ -432,7 +434,7 @@ async function adminAdjustCsrWorkSession(opts) {
         where: { id: opts.sessionId },
         include: { user: { select: { id: true, name: true, role: true } } },
     });
-    if (!session || session.user.role !== "csr") {
+    if (!session || (session.user.role !== "csr" && session.user.role !== "estimator")) {
         return { ok: false, message: "Session not found." };
     }
     const checkInAt = opts.checkInAt;

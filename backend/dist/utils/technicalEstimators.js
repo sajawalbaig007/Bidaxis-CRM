@@ -18,9 +18,14 @@ exports.canCompleteAfterTimer = canCompleteAfterTimer;
 exports.pauseTimersOnLeadIds = pauseTimersOnLeadIds;
 exports.pauseOtherRunningTimersForEstimator = pauseOtherRunningTimersForEstimator;
 exports.mergeAssignmentProgress = mergeAssignmentProgress;
+exports.applyTechnicalTabMove = applyTechnicalTabMove;
+exports.parseTechnicalNotesBundle = parseTechnicalNotesBundle;
 exports.parseTechnicalNotes = parseTechnicalNotes;
+exports.serializeTechnicalNotesBundle = serializeTechnicalNotesBundle;
 exports.serializeTechnicalNotes = serializeTechnicalNotes;
 exports.appendTechnicalNote = appendTechnicalNote;
+exports.updateTechnicalNote = updateTechnicalNote;
+exports.deleteTechnicalNote = deleteTechnicalNote;
 const db_1 = __importDefault(require("../config/db"));
 /** Sync projectPhase from assignment complete / pricing flags. */
 function syncPhaseFromAssignments(list, currentPhase) {
@@ -127,6 +132,10 @@ function parseTechnicalAssignments(raw) {
             pricingSent: o.pricingSent === true,
             timerSeconds,
             timerStartedAt: startedRaw || null,
+            assignmentConfirmed: o.assignmentConfirmed === true,
+            evaluationMarks: parseEvalMarks(o.evaluationMarks),
+            evaluationRemarks: String(o.evaluationRemarks ?? "").trim(),
+            evaluatedAt: o.evaluatedAt ? String(o.evaluatedAt).trim() || null : null,
         });
     }
     return out;
@@ -241,6 +250,8 @@ async function pauseOtherRunningTimersForEstimator(user, exceptLeadId) {
 }
 /** Keep timer / complete flags when Miss re-assigns same estimator. */
 function mergeAssignmentProgress(incoming, previous) {
+    const sameList = (a, b) => JSON.stringify([...(a ?? [])].map((x) => x.trim()).filter(Boolean).sort()) ===
+        JSON.stringify([...(b ?? [])].map((x) => x.trim()).filter(Boolean).sort());
     return incoming.map((a) => {
         const old = previous.find((p) => p.estimatorId === a.estimatorId ||
             (!!p.estimatorName &&
@@ -253,59 +264,239 @@ function mergeAssignmentProgress(incoming, previous) {
                 pricingSent: false,
                 timerSeconds: 0,
                 timerStartedAt: null,
+                assignmentConfirmed: true,
             };
         }
+        const detailsChanged = (old.manHours ?? "") !== (a.manHours ?? "") ||
+            (old.deadline ?? "") !== (a.deadline ?? "") ||
+            (old.workDetail ?? "") !== (a.workDetail ?? "") ||
+            !sameList(old.scopes ?? [], a.scopes ?? []) ||
+            !sameList(old.divisions ?? [], a.divisions ?? []) ||
+            old.estimatorId !== a.estimatorId;
         return {
             ...a,
             takeoffDone: old.takeoffDone,
             pricingSent: old.pricingSent,
             timerSeconds: old.timerSeconds,
             timerStartedAt: old.takeoffDone ? null : old.timerStartedAt,
+            assignmentConfirmed: detailsChanged ? false : old.assignmentConfirmed === true,
+            evaluationMarks: old.evaluationMarks ?? a.evaluationMarks ?? null,
+            evaluationRemarks: old.evaluationRemarks ?? a.evaluationRemarks ?? "",
+            evaluatedAt: old.evaluatedAt ?? a.evaluatedAt ?? null,
         };
     });
 }
-function parseTechnicalNotes(raw) {
-    if (!raw)
+function parseEvalMarks(raw) {
+    if (raw == null || raw === "")
+        return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n))
+        return null;
+    return Math.max(0, Math.min(10, Math.round(n * 10) / 10));
+}
+/** Force assignment flags / phase so the project lands in a workflow tab. */
+function applyTechnicalTabMove(previous, tab, currentPhase) {
+    if (tab === "completed") {
+        return {
+            assignments: previous,
+            projectPhase: "delivery_phase",
+            projectWorkStatus: "completed",
+        };
+    }
+    if (tab === "not_assigned") {
+        return { assignments: [], projectPhase: "not_started" };
+    }
+    if (previous.length === 0) {
+        return {
+            assignments: previous,
+            projectPhase: currentPhase ?? "not_started",
+            error: "Assign at least one estimator before moving to this stage.",
+        };
+    }
+    if (tab === "assigned") {
+        const assignments = previous.map((a) => ({
+            ...a,
+            takeoffDone: false,
+            pricingSent: false,
+            timerStartedAt: a.takeoffDone ? null : a.timerStartedAt,
+        }));
+        return { assignments, projectPhase: syncPhaseFromAssignments(assignments, "not_started") };
+    }
+    if (tab === "takeoff_done") {
+        const assignments = previous.map((a) => ({
+            ...a,
+            takeoffDone: true,
+            pricingSent: false,
+            timerStartedAt: null,
+        }));
+        return { assignments, projectPhase: "takeoff_completed" };
+    }
+    if (tab === "pricing") {
+        const assignments = previous.map((a) => ({
+            ...a,
+            takeoffDone: true,
+            pricingSent: true,
+            timerStartedAt: null,
+        }));
+        return { assignments, projectPhase: "pricing_phase" };
+    }
+    /* final_submission */
+    const assignments = previous.map((a) => ({
+        ...a,
+        takeoffDone: true,
+        pricingSent: true,
+        timerStartedAt: null,
+    }));
+    return { assignments, projectPhase: "qa_phase" };
+}
+function normalizeNoteEntry(item, index) {
+    if (!item || typeof item !== "object")
+        return null;
+    const o = item;
+    const text = String(o.text ?? "").trim();
+    if (!text)
+        return null;
+    const entry = {
+        id: String(o.id ?? `n-${Date.now()}-${index}`),
+        text,
+        createdAt: String(o.createdAt ?? new Date().toISOString()),
+    };
+    if (o.authorId)
+        entry.authorId = String(o.authorId);
+    if (o.authorRole)
+        entry.authorRole = String(o.authorRole);
+    if (o.authorName)
+        entry.authorName = String(o.authorName);
+    return entry;
+}
+function parseNoteList(raw) {
+    if (!Array.isArray(raw))
         return [];
+    const out = [];
+    for (let i = 0; i < raw.length; i += 1) {
+        const entry = normalizeNoteEntry(raw[i], i);
+        if (entry)
+            out.push(entry);
+    }
+    return out;
+}
+/** Supports legacy array (sir-only) and `{ sir, estimator }` bundle. */
+function parseTechnicalNotesBundle(raw) {
+    if (!raw)
+        return { sir: [], estimator: [] };
     let parsed = raw;
     if (typeof raw === "string") {
         const trimmed = raw.trim();
         if (!trimmed)
-            return [];
+            return { sir: [], estimator: [] };
         try {
             parsed = JSON.parse(trimmed);
         }
         catch {
-            return [{ id: `legacy-${Date.now()}`, text: trimmed, createdAt: new Date().toISOString() }];
+            return {
+                sir: [{ id: `legacy-${Date.now()}`, text: trimmed, createdAt: new Date().toISOString() }],
+                estimator: [],
+            };
         }
     }
-    if (!Array.isArray(parsed))
-        return [];
-    const out = [];
-    for (const item of parsed) {
-        if (!item || typeof item !== "object")
-            continue;
-        const o = item;
-        const text = String(o.text ?? "").trim();
-        if (!text)
-            continue;
-        out.push({
-            id: String(o.id ?? `n-${Date.now()}-${out.length}`),
-            text,
-            createdAt: String(o.createdAt ?? new Date().toISOString()),
-        });
+    if (Array.isArray(parsed)) {
+        return { sir: parseNoteList(parsed), estimator: [] };
     }
-    return out;
+    if (parsed && typeof parsed === "object") {
+        const o = parsed;
+        return {
+            sir: parseNoteList(o.sir ?? o.admin ?? o.adminThread),
+            estimator: parseNoteList(o.estimator ?? o.estimatorThread),
+        };
+    }
+    return { sir: [], estimator: [] };
 }
+/** Legacy helper — returns Admin↔TM (sir) thread only. */
+function parseTechnicalNotes(raw) {
+    return parseTechnicalNotesBundle(raw).sir;
+}
+function serializeTechnicalNotesBundle(bundle) {
+    return JSON.stringify({
+        sir: bundle.sir,
+        estimator: bundle.estimator,
+    });
+}
+/** @deprecated Prefer serializeTechnicalNotesBundle — this only serializes a flat sir list. */
 function serializeTechnicalNotes(list) {
-    return JSON.stringify(list);
+    return serializeTechnicalNotesBundle({ sir: list, estimator: [] });
 }
-function appendTechnicalNote(raw, text) {
-    const list = parseTechnicalNotes(raw);
+function appendTechnicalNote(raw, text, thread = "sir", meta) {
+    const bundle = parseTechnicalNotesBundle(raw);
     const note = {
         id: `tn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         text: text.trim(),
         createdAt: new Date().toISOString(),
+        ...(meta?.authorId ? { authorId: meta.authorId } : {}),
+        ...(meta?.authorRole ? { authorRole: meta.authorRole } : {}),
+        ...(meta?.authorName ? { authorName: meta.authorName } : {}),
     };
-    return [...list, note];
+    bundle[thread] = [...bundle[thread], note];
+    return { bundle, note, list: bundle[thread] };
+}
+function findNoteThread(bundle, noteId) {
+    if (bundle.sir.some((n) => n.id === noteId))
+        return "sir";
+    if (bundle.estimator.some((n) => n.id === noteId))
+        return "estimator";
+    return null;
+}
+function rolesCompatible(noteRole, actorRole) {
+    if (!noteRole || !actorRole)
+        return false;
+    const adminish = (r) => r === "admin" || r === "manager";
+    if (adminish(noteRole) && adminish(actorRole))
+        return true;
+    return noteRole === actorRole;
+}
+function canMutateTechnicalNote(existing, actorId, actorRole, opts) {
+    if (opts?.adminForce)
+        return true;
+    if (existing.authorId)
+        return existing.authorId === actorId;
+    if (existing.authorRole)
+        return rolesCompatible(existing.authorRole, actorRole);
+    // Legacy notes with no author meta — allow signed-in actor
+    return !!actorId;
+}
+/** Update own note only (authorId / authorRole must match unless adminForce). */
+function updateTechnicalNote(raw, noteId, text, actorId, opts) {
+    const bundle = parseTechnicalNotesBundle(raw);
+    const thread = findNoteThread(bundle, noteId);
+    if (!thread)
+        return { error: "Note not found" };
+    const idx = bundle[thread].findIndex((n) => n.id === noteId);
+    if (idx < 0)
+        return { error: "Note not found" };
+    const existing = bundle[thread][idx];
+    if (!canMutateTechnicalNote(existing, actorId, opts?.actorRole, opts)) {
+        return { error: "Only the author can edit this note" };
+    }
+    const note = {
+        ...existing,
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+    };
+    bundle[thread] = [...bundle[thread]];
+    bundle[thread][idx] = note;
+    return { bundle, note, thread };
+}
+/** Delete own note only (authorId / authorRole must match unless adminForce). */
+function deleteTechnicalNote(raw, noteId, actorId, opts) {
+    const bundle = parseTechnicalNotesBundle(raw);
+    const thread = findNoteThread(bundle, noteId);
+    if (!thread)
+        return { error: "Note not found" };
+    const existing = bundle[thread].find((n) => n.id === noteId);
+    if (!existing)
+        return { error: "Note not found" };
+    if (!canMutateTechnicalNote(existing, actorId, opts?.actorRole, opts)) {
+        return { error: "Only the author can delete this note" };
+    }
+    bundle[thread] = bundle[thread].filter((n) => n.id !== noteId);
+    return { bundle, thread };
 }

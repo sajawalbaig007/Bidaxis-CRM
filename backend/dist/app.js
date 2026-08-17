@@ -18,6 +18,7 @@ const reportUpload_routes_1 = __importDefault(require("./routes/reportUpload.rou
 const chat_routes_1 = __importDefault(require("./routes/chat.routes"));
 const accounts_routes_1 = __importDefault(require("./routes/accounts.routes"));
 const estimator_routes_1 = __importDefault(require("./routes/estimator.routes"));
+const staffEmployees_routes_1 = __importDefault(require("./routes/staffEmployees.routes"));
 const rateLimit_middleware_1 = require("./middleware/rateLimit.middleware");
 const env_1 = require("./config/env");
 dotenv_1.default.config();
@@ -75,6 +76,7 @@ app.use("/api/report-uploads", reportUpload_routes_1.default);
 app.use("/api/chat", chat_routes_1.default);
 app.use("/api/accounts", accounts_routes_1.default);
 app.use("/api/estimator", estimator_routes_1.default);
+app.use("/api/admin/staff-employees", staffEmployees_routes_1.default);
 app.use((err, _req, res, next) => {
     if (err instanceof SyntaxError && "body" in err) {
         return res.status(400).json({ success: false, message: "Invalid JSON body." });

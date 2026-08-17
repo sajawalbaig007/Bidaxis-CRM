@@ -105,9 +105,8 @@ function mapDashboardLead(lead) {
 const LEAD_LIST_SELECT = {
     ...csrLeadSelect_1.CSR_DASHBOARD_LEAD_SELECT,
     notes: {
-        where: { parentId: null },
         orderBy: { createdAt: "desc" },
-        take: 1,
+        take: 5,
         select: { id: true, text: true, createdAt: true, parentId: true },
     },
 };

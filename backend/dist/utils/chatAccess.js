@@ -128,10 +128,10 @@ async function assertCanMessageTarget(meId, targetId) {
     return { ok: true };
 }
 const ROLE_DISPLAY = {
-    admin: "Admin",
+    admin: "CEO",
     csr: "CSR",
-    manager: "Manager",
-    technical_manager: "Technical Manager",
+    manager: "Admin",
+    technical_manager: "Chief Estimation",
     estimator: "Estimator",
     accounts: "Accounts",
 };
