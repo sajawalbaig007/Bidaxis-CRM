@@ -34,7 +34,7 @@ export const ESTIMATOR_KPI_FIELD_META: Record<
     input: "textarea",
     hint: "Auto from estimator daily sessions",
   },
-  retained_clients: { label: "Retained clients", input: "number", hint: "Auto — second+ project for the same client" },
+  retained_clients: { label: "Retained clients", input: "number", hint: "Auto — only -01 → -02 (3rd+ project is not retained)" },
   punctuality: { label: "Punctuality", input: "text", hint: "Auto from overdue vs assigned" },
   team_query_mistakes: { label: "Team query mistakes", input: "text", hint: "Auto from overdue follow-ups" },
   trades_history: { label: "Trades history", input: "textarea", hint: "Auto from scopes/trades" },

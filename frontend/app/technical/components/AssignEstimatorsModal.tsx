@@ -38,6 +38,8 @@ type Props = {
   open: boolean;
   project: ProjectBrief | null;
   estimators: TechnicalEstimator[];
+  /** Estimators who worked the previous code for this client (shown first). */
+  suggestedEstimatorIds?: string[];
   saving?: boolean;
   onClose: () => void;
   onConfirm: (assignments: TechnicalAssignment[]) => void | Promise<void>;
@@ -210,6 +212,7 @@ export default function AssignEstimatorsModal({
   open,
   project,
   estimators,
+  suggestedEstimatorIds = [],
   saving = false,
   onClose,
   onConfirm,
@@ -227,6 +230,16 @@ export default function AssignEstimatorsModal({
   const selectedEstimators = useMemo(
     () => estimators.filter((e) => selectedIds.includes(e.id)),
     [estimators, selectedIds],
+  );
+
+  const suggestedSet = useMemo(() => new Set(suggestedEstimatorIds), [suggestedEstimatorIds]);
+  const suggestedList = useMemo(
+    () => estimators.filter((e) => suggestedSet.has(e.id)),
+    [estimators, suggestedSet],
+  );
+  const otherList = useMemo(
+    () => estimators.filter((e) => !suggestedSet.has(e.id)),
+    [estimators, suggestedSet],
   );
 
   if (!open || !project) return null;
@@ -358,40 +371,86 @@ export default function AssignEstimatorsModal({
                     </p>
                   </div>
                 ) : (
-                  estimators.map((est) => {
-                    const active = selectedIds.includes(est.id);
-                    return (
-                      <button
-                        key={est.id}
-                        type="button"
-                        onClick={() => toggle(est.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left ${
-                          active
-                            ? "border-[#B8112D] bg-[#FFF1F3]"
-                            : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
-                        }`}
-                      >
-                        <div
-                          className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                            active ? "bg-[#B8112D]" : "bg-gray-400"
+                  <>
+                    {suggestedList.length > 0 ? (
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                        Worked last time · suggested
+                      </p>
+                    ) : null}
+                    {suggestedList.map((est) => {
+                      const active = selectedIds.includes(est.id);
+                      return (
+                        <button
+                          key={est.id}
+                          type="button"
+                          onClick={() => toggle(est.id)}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left ${
+                            active
+                              ? "border-amber-500 bg-amber-50"
+                              : "border-amber-200 bg-amber-50/60 hover:border-amber-300"
                           }`}
                         >
-                          {est.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className={`font-semibold text-sm truncate ${active ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
-                            {est.name}
-                          </p>
-                          <p className="text-xs text-gray-400">{est.code}</p>
-                        </div>
-                        {active && (
-                          <div className="w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
-                            <Check size={11} className="text-white" />
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
+                              active ? "bg-amber-600" : "bg-amber-400"
+                            }`}
+                          >
+                            {est.name.charAt(0).toUpperCase()}
                           </div>
-                        )}
-                      </button>
-                    );
-                  })
+                          <div className="min-w-0 flex-1">
+                            <p className={`font-semibold text-sm truncate ${active ? "text-amber-800" : "text-[#0F172A]"}`}>
+                              {est.name}
+                            </p>
+                            <p className="text-xs text-amber-700/80">{est.code} · last project</p>
+                          </div>
+                          {active && (
+                            <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center shrink-0">
+                              <Check size={11} className="text-white" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {suggestedList.length > 0 && otherList.length > 0 ? (
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 pt-1">
+                        Other estimators
+                      </p>
+                    ) : null}
+                    {otherList.map((est) => {
+                      const active = selectedIds.includes(est.id);
+                      return (
+                        <button
+                          key={est.id}
+                          type="button"
+                          onClick={() => toggle(est.id)}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left ${
+                            active
+                              ? "border-[#B8112D] bg-[#FFF1F3]"
+                              : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
+                          }`}
+                        >
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
+                              active ? "bg-[#B8112D]" : "bg-gray-400"
+                            }`}
+                          >
+                            {est.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`font-semibold text-sm truncate ${active ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
+                              {est.name}
+                            </p>
+                            <p className="text-xs text-gray-400">{est.code}</p>
+                          </div>
+                          {active && (
+                            <div className="w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
+                              <Check size={11} className="text-white" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             ) : (

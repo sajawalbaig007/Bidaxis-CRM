@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ClipboardList,
   Clock3,
+  Download,
   FileText,
   Hammer,
   LogIn,
@@ -25,11 +26,9 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import {
-  Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
 import TechnicalPageShell from "../components/TechnicalPageShell";
 import EstimatorKpiEntryModal from "../components/EstimatorKpiEntryModal";
+import KpiChartsBento, { type KpiChartRow } from "../components/KpiChartsBento";
 import {
   ESTIMATOR_KPI_FIELD_KEYS,
   ESTIMATOR_KPI_FIELD_META,
@@ -48,6 +47,11 @@ import {
   type EstimatorKpiRecord,
   type EstimatorKpiRosterItem,
 } from "@/lib/estimatorKpiRecords";
+import {
+  downloadEstimatorKpiReport,
+  kpiReportPeriodLabel,
+  type KpiReportPeriod,
+} from "@/lib/estimatorKpiReport";
 import {
   fetchTechnicalMonitoring,
   formatLoggedHours,
@@ -85,7 +89,7 @@ function latestByField(records: EstimatorKpiRecord[], fieldKey: string) {
     .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())[0] ?? null;
 }
 
-const KPI_CHART_FIELDS: { key: EstimatorKpiFieldKey; label: string }[] = [
+const KPI_CHART_FIELDS: { key: Exclude<keyof KpiChartRow, "name" | "fullName">; label: string }[] = [
   { key: "projects_delivered", label: "Projects delivered" },
   { key: "productivity", label: "Productivity %" },
   { key: "retained_clients", label: "Retained clients" },
@@ -94,6 +98,22 @@ const KPI_CHART_FIELDS: { key: EstimatorKpiFieldKey; label: string }[] = [
   { key: "marks_out_of_10", label: "Marks / 10" },
   { key: "rating_stars", label: "Rating / 5" },
 ];
+
+const FIELD_BENTO_SPAN: Record<EstimatorKpiFieldKey, string> = {
+  projects_delivered: "md:col-span-6",
+  productivity: "md:col-span-6",
+  project_time_spent: "md:col-span-8",
+  checkin_checkout: "md:col-span-4",
+  retained_clients: "md:col-span-4",
+  punctuality: "md:col-span-4",
+  team_query_mistakes: "md:col-span-4",
+  trades_history: "md:col-span-8",
+  final_remarks: "md:col-span-12",
+  marks_out_of_10: "md:col-span-6",
+  rating_stars: "md:col-span-6",
+};
+
+type PeriodMode = "month" | "all" | "range";
 
 function kpiNumeric(raw: string | undefined | null): number {
   if (!raw) return 0;
@@ -115,13 +135,30 @@ export default function TechnicalKpiPage() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [search, setSearch] = useState("");
   const [chartEstimatorId, setChartEstimatorId] = useState<string>("all");
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("month");
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
+  const [reportEstimatorId, setReportEstimatorId] = useState<string>("all");
+
+  const reportPeriod: KpiReportPeriod = useMemo(() => {
+    if (periodMode === "all") return { mode: "all" };
+    if (periodMode === "range") return { mode: "range", from: rangeFrom, to: rangeTo };
+    return { mode: "month", month };
+  }, [periodMode, month, rangeFrom, rangeTo]);
 
   const load = useCallback(async () => {
+    if (periodMode === "range" && (!rangeFrom || !rangeTo)) return;
     setLoading(true);
     try {
+      const kpiOpts =
+        periodMode === "all"
+          ? {}
+          : periodMode === "range"
+            ? { from: rangeFrom, to: rangeTo }
+            : { month };
       const [kpiRes, autoRes, monRes] = await Promise.all([
-        fetchEstimatorKpiRecords(month),
-        fetchEstimatorKpiAuto(month).catch(() => null),
+        fetchEstimatorKpiRecords(kpiOpts),
+        periodMode === "month" ? fetchEstimatorKpiAuto(month).catch(() => null) : Promise.resolve(null),
         fetchTechnicalMonitoring().catch(() => null),
       ]);
       if (!kpiRes?.success) {
@@ -129,7 +166,7 @@ export default function TechnicalKpiPage() {
       }
       setEstimators(Array.isArray(kpiRes.estimators) ? kpiRes.estimators : []);
       setRecords(Array.isArray(kpiRes.records) ? kpiRes.records : []);
-      setAutoRows(Array.isArray(autoRes?.estimators) ? autoRes!.estimators : []);
+      setAutoRows(periodMode === "month" && Array.isArray(autoRes?.estimators) ? autoRes!.estimators : []);
       setTeamLive(Array.isArray(monRes?.team) ? monRes!.team : []);
     } catch (err: unknown) {
       setEstimators([]);
@@ -143,7 +180,7 @@ export default function TechnicalKpiPage() {
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, periodMode, rangeFrom, rangeTo]);
 
   useEffect(() => {
     void load();
@@ -221,21 +258,36 @@ export default function TechnicalKpiPage() {
       chartEstimatorId === "all"
         ? allRoster
         : allRoster.filter((e) => e.id === chartEstimatorId);
-    return list.map((e) => {
-      const row: Record<string, string | number> = { name: e.name.split(" ")[0] || e.name, fullName: e.name };
+    return list.map((e): KpiChartRow => {
+      const row: KpiChartRow = {
+        name: e.name.split(" ")[0] || e.name,
+        fullName: e.name,
+        projects_delivered: 0,
+        productivity: 0,
+        retained_clients: 0,
+        punctuality: 0,
+        team_query_mistakes: 0,
+        marks_out_of_10: 0,
+        rating_stars: 0,
+      };
       for (const f of KPI_CHART_FIELDS) row[f.key] = pickValue(e.id, f.key);
       return row;
     });
   }, [allRoster, recordsByEstimator, autoByEstimator, chartEstimatorId]);
 
-  const singleEstimatorMetricRows = useMemo(() => {
-    if (chartEstimatorId === "all" || chartRows.length !== 1) return null;
-    const row = chartRows[0];
-    return KPI_CHART_FIELDS.map((f) => ({
-      name: f.label,
-      value: Number(row[f.key] ?? 0) || 0,
-    }));
-  }, [chartEstimatorId, chartRows]);
+  const downloadReport = () => {
+    if (periodMode === "range" && (!rangeFrom || !rangeTo)) {
+      toast.error("Pick from and to dates for a range report.");
+      return;
+    }
+    downloadEstimatorKpiReport({
+      period: reportPeriod,
+      estimators: allRoster,
+      records,
+      estimatorFilterId: reportEstimatorId === "all" ? undefined : reportEstimatorId,
+    });
+    toast.success("Report downloaded");
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -381,7 +433,7 @@ export default function TechnicalKpiPage() {
     {
       label: "Month entries",
       value: String(monthStats.entries),
-      hint: month,
+      hint: kpiReportPeriodLabel(reportPeriod),
       icon: ClipboardList,
       tone: "from-[#B8112D] to-[#8b0d22]",
     },
@@ -424,37 +476,104 @@ export default function TechnicalKpiPage() {
                   KPI Dashboard
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">
-                  Timers, check-in/out & delivery stats auto-fill — save them as editable entries for the monthly report.
+                  Timers, check-in/out & delivery stats auto-fill — save them as editable entries, then export a report for one estimator or all.
                 </p>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-                <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white/90 text-sm font-semibold text-gray-700 shadow-sm">
-                  <span className="text-[11px] text-gray-400 uppercase">Month</span>
-                  <input
-                    type="month"
-                    value={month}
-                    onChange={(e) => {
-                      setMonth(e.target.value);
-                      setExpandedId(null);
-                    }}
-                    className="outline-none bg-transparent text-sm font-semibold text-[#0F172A]"
-                  />
-                </label>
-                <Link
-                  href="/technical/team"
-                  className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] shadow-sm"
-                >
-                  Open Team
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => void load()}
-                  disabled={loading}
-                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:opacity-60 shadow-sm"
-                >
-                  <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-                  {loading ? "Refreshing…" : "Refresh"}
-                </button>
+              <div className="flex flex-col gap-2 w-full lg:w-auto">
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { key: "month" as const, label: "Month" },
+                    { key: "all" as const, label: "All time" },
+                    { key: "range" as const, label: "From → To" },
+                  ]).map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => {
+                        setPeriodMode(p.key);
+                        setExpandedId(null);
+                      }}
+                      className={`h-9 px-3 rounded-full text-[11px] font-bold border ${
+                        periodMode === p.key
+                          ? "bg-[#B8112D] text-white border-[#B8112D]"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-[#B8112D]/40"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {periodMode === "month" ? (
+                    <label className="flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white/90 text-sm font-semibold text-gray-700 shadow-sm">
+                      <span className="text-[11px] text-gray-400 uppercase">Month</span>
+                      <input
+                        type="month"
+                        value={month}
+                        onChange={(e) => {
+                          setMonth(e.target.value);
+                          setExpandedId(null);
+                        }}
+                        className="outline-none bg-transparent text-sm font-semibold text-[#0F172A]"
+                      />
+                    </label>
+                  ) : periodMode === "range" ? (
+                    <>
+                      <input
+                        type="date"
+                        value={rangeFrom}
+                        onChange={(e) => setRangeFrom(e.target.value)}
+                        className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#0F172A] outline-none"
+                      />
+                      <input
+                        type="date"
+                        value={rangeTo}
+                        onChange={(e) => setRangeTo(e.target.value)}
+                        className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-[#0F172A] outline-none"
+                      />
+                    </>
+                  ) : (
+                    <span className="h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-500 inline-flex items-center">
+                      All saved entries
+                    </span>
+                  )}
+                  <select
+                    value={reportEstimatorId}
+                    onChange={(e) => setReportEstimatorId(e.target.value)}
+                    className="h-10 sm:h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none"
+                    title="Report estimator"
+                  >
+                    <option value="all">Report: all estimators</option>
+                    {allRoster.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        Report: {e.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={downloadReport}
+                    className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] shadow-sm"
+                  >
+                    <Download size={15} />
+                    Report
+                  </button>
+                  <Link
+                    href="/technical/team"
+                    className="h-10 sm:h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center hover:border-[#B8112D]/40 hover:text-[#B8112D] shadow-sm"
+                  >
+                    Open Team
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void load()}
+                    disabled={loading}
+                    className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl bg-[#B8112D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-[#a30f27] disabled:opacity-60 shadow-sm"
+                  >
+                    <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+                    {loading ? "Refreshing…" : "Refresh"}
+                  </button>
+                </div>
               </div>
             </div>
           </header>
@@ -482,68 +601,22 @@ export default function TechnicalKpiPage() {
             ))}
           </section>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-bold text-[#0F172A]">KPI graphs</h2>
-                <p className="text-[11px] text-gray-400">Month fields — pick one estimator or All</p>
-              </div>
+          <section className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
               <select
                 value={chartEstimatorId}
                 onChange={(e) => setChartEstimatorId(e.target.value)}
-                className="h-10 rounded-xl border border-gray-200 bg-[#FAFAFA] px-3 text-sm font-semibold text-[#0F172A] outline-none"
+                className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none sm:w-64"
               >
-                <option value="all">All estimators</option>
+                <option value="all">Graphs: all estimators</option>
                 {allRoster.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.name}
+                    Graphs: {e.name}
                   </option>
                 ))}
               </select>
             </div>
-            {chartRows.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No estimator data for this month</p>
-            ) : singleEstimatorMetricRows ? (
-              <div className="rounded-xl border border-gray-100 bg-[#FAFBFD] p-2.5">
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 px-1">
-                  {String(chartRows[0]?.fullName ?? "Estimator")} — field snapshot
-                </p>
-                <div className="h-[220px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={singleEstimatorMetricRows} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} axisLine={false} tickLine={false} />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                      <Bar dataKey="value" fill="#B8112D" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {KPI_CHART_FIELDS.map((f) => (
-                  <div key={f.key} className="rounded-xl border border-gray-100 bg-[#FAFBFD] p-2.5">
-                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1 px-1">{f.label}</p>
-                    <div className="h-[180px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                          <Tooltip
-                            formatter={(v) => [v, f.label]}
-                            labelFormatter={(_, payload) => String(payload?.[0]?.payload?.fullName ?? "")}
-                            contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                          />
-                          <Bar dataKey={f.key} fill="#B8112D" radius={[6, 6, 0, 0]} maxBarSize={28} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <KpiChartsBento rows={chartRows} periodLabel={kpiReportPeriodLabel(reportPeriod)} />
           </section>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
@@ -692,13 +765,13 @@ export default function TechnicalKpiPage() {
                                 {seedingId === est.id ? "Filling…" : "Auto-fill empty"}
                               </button>
                               <span className="text-[10px] font-semibold text-[#B8112D] bg-[#FFF1F3] px-2 py-0.5 rounded-md">
-                                {month}
+                                {kpiReportPeriodLabel(reportPeriod)}
                               </span>
                             </div>
                           </div>
 
                           <div className="max-h-[min(58vh,520px)] overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3 custom-kpi-scroll">
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                               {ESTIMATOR_KPI_FIELD_KEYS.map((fieldKey) => {
                                 const meta = ESTIMATOR_KPI_FIELD_META[fieldKey];
                                 const Icon = FIELD_ICONS[fieldKey];
@@ -715,7 +788,7 @@ export default function TechnicalKpiPage() {
                                 return (
                                   <div
                                     key={fieldKey}
-                                    className={`rounded-xl border overflow-hidden bg-white shadow-sm ${
+                                    className={`rounded-[1.5rem] border overflow-hidden bg-white shadow-sm ${FIELD_BENTO_SPAN[fieldKey]} ${
                                       hasEntries ? "border-emerald-100" : "border-gray-200"
                                     }`}
                                   >

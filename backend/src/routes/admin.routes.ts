@@ -2319,11 +2319,22 @@ router.get(
       const fieldKey = typeof req.query.fieldKey === "string" ? req.query.fieldKey.trim() : "";
       const month = typeof req.query.month === "string" ? req.query.month.trim() : "";
 
+      const fromStr = typeof req.query.from === "string" ? req.query.from.trim() : "";
+      const toStr = typeof req.query.to === "string" ? req.query.to.trim() : "";
+
       const where: Prisma.EstimatorKpiRecordWhereInput = {};
       if (estimatorId) where.estimatorId = estimatorId;
       if (fieldKey && isEstimatorKpiFieldKey(fieldKey)) where.fieldKey = fieldKey;
-      const bounds = month ? monthBounds(month) : null;
-      if (bounds) where.recordedAt = { gte: bounds.from, lt: bounds.to };
+      const ymd = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+      if (ymd(fromStr) || ymd(toStr)) {
+        where.recordedAt = {
+          ...(ymd(fromStr) ? { gte: new Date(`${fromStr}T00:00:00.000Z`) } : {}),
+          ...(ymd(toStr) ? { lte: new Date(`${toStr}T23:59:59.999Z`) } : {}),
+        };
+      } else {
+        const bounds = month ? monthBounds(month) : null;
+        if (bounds) where.recordedAt = { gte: bounds.from, lt: bounds.to };
+      }
 
       const [records, estimators] = await Promise.all([
         prisma.estimatorKpiRecord.findMany({

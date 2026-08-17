@@ -72,6 +72,7 @@ import {
   type TechnicalWorkflowTab,
   type PricingQaMode,
 } from "@/lib/technicalAssignments";
+import { previousProjectEstimatorIds } from "@/lib/projectCodeSeq";
 
 type Project = {
   id: string;
@@ -2250,6 +2251,7 @@ export function TechnicalActiveProjectsPageInner({
         open={!!assignProject}
         project={assignProject}
         estimators={estimators}
+        suggestedEstimatorIds={previousProjectEstimatorIds(assignProject, projects)}
         saving={assignSaving}
         onClose={() => setAssignProject(null)}
         onConfirm={confirmAssign}
