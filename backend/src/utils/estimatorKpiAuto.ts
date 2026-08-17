@@ -1,8 +1,6 @@
 import prisma from "../config/db";
-import { notInBinFilter } from "./binLeads";
-import { isWonClientStatus } from "./leadClientPromotion";
-import { normalizePhone } from "./phone";
 import { buildProjectLeadWhere, isDisplayableProjectLead } from "./projectLeads";
+import { isRetainedSecondProjectCode, projectCodeSeqOf } from "./nextProjectCode";
 import {
   assignmentElapsedSeconds,
   listTechnicalEstimators,
@@ -74,56 +72,6 @@ function leadTouchesMonth(
   const received = lead.technicalReceivedAt ?? lead.updatedAt;
   if (received >= bounds.from && received < bounds.to) return true;
   return lead.updatedAt >= bounds.from && lead.updatedAt < bounds.to;
-}
-
-type WonIdentityLead = {
-  id: string;
-  phone?: string | null;
-  company?: string | null;
-  clientCode?: string | null;
-  projectTitle?: string | null;
-  status?: string | null;
-  createdAt: Date;
-};
-
-const PORTAL_COMPANY_KEYS = new Set(["bem", "gps", "n/a", "na", "-", "—"]);
-
-/** Strong identity only — never treat GPS/BEM portal company or a Close Client row without a project as retained. */
-function retainedProjectIdentityKey(lead: {
-  id: string;
-  phone?: string | null;
-  company?: string | null;
-  clientCode?: string | null;
-}): string | null {
-  const digits = normalizePhone(lead.phone ?? "");
-  if (digits.length >= 7) return `phone:${digits}`;
-  const code = String(lead.clientCode ?? "").trim().toLowerCase();
-  if (code.length >= 3) return `code:${code}`;
-  const co = String(lead.company ?? "").trim().toLowerCase();
-  if (!co || co.length < 3 || PORTAL_COMPANY_KEYS.has(co)) return null;
-  return `company:${co}`;
-}
-
-/** Returning client = an earlier won/completed *project* for the same client (second+ job). */
-function isRetainedClientLead(
-  lead: {
-    id: string;
-    phone?: string | null;
-    company?: string | null;
-    clientCode?: string | null;
-    createdAt: Date;
-  },
-  priorWinsByKey: Map<string, WonIdentityLead[]>,
-): boolean {
-  const key = retainedProjectIdentityKey(lead);
-  if (!key) return false;
-  const prior = (priorWinsByKey.get(key) ?? []).filter(
-    (w) =>
-      w.id !== lead.id &&
-      !!String(w.projectTitle ?? "").trim() &&
-      w.createdAt.getTime() < lead.createdAt.getTime(),
-  );
-  return prior.length > 0;
 }
 
 function clientLabel(lead: {
@@ -228,7 +176,7 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
   const now = Date.now();
   const todayYmd = new Date().toISOString().split("T")[0] ?? "";
 
-  const [roster, rawLeads, wonIdentityLeads, sessions] = await Promise.all([
+  const [roster, rawLeads, sessions] = await Promise.all([
     listTechnicalEstimators(),
     prisma.lead.findMany({
       where: buildProjectLeadWhere(),
@@ -241,7 +189,6 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         projectTitle: true,
         projectCode: true,
         clientCode: true,
-        isOldClient: true,
         projectPhase: true,
         projectDeadline: true,
         projectWorkStatus: true,
@@ -255,29 +202,7 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         updatedAt: true,
       },
       orderBy: { updatedAt: "desc" },
-      take: 500,
-    }),
-    prisma.lead.findMany({
-      where: {
-        ...notInBinFilter(),
-        projectTitle: { not: null },
-        OR: [
-          { status: { equals: "Close Client", mode: "insensitive" } },
-          { status: { equals: "completed", mode: "insensitive" } },
-          { status: { equals: "closed", mode: "insensitive" } },
-        ],
-      },
-      select: {
-        id: true,
-        phone: true,
-        company: true,
-        clientCode: true,
-        projectTitle: true,
-        status: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "asc" },
-      take: 5000,
+      take: 2000,
     }),
     prisma.csrWorkSession.findMany({
       where: {
@@ -296,20 +221,19 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
     }),
   ]);
 
-  const leads = rawLeads
-    .filter(isDisplayableProjectLead)
+  const allProjects = rawLeads.filter(isDisplayableProjectLead);
+  const leads = allProjects
     .filter((l) => (l as { hiddenOnTechnical?: boolean | null }).hiddenOnTechnical !== true)
     .filter((l) => leadTouchesMonth(l, bounds));
 
-  const priorWinsByKey = new Map<string, WonIdentityLead[]>();
-  for (const w of wonIdentityLeads) {
-    if (!isWonClientStatus(w.status)) continue;
-    if (!String(w.projectTitle ?? "").trim()) continue;
-    const key = retainedProjectIdentityKey(w);
-    if (!key) continue;
-    const list = priorWinsByKey.get(key) ?? [];
-    list.push(w);
-    priorWinsByKey.set(key, list);
+  const byBaseSeq = new Map<string, typeof allProjects>();
+  for (const p of allProjects) {
+    const parsed = projectCodeSeqOf(p);
+    if (!parsed) continue;
+    const key = `${parsed.base.toLowerCase()}::${parsed.seq}`;
+    const list = byBaseSeq.get(key) ?? [];
+    list.push(p);
+    byBaseSeq.set(key, list);
   }
 
   type Acc = {
@@ -393,8 +317,6 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
     if (assignments.length === 0) continue;
     const code = (lead.projectCode ?? lead.clientCode ?? "").trim() || "—";
     const title = (lead.projectTitle ?? "").trim() || "Untitled";
-    const retained = isRetainedClientLead(lead, priorWinsByKey);
-    const retainedLabel = clientLabel(lead);
     const tradeBits = [
       ...(lead.interestedService ? [lead.interestedService] : []),
       ...(lead.trade ? [lead.trade] : []),
@@ -439,16 +361,35 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
         );
       }
     }
+  }
 
-    if (retained) {
-      const credited = new Set<string>();
-      for (const a of assignments) {
-        if (credited.has(a.estimatorId)) continue;
-        credited.add(a.estimatorId);
-        const acc = ensure(a.estimatorId, a.estimatorName);
-        acc.retainedProjects += 1;
-        acc.retainedLines.push(`${retainedLabel} · ${code} ${title}`);
-      }
+  for (const lead of leads) {
+    const secondAssignments = parseTechnicalAssignments(lead.technicalAssignments);
+    if (secondAssignments.length === 0) continue;
+    if (!isRetainedSecondProjectCode(lead)) continue;
+    const parsed = projectCodeSeqOf(lead);
+    if (!parsed) continue;
+    const firsts = byBaseSeq.get(`${parsed.base.toLowerCase()}::1`) ?? [];
+    const first = firsts.find((p) => p.id !== lead.id) ?? firsts[0];
+    if (!first) continue;
+    const firstAssignments = parseTechnicalAssignments(first.technicalAssignments);
+    if (firstAssignments.length === 0) continue;
+    const firstDelivered =
+      firstAssignments.some((a) => a.takeoffDone) ||
+      String(first.projectWorkStatus ?? "").toLowerCase() === "completed" ||
+      String(first.status ?? "").toLowerCase() === "completed";
+    if (!firstDelivered) continue;
+
+    const retainedLabel = clientLabel(lead);
+    const code = (lead.projectCode ?? lead.clientCode ?? "").trim() || "—";
+    const title = (lead.projectTitle ?? "").trim() || "Untitled";
+    const credited = new Set<string>();
+    for (const a of firstAssignments) {
+      if (!a.estimatorId || credited.has(a.estimatorId)) continue;
+      credited.add(a.estimatorId);
+      const acc = ensure(a.estimatorId, a.estimatorName);
+      acc.retainedProjects += 1;
+      acc.retainedLines.push(`${retainedLabel} · ${code} ${title} (from ${parsed.base}-01)`);
     }
   }
 
@@ -565,8 +506,8 @@ export async function buildEstimatorKpiAuto(month: string): Promise<{
           value: acc.retainedProjects > 0 ? String(acc.retainedProjects) : "",
           note:
             acc.retainedLines.length > 0
-              ? `Auto: returning-client projects this month — ${acc.retainedLines.slice(0, 12).join("; ")}`
-              : `Auto: returning-client projects credited to estimator (${month})`,
+              ? `Auto: -01 → -02 retained this month — ${acc.retainedLines.slice(0, 12).join("; ")}`
+              : `Auto: retained only when project code goes -01 → -02 and the second job is assigned (${month})`,
           auto: true,
         },
         team_query_mistakes: {
