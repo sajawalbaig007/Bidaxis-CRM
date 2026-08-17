@@ -226,11 +226,13 @@ export default function TechnicalKpiPage() {
   }, [estimators, records]);
 
   const roster = useMemo(() => {
+    const scoped =
+      chartEstimatorId === "all" ? allRoster : allRoster.filter((e) => e.id === chartEstimatorId);
     const needle = search.trim().toLowerCase();
-    return allRoster.filter(
+    return scoped.filter(
       (e) => !needle || e.name.toLowerCase().includes(needle) || e.code.toLowerCase().includes(needle),
     );
-  }, [allRoster, search]);
+  }, [allRoster, search, chartEstimatorId]);
 
   const monthStats = useMemo(() => {
     const withEntries = new Set(records.map((r) => r.estimatorId)).size;
@@ -649,7 +651,11 @@ export default function TechnicalKpiPage() {
               toolbar={
                 <select
                   value={chartEstimatorId}
-                  onChange={(e) => setChartEstimatorId(e.target.value)}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setChartEstimatorId(id);
+                    if (id !== "all") setExpandedId(id);
+                  }}
                   className="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none min-w-[11rem] sm:w-56"
                 >
                   <option value="all">All estimators</option>
@@ -665,17 +671,21 @@ export default function TechnicalKpiPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
             <p className="text-xs text-gray-500 font-medium">
-              Tap a card to open fields · previous card auto-collapses
+              {chartEstimatorId === "all"
+                ? "Tap a card to open fields · previous card auto-collapses"
+                : "Showing KPI fields for the selected estimator"}
             </p>
-            <div className="relative w-full sm:w-72">
-              <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search estimator…"
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#B8112D] placeholder:text-gray-400 shadow-sm"
-              />
-            </div>
+            {chartEstimatorId === "all" ? (
+              <div className="relative w-full sm:w-72">
+                <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search estimator…"
+                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-[#0F172A] outline-none focus:border-[#B8112D] placeholder:text-gray-400 shadow-sm"
+                />
+              </div>
+            ) : null}
           </div>
 
           <section className="space-y-3">
