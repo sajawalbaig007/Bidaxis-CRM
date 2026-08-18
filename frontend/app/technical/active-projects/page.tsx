@@ -1194,6 +1194,37 @@ export function TechnicalActiveProjectsPageInner({
     }
   };
 
+  const patchProjectNotes = (
+    id: string,
+    fn: (
+      list: { id: string; text: string; createdAt: string; parentId?: string | null }[],
+    ) => { id: string; text: string; createdAt: string; parentId?: string | null }[],
+  ) => {
+    const apply = (p: Project): Project => ({ ...p, notes: fn(p.notes ?? []) });
+    setProjects((prev) => prev.map((p) => (p.id === id ? apply(p) : p)));
+    setEditProject((prev) => (prev?.id === id ? apply(prev) : prev));
+  };
+
+  const addLeadNote = async (id: string, text: string, parentId?: string) => {
+    const res = await API.post(`/admin/lead/${id}/notes`, {
+      text,
+      ...(parentId ? { parentId } : {}),
+    });
+    const note = res.data.note as { id: string; text: string; createdAt: string; parentId?: string | null };
+    patchProjectNotes(id, (list) => [...list.filter((n) => n.id !== note.id), note]);
+    return note;
+  };
+
+  const updateLeadNote = (id: string, noteId: string, text: string, createdAt?: string) => {
+    patchProjectNotes(id, (list) =>
+      list.map((n) => (n.id === noteId ? { ...n, text, createdAt: createdAt ?? n.createdAt } : n)),
+    );
+  };
+
+  const deleteLeadNote = (id: string, noteId: string) => {
+    patchProjectNotes(id, (list) => list.filter((n) => n.id !== noteId && n.parentId !== noteId));
+  };
+
   const moveTechnicalTab = async (tab: Exclude<TechnicalWorkflowTab, "all">) => {
     if (!moveProject) return;
     setMoveSaving(true);
@@ -2280,7 +2311,21 @@ export function TechnicalActiveProjectsPageInner({
         onSave={saveEdit}
         onDelete={editProject ? async () => { await deleteProject(editProject, { skipConfirm: true }); } : undefined}
         noteHistory={editProject ? notesToHistory(editProject.notes) : undefined}
-        onAddNote={undefined}
+        onAddNote={
+          editProject
+            ? async (text, parentId) => { await addLeadNote(editProject.id, text, parentId); }
+            : undefined
+        }
+        onNoteUpdated={
+          editProject
+            ? (noteId, text, createdAt) => updateLeadNote(editProject.id, noteId, text, createdAt)
+            : undefined
+        }
+        onNoteDeleted={
+          editProject
+            ? (noteId) => deleteLeadNote(editProject.id, noteId)
+            : undefined
+        }
         technicalNoteHistory={
           editProject ? threadNotesHistory(parseTechnicalNotes(editProject.technicalNotes)) : undefined
         }

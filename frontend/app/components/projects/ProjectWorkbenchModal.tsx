@@ -50,6 +50,8 @@ type Props = {
   onDelete?: () => Promise<void>;
   noteHistory?: NoteEntry[];
   onAddNote?: (text: string, parentId?: string) => Promise<void>;
+  onNoteUpdated?: (noteId: string, text: string, createdAt?: string) => void;
+  onNoteDeleted?: (noteId: string) => void;
   /** Admin↔TM thread — Notes for Technical / Notes for Sir */
   technicalNoteHistory?: NoteEntry[];
   onAddTechnicalNote?: (text: string) => Promise<unknown>;
@@ -117,6 +119,8 @@ export default function ProjectWorkbenchModal({
   onDelete,
   noteHistory,
   onAddNote,
+  onNoteUpdated,
+  onNoteDeleted,
   technicalNoteHistory,
   onAddTechnicalNote,
   phoneLookup,
@@ -794,13 +798,25 @@ export default function ProjectWorkbenchModal({
                       id={data.id}
                       apiRole={mode === "admin" ? "admin" : "csr"}
                       skipNotesFetch
+                      currentUserId={peekAuthMe()?.id}
+                      currentUserRole={peekAuthMe()?.role}
                       noteHistory={noteHistory}
                       onAddNote={
                         onAddNote
                           ? async (_id, text, parentId) => { await onAddNote(text, parentId); }
                           : undefined
                       }
-                      readOnly={!onAddNote}
+                      onNoteUpdated={
+                        onNoteUpdated
+                          ? (_id, noteId, text, createdAt) => onNoteUpdated(noteId, text, createdAt)
+                          : undefined
+                      }
+                      onNoteDeleted={
+                        onNoteDeleted
+                          ? (_id, noteId) => onNoteDeleted(noteId)
+                          : undefined
+                      }
+                      readOnly={mode === "csr" && !onAddNote}
                     />
                   ) : null}
                 </div>

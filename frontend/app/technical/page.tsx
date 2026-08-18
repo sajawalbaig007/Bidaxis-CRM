@@ -380,7 +380,9 @@ export default function TechnicalDashboardPage() {
             <Link
               key={m.href}
               href={m.href}
-              className="group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#B8112D]/30 hover:shadow-md transition-all"
+              className={`group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#B8112D]/30 hover:shadow-md transition-all ${
+                m.href === "/technical/reports" ? "sm:col-span-2" : ""
+              }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="w-9 h-9 rounded-xl bg-[#FFF1F3] dark:bg-[#B8112D]/20 text-[#B8112D] flex items-center justify-center">

@@ -54,7 +54,8 @@ interface CommentCellProps {
 }
 
 function adminishRole(role?: string | null): boolean {
-  return role === "admin" || role === "manager";
+  const r = String(role ?? "").toLowerCase();
+  return r === "admin" || r === "manager" || r === "technical_manager";
 }
 
 function roleOwnsNote(noteRole?: string | null, myRole?: string | null): boolean {
@@ -224,8 +225,10 @@ export default function CommentCell({
   ).length;
   const count = baseCount + extrasUniqueCount + (legacyComment ? 1 : 0);
   const canMutate = !readOnly;
-  /** Technical thread notes use skipNotesFetch but still allow own-note edit/delete. */
-  const canEditDelete = canMutate && (notesKind === "technical" || !skipNotesFetch);
+  /** Technical thread notes use skipNotesFetch but still allow own-note edit/delete. Admin/TM can edit bid stickies too. */
+  const canEditDelete =
+    canMutate &&
+    (notesKind === "technical" || !skipNotesFetch || adminishRole(meRole) || apiRole === "admin");
   /** Bid Instruction / projectNotes via onSave */
   const canEditComment = canMutate && !!onSave && (commentOnly || !!legacyComment || skipNotesFetch);
   const previewRaw = latestAny?.text || legacyComment || comment || "";
@@ -265,6 +268,8 @@ export default function CommentCell({
   }, []);
 
   const isOwnNote = (note: NoteEntry) => {
+    /* Admin / TM / CEO may edit or delete any bid-instruction sticky. */
+    if (notesKind !== "technical" && (adminishRole(meRole) || apiRole === "admin")) return true;
     if (notesKind === "technical") {
       if (note.authorId && meId) return note.authorId === meId;
       if (note.authorRole && meRole) return roleOwnsNote(note.authorRole, meRole);
@@ -522,6 +527,7 @@ export default function CommentCell({
 
   const handleDelete = async (noteId: string) => {
     if (isLegacyNoteId(noteId)) return;
+    if (!confirm("Delete this note?")) return;
     setDeleting(noteId);
     try {
       await API.delete(noteApiPath(noteId));
