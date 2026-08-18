@@ -82,7 +82,7 @@ const FIELD_ICONS: Record<EstimatorKpiFieldKey, LucideIcon> = {
   marks_out_of_10: Percent,
   rating_stars: Star,
 };
-
+/** Find the latest record for a given field key */
 function latestByField(records: EstimatorKpiRecord[], fieldKey: string) {
   return [...records]
     .filter((r) => r.fieldKey === fieldKey)
