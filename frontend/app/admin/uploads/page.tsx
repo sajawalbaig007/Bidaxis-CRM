@@ -544,8 +544,11 @@ export default function UploadPage() {
       void fetchUploadHistory(historyCategory);
       void fetchLatestUpload();
       void fetchUploadSources();
-    } catch {
-      toast.error("Failed to delete upload");
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Failed to delete upload";
+      toast.error(msg);
     } finally {
       setDeletingUploadId(null);
     }

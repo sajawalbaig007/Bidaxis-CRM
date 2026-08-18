@@ -23,7 +23,7 @@ export async function fetchAllAdminProjects<T = Record<string, unknown>>(
   const query: Record<string, string> = {
     lite: "1",
     page: "1",
-    limit: params.technicalView ? "2000" : "50",
+    limit: params.technicalView ? "2000" : "500",
   };
   if (params.csrId) query.csrId = params.csrId;
   if (params.from) query.from = params.from;

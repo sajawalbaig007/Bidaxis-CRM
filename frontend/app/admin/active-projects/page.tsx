@@ -1494,6 +1494,16 @@ export default function AdminProjectsPage() {
           onDelete={deleteWorkbenchProject}
           noteHistory={workbenchProject ? notesToHistory(workbenchProject.notes) : undefined}
           onAddNote={workbenchProject ? async (text, parentId) => { await addAdminNote(workbenchProject.id, text, parentId); } : undefined}
+          onNoteUpdated={
+            workbenchProject
+              ? (noteId, text, createdAt) => updateAdminNote(workbenchProject.id, noteId, text, createdAt)
+              : undefined
+          }
+          onNoteDeleted={
+            workbenchProject
+              ? (noteId) => deleteAdminNote(workbenchProject.id, noteId)
+              : undefined
+          }
           technicalNoteHistory={
             workbenchProject
               ? sirNotesHistory(workbenchProject)

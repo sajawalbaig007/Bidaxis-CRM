@@ -794,6 +794,11 @@ export const deleteUploadFile = async (req: Request, res: Response) => {
     const leadIds = leads.map(l => l.id);
     const deleted = await deleteLeadsCascade(leadIds);
 
+    await prisma.lead.updateMany({
+      where: { uploadedFileId: id },
+      data: { uploadedFileId: null },
+    });
+
     await prisma.uploadFile.delete({ where: { id } });
 
     const csrIds = [...new Set(leads.map(l => l.assignedTo))];
@@ -806,6 +811,7 @@ export const deleteUploadFile = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ success: false, message: "Failed to delete upload" });
+    const msg = error instanceof Error ? error.message : "Failed to delete upload";
+    return res.status(500).json({ success: false, message: msg.includes("constraint") || msg.includes("Foreign") ? "Could not delete this file because related contacts are still linked. Try again or contact support." : "Failed to delete upload" });
   }
 };

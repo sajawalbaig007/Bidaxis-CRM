@@ -273,24 +273,23 @@ export function emptyWorkbench(): ProjectWorkbenchData {
   };
 }
 
-/** Same rule as Admin → Active Projects tab. */
+/** Same rule as Admin → Active Projects tab. Not completed = still active (including overdue). */
 export function isProjectActive(p: {
   status?: string | null;
   projectDeadline?: string | null;
   projectWorkStatus?: string | null;
 }): boolean {
   const work = (p.projectWorkStatus ?? "").toLowerCase();
-  if (work === "completed" || work === "not_completed") return false;
-  if (work === "in_progress") return true;
-
   const st = (p.status ?? "").toLowerCase();
-  if (st === "completed") return false;
+  if (work === "completed" || st === "completed") return false;
+  if (work === "in_progress" || work === "not_completed") return true;
+  if (st === "close client") return true;
   if (p.projectDeadline) {
     const deadline = p.projectDeadline.split("T")[0] ?? "";
     const today = new Date().toISOString().split("T")[0] ?? "";
     return deadline >= today;
   }
-  return st === "close client";
+  return false;
 }
 
 export type ProjectWorkStatus = "completed" | "in_progress" | "not_completed";
