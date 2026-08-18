@@ -197,7 +197,6 @@ export default function DashboardSidebar() {
     finally { setLoggingOut(false); }
   };
 
-  return (
   const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
 
   const handleClearNotifications = () => {

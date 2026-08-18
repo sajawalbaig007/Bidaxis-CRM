@@ -159,8 +159,6 @@ export default function EstimatorSidebar() {
   };
 
   return (
-
-  return (
     <>
       <header className="fixed top-0 left-0 right-0 z-30 bg-crm-surface border-b border-crm-border shadow-sm">
         <div className="h-[64px] px-3 sm:px-4 lg:px-5 flex items-center gap-3">
