@@ -19,6 +19,7 @@ import API from "@/lib/api";
 import { getAuthMe } from "@/lib/authMeCache";
 import { fetchChatMessages, isChatConversationsFresh } from "@/lib/chatApiCache";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
+import { playChatSound } from "@/lib/chatSound";
 import {
   ensureChatUnreadPolling, getChatConversations,
   forceStopChatUnreadPolling, pollChatUnread, subscribeChatUnread,
