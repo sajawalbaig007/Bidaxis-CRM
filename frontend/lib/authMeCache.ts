@@ -49,7 +49,8 @@ export function peekAuthMe(): AuthUser | null {
   if (cached?.user) return cached.user;
   const fromStore = readStorage();
   if (fromStore) {
-    cached = { user: fromStore, at: Date.now() };
+    /* at: 0 so getAuthMe() still hits the network and picks up profilePic / codes */
+    cached = { user: fromStore, at: 0 };
     return fromStore;
   }
   return null;
@@ -78,7 +79,7 @@ export async function getAuthMe(force = false): Promise<AuthUser | null> {
   if (!force && !cached) {
     const fromStore = readStorage();
     if (fromStore) {
-      cached = { user: fromStore, at: Date.now() };
+      cached = { user: fromStore, at: 0 };
       /* still refresh in background below if stale — but return instantly via cache hit next */
     }
   }

@@ -12,7 +12,7 @@ import {
 import API from "@/lib/api";
 import { dismissNotification, getDismissedNotificationIds, clearDismissedNotifications } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
-import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
+import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
@@ -23,6 +23,7 @@ import ThemeToggle from "@/app/components/ThemeToggle";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
 import { playChatSound, primeChatSound } from "@/lib/chatSound";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
+import { ProfileAvatar, ProfileInfoRows } from "@/app/components/StaffProfileMenu";
 
 const BASE = "/admin";
 
@@ -38,7 +39,7 @@ const navItems = [
   { title: "Settings",   shortTitle: "Settings",   href: `${BASE}/settings`,        icon: Settings        },
 ];
 
-type UserInfo = { name: string; email: string; role: string; profilePic?: string | null };
+type UserInfo = AuthUser;
 
 type ScheduledCall = {
   id: string;
@@ -196,10 +197,7 @@ export default function DashboardSidebar() {
     finally { setLoggingOut(false); }
   };
 
-  const initials = user?.name
-    ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
-    : "AD";
-
+  return (
   const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
 
   const handleClearNotifications = () => {
@@ -440,19 +438,12 @@ export default function DashboardSidebar() {
               onClick={() => { setProfileOpen(v => !v); setBellOpen(false); }}
               className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
             >
-              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                {user?.profilePic ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  initials
-                )}
-              </div>
+              <ProfileAvatar user={user} fallback="AD" />
               <div className="hidden 2xl:block text-left">
                     <p className="text-[12px] font-bold leading-none text-crm-text max-w-[110px] truncate">
                   {user?.name ?? "CEO"}
                 </p>
-                <p className="text-[10px] text-crm-text-muted mt-1">CEO</p>
+                <p className="text-[10px] text-crm-text-muted mt-1">{roleDisplayLabel(user?.role) || "CEO"}</p>
               </div>
               <ChevronDown
                 size={13}
@@ -463,29 +454,13 @@ export default function DashboardSidebar() {
             {profileOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                 <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0 overflow-hidden">
-                    {user?.profilePic ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" />
-                    ) : (
-                      initials
-                    )}
-                  </div>
+                  <ProfileAvatar user={user} size="md" fallback="AD" />
                   <div className="min-w-0">
                     <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "CEO"}</p>
                     <p className="text-white/65 text-[11px] truncate mt-0.5">{user?.email ?? "—"}</p>
                   </div>
                 </div>
-                <div className="p-3 space-y-1.5">
-                  <div className="flex items-center justify-between gap-2 px-2.5 py-2 bg-[#F5F6FA] rounded-xl">
-                    <span className="text-[10px] text-gray-400 font-medium shrink-0">Role</span>
-                    <span className="text-[11px] font-semibold text-[#0F172A]">{roleDisplayLabel(user?.role) || "CEO"}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 px-2.5 py-2 bg-[#F5F6FA] rounded-xl">
-                    <span className="text-[10px] text-gray-400 font-medium shrink-0">Email</span>
-                    <span className="text-[10px] text-[#0F172A] truncate max-w-[140px]">{user?.email ?? "—"}</span>
-                  </div>
-                </div>
+                <ProfileInfoRows user={user} />
                 <div className="px-3 pb-3">
                   <button
                     onClick={handleLogout} disabled={loggingOut}

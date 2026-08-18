@@ -18,7 +18,7 @@ import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatC
 import API from "@/lib/api";
 import { getAuthMe } from "@/lib/authMeCache";
 import { fetchChatMessages, isChatConversationsFresh } from "@/lib/chatApiCache";
-import { playChatSound } from "@/lib/chatSound";
+import { roleDisplayLabel } from "@/lib/roleDisplay";
 import {
   ensureChatUnreadPolling, getChatConversations,
   forceStopChatUnreadPolling, pollChatUnread, subscribeChatUnread,
@@ -33,6 +33,7 @@ import {
 interface ChatUser {
   id: string; name: string; email?: string;
   csrCode?: string | null; isOnline?: boolean; role?: string;
+  profilePic?: string | null;
 }
 type MsgType   = "text" | "file" | "image" | "voice";
 type MsgStatus = "sending" | "sent" | "delivered" | "read";
@@ -99,12 +100,17 @@ function truncate(text: string, n = 60) {
 
 /* ─── Avatar ─────────────────────────────────────────────── */
 const COLORS = ["bg-[#B8112D]","bg-[#1D4ED8]","bg-[#15803D]","bg-[#B45309]","bg-[#7C3AED]","bg-[#0891B2]"];
-function Avatar({ name, size = "md", online }: { name: string; size?: "sm"|"md"|"lg"; online?: boolean }) {
+function Avatar({ name, src, size = "md", online }: { name: string; src?: string | null; size?: "sm"|"md"|"lg"; online?: boolean }) {
   const c  = COLORS[name.charCodeAt(0) % COLORS.length];
   const sz = size === "sm" ? "w-8 h-8 text-[10px]" : size === "lg" ? "w-11 h-11 text-sm" : "w-9 h-9 text-xs";
   return (
     <div className="relative shrink-0">
-      <div className={`${sz} ${c} rounded-full text-white flex items-center justify-center font-bold`}>{initials(name)}</div>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={name} className={`${sz} rounded-full object-cover bg-gray-100`} />
+      ) : (
+        <div className={`${sz} ${c} rounded-full text-white flex items-center justify-center font-bold`}>{initials(name)}</div>
+      )}
       {online !== undefined && (
         <div className="absolute -bottom-0.5 -right-0.5">
           {online && <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-green-400 animate-ping opacity-75" />}
@@ -185,14 +191,14 @@ function VoicePlayer({ fileUrl, isOwn }: { fileUrl: string; isOwn: boolean }) {
 
 /* ─── MessageBubble ──────────────────────────────────────── */
 function MessageBubble({
-  msg, isGroup, showAvatar, onCtxMenu, onReply, onJumpToReply,
+  msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJumpToReply,
 }: {
-  msg: Message; isGroup: boolean; showAvatar: boolean;
+  msg: Message; isGroup: boolean; showAvatar: boolean; myId?: string;
   onCtxMenu: (e: React.MouseEvent, msg: Message) => void;
   onReply:   (msg: Message) => void;
   onJumpToReply: (id: string) => void;
 }) {
-  const own = msg.isOwn;
+  const own = Boolean(msg.isOwn || (myId && msg.senderId === myId));
 
   const body = () => {
     if (msg.type === "image" && msg.fileUrl)
@@ -214,56 +220,60 @@ function MessageBubble({
   return (
     <div
       id={`msg-${msg.id}`}
-      className={`flex w-full min-w-0 items-end gap-2 group ${own ? "justify-end" : "justify-start"} ${!own && !showAvatar ? "pl-11" : ""}`}
+      className="flex w-full"
+      style={{ justifyContent: own ? "flex-end" : "flex-start" }}
       onContextMenu={e => onCtxMenu(e, msg)}
     >
-      {!own && showAvatar  && <Avatar name={msg.senderName} size="sm" />}
-      {!own && !showAvatar && <div className="w-8 shrink-0" />}
+      <div className="relative group max-w-[min(85%,28rem)]">
+        <div className={`flex items-end gap-2 min-w-0 ${own ? "flex-row-reverse" : ""}`}>
+          {!own && showAvatar  && <Avatar name={msg.senderName} size="sm" />}
+          {!own && !showAvatar && <div className="w-8 shrink-0" />}
 
-      <div className={`flex flex-col ${own ? "items-end" : "items-start"} max-w-[72%] sm:max-w-[60%]`}>
-        {isGroup && !own && showAvatar && (
-          <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>
-        )}
+          <div className={`flex flex-col min-w-0 ${own ? "items-end" : "items-start"}`}>
+            {isGroup && !own && showAvatar && (
+              <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>
+            )}
 
-        {/* Reply quote */}
-        {msg.replyTo && (
-          <button
-            onClick={() => onJumpToReply(msg.replyTo!.id)}
-            className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full ${
+            {msg.replyTo && (
+              <button
+                onClick={() => onJumpToReply(msg.replyTo!.id)}
+                className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full ${
+                  own
+                    ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20"
+                    : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"
+                } transition-colors`}
+              >
+                <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
+                <p className="truncate max-w-[180px]">
+                  {msg.replyTo.type !== "text" ? `📎 ${msg.replyTo.type}` : truncate(msg.replyTo.text, 50)}
+                </p>
+              </button>
+            )}
+
+            <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${
               own
-                ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20"
-                : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"
-            } transition-colors`}
-          >
-            <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
-            <p className="truncate max-w-[180px]">
-              {msg.replyTo.type !== "text" ? `📎 ${msg.replyTo.type}` : truncate(msg.replyTo.text, 50)}
-            </p>
-          </button>
-        )}
+                ? "bg-[#B8112D] text-white rounded-br-sm"
+                : "bg-white text-[#0F172A] shadow-sm border border-gray-100 rounded-bl-sm"
+            }`}>
+              {body()}
+            </div>
 
-        <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${
-          own
-            ? "bg-[#B8112D] text-white rounded-br-sm"
-            : "bg-white text-[#0F172A] shadow-sm border border-gray-100 rounded-bl-sm"
-        }`}>
-          {body()}
+            <div className={`flex items-center gap-1 mt-0.5 px-1 ${own ? "flex-row-reverse" : ""}`}>
+              <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}</span>
+              {own && <Ticks status={msg.status} />}
+            </div>
+          </div>
         </div>
 
-        <div className={`flex items-center gap-1 mt-0.5 px-1 ${own ? "flex-row-reverse" : ""}`}>
-          <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}</span>
-          {own && <Ticks status={msg.status} />}
-        </div>
+        <button
+          type="button"
+          onClick={() => onReply(msg)}
+          title="Reply"
+          className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 z-10 ${own ? "right-full mr-1" : "left-full ml-1"}`}
+        >
+          <Reply size={12} className="text-gray-500" />
+        </button>
       </div>
-
-      {/* Hover quick-reply button */}
-      <button
-        onClick={() => onReply(msg)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mb-6 hover:bg-gray-50"
-        title="Reply"
-      >
-        <Reply size={12} className="text-gray-500" />
-      </button>
     </div>
   );
 }
@@ -399,13 +409,14 @@ export default function ChatPage() {
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
+  const [chatFullscreen, setChatFullscreen] = useState(false);
   const { width: listWidth, onPointerDown: onListResize } = useChatListWidth("csr-chat-list-width", 300);
 
   useEffect(() => { setPortalReady(true); }, []);
 
   /* ── Profile ── */
   useEffect(() => {
-    void getAuthMe().then(u => { if (u) { setMe(u); meRef.current = u; } });
+    void getAuthMe(true).then(u => { if (u) { setMe(u); meRef.current = u; } });
   }, []);
 
   /* ── Notification permission ── */
@@ -912,10 +923,10 @@ export default function ChatPage() {
 
   /* ═══════════════════════════ RENDER ═══════════════════════════ */
   return (
-    <div className="min-h-screen bg-[#F5F6FA] flex flex-col">
-      <TopNavbar />
+    <div className={`${chatFullscreen ? "fixed inset-0 z-[80]" : "min-h-screen"} bg-[#F5F6FA] flex flex-col`}>
+      {chatFullscreen ? null : <TopNavbar />}
 
-      <div className="flex-1 flex overflow-hidden" style={{ height: "calc(100vh - 64px)", ["--chat-list-w" as string]: `${listWidth}px` }}>
+      <div className="flex-1 flex overflow-hidden" style={{ height: chatFullscreen ? "100vh" : "calc(100vh - 64px)", ["--chat-list-w" as string]: `${listWidth}px` }}>
 
         {!selectMode && (
           <ChatActionRail
@@ -924,6 +935,8 @@ export default function ChatPage() {
             onSelect={() => setSelectMode(true)}
             onNewDm={() => { setShowDmModal(true); void fetchUsers(true); }}
             onNewGroup={() => { setShowGroupModal(true); void fetchUsers(true); }}
+            isFullscreen={chatFullscreen}
+            onFullscreen={() => setChatFullscreen(v => !v)}
           />
         )}
 
@@ -1063,10 +1076,11 @@ export default function ChatPage() {
 
           {me && (
             <div className="px-4 py-3 border-t border-gray-100 shrink-0 flex items-center gap-2.5">
-              <Avatar name={me.name} size="sm" online />
+              <Avatar name={me.name} src={me.profilePic} size="sm" online />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-[#0F172A] truncate">{me.name}</p>
-                <p className="text-[10px] text-gray-400">{me.csrCode ?? me.role ?? "Online"}</p>
+                <p className="text-[10px] text-gray-400 truncate">{me.csrCode ?? roleDisplayLabel(me.role)}</p>
+                {me.email ? <p className="text-[9px] text-gray-400 truncate">{me.email}</p> : null}
               </div>
               <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
             </div>
@@ -1188,21 +1202,22 @@ export default function ChatPage() {
                     {!msgSearchText && <p className="text-xs text-gray-400 mt-1">Say hello 👋</p>}
                   </div>
                 ) : (
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 w-full">
                     {msgGroups.map(group => (
-                      <div key={group.date}>
+                      <div key={group.date} className="w-full">
                         <div className="flex items-center gap-3 my-4">
                           <div className="flex-1 h-px bg-gray-200" />
                           <span className="text-[10px] font-semibold text-gray-400 whitespace-nowrap px-2 bg-[#F5F6FA]">{group.date}</span>
                           <div className="flex-1 h-px bg-gray-200" />
                         </div>
-                        <div className="space-y-0.5">
+                        <div className="flex flex-col gap-1.5 w-full">
                           {group.msgs.map((msg, idx) => {
                             const prev = group.msgs[idx - 1];
                             const showAvatar = !prev || prev.senderId !== msg.senderId;
                             return (
                               <MessageBubble key={msg.id} msg={msg}
                                 isGroup={activeConv.type === "group"} showAvatar={showAvatar}
+                                myId={me?.id}
                                 onCtxMenu={handleCtxMenu}
                                 onReply={handleReply}
                                 onJumpToReply={jumpToReply} />

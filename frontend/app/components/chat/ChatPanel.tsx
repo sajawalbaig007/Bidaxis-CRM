@@ -189,7 +189,7 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
   onJumpToReply: (id: string) => void;
   onReact: (msg: Message, emoji: string) => void;
 }) {
-  const own = msg.isOwn;
+  const own = Boolean(msg.isOwn || (myId && msg.senderId === myId));
   const deleted = Boolean(msg.isDeleted);
   const body = () => {
     if (msg.type === "image" && msg.fileUrl) return (
@@ -203,49 +203,61 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
     return <MentionText text={msg.text} tone={own ? "own" : "other"} className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${deleted ? "opacity-75" : ""}`} />;
   };
   return (
-    <div id={`msg-${msg.id}`}
-      className={`flex w-full min-w-0 items-end gap-2 group ${own ? "justify-end" : "justify-start"} ${!own && !showAvatar ? "pl-11" : ""}`}
+    <div
+      id={`msg-${msg.id}`}
+      className="flex w-full"
+      style={{ justifyContent: own ? "flex-end" : "flex-start" }}
       onContextMenu={e => !deleted && onCtxMenu(e, msg)}>
-      {!own && showAvatar  && <Avatar name={msg.senderName} src={msg.senderProfilePic} size="sm" />}
-      {!own && !showAvatar && <div className="w-8 shrink-0" />}
-      <div className={`flex flex-col ${own ? "items-end" : "items-start"} max-w-[72%]`}>
-        {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>}
-        {deleted && (
-          <span
-            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5 px-1"
-            title={msg.deleteLabel ?? "Deleted — visible in admin peek only"}
+      <div className="relative group max-w-[min(85%,28rem)]">
+        <div className={`flex items-end gap-2 min-w-0 ${own ? "flex-row-reverse" : ""}`}>
+          {!own && showAvatar  && <Avatar name={msg.senderName} src={msg.senderProfilePic} size="sm" />}
+          {!own && !showAvatar && <div className="w-8 shrink-0" />}
+          <div className={`flex flex-col min-w-0 ${own ? "items-end" : "items-start"}`}>
+            {isGroup && !own && showAvatar && <span className="text-[10px] font-bold text-[#B8112D] mb-0.5 ml-1">{msg.senderName}</span>}
+            {deleted && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 mb-0.5 px-1"
+                title={msg.deleteLabel ?? "Deleted — visible in admin peek only"}
+              >
+                <Trash2 size={10} className="shrink-0" />
+                {msg.deleteLabel ?? "Deleted"}
+              </span>
+            )}
+            {msg.replyTo && (
+              <button onClick={() => onJumpToReply(msg.replyTo!.id)}
+                className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full transition-colors ${own ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20" : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"}`}>
+                <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
+                <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
+              </button>
+            )}
+            <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `bg-[#B8112D] text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}>
+              {body()}
+            </div>
+            {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+              <ReactionBar reactions={msg.reactions} myId={myId} onToggle={emoji => onReact(msg, emoji)} />
+            )}
+            <div className={`flex items-center gap-1 mt-0.5 px-1 ${own ? "flex-row-reverse" : ""}`}>
+              <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}{msg.editedAt ? " · edited" : ""}</span>
+              {own && <Ticks status={msg.status} />}
+            </div>
+            {own && msg.readBy && msg.readBy.length > 0 && (
+              <p className="text-[9px] text-gray-400 mt-0.5 px-1" title={msg.readBy.join(", ")}>
+                Read by {msg.readBy.slice(0, 3).join(", ")}{msg.readBy.length > 3 ? ` +${msg.readBy.length - 3}` : ""}
+              </p>
+            )}
+          </div>
+        </div>
+        {!deleted && (
+          <button
+            type="button"
+            onClick={() => onReply(msg)}
+            title="Reply"
+            className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 z-10 ${own ? "right-full mr-1" : "left-full ml-1"}`}
           >
-            <Trash2 size={10} className="shrink-0" />
-            {msg.deleteLabel ?? "Deleted"}
-          </span>
-        )}
-        {msg.replyTo && (
-          <button onClick={() => onJumpToReply(msg.replyTo!.id)}
-            className={`mb-1 text-left rounded-xl px-2.5 py-1.5 border-l-4 text-[11px] max-w-full transition-colors ${own ? "bg-white/10 border-white/40 text-white/80 hover:bg-white/20" : "bg-gray-100 border-[#B8112D]/40 text-gray-500 hover:bg-gray-200"}`}>
-            <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
-            <p className="truncate max-w-[160px]">{msg.replyTo.type !== "text" ? `${msg.replyTo.type}` : truncate(msg.replyTo.text, 40)}</p>
+            <Reply size={12} className="text-gray-500" />
           </button>
         )}
-        <div className={`rounded-2xl ${msg.type === "text" ? "px-3.5 py-2.5" : "p-2"} ${deleted ? "border border-dashed border-amber-300/80 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30" : ""} ${own ? `bg-[#B8112D] text-white rounded-br-sm ${deleted ? "!bg-amber-100/90 dark:!bg-amber-950/40 !text-gray-800 dark:!text-amber-100" : ""}` : `bg-white text-gray-900 dark:text-gray-100 shadow-sm border border-gray-100 rounded-bl-sm ${deleted ? "!bg-amber-50/90 dark:!bg-amber-950/25" : ""}`}`}>
-          {body()}
-        </div>
-        {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-          <ReactionBar reactions={msg.reactions} myId={myId} onToggle={emoji => onReact(msg, emoji)} />
-        )}
-        <div className={`flex items-center gap-1 mt-0.5 px-1 ${own ? "flex-row-reverse" : ""}`}>
-          <span className="text-[9px] text-gray-400">{fmtMsgTime(msg.createdAt)}{msg.editedAt ? " ┬╖ edited" : ""}</span>
-          {own && <Ticks status={msg.status} />}
-        </div>
-        {own && msg.readBy && msg.readBy.length > 0 && (
-          <p className="text-[9px] text-gray-400 mt-0.5 px-1" title={msg.readBy.join(", ")}>
-            Read by {msg.readBy.slice(0, 3).join(", ")}{msg.readBy.length > 3 ? ` +${msg.readBy.length - 3}` : ""}
-          </p>
-        )}
       </div>
-      <button onClick={() => onReply(msg)}
-        className={`${deleted ? "hidden" : "opacity-0 group-hover:opacity-100"} transition-opacity w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mb-6 hover:bg-gray-50`}>
-        <Reply size={12} className="text-gray-500" />
-      </button>
     </div>
   );
 }
@@ -412,6 +424,16 @@ export default function ChatPanel({
 }) {
   const isStealthView = Boolean(viewAsCsr);
   const [me,             setMe]             = useState<ChatUser | null>(null);
+  const [chatFullscreen, setChatFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!chatFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setChatFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatFullscreen]);
   const chatAllowed = useChatEnabled();
   const [conversations,  setConversations]  = useState<Conversation[]>(() => {
     const cached = getChatConversations();
@@ -470,6 +492,10 @@ export default function ChatPanel({
   const isCancelRef      = useRef(false);
   const notifRef         = useRef(typeof Notification !== "undefined" && Notification.permission === "granted");
   const meRef            = useRef<ChatUser | null>(null);
+  const tagOwn = (m: Message): Message => ({
+    ...m,
+    isOwn: Boolean(m.isOwn || (meRef.current?.id && m.senderId === meRef.current.id)),
+  });
   const recConvRef       = useRef<string | null>(null);
   const [dmLoadingUserId, setDmLoadingUserId] = useState<string | null>(null);
   const blockPanelCloseRef = useRef(false);
@@ -482,7 +508,7 @@ export default function ChatPanel({
   );
 
   useEffect(() => {
-    void getAuthMe().then(u => {
+    void getAuthMe(true).then(u => {
       if (u) {
         const meUser: ChatUser = {
           id: u.id,
@@ -608,7 +634,7 @@ export default function ChatPanel({
       try {
         const payload = await fetchChatMessages(url);
         if (cancelled) return;
-        const msgs: Message[] = payload.messages as Message[];
+        const msgs: Message[] = (payload.messages as Message[]).map(tagOwn);
         setMessages(msgs);
         setPinnedMessage((payload.pinnedMessage as Message | null) ?? null);
         lastMsgCount.current = msgs.length;
@@ -628,7 +654,7 @@ export default function ChatPanel({
       if (cancelled || stealth) return;
 
       if (event.type === "message:new" && event.conversationId === cid) {
-        const msg = event.message as unknown as Message;
+        const msg = tagOwn(event.message as unknown as Message);
         setMessages(prev => {
           if (prev.some(m => m.id === msg.id)) return prev;
           const withoutOpt = prev.filter(m => !m.id.startsWith("opt-") || m.text !== msg.text);
@@ -1105,16 +1131,20 @@ export default function ChatPanel({
 
   /* ---- */
   return (
-    <div className="fixed inset-0 top-[64px] z-[45] pointer-events-none">
+    <div className={`fixed inset-0 z-[80] pointer-events-none ${chatFullscreen ? "" : "top-[64px]"}`}>
       {/* Light backdrop - only blocks clicks behind panel area */}
       <div
-        className="absolute inset-0 bg-black/20 pointer-events-auto sm:left-auto sm:w-[768px] sm:max-w-full sm:right-0"
+        className={`absolute inset-0 bg-black/20 pointer-events-auto ${chatFullscreen ? "" : "sm:left-auto sm:w-[768px] sm:max-w-full sm:right-0"}`}
         onClick={handlePanelBackdrop}
         aria-hidden
       />
 
       {/* Panel */}
-      <div className="absolute top-0 right-0 bottom-0 z-[46] flex bg-white shadow-2xl border-l border-gray-200 w-full sm:w-[768px] max-w-full pointer-events-auto overflow-hidden">
+      <div className={`absolute z-[81] flex bg-white dark:bg-crm-surface shadow-2xl pointer-events-auto overflow-hidden ${
+        chatFullscreen
+          ? "inset-0 w-full border-0"
+          : "top-0 right-0 bottom-0 border-l border-gray-200 dark:border-crm-border w-full sm:w-[768px] max-w-full"
+      }`}>
 
         {!selectMode && (
           <ChatActionRail
@@ -1136,6 +1166,8 @@ export default function ChatPanel({
             onSelect={isStealthView ? undefined : () => setSelectMode(true)}
             onNewDm={isStealthView ? undefined : () => { setShowDmModal(true); void fetchUsers(true); }}
             onNewGroup={isStealthView ? undefined : () => { setShowGroupModal(true); void fetchUsers(true); }}
+            isFullscreen={chatFullscreen}
+            onFullscreen={() => setChatFullscreen(v => !v)}
             onClose={onClose}
             readOnly={isStealthView}
           />
@@ -1219,7 +1251,11 @@ export default function ChatPanel({
           {me && (
             <div className="px-3 py-2.5 border-t border-gray-100 shrink-0 flex items-center gap-2">
               <Avatar name={me.name} src={me.profilePic} size="sm" online />
-              <div className="flex-1 min-w-0"><p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{me.name}</p><p className="text-[10px] text-gray-400">{me.csrCode ?? me.role ?? "Online"}</p></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{me.name}</p>
+                <p className="text-[10px] text-gray-400 truncate">{me.csrCode ?? roleDisplayLabel(me.role)}</p>
+                {me.email ? <p className="text-[9px] text-gray-400 truncate">{me.email}</p> : null}
+              </div>
               <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
             </div>
           )}
@@ -1279,11 +1315,11 @@ export default function ChatPanel({
                     {!msgSearchText && <p className="text-xs text-gray-400 mt-0.5">Say hello!</p>}
                   </div>
                 ) : (
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 w-full">
                     {msgGroups.map(group => (
-                      <div key={group.date}>
+                      <div key={group.date} className="w-full">
                         <div className="flex items-center gap-2 my-3"><div className="flex-1 h-px bg-gray-200" /><span className="text-[9px] font-semibold text-gray-400 whitespace-nowrap px-2 bg-[#F5F6FA]">{group.date}</span><div className="flex-1 h-px bg-gray-200" /></div>
-                        <div className="space-y-0.5">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
+                        <div className="flex flex-col gap-1.5 w-full">{group.msgs.map((msg, idx) => { const prev = group.msgs[idx - 1]; const showAvatar = !prev || prev.senderId !== msg.senderId; return <MessageBubble key={msg.id} msg={msg} isGroup={activeConv.type === "group"} showAvatar={showAvatar} myId={me?.id} onCtxMenu={handleCtxMenu} onReply={handleReply} onJumpToReply={jumpToReply} onReact={toggleReaction} />; })}</div>
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
