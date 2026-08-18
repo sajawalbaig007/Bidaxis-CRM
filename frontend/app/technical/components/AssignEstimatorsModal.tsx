@@ -38,6 +38,8 @@ type Props = {
   open: boolean;
   project: ProjectBrief | null;
   estimators: TechnicalEstimator[];
+  /** Current assignees — pre-checked so reassign can keep or drop them. */
+  existingAssignments?: TechnicalAssignment[];
   /** Estimators who worked the previous code for this client (shown first). */
   suggestedEstimatorIds?: string[];
   saving?: boolean;
@@ -208,10 +210,79 @@ function ScopeMultiField({
   );
 }
 
+function EstimatorCheckRow({
+  est,
+  active,
+  hint,
+  tone,
+  onToggle,
+}: {
+  est: TechnicalEstimator;
+  active: boolean;
+  hint: string;
+  tone: "assigned" | "suggested" | "plain";
+  onToggle: () => void;
+}) {
+  const border =
+    tone === "assigned"
+      ? active
+        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
+        : "border-emerald-200 bg-white dark:bg-crm-surface hover:border-emerald-300"
+      : tone === "suggested"
+        ? active
+          ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
+          : "border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-300"
+        : active
+          ? "border-[#B8112D] bg-[#FFF1F3] dark:bg-[#B8112D]/15"
+          : "border-gray-100 bg-[#FAFAFA] dark:bg-crm-muted hover:border-gray-200";
+  const avatar = active
+    ? tone === "assigned"
+      ? "bg-emerald-600"
+      : tone === "suggested"
+        ? "bg-amber-600"
+        : "bg-[#B8112D]"
+    : "bg-gray-400";
+  const nameCls = active
+    ? tone === "assigned"
+      ? "text-emerald-800 dark:text-emerald-200"
+      : tone === "suggested"
+        ? "text-amber-800 dark:text-amber-200"
+        : "text-[#B8112D]"
+    : "text-[#0F172A] dark:text-crm-text";
+
+  return (
+    <label
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left cursor-pointer ${border}`}
+    >
+      <input
+        type="checkbox"
+        checked={active}
+        onChange={onToggle}
+        className="w-4 h-4 rounded border-gray-300 text-[#B8112D] accent-[#B8112D] shrink-0"
+      />
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${avatar}`}>
+        {est.name.charAt(0).toUpperCase()}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className={`font-semibold text-sm truncate ${nameCls}`}>{est.name}</p>
+        <p className="text-xs text-gray-500 dark:text-crm-text-muted">{hint}</p>
+      </div>
+      {active ? (
+        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+          tone === "assigned" ? "bg-emerald-600" : tone === "suggested" ? "bg-amber-600" : "bg-[#B8112D]"
+        }`}>
+          <Check size={11} className="text-white" />
+        </div>
+      ) : null}
+    </label>
+  );
+}
+
 export default function AssignEstimatorsModal({
   open,
   project,
   estimators,
+  existingAssignments = [],
   suggestedEstimatorIds = [],
   saving = false,
   onClose,
@@ -233,14 +304,47 @@ export default function AssignEstimatorsModal({
   );
 
   const suggestedSet = useMemo(() => new Set(suggestedEstimatorIds), [suggestedEstimatorIds]);
+  const assignedSet = useMemo(
+    () => new Set(existingAssignments.map((a) => a.estimatorId)),
+    [existingAssignments],
+  );
+  const assignedList = useMemo(
+    () => estimators.filter((e) => assignedSet.has(e.id)),
+    [estimators, assignedSet],
+  );
   const suggestedList = useMemo(
-    () => estimators.filter((e) => suggestedSet.has(e.id)),
-    [estimators, suggestedSet],
+    () => estimators.filter((e) => suggestedSet.has(e.id) && !assignedSet.has(e.id)),
+    [estimators, suggestedSet, assignedSet],
   );
   const otherList = useMemo(
-    () => estimators.filter((e) => !suggestedSet.has(e.id)),
-    [estimators, suggestedSet],
+    () => estimators.filter((e) => !assignedSet.has(e.id) && !suggestedSet.has(e.id)),
+    [estimators, assignedSet, suggestedSet],
   );
+  const assignedKey = existingAssignments.map((a) => a.estimatorId).join(",");
+  const existingRef = useRef(existingAssignments);
+  existingRef.current = existingAssignments;
+
+  useEffect(() => {
+    if (!open || !project) return;
+    const existing = existingRef.current;
+    const ids = existing.map((a) => a.estimatorId);
+    setSelectedIds(ids);
+    const next: Record<string, Draft> = {};
+    const scope = (project.projectScope || "").trim() || undefined;
+    const deadline = (project.projectDeadline ?? "").split("T")[0] || "";
+    for (const a of existing) {
+      next[a.estimatorId] = {
+        manHours: a.manHours ?? "",
+        deadline: (a.deadline ?? deadline).split("T")[0] || deadline,
+        scopes: a.scopes?.length ? a.scopes : scope ? [scope] : [],
+        divisions: a.divisions ?? [],
+        scopeInput: "",
+        workDetail: a.workDetail ?? "",
+      };
+    }
+    setDrafts(next);
+    setStep("pick");
+  }, [open, project, assignedKey]);
 
   if (!open || !project) return null;
 
@@ -272,6 +376,7 @@ export default function AssignEstimatorsModal({
   const handleConfirm = async () => {
     const assignments: TechnicalAssignment[] = selectedEstimators.map((e) => {
       const d = drafts[e.id] ?? emptyDraft(defaultDeadline, projectScope || undefined);
+      const prev = existingAssignments.find((a) => a.estimatorId === e.id);
       return {
         estimatorId: e.id,
         estimatorName: e.name,
@@ -280,10 +385,10 @@ export default function AssignEstimatorsModal({
         scopes: d.scopes,
         divisions: d.divisions,
         workDetail: d.workDetail.trim(),
-        takeoffDone: false,
-        pricingSent: false,
-        timerSeconds: 0,
-        timerStartedAt: null,
+        takeoffDone: prev?.takeoffDone ?? false,
+        pricingSent: prev?.pricingSent ?? false,
+        timerSeconds: prev?.timerSeconds ?? 0,
+        timerStartedAt: prev?.timerStartedAt ?? null,
         assignmentConfirmed: true,
       };
     });
@@ -308,7 +413,7 @@ export default function AssignEstimatorsModal({
   return (
     <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
-        className="w-full sm:max-w-[600px] bg-white rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
+        className="w-full sm:max-w-[600px] bg-white dark:bg-crm-surface rounded-t-[24px] sm:rounded-[28px] shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "92vh" }}
       >
         <div className="relative bg-gradient-to-br from-[#B8112D] to-[#8b0d22] px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-3.5 sm:pb-4 shrink-0 overflow-hidden">
@@ -360,7 +465,7 @@ export default function AssignEstimatorsModal({
             {step === "pick" ? (
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                  Estimators ({selectedIds.length} selected)
+                  All estimators · check to keep or add · uncheck to remove ({selectedIds.length} selected)
                 </p>
                 {estimators.length === 0 ? (
                   <div className="text-center py-8 space-y-2">
@@ -372,84 +477,51 @@ export default function AssignEstimatorsModal({
                   </div>
                 ) : (
                   <>
+                    {assignedList.length > 0 ? (
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                        Currently assigned
+                      </p>
+                    ) : null}
+                    {assignedList.map((est) => (
+                      <EstimatorCheckRow
+                        key={est.id}
+                        est={est}
+                        active={selectedIds.includes(est.id)}
+                        hint={`${est.code} · assigned now`}
+                        tone="assigned"
+                        onToggle={() => toggle(est.id)}
+                      />
+                    ))}
                     {suggestedList.length > 0 ? (
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 pt-1">
                         Worked last time · suggested
                       </p>
                     ) : null}
-                    {suggestedList.map((est) => {
-                      const active = selectedIds.includes(est.id);
-                      return (
-                        <button
-                          key={est.id}
-                          type="button"
-                          onClick={() => toggle(est.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left ${
-                            active
-                              ? "border-amber-500 bg-amber-50"
-                              : "border-amber-200 bg-amber-50/60 hover:border-amber-300"
-                          }`}
-                        >
-                          <div
-                            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                              active ? "bg-amber-600" : "bg-amber-400"
-                            }`}
-                          >
-                            {est.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`font-semibold text-sm truncate ${active ? "text-amber-800" : "text-[#0F172A]"}`}>
-                              {est.name}
-                            </p>
-                            <p className="text-xs text-amber-700/80">{est.code} · last project</p>
-                          </div>
-                          {active && (
-                            <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center shrink-0">
-                              <Check size={11} className="text-white" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                    {suggestedList.length > 0 && otherList.length > 0 ? (
+                    {suggestedList.map((est) => (
+                      <EstimatorCheckRow
+                        key={est.id}
+                        est={est}
+                        active={selectedIds.includes(est.id)}
+                        hint={`${est.code} · last project`}
+                        tone="suggested"
+                        onToggle={() => toggle(est.id)}
+                      />
+                    ))}
+                    {otherList.length > 0 ? (
                       <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 pt-1">
                         Other estimators
                       </p>
                     ) : null}
-                    {otherList.map((est) => {
-                      const active = selectedIds.includes(est.id);
-                      return (
-                        <button
-                          key={est.id}
-                          type="button"
-                          onClick={() => toggle(est.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all text-left ${
-                            active
-                              ? "border-[#B8112D] bg-[#FFF1F3]"
-                              : "border-gray-100 bg-[#FAFAFA] hover:border-gray-200"
-                          }`}
-                        >
-                          <div
-                            className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${
-                              active ? "bg-[#B8112D]" : "bg-gray-400"
-                            }`}
-                          >
-                            {est.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`font-semibold text-sm truncate ${active ? "text-[#B8112D]" : "text-[#0F172A]"}`}>
-                              {est.name}
-                            </p>
-                            <p className="text-xs text-gray-400">{est.code}</p>
-                          </div>
-                          {active && (
-                            <div className="w-5 h-5 rounded-full bg-[#B8112D] flex items-center justify-center shrink-0">
-                              <Check size={11} className="text-white" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {otherList.map((est) => (
+                      <EstimatorCheckRow
+                        key={est.id}
+                        est={est}
+                        active={selectedIds.includes(est.id)}
+                        hint={est.code}
+                        tone="plain"
+                        onToggle={() => toggle(est.id)}
+                      />
+                    ))}
                   </>
                 )}
               </div>

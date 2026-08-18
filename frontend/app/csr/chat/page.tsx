@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import TopNavbar from "../components/navigation/TopNavbar";
 import ChatActionRail from "@/app/components/chat/ChatActionRail";
+import { MentionText, autoGrowTextarea } from "@/app/components/chat/MessageExtras";
+import ChatListResizeHandle, { useChatListWidth } from "@/app/components/chat/ChatListResizeHandle";
 import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
 import API from "@/lib/api";
 import { getAuthMe } from "@/lib/authMeCache";
@@ -206,13 +208,13 @@ function MessageBubble({
     if (msg.type === "file" && msg.fileUrl)
       return <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0}
         fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />;
-    return <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>;
+    return <MentionText text={msg.text} tone={own ? "own" : "other"} className="text-sm leading-relaxed break-words whitespace-pre-wrap" />;
   };
 
   return (
     <div
       id={`msg-${msg.id}`}
-      className={`flex items-end gap-2 group ${own ? "flex-row-reverse" : "flex-row"} ${!showAvatar ? (own ? "pr-11" : "pl-11") : ""}`}
+      className={`flex w-full min-w-0 items-end gap-2 group ${own ? "justify-end" : "justify-start"} ${!own && !showAvatar ? "pl-11" : ""}`}
       onContextMenu={e => onCtxMenu(e, msg)}
     >
       {!own && showAvatar  && <Avatar name={msg.senderName} size="sm" />}
@@ -397,6 +399,7 @@ export default function ChatPage() {
   const typingDebRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
   const [portalReady, setPortalReady] = useState(false);
+  const { width: listWidth, onPointerDown: onListResize } = useChatListWidth("csr-chat-list-width", 300);
 
   useEffect(() => { setPortalReady(true); }, []);
 
@@ -518,6 +521,7 @@ export default function ChatPage() {
     setMsgText("");
     setReplyTo(null);
     setSendingMsg(true);
+    requestAnimationFrame(() => autoGrowTextarea(inputRef.current));
     const opt: Message = {
       id: `opt-${Date.now()}`, senderId: meRef.current?.id ?? "",
       senderName: meRef.current?.name ?? "You", text, type: "text",
@@ -549,6 +553,7 @@ export default function ChatPage() {
 
   const onMsgTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMsgText(e.target.value);
+    autoGrowTextarea(e.target);
     if (activeConvId && e.target.value.trim()) {
       if (typingDebRef.current) clearTimeout(typingDebRef.current);
       typingDebRef.current = setTimeout(() => {
@@ -910,7 +915,7 @@ export default function ChatPage() {
     <div className="min-h-screen bg-[#F5F6FA] flex flex-col">
       <TopNavbar />
 
-      <div className="flex-1 flex overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
+      <div className="flex-1 flex overflow-hidden" style={{ height: "calc(100vh - 64px)", ["--chat-list-w" as string]: `${listWidth}px` }}>
 
         {!selectMode && (
           <ChatActionRail
@@ -923,7 +928,7 @@ export default function ChatPage() {
         )}
 
         {/* ══ SIDEBAR ══ */}
-        <aside className={`${mobileSideOpen ? "flex" : "hidden"} lg:flex w-full lg:w-[300px] xl:w-[320px] shrink-0 flex-col bg-white border-r border-gray-100 absolute lg:relative inset-0 z-20 lg:z-auto min-h-0 overflow-hidden`}>
+        <aside className={`${mobileSideOpen ? "flex" : "hidden"} lg:flex w-full lg:w-[var(--chat-list-w)] shrink-0 flex-col bg-white border-r border-gray-100 absolute lg:relative inset-0 z-20 lg:z-auto min-h-0 overflow-hidden`}>
 
           <div className="px-4 py-4 border-b border-gray-100 shrink-0">
             {selectMode ? (
@@ -1067,6 +1072,8 @@ export default function ChatPage() {
             </div>
           )}
         </aside>
+
+        <ChatListResizeHandle onPointerDown={onListResize} className="hidden lg:flex" />
 
         {/* ══ CHAT AREA ══ */}
         <section className={`${!mobileSideOpen ? "flex" : "hidden"} lg:flex flex-1 flex-col min-w-0`}>
@@ -1294,13 +1301,13 @@ export default function ChatPage() {
                       <Paperclip size={15} />
                     </button>
 
-                    <div className="flex-1 flex items-end bg-[#F3F4F6] rounded-2xl px-3.5 py-2.5">
+                    <div className="flex-1 flex items-end bg-[#F3F4F6] rounded-2xl px-3.5 py-2.5 min-h-[72px]">
                       <textarea ref={inputRef} value={msgText}
                         onChange={onMsgTextChange}
                         onKeyDown={onKey}
                         placeholder={pendingFile ? "Press send to upload file…" : `Message ${activeConv.type === "group" ? `#${activeConv.name}` : activeConv.name}…`}
-                        rows={1} disabled={!!pendingFile}
-                        className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 max-h-28 disabled:opacity-40" />
+                        rows={3} disabled={!!pendingFile}
+                        className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 min-h-[56px] max-h-52 overflow-y-auto disabled:opacity-40" />
                     </div>
 
                     <button onClick={() => void startRec()}

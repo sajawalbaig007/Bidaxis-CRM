@@ -13,7 +13,7 @@ export default function TechnicalPageShell({
   bgClass?: string;
 }) {
   return (
-    <div className={`min-h-screen ${bgClass}`}>
+    <div className={`min-h-screen technical-shell ${bgClass}`}>
       <TechnicalSidebar />
       <main className={`w-full min-w-0 pt-[64px] ${className}`}>
         {children}

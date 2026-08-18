@@ -810,7 +810,7 @@ router.post(
           actorId: authUser?.id,
           actorName: authorName || authUser?.name,
           actorRole: role,
-          title: "Notes for Chief Estimation",
+          title: "Notes for Chief Estimator",
           message: `${authorName || "Technical"} on ${label}: ${text.slice(0, 160)}`,
           changes: ["Notes for Estimator"],
         });
@@ -1162,7 +1162,7 @@ router.get("/projects", verifyToken, allowRoles("admin", "manager", "technical_m
     let leads = rawLeads.filter(isDisplayableProjectLead);
 
     // Soft-hide from Technical only (do not use Prisma where — breaks Mongo when field unset).
-    // Completed projects always stay on Chief Estimation, even if previously hidden by mark-complete.
+    // Completed projects always stay on Chief Estimator, even if previously hidden by mark-complete.
     if (technicalView) {
       leads = leads.filter((l) => {
         const row = l as {
@@ -1924,7 +1924,7 @@ router.put(
   },
 );
 
-/* ================= MARK COMPLETED (Admin: keep visible on Chief Estimation) ================= */
+/* ================= MARK COMPLETED (Admin: keep visible on Chief Estimator) ================= */
 router.put(
   "/project/:id/mark-completed",
   verifyToken,

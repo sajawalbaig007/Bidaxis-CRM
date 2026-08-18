@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import TechnicalPageShell from "./components/TechnicalPageShell";
 import RechartsBox from "@/app/components/charts/RechartsBox";
+import UploadActionBento, { type UploadBentoItem } from "@/app/admin/components/uploads/UploadActionBento";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
@@ -46,6 +47,22 @@ function isOverdue(p: ProjectRow) {
   today.setHours(0, 0, 0, 0);
   return d < today;
 }
+
+const DASHBOARD_MODULES = [
+  { title: "Active Projects", desc: "Same project DB as Admin — live from admin data", href: "/technical/active-projects", icon: FolderKanban },
+  { title: "KPI Dashboard", desc: "Pipeline health, completion rates & estimator scores", href: "/technical/kpi", icon: BarChart3 },
+  { title: "Team Monitoring", desc: "Live workload, timers, deadlines & monthly KPI snapshot", href: "/technical/team", icon: Users },
+  { title: "Revision Monitoring", desc: "Construction, as-built, take-off, pricing", href: "/technical/revisions", icon: GitBranch },
+  { title: "Reports", desc: "Monthly KPI export, charts & Save to Word", href: "/technical/reports", icon: FileText },
+] as const;
+
+const CHART_TIP = {
+  borderRadius: 12,
+  fontSize: 12,
+  border: "1px solid var(--crm-border)",
+  background: "var(--crm-surface)",
+  color: "var(--crm-text)",
+} as const;
 
 export default function TechnicalDashboardPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
@@ -139,13 +156,242 @@ export default function TechnicalDashboardPage() {
     { label: "Overdue", value: stats.overdue, icon: AlertTriangle, from: "from-[#B8112D]", to: "to-[#8b0d22]", bar: "35%" },
   ];
 
-  const modules = [
-    { title: "Active Projects", desc: "Same project DB as Admin — live from admin data", href: "/technical/active-projects", icon: FolderKanban },
-    { title: "KPI Dashboard", desc: "Pipeline health, completion rates & estimator scores", href: "/technical/kpi", icon: BarChart3 },
-    { title: "Team Monitoring", desc: "Live workload, timers, deadlines & monthly KPI snapshot", href: "/technical/team", icon: Users },
-    { title: "Revision Monitoring", desc: "Construction, as-built, take-off, pricing", href: "/technical/revisions", icon: GitBranch },
-    { title: "Reports", desc: "Monthly KPI export, charts & Save to Word", href: "/technical/reports", icon: FileText },
-  ];
+  const bentoItems: UploadBentoItem[] = useMemo(() => [
+    {
+      id: "overview",
+      label: "Overview",
+      shortLabel: "Mix",
+      accent: "#B8112D",
+      content: (
+        <div className="p-4 sm:p-5 flex flex-col h-full min-h-0">
+          <h2 className="font-bold text-gray-800 dark:text-crm-text text-sm sm:text-base">Project mix</h2>
+          <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 mb-3">On track · overdue · delivered</p>
+          {loading ? (
+            <div className="flex-1 bg-gray-50 dark:bg-crm-muted rounded-2xl animate-pulse" />
+          ) : statusPie.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-16">No project data yet</p>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-4 flex-1 min-h-0">
+              <RechartsBox height={180} className="sm:w-[180px] shrink-0">
+                <PieChart>
+                  <Pie
+                    data={statusPie}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={42}
+                    outerRadius={68}
+                    paddingAngle={3}
+                    stroke="var(--crm-surface)"
+                    strokeWidth={2}
+                  >
+                    {statusPie.map((s) => (
+                      <Cell key={s.name} fill={s.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={CHART_TIP} formatter={(value) => [`${value} projects`, ""]} />
+                </PieChart>
+              </RechartsBox>
+              <div className="flex-1 w-full grid gap-2">
+                {statusPie.map((s) => (
+                  <div key={s.name} className="flex items-center gap-3 bg-[#FAFAFA] dark:bg-crm-muted rounded-xl px-3 py-2.5">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                    <p className="flex-1 text-xs sm:text-sm font-medium text-gray-600 dark:text-crm-text-secondary">{s.name}</p>
+                    <span className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "workflow",
+      label: "Workflow",
+      shortLabel: "Stages",
+      accent: "#0B84F3",
+      content: (
+        <div className="p-4 sm:p-5 flex flex-col h-full min-h-0">
+          <h2 className="font-bold text-gray-800 dark:text-crm-text text-sm sm:text-base">By workflow stage</h2>
+          <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 mb-3">Count of projects in each stage</p>
+          {loading ? (
+            <div className="flex-1 bg-gray-50 dark:bg-crm-muted rounded-2xl animate-pulse" />
+          ) : phaseBar.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-16">No phase data yet</p>
+          ) : (
+            <RechartsBox height="100%">
+              <BarChart data={phaseBar} barSize={28}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--crm-border-subtle)" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip contentStyle={CHART_TIP} cursor={{ fill: "rgba(184,17,45,0.12)" }} />
+                <Bar dataKey="count" fill="#B8112D" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </RechartsBox>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "top5",
+      label: "Top 5",
+      shortLabel: "Stars",
+      accent: "#D97706",
+      content: (
+        <div className="flex flex-col h-full min-h-0">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-crm-border">
+            <div>
+              <h2 className="font-bold text-gray-800 dark:text-crm-text text-sm flex items-center gap-2">
+                <Trophy size={16} className="text-amber-500" />
+                Top 5 Performers
+              </h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {prevMonthLabel ? `${prevMonthLabel} rating` : "Previous month KPI marks & stars"}
+              </p>
+            </div>
+            <Link href="/technical/kpi" className="text-xs font-semibold text-[#B8112D] hover:underline">
+              KPI
+            </Link>
+          </div>
+          <div className="p-3 sm:p-4 flex-1 min-h-0 overflow-y-auto">
+            {ratingsLoading ? (
+              <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-16 rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />
+                ))}
+              </div>
+            ) : top5.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">
+                No previous month ratings yet — auto-fill KPI at month end.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+                {top5.map((e, idx) => (
+                  <div
+                    key={e.estimatorId}
+                    className={`rounded-2xl border p-3 flex items-center gap-3 ${
+                      idx === 0
+                        ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/40 dark:to-crm-surface"
+                        : "border-gray-100 dark:border-crm-border bg-[#FAFBFC] dark:bg-crm-muted"
+                    }`}
+                  >
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0 ${
+                      idx === 0 ? "bg-amber-400 text-white" : "bg-gray-200 text-gray-600 dark:bg-crm-surface dark:text-crm-text-secondary"
+                    }`}>
+                      #{idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-sm text-[#0F172A] dark:text-crm-text truncate">{e.name}</p>
+                      <p className="text-[10px] text-gray-400">{e.code} · {starsDisplay(e.stars)}</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 px-1.5 py-0.5 rounded shrink-0">
+                      {e.marks ? `${e.marks}/10` : "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "recent",
+      label: "Recent",
+      shortLabel: "Live",
+      accent: "#059669",
+      content: (
+        <div className="flex flex-col h-full min-h-0">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-gray-100 dark:border-crm-border">
+            <div>
+              <h2 className="font-bold text-gray-800 dark:text-crm-text text-sm">Recent Active Projects</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">Latest updates from Project DB</p>
+            </div>
+            <Link href="/technical/active-projects" className="text-xs font-semibold text-[#B8112D] hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="overflow-auto flex-1 min-h-0">
+            <table className="w-full text-left">
+              <thead className={CSR_THEAD}>
+                <tr>
+                  <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Code</th>
+                  <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Project</th>
+                  <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Phase</th>
+                  <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Deadline</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [1, 2, 3, 4].map((i) => (
+                    <tr key={i} className="border-t border-gray-50">
+                      <td colSpan={4} className="px-4 py-3">
+                        <div className="h-4 bg-gray-100 dark:bg-crm-muted rounded animate-pulse w-2/3" />
+                      </td>
+                    </tr>
+                  ))
+                ) : recent.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-400 font-medium">
+                      No projects yet — they appear here from Admin Project DB.
+                    </td>
+                  </tr>
+                ) : (
+                  recent.map((p) => (
+                    <tr key={p.id} className="border-t border-gray-50 hover:bg-[#FFF8F9] dark:hover:bg-[#B8112D]/10">
+                      <td className="px-4 py-3 text-xs font-semibold text-[#B8112D] whitespace-nowrap">
+                        {p.projectCode || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-[#0F172A] dark:text-crm-text truncate max-w-[220px]">
+                        {p.projectTitle || p.name || "Untitled"}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-crm-text-secondary whitespace-nowrap">
+                        {p.projectPhase || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-crm-text-secondary whitespace-nowrap">
+                        {p.projectDeadline ? new Date(p.projectDeadline).toLocaleDateString() : "—"}
+                        {isOverdue(p) && (
+                          <span className="ml-2 text-[10px] font-bold text-[#B8112D]">OVERDUE</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "shortcuts",
+      label: "Shortcuts",
+      shortLabel: "Go",
+      accent: "#7C3AED",
+      content: (
+        <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5 h-full">
+          {DASHBOARD_MODULES.map((m) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className="group rounded-2xl p-3.5 border border-gray-100 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-muted hover:border-[#B8112D]/30 hover:shadow-md transition-all"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="w-9 h-9 rounded-xl bg-[#FFF1F3] dark:bg-[#B8112D]/20 text-[#B8112D] flex items-center justify-center">
+                  <m.icon size={16} />
+                </div>
+                <ArrowRight size={14} className="text-gray-300 group-hover:text-[#B8112D] group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <h3 className="mt-2 font-bold text-gray-800 dark:text-crm-text text-sm">{m.title}</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{m.desc}</p>
+            </Link>
+          ))}
+        </div>
+      ),
+    },
+  ], [loading, statusPie, phaseBar, ratingsLoading, top5, prevMonthLabel, recent]);
 
   return (
     <TechnicalPageShell>
@@ -201,222 +447,12 @@ export default function TechnicalDashboardPage() {
             </div>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5">
-              <h2 className="font-bold text-gray-800 text-sm sm:text-base">Project mix</h2>
-              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 mb-3">On track · overdue · delivered</p>
-              {loading ? (
-                <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
-              ) : statusPie.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-16">No project data yet</p>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <RechartsBox height={180} className="sm:w-[180px] shrink-0">
-                    <PieChart>
-                      <Pie
-                        data={statusPie}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={42}
-                        outerRadius={68}
-                        paddingAngle={3}
-                        stroke="#fff"
-                        strokeWidth={2}
-                      >
-                        {statusPie.map((s) => (
-                          <Cell key={s.name} fill={s.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                        formatter={(value) => [`${value} projects`, ""]}
-                      />
-                    </PieChart>
-                  </RechartsBox>
-                  <div className="flex-1 w-full grid gap-2">
-                    {statusPie.map((s) => (
-                      <div key={s.name} className="flex items-center gap-3 bg-[#FAFAFA] rounded-xl px-3 py-2.5">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                        <p className="flex-1 text-xs sm:text-sm font-medium text-gray-600">{s.name}</p>
-                        <span className="text-lg font-bold tabular-nums" style={{ color: s.color }}>{s.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-5">
-              <h2 className="font-bold text-gray-800 text-sm sm:text-base">By workflow stage</h2>
-              <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 mb-3">Count of projects in each stage</p>
-              {loading ? (
-                <div className="h-[200px] bg-gray-50 rounded-2xl animate-pulse" />
-              ) : phaseBar.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-16">No phase data yet</p>
-              ) : (
-                <RechartsBox height={200}>
-                  <BarChart data={phaseBar} barSize={28}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                      cursor={{ fill: "#FFF1F3" }}
-                    />
-                    <Bar dataKey="count" fill="#B8112D" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </RechartsBox>
-              )}
-            </div>
-          </section>
-
-          <section className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 bg-gradient-to-r from-[#FFFBEB] to-white">
-              <div>
-                <h2 className="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-2">
-                  <Trophy size={16} className="text-amber-500" />
-                  Top 5 Performers
-                </h2>
-                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
-                  {prevMonthLabel ? `${prevMonthLabel} rating` : "Previous month KPI marks & stars"}
-                </p>
-              </div>
-              <Link href="/technical/kpi" className="text-xs sm:text-sm font-semibold text-[#B8112D] hover:underline">
-                KPI Dashboard
-              </Link>
-            </div>
-            <div className="p-4 sm:p-5">
-              {ratingsLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="h-24 rounded-2xl bg-gray-100 animate-pulse" />
-                  ))}
-                </div>
-              ) : top5.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">
-                  No previous month ratings yet — auto-fill KPI at month end.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                  {top5.map((e, idx) => (
-                    <div
-                      key={e.estimatorId}
-                      className={`rounded-2xl border p-4 flex flex-col gap-2 ${
-                        idx === 0
-                          ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white ring-1 ring-amber-100"
-                          : "border-gray-100 bg-[#FAFBFC]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-extrabold ${
-                            idx === 0 ? "bg-amber-400 text-white" : "bg-gray-200 text-gray-600"
-                          }`}
-                        >
-                          #{idx + 1}
-                        </span>
-                        <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">
-                          {e.marks ? `${e.marks}/10` : "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-[#0F172A] truncate">{e.name}</p>
-                        <p className="text-[10px] text-gray-400">{e.code}</p>
-                      </div>
-                      <p className="text-amber-600 text-sm tracking-wide">{starsDisplay(e.stars)}</p>
-                      {e.delivered ? (
-                        <p className="text-[10px] text-gray-500">{e.delivered} delivered</p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            {modules.map(m => (
-              <Link
-                key={m.href}
-                href={m.href}
-                className="group bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 hover:border-[#B8112D]/30 hover:shadow-md transition-all"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center">
-                    <m.icon size={18} />
-                  </div>
-                  <ArrowRight size={16} className="text-gray-300 group-hover:text-[#B8112D] group-hover:translate-x-0.5 transition-all" />
-                </div>
-                <h3 className="mt-3 font-bold text-gray-800 text-sm sm:text-base">{m.title}</h3>
-                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">{m.desc}</p>
-              </Link>
-            ))}
-          </section>
-
-          <section className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100">
-              <div>
-                <h2 className="font-bold text-gray-800 text-sm sm:text-base">Recent Active Projects</h2>
-                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">Latest updates from Project DB</p>
-              </div>
-              <Link href="/technical/active-projects" className="text-xs sm:text-sm font-semibold text-[#B8112D] hover:underline">
-                View all
-              </Link>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className={CSR_THEAD}>
-                  <tr>
-                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Code</th>
-                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Project</th>
-                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Phase</th>
-                    <th className={`px-4 py-2.5 font-semibold ${PROJECT_TABLE_HEAD}`}>Deadline</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    [1, 2, 3, 4].map(i => (
-                      <tr key={i} className="border-t border-gray-50">
-                        <td colSpan={4} className="px-4 py-3">
-                          <div className="h-4 bg-gray-100 rounded animate-pulse w-2/3" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : recent.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-400 font-medium">
-                        No projects yet — they appear here from Admin Project DB.
-                      </td>
-                    </tr>
-                  ) : (
-                    recent.map(p => (
-                      <tr key={p.id} className="border-t border-gray-50 hover:bg-[#FFF8F9]">
-                        <td className="px-4 py-3 text-xs font-semibold text-[#B8112D] whitespace-nowrap">
-                          {p.projectCode || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-[#0F172A] truncate max-w-[220px]">
-                          {p.projectTitle || p.name || "Untitled"}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                          {p.projectPhase || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                          {p.projectDeadline
-                            ? new Date(p.projectDeadline).toLocaleDateString()
-                            : "—"}
-                          {isOverdue(p) && (
-                            <span className="ml-2 text-[10px] font-bold text-[#B8112D]">OVERDUE</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <UploadActionBento
+            title="Overview board"
+            subtitle="Tap a capsule to focus a tile — every slot stays filled."
+            replayLabel="Replay layout"
+            items={bentoItems}
+          />
         </div>
     </TechnicalPageShell>
   );

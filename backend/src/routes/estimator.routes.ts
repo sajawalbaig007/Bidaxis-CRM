@@ -251,7 +251,7 @@ router.put("/project/:id/timer", async (req: AuthRequest, res) => {
     if (current.takeoffDone) {
       return res.status(400).json({
         success: false,
-        message: "Completed tasks are locked. Ask Chief Estimation to set pending if needed.",
+        message: "Completed tasks are locked. Ask Chief Estimator to set pending if needed.",
       });
     }
 
@@ -390,7 +390,7 @@ router.put("/project/:id/takeoff", async (req: AuthRequest, res) => {
     if (!takeoffDone) {
       return res.status(403).json({
         success: false,
-        message: "Only Chief Estimation can set a completed task back to pending.",
+        message: "Only Chief Estimator can set a completed task back to pending.",
       });
     }
 
@@ -505,7 +505,7 @@ router.post("/lead/:id/notes", async (req: AuthRequest, res) => {
       source: "estimator",
       title: "Estimator note",
       message: `${me.name} on ${label}: ${text.slice(0, 160)}`,
-      changes: ["Notes for Chief Estimation"],
+      changes: ["Notes for Chief Estimator"],
     });
 
     return res.json({

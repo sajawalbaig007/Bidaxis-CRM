@@ -5,19 +5,31 @@ import { X } from "lucide-react";
 
 export const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
 
-export function MentionText({ text, className }: { text: string; className?: string }) {
-  const parts = text.split(/(@[\w\s.-]+)/g);
+export function MentionText({ text, className, tone = "other" }: { text: string; className?: string; tone?: "own" | "other" }) {
+  const parts = text.split(/(@[A-Za-z][\w.-]*(?:\s+[A-Za-z][\w.-]*){0,2})/g);
+  const mentionCls =
+    tone === "own"
+      ? "font-extrabold text-yellow-200 bg-black/35 px-1 rounded underline decoration-yellow-200/90"
+      : "font-extrabold text-[#B8112D] bg-[#B8112D]/15 px-1 rounded dark:text-yellow-300 dark:bg-yellow-400/25 dark:underline decoration-[#B8112D] dark:decoration-yellow-300";
   return (
     <p className={className}>
       {parts.map((part, i) =>
         part.startsWith("@") ? (
-          <span key={i} className="font-bold text-[#B8112D]">{part}</span>
+          <span key={i} className={mentionCls}>{part}</span>
         ) : (
           <span key={i}>{part}</span>
         )
       )}
     </p>
   );
+}
+
+export function autoGrowTextarea(el: HTMLTextAreaElement | null, maxPx = 208) {
+  if (!el) return;
+  const minPx = 56;
+  el.style.height = "0px";
+  const next = el.value.trim() ? el.scrollHeight : minPx;
+  el.style.height = `${Math.min(Math.max(next, minPx), maxPx)}px`;
 }
 
 export function PdfPreview({ url, fileName }: { url: string; fileName: string }) {

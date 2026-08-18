@@ -39,9 +39,10 @@ import {
 import { playChatSound } from "@/lib/chatSound";
 import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { addToOfflineQueue, getOfflineQueue, removeFromOfflineQueue } from "@/lib/chatOfflineQueue";
-import { MentionText, PdfPreview, ReactionBar, ReactionPicker } from "./MessageExtras";
+import { MentionText, PdfPreview, ReactionBar, ReactionPicker, autoGrowTextarea } from "./MessageExtras";
 import ChatActionRail from "./ChatActionRail";
 import { deduplicateConvs, mergeConversationLists, sortConversations, type ChatConversation } from "@/lib/chatConversations";
+import ChatListResizeHandle, { useChatListWidth } from "./ChatListResizeHandle";
 
 /* ── */
 interface ChatUser { id: string; name: string; email?: string; csrCode?: string | null; isOnline?: boolean; role?: string; profilePic?: string | null; }
@@ -199,11 +200,11 @@ function MessageBubble({ msg, isGroup, showAvatar, myId, onCtxMenu, onReply, onJ
     );
     if (msg.type === "voice" && msg.fileUrl) return <VoicePlayer fileUrl={msg.fileUrl} isOwn={own} />;
     if (msg.type === "file"  && msg.fileUrl) return <FileCard fileName={msg.fileName ?? "File"} fileSize={msg.fileSize ?? 0} fileUrl={msg.fileUrl} fileMimeType={msg.fileMimeType} isOwn={own} />;
-    return <MentionText text={msg.text} className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${deleted ? "opacity-75" : ""}`} />;
+    return <MentionText text={msg.text} tone={own ? "own" : "other"} className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${deleted ? "opacity-75" : ""}`} />;
   };
   return (
     <div id={`msg-${msg.id}`}
-      className={`flex items-end gap-2 group ${own ? "flex-row-reverse" : "flex-row"} ${!showAvatar ? (own ? "pr-11" : "pl-11") : ""}`}
+      className={`flex w-full min-w-0 items-end gap-2 group ${own ? "justify-end" : "justify-start"} ${!own && !showAvatar ? "pl-11" : ""}`}
       onContextMenu={e => !deleted && onCtxMenu(e, msg)}>
       {!own && showAvatar  && <Avatar name={msg.senderName} src={msg.senderProfilePic} size="sm" />}
       {!own && !showAvatar && <div className="w-8 shrink-0" />}
@@ -456,6 +457,7 @@ export default function ChatPanel({
   const [editText,       setEditText]       = useState("");
   const [mentionQuery,   setMentionQuery]   = useState<string | null>(null);
   const [soundOn,        setSoundOn]        = useState(true);
+  const { width: listWidth, onPointerDown: onListResize } = useChatListWidth("chat-list-width", 280);
 
   const messagesEndRef   = useRef<HTMLDivElement>(null);
   const inputRef         = useRef<HTMLTextAreaElement>(null);
@@ -716,6 +718,7 @@ export default function ChatPanel({
     const text = msgText.trim(); const reply = replyTo;
     const mentionIds = activeConv?.type === "group" ? parseMentionIds(text) : [];
     setMsgText(""); setReplyTo(null); setMentionQuery(null); setSendingMsg(true);
+    requestAnimationFrame(() => autoGrowTextarea(inputRef.current));
     const opt: Message = { id: `opt-${Date.now()}`, senderId: meRef.current?.id ?? "", senderName: meRef.current?.name ?? "You", text, type: "text", createdAt: new Date().toISOString(), isOwn: true, status: "sending", replyTo: reply ? { id: reply.id, text: reply.text, senderName: reply.senderName, type: reply.type } : null };
     setMessages(p => [...p, opt]);
     setConversations(p => p.map(c => c.id === activeConvId ? { ...c, lastMessage: text, lastMessageAt: new Date().toISOString() } : c));
@@ -785,6 +788,7 @@ export default function ChatPanel({
   const onMsgTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setMsgText(val);
+    autoGrowTextarea(e.target);
     if (activeConv?.type === "group") {
       const match = val.match(/@([\w\s.-]*)$/);
       setMentionQuery(match ? match[1].trim().toLowerCase() : null);
@@ -798,6 +802,7 @@ export default function ChatPanel({
   const insertMention = (name: string) => {
     setMsgText(prev => prev.replace(/@[\w\s.-]*$/, `@${name} `));
     setMentionQuery(null);
+    requestAnimationFrame(() => autoGrowTextarea(inputRef.current));
     inputRef.current?.focus();
   };
 
@@ -867,7 +872,7 @@ export default function ChatPanel({
       const email = u.email ? String(u.email) : undefined;
       const role = u.role ? String(u.role) : undefined;
       const roleLabel =
-        role === "technical_manager" ? "Chief Estimation"
+        role === "technical_manager" ? "Chief Estimator"
         : role === "accounts" ? "Accounts"
         : role === "estimator" ? "Estimator"
         : role === "csr" ? "CSR"
@@ -1139,7 +1144,10 @@ export default function ChatPanel({
         <div className="flex flex-1 min-w-0 min-h-0">
 
         {/* ── CONVERSATIONS SIDEBAR ── */}
-        <aside className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[280px] shrink-0 flex-col bg-white dark:bg-crm-surface border-r border-gray-100 dark:border-crm-border sm:relative min-h-0 overflow-hidden`}>
+        <aside
+          className={`${mobileSideOpen ? "flex" : "hidden"} sm:flex w-full sm:w-[var(--chat-list-w)] shrink-0 flex-col bg-white dark:bg-crm-surface border-r border-gray-100 dark:border-crm-border sm:relative min-h-0 overflow-hidden`}
+          style={{ ["--chat-list-w" as string]: `${listWidth}px` }}
+        >
           <div className="px-3 py-3 border-b border-gray-100 shrink-0 overflow-hidden">
             {selectMode ? (
               <div className="flex items-center justify-between mb-2.5">
@@ -1216,6 +1224,8 @@ export default function ChatPanel({
             </div>
           )}
         </aside>
+
+        <ChatListResizeHandle onPointerDown={onListResize} />
 
         {/* ── */}
         <section className={`${!mobileSideOpen ? "flex" : "hidden"} sm:flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden`}>
@@ -1331,8 +1341,8 @@ export default function ChatPanel({
                 ) : (
                   <div className="flex items-end gap-1.5">
                     <button onClick={() => fileInputRef.current?.click()} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5" title="Attach file"><Paperclip size={14} /></button>
-                    <div className="flex-1 flex items-end bg-[#F3F4F6] rounded-2xl px-3 py-2">
-                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Press send to upload..." : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={1} disabled={!!pendingFile} className="flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 max-h-24 disabled:opacity-40" />
+                    <div className="flex-1 flex items-end bg-[#F3F4F6] dark:bg-zinc-800 rounded-2xl px-3 py-2 min-h-[72px]">
+                      <textarea ref={inputRef} value={msgText} onChange={onMsgTextChange} onKeyDown={onKey} placeholder={pendingFile ? "Press send to upload..." : activeConv.type === "group" ? `Message #${activeConv.name}... (@ to mention)` : `Message ${activeConv.name}...`} rows={3} disabled={!!pendingFile} className="w-full flex-1 bg-transparent text-sm outline-none resize-none leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 min-h-[56px] max-h-52 overflow-y-auto disabled:opacity-40 text-gray-900 dark:text-gray-100" />
                     </div>
                     <button onClick={() => void startRec()} disabled={!!pendingFile || sendingMsg} className="w-8 h-8 rounded-xl bg-[#F3F4F6] text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D] flex items-center justify-center shrink-0 transition-colors mb-0.5 disabled:opacity-40" title="Voice message"><Mic size={14} /></button>
                     <button onClick={pendingFile ? () => void sendFile() : () => void sendText()} disabled={(!msgText.trim() && !pendingFile) || sendingMsg || uploading} className="w-8 h-8 rounded-xl bg-[#B8112D] text-white flex items-center justify-center hover:bg-[#a30f27] disabled:bg-gray-200 disabled:text-gray-400 transition-colors shrink-0 mb-0.5 shadow-sm shadow-red-200">
@@ -1341,9 +1351,12 @@ export default function ChatPanel({
                   </div>
                 )}
                 {mentionSuggestions.length > 0 && (
-                  <div className="absolute bottom-full left-10 mb-1 w-48 bg-white rounded-xl border border-gray-100 shadow-lg py-1 z-10">
+                  <div className="absolute bottom-full left-10 mb-1 w-56 bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-white/15 shadow-lg py-1 z-10">
                     {mentionSuggestions.map(m => (
-                      <button key={m.id} type="button" onClick={() => insertMention(m.name)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F5F6FA] truncate">{m.name} <span className="text-gray-400">{m.role}</span></button>
+                      <button key={m.id} type="button" onClick={() => insertMention(m.name)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F5F6FA] dark:hover:bg-white/10 truncate text-gray-900 dark:text-gray-100">
+                        <span className="font-semibold text-[#B8112D] dark:text-yellow-300">@{m.name}</span>{" "}
+                        <span className="text-gray-500 dark:text-gray-400">{roleDisplayLabel(m.role)}</span>
+                      </button>
                     ))}
                   </div>
                 )}

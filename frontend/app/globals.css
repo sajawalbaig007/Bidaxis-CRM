@@ -571,3 +571,57 @@ body.crm-secure-view-csr img {
   display: none;
 }
 
+/* Technical Manager — charts and leftover light surfaces in dark mode */
+html.dark .technical-shell .recharts-cartesian-axis-tick-value,
+html.dark .technical-shell .recharts-text,
+html.dark .technical-shell .recharts-polar-angle-axis .recharts-text {
+  fill: var(--crm-text-muted) !important;
+}
+html.dark .technical-shell .recharts-cartesian-grid line,
+html.dark .technical-shell .recharts-polar-grid-angle line,
+html.dark .technical-shell .recharts-polar-grid-concentric path,
+html.dark .technical-shell .recharts-polar-grid-concentric line {
+  stroke: var(--crm-border) !important;
+}
+html.dark .technical-shell .recharts-default-tooltip {
+  background: var(--crm-surface) !important;
+  border: 1px solid var(--crm-border) !important;
+  color: var(--crm-text) !important;
+  box-shadow: var(--crm-shadow) !important;
+}
+html.dark .technical-shell .recharts-tooltip-label,
+html.dark .technical-shell .recharts-tooltip-item,
+html.dark .technical-shell .recharts-tooltip-item-name,
+html.dark .technical-shell .recharts-tooltip-item-value {
+  color: var(--crm-text) !important;
+}
+html.dark .technical-shell .recharts-legend-item-text {
+  color: var(--crm-text-secondary) !important;
+}
+.dark .bg-\[\#FFFBEB\] { background-color: rgba(245, 158, 11, 0.12) !important; }
+html.dark [class*="from-[#FFFBEB]"] { --tw-gradient-from: rgba(245, 158, 11, 0.12) !important; }
+html.dark .technical-shell input:not([type="checkbox"]):not([type="radio"]),
+html.dark .technical-shell textarea {
+  color: var(--crm-text);
+}
+html.dark .technical-shell option {
+  background-color: var(--crm-input);
+  color: var(--crm-text);
+}
+html.dark .technical-shell .recharts-tooltip-cursor {
+  fill: rgba(184, 17, 45, 0.16) !important;
+}
+html.dark .technical-shell .recharts-pie-sector,
+html.dark .technical-shell .recharts-sector {
+  stroke: var(--crm-surface);
+}
+html.dark .technical-shell .bg-white\/90,
+html.dark .technical-shell .bg-white\/80 {
+  background-color: rgba(26, 29, 36, 0.92) !important;
+}
+html.dark .technical-shell .hover\:bg-\[\#FFF8F9\]:hover,
+html.dark .technical-shell tr.hover\:bg-\[\#FFF8F9\]:hover {
+  background-color: rgba(184, 17, 45, 0.12) !important;
+}
+
+

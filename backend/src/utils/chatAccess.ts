@@ -140,7 +140,7 @@ const ROLE_DISPLAY: Record<string, string> = {
   admin: "CEO",
   csr: "CSR",
   manager: "Admin",
-  technical_manager: "Chief Estimation",
+  technical_manager: "Chief Estimator",
   estimator: "Estimator",
   accounts: "Accounts",
 };

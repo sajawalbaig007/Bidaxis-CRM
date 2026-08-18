@@ -2251,6 +2251,7 @@ export function TechnicalActiveProjectsPageInner({
         open={!!assignProject}
         project={assignProject}
         estimators={estimators}
+        existingAssignments={assignProject ? parseTechnicalAssignments(assignProject.technicalAssignments) : []}
         suggestedEstimatorIds={previousProjectEstimatorIds(assignProject, projects)}
         saving={assignSaving}
         onClose={() => setAssignProject(null)}

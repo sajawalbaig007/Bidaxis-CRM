@@ -514,7 +514,7 @@ export default function TechnicalKpiPage() {
                   <BarChart3 size={12} />
                   Estimator evaluation
                 </div>
-                <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+                <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] dark:text-crm-text tracking-tight">
                   KPI Dashboard
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">

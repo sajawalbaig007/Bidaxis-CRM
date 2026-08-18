@@ -51,7 +51,7 @@ const PORTALS: LandingPortal[] = [
   },
   {
     value: "technical_manager",
-    label: "Chief Estimation",
+    label: "Chief Estimator",
     hint: "Projects, revisions, KPI & delivery",
     icon: Wrench,
     accent: "#D97706",

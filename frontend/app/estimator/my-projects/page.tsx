@@ -602,7 +602,7 @@ export default function EstimatorMyProjectsPage() {
     "Receive",
     "Deadline",
     "Bid Instruction",
-    "Notes for Chief Estimation",
+    "Notes for Chief Estimator",
     "Work Detail",
     "Hours",
     "Timer / Task",
@@ -777,7 +777,7 @@ export default function EstimatorMyProjectsPage() {
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Notes for Chief Estimation</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Notes for Chief Estimator</p>
                   <CommentCell
                     id={p.id}
                     apiRole="estimator"
@@ -785,7 +785,7 @@ export default function EstimatorMyProjectsPage() {
                     chatStyle
                     notesKind="technical"
                     currentUserId={peekAuthMe()?.id}
-                    badgeLabel="Notes for Chief Estimation"
+                    badgeLabel="Notes for Chief Estimator"
                     noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                     onAddNote={addTechnicalNote}
                   />
@@ -873,7 +873,7 @@ export default function EstimatorMyProjectsPage() {
                           chatStyle
                           notesKind="technical"
                           currentUserId={peekAuthMe()?.id}
-                          badgeLabel="Notes for Chief Estimation"
+                          badgeLabel="Notes for Chief Estimator"
                           noteHistory={threadNotesHistory(parseEstimatorNotes(p.technicalNotes))}
                           onAddNote={addTechnicalNote}
                         />
