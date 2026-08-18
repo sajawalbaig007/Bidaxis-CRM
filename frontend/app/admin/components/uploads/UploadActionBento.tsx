@@ -98,15 +98,15 @@ export default function UploadActionBento({
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">{title}</h2>
-            {subtitle ? <p className="text-sm text-gray-500 mt-1">{subtitle}</p> : null}
+            <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">{title}</h2>
+            {subtitle ? <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1">{subtitle}</p> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {toolbar}
             <button
               type="button"
               onClick={replayIntro}
-              className="self-start h-10 px-4 rounded-full text-sm font-semibold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm shrink-0"
+              className="self-start h-10 px-4 rounded-full text-sm font-semibold border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-surface text-gray-700 dark:text-crm-text-secondary hover:bg-gray-50 dark:hover:bg-crm-muted shadow-sm shrink-0"
             >
               {replayLabel}
             </button>
@@ -162,7 +162,7 @@ export default function UploadActionBento({
               <div
                 key={id}
                 className={`
-                  group/card rounded-[1.75rem] border bg-white overflow-hidden
+                  group/card rounded-[1.75rem] border bg-white dark:bg-crm-surface overflow-hidden
                   transition-[transform,box-shadow,border-color,opacity] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
                   flex flex-col
                   ${expanded ? `${slotClass(id, focusId, ids)} h-full min-h-[220px]` : "absolute left-1/2 top-1/2 w-[min(92%,390px)]"}
@@ -170,7 +170,7 @@ export default function UploadActionBento({
                 `}
                 style={{
                   zIndex: expanded ? (focused ? 20 : 10) : deck.z,
-                  borderColor: focused || !expanded ? `${item.accent}66` : "#ececf2",
+                  borderColor: focused || !expanded ? `${item.accent}66` : "var(--crm-border)",
                   boxShadow: focused
                     ? `0 24px 48px -28px ${item.accent}aa, 0 0 0 2px ${item.accent}33`
                     : !expanded

@@ -10,6 +10,8 @@ import {
   CartesianGrid,
   Cell,
   LabelList,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   PolarAngleAxis,
@@ -43,7 +45,15 @@ export type KpiDeliveredPoint = {
   pct: number;
 };
 
-const TIP = { borderRadius: 12, fontSize: 12, border: "1px solid #eee" } as const;
+const TIP = {
+  borderRadius: 12,
+  fontSize: 12,
+  border: "1px solid var(--crm-border)",
+  background: "var(--crm-surface)",
+  color: "var(--crm-text)",
+} as const;
+const GRID = "var(--crm-border-subtle)";
+const TICK = { fontSize: 10, fill: "var(--crm-text-muted)" } as const;
 const DONUT = ["#B8112D", "#0B84F3", "#D97706", "#059669", "#7C3AED", "#38BDF8"];
 
 function pctOf(part: number, whole: number) {
@@ -65,7 +75,7 @@ function ChartCard({
   return (
     <div className="flex-1 min-h-0 p-3 sm:p-4 flex flex-col">
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{eyebrow}</p>
-      <h3 className="text-sm sm:text-base font-bold text-[#0F172A]">{title}</h3>
+      <h3 className="text-sm sm:text-base font-bold text-[#0F172A] dark:text-crm-text">{title}</h3>
       {hint ? <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">{hint}</p> : null}
       <div className="flex-1 min-h-[180px] mt-1">{children}</div>
     </div>
@@ -189,15 +199,15 @@ export default function KpiChartsBento({
                 <div className="flex-[1.15] min-h-[130px]">
                   <RechartsBox height="100%">
                     <BarChart data={barRows} barCategoryGap="22%">
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID} />
+                      <XAxis dataKey="name" tick={TICK} axisLine={false} tickLine={false} />
                       <YAxis
                         allowDecimals={false}
-                        tick={{ fontSize: 10 }}
+                        tick={TICK}
                         axisLine={false}
                         tickLine={false}
                         width={28}
-                        label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 9, fill: "#94A3B8" }}
+                        label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 9, fill: "var(--crm-text-faint)" }}
                       />
                       <Tooltip
                         contentStyle={TIP}
@@ -212,7 +222,7 @@ export default function KpiChartsBento({
                           dataKey="deliveredPct"
                           position="top"
                           fontSize={9}
-                          fill="#64748B"
+                          fill="var(--crm-text-muted)"
                           formatter={(v) => (Number(v) > 0 ? `${v}%` : "")}
                         />
                       </Bar>
@@ -227,12 +237,12 @@ export default function KpiChartsBento({
                     <p className="text-[11px] text-gray-400 text-center py-6">No date-wise deliveries yet</p>
                   ) : (
                     <RechartsBox height="100%">
-                      <BarChart data={deliveredTimeline} barCategoryGap="18%">
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="label" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
+                      <LineChart data={deliveredTimeline} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID} />
+                        <XAxis dataKey="label" tick={{ ...TICK, fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
                         <YAxis
                           allowDecimals={false}
-                          tick={{ fontSize: 10 }}
+                          tick={TICK}
                           axisLine={false}
                           tickLine={false}
                           width={28}
@@ -244,16 +254,23 @@ export default function KpiChartsBento({
                             return [`${v} (${pct}% of period)`, "Delivered"];
                           }}
                         />
-                        <Bar dataKey="count" fill="#F43F5E" radius={[6, 6, 0, 0]} maxBarSize={22}>
+                        <Line
+                          type="monotone"
+                          dataKey="count"
+                          stroke="#F43F5E"
+                          strokeWidth={2.5}
+                          dot={{ r: 4, fill: "#F43F5E", strokeWidth: 0 }}
+                          activeDot={{ r: 6 }}
+                        >
                           <LabelList
                             dataKey="pct"
                             position="top"
                             fontSize={8}
-                            fill="#64748B"
+                            fill="var(--crm-text-muted)"
                             formatter={(v) => (Number(v) > 0 ? `${v}%` : "")}
                           />
-                        </Bar>
-                      </BarChart>
+                        </Line>
+                      </LineChart>
                     </RechartsBox>
                   )}
                 </div>
@@ -280,11 +297,11 @@ export default function KpiChartsBento({
                       <stop offset="100%" stopColor="#0B84F3" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID} />
+                  <XAxis dataKey="name" tick={TICK} axisLine={false} tickLine={false} />
                   <YAxis
                     domain={[0, prodMax]}
-                    tick={{ fontSize: 10 }}
+                    tick={TICK}
                     axisLine={false}
                     tickLine={false}
                     width={40}
@@ -315,12 +332,12 @@ export default function KpiChartsBento({
           >
             <RechartsBox height={190}>
               <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
-                <PolarGrid stroke="#E2E8F0" />
-                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "#64748B" }} />
+                <PolarGrid stroke="var(--crm-border)" />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 100]}
-                  tick={{ fontSize: 8, fill: "#94A3B8" }}
+                  tick={{ fontSize: 8, fill: "var(--crm-text-faint)" }}
                   tickFormatter={(v) => `${v}%`}
                   axisLine={false}
                 />
@@ -345,21 +362,21 @@ export default function KpiChartsBento({
         accent: "#D97706",
         content: (
           <ChartCard eyebrow="Share" title="Outcome mix · by estimator">
-            <div className="h-full min-h-0 grid grid-cols-2 gap-2">
+            <div className="h-full min-h-0 grid grid-cols-2 gap-1">
               <div className="min-w-0 flex flex-col">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 text-center">Donut · mix</p>
-                <div className="flex-1 min-h-[140px]">
-                  <RechartsBox height={150}>
+                <div className="flex-1 min-h-[188px]">
+                  <RechartsBox height={188}>
                     <PieChart>
                       <Pie
                         data={donut}
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
-                        cy="50%"
-                        innerRadius="42%"
-                        outerRadius="72%"
-                        paddingAngle={3}
+                        cy="52%"
+                        innerRadius="38%"
+                        outerRadius="90%"
+                        paddingAngle={2}
                         strokeWidth={0}
                       >
                         {donut.map((d) => (
@@ -392,18 +409,18 @@ export default function KpiChartsBento({
               </div>
               <div className="min-w-0 flex flex-col">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 text-center">Pie · estimators</p>
-                <div className="flex-1 min-h-[140px]">
-                  <RechartsBox height={150}>
+                <div className="flex-1 min-h-[188px]">
+                  <RechartsBox height={188}>
                     <PieChart>
                       <Pie
                         data={sharePie}
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
-                        cy="50%"
+                        cy="52%"
                         innerRadius={0}
-                        outerRadius="72%"
-                        paddingAngle={2}
+                        outerRadius="90%"
+                        paddingAngle={1}
                         strokeWidth={0}
                       >
                         {sharePie.map((d) => (

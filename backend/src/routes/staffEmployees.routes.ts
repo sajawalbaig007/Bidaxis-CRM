@@ -13,7 +13,7 @@ const ROLE_LABEL: Record<string, string> = {
   admin: "CEO",
   csr: "CSR",
   manager: "Admin",
-  technical_manager: "Chief Estimation",
+  technical_manager: "Chief Estimator",
   accounts: "Accounts",
   estimator: "Estimator",
 };

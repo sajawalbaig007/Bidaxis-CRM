@@ -2,7 +2,7 @@
 export const ROLE_DISPLAY: Record<string, string> = {
   admin: "CEO",
   manager: "Admin",
-  technical_manager: "Chief Estimation",
+  technical_manager: "Chief Estimator",
   csr: "CSR",
   estimator: "Estimator",
   accounts: "Accounts",

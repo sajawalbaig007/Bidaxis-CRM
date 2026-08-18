@@ -4,7 +4,7 @@ export const PORTAL_OPTIONS: { value: PortalRole; label: string; hint: string }[
   { value: "admin", label: "CEO", hint: "Full CEO dashboard" },
   { value: "csr", label: "CSR", hint: "Client calls & leads" },
   { value: "manager", label: "Admin", hint: "Leads, reports & projects" },
-  { value: "technical_manager", label: "Chief Estimation", hint: "Projects, KPI & team" },
+  { value: "technical_manager", label: "Chief Estimator", hint: "Projects, KPI & team" },
   { value: "estimator", label: "Estimator", hint: "Assigned takeoffs & deadlines" },
   { value: "accounts", label: "Accounts", hint: "Statements, payroll & assets" },
 ];
@@ -56,8 +56,8 @@ export const PORTAL_LOGIN_COPY: Record<
     ],
   },
   technical_manager: {
-    eyebrow: "Chief Estimation Portal",
-    heading: "Chief Estimation Sign In",
+    eyebrow: "Chief Estimator Portal",
+    heading: "Chief Estimator Sign In",
     subheading: "Monitor projects, revisions, KPI, and delivery teams.",
     slides: [
       { title: "Estimation Dashboard", subtitle: "Projects, revisions, and delivery status." },

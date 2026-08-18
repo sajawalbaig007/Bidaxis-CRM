@@ -45,7 +45,7 @@ function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string 
   return { kind: "pdf", src: u };
 }
 
-type UserRole = "CSR" | "CEO" | "Admin" | "Chief Estimation" | "Accounts" | "Estimator";
+type UserRole = "CSR" | "CEO" | "Admin" | "Chief Estimator" | "Accounts" | "Estimator";
 
 type PortalCompany = "BEM" | "GPS";
 type CompanyFilter = PortalCompany | "EMPLOYEES";
@@ -70,7 +70,7 @@ const PORTAL_DASHBOARDS: PortalDashboard[] = [
   { role: "Admin", company: "BEM", shortLabel: "Admin", onlineLabel: "Admins Online", formLabel: "Admin" },
   { role: "Accounts", company: "BEM", shortLabel: "Accounts", onlineLabel: "Accounts Online", formLabel: "Accounts" },
   { role: "CEO", company: "BEM", shortLabel: "CEO", onlineLabel: "CEO Online", formLabel: "CEO" },
-  { role: "Chief Estimation", company: "GPS", shortLabel: "Chief Est.", onlineLabel: "Chief Estimation Online", formLabel: "Chief Estimation" },
+  { role: "Chief Estimator", company: "GPS", shortLabel: "Chief Est.", onlineLabel: "Chief Estimator Online", formLabel: "Chief Estimator" },
   { role: "Estimator", company: "GPS", shortLabel: "Estimator", onlineLabel: "Estimators Online", formLabel: "Estimator" },
 ];
 
@@ -158,7 +158,7 @@ const GPS_ROLE_OPTIONS: { value: UserRole; label: string }[] = PORTAL_DASHBOARDS
   .map((d) => ({ value: d.role, label: d.formLabel }));
 
 function defaultRoleForCompany(company: PortalCompany): UserRole {
-  return company === "GPS" ? "Chief Estimation" : "CSR";
+  return company === "GPS" ? "Chief Estimator" : "CSR";
 }
 
 function roleOptionsForCompany(company: PortalCompany) {
@@ -248,7 +248,7 @@ const apiBase = () => getApiBase();
 const roleColor = (role: UserRole) => {
   if (role === "CEO") return "bg-blue-100 text-blue-600";
   if (role === "Admin") return "bg-violet-100 text-violet-600";
-  if (role === "Chief Estimation") return "bg-amber-100 text-amber-700";
+  if (role === "Chief Estimator") return "bg-amber-100 text-amber-700";
   if (role === "Accounts") return "bg-cyan-100 text-cyan-700";
   if (role === "Estimator") return "bg-purple-100 text-purple-700";
   return "bg-emerald-100 text-emerald-600";
@@ -461,7 +461,7 @@ export default function UsersPage() {
         email:      u.email,
         role:       u.role === "csr" ? "CSR"
                   : u.role === "manager" ? "Admin"
-                  : u.role === "technical_manager" ? "Chief Estimation"
+                  : u.role === "technical_manager" ? "Chief Estimator"
                   : u.role === "accounts" ? "Accounts"
                   : u.role === "estimator" ? "Estimator"
                   : "CEO",
@@ -665,7 +665,7 @@ export default function UsersPage() {
       const role =
         form.role === "CSR" ? "csr"
         : form.role === "Admin" ? "manager"
-        : form.role === "Chief Estimation" ? "technical_manager"
+        : form.role === "Chief Estimator" ? "technical_manager"
         : form.role === "Accounts" ? "accounts"
         : form.role === "Estimator" ? "estimator"
         : "admin";

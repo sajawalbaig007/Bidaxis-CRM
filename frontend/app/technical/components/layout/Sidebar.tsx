@@ -218,7 +218,7 @@ export default function TechnicalSidebar() {
                 CRM Dashboard
               </h2>
               <p className="text-[10px] md:text-[11px] font-semibold text-[#B8112D] mt-1 tracking-wide uppercase">
-                Chief Estimation
+                Chief Estimator
               </p>
             </div>
           </Link>
@@ -256,9 +256,9 @@ export default function TechnicalSidebar() {
 
             {bellOpen && (
               <div className="absolute right-0 top-[calc(100%+10px)] w-[min(92vw,380px)] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-crm-border-subtle flex items-center justify-between gap-2 bg-gradient-to-r from-[#FFF1F3] to-white">
+                <div className="px-4 py-3 border-b border-crm-border-subtle flex items-center justify-between gap-2 bg-gradient-to-r from-[#FFF1F3] to-white dark:from-[#B8112D]/20 dark:to-crm-surface">
                   <div>
-                    <p className="text-sm font-bold text-[#0F172A]">Notifications</p>
+                    <p className="text-sm font-bold text-[#0F172A] dark:text-crm-text">Notifications</p>
                     <p className="text-[10px] text-gray-500">
                       Admin & estimator project updates · {unreadCount} unread
                     </p>
@@ -380,7 +380,7 @@ export default function TechnicalSidebar() {
                 <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
                   {user?.name ?? "TM"}
                 </p>
-                <p className="text-[10px] text-crm-text-muted mt-1">Chief Estimation</p>
+                <p className="text-[10px] text-crm-text-muted mt-1">Chief Estimator</p>
               </div>
               <ChevronDown
                 size={13}
@@ -399,7 +399,7 @@ export default function TechnicalSidebar() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Chief Estimation"}</p>
+                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Chief Estimator"}</p>
                     <p className="text-white/65 text-[11px] truncate mt-0.5">{user?.email ?? "—"}</p>
                   </div>
                 </div>

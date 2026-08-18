@@ -73,6 +73,31 @@ function toPstLocalInput(iso: string | null | undefined): string {
   return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
 }
 
+function pstWeekStart(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const utc = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  utc.setUTCDate(utc.getUTCDate() - utc.getUTCDay());
+  return utc.toISOString().slice(0, 10);
+}
+
+type PeriodPreset = "daily" | "weekly" | "monthly" | "all";
+const ALL_TIME_FROM = "2020-01-01";
+
+function rangeForPeriod(period: PeriodPreset, today: string): { from: string; to: string } {
+  if (period === "daily") return { from: today, to: today };
+  if (period === "weekly") return { from: pstWeekStart(today), to: today };
+  if (period === "monthly") return { from: `${today.slice(0, 7)}-01`, to: today };
+  return { from: ALL_TIME_FROM, to: today };
+}
+
+function periodFromDates(from: string, to: string, today: string): PeriodPreset | "custom" {
+  if (from === today && to === today) return "daily";
+  if (from === pstWeekStart(today) && to === today) return "weekly";
+  if (from === `${today.slice(0, 7)}-01` && to === today) return "monthly";
+  if (from === ALL_TIME_FROM && to === today) return "all";
+  return "custom";
+}
+
 function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) {
   const headers = [
     personLabel,
@@ -113,10 +138,77 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) 
   URL.revokeObjectURL(url);
 }
 
+function escHtml(v: string) {
+  return v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function downloadExcel(
+  sessions: SessionRow[],
+  summary: SummaryRow[],
+  filename: string,
+  personLabel: string,
+  title: string,
+) {
+  const sessionHeader = [personLabel, "Code", "Check In (PST)", "Check Out (PST)", "On Dashboard", "Away", "Total", "Status", "Browser", "IP", "Closed Reason"];
+  const sessionBody = sessions.map(r => [
+    r.csrName,
+    r.csrCode ?? "",
+    r.checkInAtEst ?? r.loginAtEst,
+    r.checkOutAtEst ?? r.logoutAtEst,
+    r.dashboardDuration,
+    r.awayDuration,
+    r.totalDuration,
+    r.status === "active" ? "Checked In" : "Checked Out",
+    r.browser ?? "",
+    r.ip ?? "",
+    r.closedReasonLabel ?? r.closedReason ?? "",
+  ].map(escHtml));
+  const summaryHeader = [personLabel, "Sessions", "On Dashboard", "Away", "Total"];
+  const summaryBody = summary.map(r => [
+    r.csrName,
+    String(r.sessions),
+    r.dashboardDuration,
+    r.awayDuration,
+    r.totalDuration,
+  ].map(escHtml));
+
+  const table = (headers: string[], rows: string[][]) =>
+    `<table border="1"><thead><tr>${headers.map(h => `<th>${escHtml(h)}</th>`).join("")}</tr></thead><tbody>${
+      rows.map(row => `<tr>${row.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")
+    }</tbody></table>`;
+
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8"></head>
+<body>
+<h2>${escHtml(title)}</h2>
+<p>All times in Pacific Time (PST/PDT)</p>
+<h3>Per session</h3>
+${table(sessionHeader, sessionBody)}
+<h3>Per ${escHtml(personLabel)}</h3>
+${table(summaryHeader, summaryBody)}
+</body></html>`;
+
+  const blob = new Blob(["\uFEFF", html], { type: "application/vnd.ms-excel" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".xls") ? filename : `${filename}.xls`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function CsrActivityReport({
   staffRole = "csr",
+  allowEdit = true,
+  defaultOpen = false,
 }: {
   staffRole?: "csr" | "estimator";
+  allowEdit?: boolean;
+  defaultOpen?: boolean;
 }) {
   const today = pstTodayYmd();
   const isEstimator = staffRole === "estimator";
@@ -133,7 +225,7 @@ export default function CsrActivityReport({
   const [summary, setSummary] = useState<SummaryRow[]>([]);
   const [timezoneLabel, setTimezoneLabel] = useState("Pacific Time (PST/PDT)");
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [view, setView] = useState<"sessions" | "summary">("sessions");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -228,6 +320,13 @@ export default function CsrActivityReport({
 
   const selectedCsr = csrs.find(c => c.id === csrId) ?? null;
   const dropdownLabel = selectedCsr ? selectedCsr.name : allLabel;
+  const activePeriod = periodFromDates(fromDate, toDate, today);
+
+  const applyPeriod = (period: PeriodPreset) => {
+    const range = rangeForPeriod(period, pstTodayYmd());
+    setFromDate(range.from);
+    setToDate(range.to);
+  };
 
   const totals = useMemo(() => ({
     sessions: sessions.length,
@@ -277,6 +376,27 @@ export default function CsrActivityReport({
         <div className="overflow-hidden min-h-0">
           {open && (
         <>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {([
+              ["daily", "Daily"],
+              ["weekly", "Weekly"],
+              ["monthly", "Monthly"],
+              ["all", "All time"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => applyPeriod(key)}
+                className={`h-8 px-3 rounded-full text-xs font-bold border ${
+                  activePeriod === key
+                    ? "bg-[#B8112D] text-white border-[#B8112D]"
+                    : "bg-white dark:bg-crm-muted text-gray-600 dark:text-crm-text-secondary border-gray-200 dark:border-crm-border"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <input
               type="date"
@@ -284,7 +404,7 @@ export default function CsrActivityReport({
               onChange={e => setFromDate(e.target.value)}
               className="h-10 flex-1 min-w-[130px] sm:flex-none rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
             />
-            <span className="text-gray-400 text-sm">→</span>
+            <span className="text-gray-400 text-sm">to</span>
             <input
               type="date"
               value={toDate}
@@ -343,6 +463,21 @@ export default function CsrActivityReport({
               <Download size={14} />
               Export CSV
             </button>
+            <button
+              type="button"
+              onClick={() => downloadExcel(
+                sessions,
+                summary,
+                `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}`,
+                personLabel,
+                title,
+              )}
+              disabled={!sessions.length && !summary.length}
+              className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+            >
+              <Download size={14} />
+              Download Excel
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
@@ -379,7 +514,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, "Check In (PST)", "Check Out (PST)", "On Dashboard", "Away", "Total", "Status", "Closed By", ""].map(h => (
+                    {[personLabel, "Check In (PST)", "Check Out (PST)", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(allowEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -433,6 +568,7 @@ export default function CsrActivityReport({
                       <td className="px-3 py-3 text-[11px] text-gray-500 whitespace-nowrap">
                         {row.closedReasonLabel ?? (row.status === "active" ? "—" : (row.closedReason ?? "—"))}
                       </td>
+                      {allowEdit ? (
                       <td className="px-3 py-3">
                         <button
                           type="button"
@@ -444,6 +580,7 @@ export default function CsrActivityReport({
                           Edit
                         </button>
                       </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
@@ -494,7 +631,7 @@ export default function CsrActivityReport({
         </div>
       </div>
 
-      {editing && (
+      {editing && allowEdit && (
         <div className="fixed inset-0 z-[120] bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">

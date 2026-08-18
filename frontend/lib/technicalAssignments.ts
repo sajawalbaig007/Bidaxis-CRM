@@ -499,7 +499,7 @@ export function parseTechnicalNotes(raw: unknown): TechnicalNoteEntry[] {
   return parseTechnicalNotesBundle(raw).sir;
 }
 
-/** TM↔Estimator thread (Notes for Estimator / Notes for Chief Estimation). */
+/** TM↔Estimator thread (Notes for Estimator / Notes for Chief Estimator). */
 export function parseEstimatorNotes(raw: unknown): TechnicalNoteEntry[] {
   return parseTechnicalNotesBundle(raw).estimator;
 }

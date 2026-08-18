@@ -120,7 +120,7 @@ export function buildEstimatorKpiReportHtml(opts: {
   p.meta { color: #64748B; font-size: 10px; margin: 0 0 16px; }
 </style></head>
 <body>
-  <h1>Chief Estimation — KPI report</h1>
+  <h1>Chief Estimator — KPI report</h1>
   <p class="meta">${escapeHtml(label)} · ${escapeHtml(who)} · Generated ${new Date().toLocaleString("en-GB")}</p>
   ${sections || `<p style="color:#94A3B8;font-size:12px;">No KPI entries for this period.</p>`}
   <p style="margin-top:24px;font-size:9px;color:#94A3B8;">Latest saved value per field. Auto suggestions that were not saved are omitted.</p>

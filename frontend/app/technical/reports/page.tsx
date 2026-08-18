@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis,
@@ -21,6 +22,13 @@ import {
   type TechnicalMonthlyReport,
 } from "@/lib/technicalMonthlyReport";
 import { formatLoggedHours, scoreTone } from "@/lib/technicalMonitoring";
+
+const CsrActivityReport = dynamic(() => import("@/app/admin/reports/CsrActivityReport"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-24 rounded-2xl bg-white dark:bg-crm-surface border border-gray-100 dark:border-crm-border animate-pulse" />
+  ),
+});
 
 function kpiVal(report: TechnicalMonthlyReport, estimatorId: string, key: string): string {
   const row = report.kpiAuto.find((r) => r.estimatorId === estimatorId);
@@ -173,7 +181,7 @@ export default function TechnicalReportsPage() {
                   <FileText size={12} />
                   Executive export
                 </div>
-                <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] tracking-tight">
+                <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-[#0F172A] dark:text-crm-text tracking-tight">
                   Technical Reports
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">
@@ -211,6 +219,8 @@ export default function TechnicalReportsPage() {
               </div>
             </div>
           </header>
+
+          <CsrActivityReport staffRole="estimator" allowEdit={false} defaultOpen />
 
           <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
             {summaryCards.map((c) => (
