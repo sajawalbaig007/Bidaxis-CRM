@@ -84,6 +84,14 @@ export type PaymentsSummaryPayload = {
     fullPaidCount: number;
     partialPaidCount: number;
     unpaidWithQuoteCount: number;
+    thisMonth: string;
+    prevMonth: string;
+    quotedThisMonth: number;
+    quotedPrevMonth: number;
+    collectedThisMonth: number;
+    collectedPrevMonth: number;
+    outstandingThisMonth: number;
+    outstandingPrevMonths: number;
   };
   statusBreakdown: {
     paid: number;
@@ -104,6 +112,23 @@ function monthDisplayLabel(month: string | null): string {
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+function currentMonthUtc(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function shiftMonth(yyyyMm: string, delta: number): string {
+  const [y, m] = yyyyMm.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1 + delta, 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function calendarMonthUtc(d: Date | string | null | undefined): string | null {
+  if (!d) return null;
+  const dt = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString().slice(0, 7);
 }
 
 function emptyChannelTotals(): ChannelCurrencyTotals {
@@ -141,6 +166,8 @@ function matchesMonth(entry: ProjectPaymentEntry, month: string | null): boolean
 export async function buildPaymentsSummary(month?: string | null): Promise<PaymentsSummaryPayload> {
   const monthFilter =
     month && /^\d{4}-\d{2}$/.test(month.trim()) ? month.trim() : null;
+  const thisMonthKey = monthFilter ?? currentMonthUtc();
+  const prevMonthKey = shiftMonth(thisMonthKey, -1);
 
   const rawLeads = await prisma.lead.findMany({
     where: buildProjectLeadWhere(),
@@ -156,6 +183,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       projectPayments: true,
       status: true,
       inBin: true,
+      createdAt: true,
     },
     orderBy: { updatedAt: "desc" },
     take: 5000,
@@ -190,6 +218,12 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
   let unpaidWithQuoteCount = 0;
   let collectedAmount = 0;
   let outstandingAmount = 0;
+  let quotedThisMonth = 0;
+  let quotedPrevMonth = 0;
+  let collectedThisMonth = 0;
+  let collectedPrevMonth = 0;
+  let outstandingThisMonth = 0;
+  let outstandingPrevMonths = 0;
   const collectedByCurrency = emptyChannelTotals();
   let projectCount = 0;
 
@@ -230,11 +264,26 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       } else {
         quotedAmount += quoted;
       }
+      const createdMonth = calendarMonthUtc(lead.createdAt);
+      if (createdMonth === thisMonthKey) quotedThisMonth += quoted;
+      else if (createdMonth === prevMonthKey) quotedPrevMonth += quoted;
     }
 
     // Outstanding = remaining after ALL payments (never re-opens for prior-month halves)
     if (quoted > 0) {
       outstandingAmount += remainingDue;
+      const createdMonth = calendarMonthUtc(lead.createdAt);
+      if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
+      else outstandingPrevMonths += remainingDue;
+    }
+
+    for (const entry of allPayments) {
+      if (!entry.isPaid) continue;
+      const amt = parseMoney(entry.amount);
+      if (amt <= 0) continue;
+      const payMonth = paymentAccountsMonth(entry);
+      if (payMonth === thisMonthKey) collectedThisMonth += amt;
+      else if (payMonth === prevMonthKey) collectedPrevMonth += amt;
     }
 
     for (const entry of paidInScope) {
@@ -345,6 +394,14 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       fullPaidCount,
       partialPaidCount,
       unpaidWithQuoteCount,
+      thisMonth: thisMonthKey,
+      prevMonth: prevMonthKey,
+      quotedThisMonth,
+      quotedPrevMonth,
+      collectedThisMonth,
+      collectedPrevMonth,
+      outstandingThisMonth,
+      outstandingPrevMonths,
     },
     statusBreakdown: {
       paid: fullPaidCount,
