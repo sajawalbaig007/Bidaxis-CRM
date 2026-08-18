@@ -142,8 +142,6 @@ export default function ManagerSidebar() {
     }
   };
 
-  return (
-
   const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
 
   const dismissOne = (id: string) => {
