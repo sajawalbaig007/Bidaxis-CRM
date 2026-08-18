@@ -126,6 +126,35 @@ function CurrencyLines({
   );
 }
 
+function MonthCompare({
+  thisLabel = "This month",
+  prevLabel = "Prev month",
+  thisValue,
+  prevValue,
+  thisClass,
+  prevClass,
+}: {
+  thisLabel?: string;
+  prevLabel?: string;
+  thisValue: number;
+  prevValue: number;
+  thisClass: string;
+  prevClass: string;
+}) {
+  return (
+    <div className="mt-3 pt-3 border-t border-crm-border-subtle space-y-1.5">
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="text-crm-text-muted">{thisLabel}</span>
+        <span className={`font-bold tabular-nums ${thisClass}`}>{formatMoneyAlways(thisValue)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="text-crm-text-muted">{prevLabel}</span>
+        <span className={`font-bold tabular-nums ${prevClass}`}>{formatMoneyAlways(prevValue)}</span>
+      </div>
+    </div>
+  );
+}
+
 function KpiCard({
   title,
   value,
@@ -595,6 +624,12 @@ export default function AdminPaymentsPage() {
                   PKR: 0,
                 }}
               />
+              <MonthCompare
+                thisValue={t?.quotedThisMonth ?? 0}
+                prevValue={t?.quotedPrevMonth ?? 0}
+                thisClass="text-blue-600"
+                prevClass="text-violet-600"
+              />
             </KpiCard>
             <KpiCard
               title="Collected"
@@ -604,6 +639,13 @@ export default function AdminPaymentsPage() {
               icon={TrendingUp}
             >
               {t?.collectedByCurrency ? <CurrencyLines totals={t.collectedByCurrency} /> : null}
+              <MonthCompare
+                thisValue={t?.collectedThisMonth ?? 0}
+                prevValue={t?.collectedPrevMonth ?? 0}
+                prevLabel="Prev month collected"
+                thisClass="text-emerald-600"
+                prevClass="text-violet-600"
+              />
             </KpiCard>
             <KpiCard
               title="Outstanding"
@@ -615,7 +657,15 @@ export default function AdminPaymentsPage() {
               }
               border="border-t-red-500"
               icon={AlertCircle}
-            />
+            >
+              <MonthCompare
+                thisValue={t?.outstandingThisMonth ?? 0}
+                prevValue={t?.outstandingPrevMonths ?? 0}
+                prevLabel="Previous months"
+                thisClass="text-red-600"
+                prevClass="text-red-800"
+              />
+            </KpiCard>
             <KpiCard
               title="Collection Rate"
               value={loading && !data ? "…" : `${t?.collectionRate ?? 0}%`}
