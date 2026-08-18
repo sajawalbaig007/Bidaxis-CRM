@@ -9,7 +9,9 @@ import API from "@/lib/api";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import ChatPanel from "@/app/components/chat/ChatPanel";
 import CapsuleChipNav from "@/app/components/CapsuleChipNav";
-import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
+import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
+import { ProfileAvatar, ProfileInfoRows } from "@/app/components/StaffProfileMenu";
+import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
@@ -27,12 +29,7 @@ const navItems = [
   { title: "Reports", shortTitle: "Reports", href: `${BASE}/reports`, icon: FileText },
 ];
 
-type UserInfo = {
-  name: string;
-  email: string;
-  role: string;
-  profilePic?: string | null;
-};
+type UserInfo = AuthUser;
 
 export default function AccountsSidebar() {
   const [user, setUser] = useState<UserInfo | null>(() => peekAuthMe());
@@ -78,15 +75,6 @@ export default function AccountsSidebar() {
     await logoutSession(() => API.post("/auth/logout", {}));
     window.location.href = "/login/accounts";
   };
-
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map(n => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "AC";
 
   return (
     <>
@@ -156,18 +144,13 @@ export default function AccountsSidebar() {
             }}
             className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
           >
-            <div className="w-8 h-8 rounded-[10px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-              {user?.profilePic
-                ? <Image src={user.profilePic} alt={user.name} width={32} height={32} className="w-full h-full object-cover" />
-                : initials
-              }
-            </div>
+            <ProfileAvatar user={user} fallback="AC" />
             <div className="hidden xl:block text-left min-w-0 max-w-[120px]">
               <p className="text-[12px] font-bold leading-none text-crm-text truncate">
                 {user?.name ?? "Accounts User"}
               </p>
               <p className="text-[10px] text-crm-text-muted mt-0.5 truncate">
-                Accounts
+                {roleDisplayLabel(user?.role) || "Accounts"}
               </p>
             </div>
             <ChevronDown size={13} className={`hidden xl:block text-crm-text-faint transition-transform shrink-0 ${profileOpen ? "rotate-180" : ""}`} />
@@ -176,12 +159,7 @@ export default function AccountsSidebar() {
           {profileOpen && (
             <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
               <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0 overflow-hidden">
-                  {user?.profilePic
-                    ? <Image src={user.profilePic} alt={user?.name ?? "Avatar"} width={48} height={48} className="w-full h-full object-cover" />
-                    : initials
-                  }
-                </div>
+                <ProfileAvatar user={user} size="md" fallback="AC" />
                 <div className="min-w-0">
                   <p className="text-white text-[14px] font-bold truncate">
                     {user?.name ?? "Accounts User"}
@@ -191,10 +169,7 @@ export default function AccountsSidebar() {
                   </p>
                 </div>
               </div>
-              <div className="p-3">
-                <p className="text-[10px] text-crm-text-muted font-semibold uppercase tracking-wide mb-1">Role</p>
-                <p className="text-[12px] font-semibold text-crm-text">{user?.role ?? "accounts"}</p>
-              </div>
+              <ProfileInfoRows user={user} />
               <div className="px-3 pb-3">
                 <button
                   onClick={() => void handleLogout()}

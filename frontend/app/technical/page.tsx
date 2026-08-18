@@ -7,7 +7,7 @@ import {
   ArrowRight, BarChart3, Users, GitBranch, RefreshCw, FileText, Trophy,
 } from "lucide-react";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from "recharts";
 import TechnicalPageShell from "./components/TechnicalPageShell";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -221,15 +221,19 @@ export default function TechnicalDashboardPage() {
           ) : phaseBar.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-16">No phase data yet</p>
           ) : (
-            <RechartsBox height="100%">
-              <BarChart data={phaseBar} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--crm-border-subtle)" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} width={28} />
+            <div className="flex-1 min-h-[220px] w-full">
+            <RechartsBox height={Math.max(220, phaseBar.length * 44 + 32)}>
+              <BarChart data={phaseBar} layout="vertical" margin={{ top: 4, right: 36, left: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--crm-border-subtle)" />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 10, fill: "var(--crm-text-muted)" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={CHART_TIP} cursor={{ fill: "rgba(184,17,45,0.12)" }} />
-                <Bar dataKey="count" fill="#B8112D" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="count" fill="#B8112D" radius={[0, 8, 8, 0]} barSize={18}>
+                  <LabelList dataKey="count" position="right" fontSize={10} fill="var(--crm-text-muted)" />
+                </Bar>
               </BarChart>
             </RechartsBox>
+            </div>
           )}
         </div>
       ),

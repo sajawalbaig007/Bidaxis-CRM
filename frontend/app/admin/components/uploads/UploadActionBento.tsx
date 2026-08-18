@@ -147,7 +147,7 @@ export default function UploadActionBento({
         <div
           className={
             expanded
-              ? "relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(200px,1fr)_minmax(200px,1fr)_minmax(220px,auto)] gap-3 sm:gap-4"
+              ? "relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(320px,auto)_minmax(260px,auto)_minmax(240px,auto)] gap-3 sm:gap-4"
               : "absolute inset-0"
           }
         >
@@ -165,7 +165,7 @@ export default function UploadActionBento({
                   group/card rounded-[1.75rem] border bg-white dark:bg-crm-surface overflow-hidden
                   transition-[transform,box-shadow,border-color,opacity] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
                   flex flex-col
-                  ${expanded ? `${slotClass(id, focusId, ids)} h-full min-h-[220px]` : "absolute left-1/2 top-1/2 w-[min(92%,390px)]"}
+                  ${expanded ? `${slotClass(id, focusId, ids)} h-full min-h-[300px]` : "absolute left-1/2 top-1/2 w-[min(92%,390px)]"}
                   ${focused ? "shadow-2xl" : "shadow-md hover:shadow-xl"}
                 `}
                 style={{
@@ -196,7 +196,7 @@ export default function UploadActionBento({
                   </span>
                 </button>
 
-                <div className="flex-1 min-h-0 flex flex-col [&_>div]:flex-1 [&_>div]:min-h-0 [&_>div]:flex [&_>div]:flex-col">
+                <div className="flex-1 min-h-[240px] overflow-y-auto overflow-x-hidden flex flex-col">
                   {item.content}
                 </div>
               </div>

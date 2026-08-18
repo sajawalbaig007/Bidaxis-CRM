@@ -8,7 +8,9 @@ import {
   LayoutDashboard, FolderKanban, LogOut, ChevronDown, MessageSquare, Bell, X,
 } from "lucide-react";
 import { logoutSession } from "@/lib/session";
-import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
+import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
+import { ProfileAvatar, ProfileInfoRows } from "@/app/components/StaffProfileMenu";
+import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
@@ -35,7 +37,7 @@ const navItems = [
   { title: "My Projects", shortTitle: "Projects", href: `${BASE}/my-projects`, icon: FolderKanban },
 ];
 
-type UserInfo = { name: string; email: string; role: string; profilePic?: string | null };
+type UserInfo = AuthUser;
 
 export default function EstimatorSidebar() {
   const router = useRouter();
@@ -89,7 +91,7 @@ export default function EstimatorSidebar() {
   useEffect(() => {
     const apply = (u: UserInfo | null) => { if (u) setUser(u); };
     apply(peekAuthMe());
-    void getAuthMe().then(u => apply(u as UserInfo | null)).catch(() => {});
+    void getAuthMe(true).then(u => apply(u as UserInfo | null)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -156,12 +158,7 @@ export default function EstimatorSidebar() {
     }
   };
 
-  const initials = (user?.name ?? "ES")
-    .split(" ")
-    .map(w => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  return (
 
   return (
     <>
@@ -305,22 +302,14 @@ export default function EstimatorSidebar() {
                 onClick={() => setProfileOpen(v => !v)}
                 className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10 transition-colors"
               >
-                <div
-                  className="w-8 h-8 rounded-[11px] text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden"
-                  style={{ background: ACCENT }}
-                >
-                  {user?.profilePic ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" />
-                  ) : (
-                    initials
-                  )}
-                </div>
+                <ProfileAvatar user={user} fallback="ES" />
                 <div className="hidden lg:block text-left">
                   <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">
                     {user?.name ?? "Estimator"}
                   </p>
-                  <p className="text-[10px] text-crm-text-muted mt-1">Estimator</p>
+                  <p className="text-[10px] text-crm-text-muted mt-1">
+                    {user?.csrCode ?? roleDisplayLabel(user?.role)}
+                  </p>
                 </div>
                 <ChevronDown
                   size={13}
@@ -330,20 +319,14 @@ export default function EstimatorSidebar() {
               {profileOpen && (
                 <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
                   <div className="bg-gradient-to-br from-[#7C3AED] to-[#5B21B6] px-4 py-4 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center text-lg font-bold shrink-0 overflow-hidden">
-                      {user?.profilePic ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" />
-                      ) : (
-                        initials
-                      )}
-                    </div>
+                    <ProfileAvatar user={user} size="md" fallback="ES" />
                     <div className="min-w-0">
                       <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Estimator"}</p>
                       <p className="text-white/65 text-[11px] truncate mt-0.5">{user?.email ?? "—"}</p>
                     </div>
                   </div>
-                  <div className="p-3">
+                  <ProfileInfoRows user={user} />
+                  <div className="px-3 pb-3">
                     <button
                       type="button"
                       onClick={() => void handleLogout()}

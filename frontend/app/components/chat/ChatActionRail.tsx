@@ -11,6 +11,8 @@ import {
   VolumeX,
   Archive,
   ArchiveRestore,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 interface ChatActionRailProps {
@@ -25,6 +27,8 @@ interface ChatActionRailProps {
   onArchiveToggle?: () => void;
   onClose?: () => void;
   readOnly?: boolean;
+  isFullscreen?: boolean;
+  onFullscreen?: () => void;
 }
 
 const btn =
@@ -42,6 +46,8 @@ export default function ChatActionRail({
   onArchiveToggle,
   onClose,
   readOnly,
+  isFullscreen,
+  onFullscreen,
 }: ChatActionRailProps) {
   return (
     <nav className="w-12 shrink-0 flex flex-col items-center gap-1.5 py-3 px-1.5 border-r border-gray-100 bg-[#F5F6FA]">
@@ -108,6 +114,17 @@ export default function ChatActionRail({
         className={`${btn} bg-[#B8112D] text-white hover:bg-[#a30f27]`}
       >
         <Plus size={15} />
+      </button>
+      )}
+
+      {onFullscreen && (
+      <button
+        type="button"
+        onClick={onFullscreen}
+        title={isFullscreen ? "Exit fullscreen" : "Fullscreen chat"}
+        className={`${btn} ${isFullscreen ? "bg-[#B8112D] text-white" : "bg-white text-gray-500 hover:bg-[#FFF1F3] hover:text-[#B8112D]"}`}
+      >
+        {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
       </button>
       )}
 

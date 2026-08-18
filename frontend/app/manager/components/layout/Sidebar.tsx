@@ -12,7 +12,9 @@ import {
 import API from "@/lib/api";
 import { dismissNotification, getDismissedNotificationIds } from "@/lib/notificationDismiss";
 import { logoutSession } from "@/lib/session";
-import { getAuthMe, peekAuthMe } from "@/lib/authMeCache";
+import { getAuthMe, peekAuthMe, type AuthUser } from "@/lib/authMeCache";
+import { ProfileAvatar, ProfileInfoRows } from "@/app/components/StaffProfileMenu";
+import { roleDisplayLabel } from "@/lib/roleDisplay";
 import { useChatUnreadBadge } from "@/lib/useChatUnreadBadge";
 import { useChatEnabled } from "@/lib/useChatEnabled";
 import { forceStopChatUnreadPolling } from "@/lib/chatUnreadStore";
@@ -34,7 +36,7 @@ const navItems = [
   { title: "Bin",        shortTitle: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
 ];
 
-type UserInfo = { name: string; email: string; role: string; profilePic?: string | null };
+type UserInfo = AuthUser;
 
 type ScheduledCall = {
   id: string;
@@ -140,9 +142,7 @@ export default function ManagerSidebar() {
     }
   };
 
-  const initials = user?.name
-    ? user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
-    : "MG";
+  return (
 
   const todayCalls = scheduledCalls.filter(c => c.date === TODAY);
 
@@ -236,27 +236,34 @@ export default function ManagerSidebar() {
 
           <div ref={profileRef} className="relative shrink-0">
             <button type="button" onClick={() => { setProfileOpen(v => !v); setBellOpen(false); }} className="crm-profile-btn flex items-center gap-2 rounded-[14px] pl-1.5 pr-2.5 h-10">
-              <div className="w-8 h-8 rounded-[11px] bg-[#B8112D] text-white flex items-center justify-center font-bold text-xs overflow-hidden">
-                {user?.profilePic ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.profilePic} alt={user.name} className="w-full h-full object-cover" />
-                ) : initials}
+              <ProfileAvatar user={user} fallback="MG" />
+              <div className="hidden lg:block text-left">
+                <p className="text-[12px] font-bold leading-none text-crm-text max-w-[90px] truncate">{user?.name ?? "Admin"}</p>
+                <p className="text-[10px] text-crm-text-muted mt-1">{roleDisplayLabel(user?.role) || "Admin"}</p>
               </div>
               <ChevronDown size={13} className="hidden sm:block text-crm-text-faint" />
             </button>
             {profileOpen && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border shadow-2xl z-50 p-3">
-                <p className="font-bold text-sm truncate">{user?.name ?? "Admin"}</p>
-                <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+              <div className="absolute right-0 top-[calc(100%+10px)] w-[240px] bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-2xl z-50 overflow-hidden">
+                <div className="bg-gradient-to-br from-[#B8112D] to-[#7A0B1E] px-4 py-4 flex items-center gap-3">
+                  <ProfileAvatar user={user} size="md" fallback="MG" />
+                  <div className="min-w-0">
+                    <p className="text-white text-[14px] font-bold truncate">{user?.name ?? "Admin"}</p>
+                    <p className="text-white/65 text-[11px] truncate mt-0.5">{user?.email ?? "—"}</p>
+                  </div>
+                </div>
+                <ProfileInfoRows user={user} />
+                <div className="px-3 pb-3">
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
                   disabled={loggingOut}
-                  className="mt-3 w-full h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-2"
+                  className="w-full h-9 rounded-xl bg-[#FFF1F3] text-[#B8112D] text-sm font-semibold flex items-center justify-center gap-2"
                 >
                   <LogOut size={13} />
                   {loggingOut ? "Logging out…" : "Logout"}
                 </button>
+                </div>
               </div>
             )}
           </div>
