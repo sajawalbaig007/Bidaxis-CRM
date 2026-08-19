@@ -288,7 +288,7 @@ export async function buildAdminTabCountsPayload(filters?: {
   /* Same uniqueness as /admin/clients table: one client per phone */
   const rows = await prisma.lead.findMany({
     where: buildAdminClientListWhere("all", csrName, search, undefined, extras),
-    select: { id: true, phone: true, status: true, nextSchedule: true },
+    select: { id: true, phone: true, company: true, status: true, nextSchedule: true },
     orderBy: { updatedAt: "desc" },
   });
 
