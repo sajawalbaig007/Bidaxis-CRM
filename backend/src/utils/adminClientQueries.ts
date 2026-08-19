@@ -1,4 +1,6 @@
 import type { Prisma } from "@prisma/client";
+import { wonClientStatusWhere } from "./projectLeads";
+import { notInBinFilter } from "./binLeads";
 
 export type AdminClientView = "all" | "important" | "schedule" | "interested" | "closed";
 
@@ -66,27 +68,13 @@ export function scheduledCallWhere(): Prisma.LeadWhereInput {
 
 
 
-/** Real closed clients — not bulk `completed` upload/job rows without a project. */
-function hasWonClientIdentityWhere(): Prisma.LeadWhereInput {
-  return {
-    OR: [
-      { AND: [{ projectTitle: { isSet: true } }, { NOT: { projectTitle: "" } }] },
-      { AND: [{ clientCode: { isSet: true } }, { NOT: { clientCode: "" } }] },
-    ],
-  };
-}
-
+/** CSR Clients page: won deals assigned to a CSR, not in bin (New + Old). */
 export function closedClientStatusWhere(): Prisma.LeadWhereInput {
   return {
-    OR: [
-      { status: { equals: "Close Client", mode: "insensitive" } },
-      { status: { equals: "closed", mode: "insensitive" } },
-      {
-        AND: [
-          { status: { equals: "completed", mode: "insensitive" } },
-          hasWonClientIdentityWhere(),
-        ],
-      },
+    AND: [
+      wonClientStatusWhere(),
+      notInBinFilter(),
+      { csr: { is: { role: "csr" } } },
     ],
   };
 }
@@ -117,19 +105,30 @@ export function adminClientBucket(
   return null;
 }
 
-/** Same uniqueness as the Admin Leads table: one row per phone (empty/short phone stays unique by id). */
-export function uniqueLeadsByPhone<T extends { id: string; phone?: string | null }>(leads: T[]): T[] {
+/** Same uniqueness as CSR Clients: one row per phone, else company, else id. */
+export function uniqueLeadsByClientIdentity<T extends {
+  id: string;
+  phone?: string | null;
+  company?: string | null;
+}>(leads: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
   for (const lead of leads) {
     const digits = (lead.phone ?? "").replace(/\D/g, "");
-    const key = digits.length >= 7 ? digits : lead.id;
+    const co = (lead.company ?? "").trim().toLowerCase();
+    const key =
+      digits.length >= 7 ? `phone:${digits}`
+      : co ? `company:${co}`
+      : `id:${lead.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(lead);
   }
   return out;
 }
+
+/** @deprecated alias — use uniqueLeadsByClientIdentity */
+export const uniqueLeadsByPhone = uniqueLeadsByClientIdentity;
 
 export function buildAdminClientViewWhere(view: AdminClientView): Prisma.LeadWhereInput {
   switch (view) {

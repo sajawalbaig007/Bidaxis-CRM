@@ -286,8 +286,8 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 
     const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:v3:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-      : "admin:clients:tab-counts:v3";
+      ? `admin:clients:tab-counts:v4:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
+      : "admin:clients:tab-counts:v4";
 
     if (!hasFilters) {
       const cached = getCache<object>(CACHE_KEY);
@@ -317,7 +317,7 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
 router.get("/clients/summary", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
   try {
-    const CACHE_KEY = "admin:clients:summary:v3";
+    const CACHE_KEY = "admin:clients:summary:v4";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
@@ -345,7 +345,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:v3:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v4:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -357,10 +357,11 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
 
     const identityRows = await prisma.lead.findMany({
       where,
-      select: { id: true, phone: true },
-      orderBy: { updatedAt: "desc" },
+      select: { id: true, phone: true, company: true, updatedAt: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
     });
-    const uniqueRows = uniqueLeadsByPhone(identityRows);
+    const uniqueRows = uniqueLeadsByPhone(identityRows)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     const total = uniqueRows.length;
     const pageIds = uniqueRows
       .slice((page - 1) * limit, page * limit)
