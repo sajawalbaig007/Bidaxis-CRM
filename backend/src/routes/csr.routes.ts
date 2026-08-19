@@ -48,6 +48,7 @@ import {
   mapDashboardLead,
   type CsrTabKey,
 } from "../utils/csrDashboardQueries";
+import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { allocateNextProjectCode } from "../utils/nextProjectCode";
 
 const router = express.Router();
@@ -1529,7 +1530,6 @@ router.post("/offline", verifyToken, allowRoles("csr"), async (req: any, res) =>
 /* ================= TRADES (read-only for CSR) ================= */
 router.get("/trades", verifyToken, allowRoles("csr"), async (_req, res) => {
   try {
-    const { ensureMasterFormatTrades } = await import("../utils/masterFormatTrades");
     await ensureMasterFormatTrades();
     const trades = await prisma.trade.findMany({ orderBy: { name: "asc" } });
     return res.json({ success: true, trades });

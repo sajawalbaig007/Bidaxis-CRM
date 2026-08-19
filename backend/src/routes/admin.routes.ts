@@ -34,6 +34,7 @@ import {
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
 } from "../utils/adminClientQueries";
+import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
 import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_SESSION_TIMEZONE, ADMIN_SESSION_TZ_LABEL } from "../utils/estTime";
@@ -3758,7 +3759,6 @@ router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "man
 /* ================= TRADES ================= */
 router.get("/trades", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
   try {
-    const { ensureMasterFormatTrades } = await import("../utils/masterFormatTrades");
     await ensureMasterFormatTrades();
     const trades = await prisma.trade.findMany({ orderBy: { name: "asc" } });
     return res.json({ success: true, trades });
