@@ -431,52 +431,49 @@ export default function CSRPage() {
         {/* ── TABLE SECTION ── */}
         <div className="bg-white dark:bg-crm-surface rounded-2xl sm:rounded-[28px] p-4 sm:p-5 lg:p-6 shadow-sm mt-4 sm:mt-5 border border-gray-100 dark:border-crm-border crm-table-card overflow-visible">
           <div className="flex flex-col gap-3 sm:gap-4 overflow-visible">
-            {/* Title + filters — overflow-visible so dropdown panels are not clipped */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 overflow-visible">
-              <div className="shrink-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A] dark:text-gray-100">Client Calls</h3>
                 <p className="text-gray-500 dark:text-gray-400 mt-0.5 text-xs sm:text-[13px]">Manage assigned client calls.</p>
               </div>
-
-              <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1 sm:justify-end overflow-visible">
-                <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1 sm:flex-none overflow-visible">
-                  <div className="relative">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                      placeholder="Search name, company, phone…"
-                      className={`h-8 sm:h-10 pl-8 pr-8 rounded-xl border text-xs sm:text-sm outline-none w-[180px] sm:w-[220px] ${
-                        searchQuery.trim()
-                          ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
-                          : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600"
-                      }`}
-                    />
-                    {searchQuery && (
-                      <button type="button" onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B8112D]">
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                  <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
-                  <TimezoneFilterDropdown value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
-                  <SourceSudoFilterDropdown value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
-                  <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
-                  <select
-                    value={tradeFilter}
-                    onChange={e => { setTradeFilter(e.target.value); setPage(1); }}
-                    className="h-8 rounded-xl border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#B8112D] cursor-pointer max-w-[180px]"
-                    title="Filter by trade"
-                  >
-                    <option value="">All Trades</option>
-                    {tradeFilterOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="bg-[#ECFDF3] text-[#027A48] px-3 py-1.5 rounded-xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A]" />Live Tracking
-                </div>
+              <div className="bg-[#ECFDF3] text-[#027A48] px-3 py-1.5 rounded-xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A]" />Live Tracking
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 overflow-visible">
+              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-[280px]">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                  placeholder="Search name, company, phone…"
+                  className={`h-10 sm:h-[42px] w-full pl-8 pr-8 rounded-xl sm:rounded-2xl border text-xs sm:text-sm outline-none ${
+                    searchQuery.trim()
+                      ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                      : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600"
+                  }`}
+                />
+                {searchQuery && (
+                  <button type="button" onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B8112D]">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+              <StateFilterDropdown compact value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
+              <TimezoneFilterDropdown compact value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
+              <SourceSudoFilterDropdown compact value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
+              <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
+              <select
+                value={tradeFilter}
+                onChange={e => { setTradeFilter(e.target.value); setPage(1); }}
+                className="h-10 sm:h-[42px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input px-3 text-xs sm:text-sm text-gray-700 dark:text-crm-text-secondary outline-none focus:border-[#B8112D] cursor-pointer min-w-[120px] max-w-[180px]"
+                title="Filter by trade"
+              >
+                <option value="">All Trades</option>
+                {tradeFilterOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             {hasTableFilters && tabTotal > CSR_FILTER_BATCH_SIZE && (
               <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5">

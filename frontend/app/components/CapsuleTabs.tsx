@@ -22,9 +22,9 @@ type CapsuleTabsProps<K extends string> = {
 };
 
 const SIZES = {
-  sm: { chip: "h-8 px-2.5 text-[11px] gap-1.5", icon: 13, badge: "text-[9px] px-1.5 h-4" },
-  md: { chip: "h-10 px-3.5 sm:px-4 text-[12px] sm:text-[13px] gap-2", icon: 15, badge: "text-[10px] px-1.5 h-[18px]" },
-  lg: { chip: "h-11 sm:h-12 px-4 sm:px-5 text-[13px] sm:text-sm gap-2", icon: 16, badge: "text-[11px] px-2 h-5" },
+  sm: { chip: "h-8 px-2.5 text-[11px] gap-1.5", icon: 13, badge: "text-[9px] px-1.5 min-w-[18px] h-4" },
+  md: { chip: "h-10 px-3.5 sm:px-4 text-[12px] sm:text-[13px] gap-2", icon: 15, badge: "text-[10px] px-2 min-w-[22px] h-[18px]" },
+  lg: { chip: "h-11 sm:h-12 px-4 sm:px-5 text-[13px] sm:text-sm gap-2", icon: 16, badge: "text-[11px] px-2 min-w-[24px] h-5" },
 } as const;
 
 /**

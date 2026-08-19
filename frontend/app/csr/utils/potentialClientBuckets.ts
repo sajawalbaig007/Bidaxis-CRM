@@ -26,12 +26,13 @@ export function isInterestedLead(lead: { status?: string; interested?: boolean }
   return isInterestedLeadStatus(lead);
 }
 
-export type PotentialTab = "important" | "schedule" | "interested";
+export type PotentialTab = "all" | "important" | "schedule" | "interested";
 
 export function matchesPotentialTab(
   lead: { status?: string; important?: boolean; interested?: boolean; nextSchedule?: string | null },
   tab: PotentialTab,
 ): boolean {
+  if (tab === "all") return isImportantOnly(lead) || isScheduledCall(lead) || isInterestedLead(lead);
   if (tab === "important") return isImportantOnly(lead);
   if (tab === "schedule") return isScheduledCall(lead);
   return isInterestedLead(lead);

@@ -4,7 +4,6 @@ import { buildBinWhere, buildNotBinWhere } from "./binLeads";
 import {
   adminClientBucket,
   buildAdminClientListWhere,
-  buildAdminClientViewWhere,
   importantOnlyWhere,
   isImportantStatusWhere,
   isInterestedStatusWhere,
@@ -331,7 +330,7 @@ export async function buildAdminClientSummaryPayload() {
 
   const [
     pipeline,
-    closedTab,
+    uniqueTabCounts,
     todayCompletedCalls,
     totalCompletedCalls,
     recent,
@@ -343,7 +342,7 @@ export async function buildAdminClientSummaryPayload() {
     totalOnline,
   ] = await Promise.all([
     pipelinePromise,
-    prisma.lead.count({ where: buildAdminClientViewWhere("closed") }),
+    buildAdminTabCountsPayload(),
     prisma.callLog.count({
       where: { createdAt: { gte: todayStart, lt: tomorrowStart } },
     }),
@@ -425,20 +424,21 @@ export async function buildAdminClientSummaryPayload() {
     totalLeads,
     pending,
     interested,
-    projectWon,
     importantOnly,
     scheduled,
     other,
     inBin,
     legacyCompleted,
   } = pipeline;
+  const tabCounts = uniqueTabCounts.tabCounts;
+  const uniqueClosed = tabCounts.closed;
 
   const distribution: Record<string, number> = {
     Pending: pending,
     Important: importantOnly,
     Schedule: scheduled,
     Interested: interested,
-    "Close Client": projectWon,
+    "Close Client": uniqueClosed,
   };
   if (legacyCompleted > 0) distribution.Completed = legacyCompleted;
   if (other > 0) distribution.Other = other;
@@ -453,23 +453,17 @@ export async function buildAdminClientSummaryPayload() {
       importantOnly,
       scheduled,
       interested,
-      projectWon,
+      projectWon: uniqueClosed,
       /** All-time CallLog rows = every CSR status update */
       completed: totalCompletedCalls,
-      closed: closedTab,
+      closed: uniqueClosed,
       todayCompletedCalls,
       other,
       inBin,
       onlineCSRs,
       totalOnline,
     },
-    tabCounts: {
-      all: totalLeads,
-      important: importantOnly,
-      schedule: scheduled,
-      interested,
-      closed: closedTab,
-    },
+    tabCounts,
     distribution,
     recent,
     recentStatus: recentStatusLogs.map(log => ({

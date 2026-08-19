@@ -7,12 +7,14 @@ interface SourceSudoFilterDropdownProps {
   value: string;
   options: string[];
   onChange: (v: string) => void;
+  compact?: boolean;
 }
 
 export default function SourceSudoFilterDropdown({
   value,
   options,
   onChange,
+  compact = false,
 }: SourceSudoFilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -48,15 +50,15 @@ export default function SourceSudoFilterDropdown({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors min-w-[130px] sm:min-w-[160px] ${
+        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 transition-colors ${compact ? "min-w-[110px] sm:min-w-[132px]" : "min-w-[130px] sm:min-w-[160px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 bg-[#FAFAFA] text-gray-600 hover:border-gray-300"
         }`}
       >
         <FileInput size={12} className="shrink-0 sm:w-[14px] sm:h-[14px]" />
-        <span className="truncate max-w-[100px] sm:max-w-[120px]">
-          {value || "Source (sudo)"}
+        <span className={`truncate ${compact ? "max-w-[72px] sm:max-w-[96px]" : "max-w-[100px] sm:max-w-[120px]"}`}>
+          {value || (compact ? "Source" : "Source (sudo)")}
         </span>
         {value ? (
           <span

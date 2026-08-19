@@ -7,9 +7,10 @@ import { TIMEZONE_FILTER_OPTIONS, tzBadgeClass } from "../../constants/timezoneA
 interface TimezoneFilterDropdownProps {
   value: string;
   onChange: (v: string) => void;
+  compact?: boolean;
 }
 
-export default function TimezoneFilterDropdown({ value, onChange }: TimezoneFilterDropdownProps) {
+export default function TimezoneFilterDropdown({ value, onChange, compact = false }: TimezoneFilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -35,7 +36,7 @@ export default function TimezoneFilterDropdown({ value, onChange }: TimezoneFilt
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors min-w-[150px] sm:min-w-[190px] ${
+        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${compact ? "min-w-[120px] sm:min-w-[148px]" : "min-w-[150px] sm:min-w-[190px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"
@@ -43,7 +44,7 @@ export default function TimezoneFilterDropdown({ value, onChange }: TimezoneFilt
       >
         <Clock size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
         <span className="flex-1 text-left truncate text-[12px] sm:text-[13px]">
-          {selected ? `${selected.abbr} · ${selected.label}` : "Phone TZ (ET/CT/MT/PT)"}
+          {selected ? (compact ? selected.abbr : `${selected.abbr} · ${selected.label}`) : (compact ? "Phone TZ" : "Phone TZ (ET/CT/MT/PT)")}
         </span>
         {value ? (
           <span
