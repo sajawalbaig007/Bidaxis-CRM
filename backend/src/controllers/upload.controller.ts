@@ -13,9 +13,73 @@ import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 import { findLeadsByPhonesBulk } from "../utils/leadPhoneLookup";
+import { parseSubContactsCell, parseTradeList } from "../utils/masterFormatTrades";
+import type { ParsedLeadRow } from "../utils/uploadExcelParse";
 
 const CHUNK_INSERT = 1000;
 const BATCH_UPDATE = 30;
+
+async function upsertTradesFromRows(rawValues: (string | null | undefined)[]) {
+  const names = new Set<string>();
+  for (const raw of rawValues) {
+    for (const t of parseTradeList(raw)) names.add(t);
+  }
+  if (names.size === 0) return;
+  await prisma.trade.createMany({
+    data: [...names].map(name => ({ name })),
+    skipDuplicates: true,
+  });
+}
+
+async function attachExcelSubContacts(uploadedFileId: string, rows: ParsedLeadRow[]) {
+  const withContacts = rows.filter(r => r.subContactsRaw?.trim());
+  if (withContacts.length === 0) return;
+
+  const created = await prisma.lead.findMany({
+    where: { uploadedFileId },
+    select: { id: true, phone: true, name: true, email: true },
+  });
+
+  const used = new Set<string>();
+  const payloads: { leadId: string; name: string; designation?: string; phone?: string; email?: string }[] = [];
+
+  for (const row of withContacts) {
+    const contacts = parseSubContactsCell(row.subContactsRaw);
+    if (contacts.length === 0) continue;
+    const lead =
+      created.find(l => row.phone && l.phone === row.phone && !used.has(l.id)) ||
+      created.find(l => row.name && l.name === row.name && row.email && l.email === row.email && !used.has(l.id)) ||
+      created.find(l => row.name && l.name === row.name && !used.has(l.id));
+    if (!lead) continue;
+    used.add(lead.id);
+    for (const c of contacts) {
+      payloads.push({
+        leadId: lead.id,
+        name: c.name,
+        designation: c.designation,
+        phone: c.phone,
+        email: c.email,
+      });
+    }
+  }
+
+  if (payloads.length === 0) return;
+  await prisma.subContact.createMany({ data: payloads });
+}
+
+async function attachSubContactsToLead(leadId: string, raw: string | null | undefined) {
+  const contacts = parseSubContactsCell(raw);
+  if (contacts.length === 0) return;
+  await prisma.subContact.createMany({
+    data: contacts.map(c => ({
+      leadId,
+      name: c.name,
+      designation: c.designation,
+      phone: c.phone,
+      email: c.email,
+    })),
+  });
+}
 
 /** Clear bin flags when upload restores / moves a lead onto a target page */
 const CLEAR_BIN = {
@@ -301,6 +365,10 @@ export const uploadLeads = async (req: Request, res: Response) => {
       } else if (!opts?.skipEmptyInterestedService) {
         data.interestedService = null;
       }
+      const rowTrade = r.trade?.trim();
+      if (rowTrade) data.trade = rowTrade;
+      else if (tradeName) data.trade = tradeName;
+      if (r.subTrades?.trim()) data.subTrades = r.subTrades.trim();
       return data;
     };
 
@@ -342,6 +410,7 @@ export const uploadLeads = async (req: Request, res: Response) => {
       for (const { row } of toRestore) {
         distributionMap[row.csrName] = (distributionMap[row.csrName] || 0) + 1;
       }
+      await Promise.all(toRestore.map(({ row, existingId }) => attachSubContactsToLead(existingId, row.subContactsRaw)));
     }
 
     if (!isActiveUpload && toPromote.length > 0) {
@@ -417,12 +486,16 @@ export const uploadLeads = async (req: Request, res: Response) => {
         uploadedFileId:    uploadedFile.id,
         hiddenOnMain:      hideOnMain(r.status),
         inBin:             false,
-        trade:             tradeName || null,
+        trade:             r.trade?.trim() || tradeName || null,
+        subTrades:         r.subTrades?.trim() || null,
       }));
 
       for (let i = 0; i < insertRows.length; i += CHUNK_INSERT) {
         await prisma.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
       }
+
+      await attachExcelSubContacts(uploadedFile.id, fresh);
+      await upsertTradesFromRows([...fresh.map(r => r.trade), tradeName]);
 
       for (const r of fresh) {
         distributionMap[r.csrName] = (distributionMap[r.csrName] || 0) + 1;

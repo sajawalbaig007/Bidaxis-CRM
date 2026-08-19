@@ -2,12 +2,15 @@ import type { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 import { buildBinWhere, buildNotBinWhere } from "./binLeads";
 import {
+  adminClientBucket,
   buildAdminClientListWhere,
   buildAdminClientViewWhere,
   importantOnlyWhere,
   isImportantStatusWhere,
   isInterestedStatusWhere,
   scheduledCallWhere,
+  uniqueLeadsByPhone,
+  type AdminClientBucket,
 } from "./adminClientQueries";
 import {
   addDaysToYmd,
@@ -283,27 +286,36 @@ export async function buildAdminTabCountsPayload(filters?: {
   const scheduleDate = filters?.scheduleDate;
   const csrName = filters?.csrName;
 
-  const [all, important, schedule, interested, closed] = await Promise.all([
-    prisma.lead.count({
-      where: buildAdminClientListWhere("all", csrName, search, undefined, extras),
-    }),
-    prisma.lead.count({
-      where: buildAdminClientListWhere("important", csrName, search, undefined, extras),
-    }),
-    prisma.lead.count({
-      where: buildAdminClientListWhere("schedule", csrName, search, scheduleDate, extras),
-    }),
-    prisma.lead.count({
-      where: buildAdminClientListWhere("interested", csrName, search, undefined, extras),
-    }),
-    prisma.lead.count({
-      where: buildAdminClientListWhere("closed", csrName, search, undefined, extras),
-    }),
-  ]);
+  /* Same uniqueness as /admin/clients table: one client per phone */
+  const rows = await prisma.lead.findMany({
+    where: buildAdminClientListWhere("all", csrName, search, undefined, extras),
+    select: { id: true, phone: true, status: true, nextSchedule: true },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const buckets: Record<AdminClientBucket, typeof rows> = {
+    important: [],
+    schedule: [],
+    interested: [],
+    closed: [],
+  };
+  for (const row of rows) {
+    const bucket = adminClientBucket(row.status, row.nextSchedule);
+    if (bucket) buckets[bucket].push(row);
+  }
+  if (scheduleDate) {
+    buckets.schedule = buckets.schedule.filter(l => l.nextSchedule === scheduleDate);
+  }
 
   return {
     success: true,
-    tabCounts: { all, important, schedule, interested, closed },
+    tabCounts: {
+      all: uniqueLeadsByPhone(rows).length,
+      important: uniqueLeadsByPhone(buckets.important).length,
+      schedule: uniqueLeadsByPhone(buckets.schedule).length,
+      interested: uniqueLeadsByPhone(buckets.interested).length,
+      closed: uniqueLeadsByPhone(buckets.closed).length,
+    },
   };
 }
 

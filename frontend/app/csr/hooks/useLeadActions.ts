@@ -35,6 +35,9 @@ const LEAD_SAFE_PATCH_KEYS = new Set([
   "comments",
   "hiddenOnMain",
   "statusUpdatedAt",
+  "trade",
+  "subTrades",
+  "tradeNotes",
 ]);
 
 function safeLeadPatch(payload: Record<string, unknown>): Partial<Lead> {
@@ -108,7 +111,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
             : n,
         );
       } else {
-        nextHistory = [optimistic, ...hist];
+        nextHistory = [...hist, optimistic];
       }
       return {
         ...l,
@@ -147,7 +150,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
         }
         return {
           ...l,
-          noteHistory: [note, ...hist.filter(n => n.id !== optimistic.id)],
+          noteHistory: [...hist.filter(n => n.id !== optimistic.id), note],
         };
       }));
       return note;
@@ -237,7 +240,7 @@ export function useLeadActions(setLeads: Dispatch<SetStateAction<Lead[]>>) {
             return n;
           });
         const noteHistory = patchDeep([...(l.noteHistory ?? [])]).sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         );
         return { ...l, noteHistory };
       }),

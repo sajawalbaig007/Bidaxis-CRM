@@ -139,7 +139,7 @@ const STATUS_STYLE: Record<RowResult["status"], { bg: string; text: string; labe
 
 /** Excel templates Admin should fill before each upload box */
 const UPLOAD_TEMPLATES = {
-  callData:   { href: "/upload-templates/CRM-Call-Data-Template.xlsx",           label: "Call Data",       cols: "Name, Company, Phone, Email, State" },
+  callData:   { href: "/upload-templates/CRM-Call-Data-Template.xlsx",           label: "Call Data",       cols: "Name, Company, Phone, Email, State, Sub Contacts, Trades, Sub Trades" },
   newClient:  { href: "/upload-templates/CRM-New-Clients-Template.xlsx",         label: "New Clients",     cols: "+ Code, Project, Quotation, Service, Notes" },
   oldClient:  { href: "/upload-templates/CRM-Old-Clients-Template.xlsx",         label: "Old Clients",     cols: "+ Code, Project, Quotation, Service, Notes" },
   important:  { href: "/upload-templates/CRM-Important-Clients-Template.xlsx",   label: "Important",       cols: "Name, Company, Phone, Email, State, Notes" },

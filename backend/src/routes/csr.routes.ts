@@ -219,12 +219,14 @@ router.get("/notifications", verifyToken, allowRoles("csr"), async (req: any, re
 router.get("/stats", verifyToken, allowRoles("csr"), async (req: any, res) => {
   try {
     const csrId    = req.user.id;
-    const cacheKey = `csr:stats:${csrId}`;
+    const from   = typeof req.query.from === "string" ? req.query.from : undefined;
+    const to     = typeof req.query.to === "string" ? req.query.to : undefined;
+    const cacheKey = `csr:stats:${csrId}:${from ?? ""}:${to ?? ""}`;
 
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const stats = await getCsrLeadStats(csrId);
+    const stats = await getCsrLeadStats(csrId, from, to);
     const payload = { success: true, stats };
     setCache(cacheKey, payload, 45_000);
     return res.json(payload);
@@ -740,6 +742,9 @@ router.put("/lead/:id", verifyToken, allowRoles("csr"), async (req: any, res) =>
     if (req.body.pricingDeadline  !== undefined) updateData.pricingDeadline  = req.body.pricingDeadline;
     if (req.body.qaDeadline       !== undefined) updateData.qaDeadline       = req.body.qaDeadline;
     if (req.body.clientCode       !== undefined) updateData.clientCode       = req.body.clientCode;
+    if (req.body.trade            !== undefined) updateData.trade            = req.body.trade;
+    if (req.body.subTrades        !== undefined) updateData.subTrades        = req.body.subTrades;
+    if (req.body.tradeNotes       !== undefined) updateData.tradeNotes       = req.body.tradeNotes;
     const payments = normalizePaymentsInput(req.body.projectPayments);
     if (payments !== undefined) {
       // CSR cannot add/change payment slip links — Admin / Manager only
@@ -1524,6 +1529,8 @@ router.post("/offline", verifyToken, allowRoles("csr"), async (req: any, res) =>
 /* ================= TRADES (read-only for CSR) ================= */
 router.get("/trades", verifyToken, allowRoles("csr"), async (_req, res) => {
   try {
+    const { ensureMasterFormatTrades } = await import("../utils/masterFormatTrades");
+    await ensureMasterFormatTrades();
     const trades = await prisma.trade.findMany({ orderBy: { name: "asc" } });
     return res.json({ success: true, trades });
   } catch (error) {

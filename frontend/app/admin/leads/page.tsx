@@ -26,6 +26,7 @@ import {
   CalendarDays,
   ArrowRightLeft,
   Check,
+  Layers,
 } from "lucide-react";
 
 /* ─── COMPONENTS ─── */
@@ -79,10 +80,10 @@ type Client = {
 };
 
 const PAGE_SIZE = 30;
-type ClientView = "important" | "schedule" | "interested" | "closed";
+type ClientView = "all" | "important" | "schedule" | "interested" | "closed";
 
 function isClientView(v: string | null): v is ClientView {
-  return v === "important" || v === "schedule" || v === "interested" || v === "closed";
+  return v === "all" || v === "important" || v === "schedule" || v === "interested" || v === "closed";
 }
 
 function LeadsPageFallback() {
@@ -371,38 +372,25 @@ function ClientsPageContent() {
       leadColPredicates,
     );
 
-  function clientViewBucket(c: Client): ClientView | null {
-    const s = c.rawStatus.toLowerCase();
-    const hasSchedule = !!(c.nextFollowup && c.nextFollowup.trim());
-    if (s === "important" && hasSchedule) return "schedule";
-    if (s === "important") return "important";
-    if (s === "interested") return "interested";
-    if (["close client", "completed", "closed"].includes(s)) return "closed";
-    return null;
-  }
-
-  // Tab counts come from API (including search/state/phone). Column filters only adjust
-  // the active tab count from the current page when those header filters are on.
+  // Pill counts use the same unique-client total as the table heading.
   const filteredTabCounts = useMemo(() => {
-    if (!hasActiveFilters) return tabCounts;
     const counts = { ...tabCounts };
-    const bucket = effectiveView;
-    if (bucket === "important" || bucket === "schedule" || bucket === "interested" || bucket === "closed") {
-      counts[bucket] = colFilteredClients.filter(c => clientViewBucket(c) === bucket).length;
-    }
+    if (!loading) counts[effectiveView] = totalRecords;
     return counts;
-  }, [hasActiveFilters, colFilteredClients, tabCounts, effectiveView]);
+  }, [tabCounts, effectiveView, totalRecords, loading]);
 
   const locationFiltersActive = !!(stateFilter.trim() || phoneFilter.trim() || activeSearchQ.trim());
 
   const visibleTabs = useMemo<CapsuleTabItem<ClientView>[]>(() => {
     const all: CapsuleTabItem<ClientView>[] = [
+      { key: "all", label: "All", count: filteredTabCounts.all, icon: Layers },
       { key: "important", label: "Important", count: filteredTabCounts.important, icon: CircleAlert },
       { key: "schedule", label: "Schedule Call", count: filteredTabCounts.schedule, icon: CalendarDays },
       { key: "interested", label: "Interested", count: filteredTabCounts.interested, icon: HeartHandshake },
       { key: "closed", label: "Closed", count: filteredTabCounts.closed, icon: BadgeCheck },
     ];
-    return hasActiveFilters || locationFiltersActive ? all.filter(t => (t.count ?? 0) > 0) : all;
+    if (!(hasActiveFilters || locationFiltersActive)) return all;
+    return all.filter(t => t.key === "all" || (t.count ?? 0) > 0);
   }, [filteredTabCounts, hasActiveFilters, locationFiltersActive]);
 
   const paginatedClients  = colFilteredClients;
@@ -414,11 +402,12 @@ function ClientsPageContent() {
   const tableColWidths = isScheduleView ? COL_7_SCHEDULE_ADMIN : isClosedView ? COL_7_CLOSED : COL_6_ADMIN;
 
   const tableTitle =
-    effectiveView === "interested" ? "Interested Clients"
+    effectiveView === "all"        ? "All Clients"
+    : effectiveView === "interested" ? "Interested Clients"
     : effectiveView === "closed"   ? "Closed Clients"
     : effectiveView === "important"? "Important Clients"
     : effectiveView === "schedule" ? "Schedule Call"
-    : "Important Clients";
+    : "All Clients";
 
   const tableHeaders = isScheduleView
     ? ["Client", "Next Schedule", "Time", "CSR", "Status", "Notes", ""]

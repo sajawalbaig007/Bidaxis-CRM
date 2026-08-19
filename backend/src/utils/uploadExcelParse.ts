@@ -26,6 +26,9 @@ export type ParsedLeadRow = {
   projectTitle: string | null;
   projectBudget: string | null;
   comments: string | null;
+  trade: string;
+  subTrades: string;
+  subContactsRaw: string;
   csrId: string;
   csrName: string;
   status: string;
@@ -215,6 +218,12 @@ export function parseLeadRows(
       "notes", "note", "comments", "comment", "remarks", "remark",
       "conversation", "discussion", "talk", "history", "follow up", "followup",
     ], ["project"]),
+    trade:        resolveColumnKey(headerKeys, ["trades", "trade", "csi", "division"], ["sub"]),
+    subTrades:    resolveColumnKey(headerKeys, ["sub trades", "subtrades", "sub trade", "subtrade"]),
+    subContacts:  resolveColumnKey(headerKeys, [
+      "sub contacts", "subcontacts", "sub contact", "subcontact",
+      "additional contacts", "other contacts",
+    ]),
   };
 
   const parsed: ParsedLeadRow[] = [];
@@ -250,6 +259,9 @@ export function parseLeadRows(
       projectTitle: readCell(row, col.projectTitle) || (isActiveUpload ? "" : null),
       projectBudget: readCell(row, col.projectBudget) || null,
       comments: readCell(row, col.comments) || null,
+      trade: readCell(row, col.trade),
+      subTrades: readCell(row, col.subTrades),
+      subContactsRaw: readCell(row, col.subContacts),
       csrId: csr.id,
       csrName: csr.name,
       status: initialStatuses[i % initialStatuses.length],

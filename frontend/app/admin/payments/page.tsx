@@ -378,7 +378,7 @@ function ProjectList({
                               <td className="px-2.5 py-2.5 align-top">
                                 {pay.link ? (
                                   <a
-                                    href={pay.link}
+                                    href={/^https?:\/\//i.test(pay.link) ? pay.link : `https://${pay.link}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
@@ -386,7 +386,7 @@ function ProjectList({
                                     title={pay.link}
                                   >
                                     <ExternalLink size={11} className="shrink-0" />
-                                    <span className="truncate">Open link</span>
+                                    <span className="truncate">{pay.link}</span>
                                   </a>
                                 ) : (
                                   <span className="text-crm-text-faint">—</span>

@@ -45,7 +45,7 @@ export function nestNoteReplies(flat: NoteEntry[]): NoteEntry[] {
     }
   }
 
-  return sortNewestFirst(roots);
+  return sortOldestFirst(roots);
 }
 
 /** Flat count including nested replies (for +N badge). */

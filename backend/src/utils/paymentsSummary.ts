@@ -307,7 +307,12 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    const rowPayments = paidInScope
+    const rowById = new Map(paidInScope.map(e => [e.id, e]));
+    for (const entry of allPayments) {
+      const hasLink = typeof entry.link === "string" && entry.link.trim().length > 0;
+      if (hasLink || !monthFilter) rowById.set(entry.id, entry);
+    }
+    const rowPayments = [...rowById.values()]
       .map(entrySummary)
       .sort((a, b) => {
         const ta = a.paidAt || a.createdAt || "";
