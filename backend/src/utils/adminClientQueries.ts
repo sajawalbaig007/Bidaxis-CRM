@@ -19,6 +19,10 @@ export function isInterestedStatusWhere(): Prisma.LeadWhereInput {
 
 
 
+export function leadHasMeetingDate(nextSchedule?: string | null): boolean {
+  return !!(nextSchedule && String(nextSchedule).trim());
+}
+
 function noScheduleWhere(): Prisma.LeadWhereInput {
   return {
     OR: [
@@ -98,7 +102,7 @@ export function adminClientBucket(
   nextSchedule?: string | null,
 ): AdminClientBucket | null {
   const s = (status ?? "").toLowerCase();
-  const hasSchedule = !!(nextSchedule && String(nextSchedule).trim());
+  const hasSchedule = leadHasMeetingDate(nextSchedule);
   if (s === "important") return hasSchedule ? "schedule" : "important";
   if (s === "interested") return "interested";
   if (s === "close client" || s === "completed" || s === "closed") return "closed";
@@ -144,7 +148,7 @@ export function buildAdminClientViewWhere(view: AdminClientView): Prisma.LeadWhe
 
 
 export function buildAdminClientListWhere(
-  view: AdminClientView,
+  view: AdminClientView | "important_status",
   csrName?: string,
   search?: string,
   scheduleDate?: string,
@@ -154,7 +158,9 @@ export function buildAdminClientListWhere(
     areaCodes?: string[];
   },
 ): Prisma.LeadWhereInput {
-  const parts: Prisma.LeadWhereInput[] = [buildAdminClientViewWhere(view)];
+  const parts: Prisma.LeadWhereInput[] = [
+    view === "important_status" ? isImportantStatusWhere() : buildAdminClientViewWhere(view),
+  ];
 
   if (csrName && csrName !== "all") {
     parts.push({ csr: { name: csrName } });

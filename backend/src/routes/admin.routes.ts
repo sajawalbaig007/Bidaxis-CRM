@@ -31,6 +31,7 @@ import {
   scheduledCallWhere,
   isInterestedStatusWhere,
   uniqueLeadsByPhone,
+  leadHasMeetingDate,
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
 } from "../utils/adminClientQueries";
@@ -286,8 +287,8 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 
     const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:v4:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-      : "admin:clients:tab-counts:v4";
+      ? `admin:clients:tab-counts:v5:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
+      : "admin:clients:tab-counts:v5";
 
     if (!hasFilters) {
       const cached = getCache<object>(CACHE_KEY);
@@ -345,11 +346,12 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:v4:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v5:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const where = buildAdminClientListWhere(view, csrName, search, scheduleDate, {
+    const fetchView = view === "important" || view === "schedule" ? "important_status" : view;
+    const where = buildAdminClientListWhere(fetchView, csrName, search, undefined, {
       state,
       phonePrefix,
       areaCodes,
@@ -357,10 +359,18 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
 
     const identityRows = await prisma.lead.findMany({
       where,
-      select: { id: true, phone: true, company: true, updatedAt: true, createdAt: true },
+      select: { id: true, phone: true, company: true, nextSchedule: true, updatedAt: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
-    const uniqueRows = uniqueLeadsByPhone(identityRows)
+    const viewRows =
+      view === "important" ? identityRows.filter(l => !leadHasMeetingDate(l.nextSchedule))
+      : view === "schedule" ? identityRows.filter(l => {
+          if (!leadHasMeetingDate(l.nextSchedule)) return false;
+          if (scheduleDate) return l.nextSchedule === scheduleDate;
+          return true;
+        })
+      : identityRows;
+    const uniqueRows = uniqueLeadsByPhone(viewRows)
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     const total = uniqueRows.length;
     const pageIds = uniqueRows
