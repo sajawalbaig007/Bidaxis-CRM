@@ -40,7 +40,7 @@ const TEMPLATES = [
   {
     file: "CRM-Call-Data-Template.xlsx",
     sheet: "Call Data",
-    headers: ["Client Name", "Client Company", "Phone", "Email", "State"],
+    headers: ["Client Name", "Client Company", "Phone", "Email", "State", "Sub Contacts", "Trades", "Sub Trades"],
     samples: [
       {
         "Client Name": "John Smith",
@@ -48,6 +48,9 @@ const TEMPLATES = [
         Phone: "2145550100",
         Email: "john@jcair.com",
         State: "Texas",
+        "Sub Contacts": "Jane Doe | Manager | 2145550198 | jane@jcair.com",
+        Trades: "23 Heating, Ventilating, And Air Conditioning (HVAC), 22 Plumbing",
+        "Sub Trades": "Ductwork, Fixtures",
       },
       {
         "Client Name": "Maria Garcia",
@@ -60,7 +63,8 @@ const TEMPLATES = [
     instructions: [
       "Admin upload: Upload New Leads → Call Data",
       "CSR page: Call Data / Today Links (today's fresh leads)",
-      "Put ONLY: Client Name, Client Company, Phone, Email, State",
+      "Put: Client Name, Client Company, Phone, Email, State, Sub Contacts, Trades, Sub Trades",
+      "Multiple subcontacts / subtrades: separate with commas. Subcontact fields: Name | designation | phone | email",
       "NO Notes column — CSRs add notes while calling",
       "NO Interested Service / Client Code / Project",
       "Required: Client Name OR Phone (7+ digits)",
@@ -70,7 +74,7 @@ const TEMPLATES = [
   {
     file: "CRM-Important-Clients-Template.xlsx",
     sheet: "Important",
-    headers: ["Client Name", "Client Company", "Phone", "Email", "State", "Notes"],
+    headers: ["Client Name", "Client Company", "Phone", "Email", "State", "Notes", "Sub Contacts", "Trades", "Sub Trades"],
     samples: [
       {
         "Client Name": "Sarah Lee",
@@ -100,6 +104,9 @@ const TEMPLATES = [
       "State",
       "Interested Service",
       "Notes",
+      "Sub Contacts",
+      "Trades",
+      "Sub Trades",
     ],
     samples: [
       {
@@ -134,6 +141,9 @@ const TEMPLATES = [
       "Project Detail",
       "Quotation",
       "Notes",
+      "Sub Contacts",
+      "Trades",
+      "Sub Trades",
     ],
     samples: [
       {
@@ -172,6 +182,9 @@ const TEMPLATES = [
       "Project Detail",
       "Quotation",
       "Notes",
+      "Sub Contacts",
+      "Trades",
+      "Sub Trades",
     ],
     samples: [
       {
@@ -210,6 +223,9 @@ const TEMPLATES = [
       "Project Detail",
       "Quotation",
       "Notes",
+      "Sub Contacts",
+      "Trades",
+      "Sub Trades",
     ],
     samples: [
       {

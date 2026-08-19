@@ -161,6 +161,7 @@ export default function CommentCell({
   const [notesLoading, setNotesLoading] = useState(false);
   const [commentOverride, setCommentOverride] = useState<string | null>(null);
   const [editingComment, setEditingComment] = useState(false);
+  const [editingBidIndex, setEditingBidIndex] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentSaving, setCommentSaving] = useState(false);
 
@@ -195,7 +196,7 @@ export default function CommentCell({
     return roots.sort((a, b) => {
       const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       // Chat: oldest → newest (conversation flow). Sticky: newest first.
-      return chatStyle ? diff : -diff;
+      return chatStyle ? diff : diff;
     });
   })();
 
@@ -205,6 +206,9 @@ export default function CommentCell({
       ? effectiveComment
       : null
     : null;
+  const bidItems = commentOnly && effectiveComment
+    ? effectiveComment.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean)
+    : [];
 
   const latestAny = flattenNotes(displayNotes).sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -223,7 +227,7 @@ export default function CommentCell({
         (n) => n.id === extra.id || n.text === extra.text,
       ),
   ).length;
-  const count = baseCount + extrasUniqueCount + (legacyComment ? 1 : 0);
+  const count = baseCount + extrasUniqueCount + (commentOnly ? bidItems.length : (legacyComment ? 1 : 0));
   const canMutate = !readOnly;
   /** Technical thread notes use skipNotesFetch but still allow own-note edit/delete. Admin/TM can edit bid stickies too. */
   const canEditDelete =
@@ -550,11 +554,29 @@ export default function CommentCell({
       await onSave(id, text);
       setCommentOverride(text);
       setEditingComment(false);
+      setEditingBidIndex(null);
       setCommentDraft("");
       setDraft("");
     } finally {
       setCommentSaving(false);
     }
+  };
+
+  const saveBidAt = async (index: number, text: string) => {
+    const next = bidItems.map((b, i) => (i === index ? text.trim() : b)).filter(Boolean);
+    await saveCommentField(next.join("\n\n---\n\n"));
+  };
+
+  const deleteBidAt = async (index: number) => {
+    if (!confirm("Delete this bid instruction?")) return;
+    const next = bidItems.filter((_, i) => i !== index);
+    await saveCommentField(next.join("\n\n---\n\n"));
+  };
+
+  const addBidInstruction = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    await saveCommentField([...bidItems, text].join("\n\n---\n\n"));
   };
 
   const deleteCommentField = async () => {
@@ -779,7 +801,73 @@ export default function CommentCell({
       </div>
 
       <div className="max-h-[300px] overflow-y-auto p-2.5 space-y-2 bg-[#FFFDF5]">
-        {legacyComment && (
+        {commentOnly
+          ? bidItems.map((item, bidIdx) => (
+          <div key={`bid-${bidIdx}`} className="rounded-xl border border-amber-200 bg-[#FEF3C7] px-3 py-2.5 shadow-sm rotate-[-0.3deg]">
+            {editingBidIndex === bidIdx ? (
+              <div className="space-y-2">
+                <NoteComposer
+                  autoFocus
+                  value={commentDraft}
+                  onChange={setCommentDraft}
+                  rows={3}
+                  placeholder="Edit bid instruction…"
+                  onSubmit={() => void saveBidAt(bidIdx, commentDraft)}
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void saveBidAt(bidIdx, commentDraft)}
+                    disabled={commentSaving || !commentDraft.trim()}
+                    className="flex-1 h-7 rounded-lg bg-amber-600 text-white text-[11px] font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    {commentSaving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingBidIndex(null); setCommentDraft(""); }}
+                    className="flex-1 h-7 rounded-lg bg-white/80 text-amber-900 text-[11px] font-semibold border border-amber-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-[12px] text-amber-950 leading-snug">
+                  <NoteRichText text={item} className="text-amber-950" />
+                </p>
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <p className="text-[9px] text-amber-800/80 font-medium mr-auto">
+                    Bid instruction{bidItems.length > 1 ? ` ${bidIdx + 1}` : ""}
+                  </p>
+                  {canEditComment && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setEditingBidIndex(bidIdx); setCommentDraft(item); }}
+                        className="h-6 px-2 rounded-md text-[10px] font-bold text-amber-900 bg-white/70 border border-amber-200 hover:bg-white inline-flex items-center gap-1"
+                      >
+                        <Pencil size={10} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteBidAt(bidIdx)}
+                        disabled={commentSaving}
+                        className="h-6 px-2 rounded-md text-[10px] font-bold text-red-600 bg-white/70 border border-red-200 hover:bg-red-50 inline-flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {commentSaving ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+            ))
+          : legacyComment && (
           <div className="rounded-xl border border-amber-200 bg-[#FEF3C7] px-3 py-2.5 shadow-sm rotate-[-0.3deg]">
             {editingComment ? (
               <div className="space-y-2">
@@ -856,7 +944,7 @@ export default function CommentCell({
           </div>
         )}
 
-        {!notesLoading && displayNotes.length === 0 && !legacyComment && (
+        {!notesLoading && displayNotes.length === 0 && !legacyComment && bidItems.length === 0 && (
           <div className="py-8 text-center">
             <StickyNote size={28} className="text-amber-200 mx-auto mb-2" />
             <p className="text-[12px] text-amber-700/60 dark:text-amber-800/70">
@@ -938,24 +1026,24 @@ export default function CommentCell({
           </button>
         </div>
       )}
-      {canMutate && commentOnly && canEditComment && !legacyComment && !editingComment && (
+      {canMutate && commentOnly && canEditComment && editingBidIndex === null && (
         <div className="border-t border-amber-200/80 p-3 bg-amber-50/90">
           <NoteComposer
             value={draft}
             onChange={setDraft}
             rows={3}
-            placeholder="Write bid instruction… (Ctrl+Enter)"
-            onSubmit={() => void saveCommentField(draft.trim())}
+            placeholder={bidItems.length ? "Add another bid instruction… (Ctrl+Enter)" : "Write bid instruction… (Ctrl+Enter)"}
+            onSubmit={() => void addBidInstruction()}
             disabled={commentSaving}
           />
           <button
             type="button"
-            onClick={() => void saveCommentField(draft.trim())}
+            onClick={() => void addBidInstruction()}
             disabled={commentSaving || !draft.trim()}
             className="mt-2 w-full h-8 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {commentSaving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-            {commentSaving ? "Saving…" : "Save bid instruction"}
+            {commentSaving ? "Saving…" : bidItems.length ? "Add bid" : "Save bid instruction"}
           </button>
         </div>
       )}

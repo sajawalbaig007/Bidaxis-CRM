@@ -66,24 +66,59 @@ export function scheduledCallWhere(): Prisma.LeadWhereInput {
 
 
 
-export function buildAdminClientViewWhere(view: AdminClientView): Prisma.LeadWhereInput {
+export function closedClientStatusWhere(): Prisma.LeadWhereInput {
+  return { status: { in: ["closed", "completed", "Close Client", "close client"] } };
+}
 
-  switch (view) {
+/** Important + Schedule + Interested + Closed (Admin Leads "All" pill). */
+export function allAdminClientViewsWhere(): Prisma.LeadWhereInput {
+  return {
+    OR: [
+      importantOnlyWhere(),
+      scheduledCallWhere(),
+      isInterestedStatusWhere(),
+      closedClientStatusWhere(),
+    ],
+  };
+}
 
-    case "important":  return importantOnlyWhere();
+export type AdminClientBucket = Exclude<AdminClientView, "all">;
 
-    case "schedule":   return scheduledCallWhere();
+export function adminClientBucket(
+  status?: string | null,
+  nextSchedule?: string | null,
+): AdminClientBucket | null {
+  const s = (status ?? "").toLowerCase();
+  const hasSchedule = !!(nextSchedule && String(nextSchedule).trim());
+  if (s === "important") return hasSchedule ? "schedule" : "important";
+  if (s === "interested") return "interested";
+  if (s === "close client" || s === "completed" || s === "closed") return "closed";
+  return null;
+}
 
-    case "interested": return isInterestedStatusWhere();
-
-    case "closed":
-
-      return { status: { in: ["closed", "completed", "Close Client", "close client"] } };
-
-    default:           return {};
-
+/** Same uniqueness as the Admin Leads table: one row per phone (empty phone stays unique by id). */
+export function uniqueLeadsByPhone<T extends { id: string; phone?: string | null }>(leads: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const lead of leads) {
+    const phone = lead.phone?.trim() || "";
+    const key = phone || lead.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(lead);
   }
+  return out;
+}
 
+export function buildAdminClientViewWhere(view: AdminClientView): Prisma.LeadWhereInput {
+  switch (view) {
+    case "important":  return importantOnlyWhere();
+    case "schedule":   return scheduledCallWhere();
+    case "interested": return isInterestedStatusWhere();
+    case "closed":     return closedClientStatusWhere();
+    case "all":        return allAdminClientViewsWhere();
+    default:           return allAdminClientViewsWhere();
+  }
 }
 
 

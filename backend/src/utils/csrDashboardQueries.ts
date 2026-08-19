@@ -67,8 +67,21 @@ export function buildCsrTabWhere(csrId: string, tab: CsrTabKey): Prisma.LeadWher
   }
 }
 
-export async function getCsrLeadStats(csrId: string) {
+function withCreatedRange(
+  where: Prisma.LeadWhereInput,
+  from?: string,
+  to?: string,
+): Prisma.LeadWhereInput {
+  if (!from && !to) return where;
+  const createdAt: Prisma.DateTimeFilter = {};
+  if (from) createdAt.gte = new Date(`${from}T00:00:00.000Z`);
+  if (to)   createdAt.lte = new Date(`${to}T23:59:59.999Z`);
+  return { AND: [where, { createdAt }] };
+}
+
+export async function getCsrLeadStats(csrId: string, from?: string, to?: string) {
   const base = activeCsrLeadWhere(csrId);
+  const range = (where: Prisma.LeadWhereInput) => withCreatedRange(where, from, to);
 
   const [
     pendingCount,
@@ -84,18 +97,18 @@ export async function getCsrLeadStats(csrId: string) {
     totalAssigned,
     mainPipelineCount,
   ] = await Promise.all([
-    prisma.lead.count({ where: pendingLeadWhere(csrId) }),
-    prisma.lead.count({ where: { ...base, ...importantOnlyWhere() } }),
-    prisma.lead.count({ where: { ...base, ...scheduledCallWhere() } }),
-    prisma.lead.count({ where: { ...base, ...isInterestedStatusWhere() } }),
-    prisma.lead.count({ where: { ...base, ...wonClientStatusWhere() } }),
-    prisma.lead.count({ where: buildCsrTabWhere(csrId, "notinterested") }),
-    prisma.lead.count({ where: buildCsrTabWhere(csrId, "notpicked") }),
-    prisma.lead.count({ where: buildCsrTabWhere(csrId, "noowner") }),
-    prisma.lead.count({ where: buildCsrTabWhere(csrId, "notinservice") }),
-    prisma.lead.count({ where: buildCsrTabWhere(csrId, "inhouse") }),
-    prisma.lead.count({ where: base }),
-    prisma.lead.count({ where: mainPipelineWhere(csrId) }),
+    prisma.lead.count({ where: range(pendingLeadWhere(csrId)) }),
+    prisma.lead.count({ where: range({ ...base, ...importantOnlyWhere() }) }),
+    prisma.lead.count({ where: range({ ...base, ...scheduledCallWhere() }) }),
+    prisma.lead.count({ where: range({ ...base, ...isInterestedStatusWhere() }) }),
+    prisma.lead.count({ where: range({ ...base, ...wonClientStatusWhere() }) }),
+    prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notinterested")) }),
+    prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notpicked")) }),
+    prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "noowner")) }),
+    prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "notinservice")) }),
+    prisma.lead.count({ where: range(buildCsrTabWhere(csrId, "inhouse")) }),
+    prisma.lead.count({ where: range(base) }),
+    prisma.lead.count({ where: range(mainPipelineWhere(csrId)) }),
   ]);
 
   return {
@@ -143,7 +156,7 @@ export function mapDashboardLead<T extends {
 
 const LEAD_LIST_SELECT = {
   ...CSR_DASHBOARD_LEAD_SELECT,
-  notes: {
+    notes: {
     orderBy: { createdAt: "desc" as const },
     take: 5,
     select: { id: true, text: true, createdAt: true, parentId: true },

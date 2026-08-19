@@ -26,5 +26,7 @@ export function buildLeadFieldsFromUploadRow(
     uploadedFileId,
     hiddenOnMain:      hideOnMain(r.status),
     inBin:             false,
+    trade:             r.trade?.trim() || null,
+    subTrades:         r.subTrades?.trim() || null,
   };
 }

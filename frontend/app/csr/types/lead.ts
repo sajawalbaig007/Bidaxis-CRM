@@ -31,6 +31,8 @@ export interface BackendLead {
   subContacts?: { id: string; name: string; designation?: string; phone?: string; email?: string; createdAt?: string; }[];
   createdAt?: string;
   trade?: string | null;
+  subTrades?: string | null;
+  tradeNotes?: string | null;
 }
 
 export type Lead = {
@@ -59,6 +61,8 @@ export type Lead = {
   noteHistory: NoteEntry[];
   subContacts: SubContact[];
   trade: string;
+  subTrades: string;
+  tradeNotes: string;
 };
 
 export const mapBackendLead = (lead: BackendLead): Lead => {
@@ -92,6 +96,8 @@ export const mapBackendLead = (lead: BackendLead): Lead => {
     interested:   lead.interested   ?? false,
     sourceSudoName: lead.uploadFile?.source?.sudoName?.trim() ?? "",
     trade:          lead.trade ?? "",
+    subTrades:      lead.subTrades ?? "",
+    tradeNotes:     lead.tradeNotes ?? "",
     statusUpdatedAt: lead.updatedAt ?? lead.createdAt ?? "",
     noteCount,
     noteHistory,

@@ -73,9 +73,18 @@ export type CsrTabLeadsPayload = {
   totalPages: number;
 };
 
-export async function fetchCsrStatsCached(force = false): Promise<CsrStatsPayload> {
-  return cached("csr:stats", STATS_TTL_MS, async () => {
-    const res = await API.get("/csr/stats", { timeout: 45_000 });
+export async function fetchCsrStatsCached(
+  force = false,
+  from?: string,
+  to?: string,
+): Promise<CsrStatsPayload> {
+  const key = `csr:stats:${from ?? ""}:${to ?? ""}`;
+  return cached(key, STATS_TTL_MS, async () => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString();
+    const res = await API.get(`/csr/stats${qs ? `?${qs}` : ""}`, { timeout: 45_000 });
     return res.data as CsrStatsPayload;
   }, force);
 }

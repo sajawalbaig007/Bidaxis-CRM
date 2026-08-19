@@ -30,6 +30,7 @@ import {
   importantOnlyWhere,
   scheduledCallWhere,
   isInterestedStatusWhere,
+  uniqueLeadsByPhone,
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
 } from "../utils/adminClientQueries";
@@ -353,30 +354,25 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       areaCodes,
     });
 
-    // Fetch more than limit so we can deduplicate by phone before slicing the page
-    const FETCH_FACTOR = 4;
-    const rawLeads = await prisma.lead.findMany({
+    const identityRows = await prisma.lead.findMany({
       where,
-      select:  ADMIN_LEAD_LIST_SELECT,
+      select: { id: true, phone: true },
       orderBy: { updatedAt: "desc" },
-      // Fetch enough rows to fill the requested page after dedup
-      skip:    0,
-      take:    limit * FETCH_FACTOR * (page + 1),
     });
+    const uniqueRows = uniqueLeadsByPhone(identityRows);
+    const total = uniqueRows.length;
+    const pageIds = uniqueRows
+      .slice((page - 1) * limit, page * limit)
+      .map(l => l.id);
 
-    // Deduplicate: for each phone keep only the most-recently-updated lead
-    const seenPhones = new Set<string>();
-    const dedupedLeads: typeof rawLeads = [];
-    for (const lead of rawLeads) {
-      const phone = lead.phone?.trim() || "";
-      const key = phone || lead.id; // if no phone, treat as unique
-      if (seenPhones.has(key)) continue;
-      seenPhones.add(key);
-      dedupedLeads.push(lead);
-    }
-
-    const total = dedupedLeads.length;
-    const leads = dedupedLeads.slice((page - 1) * limit, page * limit);
+    const rawLeads = pageIds.length
+      ? await prisma.lead.findMany({
+          where: { id: { in: pageIds } },
+          select: ADMIN_LEAD_LIST_SELECT,
+        })
+      : [];
+    const byId = new Map(rawLeads.map(l => [l.id, l]));
+    const leads = pageIds.map(id => byId.get(id)).filter((l): l is NonNullable<typeof l> => !!l);
 
     const payload = {
       success: true,
@@ -386,9 +382,6 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       limit,
       stats: {
         totalClients: total,
-        activeClients: view === "all"
-          ? await prisma.lead.count({ where: { status: "pending" } })
-          : undefined,
       },
     };
 
@@ -3765,6 +3758,8 @@ router.delete("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "man
 /* ================= TRADES ================= */
 router.get("/trades", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
   try {
+    const { ensureMasterFormatTrades } = await import("../utils/masterFormatTrades");
+    await ensureMasterFormatTrades();
     const trades = await prisma.trade.findMany({ orderBy: { name: "asc" } });
     return res.json({ success: true, trades });
   } catch (error) {

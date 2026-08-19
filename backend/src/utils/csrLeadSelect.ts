@@ -24,6 +24,8 @@ export const CSR_DASHBOARD_LEAD_SELECT = {
   updatedAt:          true,
   createdAt:          true,
   trade:              true,
+  subTrades:          true,
+  tradeNotes:         true,
   uploadFile:         { select: CSR_UPLOAD_FILE_SELECT },
   _count:             { select: { notes: true } },
 } as const;
@@ -52,6 +54,8 @@ export const CSR_CLIENT_LIST_SELECT = {
   updatedAt:          true,
   createdAt:          true,
   trade:              true,
+  subTrades:          true,
+  tradeNotes:         true,
   uploadFile:         { select: CSR_UPLOAD_FILE_SELECT },
   isOldClient:        true,
   clientCode:         true,
@@ -59,7 +63,7 @@ export const CSR_CLIENT_LIST_SELECT = {
   projectBudget:      true,
   paidAmount:         true,
   projectPayments:    true,
-  notes: {
+    notes: {
     orderBy: { createdAt: "desc" as const },
     take: 20,
     select: { id: true, text: true, createdAt: true, parentId: true },

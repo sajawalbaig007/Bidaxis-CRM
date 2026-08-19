@@ -122,6 +122,10 @@ model Lead {
   isOldClient        Boolean   @default(false)
   projectSource      String?
   trade              String?
+  /** Comma-separated subtrades from Excel / CSR +N editor */
+  subTrades          String?
+  /** JSON string array of CSR trade-work explanations */
+  tradeNotes         String?
   assignedTo         String
   uploadedFileId     String?
   shuffleAttempts    Int       @default(0)

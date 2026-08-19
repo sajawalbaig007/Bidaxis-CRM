@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import {
   PhoneCall, CircleCheckBig, AlertTriangle,
   Clock3, Phone, Users, Bell, X, Eye, ChevronDown, CalendarDays,
-  UserX, Ban, Home, Plus,
+  UserX, Ban, Home, Plus, Search,
 } from "lucide-react";
 
 import TopNavbar from "./components/navigation/TopNavbar";
@@ -20,6 +20,7 @@ import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdo
 import CommentCell from "./components/shared/CommentCell";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD } from "./components/shared/csrTableStyles";
 import InterestedServicesCell from "./components/shared/InterestedServicesCell";
+import TradesCell from "./components/shared/TradesCell";
 import { decomposeInterestedServices, formatInterestedServices } from "./utils/parseInterestedServices";
 import ImportantCallModal from "./components/modals/ImportantCallModal";
 import InterestedModal from "./components/modals/InterestedModal";
@@ -28,7 +29,6 @@ import AddLeadModal from "./components/modals/AddLeadModal";
 import MonthRangeFilter from "./components/shared/MonthRangeFilter";
 import ClientNameCell from "./components/shared/ClientNameCell";
 import PhoneWithTzCell from "./components/shared/PhoneWithTzCell";
-import { ourCompany } from "./utils/leadFieldLabels";
 import { collectLeadPhones } from "./utils/parsePhones";
 import { useCsrStats, useCsrTabLeads, CSR_FILTER_BATCH_SIZE, type CsrTabKey } from "./hooks/useCsrTabPage";
 import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
@@ -39,6 +39,7 @@ import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
+import { MASTER_FORMAT_TRADES, parseTradeList } from "./constants/masterFormatTrades";
 import { Lead } from "./types/lead";
 import type { NoteEntry } from "./hooks/useLeadsData";
 import {
@@ -67,12 +68,13 @@ export default function CSRPage() {
   const [sourceFilter, setSourceFilter] = useState("");
   const [tradeFilter, setTradeFilter]   = useState("");
   const [tradeOptions, setTradeOptions] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery]   = useState("");
   const [dismissedNotification, setDismissedNotification] = useState(false);
 
-  const hasTableFilters = !!(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter);
+  const hasTableFilters = !!(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter || searchQuery.trim());
 
   const tabKey = (activeTab === "today" ? "pending" : activeTab) as CsrTabKey;
-  const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats();
+  const { stats, loading: statsLoading, refetch: refetchStats } = useCsrStats(monthFrom || undefined, monthTo || undefined);
   const { leads, setLeads, total: tabTotal, totalPages: serverTotalPages, loading: tabLoading, refetch: refetchTab } =
     useCsrTabLeads(tabKey, page, monthFrom || undefined, monthTo || undefined, hasTableFilters);
   const loading = statsLoading || tabLoading;
@@ -134,11 +136,20 @@ export default function CSRPage() {
         ? (item.sourceSudoName?.trim().toLowerCase() === sourceFilter.toLowerCase())
         : true;
       const matchesTrade = tradeFilter
-        ? (item.trade?.trim().toLowerCase() === tradeFilter.toLowerCase())
+        ? parseTradeList(item.trade).some(t => t.trim().toLowerCase() === tradeFilter.toLowerCase())
         : true;
-      return matchesState && matchesPhone && matchesTimezone && matchesSource && matchesTrade;
+      const q = searchQuery.trim().toLowerCase();
+      const digits = q.replace(/\D/g, "");
+      const matchesSearch = !q || [
+        item.client,
+        item.company,
+        item.rawCompany,
+        item.phone,
+      ].some(v => (v ?? "").toLowerCase().includes(q)) ||
+        (digits.length >= 3 && (item.phone ?? "").replace(/\D/g, "").includes(digits));
+      return matchesState && matchesPhone && matchesTimezone && matchesSource && matchesTrade && matchesSearch;
     });
-  }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter]);
+  }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter, searchQuery]);
 
   const sourceSudoOptions = useMemo(() => {
     const names = new Set<string>();
@@ -149,6 +160,27 @@ export default function CSRPage() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [visibleLeads]);
 
+  const tradeFilterOptions = useMemo(() => {
+    const seen = new Set(MASTER_FORMAT_TRADES.map(t => t.toLowerCase()));
+    const extras: string[] = [];
+    for (const name of tradeOptions) {
+      const key = name.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      extras.push(name);
+    }
+    for (const lead of visibleLeads) {
+      for (const t of parseTradeList(lead.trade)) {
+        const key = t.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        extras.push(t);
+      }
+    }
+    extras.sort((a, b) => a.localeCompare(b));
+    return [...MASTER_FORMAT_TRADES, ...extras];
+  }, [tradeOptions, visibleLeads]);
+
   const paginated = hasTableFilters
     ? tabFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
     : tabFiltered;
@@ -158,6 +190,14 @@ export default function CSRPage() {
     : serverTotalPages;
 
   const displayTotal = hasTableFilters ? tabFiltered.length : tabTotal;
+
+  const pillCount = (tab: string, stat: number) => {
+    const isActive = tab === "today"
+      ? activeTab === "today" || activeTab === "pending"
+      : activeTab === tab;
+    if (isActive && !tabLoading) return displayTotal;
+    return stat;
+  };
 
   const showInterestedCol = activeTab === "important" || activeTab === "interested";
   const tableColWidths = showInterestedCol ? COL_7_DASHBOARD : COL_6_DASHBOARD;
@@ -400,20 +440,38 @@ export default function CSRPage() {
 
               <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1 sm:justify-end overflow-visible">
                 <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1 sm:flex-none overflow-visible">
+                  <div className="relative">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                      placeholder="Search name, company, phone…"
+                      className={`h-8 sm:h-10 pl-8 pr-8 rounded-xl border text-xs sm:text-sm outline-none w-[180px] sm:w-[220px] ${
+                        searchQuery.trim()
+                          ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
+                          : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600"
+                      }`}
+                    />
+                    {searchQuery && (
+                      <button type="button" onClick={() => { setSearchQuery(""); setPage(1); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#B8112D]">
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
                   <StateFilterDropdown value={stateFilter} onChange={v => { setStateFilter(v); setPage(1); }} />
                   <TimezoneFilterDropdown value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
                   <SourceSudoFilterDropdown value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
                   <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
-                  {tradeOptions.length > 0 && (
-                    <select
-                      value={tradeFilter}
-                      onChange={e => { setTradeFilter(e.target.value); setPage(1); }}
-                      className="h-8 rounded-xl border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#B8112D] cursor-pointer"
-                    >
-                      <option value="">All Trades</option>
-                      {tradeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  )}
+                  <select
+                    value={tradeFilter}
+                    onChange={e => { setTradeFilter(e.target.value); setPage(1); }}
+                    className="h-8 rounded-xl border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#B8112D] cursor-pointer max-w-[180px]"
+                    title="Filter by trade"
+                  >
+                    <option value="">All Trades</option>
+                    {tradeFilterOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
                 <div className="bg-[#ECFDF3] text-[#027A48] px-3 py-1.5 rounded-xl text-[11px] sm:text-sm font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A]" />Live Tracking
@@ -433,21 +491,21 @@ export default function CSRPage() {
               {
                 label: "Today's queue",
                 tabs: [
-                  { tab:"today",         label:"Today / Pending", short:"Today",    count: statCounts.pendingCount,       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/25 ring-1 ring-[#B8112D]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
-                  { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: statCounts.notPickedCount,     icon:<Clock3         size={13}/>, active:"bg-orange-500 text-white shadow-md shadow-orange-500/30",          inactive:"bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 ring-1 ring-orange-300/70 dark:ring-orange-400/35"  },
-                  { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: statCounts.notInterestedCount, icon:<CircleCheckBig size={13}/>, active:"bg-slate-600 text-white shadow-md shadow-slate-500/25",            inactive:"bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200 ring-1 ring-slate-300/80 dark:ring-slate-400/35"  },
+                  { tab:"today",         label:"Today / Pending", short:"Today",    count: pillCount("today", statCounts.pendingCount),       icon:<PhoneCall      size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/25 ring-1 ring-[#B8112D]/40",  inactive:"bg-zinc-200 text-zinc-800 dark:bg-zinc-500/25 dark:text-zinc-100 ring-1 ring-zinc-300/80 dark:ring-zinc-400/30"   },
+                  { tab:"notpicked",     label:"Not Picked",     short:"Not Pick", count: pillCount("notpicked", statCounts.notPickedCount),     icon:<Clock3         size={13}/>, active:"bg-orange-500 text-white shadow-md shadow-orange-500/30",          inactive:"bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 ring-1 ring-orange-300/70 dark:ring-orange-400/35"  },
+                  { tab:"notinterested", label:"Not Interested", short:"Not Int.", count: pillCount("notinterested", statCounts.notInterestedCount), icon:<CircleCheckBig size={13}/>, active:"bg-slate-600 text-white shadow-md shadow-slate-500/25",            inactive:"bg-slate-200 text-slate-700 dark:bg-slate-500/30 dark:text-slate-200 ring-1 ring-slate-300/80 dark:ring-slate-400/35"  },
                 ],
               },
               {
                 label: "Follow-up & pipeline",
                 tabs: [
-                  { tab:"noowner",      label:"No Owner",     short:"No Owner", count: statCounts.noOwnerCount,      icon:<UserX        size={13}/>, active:"bg-yellow-500 text-white shadow-md shadow-yellow-500/30", inactive:"bg-yellow-100 text-yellow-800 dark:bg-yellow-500/25 dark:text-yellow-300 ring-1 ring-yellow-300/70 dark:ring-yellow-400/35"   },
-                  { tab:"notinservice", label:"Not In Svc",   short:"Not Svc",  count: statCounts.notInServiceCount, icon:<Ban          size={13}/>, active:"bg-violet-600 text-white shadow-md shadow-violet-500/30", inactive:"bg-violet-100 text-violet-700 dark:bg-violet-500/25 dark:text-violet-300 ring-1 ring-violet-300/70 dark:ring-violet-400/35" },
-                  { tab:"inhouse",      label:"In House",     short:"In House", count: statCounts.inHouseCount,      icon:<Home         size={13}/>, active:"bg-teal-600 text-white shadow-md shadow-teal-500/30",    inactive:"bg-teal-100 text-teal-800 dark:bg-teal-500/25 dark:text-teal-300 ring-1 ring-teal-300/70 dark:ring-teal-400/35"   },
-                  { tab:"important",    label:"Important",    short:"Important",count: statCounts.importantOnlyCount,icon:<AlertTriangle size={13}/>, active:"bg-rose-600 text-white shadow-md shadow-rose-500/30",   inactive:"bg-rose-100 text-rose-700 dark:bg-rose-500/25 dark:text-rose-300 ring-1 ring-rose-300/70 dark:ring-rose-400/35"   },
-                  { tab:"schedule",     label:"Schedule",     short:"Schedule", count: statCounts.scheduledCount,    icon:<CalendarDays size={13}/>, active:"bg-sky-500 text-white shadow-md shadow-sky-500/30",     inactive:"bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300 ring-1 ring-sky-300/70 dark:ring-sky-400/35"   },
-                  { tab:"interested",   label:"Interested",   short:"Interested",count: statCounts.interestedCount,  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30",   inactive:"bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-1 ring-red-300/70 dark:ring-red-400/35"   },
-                  { tab:"projectwon",   label:"Close Client", short:"Closed",   count: statCounts.projectWonCount,   icon:<CircleCheckBig size={13}/>, active:"bg-emerald-600 text-white shadow-md shadow-emerald-500/30", inactive:"bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300 ring-1 ring-emerald-300/70 dark:ring-emerald-400/35"},
+                  { tab:"noowner",      label:"No Owner",     short:"No Owner", count: pillCount("noowner", statCounts.noOwnerCount),      icon:<UserX        size={13}/>, active:"bg-yellow-500 text-white shadow-md shadow-yellow-500/30", inactive:"bg-yellow-100 text-yellow-800 dark:bg-yellow-500/25 dark:text-yellow-300 ring-1 ring-yellow-300/70 dark:ring-yellow-400/35"   },
+                  { tab:"notinservice", label:"Not In Svc",   short:"Not Svc",  count: pillCount("notinservice", statCounts.notInServiceCount), icon:<Ban          size={13}/>, active:"bg-violet-600 text-white shadow-md shadow-violet-500/30", inactive:"bg-violet-100 text-violet-700 dark:bg-violet-500/25 dark:text-violet-300 ring-1 ring-violet-300/70 dark:ring-violet-400/35" },
+                  { tab:"inhouse",      label:"In House",     short:"In House", count: pillCount("inhouse", statCounts.inHouseCount),      icon:<Home         size={13}/>, active:"bg-teal-600 text-white shadow-md shadow-teal-500/30",    inactive:"bg-teal-100 text-teal-800 dark:bg-teal-500/25 dark:text-teal-300 ring-1 ring-teal-300/70 dark:ring-teal-400/35"   },
+                  { tab:"important",    label:"Important",    short:"Important",count: pillCount("important", statCounts.importantOnlyCount),icon:<AlertTriangle size={13}/>, active:"bg-rose-600 text-white shadow-md shadow-rose-500/30",   inactive:"bg-rose-100 text-rose-700 dark:bg-rose-500/25 dark:text-rose-300 ring-1 ring-rose-300/70 dark:ring-rose-400/35"   },
+                  { tab:"schedule",     label:"Schedule",     short:"Schedule", count: pillCount("schedule", statCounts.scheduledCount),    icon:<CalendarDays size={13}/>, active:"bg-sky-500 text-white shadow-md shadow-sky-500/30",     inactive:"bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300 ring-1 ring-sky-300/70 dark:ring-sky-400/35"   },
+                  { tab:"interested",   label:"Interested",   short:"Interested",count: pillCount("interested", statCounts.interestedCount),  icon:<Users        size={13}/>, active:"bg-[#B8112D] text-white shadow-md shadow-red-500/30",   inactive:"bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-1 ring-red-300/70 dark:ring-red-400/35"   },
+                  { tab:"projectwon",   label:"Close Client", short:"Closed",   count: pillCount("projectwon", statCounts.projectWonCount),   icon:<CircleCheckBig size={13}/>, active:"bg-emerald-600 text-white shadow-md shadow-emerald-500/30", inactive:"bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300 ring-1 ring-emerald-300/70 dark:ring-emerald-400/35"},
                 ],
               },
             ].map((group, gi) => (
@@ -499,7 +557,7 @@ export default function CSRPage() {
               <thead className="crm-thead bg-[#FAFAFA]">
                 <tr>
                   <th className={CSR_TH}>Client Name</th>
-                  <th className={CSR_TH}>Our Company</th>
+                  <th className={CSR_TH}>Trades</th>
                   <th className={CSR_TH}>Phone</th>
                   {showInterestedCol && <th className={CSR_TH}>Interested In</th>}
                   <th className={CSR_TH}>Status</th>
@@ -527,18 +585,20 @@ export default function CSRPage() {
                         index={(page - 1) * PAGE_SIZE + idx + 1}
                         showIndex
                         showEye
-                        hideOurCompany
                         onView={() => setViewingLead(currentLink)}
                       />
-                      {currentLink.trade && (
-                        <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                          {currentLink.trade}
-                        </span>
-                      )}
                     </td>
 
-                    <td className={`${CSR_TD} text-[12px] sm:text-[14px] font-medium text-[#0F172A] dark:text-gray-100`}>
-                      <span className="truncate block">{ourCompany(currentLink)}</span>
+                    <td className={CSR_TD_POPOVER}>
+                      <TradesCell
+                        trade={currentLink.trade}
+                        subTrades={currentLink.subTrades}
+                        tradeNotes={currentLink.tradeNotes}
+                        extraTrades={tradeFilterOptions}
+                        onSave={async next => {
+                          await updateLead(currentLink.id, next);
+                        }}
+                      />
                     </td>
 
                     {/* PHONE — number + area-code TZ (company TZ stays on name) */}
@@ -650,9 +710,9 @@ export default function CSRPage() {
                           ? "No pending leads in Today's queue. Try another tab above."
                           : "No calls available in this category."}
                       </p>
-                      {(stateFilter || timezoneFilter || phoneFilter || sourceFilter) && (
+                      {(stateFilter || timezoneFilter || phoneFilter || sourceFilter || tradeFilter || searchQuery) && (
                         <button
-                          onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setSourceFilter(""); setPage(1); }}
+                          onClick={() => { setStateFilter(""); setTimezoneFilter(""); setPhoneFilter(""); setSourceFilter(""); setTradeFilter(""); setSearchQuery(""); setPage(1); }}
                           className="mt-3 sm:mt-4 h-9 sm:h-10 px-4 sm:px-5 rounded-xl sm:rounded-2xl bg-[#FFF1F3] text-[#B8112D] text-xs sm:text-sm font-semibold hover:bg-[#fce8ec] transition-colors"
                         >
                           Clear filters

@@ -78,46 +78,29 @@ function monthEnd(ym: string): string {
 
 
 
-export function useCsrStats() {
-
+export function useCsrStats(from?: string, to?: string) {
   const [stats, setStats] = useState<CsrStats | null>(null);
-
   const [loading, setLoading] = useState(true);
 
-
-
   const refetch = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
-
     try {
-
       if (!opts?.silent) setLoading(true);
-
-      const res = await fetchCsrStatsCached(opts?.force);
-
+      const fromDate = from ? monthStart(from) : undefined;
+      const toDate   = to ? monthEnd(to) : undefined;
+      const res = await fetchCsrStatsCached(opts?.force, fromDate, toDate);
       setStats(res.stats as CsrStats);
-
     } catch (err) {
-
       if (!opts?.silent) toast.error(apiErrorMessage(err, "Could not load stats."));
-
     } finally {
-
       if (!opts?.silent) setLoading(false);
-
     }
-
-  }, []);
-
-
+  }, [from, to]);
 
   useEffect(() => { void refetch(); }, [refetch]);
   useOnCsrDataReset(() => { void refetch({ force: true }); });
 
   return { stats, setStats, loading, refetch };
-
 }
-
-
 
 export function useCsrTabLeads(
   tab: CsrTabKey,
