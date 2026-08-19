@@ -286,8 +286,8 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 
     const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-      : "admin:clients:tab-counts";
+      ? `admin:clients:tab-counts:v3:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
+      : "admin:clients:tab-counts:v3";
 
     if (!hasFilters) {
       const cached = getCache<object>(CACHE_KEY);
@@ -317,7 +317,7 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
 router.get("/clients/summary", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
   try {
-    const CACHE_KEY = "admin:clients:summary";
+    const CACHE_KEY = "admin:clients:summary:v3";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
@@ -345,7 +345,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v3:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 

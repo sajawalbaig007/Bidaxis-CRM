@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Search, Filter, Phone, Briefcase,
   Clock3, Building2, AlignLeft, RefreshCw, Eye, Plus, X,
   Pencil, User2, Mail, MapPin, StickyNote, History,
-  CheckCircle2, Trash2, Loader2, DollarSign, Link2,
+  CheckCircle2, Trash2, Loader2, DollarSign, Link2, Layers,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -79,7 +79,7 @@ export default function LeadsPage() {
   const { leads, setLeads, stats, loading, refetch } = useLeadsData();
 
   /* tabs / search / pagination */
-  const [activeTab, setActiveTab] = useState<"new" | "old">("new");
+  const [activeTab, setActiveTab] = useState<"all" | "new" | "old">("new");
   const [search,       setSearch]       = useState("");
   const [stateFilter,  setStateFilter]  = useState("");
   const [phoneFilter,  setPhoneFilter]  = useState("");
@@ -157,8 +157,13 @@ export default function LeadsPage() {
     () => splitWonClientsByIdentity(wonLeads),
     [wonLeads],
   );
-  const isOldTab = activeTab === "old";
-  const baseList = activeTab === "new" ? newLeads : oldLeads;
+  const allClients = useMemo(
+    () => [...newLeads, ...oldLeads].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ),
+    [newLeads, oldLeads],
+  );
+  const baseList = activeTab === "all" ? allClients : activeTab === "new" ? newLeads : oldLeads;
 
   const importantCount  = stats.importantCount;
   const interestedCount = stats.interestedCount;
@@ -393,8 +398,9 @@ export default function LeadsPage() {
           activeKey={activeTab}
           onChange={key => { setActiveTab(key); setPage(1); setSearch(""); }}
           tabs={[
-            { key: "new", label: "New Clients", count: newLeads.length, icon: UserPlus },
-            { key: "old", label: "Old Clients", count: oldLeads.length, icon: User2 },
+            { key: "all", label: "All",         count: activeTab === "all" ? filtered.length : allClients.length, icon: Layers   },
+            { key: "new", label: "New Clients", count: activeTab === "new" ? filtered.length : newLeads.length,   icon: UserPlus },
+            { key: "old", label: "Old Clients", count: activeTab === "old" ? filtered.length : oldLeads.length,   icon: User2    },
           ]}
         />
 
@@ -405,10 +411,14 @@ export default function LeadsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h3 className="text-lg sm:text-[20px] font-bold text-[#0F172A]">
-                  {activeTab === "new" ? "New Clients" : "Old Clients"}
+                  {activeTab === "all" ? "All Clients" : activeTab === "new" ? "New Clients" : "Old Clients"}
                 </h3>
                 <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-                  {activeTab === "new" ? "First-time clients — won deals." : "Returning clients — repeat business."}
+                  {activeTab === "all"
+                    ? "All won clients — new and returning."
+                    : activeTab === "new"
+                    ? "First-time clients — won deals."
+                    : "Returning clients — repeat business."}
                 </p>
               </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
@@ -469,7 +479,8 @@ export default function LeadsPage() {
                   const displayName = lead.name;
                   /* Prefer clientCode from DB; fall back to projectCode only if client code missing */
                   const displayCode = (lead.clientCode?.trim() || lead.projectCode?.trim() || null);
-                  const displaySub  = isOldTab && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
+                  const rowIsOld = lead.isOldClient;
+                  const displaySub  = rowIsOld && lead.rawCompany && lead.rawCompany !== lead.name ? lead.rawCompany : null;
                   return (
                     <div
                       key={lead.id}
@@ -485,7 +496,7 @@ export default function LeadsPage() {
 
                       {/* Client */}
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${isOldTab ? "bg-amber-500" : "bg-[#15803D]"}`}>
+                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 text-white ${rowIsOld ? "bg-amber-500" : "bg-[#15803D]"}`}>
                           {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -510,8 +521,8 @@ export default function LeadsPage() {
                           {displaySub && (
                             <p className="text-[10px] text-gray-400 truncate mt-0.5">{displaySub}</p>
                           )}
-                          <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${isOldTab ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
-                            {isOldTab ? "Old Client" : "New Client"}
+                          <span className={`inline-block text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-lg mt-0.5 ${rowIsOld ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                            {rowIsOld ? "Old Client" : "New Client"}
                           </span>
                         </div>
                       </div>
@@ -662,7 +673,7 @@ export default function LeadsPage() {
                             ? setHistoryLead(lead)
                             : openDetail(lead)}
                           className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#EAF5FF] text-[#0B84F3] flex items-center justify-center hover:opacity-80 transition-opacity shrink-0"
-                          title={isOldTab ? "All projects history" : "Client history"}
+                          title={rowIsOld ? "All projects history" : "Client history"}
                         >
                           <Eye size={13} />
                         </button>
@@ -1003,7 +1014,7 @@ export default function LeadsPage() {
                   <X size={13} />
                 </button>
                 <div className="flex items-center gap-2.5 pr-10">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-bold text-white text-base sm:text-lg shrink-0 ${(viewing.isOldClient || isOldTab) ? "bg-amber-500/40" : "bg-white/20"}`}>
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-bold text-white text-base sm:text-lg shrink-0 ${viewing.isOldClient ? "bg-amber-500/40" : "bg-white/20"}`}>
                     {viewing.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
@@ -1019,8 +1030,8 @@ export default function LeadsPage() {
                       {clientDisplayCode(viewing)}
                     </span>
                   )}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${(viewing.isOldClient || isOldTab) ? "bg-amber-400/25 text-amber-100" : "bg-green-500/25 text-green-100"}`}>
-                    {(viewing.isOldClient || isOldTab) ? "Old Client" : "New Client"}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${viewing.isOldClient ? "bg-amber-400/25 text-amber-100" : "bg-green-500/25 text-green-100"}`}>
+                    {viewing.isOldClient ? "Old Client" : "New Client"}
                   </span>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[viewing.status] ? "bg-white/15 text-white" : "bg-white/10 text-white/70"}`}>
                     {viewing.status}

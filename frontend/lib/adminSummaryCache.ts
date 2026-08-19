@@ -67,7 +67,7 @@ let inflight: Promise<AdminDashboardSummary> | null = null;
 let tabCountsInflight: Promise<AdminTabCounts> | null = null;
 const TTL_MS = 120_000;
 const TAB_COUNTS_TTL_MS = 60_000;
-const STORAGE_KEY = "crm_admin_summary_v5";
+const STORAGE_KEY = "crm_admin_summary_v6";
 
 function readStorage(): { data: AdminDashboardSummary; at: number } | null {
   if (typeof window === "undefined") return null;
@@ -160,12 +160,8 @@ export async function getAdminSummary(force = false): Promise<AdminDashboardSumm
       const data = res.data as AdminDashboardSummary;
       const entry = { data, at: Date.now() };
       cached = entry;
-      if (data.tabCounts) {
-        tabCountsCached = {
-          data: data.tabCounts as AdminTabCounts,
-          at: Date.now(),
-        };
-      }
+      /* Do not copy summary.tabCounts into the leads-page cache — dashboard
+         summary used to poison Closed with raw document counts. */
       writeStorage(entry);
       return data;
     })

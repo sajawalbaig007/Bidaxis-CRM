@@ -6,7 +6,7 @@ import {
   X, ArrowRightLeft, RefreshCw,
   ChevronDown, ChevronUp, Eye, Users,
   Check,
-  History, UserX, Ban, Home,
+  History, UserX, Ban, Home, Layers,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -45,12 +45,13 @@ import {
   statusDisplayLabel,
 } from "../constants/leadStatuses";
 import type { Lead } from "../types/lead";
+import { uniqueLeadsByPhone } from "../utils/uniqueLeadsByPhone";
 
 const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT     = 7;
 const PAGE_SIZE            = 30;
 
-type FollowUpTab = "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse";
+type FollowUpTab = "all" | "notinterested" | "notpicked" | "noowner" | "notinservice" | "inhouse";
 
 function leadToNiLead(l: Lead): NiLead {
   return {
@@ -58,6 +59,18 @@ function leadToNiLead(l: Lead): NiLead {
     notInterestedCount: 0,
     notPickedCount: 0,
   };
+}
+
+function followUpRetryMeta(lead: Pick<NiLead, "status" | "notInterestedCount" | "notPickedCount">) {
+  const isNi = isNotInterestedStatus(lead.status);
+  const isNp = isNotPickedStatus(lead.status);
+  if (isNi) {
+    return { isRetry: true, tries: lead.notInterestedCount, limit: NOT_INTERESTED_LIMIT, countKey: "notInterestedCount" as const, retryStatus: "Not Interested" };
+  }
+  if (isNp) {
+    return { isRetry: true, tries: lead.notPickedCount, limit: NOT_PICKED_LIMIT, countKey: "notPickedCount" as const, retryStatus: "not picked" };
+  }
+  return { isRetry: false, tries: 0, limit: 0, countKey: null, retryStatus: lead.status };
 }
 
 export default function NotInterestedPage() {
@@ -111,22 +124,26 @@ export default function NotInterestedPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  /* ── Derived lists ── */
-  const notInterested = useMemo(() => leads.filter(l => isNotInterestedStatus(l.status)), [leads]);
-  const notPicked     = useMemo(() => leads.filter(l => isNotPickedStatus(l.status)), [leads]);
-  const noOwner       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NO_OWNER).map(leadToNiLead), [dashboardLeads]);
-  const notInService  = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE).map(leadToNiLead), [dashboardLeads]);
-  const inHouse       = useMemo(() => dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE).map(leadToNiLead), [dashboardLeads]);
+  /* ── Derived lists (unique-by-phone so pills match the table) ── */
+  const notInterested = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isNotInterestedStatus(l.status))), [leads]);
+  const notPicked     = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isNotPickedStatus(l.status))), [leads]);
+  const noOwner       = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_NO_OWNER).map(leadToNiLead)), [dashboardLeads]);
+  const notInService  = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_NOT_IN_SERVICE).map(leadToNiLead)), [dashboardLeads]);
+  const inHouse       = useMemo(() => uniqueLeadsByPhone(dashboardLeads.filter(l => l.status === STATUS_IN_HOUSE).map(leadToNiLead)), [dashboardLeads]);
+  const allFollowUp   = useMemo(
+    () => uniqueLeadsByPhone([...notInterested, ...notPicked, ...noOwner, ...notInService, ...inHouse]),
+    [notInterested, notPicked, noOwner, notInService, inHouse],
+  );
 
-  const isRetryTab = activeTab === "notinterested" || activeTab === "notpicked";
-  const currentList = activeTab === "notinterested" ? notInterested
+  const currentList = activeTab === "all" ? allFollowUp
+    : activeTab === "notinterested" ? notInterested
     : activeTab === "notpicked" ? notPicked
     : activeTab === "noowner" ? noOwner
     : activeTab === "notinservice" ? notInService
     : inHouse;
-  const limit         = activeTab === "notinterested" ? NOT_INTERESTED_LIMIT : NOT_PICKED_LIMIT;
-  const countKey      = activeTab === "notinterested" ? "notInterestedCount" : "notPickedCount";
-  const pageLoading   = isRetryTab ? loading : dashLoading;
+  const pageLoading = activeTab === "all" ? (loading || dashLoading)
+    : (activeTab === "notinterested" || activeTab === "notpicked") ? loading
+    : dashLoading;
 
   const searchFiltered = useMemo(() => {
     return currentList.filter(l =>
@@ -174,7 +191,9 @@ export default function NotInterestedPage() {
   };
 
   const handleRetry = async (lead: NiLead) => {
-    const newStatus = activeTab === "notinterested" ? "Not Interested" : "not picked";
+    const meta = followUpRetryMeta(lead);
+    if (!meta.isRetry || !meta.countKey) return;
+    const newStatus = meta.retryStatus;
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status: newStatus });
       bustCaches();
@@ -188,9 +207,10 @@ export default function NotInterestedPage() {
         const triesLeft    = res.data.triesLeft ?? 0;
         const updatedNotes = res.data.lead?.followUpNotes ?? lead.followUpNotes ?? "";
         showToast(`Retried. ${triesLeft} attempt${triesLeft !== 1 ? "s" : ""} left.`);
+        const key = meta.countKey;
         setLeads(prev => prev.map(l =>
           l.id === lead.id
-            ? { ...l, [countKey]: (l[countKey as keyof NiLead] as number) + 1, followUpNotes: updatedNotes }
+            ? { ...l, [key]: (l[key] as number) + 1, followUpNotes: updatedNotes }
             : l
         ));
       }
@@ -228,15 +248,14 @@ export default function NotInterestedPage() {
   const handleUpdateStatus = async (lead: NiLead, status: string) => {
     if (status === "") return;
 
-    const sameTab =
-      (activeTab === "notinterested" && isNotInterestedStatus(status)) ||
-      (activeTab === "notpicked" && isNotPickedStatus(status)) ||
-      (activeTab === "noowner" && status === STATUS_NO_OWNER) ||
-      (activeTab === "notinservice" && status === STATUS_NOT_IN_SERVICE) ||
-      (activeTab === "inhouse" && status === STATUS_IN_HOUSE);
+    const sameStatus =
+      (isNotInterestedStatus(status) && isNotInterestedStatus(lead.status)) ||
+      (isNotPickedStatus(status) && isNotPickedStatus(lead.status)) ||
+      (status === STATUS_NO_OWNER && lead.status === STATUS_NO_OWNER) ||
+      (status === STATUS_NOT_IN_SERVICE && lead.status === STATUS_NOT_IN_SERVICE) ||
+      (status === STATUS_IN_HOUSE && lead.status === STATUS_IN_HOUSE);
 
-    // Re-apply same follow-up status (counts as another try for NI / Not Picked)
-    if (sameTab && (activeTab === "notinterested" || activeTab === "notpicked")) {
+    if (sameStatus && followUpRetryMeta(lead).isRetry) {
       await handleRetry(lead);
       return;
     }
@@ -395,11 +414,12 @@ export default function NotInterestedPage() {
           activeKey={activeTab}
           onChange={key => { setActiveTab(key); setSearch(""); setPage(1); }}
           tabs={[
-            { key: "notinterested", label: "Not Interested", count: notInterested.length, icon: ThumbsDown },
-            { key: "notpicked",     label: "Not Picked",     count: notPicked.length,     icon: PhoneOff   },
-            { key: "noowner",       label: "No Owner",       count: noOwner.length,       icon: UserX      },
-            { key: "notinservice",  label: "Not In Service", count: notInService.length,  icon: Ban        },
-            { key: "inhouse",       label: "In House",       count: inHouse.length,       icon: Home       },
+            { key: "all",           label: "All",            count: activeTab === "all"           ? searchFiltered.length : allFollowUp.length,     icon: Layers     },
+            { key: "notinterested", label: "Not Interested", count: activeTab === "notinterested" ? searchFiltered.length : notInterested.length,  icon: ThumbsDown },
+            { key: "notpicked",     label: "Not Picked",     count: activeTab === "notpicked"     ? searchFiltered.length : notPicked.length,      icon: PhoneOff   },
+            { key: "noowner",       label: "No Owner",       count: activeTab === "noowner"       ? searchFiltered.length : noOwner.length,        icon: UserX      },
+            { key: "notinservice",  label: "Not In Service", count: activeTab === "notinservice"  ? searchFiltered.length : notInService.length,   icon: Ban        },
+            { key: "inhouse",       label: "In House",       count: activeTab === "inhouse"       ? searchFiltered.length : inHouse.length,        icon: Home       },
           ]}
         />
 
@@ -410,15 +430,18 @@ export default function NotInterestedPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
                 <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">
-                  {activeTab === "notinterested" ? "Not Interested"
+                  {activeTab === "all" ? "All Follow-up"
+                    : activeTab === "notinterested" ? "Not Interested"
                     : activeTab === "notpicked" ? "Not Picked"
                     : activeTab === "noowner" ? "No Owner Available"
                     : activeTab === "notinservice" ? "Not In Service"
                     : "In House"} Leads
                 </h3>
                 <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
-                  {isRetryTab ? (
-                    <>Auto-redistributed after <span className="font-semibold text-[#B8112D]">{limit} tries</span>.</>
+                  {activeTab === "all" ? (
+                    <>All not-interested, not-picked, and other follow-up leads.</>
+                  ) : activeTab === "notinterested" || activeTab === "notpicked" ? (
+                    <>Auto-redistributed after <span className="font-semibold text-[#B8112D]">{activeTab === "notinterested" ? NOT_INTERESTED_LIMIT : NOT_PICKED_LIMIT} tries</span>.</>
                   ) : (
                     <>Leads marked from the main call dashboard.</>
                   )}
@@ -445,7 +468,7 @@ export default function NotInterestedPage() {
                   <RefreshCw size={13} className="sm:w-[15px] sm:h-[15px]" />
                 </button>
                 <div className={`text-[11px] sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl whitespace-nowrap ${
-                  activeTab === "notinterested" ? "bg-[#FFF1F3] text-[#B8112D]" : "bg-[#FFF7E6] text-[#B54708]"
+                  activeTab === "notpicked" ? "bg-[#FFF7E6] text-[#B54708]" : "bg-[#FFF1F3] text-[#B8112D]"
                 }`}>
                   {searchFiltered.length} Leads
                 </div>
@@ -479,14 +502,17 @@ export default function NotInterestedPage() {
                     </tr>
                   ))
                 ) : searchFiltered.length > 0 ? paginated.map(lead => {
-                  const tries       = isRetryTab ? (lead[countKey as keyof NiLead] as number) : 0;
+                  const retry       = followUpRetryMeta(lead);
+                  const tries       = retry.tries;
+                  const limit       = retry.limit;
+                  const isRetryTab  = retry.isRetry;
                   const isNearLimit = isRetryTab && tries >= limit - 1;
                   const isAtLimit   = isRetryTab && tries >= limit;
                   const barColor    = isAtLimit
                     ? "bg-gray-300"
                     : isNearLimit
                     ? "bg-amber-400"
-                    : activeTab === "notinterested" ? "bg-[#B8112D]" : "bg-amber-500";
+                    : isNotInterestedStatus(lead.status) ? "bg-[#B8112D]" : "bg-amber-500";
 
                   return (
                     <Fragment key={lead.id}>
@@ -539,8 +565,8 @@ export default function NotInterestedPage() {
                               status={lead.status}
                               statusUpdatedAt={lead.statusUpdatedAt}
                               badgeClassName={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-semibold w-fit ${
-                                activeTab === "notinterested" ? "bg-[#FFF1F3] text-[#B8112D]"
-                                  : activeTab === "notpicked" ? "bg-[#FFF7ED] text-[#B54708]"
+                                isNotInterestedStatus(lead.status) ? "bg-[#FFF1F3] text-[#B8112D]"
+                                  : isNotPickedStatus(lead.status) ? "bg-[#FFF7ED] text-[#B54708]"
                                   : "bg-gray-100 text-gray-600"
                               }`}
                             />
@@ -674,9 +700,9 @@ export default function NotInterestedPage() {
                 }) : (
                   <tr>
                     <td colSpan={6} className="py-16 sm:py-20 text-center">
-                      {activeTab === "notinterested"
-                        ? <ThumbsDown size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
-                        : <PhoneOff   size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
+                      {activeTab === "notpicked"
+                        ? <PhoneOff   size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
+                        : <ThumbsDown size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
                       }
                       <p className="text-gray-400 text-xs sm:text-sm">
                         {search ? "No leads match your search." : "No leads in this category."}

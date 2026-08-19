@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Search, Plus,
+  PhoneCall, CalendarDays, CircleAlert, Eye, Pencil, Search, Plus, Layers,
 } from "lucide-react";
 
 import TopNavbar from "../components/navigation/TopNavbar";
@@ -47,8 +47,9 @@ import {
   matchesPotentialTab,
   type PotentialTab,
 } from "../utils/potentialClientBuckets";
+import { uniqueLeadsByPhone } from "../utils/uniqueLeadsByPhone";
 
-const POTENTIAL_TABS = ["important", "schedule", "interested"] as const;
+const POTENTIAL_TABS = ["all", "important", "schedule", "interested"] as const;
 
 const getTzAbbr = (tzValue: string) => {
   const found = usTimezones.find(tz => tz.value === tzValue);
@@ -62,12 +63,22 @@ function leadCurrentMoveStatus(lead: Lead): string {
   return (lead.status ?? "").toLowerCase();
 }
 
+function potentialRowMeta(lead: Lead): { subtitle: string; label: string; badge: string } {
+  if (isScheduledCall(lead)) {
+    return { subtitle: "Scheduled Call", label: "Schedule Call", badge: "bg-[#EAF5FF] text-[#0B84F3]" };
+  }
+  if (isInterestedLead(lead)) {
+    return { subtitle: "Interested Lead", label: "Interested", badge: "bg-[#ECFDF5] text-[#065F46]" };
+  }
+  return { subtitle: "Important Lead", label: "Important", badge: "bg-[#FFF1F3] text-[#B8112D]" };
+}
+
 export default function ImportantCallsPage() {
   const { stats: serverStats, refetch: refetchStats } = useCsrStats();
   const { leads, setLeads, loading, refetch } = usePotentialLeads();
   const { updateLead, addNote, onNoteUpdated, onNoteDeleted } = useLeadActions(setLeads);
 
-  const [activeTab, setActiveTab] = useState("important");
+  const [activeTab, setActiveTab] = useState<PotentialTab>("important");
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDate,  setFilterDate]  = useState("");
@@ -103,18 +114,27 @@ export default function ImportantCallsPage() {
   const [scopeSubtypes, setScopeSubtypes] = useState<Record<string, string>>({});
   const [pendingImportantId, setPendingImportantId] = useState<string | null>(null);
 
-  /* ── Derived ── */
+  /* ── Derived (unique-by-phone so pills match the table) ── */
+  const uniqueImportant  = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isImportantOnly(l))), [leads]);
+  const uniqueScheduled  = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isScheduledCall(l))), [leads]);
+  const uniqueInterested = useMemo(() => uniqueLeadsByPhone(leads.filter(l => isInterestedLead(l))), [leads]);
+  const uniqueAll        = useMemo(
+    () => uniqueLeadsByPhone([...uniqueImportant, ...uniqueScheduled, ...uniqueInterested]),
+    [uniqueImportant, uniqueScheduled, uniqueInterested],
+  );
+
   const stats = useMemo(() => ({
-    importantOnlyCount: serverStats?.importantOnlyCount ?? leads.filter(l => isImportantOnly(l)).length,
-    scheduledCount:     serverStats?.scheduledCount     ?? leads.filter(l => isScheduledCall(l)).length,
-    interestedCount:    serverStats?.interestedCount    ?? leads.filter(l => isInterestedLead(l)).length,
+    allCount:           uniqueAll.length,
+    importantOnlyCount: uniqueImportant.length,
+    scheduledCount:     uniqueScheduled.length,
+    interestedCount:    uniqueInterested.length,
     projectWonCount:    serverStats?.projectWonCount    ?? leads.filter(l => isWonClientStatus(l.status)).length,
-    callsTodayCount:    leads.filter(l => isScheduledCall(l) && l.nextSchedule === TODAY_STR).length,
-  }), [leads, serverStats]);
+    callsTodayCount:    uniqueScheduled.filter(l => l.nextSchedule === TODAY_STR).length,
+  }), [leads, serverStats, uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested]);
 
   const interestedWithService = useMemo(
-    () => leads.filter(l => isInterestedLead(l) && l.interestedService).length,
-    [leads],
+    () => uniqueInterested.filter(l => l.interestedService).length,
+    [uniqueInterested],
   );
 
   const chartRows = useMemo<StackedBarRow[]>(() => [
@@ -154,9 +174,14 @@ export default function ImportantCallsPage() {
       if (monthTo && d > monthTo) return false;
       return true;
     };
-    return leads
+    const source =
+      activeTab === "all"        ? uniqueAll
+      : activeTab === "important"  ? uniqueImportant
+      : activeTab === "schedule"   ? uniqueScheduled
+      : uniqueInterested;
+    return source
       .filter(lead => {
-        const matchesTab    = matchesPotentialTab(lead, activeTab as PotentialTab);
+        const matchesTab    = matchesPotentialTab(lead, activeTab);
         const matchesSearch = matchesLeadSearch(searchQuery, {
           name: lead.client,
           company: clientCompany(lead),
@@ -172,7 +197,7 @@ export default function ImportantCallsPage() {
         return matchesTab && matchesSearch && matchesState && matchesPhone && matchesDate && matchesMonth;
       })
       .sort((a, b) => (b.statusUpdatedAt || "").localeCompare(a.statusUpdatedAt || ""));
-  }, [leads, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter]);
+  }, [uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
   const paginated  = filteredCalls.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -387,11 +412,12 @@ export default function ImportantCallsPage() {
         <CapsuleTabs
           className="mt-4 sm:mt-7"
           activeKey={activeTab}
-          onChange={key => { setActiveTab(key); setSearchQuery(""); setFilterDate(""); setPage(1); }}
+          onChange={key => { setActiveTab(key as PotentialTab); setSearchQuery(""); setFilterDate(""); setPage(1); }}
           tabs={[
-            { key: "important",  label: "Important Calls",    count: stats.importantOnlyCount, icon: CircleAlert  },
-            { key: "schedule",   label: "Schedule Call",      count: stats.scheduledCount,     icon: CalendarDays },
-            { key: "interested", label: "Interested Clients", count: stats.interestedCount,    icon: PhoneCall    },
+            { key: "all",        label: "All",                count: activeTab === "all"        ? filteredCalls.length : stats.allCount,           icon: Layers       },
+            { key: "important",  label: "Important Calls",    count: activeTab === "important"  ? filteredCalls.length : stats.importantOnlyCount, icon: CircleAlert  },
+            { key: "schedule",   label: "Schedule Call",      count: activeTab === "schedule"   ? filteredCalls.length : stats.scheduledCount,     icon: CalendarDays },
+            { key: "interested", label: "Interested Clients", count: activeTab === "interested" ? filteredCalls.length : stats.interestedCount,    icon: PhoneCall    },
           ]}
         />
 
@@ -400,14 +426,20 @@ export default function ImportantCallsPage() {
           <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
         </div>
 
-        {/* ══ IMPORTANT-ONLY TABLE ══ */}
-        {activeTab === "important" && (
+        {/* ══ ALL + IMPORTANT TABLE ══ */}
+        {(activeTab === "all" || activeTab === "important") && (
           <div className={CSR_TABLE_CARD}>
             <div className="p-4 sm:p-5 lg:p-6 border-b border-[#F3F3F3]">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>
-                  <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">Important Calls</h3>
-                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Clients marked important without a scheduled meeting.</p>
+                  <h3 className="text-lg sm:text-[22px] font-bold text-[#0F172A]">
+                    {activeTab === "all" ? "All Potential Clients" : "Important Calls"}
+                  </h3>
+                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
+                    {activeTab === "all"
+                      ? "Important, scheduled, and interested clients."
+                      : "Clients marked important without a scheduled meeting."}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative flex-1 min-w-[160px] sm:flex-none sm:w-[220px] lg:w-[260px]">
@@ -450,10 +482,12 @@ export default function ImportantCallsPage() {
                         ))}
                       </tr>
                     ))
-                  ) : filteredCalls.length > 0 ? paginated.map(lead => (
+                  ) : filteredCalls.length > 0 ? paginated.map(lead => {
+                    const meta = potentialRowMeta(lead);
+                    return (
                     <tr key={lead.id} className="border-b border-[#F7F7F7] hover:bg-[#FFF8F9] transition-all">
                       <td className={CSR_TD_POPOVER}>
-                        <ClientNameCell lead={lead} subtitle="Important Lead" />
+                        <ClientNameCell lead={lead} subtitle={meta.subtitle} />
                       </td>
                       <td className={CSR_TD_POPOVER}>
                         {(() => {
@@ -477,7 +511,13 @@ export default function ImportantCallsPage() {
                         <CommentCell id={lead.id} noteHistory={lead.noteHistory} noteCount={lead.noteCount} comment={lead.comments?.trim() || undefined} onAddNote={addNote} onNoteUpdated={onNoteUpdated} onNoteDeleted={onNoteDeleted} />
                       </td>
                       <td className={CSR_TD}>
-                        <span className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold bg-[#FFF1F3] text-[#B8112D] whitespace-nowrap">Important</span>
+                        <span className={`px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-semibold whitespace-nowrap ${meta.badge}`}>{meta.label}</span>
+                        {isScheduledCall(lead) && lead.nextSchedule ? (
+                          <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                            {lead.nextSchedule === TODAY_STR ? "Today" : lead.nextSchedule}
+                            {lead.nextTime ? ` · ${lead.nextTime}` : ""}
+                          </p>
+                        ) : null}
                       </td>
                       <td className={CSR_TD}>
                         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -490,11 +530,14 @@ export default function ImportantCallsPage() {
                         </div>
                       </td>
                     </tr>
-                  )) : (
+                    );
+                  }) : (
                     <tr>
                       <td colSpan={6} className="py-16 sm:py-20 text-center">
                         <Search size={24} className="text-gray-200 mx-auto mb-2 sm:mb-3 sm:w-7 sm:h-7" />
-                        <p className="text-gray-400 text-xs sm:text-sm">No important clients found.</p>
+                        <p className="text-gray-400 text-xs sm:text-sm">
+                          {activeTab === "all" ? "No potential clients found." : "No important clients found."}
+                        </p>
                       </td>
                     </tr>
                   )}

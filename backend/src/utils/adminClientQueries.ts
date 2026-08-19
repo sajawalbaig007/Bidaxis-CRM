@@ -66,8 +66,29 @@ export function scheduledCallWhere(): Prisma.LeadWhereInput {
 
 
 
+/** Real closed clients — not bulk `completed` upload/job rows without a project. */
+function hasWonClientIdentityWhere(): Prisma.LeadWhereInput {
+  return {
+    OR: [
+      { AND: [{ projectTitle: { isSet: true } }, { NOT: { projectTitle: "" } }] },
+      { AND: [{ clientCode: { isSet: true } }, { NOT: { clientCode: "" } }] },
+    ],
+  };
+}
+
 export function closedClientStatusWhere(): Prisma.LeadWhereInput {
-  return { status: { in: ["closed", "completed", "Close Client", "close client"] } };
+  return {
+    OR: [
+      { status: { equals: "Close Client", mode: "insensitive" } },
+      { status: { equals: "closed", mode: "insensitive" } },
+      {
+        AND: [
+          { status: { equals: "completed", mode: "insensitive" } },
+          hasWonClientIdentityWhere(),
+        ],
+      },
+    ],
+  };
 }
 
 /** Important + Schedule + Interested + Closed (Admin Leads "All" pill). */
@@ -96,13 +117,13 @@ export function adminClientBucket(
   return null;
 }
 
-/** Same uniqueness as the Admin Leads table: one row per phone (empty phone stays unique by id). */
+/** Same uniqueness as the Admin Leads table: one row per phone (empty/short phone stays unique by id). */
 export function uniqueLeadsByPhone<T extends { id: string; phone?: string | null }>(leads: T[]): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
   for (const lead of leads) {
-    const phone = lead.phone?.trim() || "";
-    const key = phone || lead.id;
+    const digits = (lead.phone ?? "").replace(/\D/g, "");
+    const key = digits.length >= 7 ? digits : lead.id;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(lead);

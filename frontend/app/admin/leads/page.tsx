@@ -220,7 +220,7 @@ function ClientsPageContent() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    void getAdminTabCounts()
+    void getAdminTabCounts(true)
       .then(tc => setTabCounts(tc))
       .catch(() => {});
     API.get("/admin/csrs")
@@ -522,10 +522,10 @@ function ClientsPageContent() {
                   <PieChart>
                     <Pie
                       data={[
-                        { name: "Important",  value: tabCounts.important  || 0.001 },
-                        { name: "Schedule",   value: tabCounts.schedule   || 0.001 },
-                        { name: "Interested", value: tabCounts.interested || 0.001 },
-                        { name: "Closed",     value: tabCounts.closed     || 0.001 },
+                        { name: "Important",  value: filteredTabCounts.important  || 0.001 },
+                        { name: "Schedule",   value: filteredTabCounts.schedule   || 0.001 },
+                        { name: "Interested", value: filteredTabCounts.interested || 0.001 },
+                        { name: "Closed",     value: filteredTabCounts.closed     || 0.001 },
                       ]}
                       cx="50%" cy="50%" innerRadius={52} outerRadius={80}
                       paddingAngle={3} dataKey="value"
@@ -538,12 +538,12 @@ function ClientsPageContent() {
                     <RTooltip
                       contentStyle={{ borderRadius:"12px", border:"1px solid #eee", fontSize:"12px" }}
                       formatter={(_, n) => {
-                        const total = tabCounts.important + tabCounts.schedule + tabCounts.interested + tabCounts.closed;
+                        const total = filteredTabCounts.important + filteredTabCounts.schedule + filteredTabCounts.interested + filteredTabCounts.closed;
                         const val = total === 0 ? 0
-                          : n === "Important"  ? tabCounts.important
-                          : n === "Schedule"   ? tabCounts.schedule
-                          : n === "Interested" ? tabCounts.interested
-                          : tabCounts.closed;
+                          : n === "Important"  ? filteredTabCounts.important
+                          : n === "Schedule"   ? filteredTabCounts.schedule
+                          : n === "Interested" ? filteredTabCounts.interested
+                          : filteredTabCounts.closed;
                         return [val, String(n)];
                       }}
                     />
@@ -553,10 +553,10 @@ function ClientsPageContent() {
             </div>
             <div className="flex-1 grid grid-cols-2 gap-3">
               {[
-                { label:"Important",      value: tabCounts.important, dot:"bg-[#B8112D]", sub:"flagged only"       },
-                { label:"Schedule Call",  value: tabCounts.schedule,  dot:"bg-[#0B84F3]", sub:"meetings scheduled" },
-                { label:"Interested",     value: tabCounts.interested, dot:"bg-[#027A48]", sub:"service interest"   },
-                { label:"Closed",         value: tabCounts.closed,     dot:"bg-[#065F46]", sub:"closed deals"       },
+                { label:"Important",      value: filteredTabCounts.important, dot:"bg-[#B8112D]", sub:"flagged only"       },
+                { label:"Schedule Call",  value: filteredTabCounts.schedule,  dot:"bg-[#0B84F3]", sub:"meetings scheduled" },
+                { label:"Interested",     value: filteredTabCounts.interested, dot:"bg-[#027A48]", sub:"service interest"   },
+                { label:"Closed",         value: filteredTabCounts.closed,     dot:"bg-[#065F46]", sub:"closed deals"       },
               ].map(s => (
                 <div key={s.label} className="bg-[#FAFAFA] rounded-xl sm:rounded-2xl p-3 sm:p-4">
                   <div className="flex items-center gap-2 mb-1">

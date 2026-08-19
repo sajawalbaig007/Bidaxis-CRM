@@ -7,11 +7,12 @@ import { US_STATES, CA_PROVINCES } from "../../constants/locations";
 interface StateFilterDropdownProps {
   value: string;
   onChange: (v: string) => void;
+  compact?: boolean;
 }
 
 type Country = "all" | "usa" | "canada";
 
-export default function StateFilterDropdown({ value, onChange }: StateFilterDropdownProps) {
+export default function StateFilterDropdown({ value, onChange, compact = false }: StateFilterDropdownProps) {
   const [search,  setSearch]  = useState("");
   const [open,    setOpen]    = useState(false);
   const [country, setCountry] = useState<Country>("all");
@@ -50,14 +51,14 @@ export default function StateFilterDropdown({ value, onChange }: StateFilterDrop
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(v => !v)}
-        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors min-w-[160px] sm:min-w-[200px] ${
+        className={`h-10 sm:h-[42px] px-3 sm:px-4 rounded-xl sm:rounded-2xl border flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium transition-colors ${compact ? "min-w-[140px] sm:min-w-[168px]" : "min-w-[160px] sm:min-w-[200px]"} ${
           value
             ? "border-[#B8112D] bg-[#FFF1F3] text-[#B8112D]"
             : "border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input text-gray-600 dark:text-crm-text-secondary hover:border-gray-300 dark:hover:border-crm-border"
         }`}
       >
         <MapPin size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${value ? "text-[#B8112D]" : "text-gray-400"}`} />
-        <span className="flex-1 text-left truncate text-[12px] sm:text-[13px]">{value || "Filter by State / Province"}</span>
+        <span className="flex-1 text-left truncate text-[12px] sm:text-[13px]">{value || (compact ? "State / Province" : "Filter by State / Province")}</span>
         {value ? (
           <span role="button" onClick={e => { e.stopPropagation(); clear(); }} className="ml-1 text-[#B8112D] hover:text-[#8b0d22] shrink-0">
             <X size={12} className="sm:w-[13px] sm:h-[13px]" />
