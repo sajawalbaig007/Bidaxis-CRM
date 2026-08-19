@@ -34,7 +34,7 @@ const navItems = [
   { title: "Reports",    shortTitle: "Reports",    href: `${BASE}/reports`,         icon: BarChart3       },
   { title: "Project DB", shortTitle: "Project DB", href: `${BASE}/active-projects`, icon: FolderKanban    },
   { title: "Payments",   shortTitle: "Payments",   href: `${BASE}/payments`,       icon: Wallet          },
-  { title: "Uploads",    shortTitle: "Uploads",    href: `${BASE}/uploads`,         icon: Upload          },
+  { title: "Data Hub",   shortTitle: "Data Hub",   href: `${BASE}/uploads`,         icon: Upload          },
   { title: "Bin",        shortTitle: "Bin",        href: `${BASE}/bin`,             icon: Trash2          },
   { title: "Settings",   shortTitle: "Settings",   href: `${BASE}/settings`,        icon: Settings        },
 ];

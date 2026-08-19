@@ -15,7 +15,7 @@ import DashboardNavbar  from "../components/layout/Navbar";
 import UploadFilePreview, { type PreviewRow, type PreviewSummary } from "../components/uploads/UploadFilePreview";
 import UploadActionBento from "../components/uploads/UploadActionBento";
 import UploadAnalyticsBento from "../components/uploads/UploadAnalyticsBento";
-import API from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
@@ -223,6 +223,11 @@ export default function UploadPage() {
   const [reassignToPage, setReassignToPage] = useState<string>("important");
   const [reassignSubmitting, setReassignSubmitting] = useState(false);
   const [reassignSearch, setReassignSearch] = useState("");
+
+  /* Download one CSR's full page data as a multi-sheet Excel */
+  const [showCsrExportModal, setShowCsrExportModal] = useState(false);
+  const [csrExportSearch, setCsrExportSearch] = useState("");
+  const [csrExportingId, setCsrExportingId] = useState<string | null>(null);
 
   const [selectedCompany, setSelectedCompany] = useState("");
   const [customCompany,   setCustomCompany]   = useState("");
@@ -439,6 +444,67 @@ export default function UploadPage() {
     setReassignSearch("");
     setShowReassignModal(true);
     if (!csrs.length) await fetchCSRs();
+  };
+
+  const openCsrExportModal = async () => {
+    setCsrExportSearch("");
+    setShowCsrExportModal(true);
+    if (!csrs.length) await fetchCSRs();
+  };
+
+  const filenameFromDisposition = (header: string | undefined, fallback: string) => {
+    if (!header) return fallback;
+    const star = header.match(/filename\*=UTF-8''([^;]+)/i);
+    if (star?.[1]) {
+      try {
+        return decodeURIComponent(star[1]);
+      } catch {
+        return star[1];
+      }
+    }
+    const plain = header.match(/filename="?([^";]+)"?/i);
+    return plain?.[1] ?? fallback;
+  };
+
+  const downloadCsrPagesExcel = async (csr: CSR) => {
+    if (csrExportingId) return;
+    setCsrExportingId(csr.id);
+    try {
+      const res = await API.get(`/admin/csrs/${csr.id}/data-export`, {
+        responseType: "arraybuffer",
+        timeout: 180_000,
+      });
+      const contentType =
+        String(res.headers?.["content-type"] ?? "") ||
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      if (contentType.includes("application/json")) {
+        toast.error("Download failed — server returned an error");
+        return;
+      }
+      const blob = new Blob([res.data], { type: contentType });
+      if (blob.size < 80) {
+        toast.error("Download failed — empty file");
+        return;
+      }
+      const fallback = `${(csr.csrCode ? `${csr.csrCode}-` : "")}${csr.name.replace(/\s+/g, "-")}-CSR-pages.xlsx`;
+      const filename = filenameFromDisposition(
+        String(res.headers?.["content-disposition"] ?? ""),
+        fallback,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`${csr.name} — Excel downloaded`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to download CSR data"));
+    } finally {
+      setCsrExportingId(null);
+    }
   };
 
   const toggleReassignToCsr = (id: string) => {
@@ -1020,6 +1086,77 @@ export default function UploadPage() {
                 {reassignSubmitting ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeftRight size={16} />}
                 Reassign leads
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CSR DATA EXCEL DOWNLOAD ── */}
+      {showCsrExportModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-xl lg:max-w-2xl shadow-2xl overflow-hidden max-h-[96vh] sm:max-h-[90vh] flex flex-col">
+            <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <FileSpreadsheet size={18} className="text-sky-600 shrink-0" />
+                  Download CSR Pages
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  One Excel per CSR. Each CSR page/tab is a separate sheet (Today, Interested, Bin, Clients…).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCsrExportModal(false)}
+                className="p-2 rounded-xl hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={csrExportSearch}
+                  onChange={(e) => setCsrExportSearch(e.target.value)}
+                  placeholder="Search CSR…"
+                  className="w-full rounded-xl border border-gray-200 pl-9 pr-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                />
+              </div>
+              <div className="rounded-2xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+                {filterCsrsBySearch(csrs, csrExportSearch).map((c) => {
+                  const busy = csrExportingId === c.id;
+                  const disabled = Boolean(csrExportingId);
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 bg-white">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
+                          {c.name}
+                          {!c.isActive ? (
+                            <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">Inactive</span>
+                          ) : null}
+                        </p>
+                        <p className="text-[11px] text-gray-400 truncate">
+                          {c.csrCode ? `${c.csrCode} · ` : ""}{c.email}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => void downloadCsrPagesExcel(c)}
+                        className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60"
+                      >
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                        {busy ? "Preparing…" : "Download"}
+                      </button>
+                    </div>
+                  );
+                })}
+                {filterCsrsBySearch(csrs, csrExportSearch).length === 0 && (
+                  <p className="px-3 py-8 text-center text-sm text-gray-400">No CSRs found</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2009,9 +2146,9 @@ export default function UploadPage() {
         {/* ── HEADER ── */}
         <div className="mb-5 sm:mb-7 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Data intake</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Data Hub</p>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
-              Upload &amp; Distribute
+              Data Hub
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-xl">
               Pick an action card, download the template, then drop your Excel / CSV. Leads auto-split across active CSRs.
@@ -2169,6 +2306,39 @@ export default function UploadPage() {
                     <div className="mt-3 flex flex-wrap items-center justify-start gap-2">
                       <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3.5 py-2 text-xs sm:text-sm font-bold text-violet-700 shadow-sm">
                         Source &amp; destination · No Excel
+                      </span>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "csr-export",
+                label: "CSR Excel",
+                shortLabel: "Excel",
+                accent: "#0284C7",
+                span: "normal",
+                content: (
+                  <div className="p-4 sm:p-5 h-full flex flex-col bg-gradient-to-br from-sky-50 via-white to-white">
+                    <div
+                      onClick={(e) => { e.stopPropagation(); void openCsrExportModal(); }}
+                      className="flex-1 border-2 border-dashed rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group flex flex-col justify-center border-sky-200 hover:border-sky-400 bg-white/70 hover:bg-white"
+                    >
+                      <div className="flex flex-col items-center justify-center text-center px-1">
+                        <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                          <FileSpreadsheet size={26} className="text-sky-600" />
+                        </div>
+                        <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-snug">Download CSR Data</h3>
+                        <p className="text-sm text-gray-500 mt-2 max-w-[280px] leading-snug">
+                          One file per CSR. Every page and sub-tab (Today, Interested, Clients, Bin…) as its own Excel sheet.
+                        </p>
+                        <span className="mt-4 inline-flex bg-sky-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold">
+                          Choose CSR
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-start gap-2">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3.5 py-2 text-xs sm:text-sm font-bold text-sky-700 shadow-sm">
+                        All pages · Single download
                       </span>
                     </div>
                   </div>

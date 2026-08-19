@@ -78,6 +78,7 @@ import {
   parseProjectDbExcel,
   excelRowToProjectBody,
 } from "../utils/projectDbExcel";
+import { buildCsrPagesExcel } from "../utils/csrDataExcelExport";
 import { uploadExcel } from "../middleware/upload.middleware";
 import {
   diffProjectChangesForTm,
@@ -270,6 +271,40 @@ router.get("/csrs", verifyToken, allowRoles("admin", "manager", "technical_manag
     return res.status(500).json({ success: false, message: "Failed to fetch CSRs" });
   }
 });
+
+/* ================= CSR FULL PAGE DATA EXCEL ================= */
+router.get(
+  "/csrs/:csrId/data-export",
+  verifyToken,
+  allowRoles("admin", "manager", "technical_manager"),
+  async (req, res) => {
+    try {
+      const csrId = String(req.params.csrId ?? "").trim();
+      if (!csrId) {
+        return res.status(400).json({ success: false, message: "CSR is required" });
+      }
+      const { buffer, filename } = await buildCsrPagesExcel(csrId);
+      const asciiName = filename.replace(/[^\x20-\x7E]/g, "_");
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      );
+      res.setHeader("Content-Length", String(buffer.length));
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).end(buffer);
+    } catch (error) {
+      const status = Number((error as { status?: number })?.status) || 500;
+      const message =
+        status === 404 ? "CSR not found" : "Failed to export CSR data";
+      console.log(error);
+      return res.status(status).json({ success: false, message });
+    }
+  },
+);
 
 /* ================= CLIENT TAB COUNTS (leads page — lightweight) ================= */
 router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
