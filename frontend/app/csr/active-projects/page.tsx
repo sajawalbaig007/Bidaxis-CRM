@@ -12,7 +12,7 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW } from "../components/shared/csrTableStyles";
+import { PROJECT_GRID_HEAD, CRM_GRID_HEAD_ROW, PROJECT_GRID_ROW, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import PaymentStatusCircle from "../components/shared/PaymentStatusCircle";
 import CommentCell from "../components/shared/CommentCell";
@@ -20,6 +20,7 @@ import EmailWithExtraCell from "../components/shared/EmailWithExtraCell";
 import ClientSortControls from "../components/shared/ClientSortControls";
 import { parseEmails } from "../utils/parseEmails";
 import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/clientListSort";
+import { sortByOldestNote } from "../utils/sortByOldestNote";
 import {
   ClientDetailCell,
   FulfillmentCell,
@@ -125,7 +126,7 @@ export default function CSRProjectsPage() {
   const [stateFilter,  setStateFilter]  = useState("");
   const [phoneFilter,  setPhoneFilter]  = useState("");
   const [page,         setPage]         = useState(1);
-  const [sortBy,       setSortBy]       = useState<ClientListSortBy>("clientCode");
+  const [sortBy,       setSortBy]       = useState<ClientListSortBy>("oldestNote");
   const [sortDir,      setSortDir]      = useState<SortDir>("asc");
 
   const [viewingProject,  setViewingProject]  = useState<Project | null>(null);
@@ -164,27 +165,34 @@ export default function CSRProjectsPage() {
 
   /* ── Derived ── */
   const filteredProjects = useMemo(() => {
-    const q = search.toLowerCase().trim();
     const list = projects.filter(p => {
       const matchesDate   = matchesDeadlineRange(p.deadline, dateFrom, dateTo);
       const matchesState  = matchesStateLocationFilter(p.state, p.phone, stateFilter);
       const matchesPhone  = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
       const code = (p.clientCode || p.projectCode || "").toLowerCase();
-      const matchesSearch = !q || (p.projectTitle ?? "").toLowerCase().includes(q) ||
-        (p.client ?? "").toLowerCase().includes(q) || (p.company ?? "").toLowerCase().includes(q) ||
-        code.includes(q);
+      const matchesSearch = matchesLeadSearch(search, {
+        name: p.client,
+        company: p.company,
+        phone: p.phone,
+        email: p.email,
+        service: p.service,
+        state: p.state,
+      }) || (!!search.trim() && (
+        (p.projectTitle ?? "").toLowerCase().includes(search.toLowerCase().trim()) ||
+        code.includes(search.toLowerCase().trim())
+      ));
       return matchesDate && matchesState && matchesPhone && matchesSearch;
     });
-    return sortClientRows(
-      list.map(p => ({
-        ...p,
-        // PROJECT DETAIL "Code" prefers projectCode, then clientCode
-        clientCode: p.projectCode || p.clientCode || null,
-      })),
-      "clientCode",
-      sortDir,
-    );
-  }, [dateFrom, dateTo, search, stateFilter, phoneFilter, projects, sortDir]);
+    const mapped = list.map(p => ({
+      ...p,
+      clientCode: p.projectCode || p.clientCode || null,
+    }));
+    if (sortBy === "oldestNote") {
+      const sorted = sortByOldestNote(mapped);
+      return sortDir === "desc" ? sorted.reverse() : sorted;
+    }
+    return sortClientRows(mapped, sortBy, sortDir);
+  }, [dateFrom, dateTo, search, stateFilter, phoneFilter, projects, sortBy, sortDir]);
 
   const totalPages     = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
   const paginated      = filteredProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -410,7 +418,7 @@ export default function CSRProjectsPage() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search name, code, project..."
+                placeholder="Search name, company, phone…"
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] pl-9 pr-3 text-xs sm:text-sm outline-none focus:border-[#B8112D]"
@@ -420,7 +428,6 @@ export default function CSRProjectsPage() {
               className="shrink-0 flex-nowrap"
               sortBy={sortBy}
               sortDir={sortDir}
-              dirOnly
               onSortBy={v => { setSortBy(v); setPage(1); }}
               onSortDir={v => { setSortDir(v); setPage(1); }}
             />

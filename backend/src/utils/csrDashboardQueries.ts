@@ -163,6 +163,42 @@ const LEAD_LIST_SELECT = {
   },
 };
 
+type OldestNoteSlim = {
+  id: string;
+  createdAt: Date;
+  notes: { createdAt: Date }[];
+};
+
+function compareOldestNote(a: OldestNoteSlim, b: OldestNoteSlim): number {
+  const ta = a.notes[0]?.createdAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  const tb = b.notes[0]?.createdAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (ta !== tb) return ta - tb;
+  return a.createdAt.getTime() - b.createdAt.getTime();
+}
+
+export async function fetchLeadIdsByOldestNote(where: Prisma.LeadWhereInput): Promise<string[]> {
+  const rows = await prisma.lead.findMany({
+    where,
+    select: {
+      id: true,
+      createdAt: true,
+      notes: { orderBy: { createdAt: "asc" as const }, take: 1, select: { createdAt: true } },
+    },
+  });
+  rows.sort(compareOldestNote);
+  return rows.map(r => r.id);
+}
+
+export function reorderByIds<T extends { id: string }>(rows: T[], ids: string[]): T[] {
+  const map = new Map(rows.map(r => [r.id, r]));
+  const out: T[] = [];
+  for (const id of ids) {
+    const row = map.get(id);
+    if (row) out.push(row);
+  }
+  return out;
+}
+
 export async function fetchCsrTabLeads(opts: {
   csrId: string;
   tab: CsrTabKey;
@@ -181,19 +217,18 @@ export async function fetchCsrTabLeads(opts: {
     where.createdAt = createdAt;
   }
 
-  const [total, rawLeads] = await Promise.all([
-    prisma.lead.count({ where }),
-    prisma.lead.findMany({
-      where,
-      select: LEAD_LIST_SELECT,
-      orderBy: { updatedAt: "desc" },
-      skip:  (page - 1) * pageSize,
-      take:  pageSize,
-    }),
-  ]);
+  const ids = await fetchLeadIdsByOldestNote(where);
+  const total = ids.length;
+  const pageIds = ids.slice((page - 1) * pageSize, page * pageSize);
+  const rawLeads = pageIds.length
+    ? await prisma.lead.findMany({
+        where: { id: { in: pageIds } },
+        select: LEAD_LIST_SELECT,
+      })
+    : [];
 
   return {
-    leads: rawLeads.map(mapDashboardLead),
+    leads: reorderByIds(rawLeads, pageIds).map(mapDashboardLead),
     total,
     page,
     pageSize,
@@ -203,16 +238,18 @@ export async function fetchCsrTabLeads(opts: {
 
 /** Potential clients — important / schedule / interested only */
 export async function fetchPotentialLeads(csrId: string) {
-  const rawLeads = await prisma.lead.findMany({
-    where: {
-      ...activeCsrLeadWhere(csrId),
-      OR: [isImportantStatusWhere(), isInterestedStatusWhere()],
-    },
-    select: LEAD_LIST_SELECT,
-    orderBy: { updatedAt: "desc" },
-  });
+  const where: Prisma.LeadWhereInput = {
+    ...activeCsrLeadWhere(csrId),
+    OR: [isImportantStatusWhere(), isInterestedStatusWhere()],
+  };
+  const [ids, rawLeads] = await Promise.all([
+    fetchLeadIdsByOldestNote(where),
+    prisma.lead.findMany({
+      where,
+      select: LEAD_LIST_SELECT,
+    }),
+  ]);
 
-  return rawLeads
-    .filter(isPotentialClientLead)
-    .map(mapDashboardLead);
+  const ordered = reorderByIds(rawLeads, ids).filter(isPotentialClientLead);
+  return ordered.map(mapDashboardLead);
 }

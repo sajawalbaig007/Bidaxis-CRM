@@ -39,7 +39,8 @@ import { useOpenLeadFromQuery } from "./hooks/useOpenLeadFromQuery";
 import { matchesStateLocationFilter, matchesPhoneAreaCodeFilter } from "@/lib/stateLocationFilter";
 import { PAGE_SIZE, TODAY_STR } from "./constants";
 import { leadMatchesTimezoneFilter } from "./constants/timezoneAbbr";
-import { MASTER_FORMAT_TRADES, parseTradeList } from "./constants/masterFormatTrades";
+import { MASTER_FORMAT_TRADES, canonicalTradeName, leadMatchesTradeFilter, leadTradeAndSubtradeNames } from "./constants/masterFormatTrades";
+import { sortByOldestNote } from "./utils/sortByOldestNote";
 import { Lead } from "./types/lead";
 import type { NoteEntry } from "./hooks/useLeadsData";
 import {
@@ -135,9 +136,7 @@ export default function CSRPage() {
       const matchesSource = sourceFilter
         ? (item.sourceSudoName?.trim().toLowerCase() === sourceFilter.toLowerCase())
         : true;
-      const matchesTrade = tradeFilter
-        ? parseTradeList(item.trade).some(t => t.trim().toLowerCase() === tradeFilter.toLowerCase())
-        : true;
+      const matchesTrade = leadMatchesTradeFilter(item.trade, item.subTrades, tradeFilter);
       const q = searchQuery.trim().toLowerCase();
       const digits = q.replace(/\D/g, "");
       const matchesSearch = !q || [
@@ -150,6 +149,8 @@ export default function CSRPage() {
       return matchesState && matchesPhone && matchesTimezone && matchesSource && matchesTrade && matchesSearch;
     });
   }, [visibleLeads, stateFilter, timezoneFilter, phoneFilter, sourceFilter, tradeFilter, searchQuery]);
+
+  const tabSorted = useMemo(() => sortByOldestNote(tabFiltered), [tabFiltered]);
 
   const sourceSudoOptions = useMemo(() => {
     const names = new Set<string>();
@@ -164,13 +165,14 @@ export default function CSRPage() {
     const seen = new Set(MASTER_FORMAT_TRADES.map(t => t.toLowerCase()));
     const extras: string[] = [];
     for (const name of tradeOptions) {
-      const key = name.trim().toLowerCase();
+      const canon = canonicalTradeName(name);
+      const key = canon.toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      extras.push(name);
+      extras.push(canon);
     }
     for (const lead of visibleLeads) {
-      for (const t of parseTradeList(lead.trade)) {
+      for (const t of leadTradeAndSubtradeNames(lead.trade, lead.subTrades)) {
         const key = t.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -182,14 +184,14 @@ export default function CSRPage() {
   }, [tradeOptions, visibleLeads]);
 
   const paginated = hasTableFilters
-    ? tabFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    : tabFiltered;
+    ? tabSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : tabSorted;
 
   const displayTotalPages = hasTableFilters
-    ? Math.max(1, Math.ceil(tabFiltered.length / PAGE_SIZE))
+    ? Math.max(1, Math.ceil(tabSorted.length / PAGE_SIZE))
     : serverTotalPages;
 
-  const displayTotal = hasTableFilters ? tabFiltered.length : tabTotal;
+  const displayTotal = hasTableFilters ? tabSorted.length : tabTotal;
 
   const pillCount = (tab: string, stat: number) => {
     const isActive = tab === "today"
@@ -573,7 +575,7 @@ export default function CSRPage() {
                       ))}
                     </tr>
                   ))
-                ) : tabFiltered.length > 0 ? paginated.map((currentLink, idx) => (
+                ) : tabSorted.length > 0 ? paginated.map((currentLink, idx) => (
                   <tr key={currentLink.id} className="border-t border-gray-100 dark:border-crm-border bg-white dark:bg-crm-surface hover:bg-[#FAFAFA] dark:hover:bg-crm-surface-raised transition-colors">
 
                     <td className={CSR_TD_POPOVER}>
@@ -701,7 +703,7 @@ export default function CSRPage() {
                           ? `No leads with ${timezoneFilter} phone area code.`
                           : phoneFilter
                           ? `No leads matching phone code "${phoneFilter}".`
-                          : statCounts.totalLeads > 0 && tabFiltered.length === 0
+                          : statCounts.totalLeads > 0 && tabSorted.length === 0
                           ? "Your leads are on other pages — try Not Interested, Potential Clients, or Clients."
                           : (activeTab === "today" || activeTab === "pending") && statCounts.totalLeads > 0
                           ? "No pending leads in Today's queue. Try another tab above."
@@ -725,7 +727,7 @@ export default function CSRPage() {
           {/* PAGINATION */}
           <div className="flex items-center justify-between px-1 pt-4 mt-2 border-t border-gray-100">
             <p className="text-xs text-gray-400">
-              {tabFiltered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, tabFiltered.length)}`} of {displayTotal}
+              {tabSorted.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, tabSorted.length)}`} of {displayTotal}
             </p>
             <div className="flex items-center gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}

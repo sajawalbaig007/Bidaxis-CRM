@@ -22,6 +22,7 @@ import PhoneWithTzCell from "../components/shared/PhoneWithTzCell";
 import InterestedServicesCell from "../components/shared/InterestedServicesCell";
 import InterestedModal from "../components/modals/InterestedModal";
 import { clientCompany, ourCompany } from "../utils/leadFieldLabels";
+import { sortByOldestNote } from "../utils/sortByOldestNote";
 import { collectLeadPhones } from "../utils/parsePhones";
 import {
   decomposeInterestedServices,
@@ -179,12 +180,11 @@ export default function ImportantCallsPage() {
       : activeTab === "important"  ? uniqueImportant
       : activeTab === "schedule"   ? uniqueScheduled
       : uniqueInterested;
-    return source
-      .filter(lead => {
+    const list = source.filter(lead => {
         const matchesTab    = matchesPotentialTab(lead, activeTab);
         const matchesSearch = matchesLeadSearch(searchQuery, {
           name: lead.client,
-          company: clientCompany(lead),
+          company: [clientCompany(lead), ourCompany(lead), lead.rawCompany].filter(Boolean).join(" "),
           phone: lead.phone,
           email: lead.email,
           service: lead.interestedService,
@@ -195,8 +195,8 @@ export default function ImportantCallsPage() {
         const matchesDate   = activeTab !== "schedule" || !filterDate || lead.nextSchedule === filterDate;
         const matchesMonth  = inMonth(lead.statusUpdatedAt || "");
         return matchesTab && matchesSearch && matchesState && matchesPhone && matchesDate && matchesMonth;
-      })
-      .sort((a, b) => (b.statusUpdatedAt || "").localeCompare(a.statusUpdatedAt || ""));
+      });
+    return sortByOldestNote(list);
   }, [uniqueAll, uniqueImportant, uniqueScheduled, uniqueInterested, activeTab, searchQuery, filterDate, monthFrom, monthTo, stateFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE));
