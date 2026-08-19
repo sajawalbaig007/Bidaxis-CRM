@@ -214,6 +214,7 @@ function ClientsPageContent() {
     all: 0, important: 0, schedule: 0, interested: 0, closed: 0,
   });
   const [totalRecords, setTotalRecords] = useState(0);
+  const [recordsView, setRecordsView] = useState<ClientView | null>(null);
   const [csrOptions, setCsrOptions] = useState<string[]>([]);
   const [searchDebounced, setSearchDebounced] = useState("");
   const [impSearchDebounced, setImpSearchDebounced] = useState("");
@@ -318,6 +319,7 @@ function ClientsPageContent() {
         });
         setClients(uniqueLeads.map(formatAdminLead));
         setTotalRecords(res.data.total ?? 0);
+        setRecordsView(effectiveView);
       } catch {
         if (!cancelled) toast.error("Failed to fetch clients");
       } finally {
@@ -348,7 +350,8 @@ function ClientsPageContent() {
       .catch(() => {});
   };
 
-  const totalPagesClients = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+  const displayCount = recordsView === effectiveView ? totalRecords : tabCounts[effectiveView];
+  const totalPagesClients = Math.max(1, Math.ceil(displayCount / PAGE_SIZE));
 
   const leadColPredicates = useMemo(() => ({
     client:  (c: ReturnType<typeof formatAdminLead>, v: string) =>
@@ -375,9 +378,9 @@ function ClientsPageContent() {
   // Pill counts use the same unique-client total as the table heading.
   const filteredTabCounts = useMemo(() => {
     const counts = { ...tabCounts };
-    if (!loading) counts[effectiveView] = totalRecords;
+    if (!loading && recordsView === effectiveView) counts[effectiveView] = totalRecords;
     return counts;
-  }, [tabCounts, effectiveView, totalRecords, loading]);
+  }, [tabCounts, effectiveView, totalRecords, loading, recordsView]);
 
   const locationFiltersActive = !!(stateFilter.trim() || phoneFilter.trim() || activeSearchQ.trim());
 
@@ -579,6 +582,7 @@ function ClientsPageContent() {
               tabs={visibleTabs}
               activeKey={effectiveView as ClientView}
               onChange={key => {
+                setLoading(true);
                 setView(key);
                 setPage(1);
                 router.replace(`${staffBase}/leads?tab=${key}`);
@@ -670,7 +674,7 @@ function ClientsPageContent() {
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{tableTitle}</h3>
                 <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
-                  {totalRecords} records
+                  {displayCount} records
                 </p>
               </div>
 
@@ -1052,7 +1056,7 @@ function ClientsPageContent() {
               {totalPagesClients > 1 && (
                 <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-t border-gray-100">
                   <p className="text-xs text-gray-400">
-                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalRecords)} of {totalRecords}
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, displayCount)} of {displayCount}
                   </p>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
