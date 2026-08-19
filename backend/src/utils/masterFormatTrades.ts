@@ -158,17 +158,17 @@ export function parseSubContactsCell(raw: string | null | undefined): ParsedSubC
 }
 
 export async function ensureMasterFormatTrades(): Promise<void> {
-  try {
-    await prisma.trade.createMany({
-      data: MASTER_FORMAT_TRADES.map(name => ({ name })),
-      skipDuplicates: true,
-    });
-  } catch {
-    const existing = await prisma.trade.findMany({ select: { name: true } });
-    const have = new Set(existing.map(t => t.name.toLowerCase()));
-    for (const name of MASTER_FORMAT_TRADES) {
-      if (have.has(name.toLowerCase())) continue;
-      await prisma.trade.create({ data: { name } }).catch(() => null);
-    }
+  await insertMissingTrades([...MASTER_FORMAT_TRADES]);
+}
+
+export async function insertMissingTrades(names: string[]): Promise<void> {
+  const unique = [...new Set(names.map(n => n.trim()).filter(Boolean))];
+  if (unique.length === 0) return;
+  const existing = await prisma.trade.findMany({ select: { name: true } });
+  const have = new Set(existing.map(t => t.name.toLowerCase()));
+  for (const name of unique) {
+    if (have.has(name.toLowerCase())) continue;
+    await prisma.trade.create({ data: { name } }).catch(() => null);
+    have.add(name.toLowerCase());
   }
 }

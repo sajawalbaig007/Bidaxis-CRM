@@ -13,7 +13,7 @@ import { seedLeadNotesFromCommentsForFile } from "../utils/leadNotes";
 import { deleteLeadsCascade, invalidateAllLeadCaches } from "../utils/deleteLeadsCascade";
 import { ADMIN_UPLOAD_SOURCE_SELECT } from "../utils/uploadSourceSelect";
 import { findLeadsByPhonesBulk } from "../utils/leadPhoneLookup";
-import { parseSubContactsCell, parseTradeList } from "../utils/masterFormatTrades";
+import { parseSubContactsCell, parseTradeList, insertMissingTrades } from "../utils/masterFormatTrades";
 import type { ParsedLeadRow } from "../utils/uploadExcelParse";
 
 const CHUNK_INSERT = 1000;
@@ -25,10 +25,7 @@ async function upsertTradesFromRows(rawValues: (string | null | undefined)[]) {
     for (const t of parseTradeList(raw)) names.add(t);
   }
   if (names.size === 0) return;
-  await prisma.trade.createMany({
-    data: [...names].map(name => ({ name })),
-    skipDuplicates: true,
-  });
+  await insertMissingTrades([...names]);
 }
 
 async function attachExcelSubContacts(uploadedFileId: string, rows: ParsedLeadRow[]) {
