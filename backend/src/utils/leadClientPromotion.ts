@@ -258,7 +258,7 @@ export async function healPipelineLeaksForCsr(csrId: string): Promise<number> {
     where: {
       assignedTo: csrId,
       ...wonClientStatusWhere(),
-      hiddenOnMain: false,
+      NOT: { hiddenOnMain: true },
     },
     data: { hiddenOnMain: true },
   });
