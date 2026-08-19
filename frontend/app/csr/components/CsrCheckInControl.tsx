@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LogIn, LogOut, Loader2, Pause, Play } from "lucide-react";
 import toast from "react-hot-toast";
-import API, { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage, getApiBase, getClientAuthToken } from "@/lib/api";
 
 type WorkSession = {
   id: string;
@@ -25,6 +25,9 @@ type StatusResponse = {
   session?: WorkSession | null;
   message?: string;
 };
+
+const AUTO_PAUSE_KEY = "csr_lock_auto_paused";
+const HIDDEN_PAUSE_MS = 5000;
 
 function formatDurationMs(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -58,6 +61,36 @@ function formatCheckInLabel(iso: string): string {
   }
 }
 
+function postKeepalive(path: "/csr/pause" | "/csr/resume") {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getClientAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(`${getApiBase()}${path}`, {
+    method: "POST",
+    credentials: "include",
+    keepalive: true,
+    headers,
+    body: "{}",
+  });
+}
+
+function readAutoPausedFlag() {
+  try {
+    return sessionStorage.getItem(AUTO_PAUSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeAutoPausedFlag(on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(AUTO_PAUSE_KEY, "1");
+    else sessionStorage.removeItem(AUTO_PAUSE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function CsrCheckInControl({ compact = false }: { compact?: boolean }) {
   const [checkedIn, setCheckedIn] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -66,11 +99,23 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
   const [busy, setBusy] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  const checkedInRef = useRef(false);
+  const pausedRef = useRef(false);
+  const autoPausedRef = useRef(readAutoPausedFlag());
+  const lockBusyRef = useRef(false);
+
   const applyStatus = useCallback((data: StatusResponse | undefined, forceIn = false) => {
     const inNow = forceIn || !!data?.checkedIn || !!data?.session;
+    const pausedNow = !!data?.paused || !!data?.session?.paused;
     setCheckedIn(inNow);
-    setPaused(!!data?.paused || !!data?.session?.paused);
+    setPaused(pausedNow);
     setSession(data?.session ?? null);
+    checkedInRef.current = inNow;
+    pausedRef.current = pausedNow;
+    if (!inNow) {
+      autoPausedRef.current = false;
+      writeAutoPausedFlag(false);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -90,11 +135,16 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
       const detail = (e as CustomEvent<{ checkedIn?: boolean; paused?: boolean }>).detail;
       if (detail && typeof detail.checkedIn === "boolean") {
         setCheckedIn(detail.checkedIn);
+        checkedInRef.current = detail.checkedIn;
         if (!detail.checkedIn) {
           setSession(null);
           setPaused(false);
+          pausedRef.current = false;
+          autoPausedRef.current = false;
+          writeAutoPausedFlag(false);
         } else if (typeof detail.paused === "boolean") {
           setPaused(detail.paused);
+          pausedRef.current = detail.paused;
         }
         return;
       }
@@ -115,6 +165,91 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(id);
   }, [checkedIn, session?.checkInAt]);
+
+  const notifyPause = (nextPaused: boolean) => {
+    window.dispatchEvent(
+      new CustomEvent("csr-checkin-changed", { detail: { checkedIn: true, paused: nextPaused } }),
+    );
+  };
+
+  const autoPauseForLock = useCallback(async () => {
+    if (!checkedInRef.current || pausedRef.current || lockBusyRef.current) return;
+    lockBusyRef.current = true;
+    autoPausedRef.current = true;
+    writeAutoPausedFlag(true);
+    pausedRef.current = true;
+    setPaused(true);
+    try {
+      await postKeepalive("/csr/pause");
+      notifyPause(true);
+    } catch {
+      autoPausedRef.current = false;
+      writeAutoPausedFlag(false);
+      pausedRef.current = false;
+      setPaused(false);
+    } finally {
+      lockBusyRef.current = false;
+    }
+  }, []);
+
+  const autoResumeAfterUnlock = useCallback(async () => {
+    if (!checkedInRef.current || !autoPausedRef.current || lockBusyRef.current) return;
+    lockBusyRef.current = true;
+    autoPausedRef.current = false;
+    writeAutoPausedFlag(false);
+    pausedRef.current = false;
+    setPaused(false);
+    try {
+      await postKeepalive("/csr/resume");
+      notifyPause(false);
+    } catch {
+      autoPausedRef.current = true;
+      writeAutoPausedFlag(true);
+      pausedRef.current = true;
+      setPaused(true);
+    } finally {
+      lockBusyRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    let hiddenTimer: number | undefined;
+
+    const onFreeze = () => {
+      void autoPauseForLock();
+    };
+    const onPageResume = () => {
+      void autoResumeAfterUnlock();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenTimer = window.setTimeout(() => {
+          void autoPauseForLock();
+        }, HIDDEN_PAUSE_MS);
+        return;
+      }
+      if (hiddenTimer) {
+        window.clearTimeout(hiddenTimer);
+        hiddenTimer = undefined;
+      }
+      void autoResumeAfterUnlock();
+    };
+
+    document.addEventListener("freeze", onFreeze);
+    document.addEventListener("resume", onPageResume);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    if (document.visibilityState === "visible" && autoPausedRef.current) {
+      void autoResumeAfterUnlock();
+    }
+
+    return () => {
+      if (hiddenTimer) window.clearTimeout(hiddenTimer);
+      document.removeEventListener("freeze", onFreeze);
+      document.removeEventListener("resume", onPageResume);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [autoPauseForLock, autoResumeAfterUnlock]);
 
   const liveDuration =
     session?.checkInAt
@@ -147,6 +282,10 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
       setCheckedIn(false);
       setPaused(false);
       setSession(null);
+      checkedInRef.current = false;
+      pausedRef.current = false;
+      autoPausedRef.current = false;
+      writeAutoPausedFlag(false);
       toast.success(res.data.message || "Checked out.");
       window.dispatchEvent(
         new CustomEvent("csr-checkin-changed", { detail: { checkedIn: false, paused: false } }),
@@ -162,10 +301,13 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
 
   const pause = async () => {
     setBusy(true);
+    autoPausedRef.current = false;
+    writeAutoPausedFlag(false);
     try {
       const res = await API.post<StatusResponse>("/csr/pause", {});
       applyStatus(res.data, true);
       setPaused(true);
+      pausedRef.current = true;
       toast.success(res.data.message || "Paused.");
       window.dispatchEvent(
         new CustomEvent("csr-checkin-changed", { detail: { checkedIn: true, paused: true } }),
@@ -180,10 +322,13 @@ export default function CsrCheckInControl({ compact = false }: { compact?: boole
 
   const resume = async () => {
     setBusy(true);
+    autoPausedRef.current = false;
+    writeAutoPausedFlag(false);
     try {
       const res = await API.post<StatusResponse>("/csr/resume", {});
       applyStatus(res.data, true);
       setPaused(false);
+      pausedRef.current = false;
       toast.success(res.data.message || "Resumed.");
       window.dispatchEvent(
         new CustomEvent("csr-checkin-changed", { detail: { checkedIn: true, paused: false } }),
