@@ -280,7 +280,14 @@ export default function NotInterestedPage() {
     try {
       const res = await API.put(`/csr/lead/${lead.id}`, { status });
       bustCaches();
-      if (sameTab) {
+      const staysOnPage = activeTab === "all" && (
+        isNotInterestedStatus(status) ||
+        isNotPickedStatus(status) ||
+        status === STATUS_NO_OWNER ||
+        status === STATUS_NOT_IN_SERVICE ||
+        status === STATUS_IN_HOUSE
+      );
+      if (staysOnPage) {
         const updated = res.data?.lead;
         if (updated) {
           setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updated, status } : l));
