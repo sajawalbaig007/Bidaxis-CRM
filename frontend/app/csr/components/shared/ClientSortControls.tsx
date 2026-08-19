@@ -30,6 +30,7 @@ export default function ClientSortControls({
           className="h-10 sm:h-11 rounded-xl border border-gray-200 bg-[#FAFAFA] px-2.5 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] text-[#0F172A] font-medium shrink-0"
           title="Sort by"
         >
+          <option value="oldestNote">Oldest note</option>
           <option value="clientCode">Client Code</option>
           <option value="name">Name</option>
         </select>

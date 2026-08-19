@@ -1,5 +1,5 @@
 export type SortDir = "asc" | "desc";
-export type ClientListSortBy = "clientCode" | "name";
+export type ClientListSortBy = "oldestNote" | "clientCode" | "name";
 
 /** Prefer last number group so CSR1-1001 / 1001 both sort as 1001. */
 export function clientCodeNumericKey(code: string | null | undefined): number {
@@ -42,6 +42,7 @@ export function sortClientRows<T extends {
   const codeOf = (r: T) => r.clientCode || r.projectCode || null;
   const copy = [...rows];
   copy.sort((a, b) => {
+    if (sortBy === "oldestNote") return 0;
     if (sortBy === "clientCode") {
       const codeCmp = compareByClientCode(codeOf(a), codeOf(b), sortDir);
       if (codeCmp !== 0) return codeCmp;

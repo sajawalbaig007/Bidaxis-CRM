@@ -12,7 +12,7 @@ import TopNavbar from "../components/navigation/TopNavbar";
 import ServicePicker from "../components/shared/ServicePicker";
 import StackedHorizontalBarChart, { StackedBarRow } from "../components/shared/StackedHorizontalBarChart";
 import Pagination from "../components/shared/Pagination";
-import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW } from "../components/shared/csrTableStyles";
+import { CLIENT_GRID_HEAD, CRM_GRID_HEAD_ROW, CLIENT_GRID_ROW, matchesLeadSearch } from "../components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 
 import { isWonClientStatus } from "../constants/leadStatuses";
@@ -27,6 +27,7 @@ import ClientSortControls from "../components/shared/ClientSortControls";
 import { collectLeadEmails } from "../utils/parseEmails";
 import { collectLeadPhones } from "../utils/parsePhones";
 import { sortClientRows, type ClientListSortBy, type SortDir } from "../utils/clientListSort";
+import { sortByOldestNote } from "../utils/sortByOldestNote";
 import { getCompanyTimezoneAbbr, tzBadgeClass } from "../constants/timezoneAbbr";
 import toast, { Toaster } from "react-hot-toast";
 import ClientHistoryModal from "@/app/components/clients/ClientHistoryModal";
@@ -84,7 +85,7 @@ export default function LeadsPage() {
   const [stateFilter,  setStateFilter]  = useState("");
   const [phoneFilter,  setPhoneFilter]  = useState("");
   const [page,      setPage]      = useState(1);
-  const [sortBy,    setSortBy]    = useState<ClientListSortBy>("clientCode");
+  const [sortBy,    setSortBy]    = useState<ClientListSortBy>("oldestNote");
   const [sortDir,   setSortDir]   = useState<SortDir>("asc");
   /** After note add/update, pin that client to the top of the current list. */
   const [boostedLeadId, setBoostedLeadId] = useState<string | null>(null);
@@ -169,21 +170,21 @@ export default function LeadsPage() {
   const interestedCount = stats.interestedCount;
   const pendingCount    = stats.pendingCount;
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
     const list = baseList.filter(l =>
       matchesStateLocationFilter(l.state, l.phone, stateFilter) &&
       matchesPhoneAreaCodeFilter(l.phone, phoneFilter) &&
-      (!q || (
-        l.name.toLowerCase().includes(q) ||
-        l.company.toLowerCase().includes(q) ||
-        (l.clientCode ?? "").toLowerCase().includes(q) ||
-        (l.projectCode ?? "").toLowerCase().includes(q) ||
-        collectLeadPhones(l.phone, l.contacts).some(p => p.includes(q)) ||
-        collectLeadEmails(l.email, l.contacts).some(e => e.toLowerCase().includes(q)) ||
-        l.email.toLowerCase().includes(q)
-      ))
+      matchesLeadSearch(search, {
+        name: l.name,
+        company: [l.rawCompany, l.company].filter(Boolean).join(" "),
+        phone: l.phone,
+        email: l.email,
+        service: l.interestedService,
+        state: l.state,
+      })
     );
-    const sorted = sortClientRows(list, sortBy, sortDir);
+    const sorted = sortBy === "oldestNote"
+      ? (sortDir === "desc" ? sortByOldestNote(list).reverse() : sortByOldestNote(list))
+      : sortClientRows(list, sortBy, sortDir);
     return boostedLeadId ? bumpToFront(sorted, boostedLeadId) : sorted;
   }, [baseList, search, stateFilter, phoneFilter, sortBy, sortDir, boostedLeadId]);
 
@@ -425,7 +426,7 @@ export default function LeadsPage() {
                 <div className="relative flex-1 min-w-[150px] sm:w-[220px]">
                   <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="text" placeholder="Name, code, phone, email..."
+                    placeholder="Search name, company, phone…"
                     value={search}
                     onChange={e => { setSearch(e.target.value); setPage(1); }}
                     className="w-full h-10 sm:h-[44px] rounded-xl sm:rounded-2xl border border-gray-200 bg-[#FAFAFA] pl-9 pr-4 text-xs sm:text-sm outline-none focus:border-[#B8112D] transition-colors"

@@ -46,6 +46,7 @@ import {
 } from "../constants/leadStatuses";
 import type { Lead } from "../types/lead";
 import { uniqueLeadsByPhone } from "../utils/uniqueLeadsByPhone";
+import { sortByOldestNote } from "../utils/sortByOldestNote";
 
 const NOT_INTERESTED_LIMIT = 3;
 const NOT_PICKED_LIMIT     = 7;
@@ -146,7 +147,7 @@ export default function NotInterestedPage() {
     : dashLoading;
 
   const searchFiltered = useMemo(() => {
-    return currentList.filter(l =>
+    const list = currentList.filter(l =>
       matchesLeadSearch(search, {
         name: l.client,
         company: l.company,
@@ -157,6 +158,7 @@ export default function NotInterestedPage() {
       matchesStateLocationFilter(l.state, l.phone, stateFilter) &&
       matchesPhoneAreaCodeFilter(l.phone, phoneFilter)
     );
+    return sortByOldestNote(list);
   }, [currentList, search, stateFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE));

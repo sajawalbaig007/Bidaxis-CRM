@@ -44,8 +44,10 @@ import { CSR_CLIENT_LIST_SELECT, CSR_DASHBOARD_LEAD_SELECT, CSR_LIST_NOTES_SELEC
 import {
   fetchCsrTabLeads,
   fetchPotentialLeads,
+  fetchLeadIdsByOldestNote,
   getCsrLeadStats,
   mapDashboardLead,
+  reorderByIds,
   type CsrTabKey,
 } from "../utils/csrDashboardQueries";
 import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
@@ -301,26 +303,29 @@ router.get("/dashboard", verifyToken, allowRoles("csr"), async (req: any, res) =
     if (cached) return res.json(cached);
 
     const stats = await getCsrLeadStats(csrId);
-    const rawLeads = await prisma.lead.findMany({
-      where: {
-        ...activeCsrLeadWhere(csrId),
-        status: {
-          in: ["no owner available", "not in service", "in house"],
-          mode: "insensitive",
-        },
+    const dashWhere = {
+      ...activeCsrLeadWhere(csrId),
+      status: {
+        in: ["no owner available", "not in service", "in house"],
+        mode: "insensitive" as const,
       },
-      select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        notes: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          select: { id: true, text: true, createdAt: true, parentId: true },
+    };
+    const [ids, rawLeads] = await Promise.all([
+      fetchLeadIdsByOldestNote(dashWhere),
+      prisma.lead.findMany({
+        where: dashWhere,
+        select: {
+          ...CSR_DASHBOARD_LEAD_SELECT,
+          notes: {
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: { id: true, text: true, createdAt: true, parentId: true },
+          },
         },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+      }),
+    ]);
 
-    const leads = filterActiveLeads(rawLeads).map(mapDashboardLead);
+    const leads = filterActiveLeads(reorderByIds(rawLeads, ids)).map(mapDashboardLead);
 
     const payload = { success: true, totalLeads: stats.totalAssigned, stats, leads };
     setCache(cacheKey, payload, 45_000);
@@ -340,20 +345,23 @@ router.get("/not-interested", verifyToken, allowRoles("csr"), async (req: any, r
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const rawLeads = await prisma.lead.findMany({
-      where: buildActiveRetryWhere(csrId),
-      select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        notes: {
-          orderBy: { createdAt: "desc" as const },
-          take: 20,
-          select: { id: true, text: true, createdAt: true, parentId: true },
+    const niWhere = buildActiveRetryWhere(csrId);
+    const [ids, rawLeads] = await Promise.all([
+      fetchLeadIdsByOldestNote(niWhere),
+      prisma.lead.findMany({
+        where: niWhere,
+        select: {
+          ...CSR_DASHBOARD_LEAD_SELECT,
+          notes: {
+            orderBy: { createdAt: "desc" as const },
+            take: 20,
+            select: { id: true, text: true, createdAt: true, parentId: true },
+          },
         },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+      }),
+    ]);
 
-    const leads = filterActiveLeads(rawLeads);
+    const leads = filterActiveLeads(reorderByIds(rawLeads, ids));
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);
@@ -1076,16 +1084,19 @@ router.get("/clients", verifyToken, allowRoles("csr"), async (req: any, res) => 
 
     await reconcileClientOldFlagsForCsr(csrId);
 
-    const rawLeads = await prisma.lead.findMany({
-      where: {
-        ...activeCsrLeadWhere(csrId),
-        ...wonClientStatusWhere(),
-      },
-      select: CSR_CLIENT_LIST_SELECT,
-      orderBy: { createdAt: "desc" },
-    });
+    const clientWhere = {
+      ...activeCsrLeadWhere(csrId),
+      ...wonClientStatusWhere(),
+    };
+    const [ids, rawLeads] = await Promise.all([
+      fetchLeadIdsByOldestNote(clientWhere),
+      prisma.lead.findMany({
+        where: clientWhere,
+        select: CSR_CLIENT_LIST_SELECT,
+      }),
+    ]);
 
-    const leads = rawLeads.map(lead => ({
+    const leads = reorderByIds(rawLeads, ids).map(lead => ({
       ...lead,
       isOldClient: lead.isOldClient,
     }));
@@ -1123,11 +1134,11 @@ router.get("/leads", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const rawLeads = await prisma.lead.findMany({
       where:   { assignedTo: csrId },
       include: { uploadFile: { select: CSR_UPLOAD_FILE_SELECT }, notes: { orderBy: { createdAt: "asc" } }, subContacts: { orderBy: { createdAt: "asc" } } },
-      orderBy: { createdAt: "desc" },
     });
     const csrLeads = filterActiveLeads(rawLeads);
+    const ids = await fetchLeadIdsByOldestNote({ assignedTo: csrId });
 
-    const leads = csrLeads.map(lead => ({
+    const leads = reorderByIds(csrLeads, ids).map(lead => ({
       ...lead,
       isOldClient: lead.isOldClient,
     }));
@@ -1150,24 +1161,27 @@ router.get("/projects", verifyToken, allowRoles("csr"), async (req: any, res) =>
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const rawLeads = await prisma.lead.findMany({
-      where: buildProjectLeadWhere(csrId),
-      select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        projectTitle: true,
-        projectCode: true,
-        projectDeadline: true,
-        projectBudget: true,
-        projectNotes: true,
-        clientCode: true,
-        isOldClient: true,
-        projectPayments: true,
-        notes: CSR_LIST_NOTES_SELECT,
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+    const projectWhere = buildProjectLeadWhere(csrId);
+    const [ids, rawLeads] = await Promise.all([
+      fetchLeadIdsByOldestNote(projectWhere),
+      prisma.lead.findMany({
+        where: projectWhere,
+        select: {
+          ...CSR_DASHBOARD_LEAD_SELECT,
+          projectTitle: true,
+          projectCode: true,
+          projectDeadline: true,
+          projectBudget: true,
+          projectNotes: true,
+          clientCode: true,
+          isOldClient: true,
+          projectPayments: true,
+          notes: CSR_LIST_NOTES_SELECT,
+        },
+      }),
+    ]);
 
-    const leads = rawLeads.filter(isDisplayableProjectLead);
+    const leads = reorderByIds(rawLeads, ids).filter(isDisplayableProjectLead);
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);
@@ -1246,18 +1260,21 @@ router.get("/bin", verifyToken, allowRoles("csr"), async (req: any, res) => {
     const cached   = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
-    const rawLeads = await prisma.lead.findMany({
-      where: buildBinWhere(csrId),
-      select: {
-        ...CSR_DASHBOARD_LEAD_SELECT,
-        binReason: true,
-        binPreviousStatus: true,
-        notes: CSR_LIST_NOTES_SELECT,
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+    const binWhere = buildBinWhere(csrId);
+    const [ids, rawLeads] = await Promise.all([
+      fetchLeadIdsByOldestNote(binWhere),
+      prisma.lead.findMany({
+        where: binWhere,
+        select: {
+          ...CSR_DASHBOARD_LEAD_SELECT,
+          binReason: true,
+          binPreviousStatus: true,
+          notes: CSR_LIST_NOTES_SELECT,
+        },
+      }),
+    ]);
 
-    const leads = rawLeads;
+    const leads = reorderByIds(rawLeads, ids);
 
     const payload = { success: true, leads };
     setCache(cacheKey, payload, 30_000);

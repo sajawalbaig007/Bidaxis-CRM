@@ -2,8 +2,8 @@ import prisma from "../config/db";
 
 /** CSI MasterFormat divisions used on CSR trade filter / Excel uploads. */
 export const MASTER_FORMAT_TRADES = [
-  "00 GENERAL PROJECT REQUIREMENTS",
-  "01 General Requirements",
+  "GC Commercial",
+  "GC Residential",
   "02 Existing Conditions",
   "03 Concrete",
   "04 Masonry",
@@ -39,6 +39,26 @@ export const MASTER_FORMAT_TRADES = [
   "48 Electrical Power Generation",
 ] as const;
 
+const TRADE_NAME_ALIASES: Record<string, string> = {
+  "00 general project requirements": "GC Commercial",
+  "gc comercial": "GC Commercial",
+  "01 general requirements": "GC Residential",
+};
+
+function canonicalTradeName(raw: string): string {
+  const key = raw.trim().toLowerCase();
+  if (!key) return "";
+  if (TRADE_NAME_ALIASES[key]) return TRADE_NAME_ALIASES[key];
+  const known = MASTER_FORMAT_TRADES.find(t => t.toLowerCase() === key);
+  return known ?? raw.trim();
+}
+
+const TRADE_MATCH_NAMES = [
+  ...MASTER_FORMAT_TRADES,
+  "00 GENERAL PROJECT REQUIREMENTS",
+  "01 General Requirements",
+];
+
 export type ParsedSubContact = {
   name: string;
   designation?: string;
@@ -52,17 +72,17 @@ export function parseTradeList(raw: string | null | undefined): string[] {
   const text = raw.trim();
   const found: string[] = [];
   let rest = text;
-  const known = [...MASTER_FORMAT_TRADES].sort((a, b) => b.length - a.length);
+  const known = [...TRADE_MATCH_NAMES].sort((a, b) => b.length - a.length);
   for (const name of known) {
     const re = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     if (re.test(rest)) {
-      found.push(name);
+      found.push(canonicalTradeName(name));
       rest = rest.replace(re, " ");
     }
   }
   const extras = rest
     .split(/\s*(?:;|\||\n|·|•)\s*|(?:\s*,\s*)/)
-    .map(p => p.trim())
+    .map(p => canonicalTradeName(p))
     .filter(p => p.length > 1);
   const seen = new Set<string>();
   const out: string[] = [];
@@ -80,7 +100,7 @@ export function parseSubTradeList(raw: string | null | undefined): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const part of raw.split(/\s*(?:,|;|\||\n|·|•)\s*/)) {
-    const p = part.trim();
+    const p = canonicalTradeName(part);
     if (!p) continue;
     const key = p.toLowerCase();
     if (seen.has(key)) continue;
