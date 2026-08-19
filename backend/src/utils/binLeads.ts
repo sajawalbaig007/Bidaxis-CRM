@@ -35,6 +35,11 @@ export function notInBinFilter(): Prisma.LeadWhereInput {
   return { NOT: { inBin: true } };
 }
 
+/** Visible on CSR main pipeline — includes legacy docs where hiddenOnMain was never persisted */
+export function notHiddenOnMainFilter(): Prisma.LeadWhereInput {
+  return { NOT: { hiddenOnMain: true } };
+}
+
 /** Active leads for a CSR (not in bin) — same rules as legacy filterActiveLeads for inBin */
 export function activeCsrLeadWhere(csrId: string): Prisma.LeadWhereInput {
   return {
@@ -46,14 +51,14 @@ export function activeCsrLeadWhere(csrId: string): Prisma.LeadWhereInput {
 /** Main dashboard pipeline — matches old frontend mainLeads (!hiddenOnMain) */
 export function mainPipelineWhere(csrId: string): Prisma.LeadWhereInput {
   return {
-    ...activeCsrLeadWhere(csrId),
-    hiddenOnMain: false,
+    AND: [activeCsrLeadWhere(csrId), notHiddenOnMainFilter()],
   };
 }
 
+/** Today / Pending queue — pending status is enough; hiddenOnMain must not hide them */
 export function pendingLeadWhere(csrId: string): Prisma.LeadWhereInput {
   return {
-    ...mainPipelineWhere(csrId),
+    ...activeCsrLeadWhere(csrId),
     status: { equals: "pending", mode: "insensitive" },
   };
 }
