@@ -1,7 +1,46 @@
-/** CSI MasterFormat divisions shown in the CSR trade filter (00–48). */
+/** CSI MasterFormat trades shown in the CSR filter — names only, no division numbers. */
 export const MASTER_FORMAT_TRADES = [
   "GC Commercial",
   "GC Residential",
+  "Existing Conditions",
+  "Concrete",
+  "Masonry",
+  "Metals",
+  "Wood, Plastics, And Composites",
+  "Thermal And Moisture Protection",
+  "Openings",
+  "Finishes",
+  "Specialties",
+  "Equipment",
+  "Furnishings",
+  "Special Construction",
+  "Conveying Equipment",
+  "Fire Suppression",
+  "Plumbing",
+  "Heating, Ventilating, And Air Conditioning (HVAC)",
+  "Integrated Automation",
+  "Electrical",
+  "Communications",
+  "Electronic Safety And Security",
+  "Earthwork",
+  "Exterior Improvements",
+  "Utilities",
+  "Transportation",
+  "Waterway And Marine Construction",
+  "Process Integration",
+  "Material Processing And Handling Equipment",
+  "Process Heating, Cooling, And Drying Equipment",
+  "Process Gas And Liquid Handling, Purification, And Storage Equipment",
+  "Pollution And Waste Control Equipment",
+  "Industry-Specific Manufacturing Equipment",
+  "Water And Wastewater Equipment",
+  "Electrical Power Generation",
+] as const;
+
+/** Numbered / legacy labels still found in Excel and old leads. */
+const LEGACY_NUMBERED_TRADES = [
+  "00 GENERAL PROJECT REQUIREMENTS",
+  "01 General Requirements",
   "02 Existing Conditions",
   "03 Concrete",
   "04 Masonry",
@@ -37,25 +76,39 @@ export const MASTER_FORMAT_TRADES = [
   "48 Electrical Power Generation",
 ] as const;
 
-/** Old stored MasterFormat labels → current dropdown names. */
 const TRADE_NAME_ALIASES: Record<string, string> = {
   "00 general project requirements": "GC Commercial",
+  "general project requirements": "GC Commercial",
   "gc comercial": "GC Commercial",
+  "gc commercial": "GC Commercial",
   "01 general requirements": "GC Residential",
+  "general requirements": "GC Residential",
+  "hvac": "Heating, Ventilating, And Air Conditioning (HVAC)",
 };
 
+function stripDivisionPrefix(raw: string): string {
+  return raw.replace(/^\d{1,2}\s+/, "").trim();
+}
+
 export function canonicalTradeName(raw: string): string {
-  const key = raw.trim().toLowerCase();
-  if (!key) return "";
-  if (TRADE_NAME_ALIASES[key]) return TRADE_NAME_ALIASES[key];
-  const known = MASTER_FORMAT_TRADES.find(t => t.toLowerCase() === key);
-  return known ?? raw.trim();
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const stripped = stripDivisionPrefix(trimmed);
+  for (const key of [trimmed.toLowerCase(), stripped.toLowerCase()]) {
+    if (TRADE_NAME_ALIASES[key]) return TRADE_NAME_ALIASES[key];
+  }
+  const known = MASTER_FORMAT_TRADES.find(t => {
+    const tk = t.toLowerCase();
+    return tk === trimmed.toLowerCase() || tk === stripped.toLowerCase();
+  });
+  if (known) return known;
+  return stripped;
 }
 
 const TRADE_MATCH_NAMES = [
   ...MASTER_FORMAT_TRADES,
-  "00 GENERAL PROJECT REQUIREMENTS",
-  "01 General Requirements",
+  ...LEGACY_NUMBERED_TRADES,
+  "HVAC",
 ];
 
 export function parseTradeList(raw: string | null | undefined): string[] {
@@ -141,4 +194,3 @@ export function parseTradeNotes(raw: string | null | undefined): string[] {
 export function serializeTradeNotes(notes: string[]): string {
   return JSON.stringify(notes.map(n => n.trim()).filter(Boolean));
 }
-

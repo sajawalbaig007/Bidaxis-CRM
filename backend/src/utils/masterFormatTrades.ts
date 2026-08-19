@@ -1,9 +1,47 @@
 import prisma from "../config/db";
 
-/** CSI MasterFormat divisions used on CSR trade filter / Excel uploads. */
+/** CSI MasterFormat trades — names only, no division numbers. */
 export const MASTER_FORMAT_TRADES = [
   "GC Commercial",
   "GC Residential",
+  "Existing Conditions",
+  "Concrete",
+  "Masonry",
+  "Metals",
+  "Wood, Plastics, And Composites",
+  "Thermal And Moisture Protection",
+  "Openings",
+  "Finishes",
+  "Specialties",
+  "Equipment",
+  "Furnishings",
+  "Special Construction",
+  "Conveying Equipment",
+  "Fire Suppression",
+  "Plumbing",
+  "Heating, Ventilating, And Air Conditioning (HVAC)",
+  "Integrated Automation",
+  "Electrical",
+  "Communications",
+  "Electronic Safety And Security",
+  "Earthwork",
+  "Exterior Improvements",
+  "Utilities",
+  "Transportation",
+  "Waterway And Marine Construction",
+  "Process Integration",
+  "Material Processing And Handling Equipment",
+  "Process Heating, Cooling, And Drying Equipment",
+  "Process Gas And Liquid Handling, Purification, And Storage Equipment",
+  "Pollution And Waste Control Equipment",
+  "Industry-Specific Manufacturing Equipment",
+  "Water And Wastewater Equipment",
+  "Electrical Power Generation",
+] as const;
+
+const LEGACY_NUMBERED_TRADES = [
+  "00 GENERAL PROJECT REQUIREMENTS",
+  "01 General Requirements",
   "02 Existing Conditions",
   "03 Concrete",
   "04 Masonry",
@@ -41,22 +79,37 @@ export const MASTER_FORMAT_TRADES = [
 
 const TRADE_NAME_ALIASES: Record<string, string> = {
   "00 general project requirements": "GC Commercial",
+  "general project requirements": "GC Commercial",
   "gc comercial": "GC Commercial",
+  "gc commercial": "GC Commercial",
   "01 general requirements": "GC Residential",
+  "general requirements": "GC Residential",
+  "hvac": "Heating, Ventilating, And Air Conditioning (HVAC)",
 };
 
-function canonicalTradeName(raw: string): string {
-  const key = raw.trim().toLowerCase();
-  if (!key) return "";
-  if (TRADE_NAME_ALIASES[key]) return TRADE_NAME_ALIASES[key];
-  const known = MASTER_FORMAT_TRADES.find(t => t.toLowerCase() === key);
-  return known ?? raw.trim();
+function stripDivisionPrefix(raw: string): string {
+  return raw.replace(/^\d{1,2}\s+/, "").trim();
+}
+
+export function canonicalTradeName(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const stripped = stripDivisionPrefix(trimmed);
+  for (const key of [trimmed.toLowerCase(), stripped.toLowerCase()]) {
+    if (TRADE_NAME_ALIASES[key]) return TRADE_NAME_ALIASES[key];
+  }
+  const known = MASTER_FORMAT_TRADES.find(t => {
+    const tk = t.toLowerCase();
+    return tk === trimmed.toLowerCase() || tk === stripped.toLowerCase();
+  });
+  if (known) return known;
+  return stripped;
 }
 
 const TRADE_MATCH_NAMES = [
   ...MASTER_FORMAT_TRADES,
-  "00 GENERAL PROJECT REQUIREMENTS",
-  "01 General Requirements",
+  ...LEGACY_NUMBERED_TRADES,
+  "HVAC",
 ];
 
 export type ParsedSubContact = {
@@ -177,18 +230,40 @@ export function parseSubContactsCell(raw: string | null | undefined): ParsedSubC
   return contacts.filter(c => c.name);
 }
 
+async function canonicalizeStoredTradeNames(): Promise<void> {
+  const existing = await prisma.trade.findMany({ select: { id: true, name: true } });
+  const haveCanon = new Set(
+    existing.map(t => t.name).filter(n => canonicalTradeName(n) === n).map(n => n.toLowerCase()),
+  );
+  for (const row of existing) {
+    const canon = canonicalTradeName(row.name);
+    if (!canon || canon === row.name) continue;
+    if (haveCanon.has(canon.toLowerCase())) {
+      await prisma.trade.delete({ where: { id: row.id } }).catch(() => null);
+      continue;
+    }
+    try {
+      await prisma.trade.update({ where: { id: row.id }, data: { name: canon } });
+      haveCanon.add(canon.toLowerCase());
+    } catch {
+      await prisma.trade.delete({ where: { id: row.id } }).catch(() => null);
+    }
+  }
+}
+
 export async function ensureMasterFormatTrades(): Promise<void> {
+  await canonicalizeStoredTradeNames();
   await insertMissingTrades([...MASTER_FORMAT_TRADES]);
 }
 
 export async function insertMissingTrades(names: string[]): Promise<void> {
-  const unique = [...new Set(names.map(n => n.trim()).filter(Boolean))];
+  const unique = [...new Set(names.map(n => canonicalTradeName(n)).filter(Boolean))];
   if (unique.length === 0) return;
   const existing = await prisma.trade.findMany({ select: { name: true } });
-  const have = new Set(existing.map(t => t.name.toLowerCase()));
-  for (const name of unique) {
-    if (have.has(name.toLowerCase())) continue;
-    await prisma.trade.create({ data: { name } }).catch(() => null);
-    have.add(name.toLowerCase());
+  const have = new Set(existing.map(t => canonicalTradeName(t.name).toLowerCase()));
+  for (const canon of unique) {
+    if (have.has(canon.toLowerCase())) continue;
+    await prisma.trade.create({ data: { name: canon } }).catch(() => null);
+    have.add(canon.toLowerCase());
   }
 }

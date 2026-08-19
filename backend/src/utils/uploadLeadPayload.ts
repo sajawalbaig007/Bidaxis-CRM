@@ -1,4 +1,5 @@
 import type { ParsedLeadRow } from "./uploadExcelParse";
+import { parseSubTradeList, parseTradeList } from "./masterFormatTrades";
 
 /** Map parsed upload row → lead fields (upload type controls status + isOldClient). */
 export function buildLeadFieldsFromUploadRow(
@@ -26,7 +27,7 @@ export function buildLeadFieldsFromUploadRow(
     uploadedFileId,
     hiddenOnMain:      hideOnMain(r.status),
     inBin:             false,
-    trade:             r.trade?.trim() || null,
-    subTrades:         r.subTrades?.trim() || null,
+    trade:             parseTradeList(r.trade).join(", ") || null,
+    subTrades:         parseSubTradeList(r.subTrades).join(", ") || null,
   };
 }

@@ -35,7 +35,7 @@ import {
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
 } from "../utils/adminClientQueries";
-import { ensureMasterFormatTrades } from "../utils/masterFormatTrades";
+import { canonicalTradeName, ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
 import { buildCsrSessionReport, adminAdjustCsrWorkSession } from "../utils/csrSessionTracking";
 import { estDayBoundsUtc, estDateYmd, addEstDays, parseEstDateTimeLocal, ADMIN_SESSION_TIMEZONE, ADMIN_SESSION_TZ_LABEL } from "../utils/estTime";
@@ -3816,8 +3816,9 @@ router.get("/trades", verifyToken, allowRoles("admin", "manager", "technical_man
 
 router.post("/trades", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
-    const name = (req.body.name as string | undefined)?.trim();
+    const name = canonicalTradeName((req.body.name as string | undefined) ?? "");
     if (!name) return res.status(400).json({ success: false, message: "Trade name required" });
+    await ensureMasterFormatTrades();
     const existing = await prisma.trade.findUnique({ where: { name } });
     if (existing) return res.status(409).json({ success: false, message: "Trade already exists" });
     const trade = await prisma.trade.create({ data: { name } });

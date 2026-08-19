@@ -36,6 +36,9 @@ function writeTemplate({ file, sheet, headers, samples, instructions }) {
   console.log("Created:", outPath);
 }
 
+const TRADES_INSTRUCTION =
+  "Trades: write names only — no numbers (Concrete, HVAC, Plumbing). New names are added automatically.";
+
 const TEMPLATES = [
   {
     file: "CRM-Call-Data-Template.xlsx",
@@ -49,7 +52,7 @@ const TEMPLATES = [
         Email: "john@jcair.com",
         State: "Texas",
         "Sub Contacts": "Jane Doe | Manager | 2145550198 | jane@jcair.com",
-        Trades: "23 Heating, Ventilating, And Air Conditioning (HVAC), 22 Plumbing",
+        Trades: "HVAC, Plumbing",
         "Sub Trades": "Ductwork, Fixtures",
       },
       {
@@ -64,6 +67,7 @@ const TEMPLATES = [
       "Admin upload: Upload New Leads → Call Data",
       "CSR page: Call Data / Today Links (today's fresh leads)",
       "Put: Client Name, Client Company, Phone, Email, State, Sub Contacts, Trades, Sub Trades",
+      TRADES_INSTRUCTION,
       "Multiple subcontacts / subtrades: separate with commas. Subcontact fields: Name | designation | phone | email",
       "NO Notes column — CSRs add notes while calling",
       "NO Interested Service / Client Code / Project",
@@ -83,12 +87,15 @@ const TEMPLATES = [
         Email: "sarah@premierplumb.com",
         State: "Dallas, TX",
         Notes: "VIP — prefer morning calls. Known since 2023.",
+        Trades: "Plumbing",
+        "Sub Trades": "Fixtures",
       },
     ],
     instructions: [
       "Admin upload: Previous Important Clients",
       "CSR page: Potential Clients → Important",
       "Put: Name, Company, Phone, Email, State, Notes (why important / past talk)",
+      TRADES_INSTRUCTION,
       "NO Interested Service or Client Code",
       "Delete sample rows before upload",
     ],
@@ -123,6 +130,7 @@ const TEMPLATES = [
       "Admin upload: Interested Clients",
       "CSR page: Potential Clients → Interested (Interested In column)",
       "Put: Name, Company, Phone, Email, State, Interested Service, Notes",
+      TRADES_INSTRUCTION,
       "Services: Estimating, Scheduling, Shop Drawing, Drafting, BIM, IT",
       "Delete sample rows before upload",
     ],
@@ -163,6 +171,7 @@ const TEMPLATES = [
       "Admin upload: Upload New Leads → Clients → New Client",
       "CSR page: Clients → New Clients",
       "Put: Name, Company, Phone, Email, State, Service, Client Code, Project Detail, Quotation, Notes",
+      TRADES_INSTRUCTION,
       "Client Code → Code column | Service → Service | Notes → Latest Note",
       "First-time won clients only",
       "Delete sample rows before upload",
@@ -204,6 +213,7 @@ const TEMPLATES = [
       "Admin upload: Upload New Leads → Clients → Old Client",
       "CSR page: Clients → Old Clients",
       "Same columns as New Clients",
+      TRADES_INSTRUCTION,
       "Use SAME Phone as earlier projects (history / Eye button)",
       "NEW Client Code for the latest project",
       "Delete sample rows before upload",
@@ -257,6 +267,7 @@ const TEMPLATES = [
       "Admin upload: Active Projects",
       "CSR page: Active Projects",
       "Put: Name, Company, Phone, Email, State, Service, Client Code, Project Detail, Quotation, Notes",
+      TRADES_INSTRUCTION,
       "Client Code unique — same code updates existing project",
       "Payment & Fulfillment set inside CRM after upload",
       "Delete sample rows before upload",

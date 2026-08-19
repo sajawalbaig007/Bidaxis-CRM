@@ -6,6 +6,7 @@ import { Hammer, Pencil, Plus, Trash2, X, Check } from "lucide-react";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import {
   MASTER_FORMAT_TRADES,
+  canonicalTradeName,
   parseSubTradeList,
   parseTradeList,
   parseTradeNotes,
@@ -227,11 +228,13 @@ export default function TradesCell({
 
 function mergeCatalog(extra: string[]): string[] {
   const seen = new Set(MASTER_FORMAT_TRADES.map(t => t.toLowerCase()));
-  const extras = extra.filter(t => {
-    const key = t.trim().toLowerCase();
-    if (!key || seen.has(key)) return false;
+  const extras: string[] = [];
+  for (const raw of extra) {
+    const name = canonicalTradeName(raw);
+    const key = name.toLowerCase();
+    if (!key || seen.has(key)) continue;
     seen.add(key);
-    return true;
-  });
+    extras.push(name);
+  }
   return [...MASTER_FORMAT_TRADES, ...extras];
 }

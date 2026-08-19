@@ -1608,6 +1608,9 @@ export default function UploadPage() {
                   <p className="text-xs sm:text-sm text-gray-500 font-medium">
                     Select the trade type for this upload. These badges will appear on CSR pending leads.
                   </p>
+                  <p className="text-[11px] text-gray-400">
+                    In the Excel Trades column, write names only (Concrete, HVAC, Plumbing) — no numbers. Unknown names are added automatically.
+                  </p>
 
                   {trades.length > 0 && (
                     <div className="flex flex-wrap gap-2">
