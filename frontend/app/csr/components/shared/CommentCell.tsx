@@ -772,7 +772,7 @@ export default function CommentCell({
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-7 h-7 rounded-lg bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0 shadow-sm">
             <StickyNote size={14} />
-          </span>
+            </span>
           <div className="min-w-0">
             <p className="text-[13px] font-bold text-amber-900 dark:text-amber-950 truncate">
               {commentOnly || (readOnly && !chatStyle)
@@ -832,7 +832,7 @@ export default function CommentCell({
                     Cancel
                   </button>
                 </div>
-              </div>
+          </div>
             ) : (
               <>
                 <p className="text-[12px] text-amber-950 leading-snug">
@@ -862,9 +862,9 @@ export default function CommentCell({
                       </button>
                     </>
                   )}
-                </div>
+          </div>
               </>
-            )}
+        )}
           </div>
             ))
           : legacyComment && (
@@ -910,7 +910,7 @@ export default function CommentCell({
                   <p className="text-[9px] text-amber-800/80 font-medium mr-auto">Bid instruction</p>
                   {canEditComment && (
                     <>
-                      <button
+                    <button
                         type="button"
                         onClick={() => {
                           setEditingComment(true);
@@ -919,19 +919,19 @@ export default function CommentCell({
                         className="h-6 px-2 rounded-md text-[10px] font-bold text-amber-900 bg-white/70 border border-amber-200 hover:bg-white inline-flex items-center gap-1"
                       >
                         <Pencil size={10} /> Edit
-                      </button>
-                      <button
+                    </button>
+                    <button
                         type="button"
                         onClick={() => void deleteCommentField()}
                         disabled={commentSaving}
                         className="h-6 px-2 rounded-md text-[10px] font-bold text-red-600 bg-white/70 border border-red-200 hover:bg-red-50 inline-flex items-center gap-1 disabled:opacity-50"
                       >
                         {commentSaving ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
-                        Delete
-                      </button>
+                      Delete
+                    </button>
                     </>
-                  )}
-                </div>
+                )}
+              </div>
               </>
             )}
           </div>
@@ -996,8 +996,8 @@ export default function CommentCell({
                       className="rounded-xl border border-amber-200/70 bg-[#FFF7D6] px-2.5 py-2 shadow-sm"
                     >
                       {renderNoteBody(reply, true)}
-                    </div>
-                  ))}
+          </div>
+        ))}
                 </div>
               )}
             </div>
@@ -1008,20 +1008,20 @@ export default function CommentCell({
       {canMutate && !commentOnly && (
         <div className="border-t border-amber-200/80 p-3 bg-amber-50/90">
           <NoteComposer
-            value={draft}
+          value={draft}
             onChange={setDraft}
-            rows={2}
+          rows={2}
             placeholder={chatStyle ? "Type a message… (Ctrl+Enter)" : "Write a sticky note… (Ctrl+Enter)"}
             onSubmit={() => void handleAdd()}
             disabled={saving}
-          />
-          <button
+        />
+        <button
             type="button"
-            onClick={() => void handleAdd()}
-            disabled={saving || !draft.trim()}
+          onClick={() => void handleAdd()}
+          disabled={saving || !draft.trim()}
             className="mt-2 w-full h-8 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            {saving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+        >
+          {saving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
             {saving ? "Sending…" : chatStyle ? "Send" : "Add sticky"}
           </button>
         </div>
@@ -1044,8 +1044,8 @@ export default function CommentCell({
           >
             {commentSaving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
             {commentSaving ? "Saving…" : bidItems.length ? "Add bid" : "Save bid instruction"}
-          </button>
-        </div>
+        </button>
+      </div>
       )}
     </div>
   );
@@ -1116,7 +1116,7 @@ export default function CommentCell({
         </div>
       </div>,
       document.body,
-    );
+  );
 
   return (
     <div className="relative min-w-0 w-full max-w-full flex justify-center sm:justify-start">
@@ -1157,7 +1157,7 @@ export default function CommentCell({
             {extraNotesCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0 mt-0.5">
                 +{extraNotesCount}
-              </span>
+        </span>
             )}
           </>
         ) : count > 0 ? (
