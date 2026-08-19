@@ -29,22 +29,106 @@ const DECK_OFFSETS = [
   { x: 32, y: 28, r: 9, z: 30 },
 ];
 
-/** Stable bento slots — focused card is the tall left tile; rest fill equal rows */
-function slotClass(id: string, focusId: string, ids: string[]): string {
-  const focused = id === focusId;
-  const others = ids.filter((x) => x !== focusId);
-  const oi = others.indexOf(id);
+const COL_SPAN: Record<number, string> = {
+  1: "md:col-span-1",
+  2: "md:col-span-2",
+  3: "md:col-span-3",
+  4: "md:col-span-4",
+  5: "md:col-span-5",
+  6: "md:col-span-6",
+  7: "md:col-span-7",
+  8: "md:col-span-8",
+  9: "md:col-span-9",
+  10: "md:col-span-10",
+  11: "md:col-span-11",
+  12: "md:col-span-12",
+};
 
-  if (focused) {
-    return "md:col-span-8 md:row-span-2 md:col-start-1 md:row-start-1";
+const COL_START: Record<number, string> = {
+  1: "md:col-start-1",
+  2: "md:col-start-2",
+  3: "md:col-start-3",
+  4: "md:col-start-4",
+  5: "md:col-start-5",
+  6: "md:col-start-6",
+  7: "md:col-start-7",
+  8: "md:col-start-8",
+  9: "md:col-start-9",
+  10: "md:col-start-10",
+  11: "md:col-start-11",
+  12: "md:col-start-12",
+};
+
+const ROW_START: Record<number, string> = {
+  1: "md:row-start-1",
+  2: "md:row-start-2",
+  3: "md:row-start-3",
+  4: "md:row-start-4",
+  5: "md:row-start-5",
+  6: "md:row-start-6",
+  7: "md:row-start-7",
+  8: "md:row-start-8",
+};
+
+/** Spans for `count` cards in one 12-col row — last card absorbs leftover so the row is always full. */
+function packRow(count: number): number[] {
+  const n = Math.max(1, count);
+  const base = Math.floor(12 / n);
+  const rem = 12 - base * n;
+  return Array.from({ length: n }, (_, i) => (i === n - 1 ? base + rem : base));
+}
+
+/**
+ * How many cards to place on this bottom row so leftover cells never sit empty.
+ * Avoid a lonely last card when 4 remain (2+2 instead of 3+1).
+ */
+function takeForRow(remaining: number): number {
+  if (remaining <= 3) return remaining;
+  if (remaining === 4) return 2;
+  return 3;
+}
+
+/** Focused card is the tall left tile; every other row stretches so no empty cells remain. */
+function buildSlotMap(ids: string[], focusId: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const others = ids.filter((id) => id !== focusId);
+  const n = others.length;
+  const smFillLast = (id: string) =>
+    ids.length % 2 === 1 && id === ids[ids.length - 1] ? " sm:col-span-2" : "";
+
+  if (n === 0) {
+    out[focusId] = `${COL_SPAN[12]} ${ROW_START[1]} sm:col-span-2`;
+    return out;
   }
-  /* Right column: first two others stack to match hero height */
-  if (oi === 0) return "md:col-span-4 md:col-start-9 md:row-start-1";
-  if (oi === 1) return "md:col-span-4 md:col-start-9 md:row-start-2";
-  /* Bottom row */
-  if (oi === 2) return "md:col-span-6 md:col-start-1 md:row-start-3";
-  if (oi === 3) return "md:col-span-6 md:col-start-7 md:row-start-3";
-  return "md:col-span-4";
+
+  out[focusId] = `${COL_SPAN[8]} md:row-span-2 ${COL_START[1]} ${ROW_START[1]} sm:col-span-2`;
+
+  if (n === 1) {
+    out[others[0]] = `${COL_SPAN[4]} ${COL_START[9]} ${ROW_START[1]} md:row-span-2${smFillLast(others[0])}`;
+    return out;
+  }
+
+  out[others[0]] = `${COL_SPAN[4]} ${COL_START[9]} ${ROW_START[1]}${smFillLast(others[0])}`;
+  out[others[1]] = `${COL_SPAN[4]} ${COL_START[9]} ${ROW_START[2]}${smFillLast(others[1])}`;
+
+  const bottom = others.slice(2);
+  let i = 0;
+  let row = 3;
+  while (i < bottom.length) {
+    const take = takeForRow(bottom.length - i);
+    const spans = packRow(take);
+    let col = 1;
+    for (let j = 0; j < take; j++) {
+      const id = bottom[i + j];
+      const span = spans[j] ?? 12;
+      out[id] = `${COL_SPAN[span]} ${COL_START[col]} ${ROW_START[row] ?? ""}${smFillLast(id)}`;
+      col += span;
+    }
+    i += take;
+    row += 1;
+  }
+
+  return out;
 }
 
 export default function UploadActionBento({
@@ -76,6 +160,7 @@ export default function UploadActionBento({
 
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const activeItem = byId.get(focusId);
+  const slotMap = useMemo(() => buildSlotMap(ids, focusId), [ids, focusId]);
 
   const select = useCallback((id: string) => {
     setFocusId(id);
@@ -147,7 +232,7 @@ export default function UploadActionBento({
         <div
           className={
             expanded
-              ? "relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(320px,auto)_minmax(260px,auto)_minmax(240px,auto)] gap-3 sm:gap-4"
+              ? "relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(300px,auto)_minmax(260px,auto)] md:auto-rows-[minmax(240px,auto)] gap-3 sm:gap-4"
               : "absolute inset-0"
           }
         >
@@ -165,7 +250,7 @@ export default function UploadActionBento({
                   group/card rounded-[1.75rem] border bg-white dark:bg-crm-surface overflow-hidden
                   transition-[transform,box-shadow,border-color,opacity] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
                   flex flex-col
-                  ${expanded ? `${slotClass(id, focusId, ids)} h-full min-h-[300px]` : "absolute left-1/2 top-1/2 w-[min(92%,390px)]"}
+                  ${expanded ? `${slotMap[id] ?? COL_SPAN[12]} h-full min-h-[300px]` : "absolute left-1/2 top-1/2 w-[min(92%,390px)]"}
                   ${focused ? "shadow-2xl" : "shadow-md hover:shadow-xl"}
                 `}
                 style={{
