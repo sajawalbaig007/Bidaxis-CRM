@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { wonClientStatusWhere } from "./projectLeads";
 import { notInBinFilter } from "./binLeads";
+import { parseProjectCodeSeq } from "./nextProjectCode";
 
 export type AdminClientView = "all" | "important" | "schedule" | "interested" | "closed";
 
@@ -109,26 +110,91 @@ export function adminClientBucket(
   return null;
 }
 
-/** Same uniqueness as CSR Clients: one row per phone, else company, else id. */
-export function uniqueLeadsByClientIdentity<T extends {
+export type AdminIdentityLead = {
   id: string;
   phone?: string | null;
   company?: string | null;
-}>(leads: T[]): T[] {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const lead of leads) {
-    const digits = (lead.phone ?? "").replace(/\D/g, "");
-    const co = (lead.company ?? "").trim().toLowerCase();
-    const key =
-      digits.length >= 7 ? `phone:${digits}`
-      : co ? `company:${co}`
-      : `id:${lead.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(lead);
+  clientCode?: string | null;
+  projectCode?: string | null;
+};
+
+/** `CODE-01` / `code-02` → family key from the part before `-`. */
+export function clientCodeFamilyKey(
+  clientCode?: string | null,
+  projectCode?: string | null,
+): string | null {
+  const raw = (clientCode ?? "").trim() || (projectCode ?? "").trim();
+  if (!raw) return null;
+  const parsed = parseProjectCodeSeq(raw);
+  const base = (parsed?.base ?? raw).trim();
+  return base ? `code:${base.toLowerCase()}` : null;
+}
+
+export function adminLeadIdentityKey(lead: AdminIdentityLead, preferClientCode: boolean): string {
+  if (preferClientCode) {
+    const codeKey = clientCodeFamilyKey(lead.clientCode, lead.projectCode);
+    if (codeKey) return codeKey;
   }
-  return out;
+  const digits = (lead.phone ?? "").replace(/\D/g, "");
+  const co = (lead.company ?? "").trim().toLowerCase();
+  if (digits.length >= 7) return `phone:${digits}`;
+  if (co) return `company:${co}`;
+  return `id:${lead.id}`;
+}
+
+export function dedupeAdminLeads<T extends AdminIdentityLead>(
+  leads: T[],
+  preferClientCode = false,
+): {
+  unique: T[];
+  extraProjectCountById: Map<string, number>;
+  extraProjectSuffixesById: Map<string, string[]>;
+} {
+  const groups = new Map<string, T[]>();
+  for (const lead of leads) {
+    const key = adminLeadIdentityKey(lead, preferClientCode);
+    const group = groups.get(key);
+    if (group) group.push(lead);
+    else groups.set(key, [lead]);
+  }
+  const unique: T[] = [];
+  const extraProjectCountById = new Map<string, number>();
+  const extraProjectSuffixesById = new Map<string, string[]>();
+  for (const group of groups.values()) {
+    const representative = group[0]!;
+    unique.push(representative);
+    const seen = new Set<string>();
+    const extras: { suffix: string; seq: number }[] = [];
+    const repRaw = (representative.clientCode || representative.projectCode || "").trim().toLowerCase();
+    for (const lead of group) {
+      const raw = (lead.clientCode || lead.projectCode || "").trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (seen.has(key) || key === repRaw) continue;
+      seen.add(key);
+      const parsed = parseProjectCodeSeq(raw);
+      const m = raw.match(/-(\d+)$/);
+      extras.push({
+        suffix: m?.[1] ?? (parsed ? String(parsed.seq) : raw),
+        seq: parsed?.seq ?? Number.MAX_SAFE_INTEGER,
+      });
+    }
+    extras.sort((a, b) => a.seq - b.seq || a.suffix.localeCompare(b.suffix));
+    const suffixes = extras.map(e => e.suffix);
+    extraProjectSuffixesById.set(representative.id, suffixes);
+    extraProjectCountById.set(representative.id, suffixes.length);
+  }
+  return { unique, extraProjectCountById, extraProjectSuffixesById };
+}
+
+/** Same uniqueness as CSR Clients: one row per phone, else company, else id. */
+export function uniqueLeadsByClientIdentity<T extends AdminIdentityLead>(leads: T[]): T[] {
+  return dedupeAdminLeads(leads, false).unique;
+}
+
+/** Closed / old clients: one row per client-code prefix (`CODE` in `CODE-01`). */
+export function uniqueClosedLeadsByClientCode<T extends AdminIdentityLead>(leads: T[]): T[] {
+  return dedupeAdminLeads(leads, true).unique;
 }
 
 /** @deprecated alias — use uniqueLeadsByClientIdentity */

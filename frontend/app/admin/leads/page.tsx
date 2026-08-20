@@ -77,6 +77,8 @@ type Client = {
   noteCount: number;
   noteHistory: NoteEntry[];
   createdAt: string;
+  extraProjectCount: number;
+  extraProjectSuffixes: string[];
 };
 
 const PAGE_SIZE = 30;
@@ -200,6 +202,8 @@ function ClientsPageContent() {
     time: "",
     timezone: "",
     isOldClient: false,
+    extraProjectCount: 0,
+    extraProjectSuffixes: [],
     state: "",
     clientCode: null,
     projectCode: null,
@@ -765,6 +769,24 @@ function ClientsPageContent() {
                                           {client.clientCode || client.projectCode}
                                         </span>
                                       )}
+                                      {client.extraProjectSuffixes.length > 0
+                                        ? client.extraProjectSuffixes.map(suffix => (
+                                            <span
+                                              key={suffix}
+                                              className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0"
+                                              title={`Project -${suffix}`}
+                                            >
+                                              +{suffix}
+                                            </span>
+                                          ))
+                                        : client.extraProjectCount > 0 && (
+                                            <span
+                                              className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0"
+                                              title={`${client.extraProjectCount + 1} projects`}
+                                            >
+                                              +{client.extraProjectCount}
+                                            </span>
+                                          )}
                                       <h3 className="text-[13px] sm:text-sm font-semibold text-[#0F172A] dark:text-gray-100 leading-tight truncate">
                                         {client.clientName}
                                       </h3>

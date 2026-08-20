@@ -30,10 +30,10 @@ import {
   importantOnlyWhere,
   scheduledCallWhere,
   isInterestedStatusWhere,
-  uniqueLeadsByPhone,
   leadHasMeetingDate,
   ADMIN_LEAD_LIST_SELECT,
   type AdminClientView,
+  dedupeAdminLeads,
 } from "../utils/adminClientQueries";
 import { canonicalTradeName, ensureMasterFormatTrades } from "../utils/masterFormatTrades";
 import { enforceAdminIpAllowlist } from "../middleware/adminIp.middleware";
@@ -322,8 +322,8 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 
     const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:v5:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-      : "admin:clients:tab-counts:v5";
+      ? `admin:clients:tab-counts:v6:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
+      : "admin:clients:tab-counts:v6";
 
     if (!hasFilters) {
       const cached = getCache<object>(CACHE_KEY);
@@ -353,7 +353,7 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 /* ================= CLIENT SUMMARY (fast — dashboard tiles & charts) ================= */
 router.get("/clients/summary", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (_req, res) => {
   try {
-    const CACHE_KEY = "admin:clients:summary:v4";
+    const CACHE_KEY = "admin:clients:summary:v5";
     const cached = getCache<object>(CACHE_KEY);
     if (cached) return res.json(cached);
 
@@ -381,7 +381,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:v5:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v7:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -394,7 +394,16 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
 
     const identityRows = await prisma.lead.findMany({
       where,
-      select: { id: true, phone: true, company: true, nextSchedule: true, updatedAt: true, createdAt: true },
+      select: {
+        id: true,
+        phone: true,
+        company: true,
+        clientCode: true,
+        projectCode: true,
+        nextSchedule: true,
+        updatedAt: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "asc" },
     });
     const viewRows =
@@ -405,8 +414,9 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
           return true;
         })
       : identityRows;
-    const uniqueRows = uniqueLeadsByPhone(viewRows)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const preferClientCode = view === "closed";
+    const { unique, extraProjectCountById, extraProjectSuffixesById } = dedupeAdminLeads(viewRows, preferClientCode);
+    const uniqueRows = unique.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     const total = uniqueRows.length;
     const pageIds = uniqueRows
       .slice((page - 1) * limit, page * limit)
@@ -419,7 +429,15 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
         })
       : [];
     const byId = new Map(rawLeads.map(l => [l.id, l]));
-    const leads = pageIds.map(id => byId.get(id)).filter((l): l is NonNullable<typeof l> => !!l);
+    const leads = pageIds.map(id => {
+      const row = byId.get(id);
+      if (!row) return null;
+      return {
+        ...row,
+        extraProjectCount: extraProjectCountById.get(id) ?? 0,
+        extraProjectSuffixes: extraProjectSuffixesById.get(id) ?? [],
+      };
+    }).filter((l): l is NonNullable<typeof l> => !!l);
 
     const payload = {
       success: true,
