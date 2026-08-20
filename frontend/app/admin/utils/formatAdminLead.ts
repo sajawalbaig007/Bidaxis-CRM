@@ -32,6 +32,8 @@ export function formatAdminLead(lead: {
   notes?: { id?: string; text: string; createdAt?: string; parentId?: string | null }[];
   latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   _count?: { notes?: number };
+  extraProjectCount?: number;
+  extraProjectSuffixes?: string[];
 }): {
   id: string;
   clientName: string;
@@ -60,6 +62,8 @@ export function formatAdminLead(lead: {
   noteCount: number;
   noteHistory: { id: string; text: string; createdAt: string; parentId?: string | null; replies?: { id: string; text: string; createdAt: string; parentId?: string | null }[] }[];
   createdAt: string;
+  extraProjectCount: number;
+  extraProjectSuffixes: string[];
 } {
   const rawStatus = (lead.status || "pending").toLowerCase();
   const raw = lead.important && rawStatus !== "important" ? "important" : rawStatus;
@@ -105,6 +109,12 @@ export function formatAdminLead(lead: {
 
   const contactPhones = collectLeadPhones(lead.phone, lead.subContacts);
   const emails = collectLeadEmails(lead.email, lead.subContacts);
+  const extraProjectSuffixes = (lead.extraProjectSuffixes ?? [])
+    .map(s => String(s).trim())
+    .filter(Boolean);
+  const extraProjectCount = extraProjectSuffixes.length > 0
+    ? extraProjectSuffixes.length
+    : Math.max(0, lead.extraProjectCount ?? 0);
 
   return {
     id: lead.id,
@@ -129,10 +139,12 @@ export function formatAdminLead(lead: {
     nextFollowup,
     time: lead.nextTime || "N/A",
     timezone: lead.timezone || "N/A",
-    isOldClient: lead.isOldClient ?? false,
+    isOldClient: (lead.isOldClient ?? false) || extraProjectCount > 0,
     state: lead.state?.trim() || "",
     noteCount,
     noteHistory,
     createdAt: createdLabel,
+    extraProjectCount,
+    extraProjectSuffixes,
   };
 }

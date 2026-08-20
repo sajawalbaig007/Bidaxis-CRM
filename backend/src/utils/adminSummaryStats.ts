@@ -9,6 +9,7 @@ import {
   isInterestedStatusWhere,
   scheduledCallWhere,
   uniqueLeadsByPhone,
+  uniqueClosedLeadsByClientCode,
   type AdminClientBucket,
 } from "./adminClientQueries";
 import {
@@ -285,10 +286,18 @@ export async function buildAdminTabCountsPayload(filters?: {
   const scheduleDate = filters?.scheduleDate;
   const csrName = filters?.csrName;
 
-  /* Same uniqueness as /admin/clients table: one client per phone */
+  /* Same uniqueness as /admin/clients table: phone for pipeline tabs, client-code family for Closed */
   const rows = await prisma.lead.findMany({
     where: buildAdminClientListWhere("all", csrName, search, undefined, extras),
-    select: { id: true, phone: true, company: true, status: true, nextSchedule: true },
+    select: {
+      id: true,
+      phone: true,
+      company: true,
+      clientCode: true,
+      projectCode: true,
+      status: true,
+      nextSchedule: true,
+    },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -313,7 +322,7 @@ export async function buildAdminTabCountsPayload(filters?: {
       important: uniqueLeadsByPhone(buckets.important).length,
       schedule: uniqueLeadsByPhone(buckets.schedule).length,
       interested: uniqueLeadsByPhone(buckets.interested).length,
-      closed: uniqueLeadsByPhone(buckets.closed).length,
+      closed: uniqueClosedLeadsByClientCode(buckets.closed).length,
     },
   };
 }
