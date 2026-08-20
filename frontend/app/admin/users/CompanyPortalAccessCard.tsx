@@ -20,7 +20,7 @@ export default function CompanyPortalAccessCard({ company }: { company: PortalCo
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [username, setUsername] = useState(company);
+  const [username, setUsername] = useState<string>(company);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
