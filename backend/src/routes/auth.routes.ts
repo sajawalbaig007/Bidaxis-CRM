@@ -6,6 +6,7 @@ import {
   getSessionStatus, ackSessionAlert,
   logoutAllDevices, getAuditLogs, getCaptchaConfig,
 } from "../controllers/auth.controller";
+import { companyLogin, verifyCompanySession } from "../controllers/companyAuth.controller";
 import { verifyToken } from "../middleware/auth.middleware";
 import { allowRoles } from "../middleware/role.middleware";
 import { loginLimiter } from "../middleware/rateLimit.middleware";
@@ -13,6 +14,9 @@ import { loginLimiter } from "../middleware/rateLimit.middleware";
 const router = express.Router();
 
 router.get("/captcha-config", getCaptchaConfig);
+
+router.post("/company-login", loginLimiter, companyLogin);
+router.post("/company-session", verifyCompanySession);
 
 router.post("/register", verifyToken, allowRoles("admin"), register);
 router.post("/login",       loginLimiter, login);

@@ -87,9 +87,18 @@ import {
   parseChangeSummary,
   projectLabel,
 } from "../utils/technicalNotifications";
+import {
+  listCompanyCredentials,
+  upsertCompanyCredential,
+  deleteCompanyCredential,
+} from "../controllers/companyCredential.controller";
 
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
+
+router.get("/company-credentials", verifyToken, allowRoles("admin"), listCompanyCredentials);
+router.put("/company-credentials/:company", verifyToken, allowRoles("admin"), upsertCompanyCredential);
+router.delete("/company-credentials/:company", verifyToken, allowRoles("admin"), deleteCompanyCredential);
 
 function applyProjectPayload(updateData: Record<string, unknown>, body: Record<string, unknown>) {
   const scalars = [
