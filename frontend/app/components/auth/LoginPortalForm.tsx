@@ -10,11 +10,13 @@ import { invalidateCsrDashboardCache } from "@/lib/csrDashboardCache";
 import { invalidateAllCsrListCaches } from "@/lib/csrApiCache";
 import { setFrontendSession, resolveLoginRole, dashboardPathForRole } from "@/lib/session";
 import { PORTAL_LOGIN_COPY, portalLabel, type PortalRole } from "@/lib/loginRole";
+import { COMPANY_META, companyForPortal, hasCompanyGate } from "@/lib/companyGate";
 import DevToolsGuard from "@/app/components/DevToolsGuard";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import BrandLogo from "@/app/components/BrandLogo";
 import BemWordmark from "@/app/components/BemWordmark";
 import GpsLogo from "@/app/components/GpsLogo";
+import GpsWordmark from "@/app/components/GpsWordmark";
 
 interface APIError {
   response?: { data?: { message?: string; code?: string; blocked?: boolean; attempts?: number; captchaRequired?: boolean } };
@@ -42,6 +44,9 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
   const copy = PORTAL_LOGIN_COPY[loginPortal];
   const loginSlides = copy.slides;
   const accent = PORTAL_ACCENT[loginPortal];
+  const portalCompany = companyForPortal(loginPortal);
+  const companyMeta = COMPANY_META[portalCompany];
+  const isGpsPortal = portalCompany === "GPS";
   const [step, setStep] = useState<Step>("credentials");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -96,26 +101,33 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
 
   useEffect(() => {
     const token = getClientAuthToken();
-    if (!token) return;
-    try {
-      const part = token.split(".")[1];
-      if (!part) {
+    if (token) {
+      try {
+        const part = token.split(".")[1];
+        if (!part) {
+          setClientAuthToken(null);
+        } else {
+          const payload = JSON.parse(
+            atob(part.replace(/-/g, "+").replace(/_/g, "/")),
+          ) as { role?: string; exp?: number; sid?: string };
+          if (!payload.sid || (payload.exp != null && payload.exp * 1000 < Date.now())) {
+            setClientAuthToken(null);
+          } else {
+            const role = resolveLoginRole({ role: payload.role });
+            if (role) {
+              window.location.href = dashboardPathForRole(role);
+              return;
+            }
+          }
+        }
+      } catch {
         setClientAuthToken(null);
-        return;
       }
-      const payload = JSON.parse(
-        atob(part.replace(/-/g, "+").replace(/_/g, "/")),
-      ) as { role?: string; exp?: number; sid?: string };
-      if (!payload.sid || (payload.exp != null && payload.exp * 1000 < Date.now())) {
-        setClientAuthToken(null);
-        return;
-      }
-      const role = resolveLoginRole({ role: payload.role });
-      if (role) window.location.href = dashboardPathForRole(role);
-    } catch {
-      setClientAuthToken(null);
     }
-  }, []);
+    if (!hasCompanyGate(portalCompany)) {
+      window.location.replace(`/company/${companyMeta.slug}`);
+    }
+  }, [portalCompany, companyMeta.slug]);
 
   function hardRedirect(path: string) {
     window.location.href = path.startsWith("http") ? path : `${window.location.origin}${path}`;
@@ -287,8 +299,9 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
         <div
           className="absolute inset-0 bg-cover bg-center scale-105"
           style={{
-            backgroundImage:
-              "linear-gradient(135deg, rgba(74,6,18,0.88) 0%, rgba(15,23,42,0.82) 50%, rgba(184,17,45,0.75) 100%), url('/images/image.png')",
+            backgroundImage: isGpsPortal
+              ? `linear-gradient(135deg, rgba(8,20,60,0.9) 0%, rgba(15,23,42,0.82) 50%, ${companyMeta.accent}cc 100%), url('${companyMeta.logoSrc}')`
+              : `linear-gradient(135deg, rgba(74,6,18,0.88) 0%, rgba(15,23,42,0.82) 50%, rgba(184,17,45,0.75) 100%), url('${companyMeta.logoSrc}')`,
           }}
         />
         <div className="absolute inset-0 backdrop-blur-[18px] bg-black/20 dark:bg-black/40" />
@@ -309,10 +322,13 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
             <div className="absolute -top-16 -left-16 w-52 h-52 rounded-full bg-white/5" />
             <div className="absolute -bottom-20 -right-20 w-72 h-72 rounded-full bg-white/5" />
             <div className="relative z-10 text-center w-full max-w-[280px] flex flex-col items-center">
-              {loginPortal === "technical_manager" ? (
-                <div className="rounded-2xl bg-white p-3 shadow-lg mb-5 md:mb-7">
-                  <GpsLogo size="md" className="drop-shadow-none" />
-                </div>
+              {isGpsPortal ? (
+                <>
+                  <div className="rounded-2xl bg-white p-3 shadow-lg mb-3 md:mb-4">
+                    <GpsLogo size="md" className="drop-shadow-none" />
+                  </div>
+                  <GpsWordmark className="mb-3 md:mb-4" onDark />
+                </>
               ) : (
                 <>
                   <BrandLogo size="md" className="mb-3 md:mb-4" />
@@ -346,10 +362,10 @@ export default function LoginPortalForm({ portal: loginPortal }: { portal: Porta
 
           <div className="flex-1 flex flex-col justify-center px-5 py-6 sm:px-8 sm:py-8 md:px-12 md:py-10 min-w-0 overflow-y-auto">
             <Link
-              href="/"
+              href={`/company/${companyMeta.slug}`}
               className="inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold text-crm-text-muted hover:text-[#B8112D] mb-4 sm:mb-5 transition-colors w-fit"
             >
-              <ArrowLeft size={14} /> Back to portal selection
+              <ArrowLeft size={14} /> Back to {companyMeta.name} portals
             </Link>
 
             {step === "credentials" && (

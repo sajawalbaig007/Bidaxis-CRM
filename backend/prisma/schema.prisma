@@ -564,3 +564,16 @@ model StaffEmployee {
   @@index([payrollHead])
   @@map("staff_employees")
 }
+
+/** Shared company-gate login (landing → BEM / GPS portals). Managed from Admin → Users. */
+model CompanyCredential {
+  id        String   @id @default(cuid()) @map("_id")
+  /** BEM | GPS */
+  company   String   @unique
+  username  String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company_credentials")
+}

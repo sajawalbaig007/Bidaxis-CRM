@@ -40,6 +40,18 @@ async function main() {
     },
   });
 
+  const companyHash = await bcrypt.hash("123456", 12);
+  await prisma.companyCredential.upsert({
+    where: { company: "BEM" },
+    update: {},
+    create: { company: "BEM", username: "BEM", password: companyHash },
+  });
+  await prisma.companyCredential.upsert({
+    where: { company: "GPS" },
+    update: {},
+    create: { company: "GPS", username: "GPS", password: companyHash },
+  });
+
   console.log("Seed complete");
 }
 

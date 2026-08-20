@@ -17,6 +17,7 @@ import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import AllEmployeesPanel from "../components/users/AllEmployeesPanel";
+import CompanyPortalAccessCard from "./CompanyPortalAccessCard";
 import {
   ALL_CSR_RESET_SCOPE_IDS,
   CSR_RESET_GROUPS,
@@ -1173,6 +1174,7 @@ export default function UsersPage() {
           <AllEmployeesPanel dashboardUsers={dashboardPickOptions} />
         ) : (
         <>
+        <CompanyPortalAccessCard company={portalCompany} />
         {/* TABLE */}
         <div className="bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
