@@ -33,7 +33,7 @@ export function formatAdminLead(lead: {
   latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   _count?: { notes?: number };
   extraProjectCount?: number;
-  extraProjectSuffixes?: string[];
+  extraProjects?: { code?: string; scope?: string }[];
 }): {
   id: string;
   clientName: string;
@@ -63,7 +63,7 @@ export function formatAdminLead(lead: {
   noteHistory: { id: string; text: string; createdAt: string; parentId?: string | null; replies?: { id: string; text: string; createdAt: string; parentId?: string | null }[] }[];
   createdAt: string;
   extraProjectCount: number;
-  extraProjectSuffixes: string[];
+  extraProjects: { code: string; scope: string }[];
 } {
   const rawStatus = (lead.status || "pending").toLowerCase();
   const raw = lead.important && rawStatus !== "important" ? "important" : rawStatus;
@@ -109,11 +109,14 @@ export function formatAdminLead(lead: {
 
   const contactPhones = collectLeadPhones(lead.phone, lead.subContacts);
   const emails = collectLeadEmails(lead.email, lead.subContacts);
-  const extraProjectSuffixes = (lead.extraProjectSuffixes ?? [])
-    .map(s => String(s).trim())
-    .filter(Boolean);
-  const extraProjectCount = extraProjectSuffixes.length > 0
-    ? extraProjectSuffixes.length
+  const extraProjects = (lead.extraProjects ?? [])
+    .map(p => ({
+      code: String(p.code ?? "").trim(),
+      scope: String(p.scope ?? "").trim(),
+    }))
+    .filter(p => p.code);
+  const extraProjectCount = extraProjects.length > 0
+    ? extraProjects.length
     : Math.max(0, lead.extraProjectCount ?? 0);
 
   return {
@@ -145,6 +148,6 @@ export function formatAdminLead(lead: {
     noteHistory,
     createdAt: createdLabel,
     extraProjectCount,
-    extraProjectSuffixes,
+    extraProjects,
   };
 }

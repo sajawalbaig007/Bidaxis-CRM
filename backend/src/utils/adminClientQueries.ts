@@ -116,7 +116,32 @@ export type AdminIdentityLead = {
   company?: string | null;
   clientCode?: string | null;
   projectCode?: string | null;
+  interestedService?: string | null;
+  updatedAt?: Date | string;
 };
+
+export type ExtraProjectCode = {
+  code: string;
+  scope: string;
+};
+
+function leadCodeRaw(lead: AdminIdentityLead): string {
+  return (lead.clientCode || lead.projectCode || "").trim();
+}
+
+function leadSeq(lead: AdminIdentityLead): number {
+  return parseProjectCodeSeq(leadCodeRaw(lead))?.seq ?? 0;
+}
+
+function pickLatestRepresentative<T extends AdminIdentityLead>(group: T[]): T {
+  return [...group].sort((a, b) => {
+    const seqDiff = leadSeq(b) - leadSeq(a);
+    if (seqDiff !== 0) return seqDiff;
+    const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return tb - ta;
+  })[0]!;
+}
 
 /** `CODE-01` / `code-02` → family key from the part before `-`. */
 export function clientCodeFamilyKey(
@@ -148,7 +173,7 @@ export function dedupeAdminLeads<T extends AdminIdentityLead>(
 ): {
   unique: T[];
   extraProjectCountById: Map<string, number>;
-  extraProjectSuffixesById: Map<string, string[]>;
+  extraProjectsById: Map<string, ExtraProjectCode[]>;
 } {
   const groups = new Map<string, T[]>();
   for (const lead of leads) {
@@ -159,32 +184,34 @@ export function dedupeAdminLeads<T extends AdminIdentityLead>(
   }
   const unique: T[] = [];
   const extraProjectCountById = new Map<string, number>();
-  const extraProjectSuffixesById = new Map<string, string[]>();
+  const extraProjectsById = new Map<string, ExtraProjectCode[]>();
   for (const group of groups.values()) {
-    const representative = group[0]!;
+    const representative = pickLatestRepresentative(group);
     unique.push(representative);
     const seen = new Set<string>();
-    const extras: { suffix: string; seq: number }[] = [];
-    const repRaw = (representative.clientCode || representative.projectCode || "").trim().toLowerCase();
+    const extras: ExtraProjectCode[] = [];
+    const repRaw = leadCodeRaw(representative).toLowerCase();
     for (const lead of group) {
-      const raw = (lead.clientCode || lead.projectCode || "").trim();
+      if (lead.id === representative.id) continue;
+      const raw = leadCodeRaw(lead);
       if (!raw) continue;
       const key = raw.toLowerCase();
       if (seen.has(key) || key === repRaw) continue;
       seen.add(key);
-      const parsed = parseProjectCodeSeq(raw);
-      const m = raw.match(/-(\d+)$/);
       extras.push({
-        suffix: m?.[1] ?? (parsed ? String(parsed.seq) : raw),
-        seq: parsed?.seq ?? Number.MAX_SAFE_INTEGER,
+        code: raw,
+        scope: (lead.interestedService ?? "").trim(),
       });
     }
-    extras.sort((a, b) => a.seq - b.seq || a.suffix.localeCompare(b.suffix));
-    const suffixes = extras.map(e => e.suffix);
-    extraProjectSuffixesById.set(representative.id, suffixes);
-    extraProjectCountById.set(representative.id, suffixes.length);
+    extras.sort((a, b) => {
+      const sa = parseProjectCodeSeq(a.code)?.seq ?? 0;
+      const sb = parseProjectCodeSeq(b.code)?.seq ?? 0;
+      return sb - sa;
+    });
+    extraProjectsById.set(representative.id, extras);
+    extraProjectCountById.set(representative.id, extras.length);
   }
-  return { unique, extraProjectCountById, extraProjectSuffixesById };
+  return { unique, extraProjectCountById, extraProjectsById };
 }
 
 /** Same uniqueness as CSR Clients: one row per phone, else company, else id. */

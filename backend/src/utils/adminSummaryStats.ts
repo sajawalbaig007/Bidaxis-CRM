@@ -318,7 +318,7 @@ export async function buildAdminTabCountsPayload(filters?: {
   return {
     success: true,
     tabCounts: {
-      all: uniqueLeadsByPhone(rows).length,
+      all: uniqueClosedLeadsByClientCode(rows).length,
       important: uniqueLeadsByPhone(buckets.important).length,
       schedule: uniqueLeadsByPhone(buckets.schedule).length,
       interested: uniqueLeadsByPhone(buckets.interested).length,

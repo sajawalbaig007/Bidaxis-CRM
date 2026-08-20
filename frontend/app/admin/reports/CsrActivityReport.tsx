@@ -334,7 +334,7 @@ export default function CsrActivityReport({
   }), [sessions, summary]);
 
   return (
-    <div className="rounded-2xl sm:rounded-[24px] bg-white dark:bg-crm-surface p-4 sm:p-5 shadow-sm border border-gray-100 dark:border-crm-border overflow-hidden">
+    <div className="rounded-[1.75rem] border border-gray-100/90 bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] p-4 sm:p-5 overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
