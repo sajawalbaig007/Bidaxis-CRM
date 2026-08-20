@@ -322,8 +322,8 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
 
     const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:v6:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-      : "admin:clients:tab-counts:v6";
+      ? `admin:clients:tab-counts:v7:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
+      : "admin:clients:tab-counts:v7";
 
     if (!hasFilters) {
       const cached = getCache<object>(CACHE_KEY);
@@ -381,7 +381,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:v7:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v8:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -400,6 +400,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
         company: true,
         clientCode: true,
         projectCode: true,
+        interestedService: true,
         nextSchedule: true,
         updatedAt: true,
         createdAt: true,
@@ -414,8 +415,8 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
           return true;
         })
       : identityRows;
-    const preferClientCode = view === "closed";
-    const { unique, extraProjectCountById, extraProjectSuffixesById } = dedupeAdminLeads(viewRows, preferClientCode);
+    const preferClientCode = view === "closed" || view === "all";
+    const { unique, extraProjectCountById, extraProjectsById } = dedupeAdminLeads(viewRows, preferClientCode);
     const uniqueRows = unique.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     const total = uniqueRows.length;
     const pageIds = uniqueRows
@@ -435,7 +436,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       return {
         ...row,
         extraProjectCount: extraProjectCountById.get(id) ?? 0,
-        extraProjectSuffixes: extraProjectSuffixesById.get(id) ?? [],
+        extraProjects: extraProjectsById.get(id) ?? [],
       };
     }).filter((l): l is NonNullable<typeof l> => !!l);
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
@@ -32,6 +32,9 @@ type CsrActualStats = {
   interested: number;
   projectWon: number;
 };
+
+const BENTO =
+  "rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
 
 /* ── Main Page ── */
 export default function ReportsPage() {
@@ -186,397 +189,357 @@ export default function ReportsPage() {
     : csrList;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
+    <div className="flex min-h-screen bg-[#EEF1F7]">
       <StaffSidebar />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 mt-[64px]">
+      <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
+        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
 
-        {/* ── HEADER ── */}
-        <div className="mt-4 sm:mt-5 mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
-          {/* Title */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-[#B8112D] text-white shrink-0">
-              <FileBarChart2 size={18} className="sm:w-5 sm:h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl lg:text-[28px] font-bold text-[#111827]">
-                Reports & Analytics
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                CSR performance — filter by period or date range.
+          <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Analytics</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">Reports</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                CSR performance, status mix, and shift tracking
               </p>
             </div>
-          </div>
-
-          {/* Date range filter — wraps on small screens */}
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={e => setFromDate(e.target.value)}
-              className="h-10 sm:h-11 flex-1 min-w-[130px] sm:flex-none rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D]"
-            />
-            <span className="text-gray-400 text-sm">→</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={e => setToDate(e.target.value)}
-              className="h-10 sm:h-11 flex-1 min-w-[130px] sm:flex-none rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 sm:px-4 text-sm outline-none focus:border-[#B8112D]"
-            />
-            <button
-              onClick={() => {
-                if (!fromDate || !toDate) return;
-                setActivePeriod("all");
-                loadReports("all", fromDate, toDate, true);
-              }}
-              disabled={!fromDate || !toDate}
-              className={`h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl text-sm font-semibold transition-all whitespace-nowrap ${
-                fromDate && toDate
-                  ? "bg-[#B8112D] text-white"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              Filter
-            </button>
-            <button
-              onClick={() => {
-                setFromDate("");
-                setToDate("");
-                setActivePeriod("all");
-                loadReports("all", undefined, undefined, true);
-              }}
-              className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 whitespace-nowrap"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {/* ── PERIOD + CSR FILTER BAR ── */}
-        <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 shadow-sm mb-4 sm:mb-6">
-          <div className="px-3 sm:px-4 py-3 overflow-x-auto">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-max">
-            {/* Period buttons */}
-            {([
-              { key: "all",   label: "All Time" },
-              { key: "today", label: "Today"   },
-              { key: "week",  label: "7 Days"  },
-              { key: "month", label: "30 Days" },
-            ] as const).map(({ key, label }) => (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                className="h-11 flex-1 min-w-[130px] sm:flex-none rounded-2xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+              />
+              <span className="text-gray-400 text-sm hidden sm:inline">→</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                className="h-11 flex-1 min-w-[130px] sm:flex-none rounded-2xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#B8112D]"
+              />
               <button
-                key={key}
                 onClick={() => {
-                  setActivePeriod(key);
-                  setFromDate("");
-                  setToDate("");
-                  loadReports(key);
+                  if (!fromDate || !toDate) return;
+                  setActivePeriod("all");
+                  loadReports("all", fromDate, toDate, true);
                 }}
-                className={`h-9 sm:h-10 px-3 sm:px-5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                  activePeriod === key && !fromDate
-                    ? "bg-[#B8112D] text-white"
-                    : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                disabled={!fromDate || !toDate}
+                className={`h-11 px-4 rounded-2xl text-sm font-semibold transition-all whitespace-nowrap ${
+                  fromDate && toDate
+                    ? "bg-[#B8112D] text-white shadow-sm"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
                 }`}
               >
-                {loadingReport && activePeriod === key ? "Loading..." : label}
+                Filter
               </button>
-            ))}
-
-            </div>
-          </div>
-
-          <div className="px-3 sm:px-4 pb-3 flex flex-wrap items-center gap-2 sm:gap-3 border-t border-gray-50">
-            <div className="relative z-[60]" ref={dropdownRef}>
               <button
-                type="button"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-1.5 sm:gap-2 min-w-[140px] sm:min-w-[160px] hover:bg-gray-50 transition-all"
+                onClick={() => {
+                  setFromDate("");
+                  setToDate("");
+                  setActivePeriod("all");
+                  loadReports("all", undefined, undefined, true);
+                }}
+                className="h-11 px-4 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 whitespace-nowrap"
               >
-                <Users size={13} className="text-[#B8112D] sm:w-[15px] sm:h-[15px]" />
-                <span className="truncate max-w-[80px] sm:max-w-none">{dropdownLabel}</span>
-                <ChevronDown
-                  size={13}
-                  className={`ml-auto text-gray-400 transition-transform shrink-0 sm:w-[15px] sm:h-[15px] ${dropdownOpen ? "rotate-180" : ""}`}
-                />
+                Reset
               </button>
+            </div>
+          </header>
 
-              {dropdownOpen && (
-                <div className="absolute left-0 top-11 sm:top-12 z-[70] bg-white border border-gray-100 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden min-w-[180px] sm:min-w-[200px]">
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedCSRId("all"); setDropdownOpen(false); }}
-                    className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] transition-all ${
-                      selectedCSRId === "all" ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
-                    }`}
-                  >
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#F3F4F6] flex items-center justify-center shrink-0">
-                      <Users size={11} className="sm:w-[13px] sm:h-[13px]" />
-                    </div>
-                    All CSRs
-                  </button>
-                  {csrList.map(csr => (
+          <section className={`${BENTO} p-3 sm:p-4`}>
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { key: "all",   label: "All Time" },
+                { key: "today", label: "Today"   },
+                { key: "week",  label: "7 Days"  },
+                { key: "month", label: "30 Days" },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setActivePeriod(key);
+                    setFromDate("");
+                    setToDate("");
+                    loadReports(key);
+                  }}
+                  className={`h-10 px-4 rounded-2xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                    activePeriod === key && !fromDate
+                      ? "bg-[#B8112D] text-white shadow-sm"
+                      : "border border-gray-200 text-gray-600 hover:bg-gray-50 bg-white"
+                  }`}
+                >
+                  {loadingReport && activePeriod === key ? "Loading..." : label}
+                </button>
+              ))}
+
+              <div className="relative z-[60] ml-auto" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="h-10 px-4 rounded-2xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-700 flex items-center gap-2 min-w-[160px] hover:bg-gray-50"
+                >
+                  <Users size={14} className="text-[#B8112D]" />
+                  <span className="truncate">{dropdownLabel}</span>
+                  <ChevronDown size={14} className={`ml-auto text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+                {dropdownOpen && (
+                  <div className="absolute right-0 top-12 z-[70] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden min-w-[220px] max-h-72 overflow-y-auto">
                     <button
-                      key={csr.id}
                       type="button"
-                      onClick={() => { setSelectedCSRId(csr.id); setDropdownOpen(false); }}
-                      className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] transition-all border-t border-gray-50 ${
-                        selectedCSRId === csr.id ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
+                      onClick={() => { setSelectedCSRId("all"); setDropdownOpen(false); }}
+                      className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] ${
+                        selectedCSRId === "all" ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
                       }`}
                     >
-                      <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] sm:text-xs font-bold ${
-                        selectedCSRId === csr.id ? "bg-[#B8112D] text-white" : "bg-[#F3F4F6] text-gray-600"
-                      }`}>
-                        {csr.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex items-center gap-1.5 truncate min-w-0">
+                      All CSRs
+                    </button>
+                    {csrList.map(csr => (
+                      <button
+                        key={csr.id}
+                        type="button"
+                        onClick={() => { setSelectedCSRId(csr.id); setDropdownOpen(false); }}
+                        className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-2 hover:bg-[#FFF1F3] border-t border-gray-50 ${
+                          selectedCSRId === csr.id ? "text-[#B8112D] bg-[#FFF1F3]" : "text-gray-700"
+                        }`}
+                      >
                         {csr.csrCode && (
                           <span className="bg-[#B8112D]/10 text-[#B8112D] text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0">{csr.csrCode}</span>
                         )}
                         <span className="truncate">{csr.name}</span>
-                      </div>
-                      <span className="ml-auto text-[10px] text-gray-400 shrink-0">{csr.totalLeads}</span>
-                    </button>
+                        <span className="ml-auto text-[10px] text-gray-400 shrink-0">{csr.totalLeads}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {loadingReport && (
+                <div className="w-4 h-4 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+          </section>
+
+          <section aria-label="Report stats" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            {[
+              { label: "Total Leads", value: stats.totalLeads, from: "from-[#B8112D]", to: "to-[#8b0d22]", icon: <PhoneCall size={15} /> },
+              { label: "Completed", value: stats.completed, from: "from-[#059669]", to: "to-[#047857]", icon: <ShoppingCart size={15} /> },
+              { label: "Important", value: stats.important, from: "from-[#D97706]", to: "to-[#B45309]", icon: <AlertTriangle size={15} /> },
+              { label: "Interested", value: stats.interested, from: "from-[#2563EB]", to: "to-[#1D4ED8]", icon: <TrendingUp size={15} /> },
+              { label: "Schedule Call", value: stats.scheduleCall, from: "from-[#0891B2]", to: "to-[#0E7490]", icon: <Clock3 size={15} /> },
+              { label: "Close Client", value: stats.projectWon, from: "from-[#7C3AED]", to: "to-[#6D28D9]", icon: <FileBarChart2 size={15} /> },
+            ].map(tile => (
+              <div
+                key={tile.label}
+                className={`bg-gradient-to-br ${tile.from} ${tile.to} rounded-[1.5rem] p-3.5 sm:p-4 text-white shadow-md flex flex-col gap-2 min-h-[104px]`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-white/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-snug">
+                    {tile.label}
+                  </span>
+                  <span className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                    {tile.icon}
+                  </span>
+                </div>
+                {loadingReport ? (
+                  <div className="h-8 w-14 bg-white/25 rounded-lg animate-pulse" />
+                ) : (
+                  <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
+                    {tile.value.toLocaleString()}
+                  </span>
+                )}
+              </div>
+            ))}
+          </section>
+
+          <section
+            aria-label="Reports bento"
+            className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4"
+          >
+            <div className={`md:col-span-8 ${BENTO} p-4 sm:p-5 min-w-0`}>
+              <ReportCharts
+                chartData={chartData}
+                statusPieData={statusPieData}
+                chartPeriodLabel={selectedCSR ? `${selectedCSR.name} · ${chartPeriodLabel}` : chartPeriodLabel}
+                pieSubtitle={`${selectedCSR ? selectedCSR.name : "All CSRs"} — status mix`}
+              />
+            </div>
+
+            <div className={`md:col-span-4 ${BENTO} p-4 sm:p-5 min-w-0`}>
+              <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">
+                {selectedCSR ? selectedCSR.name : "Quick Insights"}
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 mb-4">
+                {activePeriod === "all"   ? "All time" :
+                 activePeriod === "today" ? "Today" :
+                 activePeriod === "week"  ? "Last 7 days" :
+                 activePeriod === "month" ? "Last 30 days" : "Custom range"}
+              </p>
+              {loadingReport ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="h-12 bg-gray-100 rounded-2xl animate-pulse" />
+                  ))}
+                </div>
+              ) : stats.totalLeads === 0 && stats.completed === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40">
+                  <Database size={28} className="text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">No data</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-0.5">
+                  {[
+                    { label: "Not Interested", val: stats.notInterested, color: "text-slate-700", bg: "bg-slate-50" },
+                    { label: "Not Picked", val: stats.notCompleted, color: "text-amber-700", bg: "bg-amber-50" },
+                    { label: "No Owner", val: stats.noOwner, color: "text-yellow-800", bg: "bg-yellow-50" },
+                    { label: "Not In Service", val: stats.notInService, color: "text-violet-700", bg: "bg-violet-50" },
+                    { label: "In House", val: stats.inHouse, color: "text-purple-700", bg: "bg-purple-50" },
+                    { label: "Important", val: stats.important, color: "text-red-700", bg: "bg-red-50" },
+                    { label: "Schedule Call", val: stats.scheduleCall, color: "text-sky-700", bg: "bg-sky-50" },
+                    { label: "Interested", val: stats.interested, color: "text-orange-700", bg: "bg-orange-50" },
+                    { label: "Close Client", val: stats.projectWon, color: "text-emerald-700", bg: "bg-emerald-50" },
+                  ].map(s => (
+                    <div key={s.label} className={`flex items-center justify-between gap-3 rounded-2xl ${s.bg} px-3 py-2.5`}>
+                      <span className="text-xs font-semibold text-gray-600">{s.label}</span>
+                      <span className={`text-base font-extrabold tabular-nums ${s.color}`}>{s.val}</span>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {selectedCSR && (
-              <span className="text-[10px] sm:text-xs text-[#B8112D] font-semibold bg-[#FFF1F3] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl whitespace-nowrap">
-                Viewing: {selectedCSR.name}
-              </span>
-            )}
-
-            {loadingReport && (
-              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-[#B8112D] border-t-transparent rounded-full animate-spin" />
-            )}
-          </div>
-        </div>
-
-        {/* ── SUMMARY DONUT CHART ── */}
-        <div className="bg-white rounded-2xl sm:rounded-[24px] border border-gray-100 shadow-sm p-4 sm:p-5 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-[#111827]">Lead Status Breakdown</h2>
-              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-                {selectedCSR ? selectedCSR.name : "All CSRs"} ·{" "}
-                {activePeriod === "all" ? "All time" : activePeriod === "today" ? "Today" : activePeriod === "week" ? "7 Days" : activePeriod === "month" ? "30 Days" : "Custom"}
+            <div className={`md:col-span-12 ${BENTO} p-4 sm:p-5 min-w-0`}>
+              <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">Lead Status Breakdown</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 mb-4">
+                {selectedCSR ? selectedCSR.name : "All CSRs"} · {chartPeriodLabel}
               </p>
-            </div>
-            <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center flex-1">
-              {[
-                { label: "Total", value: stats.totalLeads, color: "text-[#B8112D]", hint: "Leads with CSR" },
-                { label: "Completed", value: stats.completed, color: "text-green-600", hint: "Status updates" },
-                { label: "Important", value: stats.important, color: "text-orange-600", hint: "Important leads" },
-              ].map(s => (
-                <div key={s.label}>
-                  {loadingReport
-                    ? <div className="h-7 w-10 bg-gray-100 rounded-lg animate-pulse mx-auto mb-1"/>
-                    : <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
-                  }
-                  <p className="text-[11px] text-gray-400 mt-0.5">{s.label}</p>
-                  {"hint" in s && s.hint ? (
-                    <p className="text-[9px] text-gray-300">{s.hint}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-          {!loadingReport && stats.totalLeads > 0 && (
-            <div className="mt-4 h-[10px] bg-gray-100 rounded-full overflow-hidden flex">
-              {[
-                { val: stats.notInterested, bg: "bg-slate-500" },
-                { val: stats.notCompleted,  bg: "bg-amber-500" },
-                { val: stats.noOwner,       bg: "bg-yellow-600" },
-                { val: stats.notInService,  bg: "bg-violet-500" },
-                { val: stats.inHouse,       bg: "bg-purple-500" },
-                { val: stats.important,     bg: "bg-red-500" },
-                { val: stats.scheduleCall,  bg: "bg-sky-500" },
-                { val: stats.interested,    bg: "bg-orange-500" },
-                { val: stats.projectWon,    bg: "bg-emerald-500" },
-              ].map((b, i) => (
-                <div key={i} className={`${b.bg} h-full transition-all`} style={{ width: `${(b.val / stats.totalLeads) * 100}%` }}/>
-              ))}
-            </div>
-          )}
-          {!loadingReport && stats.totalLeads > 0 && (
-            <div className="flex flex-wrap gap-3 mt-2.5">
-              {[
-                { label: "Completed (updates)", val: stats.completed,     dot: "bg-green-500" },
-                { label: "Not Interested",     val: stats.notInterested,  dot: "bg-slate-500" },
-                { label: "Not Picked",         val: stats.notCompleted,   dot: "bg-amber-500" },
-                { label: "No Owner Available", val: stats.noOwner,        dot: "bg-yellow-600" },
-                { label: "Not In Service",     val: stats.notInService,   dot: "bg-violet-500" },
-                { label: "In House",           val: stats.inHouse,        dot: "bg-purple-500" },
-                { label: "Important",          val: stats.important,      dot: "bg-red-500" },
-                { label: "Schedule Call",      val: stats.scheduleCall,   dot: "bg-sky-500" },
-                { label: "Interested",         val: stats.interested,     dot: "bg-orange-500" },
-                { label: "Close Client",       val: stats.projectWon,     dot: "bg-emerald-500" },
-              ].map(b => (
-                <span key={b.label} className="flex items-center gap-1.5 text-[11px] text-gray-500">
-                  <span className={`w-2 h-2 rounded-full ${b.dot}`}/>
-                  {b.label} <strong className="text-gray-700">{b.val}</strong>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── CHART + INSIGHTS ── */}
-        {/* Stacked on mobile/tablet, side by side on xl+ */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-5 mb-4 sm:mb-6">
-
-          {/* Bar Chart + Area Chart — equal width */}
-          <div className="xl:col-span-8 rounded-2xl sm:rounded-[24px] bg-white p-4 sm:p-5 shadow-sm border border-gray-100">
-            <ReportCharts
-              chartData={chartData}
-              statusPieData={statusPieData}
-              chartPeriodLabel={selectedCSR ? `${selectedCSR.name}'s performance · ${chartPeriodLabel}` : chartPeriodLabel}
-              pieSubtitle={`${selectedCSR ? selectedCSR.name : "All CSRs"} — lead status breakdown`}
-            />
-          </div>
-
-          {/* Quick Insights */}
-          <div className="xl:col-span-4 rounded-2xl sm:rounded-[24px] bg-white p-4 sm:p-5 shadow-sm border border-gray-100">
-            <h2 className="text-base sm:text-lg font-bold text-[#111827] mb-0.5">
-              {selectedCSR ? selectedCSR.name : "Quick Insights"}
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-5">
-              {activePeriod === "all"   ? "All time" :
-               activePeriod === "today" ? "Today" :
-               activePeriod === "week"  ? "Last 7 days" :
-               activePeriod === "month" ? "Last 30 days" : "Custom range"}
-            </p>
-
-            {loadingReport ? (
-              <div className="space-y-2 sm:space-y-3">
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="h-12 sm:h-14 bg-gray-100 rounded-xl sm:rounded-2xl animate-pulse" />
-                ))}
-              </div>
-            ) : stats.totalLeads === 0 && stats.completed === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 sm:h-40">
-                <Database size={28} className="text-gray-200 mb-2 sm:mb-3 sm:w-8 sm:h-8" />
-                <p className="text-xs sm:text-sm text-gray-400">No data</p>
-              </div>
-            ) : (
-              /* 2-col grid on mobile/sm for compact view; 1-col on xl */
-              <div className="grid grid-cols-2 xl:grid-cols-1 gap-2 sm:gap-3 max-h-[520px] overflow-y-auto pr-0.5">
-                {[
-                  { label: "Total Leads",        value: stats.totalLeads,    bg: "bg-red-50",     color: "text-[#B8112D]",   icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" />, sub: "Leads assigned to CSR" },
-                  { label: "Completed",          value: stats.completed,     bg: "bg-green-50",   color: "text-green-600",   icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" />, sub: "Status updates by CSR" },
-                  { label: "Not Interested",     value: stats.notInterested, bg: "bg-slate-50",   color: "text-slate-600",   icon: <Database size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Not Picked",         value: stats.notCompleted,  bg: "bg-amber-50",   color: "text-amber-600",   icon: <Clock3 size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "No Owner Available", value: stats.noOwner,       bg: "bg-yellow-50",  color: "text-yellow-700",  icon: <Users size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Not In Service",     value: stats.notInService,  bg: "bg-violet-50",  color: "text-violet-600",  icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "In House",           value: stats.inHouse,       bg: "bg-purple-50",  color: "text-purple-600",  icon: <Database size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Important",          value: stats.important,     bg: "bg-red-50",     color: "text-red-600",     icon: <AlertTriangle size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Schedule Call",      value: stats.scheduleCall,  bg: "bg-sky-50",     color: "text-sky-600",     icon: <PhoneCall size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Interested",         value: stats.interested,    bg: "bg-orange-50",  color: "text-orange-600",  icon: <TrendingUp size={14} className="sm:w-4 sm:h-4" /> },
-                  { label: "Close Client",       value: stats.projectWon,    bg: "bg-emerald-50", color: "text-emerald-600", icon: <ShoppingCart size={14} className="sm:w-4 sm:h-4" /> },
-                ].map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl bg-gray-50 p-2.5 sm:p-3">
-                    <div className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl shrink-0 ${s.bg} ${s.color}`}>
-                      {s.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-[11px] text-gray-400 leading-tight">{s.label}</p>
-                      <p className={`text-sm sm:text-base font-bold tabular-nums ${s.color}`}>{s.value}</p>
-                      {"sub" in s && s.sub ? (
-                        <p className="text-[9px] text-gray-300 truncate">{s.sub}</p>
-                      ) : null}
-                    </div>
+              {!loadingReport && stats.totalLeads > 0 ? (
+                <>
+                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
+                    {[
+                      { val: stats.notInterested, bg: "bg-slate-500" },
+                      { val: stats.notCompleted,  bg: "bg-amber-500" },
+                      { val: stats.noOwner,       bg: "bg-yellow-600" },
+                      { val: stats.notInService,  bg: "bg-violet-500" },
+                      { val: stats.inHouse,       bg: "bg-purple-500" },
+                      { val: stats.important,     bg: "bg-red-500" },
+                      { val: stats.scheduleCall,  bg: "bg-sky-500" },
+                      { val: stats.interested,    bg: "bg-orange-500" },
+                      { val: stats.projectWon,    bg: "bg-emerald-500" },
+                    ].map((b, i) => (
+                      <div key={i} className={`${b.bg} h-full`} style={{ width: `${(b.val / stats.totalLeads) * 100}%` }}/>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+                    {[
+                      { label: "Completed (updates)", val: stats.completed,     dot: "bg-green-500" },
+                      { label: "Not Interested",     val: stats.notInterested,  dot: "bg-slate-500" },
+                      { label: "Not Picked",         val: stats.notCompleted,   dot: "bg-amber-500" },
+                      { label: "No Owner",           val: stats.noOwner,        dot: "bg-yellow-600" },
+                      { label: "Not In Service",     val: stats.notInService,   dot: "bg-violet-500" },
+                      { label: "In House",           val: stats.inHouse,        dot: "bg-purple-500" },
+                      { label: "Important",          val: stats.important,      dot: "bg-red-500" },
+                      { label: "Schedule Call",      val: stats.scheduleCall,   dot: "bg-sky-500" },
+                      { label: "Interested",         val: stats.interested,     dot: "bg-orange-500" },
+                      { label: "Close Client",       val: stats.projectWon,     dot: "bg-emerald-500" },
+                    ].map(b => (
+                      <span key={b.label} className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                        <span className={`w-2.5 h-2.5 rounded-full ${b.dot}`}/>
+                        {b.label} <strong className="text-[#0F172A] tabular-nums">{b.val}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400">{loadingReport ? "Loading…" : "No status mix for this period."}</p>
+              )}
+            </div>
 
-        <div className="mb-4 sm:mb-6 space-y-4">
-          <CsrActivityReport />
-          <CsrActivityReport staffRole="estimator" />
-        </div>
+            <div className="md:col-span-12 min-w-0">
+              <CsrActivityReport />
+            </div>
+            <div className="md:col-span-12 min-w-0">
+              <CsrActivityReport staffRole="estimator" />
+            </div>
 
-        {/* ── CSR PERFORMANCE TABLE ── */}
-        <div className="rounded-2xl sm:rounded-[24px] bg-white p-4 sm:p-5 shadow-sm border border-gray-100">
-          <button
-            type="button"
-            onClick={() => setCsrPerfOpen(v => !v)}
-            className="w-full flex items-center justify-between mb-3 sm:mb-5"
-          >
-            <h2 className="text-base sm:text-lg font-bold text-[#111827]">
-              {selectedCSR ? `${selectedCSR.name} — Detail` : "All CSRs Performance"}
-            </h2>
-            <ChevronDown size={18} className={`text-gray-400 transition-transform ${csrPerfOpen ? "rotate-180" : ""}`} />
-          </button>
+            <div className={`md:col-span-12 ${BENTO} p-4 sm:p-5 min-w-0`}>
+              <button
+                type="button"
+                onClick={() => setCsrPerfOpen(v => !v)}
+                className="w-full flex items-center justify-between gap-3"
+              >
+                <div className="text-left min-w-0">
+                  <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">
+                    {selectedCSR ? `${selectedCSR.name} — Detail` : "All CSRs Performance"}
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Status counts per CSR for the selected period</p>
+                </div>
+                <ChevronDown size={18} className={`text-gray-400 shrink-0 transition-transform ${csrPerfOpen ? "rotate-180" : ""}`} />
+              </button>
 
-          {csrPerfOpen && (
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ minWidth: "1100px" }}>
-              <thead>
-                <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                  {[
-                    "CSR", "Total", "Completed",
-                    "Not Interested", "Not Picked", "No Owner", "Not In Service", "In House",
-                    "Important", "Schedule Call", "Interested", "Close Client",
-                  ].map(h => (
-                    <th key={h} className="px-2.5 sm:px-3 py-2.5 sm:py-3 text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loadingReport ? (
-                  [1, 2, 3].map(i => (
-                    <tr key={i} className="border-b border-gray-50">
-                      {Array.from({ length: 12 }).map((_, j) => (
-                        <td key={j} className="px-2.5 sm:px-3 py-3 sm:py-4">
-                          <div className="h-3.5 sm:h-4 w-8 sm:w-10 bg-gray-100 rounded animate-pulse" />
-                        </td>
+              {csrPerfOpen && (
+                <div className="overflow-x-auto mt-4">
+                  <table className="w-full" style={{ minWidth: "1100px" }}>
+                    <thead>
+                      <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
+                        {[
+                          "CSR", "Total", "Completed",
+                          "Not Interested", "Not Picked", "No Owner", "Not In Service", "In House",
+                          "Important", "Schedule Call", "Interested", "Close Client",
+                        ].map(h => (
+                          <th key={h} className="px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingReport ? (
+                        [1, 2, 3].map(i => (
+                          <tr key={i} className="border-b border-gray-50">
+                            {Array.from({ length: 12 }).map((_, j) => (
+                              <td key={j} className="px-3 py-4">
+                                <div className="h-4 w-10 bg-gray-100 rounded animate-pulse" />
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : displayCsrRows.map(csr => (
+                        <tr key={csr.id} className="border-b border-gray-50 hover:bg-[#FAFAFB]">
+                          <td className="px-3 py-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-bold shrink-0">
+                                {csr.name.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="font-semibold text-sm text-[#0F172A] whitespace-nowrap">{csr.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-4"><span className="text-sm font-bold text-[#0F172A] tabular-nums">{csr.totalLeads}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-green-600 tabular-nums">{csr.completed}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-slate-600 tabular-nums">{csr.notInterested ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-amber-600 tabular-nums">{csr.notCompleted ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-yellow-700 tabular-nums">{csr.noOwner ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-violet-600 tabular-nums">{csr.notInService ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-purple-600 tabular-nums">{csr.inHouse ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-red-600 tabular-nums">{csr.important}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-sky-600 tabular-nums">{csr.scheduleCall ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-orange-600 tabular-nums">{csr.interested ?? 0}</span></td>
+                          <td className="px-3 py-4"><span className="text-sm font-semibold text-emerald-600 tabular-nums">{csr.projectWon ?? 0}</span></td>
+                        </tr>
                       ))}
-                    </tr>
-                  ))
-                ) : displayCsrRows.map(csr => (
-                  <tr key={csr.id} className="border-b border-gray-50 hover:bg-[#FAFAFB] transition-all">
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4">
-                      <div className="flex items-center gap-2 sm:gap-2.5">
-                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
-                          {csr.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-semibold text-xs sm:text-sm text-[#111827] whitespace-nowrap">
-                          {csr.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-bold text-[#111827]">{csr.totalLeads}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-green-600">{csr.completed}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-slate-600">{csr.notInterested ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-amber-600">{csr.notCompleted ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-yellow-700">{csr.noOwner ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-violet-600">{csr.notInService ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-purple-600">{csr.inHouse ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-red-600">{csr.important}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-sky-600">{csr.scheduleCall ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-orange-600">{csr.interested ?? 0}</span></td>
-                    <td className="px-2.5 sm:px-3 py-3 sm:py-4"><span className="text-xs sm:text-sm font-semibold text-emerald-600">{csr.projectWon ?? 0}</span></td>
-                  </tr>
-                ))}
-
-                {!loadingReport && csrList.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-12 sm:py-16 text-center text-gray-400 text-xs sm:text-sm">
-                      No data for this period
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          )}
+                      {!loadingReport && csrList.length === 0 && (
+                        <tr>
+                          <td colSpan={12} className="py-16 text-center text-gray-400 text-sm">
+                            No data for this period
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
-
       </main>
     </div>
   );
