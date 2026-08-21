@@ -9,6 +9,8 @@ import {
 import type { UploadCategory } from "./uploadCategory";
 
 const CHUNK_LOOKUP = 500;
+/** Cap in-memory preview while classifying — large sheets still process all rows. */
+const CLASSIFY_PREVIEW_CAP = 500;
 
 type ExcelRow = {
   [key: string]: unknown;
@@ -341,6 +343,7 @@ export async function classifyRows(
   toRestore: RestoreRow[];
   emailUpdates: { id: string; email: string }[];
   preview: RowPreview[];
+  previewCounts: { new: number; duplicate: number; updated: number; empty: number };
   existingCodeMap?: Map<string, string>;
 }> {
   /* Back-compat: older callers passed promoteWonClients as the 3rd arg */
@@ -348,26 +351,34 @@ export async function classifyRows(
     typeof _uploadCategory === "boolean" ? _uploadCategory : promoteWonClientsArg;
 
   const preview: RowPreview[] = [];
-  const toPreview = (r: ParsedLeadRow, status: RowPreview["status"], reason: string): RowPreview => ({
-    row: r.rowIndex,
-    name: r.name || "—",
-    phone: r.phone || "—",
-    email: r.email || "—",
-    company: r.company || "—",
-    ...(r.interestedService ? { interestedService: r.interestedService } : {}),
-    status,
-    reason,
-  });
+  const previewCounts = { new: 0, duplicate: 0, updated: 0, empty: 0 };
+
+  const pushPreview = (r: ParsedLeadRow, status: RowPreview["status"], reason: string) => {
+    previewCounts[status] += 1;
+    if (preview.length >= CLASSIFY_PREVIEW_CAP) return;
+    preview.push({
+      row: r.rowIndex,
+      name: r.name || "—",
+      phone: r.phone || "—",
+      email: r.email || "—",
+      company: r.company || "—",
+      ...(r.interestedService ? { interestedService: r.interestedService } : {}),
+      status,
+      reason,
+    });
+  };
 
   if (isActiveUpload) {
     const validParsed = parsed.filter(r => r.name);
     const uniqueCodes = [...new Set(validParsed.map(r => r.clientCode).filter((c): c is string => !!c))];
 
     const existingLeads = uniqueCodes.length
-      ? await prisma.lead.findMany({
-          where: { clientCode: { in: uniqueCodes } },
-          select: { id: true, clientCode: true, inBin: true },
-        })
+      ? await chunkedLookup(uniqueCodes, CHUNK_LOOKUP, chunk =>
+          prisma.lead.findMany({
+            where: { clientCode: { in: chunk } },
+            select: { id: true, clientCode: true, inBin: true },
+          }),
+        )
       : [];
     const existingCodeMap = new Map(existingLeads.map(l => [l.clientCode!, l.id]));
     const binByCode = new Map(existingLeads.filter(l => l.inBin).map(l => [l.clientCode!, l.id]));
@@ -378,35 +389,46 @@ export async function classifyRows(
 
     for (const r of parsed) {
       if (!r.name) {
-        preview.push(toPreview(r, "empty", "Missing client name"));
+        pushPreview(r, "empty", "Missing client name");
         continue;
       }
       if (r.clientCode && binByCode.has(r.clientCode)) {
         toRestore.push({ row: r, existingId: binByCode.get(r.clientCode)! });
-        preview.push(toPreview(r, "updated", "Restored from Bin → Active Projects"));
+        pushPreview(r, "updated", "Restored from Bin → Active Projects");
       } else if (r.clientCode && existingCodeMap.has(r.clientCode)) {
         toUpdate.push(r);
-        preview.push(toPreview(r, "updated", "Existing project — will refresh on Active Projects"));
+        pushPreview(r, "updated", "Existing project — will refresh on Active Projects");
       } else {
         fresh.push(r);
-        preview.push(toPreview(r, "new", "New project — will be added to Active Projects"));
+        pushPreview(r, "new", "New project — will be added to Active Projects");
       }
     }
 
-    return { fresh, toUpdate, toPromote: [], toRefresh: [], toRestore, emailUpdates: [], preview, existingCodeMap };
+    return {
+      fresh,
+      toUpdate,
+      toPromote: [],
+      toRefresh: [],
+      toRestore,
+      emailUpdates: [],
+      preview,
+      previewCounts,
+      existingCodeMap,
+    };
   }
 
   const phones = [...new Set(parsed.map(r => r.phone).filter(p => p.length >= 7))];
   const emails = [...new Set(parsed.map(r => r.email).filter(e => e.includes("@")))];
+  const phoneChunk = phones.length > 5_000 ? 2_000 : CHUNK_LOOKUP;
 
   /* Large sheets: skip fuzzy contains — variants cover common formats */
   const [phoneMatchMap, existingByEmail] = await Promise.all([
-    findLeadsByPhonesBulk(phones, CHUNK_LOOKUP, { fuzzy: phones.length <= 800 }),
+    findLeadsByPhonesBulk(phones, phoneChunk, { fuzzy: phones.length <= 800 }),
     chunkedLookup(emails, CHUNK_LOOKUP, chunk =>
       prisma.lead.findMany({
         where: { email: { in: chunk } },
         select: { email: true, id: true, phone: true, status: true, inBin: true, assignedTo: true },
-      })
+      }),
     ),
   ]);
 
@@ -436,7 +458,7 @@ export async function classifyRows(
     const hasValidEmail = r.email.includes("@");
 
     if (!r.name && !hasValidPhone && !hasValidEmail) {
-      preview.push(toPreview(r, "empty", "Empty row — skipped"));
+      pushPreview(r, "empty", "Empty row — skipped");
       continue;
     }
 
@@ -456,15 +478,15 @@ export async function classifyRows(
       /* Bin-only match → restore onto the upload target page */
       if (binMatches.length > 0 && activeMatches.length === 0) {
         toRestore.push({ row: r, existingId: binMatches[0]!.id });
-        preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+        pushPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`);
         continue;
       }
 
-      let pendingMatch = activeMatches.find(m => isPendingPipelineStatus(m.status));
+      const pendingMatch = activeMatches.find(m => isPendingPipelineStatus(m.status));
 
       if (promoteWonClients && pendingMatch && isWonClientUploadStatus(r.status)) {
         toPromote.push({ row: r, existingId: pendingMatch.id });
-        preview.push(toPreview(r, "updated", "Moved from Call Data → Clients"));
+        pushPreview(r, "updated", "Moved from Call Data → Clients");
         continue;
       }
 
@@ -472,7 +494,7 @@ export async function classifyRows(
       if (!callDataUpload && activeMatches.length > 0) {
         const target = pickActiveRefreshTarget(activeMatches, r.status);
         toRefresh.push({ row: r, existingId: target.id });
-        preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+        pushPreview(r, "updated", `Moved to ${pageLabel(r.status)}`);
         continue;
       }
 
@@ -482,7 +504,7 @@ export async function classifyRows(
         if (!exactExisting.email && hasValidEmail) {
           emailUpdates.push({ id: exactExisting.id, email: r.email });
         }
-        preview.push(toPreview(r, "duplicate", "Already in database (matching phone)"));
+        pushPreview(r, "duplicate", "Already in database (matching phone)");
         continue;
       }
 
@@ -493,21 +515,21 @@ export async function classifyRows(
       const emailHit = dupEmails.get(r.email.toLowerCase())!;
       if (emailHit.inBin) {
         toRestore.push({ row: r, existingId: emailHit.id });
-        preview.push(toPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`));
+        pushPreview(r, "updated", `Restored from Bin → ${pageLabel(r.status)}`);
         continue;
       }
       if (!isCallDataStatus(r.status)) {
         toRefresh.push({ row: r, existingId: emailHit.id });
-        preview.push(toPreview(r, "updated", `Moved to ${pageLabel(r.status)}`));
+        pushPreview(r, "updated", `Moved to ${pageLabel(r.status)}`);
         continue;
       }
-      preview.push(toPreview(r, "duplicate", "Already in database (matching email)"));
+      pushPreview(r, "duplicate", "Already in database (matching email)");
       continue;
     }
 
     fresh.push(r);
-    preview.push(toPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`));
+    pushPreview(r, "new", `New contact — will be added to ${pageLabel(r.status)}`);
   }
 
-  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview };
+  return { fresh, toUpdate: [], toPromote, toRefresh, toRestore, emailUpdates, preview, previewCounts };
 }

@@ -33,14 +33,17 @@ export async function seedLeadNotesFromCommentsForFile(uploadedFileId: string): 
   const withComments = leads.filter(l => l.comments?.trim());
   if (withComments.length === 0) return 0;
 
-  const existing = await prisma.leadNote.findMany({
-    where: {
-      leadId: { in: withComments.map(l => l.id) },
-      text:   { in: [...new Set(withComments.map(l => l.comments!.trim()))] },
-    },
-    select: { leadId: true, text: true },
-  });
-  const existingKeys = new Set(existing.map(n => `${n.leadId}::${n.text}`));
+  const existingKeys = new Set<string>();
+  const ID_CHUNK = 500;
+
+  for (let i = 0; i < withComments.length; i += ID_CHUNK) {
+    const idChunk = withComments.slice(i, i + ID_CHUNK).map(l => l.id);
+    const existing = await prisma.leadNote.findMany({
+      where: { leadId: { in: idChunk } },
+      select: { leadId: true, text: true },
+    });
+    for (const n of existing) existingKeys.add(`${n.leadId}::${n.text}`);
+  }
 
   const toCreate = withComments
     .filter(l => !existingKeys.has(`${l.id}::${l.comments!.trim()}`))
