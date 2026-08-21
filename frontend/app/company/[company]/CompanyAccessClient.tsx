@@ -21,6 +21,7 @@ import BemWordmark from "@/app/components/BemWordmark";
 import GpsLogo from "@/app/components/GpsLogo";
 import GpsWordmark from "@/app/components/GpsWordmark";
 import CompanyPortalChrome from "@/app/components/CompanyPortalChrome";
+import LoginPeekCharacter from "@/app/components/LoginPeekCharacter";
 
 const SLIDE_MS = 5200;
 const CHIPS_PER_ROW = 2;
@@ -37,6 +38,7 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<"username" | "password" | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [index, setIndex] = useState(0);
@@ -181,74 +183,101 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
           </p>
         </div>
 
-        <div className="w-full max-w-[560px] sm:max-w-[640px] md:max-w-[720px] mx-auto">
+        <div className="w-full max-w-[1080px] mx-auto">
           {checking ? (
-            <div className="rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl h-56 animate-pulse" />
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
+              <div className="md:col-span-5 rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl h-52 animate-pulse" />
+              <div className="md:col-span-7 rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl h-52 animate-pulse" />
+            </div>
           ) : !unlocked ? (
-            <div className="rounded-[1.35rem] sm:rounded-[1.75rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] overflow-hidden">
-              <form onSubmit={handleCompanyLogin} className="p-5 sm:p-7 space-y-4">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="inline-flex items-center gap-2">
-                    <Shield size={13} className="text-white/70" />
-                    <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
-                      {meta.name} credentials
-                    </p>
-                  </div>
-                  <Link
-                    href="/"
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-white"
-                  >
-                    <ArrowLeft size={13} /> Companies
-                  </Link>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+              <div className="md:col-span-5 rounded-[1.5rem] sm:rounded-[1.85rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] p-5 sm:p-6 flex flex-col items-center justify-center min-h-[240px] md:min-h-[420px]">
+                <LoginPeekCharacter
+                  accent={meta.accent}
+                  username={username}
+                  password={password}
+                  showPassword={showPassword}
+                  focusedField={focusedField}
+                  className="h-[200px] w-[200px] sm:h-[240px] sm:w-[240px] md:h-[280px] md:w-[280px]"
+                />
+                <p className="mt-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
+                  {showPassword ? "Not looking…" : focusedField ? "Peeking" : "Watching"}
+                </p>
+                <p className="mt-1 text-[12px] text-white/70 text-center max-w-[220px] leading-relaxed">
+                  {meta.portalsLabel}
+                </p>
+              </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold text-white/70 block mb-1.5">Username</label>
-                  <input
-                    type="text"
-                    required
-                    autoComplete="username"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    placeholder={company}
-                    className="w-full h-12 rounded-xl border border-white/20 bg-white/10 px-4 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/50"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-white/70 block mb-1.5">Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="Password"
-                      className="w-full h-12 rounded-xl border border-white/20 bg-white/10 px-4 pr-12 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/50"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+              <div className="md:col-span-7 rounded-[1.5rem] sm:rounded-[1.85rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] p-5 sm:p-7 flex flex-col justify-center">
+                <form onSubmit={handleCompanyLogin} className="space-y-4">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="inline-flex items-center gap-2">
+                      <Shield size={13} className="text-white/70" />
+                      <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
+                        {meta.name} credentials
+                      </p>
+                    </div>
+                    <Link
+                      href="/"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/60 hover:text-white"
                     >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
+                      <ArrowLeft size={13} /> Companies
+                    </Link>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-12 rounded-xl text-white text-sm font-bold transition-all hover:brightness-110 disabled:opacity-60 flex items-center justify-center gap-2"
-                  style={{
-                    background: `linear-gradient(135deg, ${meta.accent}, ${meta.accent}dd)`,
-                    boxShadow: `0 8px 24px ${meta.accent}55`,
-                  }}
-                >
-                  {loading ? "Checking…" : `Unlock ${meta.name}`}
-                  {!loading && <ArrowRight size={16} />}
-                </button>
-              </form>
+                  <div>
+                    <label className="text-[11px] font-semibold text-white/70 block mb-1.5">Username</label>
+                    <input
+                      type="text"
+                      required
+                      autoComplete="username"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      onFocus={() => setFocusedField("username")}
+                      onBlur={() => setFocusedField(prev => (prev === "username" ? null : prev))}
+                      placeholder={company}
+                      className="w-full h-12 rounded-xl border border-white/20 bg-white/10 px-4 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-white/70 block mb-1.5">Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        onFocus={() => setFocusedField("password")}
+                        onBlur={() => setFocusedField(prev => (prev === "password" ? null : prev))}
+                        placeholder="Password"
+                        className="w-full h-12 rounded-xl border border-white/20 bg-white/10 px-4 pr-12 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/50"
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => setShowPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-12 rounded-xl text-white text-sm font-bold transition-all hover:brightness-110 disabled:opacity-60 flex items-center justify-center gap-2"
+                    style={{
+                      background: `linear-gradient(135deg, ${meta.accent}, ${meta.accent}dd)`,
+                      boxShadow: `0 8px 24px ${meta.accent}55`,
+                    }}
+                  >
+                    {loading ? "Checking…" : `Unlock ${meta.name}`}
+                    {!loading && <ArrowRight size={16} />}
+                  </button>
+                </form>
+              </div>
             </div>
           ) : (
             <div
