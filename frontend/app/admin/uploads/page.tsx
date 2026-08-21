@@ -139,7 +139,7 @@ const STATUS_STYLE: Record<RowResult["status"], { bg: string; text: string; labe
 
 /** Excel templates Admin should fill before each upload box */
 const UPLOAD_TEMPLATES = {
-  callData:   { href: "/upload-templates/CRM-Call-Data-Template.xlsx",           label: "Call Data",       cols: "Name, Company, Phone, Email, State, Sub Contacts, Trades, Sub Trades" },
+  callData:   { href: "/upload-templates/CRM-Call-Data-Template.xlsx",           label: "Call Data",       cols: "Name, Company, Phone, Email, State, Sub Contacts, Search Trade, Trades" },
   newClient:  { href: "/upload-templates/CRM-New-Clients-Template.xlsx",         label: "New Clients",     cols: "+ Code, Project, Quotation, Service, Notes" },
   oldClient:  { href: "/upload-templates/CRM-Old-Clients-Template.xlsx",         label: "Old Clients",     cols: "+ Code, Project, Quotation, Service, Notes" },
   important:  { href: "/upload-templates/CRM-Important-Clients-Template.xlsx",   label: "Important",       cols: "Name, Company, Phone, Email, State, Notes" },
@@ -762,6 +762,15 @@ export default function UploadPage() {
     const formData = buildUploadFormData();
     if (!formData) return;
 
+    const fileMb = selectedFile.size / (1024 * 1024);
+    if (fileMb > 100) {
+      toast.error("File is over 100 MB. Split the sheet into smaller files and upload again.");
+      return;
+    }
+    if (fileMb > 40) {
+      toast("Large file — import may take several minutes. Keep this tab open.", { icon: "⏳", duration: 6_000 });
+    }
+
     closeCSRModal();
     setResultsExpanded(true);
     setPreviewLoading(true);
@@ -789,7 +798,7 @@ export default function UploadPage() {
     try {
       const res = await API.post("/uploads", formData, {
         headers: { "Content-Type": "multipart/form-data" },
-        timeout: 600_000,
+        timeout: 900_000,
         onUploadProgress: (event) => {
           if (!event.total) return;
           const pct = Math.min(50, Math.round((event.loaded / event.total) * 50));
@@ -839,12 +848,21 @@ export default function UploadPage() {
       }
       void fetchLatestUpload();
       void fetchUploadSources();
-    } catch {
+    } catch (err: unknown) {
       if (processingInterval) clearInterval(processingInterval);
       setFiles(prev => prev.filter(f => f.id !== tempId));
       setPreviewLive(false);
       setPreviewLoading(false);
-      toast.error("Upload failed");
+      const ax = err as { response?: { status?: number; data?: { message?: string } }; code?: string; message?: string };
+      const status = ax?.response?.status;
+      const serverMsg = ax?.response?.data?.message;
+      if (status === 413) {
+        toast.error(serverMsg || "File too large (max 100 MB). Split the sheet and retry.");
+      } else if (ax?.code === "ECONNABORTED") {
+        toast.error("Upload timed out. Split into smaller files (e.g. 10k–20k rows) and retry.");
+      } else {
+        toast.error(serverMsg || "Upload failed");
+      }
     }
   };
 

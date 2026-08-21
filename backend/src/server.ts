@@ -300,6 +300,11 @@ getJwtSecret();
 const server = http.createServer(app);
 initChatSocket(server);
 
+/* Large Excel imports (50k+) need long-lived sockets — Render default can cut early */
+server.requestTimeout = 0;
+server.headersTimeout = 0;
+server.timeout = 0;
+
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
