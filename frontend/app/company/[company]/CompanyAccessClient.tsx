@@ -191,14 +191,14 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
             </div>
           ) : !unlocked ? (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 items-stretch">
-              <div className="md:col-span-5 rounded-[1.5rem] sm:rounded-[1.85rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] p-5 sm:p-6 flex flex-col items-center justify-center min-h-[240px] md:min-h-[420px]">
+              <div className="md:col-span-5 rounded-[1.5rem] sm:rounded-[1.85rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] p-4 sm:p-5 flex flex-col items-center justify-end min-h-[280px] md:min-h-[460px]">
                 <LoginPeekCharacter
                   accent={meta.accent}
                   username={username}
                   password={password}
                   showPassword={showPassword}
                   focusedField={focusedField}
-                  className="h-[200px] w-[200px] sm:h-[240px] sm:w-[240px] md:h-[280px] md:w-[280px]"
+                  className="h-[300px] w-[140px] sm:h-[360px] sm:w-[160px] md:h-[430px] md:w-[190px]"
                 />
                 <p className="mt-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
                   {showPassword ? "Not looking…" : focusedField ? "Peeking" : "Watching"}
