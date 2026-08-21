@@ -590,11 +590,17 @@ export default function UploadPage() {
     const cat = category ?? historyCategory;
     setHistoryLoading(true);
     try {
-      const res = await API.get("/uploads/history", { params: { category: cat } });
+      const res = await API.get("/uploads/history", {
+        params: { category: cat },
+        timeout: 60_000,
+      });
       setUploadHistory(res.data.uploads ?? []);
       setHistoryCounts(res.data.counts ?? {});
-    } catch {
-      toast.error("Failed to load upload history");
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        "Failed to load upload history";
+      toast.error(msg);
     } finally {
       setHistoryLoading(false);
     }

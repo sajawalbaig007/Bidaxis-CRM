@@ -16,7 +16,7 @@ import { findLeadsByPhonesBulk } from "../utils/leadPhoneLookup";
 import { parseSubContactsCell, parseTradeList, insertMissingTrades } from "../utils/masterFormatTrades";
 import type { ParsedLeadRow } from "../utils/uploadExcelParse";
 
-const CHUNK_INSERT = 1000;
+const CHUNK_INSERT = 500;
 const BATCH_UPDATE = 30;
 
 async function upsertTradesFromRows(rawValues: (string | null | undefined)[]) {
@@ -497,6 +497,15 @@ export const uploadLeads = async (req: Request, res: Response) => {
         await prisma.lead.createMany({ data: insertRows.slice(i, i + CHUNK_INSERT) });
       }
 
+      /* Mongo source of truth for how many rows actually landed */
+      const linkedNow = await prisma.lead.count({ where: { uploadedFileId: uploadedFile.id } });
+      if (linkedNow > 0) {
+        await prisma.uploadFile.update({
+          where: { id: uploadedFile.id },
+          data: { totalLeads: linkedNow },
+        });
+      }
+
       await attachExcelSubContacts(uploadedFile.id, fresh);
       await upsertTradesFromRows([...fresh.map(r => r.trade), tradeName]);
 
@@ -551,6 +560,19 @@ export const uploadLeads = async (req: Request, res: Response) => {
       where: { id: uploadedFile.id },
       data:  { totalLeads: addedCount },
     });
+
+    /* Prefer actual Mongo count when this file has linked leads */
+    try {
+      const linkedNow = await prisma.lead.count({ where: { uploadedFileId: uploadedFile.id } });
+      if (linkedNow > 0 && linkedNow !== addedCount) {
+        await prisma.uploadFile.update({
+          where: { id: uploadedFile.id },
+          data: { totalLeads: linkedNow },
+        });
+      }
+    } catch {
+      /* keep addedCount */
+    }
 
     await seedLeadNotesFromCommentsForFile(uploadedFile.id);
 
@@ -709,11 +731,19 @@ export const getUploadHistory = async (req: Request, res: Response) => {
         ? categoryParam
         : null;
 
+    /* Load ALL upload files from Mongo (no artificial page cut). */
     const uploads = await prisma.uploadFile.findMany({
+      where: filterCategory ? { uploadCategory: filterCategory } : undefined,
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        fileName: true,
+        totalLeads: true,
+        companyName: true,
+        cloudinaryUrl: true,
+        uploadCategory: true,
+        createdAt: true,
         source: { select: ADMIN_UPLOAD_SOURCE_SELECT },
-        _count: { select: { leads: true } },
         leads: {
           take: 1,
           select: { status: true, isOldClient: true, projectTitle: true },
@@ -721,7 +751,9 @@ export const getUploadHistory = async (req: Request, res: Response) => {
       },
     });
 
-    type EnrichedUpload = (typeof uploads)[number] & { effectiveCategory: UploadCategory | "uncategorized" };
+    type EnrichedUpload = (typeof uploads)[number] & {
+      effectiveCategory: UploadCategory | "uncategorized";
+    };
 
     const enriched: EnrichedUpload[] = uploads.map(u => {
       let effectiveCategory: UploadCategory | "uncategorized" =
@@ -729,7 +761,6 @@ export const getUploadHistory = async (req: Request, res: Response) => {
 
       if (!u.uploadCategory && u.leads[0]) {
         effectiveCategory = inferUploadCategoryFromLead(u.leads[0]);
-        /* Backfill DB so future loads are fast — fire-and-forget */
         void prisma.uploadFile
           .update({ where: { id: u.id }, data: { uploadCategory: effectiveCategory } })
           .catch(() => undefined);
@@ -738,13 +769,47 @@ export const getUploadHistory = async (req: Request, res: Response) => {
       return { ...u, effectiveCategory };
     });
 
+    /* One Mongo aggregation — real linked lead counts for every file (safe at 50k+) */
+    const linkedByFile = new Map<string, number>();
+    const fileIds = enriched.map(u => u.id);
+    if (fileIds.length > 0) {
+      try {
+        const agg = await prisma.$runCommandRaw({
+          aggregate: "Lead",
+          pipeline: [
+            { $match: { uploadedFileId: { $in: fileIds } } },
+            { $group: { _id: "$uploadedFileId", n: { $sum: 1 } } },
+          ],
+          cursor: {},
+        });
+        const batch = (agg as { cursor?: { firstBatch?: { _id?: string; n?: number }[] } })
+          ?.cursor?.firstBatch ?? [];
+        for (const row of batch) {
+          if (row?._id) linkedByFile.set(String(row._id), Number(row.n) || 0);
+        }
+      } catch (aggErr) {
+        console.log("[UploadHistory] Mongo lead aggregation failed, using totalLeads:", aggErr);
+      }
+    }
+
     const counts: Record<string, number> = { all: enriched.length };
     for (const cat of UPLOAD_CATEGORIES) counts[cat] = 0;
     for (const u of enriched) {
-      if (u.effectiveCategory in counts) {
-        counts[u.effectiveCategory]++;
-      } else {
-        counts.uncategorized = (counts.uncategorized ?? 0) + 1;
+      if (u.effectiveCategory in counts) counts[u.effectiveCategory]++;
+      else counts.uncategorized = (counts.uncategorized ?? 0) + 1;
+    }
+
+    /* If filtered by category, still show global tab totals from Mongo */
+    if (filterCategory) {
+      try {
+        counts.all = await prisma.uploadFile.count();
+        await Promise.all(
+          UPLOAD_CATEGORIES.map(async cat => {
+            counts[cat] = await prisma.uploadFile.count({ where: { uploadCategory: cat } });
+          }),
+        );
+      } catch {
+        /* keep filtered-page counts */
       }
     }
 
@@ -755,17 +820,20 @@ export const getUploadHistory = async (req: Request, res: Response) => {
     return res.json({
       success: true,
       counts,
-      uploads: filtered.map(u => ({
-        id:             u.id,
-        fileName:       u.fileName,
-        totalLeads:     u.totalLeads,
-        linkedLeads:    u._count.leads,
-        companyName:    u.companyName,
-        cloudinaryUrl:  u.cloudinaryUrl,
-        uploadCategory: u.effectiveCategory === "uncategorized" ? null : u.effectiveCategory,
-        source:         u.source,
-        createdAt:      u.createdAt,
-      })),
+      uploads: filtered.map(u => {
+        const linked = linkedByFile.get(u.id);
+        return {
+          id:             u.id,
+          fileName:       u.fileName,
+          totalLeads:     linked ?? u.totalLeads,
+          linkedLeads:    linked ?? u.totalLeads,
+          companyName:    u.companyName,
+          cloudinaryUrl:  u.cloudinaryUrl,
+          uploadCategory: u.effectiveCategory === "uncategorized" ? null : u.effectiveCategory,
+          source:         u.source,
+          createdAt:      u.createdAt,
+        };
+      }),
     });
   } catch (error) {
     console.log(error);

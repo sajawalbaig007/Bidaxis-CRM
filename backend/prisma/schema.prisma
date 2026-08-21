@@ -162,6 +162,7 @@ model Lead {
   @@index([inBin, assignedTo, status])
   @@index([nextSchedule])
   @@index([hiddenOnMain])
+  @@index([uploadedFileId])
 }
 
 model LeadNote {
