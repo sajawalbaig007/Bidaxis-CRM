@@ -218,8 +218,17 @@ export function parseLeadRows(
       "notes", "note", "comments", "comment", "remarks", "remark",
       "conversation", "discussion", "talk", "history", "follow up", "followup",
     ], ["project"]),
-    trade:        resolveColumnKey(headerKeys, ["trades", "trade", "csi", "division"], ["sub"]),
-    subTrades:    resolveColumnKey(headerKeys, ["sub trades", "subtrades", "sub trade", "subtrade"]),
+    // Sheet columns: "Search Trade" = main trade, "Trades" = sub-trade / trade type
+    trade: resolveColumnKey(
+      headerKeys,
+      ["search trade", "searchtrade", "main trade", "maintrade", "trade", "csi", "division"],
+      ["sub", "trades"],
+    ),
+    subTrades: resolveColumnKey(
+      headerKeys,
+      ["sub trades", "subtrades", "sub trade", "subtrade", "trades", "trade type", "trade types"],
+      ["search"],
+    ),
     subContacts:  resolveColumnKey(headerKeys, [
       "sub contacts", "subcontacts", "sub contact", "subcontact",
       "additional contacts", "other contacts",
