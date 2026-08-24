@@ -3,8 +3,9 @@
 import { useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import API from "./api";
+import { logoutSession } from "./session";
 import { visibleInterval } from "./visibleInterval";
-import { subscribeChatSocket, type ChatSocketEvent } from "./chatSocket";
+import { subscribeChatSocket, forceDisconnectChatSocket, type ChatSocketEvent } from "./chatSocket";
 
 const STORAGE_KEY = "crm_login_attempt_ack";
 const POLL_MS = 10_000;
@@ -44,6 +45,16 @@ export function useSessionNotifier() {
     };
 
     const onSocket = (ev: ChatSocketEvent) => {
+      if (ev.type === "auth:force_logout") {
+        forceDisconnectChatSocket();
+        toast.error(ev.message ?? "You were logged out from all devices.", {
+          duration: 4000,
+          id: "auth-force-logout",
+        });
+        void logoutSession(async () => {});
+        setTimeout(() => { window.location.href = "/"; }, 800);
+        return;
+      }
       if (ev.type !== "auth:login_attempt") return;
       maybeNotify(ev.attemptId, ev.message);
     };

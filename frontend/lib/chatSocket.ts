@@ -14,6 +14,7 @@ export type ChatSocketEvent =
   | { type: "csr-data-reset" }
   | { type: "admin-summary-stale" }
   | { type: "auth:login_attempt"; attemptId: number; message?: string }
+  | { type: "auth:force_logout"; message?: string }
   | { type: "pong" };
 
 type Handler = (event: ChatSocketEvent) => void;

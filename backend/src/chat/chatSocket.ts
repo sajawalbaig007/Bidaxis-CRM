@@ -294,6 +294,22 @@ export function notifyCsrDataReset(csrId: string): void {
   sendToUser(csrId, { type: "csr-data-reset" });
 }
 
+/** Drop every live socket for this user and tell their browser to sign out. */
+export function forceLogoutUser(userId: string): void {
+  sendToUser(userId, {
+    type: "auth:force_logout",
+    message: "You were logged out from all devices by an administrator.",
+  });
+  setTimeout(() => {
+    const set = userSockets.get(userId);
+    if (!set) return;
+    for (const ws of [...set]) {
+      try { ws.close(4401, "Logged out"); } catch { /* ignore */ }
+    }
+  }, 150);
+  broadcastPresence(userId, false);
+}
+
 /** Notify the active session that another device tried to log in. */
 export function notifyLoginAttempt(userId: string, attemptId: number): void {
   sendToUser(userId, {
