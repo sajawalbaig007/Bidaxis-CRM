@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Hammer, Pencil, Plus, Trash2, X, Check } from "lucide-react";
+import { Hammer, Pencil, Plus, Search, Trash2, X, Check } from "lucide-react";
 import { useFixedPopover } from "../../hooks/useFixedPopover";
 import {
   MASTER_FORMAT_TRADES,
@@ -39,6 +39,7 @@ export default function TradesCell({
   const [draftSubs, setDraftSubs] = useState<string[]>(parseSubTradeList(subTrades));
   const [draftNotes, setDraftNotes] = useState<string[]>(parseTradeNotes(tradeNotes));
   const [subInput, setSubInput] = useState("");
+  const [tradeSearch, setTradeSearch] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -47,7 +48,14 @@ export default function TradesCell({
     setDraftSubs(parseSubTradeList(subTrades));
     setDraftNotes(parseTradeNotes(tradeNotes));
     setSubInput("");
+    setTradeSearch("");
   }, [open, trade, subTrades, tradeNotes]);
+
+  const visibleCatalog = useMemo(() => {
+    const q = tradeSearch.trim().toLowerCase();
+    if (!q) return catalog;
+    return catalog.filter(name => name.toLowerCase().includes(q));
+  }, [catalog, tradeSearch]);
 
   const toggleTrade = (name: string) => {
     setDraftTrades(prev =>
@@ -120,16 +128,29 @@ export default function TradesCell({
           </button>
         </div>
         <div className="max-h-[360px] overflow-y-auto p-3 space-y-3">
-          <div className="max-h-[140px] overflow-y-auto space-y-0.5 border border-gray-100 rounded-lg p-1.5">
-            {catalog.map(name => {
-              const on = draftTrades.some(t => t.toLowerCase() === name.toLowerCase());
-              return (
-                <label key={name} className="flex items-start gap-2 px-1.5 py-1 rounded-md hover:bg-[#FFF1F3] cursor-pointer">
-                  <input type="checkbox" checked={on} onChange={() => toggleTrade(name)} className="mt-0.5 accent-[#B8112D]" />
-                  <span className="text-[11px] text-gray-700 leading-snug">{name}</span>
-                </label>
-              );
-            })}
+          <div className="space-y-1.5">
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={tradeSearch}
+                onChange={e => setTradeSearch(e.target.value)}
+                placeholder="Search trades…"
+                className="w-full h-8 rounded-lg border border-gray-200 pl-8 pr-2 text-[11px] outline-none focus:border-[#B8112D]"
+              />
+            </div>
+            <div className="max-h-[140px] overflow-y-auto space-y-0.5 border border-gray-100 rounded-lg p-1.5">
+              {visibleCatalog.length === 0 ? (
+                <p className="px-1.5 py-3 text-[11px] text-gray-400 text-center">No match</p>
+              ) : visibleCatalog.map(name => {
+                const on = draftTrades.some(t => t.toLowerCase() === name.toLowerCase());
+                return (
+                  <label key={name} className="flex items-start gap-2 px-1.5 py-1 rounded-md hover:bg-[#FFF1F3] cursor-pointer">
+                    <input type="checkbox" checked={on} onChange={() => toggleTrade(name)} className="mt-0.5 accent-[#B8112D]" />
+                    <span className="text-[11px] text-gray-700 leading-snug">{name}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div>
