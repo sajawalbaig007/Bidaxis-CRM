@@ -189,16 +189,42 @@ export function phaseLabel(phase: string | null | undefined): string {
   return PROJECT_PHASE_OPTIONS.find((p) => p.value === phase)?.label ?? "Not Started";
 }
 
-export function formatPaymentWhen(iso: string | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-GB", {
+/** YYYY-MM-DD from paidAt without timezone shift (avoids UTC midnight → previous day). */
+export function paymentCalendarDay(iso: string | null | undefined): string {
+  const m = String(iso ?? "").trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return m?.[1] ?? "";
+}
+
+export function paymentCalendarMonth(iso: string | null | undefined): string | undefined {
+  const day = paymentCalendarDay(iso);
+  return day ? day.slice(0, 7) : undefined;
+}
+
+export function formatPaymentDateOnly(iso: string | undefined): string {
+  const day = paymentCalendarDay(iso);
+  if (!day) return "—";
+  const [ys, ms, ds] = day.split("-");
+  const y = Number(ys);
+  const m = Number(ms);
+  const d = Number(ds);
+  if (!y || !m || !d) return day;
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  });
+}
+
+export function formatPaymentWhen(iso: string | undefined): string {
+  if (!iso) return "—";
+  const dayOnly = formatPaymentDateOnly(iso);
+  if (dayOnly !== "—") return dayOnly;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -245,6 +271,8 @@ export type ProjectWorkbenchData = {
   projectNotes?: string;
   csrName?: string;
   csrCode?: string | null;
+  /** When the project was first created — original quote belongs to this day */
+  projectCreatedAt?: string;
 };
 
 export const CSR_ASSIGN_OTHER = "__other__";

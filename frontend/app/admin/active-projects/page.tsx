@@ -129,6 +129,7 @@ function projectToWorkbench(p: Project): ProjectWorkbenchData {
     projectSource: p.projectSource ?? "",
     csrName: projectAssigneeLabel(p),
     csrCode: p.projectSource ? null : p.csr.csrCode,
+    projectCreatedAt: p.createdAt ?? "",
   };
 }
 

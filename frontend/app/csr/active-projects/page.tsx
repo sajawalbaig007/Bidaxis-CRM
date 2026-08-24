@@ -61,6 +61,7 @@ function csrToWorkbench(p: Project): ProjectWorkbenchData {
     qaDeadline: p.qaDeadline,
     projectPayments: p.projectPayments,
     csrName: "You",
+    projectCreatedAt: p.createdAt ?? "",
   };
 }
 
