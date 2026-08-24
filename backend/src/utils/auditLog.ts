@@ -8,6 +8,7 @@ export type AuditAction =
   | "logout_all"
   | "password_change"
   | "admin_password_reset"
+  | "admin_logout_all"
   | "session_invalid"
   | "account_deactivated"
   | "2fa_enabled"
