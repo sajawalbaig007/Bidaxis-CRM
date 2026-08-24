@@ -2,15 +2,16 @@ import { Request, Response } from "express";
 import prisma from "../config/db";
 import { invalidateCache, invalidatePattern, flushAdminClientsCache } from "../utils/cache";
 import { purgeCsrLeads } from "../utils/purgeCsrLeads";
-import { notifyAdminSummaryStale } from "../chat/chatSocket";
+import { notifyAdminSummaryStale, forceLogoutUser } from "../chat/chatSocket";
 import { flushReportCache } from "./report.controller";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { hashPassword } from "../utils/hash";
 import { validatePassword } from "../config/security";
 import { assertPasswordNotBreached } from "../utils/passwordBreach";
 import { writeAuditLog } from "../utils/auditLog";
+import { recordAccessHistory } from "../utils/accessHistory";
 import { getClientIp, getUserAgent } from "../utils/requestMeta";
-import { clearActiveSession } from "../utils/sessions";
+import { clearActiveSession, userBrowserMap } from "../utils/sessions";
 import { sanitizeIpList } from "../utils/networkAccess";
 
 function parseTemporaryHours(raw: unknown): 9 | 10 | null {
@@ -164,6 +165,65 @@ export const adminSetUserPassword = async (req: AuthRequest, res: Response) => {
     return res.json({ success: true, message: "Password updated. User must sign in again." });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to update password." });
+  }
+};
+
+export const adminLogoutAllDevices = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, name: true },
+    });
+    if (!target) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: {
+        tokenVersion: { increment: 1 },
+        isOnline: false,
+        activeSessionId: null,
+      },
+    });
+    await clearActiveSession(id);
+    userBrowserMap.delete(id);
+    forceLogoutUser(id);
+
+    const ip = getClientIp(req);
+    const ua = getUserAgent(req);
+    await writeAuditLog({
+      action:    "admin_logout_all",
+      userId:    id,
+      email:     target.email,
+      ip,
+      userAgent: ua,
+      meta:      { resetBy: req.user?.id },
+    });
+    await recordAccessHistory({
+      userId:    id,
+      email:     target.email,
+      ip,
+      userAgent: ua,
+      event:     "logout_all",
+    });
+
+    invalidateCache(
+      `auth:me:${id}`,
+      "users:list",
+      "users:list:admin",
+      "users:list:csr",
+      "users:list:manager",
+      "admin:csrs",
+    );
+    return res.json({
+      success: true,
+      message: `${target.name} was logged out from all devices.`,
+      self: req.user?.id === id,
+    });
+  } catch {
+    return res.status(500).json({ success: false, message: "Failed to log user out." });
   }
 };
 

@@ -6,13 +6,14 @@ import toast, { Toaster } from "react-hot-toast";
 import {
   Search, Plus, Pencil, Trash2, Ban,
   MoreVertical, Eye, EyeOff, Wifi, WifiOff,
-  Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare, ArrowUpDown,
+  Globe, RotateCcw, User2, KeyRound, ChevronDown, MessageSquare, ArrowUpDown, LogOut,
 } from "lucide-react";
 
 import DashboardSidebar from "../components/layout/Sidebar";
 import DashboardNavbar  from "../components/layout/Navbar";
 import API, { getApiBase } from "@/lib/api";
 import { invalidateAuthMeCache } from "@/lib/authMeCache";
+import { logoutSession } from "@/lib/session";
 import RequiredMark, { ReqLabel } from "@/app/components/form/RequiredMark";
 import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
@@ -734,6 +735,59 @@ export default function UsersPage() {
     } catch {
       toast.error("Something went wrong.");
     }
+  };
+
+  const handleLogoutAllDevices = (user: User) => {
+    toast(t => (
+      <div className="flex flex-col gap-3 min-w-[220px]">
+        <p className="font-semibold text-[#111827]">Logout from all devices?</p>
+        <p className="text-xs text-gray-500">{user.name} will be signed out everywhere.</p>
+        <div className="flex gap-2">
+          <button onClick={async () => {
+            toast.dismiss(t.id);
+            const tid = toast.loading("Signing out...");
+            try {
+              const res = await API.post(`/users/${user.id}/logout-all`);
+              toast.success(res.data?.message ?? "Logged out from all devices.", { id: tid });
+              if (res.data?.self) {
+                await logoutSession(async () => {});
+                setTimeout(() => { window.location.href = "/"; }, 800);
+                return;
+              }
+              setUsers(prev => prev.map(u => u.id === user.id
+                ? {
+                    ...u,
+                    isOnline: false,
+                    browser: null,
+                    tabId: null,
+                    openedAt: null,
+                    tabVisible: null,
+                    hiddenAt: null,
+                  }
+                : u));
+              setDetailUser(prev => prev?.id === user.id
+                ? {
+                    ...prev,
+                    isOnline: false,
+                    browser: null,
+                    tabId: null,
+                    openedAt: null,
+                    tabVisible: null,
+                    hiddenAt: null,
+                  }
+                : prev);
+              await fetchUsers(true);
+            } catch (err: unknown) {
+              const msg =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+                || "Failed to log user out.";
+              toast.error(msg, { id: tid });
+            }
+          }} className="flex-1 rounded-xl bg-[#B8112D] py-2 text-sm font-semibold text-white">Logout</button>
+          <button onClick={() => toast.dismiss(t.id)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-600">Cancel</button>
+        </div>
+      </div>
+    ), { duration: Infinity });
   };
 
   const handleDelete = async (id: string) => {
@@ -2377,7 +2431,7 @@ export default function UsersPage() {
 
         {openMenu && menuUser && createPortal(
           <div
-            className="fixed w-52 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-[200] py-1"
+            className="fixed w-56 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-[200] py-1"
             style={{ top: openMenu.top, right: openMenu.right }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2399,6 +2453,13 @@ export default function UsersPage() {
                 (menuUser.chatVisibleToUserIds?.length ?? 0) > 0) && (
                 <span className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-500" />
               )}
+            </button>
+            <button
+              type="button"
+              onClick={() => { handleLogoutAllDevices(menuUser); setOpenMenu(null); }}
+              className="w-full text-left px-3.5 py-2.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <LogOut size={13} className="text-sky-600"/> Logout from all devices
             </button>
             <button
               type="button"

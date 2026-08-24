@@ -13,6 +13,7 @@ import {
   updateUser,
   deleteUser,
   adminSetUserPassword,
+  adminLogoutAllDevices,
 } from "../controllers/user.controller";
 
 const router = express.Router();
@@ -126,6 +127,7 @@ router.post("/upload-cnic", allowRoles("admin"), uploadPdf.single("file"), async
 });
 
 router.put("/:id/password", allowRoles("admin"), adminSetUserPassword);
+router.post("/:id/logout-all", allowRoles("admin"), adminLogoutAllDevices);
 router.put("/:id", allowRoles("admin"), updateUser);
 router.delete("/:id", allowRoles("admin"), deleteUser);
 
