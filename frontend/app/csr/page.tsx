@@ -17,6 +17,7 @@ import StateFilterDropdown from "./components/shared/StateFilterDropdown";
 import PhoneAreaCodeFilterInput from "./components/shared/PhoneAreaCodeFilterInput";
 import TimezoneFilterDropdown from "./components/shared/TimezoneFilterDropdown";
 import SourceSudoFilterDropdown from "./components/shared/SourceSudoFilterDropdown";
+import TradeFilterDropdown from "./components/shared/TradeFilterDropdown";
 import CommentCell from "./components/shared/CommentCell";
 import { CsrColGroup, CSR_TABLE_CLASS, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_POPOVER, COL_6_DASHBOARD, COL_7_DASHBOARD } from "./components/shared/csrTableStyles";
 import InterestedServicesCell from "./components/shared/InterestedServicesCell";
@@ -467,15 +468,12 @@ export default function CSRPage() {
               <TimezoneFilterDropdown compact value={timezoneFilter} onChange={v => { setTimezoneFilter(v); setPage(1); }} />
               <SourceSudoFilterDropdown compact value={sourceFilter} options={sourceSudoOptions} onChange={v => { setSourceFilter(v); setPage(1); }} />
               <PhoneAreaCodeFilterInput value={phoneFilter} onChange={v => { setPhoneFilter(v); setPage(1); }} />
-              <select
+              <TradeFilterDropdown
+                compact
                 value={tradeFilter}
-                onChange={e => { setTradeFilter(e.target.value); setPage(1); }}
-                className="h-10 sm:h-[42px] rounded-xl sm:rounded-2xl border border-gray-200 dark:border-crm-border bg-[#FAFAFA] dark:bg-crm-input px-3 text-xs sm:text-sm text-gray-700 dark:text-crm-text-secondary outline-none focus:border-[#B8112D] cursor-pointer min-w-[120px] max-w-[180px]"
-                title="Filter by trade"
-              >
-                <option value="">All Trades</option>
-                {tradeFilterOptions.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+                options={tradeFilterOptions}
+                onChange={v => { setTradeFilter(v); setPage(1); }}
+              />
             </div>
             {hasTableFilters && tabTotal > CSR_FILTER_BATCH_SIZE && (
               <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5">
