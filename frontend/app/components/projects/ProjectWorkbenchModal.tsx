@@ -22,6 +22,9 @@ import {
   paymentPercent,
   parseMoney,
   stripBudgetForInput,
+  paymentCalendarDay,
+  paymentCalendarMonth,
+  formatPaymentDateOnly,
 } from "@/lib/projectFields";
 import PaymentStatusCircle from "@/app/csr/components/shared/PaymentStatusCircle";
 import toast from "react-hot-toast";
@@ -160,6 +163,14 @@ export default function ProjectWorkbenchModal({
   const paidNum = paidTotal(data.projectPayments);
   const pct = paymentPercent(data.projectPayments, data.projectBudget);
   const remaining = Math.max(0, budgetNum - paidNum);
+  const quoteLocked = !createMode && parseMoney(initial.projectBudget) > 0;
+  const quotedOn = (() => {
+    const iso = data.projectCreatedAt || initial.projectCreatedAt;
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  })();
 
   const addPayment = () => {
     const now = new Date().toISOString();
@@ -187,21 +198,18 @@ export default function ProjectWorkbenchModal({
         if (p.id !== id) return p;
         const next = { ...p, ...patch };
         if (!next.createdAt) next.createdAt = new Date().toISOString();
-        if (patch.isPaid === true && !next.paidAt) {
-          next.paidAt = new Date().toISOString();
-        }
-        if (patch.isPaid === true && !next.accountsMonth && next.paidAt) {
-          next.accountsMonth = String(next.paidAt).slice(0, 7);
-        }
-        if (patch.paidAt !== undefined && next.paidAt) {
-          const day = String(next.paidAt).slice(0, 10);
-          if (/^\d{4}-\d{2}-\d{2}/.test(day)) {
+        if (patch.paidAt !== undefined) {
+          const day = paymentCalendarDay(next.paidAt);
+          if (day) {
+            next.paidAt = day;
             next.accountsMonth = day.slice(0, 7);
-            // Keep full ISO if only date provided
-            if (String(next.paidAt).length === 10) {
-              next.paidAt = `${day}T12:00:00.000Z`;
-            }
+          } else {
+            next.paidAt = undefined;
+            next.accountsMonth = undefined;
           }
+        } else if (next.paidAt) {
+          const day = paymentCalendarDay(next.paidAt);
+          if (day) next.accountsMonth = paymentCalendarMonth(day);
         }
         if (patch.isPaid === false) {
           next.paidAt = undefined;
@@ -245,7 +253,6 @@ export default function ProjectWorkbenchModal({
                 createdAt: new Date().toISOString(),
                 paymentChannel: undefined,
                 currency: undefined,
-                accountsMonth: new Date().toISOString().slice(0, 7),
               },
             ],
           };
@@ -282,6 +289,13 @@ export default function ProjectWorkbenchModal({
         return;
       }
     if (mode === "admin" && !hideClientFinanceSections) {
+      const missingDate = data.projectPayments.find(
+        (p) => (p.isPaid || !!p.link?.trim()) && !(p.paidAt || p.accountsMonth),
+      );
+      if (missingDate) {
+        toast.error("Set the payment date next to the link so it posts in the right month");
+        return;
+      }
       const badPaid = data.projectPayments.find(
         (p) =>
           p.isPaid &&
@@ -578,6 +592,9 @@ export default function ProjectWorkbenchModal({
                   <div className="bg-[#FFF1F3] rounded-xl px-2 py-2.5 text-center border border-[#f5c5ce]">
                     <p className="text-[9px] text-[#B8112D] font-medium uppercase">Quote</p>
                     <p className="text-sm font-bold text-[#B8112D]">${budgetNum.toLocaleString()}</p>
+                    {quotedOn && (
+                      <p className="text-[9px] text-[#B8112D]/70 mt-0.5 leading-tight">on {quotedOn}</p>
+                    )}
                   </div>
                   <div className="bg-gray-50 rounded-xl px-2 py-2.5 text-center border border-gray-100">
                     <p className="text-[9px] text-gray-500 font-medium uppercase">Due</p>
@@ -591,13 +608,24 @@ export default function ProjectWorkbenchModal({
                 <div className="relative">
                   <span className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none select-none z-[1]">$</span>
                   <input
-                    className={`${inputCls} !pl-8 sm:!pl-9 font-semibold text-[#0F172A]`}
+                    className={`${inputCls} !pl-8 sm:!pl-9 font-semibold text-[#0F172A]${
+                      quoteLocked ? " cursor-default bg-gray-100 dark:bg-crm-muted" : ""
+                    }`}
                     value={stripBudgetForInput(data.projectBudget)}
                     placeholder="0.00"
                     inputMode="decimal"
-                    onChange={(e) => setData((d) => ({ ...d, projectBudget: e.target.value.replace(/[^0-9.]/g, "") }))}
+                    readOnly={quoteLocked}
+                    onChange={(e) => {
+                      if (quoteLocked) return;
+                      setData((d) => ({ ...d, projectBudget: e.target.value.replace(/[^0-9.]/g, "") }));
+                    }}
                   />
                 </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {quoteLocked
+                    ? `Original quote from the day this project was created${quotedOn ? ` (${quotedOn})` : ""}. Payments below do not change it.`
+                    : "Enter the quoted amount for this project. It stays as the original quote after save."}
+                </p>
               </div>
             </div>
 
@@ -607,7 +635,7 @@ export default function ProjectWorkbenchModal({
             <div className="space-y-3">
               {data.projectPayments.length === 0 && (
                 <p className="text-xs text-gray-400 text-center py-4 bg-[#FAFAFA] rounded-xl">
-                  No payment entries yet — tap “Add payment entry” for channel, currency & month
+                  No payment entries yet — tap “Add payment entry” for channel, currency, link & payment date
                 </p>
               )}
               {data.projectPayments.map((p) => (
@@ -659,7 +687,13 @@ export default function ProjectWorkbenchModal({
                           type="checkbox"
                           className="sr-only"
                           checked={p.isPaid}
-                          onChange={(e) => updatePayment(p.id, { isPaid: e.target.checked })}
+                          onChange={(e) => {
+                            if (e.target.checked && !paymentCalendarDay(p.paidAt)) {
+                              toast.error("Pick the payment date next to the link first");
+                              return;
+                            }
+                            updatePayment(p.id, { isPaid: e.target.checked });
+                          }}
                         />
                         {p.isPaid ? "✓ Paid" : "Unpaid"}
                       </label>
@@ -678,9 +712,9 @@ export default function ProjectWorkbenchModal({
                   {mode !== "csr" && (
                     <div className="rounded-xl border border-[#F3D7DC] bg-[#FFF8F9] p-2.5 space-y-2">
                       <p className="text-[10px] font-bold text-[#B8112D] uppercase tracking-wide">
-                        Accounts · channel / currency / payment date
+                        Accounts · channel / currency
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Channel</span>
                           <select
@@ -715,22 +749,6 @@ export default function ProjectWorkbenchModal({
                             ))}
                           </select>
                         </div>
-                        <div>
-                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">Payment date</span>
-                          <input
-                            type="date"
-                            className={inputCls}
-                            value={(p.paidAt ?? "").toString().slice(0, 10)}
-                            onChange={(e) => {
-                              const day = e.target.value;
-                              updatePayment(p.id, {
-                                paidAt: day || undefined,
-                                accountsMonth: day ? day.slice(0, 7) : undefined,
-                                isPaid: day ? true : p.isPaid,
-                              });
-                            }}
-                          />
-                        </div>
                       </div>
                     </div>
                   )}
@@ -743,15 +761,40 @@ export default function ProjectWorkbenchModal({
                     </p>
                   ) : null}
                   {mode !== "csr" && (
-                    <div className="flex items-center gap-2">
-                      <Link2 size={14} className="text-[#B8112D] shrink-0" />
-                      <input
-                        className={inputCls}
-                        placeholder="Payment slip / invoice / receipt URL"
-                        value={p.link ?? ""}
-                        onChange={(e) => updatePayment(p.id, { link: e.target.value })}
-                        title="Admin / Manager only — attach payment slip link"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_minmax(10.5rem,12rem)] gap-2">
+                      <div>
+                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+                          Payment link
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Link2 size={14} className="text-[#B8112D] shrink-0" />
+                          <input
+                            className={inputCls}
+                            placeholder="Payment slip / invoice / receipt URL"
+                            value={p.link ?? ""}
+                            onChange={(e) => updatePayment(p.id, { link: e.target.value })}
+                            title="Admin / Manager only — attach payment slip link"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+                          Payment date
+                        </span>
+                        <input
+                          type="date"
+                          className={inputCls}
+                          value={paymentCalendarDay(p.paidAt)}
+                          onChange={(e) => {
+                            const day = e.target.value;
+                            updatePayment(p.id, {
+                              paidAt: day || undefined,
+                              accountsMonth: day ? day.slice(0, 7) : undefined,
+                              isPaid: day ? true : p.isPaid,
+                            });
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
                   {mode === "csr" && p.link?.trim() ? (
@@ -759,10 +802,10 @@ export default function ProjectWorkbenchModal({
                       Slip on file (managed by Admin / Manager)
                     </p>
                   ) : null}
-                  {p.isPaid && p.paidAt && (
+                  {p.isPaid && paymentCalendarDay(p.paidAt) && (
                     <p className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
                       <Calendar size={10} />
-                      Paid on {new Date(p.paidAt).toLocaleString()}
+                      Paid on {formatPaymentDateOnly(p.paidAt)}
                     </p>
                   )}
                 </div>

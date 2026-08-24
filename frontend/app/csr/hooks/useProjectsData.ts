@@ -34,6 +34,7 @@ export type Project = {
   closedAt: string;
   clientCode: string | null;
   noteHistory: NoteEntry[];
+  createdAt?: string;
 };
 
 type RawNote = { id?: string; text?: string; createdAt?: string; };
@@ -175,6 +176,7 @@ function mapProject(lead: RawLead): Project {
     closedAt:      lead.updatedAt ? String(lead.updatedAt).split("T")[0] : "N/A",
     clientCode:    lead.clientCode ?? null,
     noteHistory,
+    createdAt:     lead.createdAt,
   };
 }
 

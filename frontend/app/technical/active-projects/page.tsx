@@ -178,6 +178,7 @@ function projectToWorkbench(p: Project): ProjectWorkbenchData {
     assignedTo: p.csr?.id,
     projectSource: p.projectSource ?? "",
     projectNotes: p.projectNotes ?? "",
+    projectCreatedAt: p.createdAt ?? "",
   };
 }
 

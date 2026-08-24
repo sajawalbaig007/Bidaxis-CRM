@@ -31,14 +31,14 @@ export function emptyDayCollections(): DayCollections {
   };
 }
 
-/** YYYY-MM for Accounts bucketing */
+/** YYYY-MM for Accounts bucketing — never falls back to “today”. */
 export function paymentAccountsMonth(entry: ProjectPaymentEntry): string | null {
   if (!entry.isPaid) return null;
   const explicit = entry.accountsMonth?.trim();
   if (explicit && /^\d{4}-\d{2}$/.test(explicit)) return explicit;
   const paid = entry.paidAt?.trim();
   if (paid && /^\d{4}-\d{2}/.test(paid)) return paid.slice(0, 7);
-  return new Date().toISOString().slice(0, 7);
+  return null;
 }
 
 export function monthStartIso(yearMonth: string): string {

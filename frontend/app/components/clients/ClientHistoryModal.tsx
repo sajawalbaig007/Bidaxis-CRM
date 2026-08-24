@@ -38,6 +38,7 @@ type ProjectRow = {
   qaDeadline?: string | null;
   projectPayments?: unknown;
   projectNotes?: string | null;
+  createdAt?: string | null;
 };
 
 type HistoryData = {
@@ -93,6 +94,7 @@ function projectToWorkbench(p: ProjectRow): ProjectWorkbenchData {
     qaDeadline: typeof p.qaDeadline === "string" ? p.qaDeadline.split("T")[0] : "",
     projectPayments: parsePayments(p.projectPayments),
     projectNotes: p.projectNotes ?? "",
+    projectCreatedAt: p.createdAt ?? "",
   };
 }
 
@@ -119,6 +121,7 @@ function leadToWorkbench(lead: Record<string, unknown>): ProjectWorkbenchData {
     qaDeadline: typeof lead.qaDeadline === "string" ? lead.qaDeadline.split("T")[0] : "",
     projectPayments: parsePayments(lead.projectPayments),
     projectNotes: String(lead.projectNotes ?? ""),
+    projectCreatedAt: typeof lead.createdAt === "string" ? lead.createdAt : "",
   };
 }
 
