@@ -205,6 +205,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       paymentCount: 0,
       projectCount: 0,
       activeCurrencies: [],
+      pkrFormula: 0,
       projectIds: new Set(),
     });
   }
