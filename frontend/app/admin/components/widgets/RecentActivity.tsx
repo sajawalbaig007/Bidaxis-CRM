@@ -94,7 +94,10 @@ export default function RecentActivity({ leads = [], recent, recentStatus }: Pro
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold text-gray-800">Recent Activity</h3>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Live feed</p>
+          <h3 className="font-bold text-[#0F172A] dark:text-crm-text">Recent Activity</h3>
+        </div>
       </div>
 
       {activities.length === 0 ? (

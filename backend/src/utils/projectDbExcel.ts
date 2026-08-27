@@ -243,24 +243,39 @@ function parseBool(raw: string): boolean {
   return v === "1" || v === "true" || v === "yes" || v === "y" || v === "paid";
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function expandYear(y: number): number {
+  if (y >= 100) return y;
+  return y > 50 ? 1900 + y : 2000 + y;
+}
+
+/** Store as YYYY-MM-DD. Day/month/year when the value is D/M/Y (slash, dash, or dot). */
+function toIsoDate(year: number, month: number, day: number): string {
+  const y = expandYear(year);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+  return `${y}-${pad2(month)}-${pad2(day)}`;
+}
+
 function normalizeDeadline(raw: string): string {
   const s = cellStr(raw);
   if (!s) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  // DD/MM/YYYY or MM/DD/YYYY — prefer ISO-looking; if 4-digit year at end
-  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
-  if (m) {
-    const a = Number(m[1]);
-    const b = Number(m[2]);
-    const y = m[3];
-    // If first > 12 → DD/MM/YYYY else assume MM/DD/YYYY (US)
-    if (a > 12) {
-      return `${y}-${String(b).padStart(2, "0")}-${String(a).padStart(2, "0")}`;
-    }
-    return `${y}-${String(a).padStart(2, "0")}-${String(b).padStart(2, "0")}`;
+  // Year first: 2024-06-15, 2024/06/15, 2024.06.15
+  const ymd = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?:$|T|\s)/);
+  if (ymd) {
+    return toIsoDate(Number(ymd[1]), Number(ymd[2]), Number(ymd[3])) || s.slice(0, 10);
+  }
+  // Day/month/year: 15/06/2024, 15-06-2024, 15.06.24 — never US month/day
+  const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (dmy) {
+    return toIsoDate(Number(dmy[3]), Number(dmy[2]), Number(dmy[1])) || s;
   }
   const d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
   return s;
 }
 
@@ -311,16 +326,16 @@ function exampleRowByKey(): Record<string, string> {
     projectCode: "CSR001-01",
     projectTitle: "Warehouse Takeoff",
     interestedService: "Estimating",
-    projectDeadline: "2024-06-15",
+    projectDeadline: "15-06-2024",
     deadlineTiming: "cob",
     projectScope: "Full takeoff + pricing",
     projectBudget: "2500",
     projectNotes: "Bid notes / instructions",
-    createdAt: "2024-04-01",
+    createdAt: "01-04-2024",
     payment1Type: "Partial",
     payment1Amount: "1000",
     payment1IsPaid: "Paid",
-    payment1PaidAt: "2024-04-10",
+    payment1PaidAt: "10-04-2024",
     payment1Channel: "AH",
     payment1Currency: "USD",
     payment1AccountsMonth: "2024-04",
@@ -328,7 +343,7 @@ function exampleRowByKey(): Record<string, string> {
     payment2Type: "Full",
     payment2Amount: "1500",
     payment2IsPaid: "Paid",
-    payment2PaidAt: "2024-06-01",
+    payment2PaidAt: "01-06-2024",
     payment2Channel: "SN",
     payment2Currency: "USD",
     payment2AccountsMonth: "2024-06",
@@ -390,8 +405,8 @@ export function buildProjectDbTemplateBuffer(): Buffer {
     [""],
     ["CSR Code", "Active CSR code e.g. CSR001 — leave empty if unassigned"],
     ["Resource Name", "External resource name when there is no CSR"],
-    ["Date Added", "Optional YYYY-MM-DD (used for month filters)"],
-    ["Dates", "Use YYYY-MM-DD for Project Deadline, Date Added, Payment Date"],
+    ["Date Added", "Optional day/month/year (used for month filters)"],
+    ["Dates", "Day/month/year — 15-06-2024 or 15/06/2024 both become 15-06-2024 on the dashboard"],
     ["Payments", "Up to 5 entries: Type, Amount, Status, Date, Channel, Currency, Accounts Month, Link"],
   ];
   const wsInfo = XLSX.utils.aoa_to_sheet(instructions);

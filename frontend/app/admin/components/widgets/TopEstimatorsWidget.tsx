@@ -50,7 +50,7 @@ export default function TopEstimatorsWidget() {
     <div>
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <div className="min-w-0">
-          <h3 className="text-sm sm:text-base font-bold text-gray-800 flex items-center gap-1.5">
+          <h3 className="text-sm sm:text-base font-bold text-gray-800 dark:text-crm-text flex items-center gap-1.5">
             <Trophy size={16} className="text-amber-500 shrink-0" />
             Top 5 Estimators
           </h3>
@@ -74,7 +74,7 @@ export default function TopEstimatorsWidget() {
       ) : top5.length === 0 ? (
         <p className="text-xs text-gray-400 text-center py-4">No estimator ratings yet.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {top5.map((e, idx) => (
             <div
               key={e.estimatorId}
