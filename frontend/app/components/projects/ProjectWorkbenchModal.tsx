@@ -25,6 +25,7 @@ import {
   paymentCalendarDay,
   paymentCalendarMonth,
   formatPaymentDateOnly,
+  formatDateDayMonthYear,
 } from "@/lib/projectFields";
 import PaymentStatusCircle from "@/app/csr/components/shared/PaymentStatusCircle";
 import toast from "react-hot-toast";
@@ -167,9 +168,7 @@ export default function ProjectWorkbenchModal({
   const quotedOn = (() => {
     const iso = data.projectCreatedAt || initial.projectCreatedAt;
     if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    return formatDateDayMonthYear(iso);
   })();
 
   const addPayment = () => {

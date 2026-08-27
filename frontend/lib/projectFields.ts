@@ -200,19 +200,36 @@ export function paymentCalendarMonth(iso: string | null | undefined): string | u
   return day ? day.slice(0, 7) : undefined;
 }
 
+/** Display a stored date as day-month-year with dashes (27-08-2026). */
+export function formatDateDayMonthYear(iso?: string | Date | null): string {
+  if (!iso) return "";
+  if (typeof iso === "string") {
+    const ymd = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (ymd) return `${ymd[3]}-${ymd[2]}-${ymd[1]}`;
+    const dmyDash = iso.trim().match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+    if (dmyDash) {
+      const d = dmyDash[1].padStart(2, "0");
+      const m = dmyDash[2].padStart(2, "0");
+      const y = dmyDash[3].length === 2 ? `20${dmyDash[3]}` : dmyDash[3];
+      return `${d}-${m}-${y}`;
+    }
+    const dmySlash = iso.trim().match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
+    if (dmySlash) {
+      const d = dmySlash[1].padStart(2, "0");
+      const m = dmySlash[2].padStart(2, "0");
+      const y = dmySlash[3].length === 2 ? `20${dmySlash[3]}` : dmySlash[3];
+      return `${d}-${m}-${y}`;
+    }
+  }
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+}
+
 export function formatPaymentDateOnly(iso: string | undefined): string {
   const day = paymentCalendarDay(iso);
   if (!day) return "—";
-  const [ys, ms, ds] = day.split("-");
-  const y = Number(ys);
-  const m = Number(ms);
-  const d = Number(ds);
-  if (!y || !m || !d) return day;
-  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateDayMonthYear(day) || day;
 }
 
 export function formatPaymentWhen(iso: string | undefined): string {
@@ -221,11 +238,7 @@ export function formatPaymentWhen(iso: string | undefined): string {
   if (dayOnly !== "—") return dayOnly;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateDayMonthYear(iso) || iso;
 }
 
 /** Local calendar YYYY-MM when the project was added — matches the “Added” date in Project DB. */

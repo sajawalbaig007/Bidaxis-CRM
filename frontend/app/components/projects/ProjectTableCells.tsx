@@ -17,6 +17,7 @@ import {
   getProjectWorkStatus,
   PROJECT_WORK_STATUS_OPTIONS,
   normalizeDeadlineTiming,
+  formatDateDayMonthYear,
   type ProjectWorkStatus,
   ProjectPayment,
 } from "@/lib/projectFields";
@@ -80,13 +81,8 @@ function DetailLine({
 
 function formatAddedDate(iso?: string | null): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const formatted = formatDateDayMonthYear(iso);
+  return formatted || null;
 }
 
 export function ClientDetailCell({ p }: { p: ProjectTableRow }) {
@@ -306,14 +302,15 @@ export function FulfillmentCell({
 }) {
   const deadline = p.projectDeadline?.split("T")[0];
   const timing = normalizeDeadlineTiming(p.deadlineTiming);
+  const deadlineLabel = deadline && deadline !== "N/A" ? formatDateDayMonthYear(deadline) : "";
 
   return (
     <div className="min-w-0 space-y-1.5">
       <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500">Client Deadline</p>
-      {deadline && deadline !== "N/A" ? (
+      {deadlineLabel ? (
         <p className="text-[11px] xl:text-xs text-gray-800 font-bold flex items-center gap-1">
           <Calendar size={11} className="text-[#B8112D] shrink-0" />
-          {deadline}
+          {deadlineLabel}
         </p>
       ) : (
         <span className="text-[10px] text-gray-400">—</span>

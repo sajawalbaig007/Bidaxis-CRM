@@ -51,6 +51,7 @@ import {
   projectAddedYearMonth,
   projectDeadlineYearMonth,
   projectDeadlineDay,
+  formatDateDayMonthYear,
 } from "@/lib/projectFields";
 
 function phaseLabel(value: string) {
@@ -152,9 +153,7 @@ const getServiceColor = (s: string | null) =>
 
 const formatDate = (iso: string | null | undefined) => {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  return formatDateDayMonthYear(iso) || "—";
 };
 
 const isOverdue = (d: string | null) => !!d && new Date(d) < new Date();

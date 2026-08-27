@@ -17,12 +17,12 @@ import {
 
 const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
   ssr: false,
-  loading: () => <div className="h-[180px] sm:h-[200px] rounded-2xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-full min-h-[260px] rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />,
 });
 
 const OverviewChart = dynamic(() => import("./components/charts/OverviewChart"), {
   ssr: false,
-  loading: () => <div className="h-[220px] rounded-2xl bg-gray-100 animate-pulse" />,
+  loading: () => <div className="h-full min-h-[280px] rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />,
 });
 
 type QuickStats = {
@@ -56,7 +56,12 @@ function statsFromSummary(s: AdminDashboardSummary): QuickStats {
 }
 
 const BENTO =
-  "rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
+  "rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
+
+function sharePct(part: number, whole: number): number {
+  if (whole <= 0) return 0;
+  return Math.min(100, Math.round((part / whole) * 100));
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -105,32 +110,47 @@ export default function DashboardPage() {
     return s[key];
   }, [summary?.chartSeries, selectedRange]);
 
-  const tiles = useMemo(() => [
-    { label: "Total Leads",  value: stats?.totalLeads  ?? 0, from: "from-[#B8112D]", to: "to-[#8b0d22]",  icon: <PhoneCall    size={15}/>, bar: "70%" },
-    { label: "Today Completed Calls", value: stats?.todayCompletedCalls ?? 0, from: "from-[#059669]", to: "to-[#047857]",  icon: <CheckCircle2 size={15}/>, bar: "85%" },
-    { label: "Pending",      value: stats?.pending     ?? 0, from: "from-[#D97706]", to: "to-[#B45309]",  icon: <Clock3       size={15}/>, bar: "50%" },
-    { label: "Total Completed", value: stats?.completed ?? 0, from: "from-[#DC2626]", to: "to-[#B91C1C]",  icon: <CheckCircle2 size={15}/>, bar: "40%" },
-    { label: "Interested",   value: stats?.interested  ?? 0, from: "from-[#2563EB]", to: "to-[#1D4ED8]",  icon: <TrendingUp   size={15}/>, bar: "60%", href: `${staffBase}/leads?tab=interested` },
-    { label: "Close Client", value: stats?.projectWon  ?? 0, from: "from-[#7C3AED]", to: "to-[#6D28D9]",  icon: <Trophy       size={15}/>, bar: "30%", href: `${staffBase}/leads?tab=closed` },
-    { label: "Important",    value: stats?.importantOnly ?? stats?.important ?? 0, from: "from-[#0891B2]", to: "to-[#0E7490]",  icon: <Star         size={15}/>, bar: "55%", href: `${staffBase}/leads?tab=important` },
-    { label: "Users Online", value: stats?.totalOnline ?? 0, from: "from-[#4F46E5]", to: "to-[#4338CA]",  icon: <Users        size={15}/>, bar: "65%" },
-  ], [stats, staffBase]);
+  const totalLeads = stats?.totalLeads ?? 0;
+  const tiles = useMemo(() => {
+    const t = stats?.totalLeads ?? 0;
+    return [
+      { label: "Total Leads", value: t, accent: "#B8112D", icon: <PhoneCall size={15} />, bar: 100 },
+      { label: "Today Completed Calls", value: stats?.todayCompletedCalls ?? 0, accent: "#059669", icon: <CheckCircle2 size={15} />, bar: sharePct(stats?.todayCompletedCalls ?? 0, Math.max(t, 1)) },
+      { label: "Pending", value: stats?.pending ?? 0, accent: "#D97706", icon: <Clock3 size={15} />, bar: sharePct(stats?.pending ?? 0, t) },
+      { label: "Total Completed", value: stats?.completed ?? 0, accent: "#DC2626", icon: <CheckCircle2 size={15} />, bar: sharePct(stats?.completed ?? 0, t) },
+      { label: "Interested", value: stats?.interested ?? 0, accent: "#2563EB", icon: <TrendingUp size={15} />, bar: sharePct(stats?.interested ?? 0, t), href: `${staffBase}/leads?tab=interested` },
+      { label: "Close Client", value: stats?.projectWon ?? 0, accent: "#7C3AED", icon: <Trophy size={15} />, bar: sharePct(stats?.projectWon ?? 0, t), href: `${staffBase}/leads?tab=closed` },
+      { label: "Important", value: stats?.importantOnly ?? stats?.important ?? 0, accent: "#0891B2", icon: <Star size={15} />, bar: sharePct(stats?.importantOnly ?? stats?.important ?? 0, t), href: `${staffBase}/leads?tab=important` },
+      { label: "Users Online", value: stats?.totalOnline ?? 0, accent: "#4F46E5", icon: <Users size={15} />, bar: Math.min(100, (stats?.totalOnline ?? 0) * 8) },
+    ];
+  }, [stats, staffBase]);
+
+  const pipeline = useMemo(() => {
+    const stages = [
+      { label: "Pending", value: stats?.pending ?? 0, color: "#D97706" },
+      { label: "Interested", value: stats?.interested ?? 0, color: "#2563EB" },
+      { label: "Important", value: stats?.importantOnly ?? stats?.important ?? 0, color: "#0891B2" },
+      { label: "Won", value: stats?.projectWon ?? 0, color: "#7C3AED" },
+      { label: "Completed", value: stats?.completed ?? 0, color: "#DC2626" },
+    ];
+    const max = Math.max(1, ...stages.map((s) => s.value));
+    return { stages, max, total: totalLeads };
+  }, [stats, totalLeads]);
 
   return (
-    <div className="flex min-h-screen bg-[#EEF1F7]">
+    <div className="flex min-h-screen bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <StaffSidebar />
 
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
+        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-5 space-y-3.5 sm:space-y-4">
 
-          {/* Header */}
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Overview</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">
                 Dashboard
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1">
                 Pipeline overview · CSR activity · live presence
               </p>
             </div>
@@ -138,45 +158,54 @@ export default function DashboardPage() {
               type="button"
               onClick={() => void loadOverview(true)}
               disabled={loadingOverview}
-              className="h-11 px-5 rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+              className="h-11 px-5 rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-surface text-sm font-semibold text-gray-700 dark:text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-muted disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
             >
               <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
               {loadingOverview ? "Refreshing…" : "Refresh stats"}
             </button>
           </header>
 
-          {/* Stat tiles — even 4×2 */}
-          <section aria-label="Quick stats" className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <section
+            aria-label="Quick stats"
+            className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5 sm:gap-3"
+          >
             {tiles.map((tile) => {
               const inner = (
                 <>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-white/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-snug line-clamp-2">
+                  <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full" style={{ background: tile.accent }} />
+                  <div className="flex items-start justify-between gap-2 pl-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-crm-text-muted leading-snug line-clamp-2">
                       {tile.label}
                     </span>
-                    <span className="w-7 h-7 sm:w-8 sm:h-8 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                    <span
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white"
+                      style={{ background: tile.accent }}
+                    >
                       {tile.icon}
                     </span>
                   </div>
                   {loadingOverview ? (
-                    <div className="h-8 w-14 bg-white/25 rounded-lg animate-pulse" />
+                    <div className="h-8 w-16 bg-gray-100 dark:bg-crm-muted rounded-lg animate-pulse ml-1" />
                   ) : (
-                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
+                    <span className="text-2xl sm:text-[1.75rem] font-extrabold tracking-tight leading-none tabular-nums text-[#0F172A] dark:text-crm-text pl-1">
                       {overviewLoaded ? tile.value.toLocaleString() : "—"}
                     </span>
                   )}
-                  <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden mt-auto">
-                    <div className="h-full bg-white/70 rounded-full" style={{ width: tile.bar }} />
+                  <div className="w-full h-1 rounded-full bg-gray-100 dark:bg-crm-muted overflow-hidden mt-auto ml-1">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.max(tile.bar, tile.bar > 0 ? 4 : 0)}%`, background: tile.accent }}
+                    />
                   </div>
                 </>
               );
-              const cls = `bg-gradient-to-br ${tile.from} ${tile.to} rounded-[1.5rem] p-3.5 sm:p-4 text-white shadow-md flex flex-col gap-2.5 min-h-[104px] sm:min-h-[112px] h-full`;
+              const cls = `${BENTO} relative p-3 sm:p-3.5 flex flex-col gap-2 min-h-[92px] h-full`;
               return tile.href ? (
                 <button
                   key={tile.label}
                   type="button"
                   onClick={() => router.push(tile.href!)}
-                  className={`${cls} text-left hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer`}
+                  className={`${cls} text-left hover:border-[#B8112D]/30 active:scale-[0.99] transition-all cursor-pointer`}
                 >
                   {inner}
                 </button>
@@ -188,65 +217,86 @@ export default function DashboardPage() {
             })}
           </section>
 
-          {/* Content bento — mixed spans like Upload board */}
           <section
             aria-label="Dashboard bento"
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 md:grid-rows-[minmax(280px,auto)_minmax(200px,auto)_minmax(240px,auto)] gap-3 sm:gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3 sm:gap-4"
           >
-            {/* Performance — wide hero + Top Performers under graph */}
-            <div className={`sm:col-span-2 md:col-span-8 md:row-span-2 md:col-start-1 md:row-start-1 ${BENTO} p-4 sm:p-5 min-w-0 flex flex-col`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3 shrink-0">
+            <div className={`${BENTO} md:col-span-2 xl:col-span-8 p-4 sm:p-5 min-w-0 flex flex-col min-h-[380px] xl:min-h-[440px]`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-2 shrink-0">
                 <div className="min-w-0">
-                  <h2 className="font-bold text-[#0F172A] text-base sm:text-lg tracking-tight">Performance Overview</h2>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                    CSR call activity · day resets 4:00 AM (PKT)
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Activity</p>
+                  <h2 className="font-bold text-[#0F172A] dark:text-crm-text text-base sm:text-lg tracking-tight">Performance Overview</h2>
+                  <p className="text-xs text-gray-500 dark:text-crm-text-muted mt-0.5">
+                    CSR call volume · day resets 4:00 AM (PKT)
                   </p>
                 </div>
                 {(overviewLoaded || loadingOverview) && (
                   <DateRangePicker selected={selectedRange} onChange={setSelectedRange} />
                 )}
               </div>
-              <div className="flex-1 min-h-[200px]">
+              <div className="flex-1 min-h-[260px]">
                 {overviewLoaded || loadingOverview ? (
                   <PerformanceChart series={chartSeries} range={selectedRange} />
                 ) : (
-                  <div className="h-full min-h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
-                )}
-              </div>
-              <div className="border-t border-gray-100 pt-4 mt-4 shrink-0">
-                {overviewLoaded || loadingOverview ? (
-                  <TopPerformers performers={summary?.performers} />
-                ) : (
-                  <div className="h-28 rounded-2xl bg-gray-100 animate-pulse" />
+                  <div className="h-full min-h-[260px] rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />
                 )}
               </div>
             </div>
 
-            {/* Lead donut — tall side */}
-            <div className={`sm:col-span-1 md:col-span-4 md:row-span-2 md:col-start-9 md:row-start-1 ${BENTO} p-4 sm:p-5 min-w-0 overflow-auto`}>
+            <div className={`${BENTO} md:col-span-1 xl:col-span-4 p-4 sm:p-5 min-w-0 flex flex-col min-h-[380px] xl:min-h-[440px]`}>
               {overviewLoaded || loadingOverview ? (
                 <OverviewChart distribution={summary?.distribution} />
               ) : (
-                <div className="h-[220px] rounded-2xl bg-gray-100 animate-pulse" />
+                <div className="h-full rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />
               )}
             </div>
 
-            {/* Project DB widget — fills old Top Performers slot */}
-            <div className={`sm:col-span-1 md:col-span-5 md:col-start-1 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0`}>
-              <ActiveProjectsWidget enabled={overviewLoaded || loadingOverview} />
+            <div className={`${BENTO} md:col-span-1 xl:col-span-4 p-4 sm:p-5 min-w-0 min-h-[280px]`}>
+              {overviewLoaded || loadingOverview ? (
+                <TopPerformers performers={summary?.performers} />
+              ) : (
+                <div className="h-full rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />
+              )}
             </div>
 
-            {/* Recent Activity — wider */}
-            <div className={`sm:col-span-1 md:col-span-4 md:col-start-6 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0`}>
+            <div className={`${BENTO} md:col-span-1 xl:col-span-4 p-4 sm:p-5 min-w-0 min-h-[280px]`}>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Conversion</p>
+              <h3 className="font-bold text-[#0F172A] dark:text-crm-text mb-3">Pipeline funnel</h3>
+              <div className="space-y-2.5">
+                {pipeline.stages.map((s) => {
+                  const pct = sharePct(s.value, pipeline.total);
+                  const width = Math.max(s.value > 0 ? 10 : 0, Math.round((s.value / pipeline.max) * 100));
+                  return (
+                    <div key={s.label}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-semibold text-gray-600 dark:text-crm-text-secondary">{s.label}</span>
+                        <span className="text-xs font-bold tabular-nums text-[#0F172A] dark:text-crm-text">
+                          {s.value.toLocaleString()}
+                          <span className="text-gray-400 font-semibold ml-1">{pct}%</span>
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 dark:bg-crm-muted overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${width}%`, background: s.color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className={`${BENTO} md:col-span-2 xl:col-span-4 p-4 sm:p-5 min-w-0 min-h-[280px]`}>
               {overviewLoaded || loadingOverview ? (
                 <RecentActivity recent={summary?.recent} recentStatus={summary?.recentStatus} />
               ) : (
-                <div className="h-[200px] rounded-2xl bg-gray-100 animate-pulse" />
+                <div className="h-full rounded-2xl bg-gray-100 dark:bg-crm-muted animate-pulse" />
               )}
             </div>
 
-            {/* Top Estimators — compact accent tile */}
-            <div className={`sm:col-span-2 md:col-span-3 md:col-start-10 md:row-start-3 ${BENTO} p-4 sm:p-5 min-w-0 bg-gradient-to-br from-amber-50/50 via-white to-sky-50/40`}>
+            <div className={`${BENTO} md:col-span-1 xl:col-span-5 p-4 sm:p-5 min-w-0 min-h-[260px]`}>
+              <ActiveProjectsWidget enabled={overviewLoaded || loadingOverview} />
+            </div>
+
+            <div className={`${BENTO} md:col-span-1 xl:col-span-7 p-4 sm:p-5 min-w-0 min-h-[260px] bg-gradient-to-br from-amber-50/60 via-white to-sky-50/40 dark:from-amber-950/20 dark:via-crm-surface dark:to-sky-950/10`}>
               <TopEstimatorsWidget />
             </div>
           </section>
@@ -272,7 +322,7 @@ const DateRangePicker = ({ selected, onChange }: { selected: string; onChange: (
         className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
           selected === r.key
             ? "bg-[#B8112D] text-white shadow-sm"
-            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            : "bg-gray-100 dark:bg-crm-muted text-gray-600 dark:text-crm-text-secondary hover:bg-gray-200 dark:hover:bg-crm-surface-raised"
         }`}
       >
         {r.label}

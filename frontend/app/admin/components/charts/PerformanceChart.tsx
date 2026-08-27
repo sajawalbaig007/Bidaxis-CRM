@@ -2,9 +2,10 @@
 
 import { useMemo } from "react";
 import {
-  ResponsiveContainer, AreaChart, Area,
+  ResponsiveContainer, ComposedChart, Area, Bar,
   CartesianGrid, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { useTheme } from "@/app/components/ThemeProvider";
 import {
   addDaysToYmd,
   businessHourBucketKey,
@@ -111,37 +112,94 @@ function groupLeads(leads: ClientLead[], range: string): DataPoint[] {
 }
 
 export default function PerformanceChart({ leads = [], series, range = "week" }: Props) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const data = useMemo(() => {
     if (series && series.length > 0) return series;
     return groupLeads(leads, range);
   }, [series, leads, range]);
 
+  const total = useMemo(() => data.reduce((s, d) => s + d.calls, 0), [data]);
+  const peak = useMemo(() => data.reduce((m, d) => Math.max(m, d.calls), 0), [data]);
+  const avg = data.length ? Math.round(total / data.length) : 0;
+
+  const grid = isDark ? "#2A303C" : "#EEF1F6";
+  const tick = isDark ? "#94A3B8" : "#9CA3AF";
+  const tooltipBg = isDark ? "#1a1d24" : "#fff";
+  const tooltipBorder = isDark ? "#2A303C" : "#eee";
+  const tooltipColor = isDark ? "#E5E7EB" : "#111827";
+
   return (
-    <div className="h-[200px] sm:h-[220px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
-          <defs>
-            <linearGradient id="mainGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#B8112D" stopOpacity={0.28}/>
-              <stop offset="100%" stopColor="#B8112D" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid vertical={false} stroke="#F1F1F1" strokeDasharray="4 4"/>
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill:"#9CA3AF", fontSize:13 }}/>
-          <YAxis tickLine={false} axisLine={false} tick={{ fill:"#9CA3AF", fontSize:13 }} allowDecimals={false}/>
-          <Tooltip
-            formatter={(value) => [`${value} calls`, "Activity"]}
-            contentStyle={{ borderRadius:"16px", border:"1px solid #eee", boxShadow:"0 10px 30px rgba(0,0,0,0.08)" }}
-          />
-          <Area
-            type="monotone" dataKey="calls"
-            stroke="#B8112D" strokeWidth={4}
-            fill="url(#mainGradient)"
-            dot={{ r:0 }}
-            activeDot={{ r:6, fill:"#B8112D", stroke:"#fff", strokeWidth:3 }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+    <div className="flex flex-col h-full min-h-[260px] sm:min-h-[320px]">
+      <div className="flex flex-wrap gap-2 mb-3 shrink-0">
+        <KpiChip label="Volume" value={total.toLocaleString()} />
+        <KpiChip label="Avg / bucket" value={avg.toLocaleString()} />
+        <KpiChip label="Peak" value={peak.toLocaleString()} />
+      </div>
+      <div className="flex-1 min-h-[220px] sm:min-h-[260px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+            <defs>
+              <linearGradient id="dashAreaFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#B8112D" stopOpacity={isDark ? 0.35 : 0.22} />
+                <stop offset="100%" stopColor="#B8112D" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} stroke={grid} strokeDasharray="3 6" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: tick, fontSize: 11 }}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: tick, fontSize: 11 }}
+              allowDecimals={false}
+              width={36}
+            />
+            <Tooltip
+              formatter={(value) => [`${value} calls`, "Activity"]}
+              contentStyle={{
+                borderRadius: "12px",
+                border: `1px solid ${tooltipBorder}`,
+                background: tooltipBg,
+                color: tooltipColor,
+                boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+                fontSize: 12,
+              }}
+            />
+            <Bar
+              dataKey="calls"
+              fill="#B8112D"
+              fillOpacity={isDark ? 0.45 : 0.28}
+              radius={[5, 5, 0, 0]}
+              maxBarSize={36}
+              tooltipType="none"
+            />
+            <Area
+              type="monotone"
+              dataKey="calls"
+              stroke="#B8112D"
+              strokeWidth={2.5}
+              fill="url(#dashAreaFill)"
+              dot={false}
+              activeDot={{ r: 5, fill: "#B8112D", stroke: isDark ? "#1a1d24" : "#fff", strokeWidth: 2 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function KpiChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-gray-100 dark:border-crm-border bg-[#F8F9FC] dark:bg-crm-muted px-3 py-1.5 min-w-[88px]">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
+      <p className="text-sm font-extrabold tabular-nums text-[#0F172A] dark:text-crm-text leading-tight">{value}</p>
     </div>
   );
 }
