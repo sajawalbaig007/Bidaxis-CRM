@@ -228,6 +228,22 @@ export function formatPaymentWhen(iso: string | undefined): string {
   });
 }
 
+/** Local calendar YYYY-MM when the project was added — matches the “Added” date in Project DB. */
+export function projectAddedYearMonth(iso?: string | Date | null): string | null {
+  if (!iso) return null;
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Local calendar YYYY-MM-DD when the project was added. */
+export function projectAddedDay(iso?: string | Date | null): string | null {
+  if (!iso) return null;
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function formatPaymentMoney(amount: string | number, currency?: PaymentCurrency | null): string {
   const n = parseMoney(amount);
   if (n <= 0) return "—";
