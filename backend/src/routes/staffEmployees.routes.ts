@@ -71,6 +71,7 @@ async function listEnriched() {
             currentAddress: true,
             contactNo: true,
             cnic: true,
+            cnicPdfUrl: true,
             profilePic: true,
             isActive: true,
             isOnline: true,
@@ -98,6 +99,7 @@ async function listEnriched() {
           currentAddress: u.currentAddress,
           contactNo: u.contactNo,
           cnic: u.cnic,
+          cnicPdfUrl: u.cnicPdfUrl ?? null,
           profilePic: u.profilePic,
           csrCode: u.csrCode,
           isActive: u.isActive,
@@ -123,6 +125,7 @@ async function listEnriched() {
         currentAddress: r.currentAddress,
         contactNo: r.contactNo,
         cnic: r.cnic,
+        cnicPdfUrl: r.cnicPdfUrl ?? null,
         profilePic: r.profilePic,
         csrCode: null as string | null,
         isActive: false,
@@ -148,6 +151,7 @@ async function listEnriched() {
       currentAddress: r.currentAddress,
       contactNo: r.contactNo,
       cnic: r.cnic,
+      cnicPdfUrl: r.cnicPdfUrl ?? null,
       profilePic: r.profilePic,
       csrCode: null as string | null,
       isActive: true,
@@ -248,6 +252,7 @@ router.post("/", async (req: AuthRequest, res) => {
         currentAddress: strOrNull(req.body?.currentAddress),
         contactNo: strOrNull(req.body?.contactNo),
         cnic: strOrNull(req.body?.cnic),
+        cnicPdfUrl: strOrNull(req.body?.cnicPdfUrl),
         profilePic: strOrNull(req.body?.profilePic),
         notes: strOrNull(req.body?.notes),
         payrollHead: normalizePayrollHead(req.body?.payrollHead),
@@ -276,6 +281,8 @@ router.put("/:id", async (req: AuthRequest, res) => {
     const currentAddress = strOrNull(req.body?.currentAddress);
     const contactNo = strOrNull(req.body?.contactNo);
     const cnic = strOrNull(req.body?.cnic);
+    const cnicPdfUrl =
+      req.body?.cnicPdfUrl !== undefined ? strOrNull(req.body.cnicPdfUrl) : undefined;
     const email = strOrNull(req.body?.email);
     const payrollPatch =
       req.body?.payrollHead !== undefined || req.body?.payrollStartMonth !== undefined
@@ -309,6 +316,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
           currentAddress,
           contactNo,
           cnic,
+          ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
           ...(req.body?.csrCode !== undefined
             ? { csrCode: strOrNull(req.body.csrCode) }
             : {}),
@@ -325,6 +333,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
           currentAddress,
           contactNo,
           cnic,
+          ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
           ...payrollPatch,
         },
       });
@@ -350,6 +359,7 @@ router.put("/:id", async (req: AuthRequest, res) => {
         currentAddress,
         contactNo,
         cnic,
+        ...(cnicPdfUrl !== undefined ? { cnicPdfUrl } : {}),
         profilePic: strOrNull(req.body?.profilePic),
         notes,
         ...payrollPatch,

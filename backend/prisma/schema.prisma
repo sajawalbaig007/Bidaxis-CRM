@@ -550,6 +550,7 @@ model StaffEmployee {
   currentAddress String?
   contactNo      String?
   cnic           String?
+  cnicPdfUrl     String?
   profilePic     String?
   notes          String?
   /**

@@ -2,12 +2,31 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckSquare, Plus, Pencil, Trash2, UserPlus, Users, X, Loader2, Search,
+  CheckSquare, Plus, Pencil, Trash2, UserPlus, Users, X, Loader2, Search, FileText,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import API from "@/lib/api";
+import API, { getApiBase } from "@/lib/api";
 import RequiredMark from "@/app/components/form/RequiredMark";
+import { PdfPreview } from "@/app/components/chat/MessageExtras";
 import { ACCOUNTS_PAYROLL_HEADS, payrollHeadShortLabel } from "@/app/admin/utils/accountsPayrollHeads";
+
+/** Same preview rules as Admin → Users (Cloudinary raw PDFs blank in iframes). */
+function cnicDocumentPreview(url: string): { kind: "image" | "pdf"; src: string } {
+  const u = url.trim();
+  if (/\.(png|jpe?g|webp|gif)(\?|$)/i.test(u)) {
+    return { kind: "image", src: u };
+  }
+  if (u.includes("/image/upload/") && /\.pdf(\?|$)/i.test(u)) {
+    return { kind: "image", src: u.replace("/upload/", "/upload/f_jpg,pg_1,q_auto,w_900/") };
+  }
+  if (u.includes("/raw/upload/") || /\.pdf(\?|$)/i.test(u)) {
+    return {
+      kind: "pdf",
+      src: `https://docs.google.com/gview?url=${encodeURIComponent(u)}&embedded=true`,
+    };
+  }
+  return { kind: "pdf", src: u };
+}
 
 export type StaffEmployeeRow = {
   id: string;
@@ -23,6 +42,7 @@ export type StaffEmployeeRow = {
   currentAddress: string | null;
   contactNo: string | null;
   cnic: string | null;
+  cnicPdfUrl: string | null;
   profilePic: string | null;
   csrCode: string | null;
   isActive: boolean;
@@ -55,6 +75,7 @@ type ManualForm = {
   currentAddress: string;
   contactNo: string;
   cnic: string;
+  cnicPdfUrl: string;
   csrCode: string;
   notes: string;
   payrollHead: string;
@@ -71,6 +92,7 @@ const EMPTY_MANUAL: ManualForm = {
   currentAddress: "",
   contactNo: "",
   cnic: "",
+  cnicPdfUrl: "",
   csrCode: "",
   notes: "",
   payrollHead: "",
@@ -93,6 +115,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
   const [pickSearch, setPickSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [manualForm, setManualForm] = useState<ManualForm>(EMPTY_MANUAL);
+  const [uploadingCnic, setUploadingCnic] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -197,6 +220,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
         currentAddress: row.currentAddress || "",
         contactNo: row.contactNo || "",
         cnic: row.cnic || "",
+        cnicPdfUrl: row.cnicPdfUrl || "",
         csrCode: row.csrCode || "",
         notes: row.notes || "",
         payrollHead: row.payrollHead || "",
@@ -207,6 +231,34 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
       setManualForm(EMPTY_MANUAL);
     }
     setManualOpen(true);
+  };
+
+  const handleCnicUpload = async (file: File) => {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Only PDF files are allowed for CNIC.");
+      return;
+    }
+    setUploadingCnic(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${getApiBase()}/users/upload-cnic`, {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message || "CNIC PDF upload failed.");
+        return;
+      }
+      setManualForm((f) => ({ ...f, cnicPdfUrl: data.url }));
+      toast.success("CNIC PDF uploaded.");
+    } catch {
+      toast.error("Upload failed.");
+    } finally {
+      setUploadingCnic(false);
+    }
   };
 
   const saveEmployee = async () => {
@@ -235,6 +287,7 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
         currentAddress: manualForm.currentAddress.trim() || null,
         contactNo: manualForm.contactNo.trim() || null,
         cnic: manualForm.cnic.trim() || null,
+        cnicPdfUrl: manualForm.cnicPdfUrl.trim() || null,
         csrCode: manualForm.csrCode.trim() || null,
         notes: manualForm.notes.trim() || null,
         payrollHead: manualForm.payrollHead || null,
@@ -671,27 +724,94 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
                   ["csrCode", "CSR / Coding Code"],
                   ["contactNo", "Contact No"],
                   ["fatherName", "Father Name"],
-                  ["cnic", "CNIC"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="block text-xs font-semibold text-gray-600">
+                  {label}
+                  <input
+                    value={manualForm[key]}
+                    onChange={(e) => setManualForm({ ...manualForm, [key]: e.target.value })}
+                    className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                  />
+                </label>
+              ))}
+
+              <label className="block text-xs font-semibold text-gray-600">
+                CNIC
+                <input
+                  value={manualForm.cnic}
+                  onChange={(e) => setManualForm({ ...manualForm, cnic: e.target.value })}
+                  placeholder="e.g. 12345-6789012-3"
+                  maxLength={15}
+                  className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                />
+              </label>
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-1.5">
+                  CNIC Document (PDF)
+                  <span className="text-[10px] font-normal text-gray-400 ml-1">(optional)</span>
+                </p>
+                {manualForm.cnicPdfUrl ? (
+                  <div className="mb-2 space-y-2">
+                    {(() => {
+                      const preview = cnicDocumentPreview(manualForm.cnicPdfUrl);
+                      return preview.kind === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={preview.src}
+                          alt="CNIC"
+                          className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-white"
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                          <iframe src={preview.src} title="CNIC document" className="w-full h-48" />
+                        </div>
+                      );
+                    })()}
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#B8112D]/20 bg-[#FFF1F3]">
+                      <PdfPreview url={manualForm.cnicPdfUrl} fileName="CNIC document" />
+                      <button
+                        type="button"
+                        onClick={() => setManualForm((f) => ({ ...f, cnicPdfUrl: "" }))}
+                        className="text-[11px] font-semibold text-gray-500 hover:text-[#B8112D] shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <label className="flex items-center justify-center gap-2 h-11 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#B8112D]/40 bg-[#FAFAFA] cursor-pointer text-xs font-semibold text-gray-600 hover:text-[#B8112D] transition-colors">
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    disabled={uploadingCnic}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleCnicUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  <FileText size={14} />
+                  {uploadingCnic ? "Uploading PDF…" : manualForm.cnicPdfUrl ? "Replace CNIC PDF" : "Upload CNIC PDF"}
+                </label>
+                <p className="text-[11px] text-gray-400 mt-1">Same as dashboard users — PDF, max 10MB</p>
+              </div>
+
+              {(
+                [
                   ["currentAddress", "Current Address"],
                   ["notes", "Notes"],
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} className="block text-xs font-semibold text-gray-600">
                   {label}
-                  {key === "notes" || key === "currentAddress" ? (
-                    <textarea
-                      value={manualForm[key]}
-                      onChange={(e) => setManualForm({ ...manualForm, [key]: e.target.value })}
-                      rows={2}
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
-                    />
-                  ) : (
-                    <input
-                      value={manualForm[key]}
-                      onChange={(e) => setManualForm({ ...manualForm, [key]: e.target.value })}
-                      className="mt-1 h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
-                    />
-                  )}
+                  <textarea
+                    value={manualForm[key]}
+                    onChange={(e) => setManualForm({ ...manualForm, [key]: e.target.value })}
+                    rows={2}
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#B8112D]/20"
+                  />
                 </label>
               ))}
             </div>
@@ -770,6 +890,36 @@ export default function AllEmployeesPanel({ dashboardUsers }: AllEmployeesPanelP
               <div className="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">CNIC</p>
                 <p className="text-sm font-semibold text-gray-800 mt-0.5 font-mono">{detail.cnic || "—"}</p>
+                {detail.cnicPdfUrl ? (
+                  <div className="mt-3 space-y-2">
+                    {(() => {
+                      const preview = cnicDocumentPreview(detail.cnicPdfUrl);
+                      return preview.kind === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={preview.src}
+                          alt="CNIC"
+                          className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-white"
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                          <iframe src={preview.src} title="CNIC document" className="w-full h-56" />
+                        </div>
+                      );
+                    })()}
+                    <div className="flex items-center gap-3">
+                      <PdfPreview url={detail.cnicPdfUrl} fileName="CNIC document" />
+                      <a
+                        href={detail.cnicPdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-[#B8112D] hover:underline"
+                      >
+                        Open in new tab
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="rounded-2xl bg-teal-50/60 border border-teal-100 p-3.5 space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">Accounts payroll</p>
