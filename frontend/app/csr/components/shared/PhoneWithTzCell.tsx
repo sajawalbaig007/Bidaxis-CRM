@@ -54,7 +54,7 @@ export default function PhoneWithTzCell({
   );
 
   const shellClass =
-    variant === "pill" || extras > 0
+    variant === "pill"
       ? `inline-flex items-center gap-1 flex-nowrap bg-[#FFF6F7] text-[#B8112D] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium min-w-0 max-w-full overflow-visible ${className}`
       : `inline-flex items-center gap-1.5 flex-nowrap min-w-0 max-w-full overflow-visible ${className}`;
 

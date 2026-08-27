@@ -4,11 +4,13 @@ import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API, { apiErrorMessage } from "@/lib/api";
 import { getAdminTabCounts } from "@/lib/adminSummaryCache";
-import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP, CSR_TD_TOP_POPOVER, COL_6_ADMIN, COL_7_CLOSED, COL_7_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
+import { CsrColGroup, CSR_TABLE_CLASS, CSR_THEAD, CSR_TH, CSR_TD, CSR_TD_TOP_POPOVER, COL_6_ADMIN, COL_7_CLOSED, COL_7_SCHEDULE_ADMIN } from "@/app/csr/components/shared/csrTableStyles";
 import { FilterableTh, textColumnMatch, useColumnFilters } from "@/app/components/table/columnFilters";
 import CapsuleTabs, { type CapsuleTabItem } from "@/app/components/CapsuleTabs";
 import toast, { Toaster } from "react-hot-toast";
 import ExtraProjectCodesPopup from "./ExtraProjectCodesPopup";
+import { collectLeadEmails } from "@/app/csr/utils/parseEmails";
+import { collectLeadPhones } from "@/app/csr/utils/parsePhones";
 import { formatAdminLead } from "../utils/formatAdminLead";
 import { adminLeadStatusBadgeClass, adminLeadStatusLabel } from "../utils/leadStatus";
 
@@ -80,6 +82,7 @@ type Client = {
   createdAt: string;
   extraProjectCount: number;
   extraProjects: { code: string; scope: string }[];
+  subContacts: { id: string; name: string; designation?: string; phone?: string; email?: string }[];
 };
 
 const PAGE_SIZE = 30;
@@ -205,6 +208,7 @@ function ClientsPageContent() {
     isOldClient: false,
     extraProjectCount: 0,
     extraProjects: [],
+    subContacts: [],
     state: "",
     clientCode: null,
     projectCode: null,
@@ -759,8 +763,8 @@ function ClientsPageContent() {
                               const company =
                                 client.company && client.company !== "N/A" ? client.company.trim() : "";
                               return (
-                                <div className="flex items-start gap-2 sm:gap-3 min-w-0">
-                                  <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm mt-0.5">
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                  <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-full bg-[#F8ECEF] flex items-center justify-center text-[#B8112D] font-semibold shrink-0 text-xs sm:text-sm">
                                     {client.clientName.charAt(0)}
                                   </div>
                                   <div className="min-w-0 flex-1 overflow-visible">
@@ -875,7 +879,7 @@ function ClientsPageContent() {
                           </td>
 
                           {/* Notes */}
-                          <td className={`${CSR_TD_TOP} min-w-0 overflow-hidden`}>
+                          <td className={`${CSR_TD} min-w-0 overflow-hidden`}>
                             <CommentCell
                               id={client.id}
                               apiRole="admin"
@@ -1082,6 +1086,7 @@ function ClientsPageContent() {
         {selectedClient && (
           <LeadDetailModal
             apiPrefix="/admin"
+            startInEditMode
             lead={{
               id: selectedClient.id,
               name:    selectedClient.clientName,
@@ -1089,12 +1094,14 @@ function ClientsPageContent() {
               phone:   selectedClient.contact !== "N/A" ? selectedClient.contact : undefined,
               email:   selectedClient.email !== "N/A" ? selectedClient.email : undefined,
               website: selectedClient.website || undefined,
+              state:   selectedClient.state || undefined,
               status:  selectedClient.rawStatus,
               interestedService: selectedClient.scope !== "N/A" ? selectedClient.scope : undefined,
               followUpNotes: selectedClient.lastComment !== "No comments" ? selectedClient.lastComment : undefined,
               nextSchedule: selectedClient.nextFollowup || undefined,
               nextTime:     selectedClient.time !== "N/A" ? selectedClient.time : undefined,
               timezone:     selectedClient.timezone !== "N/A" ? selectedClient.timezone : undefined,
+              subContacts:  selectedClient.subContacts,
             }}
             onClose={() => setSelectedClient(null)}
             onSaved={(id, updates) => {
@@ -1107,6 +1114,10 @@ function ClientsPageContent() {
                   contact:    updates.phone?.trim() || c.contact,
                   email:      updates.email?.trim() || c.email,
                   website:    updates.website !== undefined ? updates.website.trim() : c.website,
+                  state:      updates.state !== undefined ? updates.state.trim() : c.state,
+                  scope:      updates.interestedService !== undefined
+                    ? (updates.interestedService.trim() || "N/A")
+                    : c.scope,
                 };
               }));
               setSelectedClient(prev => {
@@ -1118,8 +1129,51 @@ function ClientsPageContent() {
                   contact:    updates.phone?.trim() || prev.contact,
                   email:      updates.email?.trim() || prev.email,
                   website:    updates.website !== undefined ? updates.website.trim() : prev.website,
+                  state:      updates.state !== undefined ? updates.state.trim() : prev.state,
+                  scope:      updates.interestedService !== undefined
+                    ? (updates.interestedService.trim() || "N/A")
+                    : prev.scope,
                 };
               });
+            }}
+            onSubContactAdded={(id, sub) => {
+              const patch = (c: Client): Client => {
+                const subContacts = [...(c.subContacts ?? []), sub];
+                return {
+                  ...c,
+                  subContacts,
+                  contactPhones: collectLeadPhones(c.contact === "N/A" ? "" : c.contact, subContacts),
+                  emails: collectLeadEmails(c.email === "N/A" ? "" : c.email, subContacts),
+                };
+              };
+              setClients(prev => prev.map(c => c.id === id ? patch(c) : c));
+              setSelectedClient(prev => prev && prev.id === id ? patch(prev) : prev);
+            }}
+            onSubContactUpdated={(id, sub) => {
+              const patch = (c: Client): Client => {
+                const subContacts = (c.subContacts ?? []).map(s => s.id === sub.id ? sub : s);
+                return {
+                  ...c,
+                  subContacts,
+                  contactPhones: collectLeadPhones(c.contact === "N/A" ? "" : c.contact, subContacts),
+                  emails: collectLeadEmails(c.email === "N/A" ? "" : c.email, subContacts),
+                };
+              };
+              setClients(prev => prev.map(c => c.id === id ? patch(c) : c));
+              setSelectedClient(prev => prev && prev.id === id ? patch(prev) : prev);
+            }}
+            onSubContactDeleted={(id, subId) => {
+              const patch = (c: Client): Client => {
+                const subContacts = (c.subContacts ?? []).filter(s => s.id !== subId);
+                return {
+                  ...c,
+                  subContacts,
+                  contactPhones: collectLeadPhones(c.contact === "N/A" ? "" : c.contact, subContacts),
+                  emails: collectLeadEmails(c.email === "N/A" ? "" : c.email, subContacts),
+                };
+              };
+              setClients(prev => prev.map(c => c.id === id ? patch(c) : c));
+              setSelectedClient(prev => prev && prev.id === id ? patch(prev) : prev);
             }}
           />
         )}

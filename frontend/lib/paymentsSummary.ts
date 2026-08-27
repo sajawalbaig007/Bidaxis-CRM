@@ -37,6 +37,8 @@ export type ProjectPaymentSummaryRow = {
   paidLabel: string;
   percent: number;
   status: "full" | "partial" | "unpaid";
+  /** Admin marked that no further payment is expected */
+  discarded?: boolean;
   payments: PaymentEntrySummary[];
 };
 
@@ -48,6 +50,8 @@ export type ChannelSummary = {
   paymentCount: number;
   projectCount: number;
   activeCurrencies: ("USD" | "CAD" | "PKR")[];
+  /** PKR after Accounts formula (tax factor × FX), not raw PKR receipts only */
+  pkrFormula: number;
 };
 
 export type PaymentsSummaryPayload = {

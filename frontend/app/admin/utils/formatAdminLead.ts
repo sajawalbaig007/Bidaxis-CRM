@@ -28,7 +28,7 @@ export function formatAdminLead(lead: {
   state?: string | null;
   uploadFile?: { companyName?: string };
   csr?: { name?: string; csrCode?: string | null };
-  subContacts?: { id?: string; phone?: string | null; email?: string | null; name?: string }[];
+  subContacts?: { id?: string; phone?: string | null; email?: string | null; name?: string; designation?: string | null }[];
   notes?: { id?: string; text: string; createdAt?: string; parentId?: string | null }[];
   latestNote?: { id: string; text: string; createdAt: string; parentId?: string | null } | null;
   _count?: { notes?: number };
@@ -64,6 +64,7 @@ export function formatAdminLead(lead: {
   createdAt: string;
   extraProjectCount: number;
   extraProjects: { code: string; scope: string }[];
+  subContacts: { id: string; name: string; designation?: string; phone?: string; email?: string }[];
 } {
   const rawStatus = (lead.status || "pending").toLowerCase();
   const raw = lead.important && rawStatus !== "important" ? "important" : rawStatus;
@@ -149,5 +150,14 @@ export function formatAdminLead(lead: {
     createdAt: createdLabel,
     extraProjectCount,
     extraProjects,
+    subContacts: (lead.subContacts ?? [])
+      .filter(s => s.id && s.name)
+      .map(s => ({
+        id: String(s.id),
+        name: String(s.name),
+        designation: s.designation?.trim() || undefined,
+        phone: s.phone?.trim() || undefined,
+        email: s.email?.trim() || undefined,
+      })),
   };
 }

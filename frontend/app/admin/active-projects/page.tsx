@@ -49,7 +49,8 @@ import {
   matchesPaymentCollectionFilter,
   paymentPercent,
   projectAddedYearMonth,
-  projectAddedDay,
+  projectDeadlineYearMonth,
+  projectDeadlineDay,
 } from "@/lib/projectFields";
 
 function phaseLabel(value: string) {
@@ -1209,15 +1210,15 @@ export default function AdminProjectsPage() {
     const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
     const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
     const matchCsr = filterCSR === "all" || p.csr?.id === filterCSR;
-    const addedDay = projectAddedDay(p.createdAt);
-    const addedMonth = projectAddedYearMonth(p.createdAt);
+    const deadlineDay = projectDeadlineDay(p.projectDeadline);
+    const deadlineMonth = projectDeadlineYearMonth(p.projectDeadline);
     const matchDates =
       hideClientFinanceCols ||
       (!dateFrom && !dateTo) ||
-      (!!addedDay &&
-        (!dateFrom || addedDay >= dateFrom) &&
-        (!dateTo || addedDay <= dateTo));
-    const matchMonth = !monthFilter || addedMonth === monthFilter;
+      (!!deadlineDay &&
+        (!dateFrom || deadlineDay >= dateFrom) &&
+        (!dateTo || deadlineDay <= dateTo));
+    const matchMonth = !monthFilter || deadlineMonth === monthFilter;
     const matchPaymentType = matchesPaymentCollectionFilter(
       paymentTypeFilter,
       parsePayments(p.projectPayments),
@@ -1372,12 +1373,12 @@ export default function AdminProjectsPage() {
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
             <div className="flex items-center gap-2 flex-1 sm:max-w-lg">
               <Calendar size={15} className="text-gray-400 shrink-0" />
-              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Added</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Deadline</span>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                aria-label="Added from date"
+                aria-label="Client deadline from"
                 className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
               />
               <span className="text-xs text-gray-400 shrink-0">to</span>
@@ -1385,7 +1386,7 @@ export default function AdminProjectsPage() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                aria-label="Added to date"
+                aria-label="Client deadline to"
                 className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
               />
             </div>
@@ -1403,12 +1404,12 @@ export default function AdminProjectsPage() {
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
               <div className="relative flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white shadow-sm w-full sm:w-auto sm:min-w-[220px]">
                 <Calendar size={14} className="text-gray-400 shrink-0" />
-                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Added</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Deadline</span>
                 <input
                   type="month"
                   value={monthFilter}
                   onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
-                  aria-label="Filter by month the project was added"
+                  aria-label="Filter by client deadline month"
                   className="outline-none bg-transparent text-sm font-semibold text-[#0F172A] min-w-0 flex-1"
                 />
                 {monthFilter ? (

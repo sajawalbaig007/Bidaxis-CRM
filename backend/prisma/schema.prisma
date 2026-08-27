@@ -126,6 +126,8 @@ model Lead {
   subTrades          String?
   /** JSON string array of CSR trade-work explanations */
   tradeNotes         String?
+  /** Admin: no further payment expected on this quoted project (Payments dashboard). */
+  paymentDiscarded   Boolean   @default(false)
   assignedTo         String
   uploadedFileId     String?
   shuffleAttempts    Int       @default(0)

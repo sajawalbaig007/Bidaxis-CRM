@@ -390,7 +390,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:v8:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v9:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -413,6 +413,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
         nextSchedule: true,
         updatedAt: true,
         createdAt: true,
+        notes: { orderBy: { createdAt: "desc" as const }, take: 1, select: { createdAt: true } },
       },
       orderBy: { createdAt: "asc" },
     });
@@ -426,7 +427,14 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       : identityRows;
     const preferClientCode = view === "closed" || view === "all";
     const { unique, extraProjectCountById, extraProjectsById } = dedupeAdminLeads(viewRows, preferClientCode);
-    const uniqueRows = unique.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const noteMs = (l: { notes?: { createdAt: Date }[]; updatedAt: Date }) =>
+      l.notes?.[0]?.createdAt?.getTime() || 0;
+    const uniqueRows = unique.sort((a, b) => {
+      const nb = noteMs(b);
+      const na = noteMs(a);
+      if (nb !== na) return nb - na;
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
+    });
     const total = uniqueRows.length;
     const pageIds = uniqueRows
       .slice((page - 1) * limit, page * limit)
@@ -617,7 +625,7 @@ router.delete("/project/:id", verifyToken, allowRoles("admin", "manager", "techn
 router.put("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
-    const { name, phone, email, state, company, website } = req.body;
+    const { name, phone, email, state, company, website, interestedService } = req.body;
 
     const existing = await prisma.lead.findFirst({ where: { id: leadId } });
     if (!existing) return res.status(404).json({ success: false, message: "Lead not found" });
@@ -629,6 +637,9 @@ router.put("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_m
     if (state   !== undefined) updateData.state   = state;
     if (company !== undefined) updateData.company = company;
     if (website !== undefined) updateData.website = String(website ?? "").trim() || null;
+    if (interestedService !== undefined) {
+      updateData.interestedService = String(interestedService ?? "").trim() || null;
+    }
 
     const dup = await findDuplicateLead(
       phone !== undefined ? String(phone) : existing.phone,
@@ -2261,6 +2272,31 @@ router.get(
   },
 );
 
+router.post(
+  "/project/:id/discard-payment",
+  verifyToken,
+  allowRoles("admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const leadId = String(req.params.id);
+      const discarded = req.body?.discarded !== false;
+      const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, projectTitle: true },
+      });
+      if (!lead) return res.status(404).json({ success: false, message: "Project not found." });
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { paymentDiscarded: discarded },
+      });
+      return res.json({ success: true, discarded, message: discarded ? "Marked: payment not expected." : "Discard cleared." });
+    } catch (err) {
+      console.error("discard-payment error:", err);
+      return res.status(500).json({ success: false, message: "Failed to update payment status." });
+    }
+  },
+);
+
 router.get(
   "/technical-previous-month-ratings",
   verifyToken,
@@ -3618,7 +3654,7 @@ router.get("/upload-sources/:sourceId", verifyToken, allowRoles("admin", "manage
   }
 });
 
-/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (PST) ================= */
+/* ================= CSR / ESTIMATOR LOGIN / ACTIVITY REPORT (PKT) ================= */
 router.get(
   "/csr-session-report",
   verifyToken,
@@ -3668,7 +3704,7 @@ router.get(
   },
 );
 
-/* Admin can correct check-in / check-out times (EST). */
+/* Admin can correct check-in / check-out times (PKT). */
 router.put(
   "/csr-work-session/:id",
   verifyToken,
@@ -3689,7 +3725,7 @@ router.put(
       } = req.body ?? {};
 
       if (!checkInAt || typeof checkInAt !== "string") {
-        return res.status(400).json({ success: false, message: "checkInAt is required (PST datetime)." });
+        return res.status(400).json({ success: false, message: "checkInAt is required (PKT datetime)." });
       }
 
       const checkInDate =

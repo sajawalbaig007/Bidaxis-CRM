@@ -1,10 +1,12 @@
-/** CSR live check-in labels stay Eastern. Admin session reports display Pacific. */
+/** CSR live check-in labels stay Eastern. Admin session reports display Pakistan time. */
 export const CSR_REPORT_TIMEZONE = "America/New_York";
-export const ADMIN_SESSION_TIMEZONE = "America/Los_Angeles";
-export const ADMIN_SESSION_TZ_LABEL = "Pacific Time (PST/PDT)";
+export const ADMIN_SESSION_TIMEZONE = "Asia/Karachi";
+export const ADMIN_SESSION_TZ_LABEL = "Pakistan Time (PKT)";
 
 function offsetFallback(timeZone: string) {
-  return timeZone === ADMIN_SESSION_TIMEZONE ? "GMT-8" : "GMT-5";
+  if (timeZone === "Asia/Karachi") return "GMT+5";
+  if (timeZone === "America/Los_Angeles") return "GMT-8";
+  return "GMT-5";
 }
 
 export function formatEstDateTime(

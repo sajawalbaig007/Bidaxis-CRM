@@ -5,7 +5,8 @@ import {
   X, Phone, Mail, Building2, Pencil, Check,
   Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2,
 } from "lucide-react";
-import API from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
+import toast from "react-hot-toast";
 import { NoteEntry, SubContact } from "../hooks/useLeadsData";
 import { parseInterestedServices } from "../utils/parseInterestedServices";
 
@@ -36,6 +37,7 @@ export type DetailLeadUpdates = Partial<{
   website: string;
   state: string;
   followUpNotes: string;
+  interestedService: string;
 }>;
 
 interface LeadDetailModalProps {
@@ -48,6 +50,8 @@ interface LeadDetailModalProps {
   onSubContactDeleted?: (id: string, subId: string) => void;
   /** Use admin routes when opened from admin panel */
   apiPrefix?: "/csr" | "/admin";
+  /** Open directly in the edit form (admin eye). */
+  startInEditMode?: boolean;
 }
 
 const statusLabel = (s?: string) => {
@@ -179,14 +183,15 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
   return null;
 };
 
-export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactUpdated, onSubContactDeleted, apiPrefix = "/csr" }: LeadDetailModalProps) {
-  const [isEditing, setIsEditing] = useState(false);
+export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactUpdated, onSubContactDeleted, apiPrefix = "/csr", startInEditMode = false }: LeadDetailModalProps) {
+  const [isEditing, setIsEditing] = useState(startInEditMode);
   const [name, setName] = useState(lead.name ?? "");
   const [company, setCompany] = useState(lead.company ?? lead.rawCompany ?? "");
   const [phone, setPhone] = useState(lead.phone ?? "");
   const [email, setEmail] = useState(lead.email ?? "");
   const [website, setWebsite] = useState(lead.website ?? "");
   const [state, setState] = useState(lead.state ?? "");
+  const [interestedService, setInterestedService] = useState(lead.interestedService ?? "");
   const [saving, setSaving] = useState(false);
 
   /* Sub-contacts — lazy-loaded on mount if not pre-populated */
@@ -220,6 +225,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     setEmail(lead.email ?? "");
     setWebsite(lead.website ?? "");
     setState(lead.state ?? "");
+    setInterestedService(lead.interestedService ?? "");
     setIsEditing(true);
   };
 
@@ -227,31 +233,42 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     setSaving(true);
     try {
       const websiteTrim = website.trim();
-      await API.put(`${apiPrefix}/lead/${lead.id}`, { name, company, phone, email, website: websiteTrim, state });
-      onSaved?.(lead.id, { name, company, phone, email, website: websiteTrim, state });
+      const scopeTrim = interestedService.trim();
+      await API.put(`${apiPrefix}/lead/${lead.id}`, {
+        name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
+      });
+      onSaved?.(lead.id, {
+        name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
+      });
       setIsEditing(false);
+      toast.success("Lead updated.");
     } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      if (msg) alert(msg);
-      console.log(err);
+      const msg = apiErrorMessage(err, "Failed to update lead.");
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
 
   const addSubContact = async () => {
-    if (!subName.trim()) return;
+    const nameVal = subName.trim() || "Additional contact";
+    if (!subName.trim() && !subPhone.trim() && !subEmail.trim()) {
+      toast.error("Enter a name, phone, or email.");
+      return;
+    }
     setAddingSub(true);
     try {
       const res = await API.post(`${apiPrefix}/lead/${lead.id}/subcontacts`, {
-        name: subName.trim(), designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim(),
+        name: nameVal, designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim(),
       });
-      const sub: SubContact = res.data.subContact ?? { id: Date.now().toString(), name: subName.trim(), designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim() };
+      const sub: SubContact = res.data.subContact ?? { id: Date.now().toString(), name: nameVal, designation: subDesig.trim(), phone: subPhone.trim(), email: subEmail.trim() };
       setSubs(prev => [...prev, sub]);
       onSubContactAdded?.(lead.id, sub);
       setSubName(""); setSubDesig(""); setSubPhone(""); setSubEmail(""); setShowSubForm(false);
-    } catch (err) { console.log(err); }
-    finally { setAddingSub(false); }
+      toast.success("Sub-contact added.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to add sub-contact."));
+    } finally { setAddingSub(false); }
   };
 
   const startEditSub = (sub: SubContact) => {
@@ -276,7 +293,10 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
       setSubs(prev => prev.map(s => s.id === editingSubId ? updated : s));
       onSubContactUpdated?.(lead.id, updated);
       setEditingSubId(null);
-    } catch (err) { console.log(err); }
+      toast.success("Sub-contact updated.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to update sub-contact."));
+    }
     finally { setSavingSubId(null); }
   };
 
@@ -286,7 +306,10 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
       await API.delete(`${apiPrefix}/lead/${lead.id}/subcontacts/${subId}`);
       setSubs(prev => prev.filter(s => s.id !== subId));
       onSubContactDeleted?.(lead.id, subId);
-    } catch (err) { console.log(err); }
+      toast.success("Sub-contact removed.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to delete sub-contact."));
+    }
     finally { setDeletingId(null); }
   };
 
@@ -315,6 +338,8 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
       value: services.length > 0 ? services.join(", ") : lead.interestedService,
       Icon: Briefcase,
     });
+  } else {
+    infoItems.push({ label: "Interested In", value: "N/A", Icon: Briefcase });
   }
   if (lead.nextSchedule) {
     infoItems.push({
@@ -443,6 +468,12 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                   </div>
                 </div>
 
+                <div>
+                  <label className={`${labelClass} mb-2`}><Briefcase size={11} className="text-[#B8112D]"/>Scope / Interested In</label>
+                  <textarea rows={2} value={interestedService} onChange={e => setInterestedService(e.target.value)}
+                    placeholder="Scope of work" className={textareaClass}/>
+                </div>
+
                 {/* ACTIONS */}
                 <div className="flex gap-3 pb-1">
                   <button onClick={() => setIsEditing(false)}
@@ -466,9 +497,10 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
               <div className="flex items-center justify-between mb-3">
                 <label className={labelClass}><Users size={11} className="text-[#B8112D]"/>Sub Contacts</label>
                 <button
+                  type="button"
                   onClick={() => { setShowSubForm(v => !v); setSubName(""); setSubDesig(""); setSubPhone(""); setSubEmail(""); }}
-                  className="w-7 h-7 rounded-full bg-[#FFF1F3] text-[#B8112D] flex items-center justify-center hover:bg-[#B8112D] hover:text-white transition-colors">
-                  <Plus size={14}/>
+                  className="h-8 px-3 rounded-full bg-[#FFF1F3] text-[#B8112D] text-[11px] font-semibold inline-flex items-center gap-1 hover:bg-[#B8112D] hover:text-white transition-colors">
+                  <Plus size={14}/>{showSubForm ? "Cancel" : "Add"}
                 </button>
               </div>
 
@@ -476,7 +508,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                 <div className="mb-3 bg-[#F8F9FC] rounded-2xl p-3 space-y-2">
                   <input
                     type="text" value={subName} onChange={e => setSubName(e.target.value)}
-                    placeholder="Name *" className={inputClass}
+                    placeholder="Name (or leave blank)" className={inputClass}
                   />
                   <input
                     type="text" value={subDesig} onChange={e => setSubDesig(e.target.value)}
@@ -497,7 +529,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                       className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-xs font-semibold">
                       Cancel
                     </button>
-                    <button onClick={addSubContact} disabled={!subName.trim() || addingSub}
+                    <button onClick={addSubContact} disabled={addingSub || (!subName.trim() && !subPhone.trim() && !subEmail.trim())}
                       className="flex-1 h-9 rounded-xl bg-[#B8112D] text-white text-xs font-semibold disabled:opacity-50">
                       {addingSub ? "Adding…" : "Add Contact"}
                     </button>
