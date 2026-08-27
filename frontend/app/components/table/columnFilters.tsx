@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 export function textColumnMatch(value: string | null | undefined, filter: string): boolean {
@@ -74,16 +74,21 @@ export function FilterableTh({
   onFilter,
   placeholder,
   className,
+  headerExtra,
 }: {
   title: string;
   filter: string;
   onFilter: (v: string) => void;
   placeholder?: string;
   className?: string;
+  headerExtra?: ReactNode;
 }) {
   return (
     <th className={className}>
-      <span className="block">{title}</span>
+      <span className="flex items-center gap-1">
+        <span>{title}</span>
+        {headerExtra}
+      </span>
       <ColumnFilterInput value={filter} onChange={onFilter} placeholder={placeholder} />
     </th>
   );

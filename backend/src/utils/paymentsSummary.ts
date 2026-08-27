@@ -43,6 +43,8 @@ export type PaymentEntrySummary = {
 
 export type ProjectPaymentSummaryRow = {
   leadId: string;
+  /** Unique key when a partial project appears in both collected and unpaid lists */
+  rowKey?: string;
   projectCode: string | null;
   projectTitle: string | null;
   clientName: string | null;
@@ -53,7 +55,12 @@ export type ProjectPaymentSummaryRow = {
   paidLabel: string;
   percent: number;
   status: "full" | "partial" | "unpaid";
+  /** Admin marked that no further payment is expected */
   discarded?: boolean;
+  /** Amount included in the table sum (collected = paid; unpaid = remaining / quoted) */
+  sumAmount?: number;
+  remainingDue?: number;
+  unpaidFromPartial?: boolean;
   payments: PaymentEntrySummary[];
 };
 
@@ -345,23 +352,46 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       percent: Math.round(pctAllTime * 10) / 10,
       status,
       discarded: Boolean(lead.paymentDiscarded),
+      remainingDue,
       payments: rowPayments,
     };
 
     if (status === "full") {
       if (!monthFilter || hasMonthPay) {
         fullPaidCount += 1;
-        fullPaidProjects.push(row);
+        fullPaidProjects.push({
+          ...row,
+          rowKey: `${lead.id}-collected`,
+          sumAmount: paidTotalDisplay,
+        });
       }
     } else if (status === "partial") {
       if (!monthFilter || hasMonthPay) {
         partialPaidCount += 1;
-        partialPaidProjects.push(row);
+        partialPaidProjects.push({
+          ...row,
+          rowKey: `${lead.id}-collected`,
+          sumAmount: paidTotalDisplay,
+        });
+        if (remainingDue > 0) {
+          unpaidProjects.push({
+            ...row,
+            rowKey: `${lead.id}-unpaid`,
+            status: "unpaid",
+            sumAmount: remainingDue,
+            unpaidFromPartial: true,
+            payments: [],
+          });
+        }
       }
     } else if (quoted > 0) {
       if (!monthFilter || unpaidQuotedThisMonth) {
         unpaidWithQuoteCount += 1;
-        unpaidProjects.push(row);
+        unpaidProjects.push({
+          ...row,
+          rowKey: `${lead.id}-unpaid`,
+          sumAmount: quoted,
+        });
       }
     }
   }

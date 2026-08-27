@@ -34,7 +34,7 @@ type CsrActualStats = {
 };
 
 const BENTO =
-  "rounded-[1.75rem] border border-gray-100/90 bg-white shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
+  "rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
 
 /* ── Main Page ── */
 export default function ReportsPage() {
@@ -189,18 +189,18 @@ export default function ReportsPage() {
     : csrList;
 
   return (
-    <div className="flex min-h-screen bg-[#EEF1F7]">
+    <div className="flex min-h-screen bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <StaffSidebar />
 
       <main className="flex-1 min-w-0 overflow-x-hidden mt-[64px]">
         <DashboardNavbar />
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
+        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-5 space-y-3.5 sm:space-y-4">
 
           <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-wider text-[#B8112D]/80 mb-1">Admin · Analytics</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">Reports</h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] dark:text-crm-text tracking-tight">Reports</h1>
+              <p className="text-sm text-gray-500 dark:text-crm-text-muted mt-1">
                 CSR performance, status mix, and shift tracking
               </p>
             </div>
@@ -319,36 +319,49 @@ export default function ReportsPage() {
             </div>
           </section>
 
-          <section aria-label="Report stats" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <section aria-label="Report stats" className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
             {[
-              { label: "Total Leads", value: stats.totalLeads, from: "from-[#B8112D]", to: "to-[#8b0d22]", icon: <PhoneCall size={15} /> },
-              { label: "Completed", value: stats.completed, from: "from-[#059669]", to: "to-[#047857]", icon: <ShoppingCart size={15} /> },
-              { label: "Important", value: stats.important, from: "from-[#D97706]", to: "to-[#B45309]", icon: <AlertTriangle size={15} /> },
-              { label: "Interested", value: stats.interested, from: "from-[#2563EB]", to: "to-[#1D4ED8]", icon: <TrendingUp size={15} /> },
-              { label: "Schedule Call", value: stats.scheduleCall, from: "from-[#0891B2]", to: "to-[#0E7490]", icon: <Clock3 size={15} /> },
-              { label: "Close Client", value: stats.projectWon, from: "from-[#7C3AED]", to: "to-[#6D28D9]", icon: <FileBarChart2 size={15} /> },
-            ].map(tile => (
+              { label: "Total Leads", value: stats.totalLeads, accent: "#B8112D", icon: <PhoneCall size={15} /> },
+              { label: "Completed", value: stats.completed, accent: "#059669", icon: <ShoppingCart size={15} /> },
+              { label: "Important", value: stats.important, accent: "#D97706", icon: <AlertTriangle size={15} /> },
+              { label: "Interested", value: stats.interested, accent: "#2563EB", icon: <TrendingUp size={15} /> },
+              { label: "Schedule Call", value: stats.scheduleCall, accent: "#0891B2", icon: <Clock3 size={15} /> },
+              { label: "Close Client", value: stats.projectWon, accent: "#7C3AED", icon: <FileBarChart2 size={15} /> },
+            ].map(tile => {
+              const bar = stats.totalLeads > 0 ? Math.min(100, Math.round((tile.value / stats.totalLeads) * 100)) : (tile.label === "Total Leads" ? 100 : 0);
+              return (
               <div
                 key={tile.label}
-                className={`bg-gradient-to-br ${tile.from} ${tile.to} rounded-[1.5rem] p-3.5 sm:p-4 text-white shadow-md flex flex-col gap-2 min-h-[104px]`}
+                className={`${BENTO} relative p-3 sm:p-3.5 flex flex-col gap-2 min-h-[92px] h-full dark:bg-crm-surface`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-white/80 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-snug">
+                <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full" style={{ background: tile.accent }} />
+                <div className="flex items-start justify-between gap-2 pl-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-crm-text-muted leading-snug line-clamp-2">
                     {tile.label}
                   </span>
-                  <span className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                  <span
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white"
+                    style={{ background: tile.accent }}
+                  >
                     {tile.icon}
                   </span>
                 </div>
                 {loadingReport ? (
-                  <div className="h-8 w-14 bg-white/25 rounded-lg animate-pulse" />
+                  <div className="h-8 w-14 bg-gray-100 dark:bg-crm-muted rounded-lg animate-pulse ml-1" />
                 ) : (
-                  <span className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none tabular-nums">
+                  <span className="text-2xl sm:text-[1.75rem] font-extrabold tracking-tight leading-none tabular-nums text-[#0F172A] dark:text-crm-text pl-1">
                     {tile.value.toLocaleString()}
                   </span>
                 )}
+                <div className="w-full h-1 rounded-full bg-gray-100 dark:bg-crm-muted overflow-hidden mt-auto ml-1">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${Math.max(bar, bar > 0 ? 4 : 0)}%`, background: tile.accent }}
+                  />
+                </div>
               </div>
-            ))}
+              );
+            })}
           </section>
 
           <section

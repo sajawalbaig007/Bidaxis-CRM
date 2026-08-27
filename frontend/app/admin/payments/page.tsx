@@ -34,6 +34,9 @@ import {
   type ProjectPaymentSummaryRow,
 } from "@/lib/paymentsSummary";
 
+const BENTO =
+  "rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-white dark:bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]";
+
 const STATUS_COLORS = {
   paid: "#22C55E",
   partial: "#F59E0B",
@@ -163,34 +166,36 @@ function KpiCard({
   title,
   value,
   hint,
-  border,
+  accent,
   children,
   icon: Icon,
 }: {
   title: string;
   value: string;
   hint: string;
-  border: string;
+  accent: string;
   children?: React.ReactNode;
   icon: typeof DollarSign;
 }) {
   return (
-    <div
-      className={`bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-4 sm:p-5 border-t-4 ${border}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-crm-text-muted">
+    <div className={`${BENTO} relative p-4 sm:p-5 flex flex-col min-h-[132px]`}>
+      <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full" style={{ background: accent }} />
+      <div className="flex items-start justify-between gap-2 pl-1">
+        <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-crm-text-muted">
           {title}
         </p>
-        <span className="w-8 h-8 rounded-xl bg-crm-muted flex items-center justify-center text-crm-text-muted shrink-0">
+        <span
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0"
+          style={{ background: accent }}
+        >
           <Icon size={15} />
         </span>
       </div>
-      <p className="text-2xl sm:text-3xl font-extrabold text-crm-text tracking-tight tabular-nums mt-2 leading-none">
+      <p className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] dark:text-crm-text tracking-tight tabular-nums mt-2 leading-none pl-1">
         {value}
       </p>
-      <p className="text-[11px] text-crm-text-faint mt-1.5">{hint}</p>
-      {children}
+      <p className="text-[11px] text-gray-400 dark:text-crm-text-faint mt-1.5 pl-1">{hint}</p>
+      <div className="pl-1 mt-auto">{children}</div>
     </div>
   );
 }
@@ -238,6 +243,17 @@ function ProjectList({
   onDiscard?: (leadId: string, discarded: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const tableSum = rows.reduce((s, r) => {
+    if (r.discarded) return s;
+    const amt =
+      r.sumAmount ??
+      (r.unpaidFromPartial
+        ? (r.remainingDue ?? Math.max(0, r.quoted - r.paidTotal))
+        : r.status === "unpaid"
+          ? r.quoted
+          : r.paidTotal);
+    return s + amt;
+  }, 0);
   const toneCls =
     tone === "emerald"
       ? "border-emerald-100 bg-emerald-50/40 dark:border-emerald-500/20 dark:bg-emerald-500/10"
@@ -252,7 +268,7 @@ function ProjectList({
         : "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300";
 
   return (
-    <section className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm overflow-hidden">
+    <section className={`${BENTO} overflow-hidden`}>
       <div className={`px-4 sm:px-5 py-4 border-b ${toneCls}`}>
         <h2 className="text-sm font-bold text-crm-text flex items-center gap-2">
           {tone === "emerald" ? (
@@ -268,19 +284,27 @@ function ProjectList({
           </span>
         </h2>
         <p className="text-[11px] text-crm-text-muted mt-0.5">{subtitle}</p>
+        {rows.length > 0 ? (
+          <p className="text-sm font-extrabold tabular-nums text-crm-text mt-1.5">
+            Sum {formatMoneyAlways(tableSum)}
+          </p>
+        ) : null}
       </div>
       {rows.length === 0 ? (
         <p className="px-4 py-10 text-center text-sm text-crm-text-faint">{emptyText}</p>
       ) : (
         <div className="divide-y divide-crm-border-subtle max-h-[560px] overflow-y-auto">
           {rows.map((p) => {
-            const open = expanded[p.leadId] ?? false;
+            const rowKey = p.rowKey || p.leadId;
+            const open = expanded[rowKey] ?? false;
+            const remaining = p.remainingDue ?? Math.max(0, p.quoted - p.paidTotal);
+            const canExpand = p.payments.length > 0;
             const detailRows =
               p.payments.length > 0
                 ? p.payments
                 : [
                     {
-                      id: `${p.leadId}-empty`,
+                      id: `${rowKey}-empty`,
                       type: "—",
                       amount: "",
                       amountNum: 0,
@@ -298,13 +322,16 @@ function ProjectList({
 
             return (
               <div
-                key={p.leadId}
+                key={rowKey}
                 className={`px-3 sm:px-4 py-3 ${p.discarded ? "opacity-45 grayscale" : ""}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setExpanded((prev) => ({ ...prev, [p.leadId]: !open }))}
+                  onClick={() => {
+                    if (!canExpand) return;
+                    setExpanded((prev) => ({ ...prev, [rowKey]: !open }));
+                  }}
                   className="min-w-0 flex-1 text-left"
                 >
                   <div className="min-w-0">
@@ -323,13 +350,21 @@ function ProjectList({
                       {p.clientEmail ? ` · ${p.clientEmail}` : ""}
                     </p>
                     <p className="text-[11px] text-crm-text-faint mt-0.5">
-                      Quoted {p.quotedLabel} · Collected {p.paidLabel} · {p.percent}%
+                      {p.unpaidFromPartial
+                        ? `Quoted ${p.quotedLabel} · Remaining ${formatMoneyAlways(remaining)} · Paid ${p.paidLabel}`
+                        : `Quoted ${p.quotedLabel} · Collected ${p.paidLabel} · ${p.percent}%`}
                       {p.discarded ? " · Payment not expected" : ""}
                     </p>
                   </div>
                 </button>
                   <div className="flex items-center gap-2 shrink-0">
-                    {perRowStatus || p.status === "unpaid" ? (
+                    {p.unpaidFromPartial ? (
+                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full ${collectedCapsule("unpaid")}`}>
+                        Remaining
+                        <span className="opacity-80">·</span>
+                        {formatMoneyAlways(remaining)}
+                      </span>
+                    ) : perRowStatus || p.status === "unpaid" ? (
                       <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full ${collectedCapsule(p.status)}`}>
                         {collectedLabel(p.status)}
                         <span className="opacity-80">·</span>
@@ -350,7 +385,7 @@ function ProjectList({
                         +{p.payments.length - 1}
                       </span>
                     ) : null}
-                    {canDiscard && p.status === "unpaid" ? (
+                    {canDiscard && p.status === "unpaid" && !p.unpaidFromPartial ? (
                       <button
                         type="button"
                         onClick={() => onDiscard?.(p.leadId, !p.discarded)}
@@ -365,9 +400,10 @@ function ProjectList({
                         {p.discarded ? "Undo" : "Discard"}
                       </button>
                     ) : null}
+                    {canExpand ? (
                     <button
                       type="button"
-                      onClick={() => setExpanded((prev) => ({ ...prev, [p.leadId]: !open }))}
+                      onClick={() => setExpanded((prev) => ({ ...prev, [rowKey]: !open }))}
                       className="p-1"
                       aria-label={open ? "Collapse" : "Expand"}
                     >
@@ -376,10 +412,11 @@ function ProjectList({
                       className={`text-crm-text-faint transition-transform ${open ? "rotate-180" : ""}`}
                     />
                     </button>
+                    ) : null}
                   </div>
                 </div>
 
-                {open ? (
+                {open && canExpand ? (
                   <div className="mt-3 rounded-xl border border-crm-border-subtle overflow-hidden bg-crm-surface-muted/40">
                     <div className="overflow-x-auto">
                       <table className="w-full text-[11px] min-w-[980px]">
@@ -593,12 +630,12 @@ export default function AdminPaymentsPage() {
     : "—";
 
   return (
-    <div className="flex min-h-screen bg-[#F0F2F8] dark:bg-crm-bg-subtle">
+    <div className="flex min-h-screen bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <Toaster position="top-right" />
       <StaffSidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden mt-16">
         <DashboardNavbar />
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
+        <div className="w-full px-3 sm:px-5 lg:px-6 xl:px-8 2xl:px-10 py-4 sm:py-5 space-y-3.5 sm:space-y-4">
           {/* Header */}
           <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -637,7 +674,7 @@ export default function AdminPaymentsPage() {
           </header>
 
           {/* Filters */}
-          <section className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
+          <section className={`${BENTO} p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap`}>
             <div className="inline-flex p-1 rounded-full bg-crm-nav-pill border border-crm-border gap-1">
               <button
                 type="button"
@@ -697,7 +734,7 @@ export default function AdminPaymentsPage() {
                   ? `${t?.quotedProjects ?? 0} projects · collected this month + still due`
                   : `${t?.quotedProjects ?? 0} projects with quote`
               }
-              border="border-t-blue-500"
+              accent="#2563EB"
               icon={DollarSign}
             >
               <CurrencyLines
@@ -718,7 +755,7 @@ export default function AdminPaymentsPage() {
               title="Collected"
               value={loading && !data ? "…" : formatMoneyAlways(t?.collectedAmount ?? 0)}
               hint={`${t?.collectedEntries ?? 0} payment entries`}
-              border="border-t-emerald-500"
+              accent="#059669"
               icon={TrendingUp}
             >
               {t?.collectedByCurrency ? <CurrencyLines totals={t.collectedByCurrency} /> : null}
@@ -738,7 +775,7 @@ export default function AdminPaymentsPage() {
                   ? `Still due after all payments · ${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
                   : `${t?.unpaidWithQuoteCount ?? 0} unpaid · ${t?.partialPaidCount ?? 0} partial`
               }
-              border="border-t-red-500"
+              accent="#DC2626"
               icon={AlertCircle}
             >
               <MonthCompare
@@ -753,7 +790,7 @@ export default function AdminPaymentsPage() {
               title="Collection Rate"
               value={loading && !data ? "…" : `${t?.collectionRate ?? 0}%`}
               hint={`of total quoted`}
-              border="border-t-sky-500"
+              accent="#0EA5E9"
               icon={Percent}
             >
               <div className="mt-3 w-full h-2 rounded-full bg-crm-muted overflow-hidden">
@@ -771,7 +808,7 @@ export default function AdminPaymentsPage() {
           {/* Charts row */}
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
             {/* Payment status donut */}
-            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-4 sm:p-5">
+            <div className={`${BENTO} p-4 sm:p-5`}>
               <h2 className="text-[11px] font-bold uppercase tracking-wider text-crm-text-muted mb-3">
                 Payment Status
               </h2>
@@ -826,7 +863,7 @@ export default function AdminPaymentsPage() {
             </div>
 
             {/* Sources bar chart */}
-            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-4 sm:p-5 lg:col-span-2">
+            <div className={`${BENTO} p-4 sm:p-5 lg:col-span-2`}>
               <h2 className="text-[11px] font-bold uppercase tracking-wider text-crm-text-muted mb-1">
                 Collected by Source
               </h2>
@@ -896,8 +933,9 @@ export default function AdminPaymentsPage() {
                 return (
                   <div
                     key={ch.key}
-                    className={`rounded-2xl border ${style.border} ${style.soft} bg-crm-surface p-4 shadow-sm`}
+                    className={`${BENTO} relative overflow-hidden p-4 pl-5`}
                   >
+                    <div className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full" style={{ background: style.color }} />
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
@@ -931,7 +969,7 @@ export default function AdminPaymentsPage() {
             <ProjectList
               key={`collected-${data?.month ?? "all"}`}
               title="Collected"
-              subtitle="Full paid and partial paid in one list — status capsule shows amount and %"
+              subtitle="Paid amount — full paid projects and the collected portion of partial pays"
               rows={[
                 ...(data?.fullPaidProjects ?? []),
                 ...(data?.partialPaidProjects ?? []),
@@ -943,7 +981,7 @@ export default function AdminPaymentsPage() {
             <ProjectList
               key={`unpaid-${data?.month ?? "all"}`}
               title="Unpaid (with quote)"
-              subtitle="Quoted but nothing collected yet — admin can discard if payment is not expected"
+              subtitle="Fully unpaid quotes plus remaining balance on partial pays"
               rows={data?.unpaidProjects ?? []}
               tone="red"
               emptyText="No unpaid quoted projects."

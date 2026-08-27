@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   X, Phone, Mail, Building2, Pencil, Check,
-  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2,
+  Briefcase, CalendarDays, Globe, User2, MapPin, Plus, Trash2, Users, Link2, Hash, FileText,
 } from "lucide-react";
 import API, { apiErrorMessage } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -27,6 +27,11 @@ export type DetailLead = {
   timezone?: string;
   noteHistory?: NoteEntry[];
   subContacts?: SubContact[];
+  clientCode?: string | null;
+  isOldClient?: boolean;
+  csr?: string;
+  csrCode?: string | null;
+  createdAt?: string;
 };
 
 export type DetailLeadUpdates = Partial<{
@@ -38,6 +43,12 @@ export type DetailLeadUpdates = Partial<{
   state: string;
   followUpNotes: string;
   interestedService: string;
+  clientCode: string;
+  nextSchedule: string;
+  nextTime: string;
+  timezone: string;
+  status: string;
+  isOldClient: boolean;
 }>;
 
 interface LeadDetailModalProps {
@@ -70,6 +81,17 @@ const statusBadgeClass = (s?: string) => {
   return "bg-white/15 text-white/75 border border-white/20";
 };
 
+const ADMIN_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "important", label: "Important" },
+  { value: "interested", label: "Interested" },
+  { value: "Close Client", label: "Closed" },
+  { value: "Not Interested", label: "Not Interested" },
+  { value: "not picked", label: "Not Picked" },
+  { value: "no owner available", label: "No Owner Available" },
+  { value: "not in service", label: "Not In Service" },
+  { value: "in house", label: "In House" },
+];
 const inputClass    = "w-full h-11 rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors placeholder:text-gray-300";
 const textareaClass = "w-full rounded-2xl border-2 border-gray-200 bg-[#FAFAFA] px-4 py-3 text-sm outline-none focus:border-[#B8112D] focus:bg-white transition-colors resize-none placeholder:text-gray-300";
 const labelClass    = "text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5";
@@ -183,7 +205,7 @@ const getTimezoneForState = (state?: string): { label: string; abbreviation: str
   return null;
 };
 
-export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAdded, onSubContactUpdated, onSubContactDeleted, apiPrefix = "/csr", startInEditMode = false }: LeadDetailModalProps) {
+export default function LeadDetailModal({ lead, onClose, onSaved, onNoteAdded, onSubContactAdded, onSubContactUpdated, onSubContactDeleted, apiPrefix = "/csr", startInEditMode = false }: LeadDetailModalProps) {
   const [isEditing, setIsEditing] = useState(startInEditMode);
   const [name, setName] = useState(lead.name ?? "");
   const [company, setCompany] = useState(lead.company ?? lead.rawCompany ?? "");
@@ -192,7 +214,15 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const [website, setWebsite] = useState(lead.website ?? "");
   const [state, setState] = useState(lead.state ?? "");
   const [interestedService, setInterestedService] = useState(lead.interestedService ?? "");
+  const [clientCode, setClientCode] = useState(lead.clientCode ?? "");
+  const [nextSchedule, setNextSchedule] = useState(lead.nextSchedule ?? "");
+  const [nextTime, setNextTime] = useState(lead.nextTime ?? "");
+  const [timezone, setTimezone] = useState(lead.timezone ?? "");
+  const [status, setStatus] = useState(lead.status ?? "pending");
+  const [isOldClient, setIsOldClient] = useState(!!lead.isOldClient);
+  const [noteText, setNoteText] = useState(lead.followUpNotes ?? "");
   const [saving, setSaving] = useState(false);
+  const isAdmin = apiPrefix === "/admin";
 
   /* Sub-contacts — lazy-loaded on mount if not pre-populated */
   const [subs,       setSubs]       = useState<SubContact[]>(lead.subContacts ?? []);
@@ -226,6 +256,13 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     setWebsite(lead.website ?? "");
     setState(lead.state ?? "");
     setInterestedService(lead.interestedService ?? "");
+    setClientCode(lead.clientCode ?? "");
+    setNextSchedule(lead.nextSchedule ?? "");
+    setNextTime(lead.nextTime && lead.nextTime !== "N/A" ? lead.nextTime : "");
+    setTimezone(lead.timezone && lead.timezone !== "N/A" ? lead.timezone : "");
+    setStatus(lead.status ?? "pending");
+    setIsOldClient(!!lead.isOldClient);
+    setNoteText(lead.followUpNotes ?? "");
     setIsEditing(true);
   };
 
@@ -234,11 +271,44 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     try {
       const websiteTrim = website.trim();
       const scopeTrim = interestedService.trim();
-      await API.put(`${apiPrefix}/lead/${lead.id}`, {
+      const codeTrim = clientCode.trim();
+      const payload: Record<string, unknown> = {
         name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
-      });
+      };
+      if (isAdmin) {
+        payload.clientCode = codeTrim || null;
+        payload.nextSchedule = nextSchedule.trim() || null;
+        payload.nextTime = nextTime.trim() || null;
+        payload.timezone = timezone.trim() || null;
+        payload.status = status;
+        payload.isOldClient = isOldClient;
+      }
+      await API.put(`${apiPrefix}/lead/${lead.id}`, payload);
+      const trimmedNote = noteText.trim();
+      const prevNote = (lead.followUpNotes ?? "").trim();
+      if (isAdmin && trimmedNote && trimmedNote !== prevNote) {
+        const noteRes = await API.post(`${apiPrefix}/lead/${lead.id}/notes`, { text: trimmedNote });
+        const note = noteRes.data?.note;
+        onNoteAdded?.(lead.id, {
+          id: String(note?.id ?? `tmp-${Date.now()}`),
+          text: String(note?.text ?? trimmedNote),
+          createdAt: String(note?.createdAt ?? new Date().toISOString()),
+          parentId: note?.parentId ?? null,
+        });
+      }
       onSaved?.(lead.id, {
         name, company, phone, email, website: websiteTrim, state, interestedService: scopeTrim,
+        followUpNotes: trimmedNote,
+        ...(isAdmin
+          ? {
+              clientCode: codeTrim,
+              nextSchedule: nextSchedule.trim(),
+              nextTime: nextTime.trim(),
+              timezone: timezone.trim(),
+              status,
+              isOldClient,
+            }
+          : {}),
       });
       setIsEditing(false);
       toast.success("Lead updated.");
@@ -318,6 +388,7 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
   const locationTimezone = getTimezoneForState(lead.state);
 
   const infoItems: { label: string; value: string; Icon: typeof Phone; href?: string }[] = [
+    { label: "Client Code", value: lead.clientCode?.trim() || "N/A", Icon: Hash },
     { label: "Contact Person", value: lead.name, Icon: User2 },
     { label: "Company", value: lead.company || "N/A", Icon: Building2 },
     { label: "Phone", value: lead.phone || "N/A", Icon: Phone },
@@ -331,6 +402,17 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     { label: "Location", value: locationDisplay, Icon: MapPin },
   ];
 
+  if (lead.csr || lead.csrCode) {
+    infoItems.push({
+      label: "CSR",
+      value: [lead.csrCode, lead.csr].filter(Boolean).join(" — ") || "Unassigned",
+      Icon: Users,
+    });
+  }
+  if (lead.createdAt) {
+    infoItems.push({ label: "Created", value: lead.createdAt, Icon: CalendarDays });
+  }
+
   if (lead.interestedService) {
     const services = parseInterestedServices(lead.interestedService);
     infoItems.push({
@@ -340,6 +422,16 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
     });
   } else {
     infoItems.push({ label: "Interested In", value: "N/A", Icon: Briefcase });
+  }
+  if (isAdmin) {
+    infoItems.push({
+      label: "Client Type",
+      value: lead.isOldClient ? "Old Client" : "New Client",
+      Icon: Users,
+    });
+  }
+  if (lead.followUpNotes) {
+    infoItems.push({ label: "Notes", value: lead.followUpNotes, Icon: FileText });
   }
   if (lead.nextSchedule) {
     infoItems.push({
@@ -473,6 +565,76 @@ export default function LeadDetailModal({ lead, onClose, onSaved, onSubContactAd
                   <textarea rows={2} value={interestedService} onChange={e => setInterestedService(e.target.value)}
                     placeholder="Scope of work" className={textareaClass}/>
                 </div>
+
+                {isAdmin && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className={`${labelClass} mb-2`}><Hash size={11} className="text-[#B8112D]"/>Client Code</label>
+                        <input type="text" value={clientCode} onChange={e => setClientCode(e.target.value)}
+                          placeholder="e.g. 1097" className={inputClass}/>
+                      </div>
+                      <div>
+                        <label className={`${labelClass} mb-2`}>Status</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)} className={inputClass}>
+                          {ADMIN_STATUS_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                          {status && !ADMIN_STATUS_OPTIONS.some(o => o.value === status) && (
+                            <option value={status}>{status}</option>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className={`${labelClass} mb-2`}><CalendarDays size={11} className="text-[#B8112D]"/>Next Schedule</label>
+                        <input type="date" value={nextSchedule} onChange={e => setNextSchedule(e.target.value)} className={inputClass}/>
+                      </div>
+                      <div>
+                        <label className={`${labelClass} mb-2`}>Time</label>
+                        <input type="text" value={nextTime} onChange={e => setNextTime(e.target.value)}
+                          placeholder="e.g. 10:30 AM" className={inputClass}/>
+                      </div>
+                      <div>
+                        <label className={`${labelClass} mb-2`}><Globe size={11} className="text-[#B8112D]"/>Timezone</label>
+                        <input type="text" value={timezone} onChange={e => setTimezone(e.target.value)}
+                          placeholder="ET / CT / PT" className={inputClass}/>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={isOldClient}
+                        onChange={e => setIsOldClient(e.target.checked)}
+                        className="rounded border-gray-300 text-[#B8112D] focus:ring-[#B8112D]"
+                      />
+                      Old Client
+                    </label>
+                    <div>
+                      <label className={`${labelClass} mb-2`}><FileText size={11} className="text-[#B8112D]"/>Notes</label>
+                      <textarea rows={3} value={noteText} onChange={e => setNoteText(e.target.value)}
+                        placeholder="Add or update notes" className={textareaClass}/>
+                      <p className="text-[10px] text-gray-400 mt-1">Saving a changed note adds it to the notes history.</p>
+                    </div>
+                    {(lead.csr || lead.csrCode || lead.createdAt) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="bg-[#F8F9FC] rounded-2xl p-3.5">
+                          <p className="text-gray-400 text-[11px] mb-1">CSR</p>
+                          <p className="text-[#0F172A] text-[13px] font-semibold truncate">
+                            {[lead.csrCode, lead.csr].filter(Boolean).join(" — ") || "Unassigned"}
+                          </p>
+                        </div>
+                        {lead.createdAt && (
+                          <div className="bg-[#F8F9FC] rounded-2xl p-3.5">
+                            <p className="text-gray-400 text-[11px] mb-1">Created</p>
+                            <p className="text-[#0F172A] text-[13px] font-semibold">{lead.createdAt}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 {/* ACTIONS */}
                 <div className="flex gap-3 pb-1">

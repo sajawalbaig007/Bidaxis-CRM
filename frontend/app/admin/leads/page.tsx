@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import API, { apiErrorMessage } from "@/lib/api";
 import { getAdminTabCounts } from "@/lib/adminSummaryCache";
@@ -30,6 +30,8 @@ import {
   ArrowRightLeft,
   Check,
   Layers,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 /* ─── COMPONENTS ─── */
@@ -85,8 +87,43 @@ type Client = {
   subContacts: { id: string; name: string; designation?: string; phone?: string; email?: string }[];
 };
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 50;
 type ClientView = "all" | "important" | "schedule" | "interested" | "closed";
+type LeadSortField = "notes" | "clientCode";
+
+function SortPair({
+  field,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  field: LeadSortField;
+  sortBy: LeadSortField;
+  sortDir: "asc" | "desc";
+  onSort: (field: LeadSortField, dir: "asc" | "desc") => void;
+}) {
+  const active = sortBy === field;
+  return (
+    <span className="inline-flex flex-col -my-0.5 shrink-0" title={`Sort by ${field === "clientCode" ? "client code" : "notes"}`}>
+      <button
+        type="button"
+        aria-label={`${field === "clientCode" ? "Client code" : "Notes"} ascending`}
+        onClick={e => { e.stopPropagation(); onSort(field, "asc"); }}
+        className={`leading-none p-0 ${active && sortDir === "asc" ? "text-[#B8112D]" : "text-gray-300 hover:text-gray-500"}`}
+      >
+        <ChevronUp size={10} strokeWidth={2.5} />
+      </button>
+      <button
+        type="button"
+        aria-label={`${field === "clientCode" ? "Client code" : "Notes"} descending`}
+        onClick={e => { e.stopPropagation(); onSort(field, "desc"); }}
+        className={`leading-none p-0 -mt-0.5 ${active && sortDir === "desc" ? "text-[#B8112D]" : "text-gray-300 hover:text-gray-500"}`}
+      >
+        <ChevronDown size={10} strokeWidth={2.5} />
+      </button>
+    </span>
+  );
+}
 
 function isClientView(v: string | null): v is ClientView {
   return v === "all" || v === "important" || v === "schedule" || v === "interested" || v === "closed";
@@ -123,6 +160,8 @@ function ClientsPageContent() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [tableRefreshing, setTableRefreshing] = useState(false);
+  const hasRowsRef = useRef(false);
   const [page,    setPage]    = useState(1);
 
   const [view, setView] = useState<ClientView>("important");
@@ -228,6 +267,8 @@ function ClientsPageContent() {
   const [searchDebounced, setSearchDebounced] = useState("");
   const [impSearchDebounced, setImpSearchDebounced] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
+  const [sortBy, setSortBy] = useState<"notes" | "clientCode">("notes");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     void getAdminTabCounts(true)
@@ -299,12 +340,16 @@ function ClientsPageContent() {
     let cancelled = false;
 
     const loadClients = async () => {
-      setLoading(true);
+      const keepTable = hasRowsRef.current;
+      if (keepTable) setTableRefreshing(true);
+      else setLoading(true);
       try {
         const params = new URLSearchParams({
           view: effectiveView,
           page: String(page),
           limit: String(PAGE_SIZE),
+          sort: sortBy,
+          dir: sortDir,
         });
         if (csrFilter !== "all") params.set("csr", csrFilter);
         if (activeSearchQ.trim()) params.set("search", activeSearchQ.trim());
@@ -329,11 +374,13 @@ function ClientsPageContent() {
         setClients(uniqueLeads.map(formatAdminLead));
         setTotalRecords(res.data.total ?? 0);
         setRecordsView(effectiveView);
+        hasRowsRef.current = uniqueLeads.length > 0;
       } catch {
         if (!cancelled) toast.error("Failed to fetch clients");
       } finally {
         if (!cancelled) {
           setLoading(false);
+          setTableRefreshing(false);
           setInitialLoad(false);
         }
       }
@@ -351,6 +398,8 @@ function ClientsPageContent() {
     phoneFilter,
     filterAreaCodes,
     refreshToken,
+    sortBy,
+    sortDir,
   ]);
 
   const refreshTabCounts = () => {
@@ -430,6 +479,12 @@ function ClientsPageContent() {
   const headerFilterKey: Record<string, string> = {
     Client: "client", Scope: "scope",
     CSR: "csr", Status: "status", "Next Schedule": "schedule", Time: "time", Type: "type",
+  };
+
+  const applyLeadSort = (field: LeadSortField, dir: "asc" | "desc") => {
+    setSortBy(field);
+    setSortDir(dir);
+    if (page !== 1) setPage(1);
   };
 
   const handleSaveClient = async () => {
@@ -684,6 +739,7 @@ function ClientsPageContent() {
                 <h3 className="font-semibold text-gray-800 text-sm sm:text-base">{tableTitle}</h3>
                 <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
                   {displayCount} records
+                  {tableRefreshing ? " · updating…" : ""}
                 </p>
               </div>
 
@@ -695,6 +751,22 @@ function ClientsPageContent() {
                       {tableHeaders.map((h, i) => {
                         const fKey = headerFilterKey[h];
                         const thCls = `${CSR_TH} ${i === tableHeaders.length - 1 ? "text-right" : ""}`;
+                        const sortExtra =
+                          h === "Client" ? (
+                            <SortPair field="clientCode" sortBy={sortBy} sortDir={sortDir} onSort={applyLeadSort} />
+                          ) : h === "Notes" ? (
+                            <SortPair field="notes" sortBy={sortBy} sortDir={sortDir} onSort={applyLeadSort} />
+                          ) : undefined;
+                        if (h === "Notes") {
+                          return (
+                            <th key={h} className={thCls}>
+                              <span className="flex items-center gap-1">
+                                Notes
+                                {sortExtra}
+                              </span>
+                            </th>
+                          );
+                        }
                         if (fKey) {
                           return (
                             <FilterableTh
@@ -704,6 +776,7 @@ function ClientsPageContent() {
                               onFilter={v => setLeadColFilter(fKey, v)}
                               className={thCls}
                               placeholder={`${h}…`}
+                              headerExtra={sortExtra}
                             />
                           );
                         }
@@ -1102,11 +1175,20 @@ function ClientsPageContent() {
               nextTime:     selectedClient.time !== "N/A" ? selectedClient.time : undefined,
               timezone:     selectedClient.timezone !== "N/A" ? selectedClient.timezone : undefined,
               subContacts:  selectedClient.subContacts,
+              clientCode:   selectedClient.clientCode,
+              isOldClient:  selectedClient.isOldClient,
+              csr:          selectedClient.csr,
+              csrCode:      selectedClient.csrCode,
+              createdAt:    selectedClient.createdAt,
             }}
             onClose={() => setSelectedClient(null)}
             onSaved={(id, updates) => {
-              setClients(prev => prev.map(c => {
+              const patch = (c: Client): Client => {
                 if (c.id !== id) return c;
+                const nextFollowup = updates.nextSchedule !== undefined
+                  ? (updates.nextSchedule.trim() || "")
+                  : c.nextFollowup;
+                const rawStatus = updates.status ?? c.rawStatus;
                 return {
                   ...c,
                   clientName: updates.name?.trim() || c.clientName,
@@ -1118,21 +1200,48 @@ function ClientsPageContent() {
                   scope:      updates.interestedService !== undefined
                     ? (updates.interestedService.trim() || "N/A")
                     : c.scope,
+                  clientCode: updates.clientCode !== undefined
+                    ? (updates.clientCode.trim() || null)
+                    : c.clientCode,
+                  isOldClient: updates.isOldClient ?? c.isOldClient,
+                  rawStatus,
+                  status: adminLeadStatusLabel(rawStatus, nextFollowup),
+                  nextFollowup,
+                  time: updates.nextTime !== undefined
+                    ? (updates.nextTime.trim() || "N/A")
+                    : c.time,
+                  timezone: updates.timezone !== undefined
+                    ? (updates.timezone.trim() || "N/A")
+                    : c.timezone,
+                  lastComment: updates.followUpNotes !== undefined
+                    ? (updates.followUpNotes.trim() || c.lastComment)
+                    : c.lastComment,
                 };
-              }));
+              };
+              setClients(prev => prev.map(patch));
+              setSelectedClient(prev => (prev && prev.id === id ? patch(prev) : prev));
+              setRefreshToken(t => t + 1);
+            }}
+            onNoteAdded={(id, note) => {
+              setClients((prev) =>
+                bumpToFront(prev, id, (c) => {
+                  const hist = c.noteHistory ?? [];
+                  return {
+                    ...c,
+                    lastComment: note.text,
+                    noteHistory: [note, ...hist],
+                    noteCount: (c.noteCount ?? hist.length) + 1,
+                  };
+                }),
+              );
               setSelectedClient(prev => {
                 if (!prev || prev.id !== id) return prev;
+                const hist = prev.noteHistory ?? [];
                 return {
                   ...prev,
-                  clientName: updates.name?.trim() || prev.clientName,
-                  company:    updates.company?.trim() || prev.company,
-                  contact:    updates.phone?.trim() || prev.contact,
-                  email:      updates.email?.trim() || prev.email,
-                  website:    updates.website !== undefined ? updates.website.trim() : prev.website,
-                  state:      updates.state !== undefined ? updates.state.trim() : prev.state,
-                  scope:      updates.interestedService !== undefined
-                    ? (updates.interestedService.trim() || "N/A")
-                    : prev.scope,
+                  lastComment: note.text,
+                  noteHistory: [note, ...hist],
+                  noteCount: (prev.noteCount ?? hist.length) + 1,
                 };
               });
             }}

@@ -390,7 +390,11 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       ? String(req.query.areaCodes).split(",").map(s => s.trim()).filter(Boolean)
       : [];
 
-    const cacheKey = `admin:clients:list:v9:${view}:${page}:${limit}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const sortRaw = String(req.query.sort || "notes").toLowerCase();
+    const sortBy = sortRaw === "clientcode" || sortRaw === "client_code" ? "clientCode" : "notes";
+    const sortDir = String(req.query.dir || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+
+    const cacheKey = `admin:clients:list:v10:${view}:${page}:${limit}:${sortBy}:${sortDir}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
@@ -401,20 +405,25 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
       areaCodes,
     });
 
+    const identitySelect = {
+      id: true,
+      phone: true,
+      company: true,
+      clientCode: true,
+      projectCode: true,
+      interestedService: true,
+      nextSchedule: true,
+      updatedAt: true,
+      createdAt: true,
+    } as const;
     const identityRows = await prisma.lead.findMany({
       where,
-      select: {
-        id: true,
-        phone: true,
-        company: true,
-        clientCode: true,
-        projectCode: true,
-        interestedService: true,
-        nextSchedule: true,
-        updatedAt: true,
-        createdAt: true,
-        notes: { orderBy: { createdAt: "desc" as const }, take: 1, select: { createdAt: true } },
-      },
+      select: sortBy === "notes"
+        ? {
+            ...identitySelect,
+            notes: { orderBy: { createdAt: "desc" as const }, take: 1, select: { createdAt: true } },
+          }
+        : identitySelect,
       orderBy: { createdAt: "asc" },
     });
     const viewRows =
@@ -428,12 +437,24 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const preferClientCode = view === "closed" || view === "all";
     const { unique, extraProjectCountById, extraProjectsById } = dedupeAdminLeads(viewRows, preferClientCode);
     const noteMs = (l: { notes?: { createdAt: Date }[]; updatedAt: Date }) =>
-      l.notes?.[0]?.createdAt?.getTime() || 0;
+      l.notes?.[0]?.createdAt?.getTime() || l.updatedAt.getTime();
+    const codeKey = (code: string | null | undefined) => (code || "").trim();
     const uniqueRows = unique.sort((a, b) => {
-      const nb = noteMs(b);
+      if (sortBy === "clientCode") {
+        const sa = codeKey(a.clientCode);
+        const sb = codeKey(b.clientCode);
+        if (!sa && !sb) return b.updatedAt.getTime() - a.updatedAt.getTime();
+        if (!sa) return 1;
+        if (!sb) return -1;
+        const cmp = sa.localeCompare(sb, undefined, { numeric: true, sensitivity: "base" });
+        return sortDir === "asc" ? cmp : -cmp;
+      }
       const na = noteMs(a);
-      if (nb !== na) return nb - na;
-      return b.updatedAt.getTime() - a.updatedAt.getTime();
+      const nb = noteMs(b);
+      if (nb !== na) return sortDir === "asc" ? na - nb : nb - na;
+      return sortDir === "asc"
+        ? a.updatedAt.getTime() - b.updatedAt.getTime()
+        : b.updatedAt.getTime() - a.updatedAt.getTime();
     });
     const total = uniqueRows.length;
     const pageIds = uniqueRows
@@ -625,7 +646,7 @@ router.delete("/project/:id", verifyToken, allowRoles("admin", "manager", "techn
 router.put("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_manager"), async (req, res) => {
   try {
     const leadId = String(req.params.id);
-    const { name, phone, email, state, company, website, interestedService } = req.body;
+    const { name, phone, email, state, company, website, interestedService, clientCode, nextSchedule, nextTime, timezone, status, isOldClient } = req.body;
 
     const existing = await prisma.lead.findFirst({ where: { id: leadId } });
     if (!existing) return res.status(404).json({ success: false, message: "Lead not found" });
@@ -639,6 +660,32 @@ router.put("/lead/:id", verifyToken, allowRoles("admin", "manager", "technical_m
     if (website !== undefined) updateData.website = String(website ?? "").trim() || null;
     if (interestedService !== undefined) {
       updateData.interestedService = String(interestedService ?? "").trim() || null;
+    }
+    if (clientCode !== undefined) {
+      const code = String(clientCode ?? "").trim();
+      updateData.clientCode = code || null;
+    }
+    if (nextSchedule !== undefined) updateData.nextSchedule = String(nextSchedule ?? "").trim() || null;
+    if (nextTime !== undefined) updateData.nextTime = String(nextTime ?? "").trim() || null;
+    if (timezone !== undefined) updateData.timezone = String(timezone ?? "").trim() || null;
+    if (typeof isOldClient === "boolean") updateData.isOldClient = isOldClient;
+    if (status !== undefined) {
+      const raw = String(status).trim();
+      const n = raw.toLowerCase();
+      const canonical =
+        n === "not interested" ? "Not Interested" :
+        n === "not picked" || n === "notpicked" ? "not picked" :
+        n === "close client" || n === "closed" ? "Close Client" :
+        n === "no owner available" ? "no owner available" :
+        n === "not in service" ? "not in service" :
+        n === "in house" ? "in house" :
+        n === "important" ? "important" :
+        n === "interested" ? "interested" :
+        n === "pending" ? "pending" :
+        raw;
+      updateData.status = canonical;
+      updateData.important = canonical === "important";
+      updateData.interested = canonical === "interested";
     }
 
     const dup = await findDuplicateLead(
