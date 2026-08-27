@@ -6,6 +6,7 @@
 import API from "@/lib/api";
 import type { SubHeadEntry } from "../types";
 import { withSyncedPayrollAmount } from "./payrollAmountSync";
+import { departmentForPayrollKind } from "./payrollLoanSync";
 import { resolvePayrollKind } from "./salesPayrollBridge";
 
 export type LedgerLoan = {
@@ -30,11 +31,22 @@ export function ledgerPending(loan: { totalAmount?: number; paidAmount?: number 
   return Math.max(0, (Number(loan.totalAmount) || 0) - (Number(loan.paidAmount) || 0));
 }
 
-/** Find ledger row for this employee only — exact name (no substring / other people). */
-export function matchLedgerLoan(loans: LedgerLoan[], name: string): LedgerLoan | null {
+/** Find ledger row for this employee only — exact name, same team when set. */
+export function matchLedgerLoan(
+  loans: LedgerLoan[],
+  name: string,
+  department?: string,
+): LedgerLoan | null {
   const q = normName(name);
   if (!q) return null;
-  return loans.find(l => normName(l.employeeName) === q) ?? null;
+  const sameName = loans.filter(l => normName(l.employeeName) === q);
+  if (!sameName.length) return null;
+  if (department) {
+    const dept = sameName.find(l => l.department === department);
+    if (dept) return dept;
+    return sameName.length === 1 ? sameName[0] : null;
+  }
+  return sameName[0] ?? null;
 }
 
 /**
@@ -86,11 +98,13 @@ export function applyPendingLoanFromLedger(
 export async function fetchAndApplyPendingLoan(
   name: string,
   current: SalaryLoanFields,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; department?: string },
 ): Promise<SalaryLoanFields | null> {
   if (!name.trim()) return null;
   try {
-    const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(name.trim())}`);
+    const params = new URLSearchParams({ name: name.trim() });
+    if (opts?.department) params.set("department", opts.department);
+    const res = await API.get(`/accounts/payroll-loans/lookup?${params.toString()}`);
     const loan = res.data.loan as LedgerLoan | null;
     return applyPendingLoanFromLedger(
       current,
@@ -102,13 +116,13 @@ export async function fetchAndApplyPendingLoan(
   }
 }
 
-/** Load full ledger once (for batch hydrate). */
-export async function fetchAllPayrollLoans(): Promise<LedgerLoan[]> {
+/** Load full ledger once (for batch hydrate). `ok: false` = request failed — do not wipe local fields. */
+export async function fetchAllPayrollLoans(): Promise<{ ok: boolean; loans: LedgerLoan[] }> {
   try {
     const res = await API.get("/accounts/payroll-loans");
-    return (res.data.loans as LedgerLoan[]) ?? [];
+    return { ok: true, loans: (res.data.loans as LedgerLoan[]) ?? [] };
   } catch {
-    return [];
+    return { ok: false, loans: [] };
   }
 }
 
@@ -129,14 +143,15 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
   loans: LedgerLoan[],
   teamTitle = "",
 ): T[] | undefined {
-  if (!subs?.length || !loans.length) return subs;
+  if (!subs?.length) return subs;
   const teamKind = teamTitle ? resolvePayrollKind(teamTitle, subs as never) : undefined;
+  const department = teamKind ? departmentForPayrollKind(teamKind) : undefined;
   let changed = false;
   const next = subs.map(sub => {
     const name = (sub.salesPayroll?.name || sub.label || sub.name || "").trim();
     if (!name) return sub;
-    const ledger = matchLedgerLoan(loans, name);
-    // No exact person match → strip copied totals so 20k/9k/1k never land on someone else
+    const ledger = matchLedgerLoan(loans, name, department);
+    // No exact person (+ team) match → strip copied totals so they never land on someone else
     const ledgerOrClear = ledger ?? { employeeName: name, totalAmount: 0, paidAmount: 0 };
 
     let patchSub = sub;
@@ -190,8 +205,8 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
 export async function hydrateIncomeStatementPendingLoans<
   T extends { teamSalaries?: { team?: string; subHeads?: LoanBearing[]; [k: string]: unknown }[] },
 >(data: T): Promise<T> {
-  const loans = await fetchAllPayrollLoans();
-  if (!loans.length || !data.teamSalaries?.length) return data;
+  const { ok, loans } = await fetchAllPayrollLoans();
+  if (!ok || !data.teamSalaries?.length) return data;
 
   let changed = false;
   const teamSalaries = data.teamSalaries.map(team => {

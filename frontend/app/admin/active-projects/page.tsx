@@ -1109,7 +1109,7 @@ export default function AdminProjectsPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success("Template downloaded — use Projects sheet (columns across row 1)");
+      toast.success("Template downloaded — heads match Add New Project fields");
     } catch {
       toast.error("Failed to download template");
     }
@@ -1300,7 +1300,7 @@ export default function AdminProjectsPage() {
                   type="button"
                   onClick={() => void downloadProjectDbTemplate()}
                   className="flex items-center justify-center gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white text-gray-700 text-xs sm:text-sm font-semibold hover:border-[#B8112D]/40 hover:text-[#B8112D] transition-colors"
-                  title="Download Excel template with all Project DB fields"
+                  title="Download Excel template (same fields as Add New Project)"
                 >
                   <Download size={14} /> Template
                 </button>

@@ -3,7 +3,25 @@ import prisma from "../config/db";
 import { AuthRequest } from "../middleware/auth.middleware";
 
 function normName(n: string) {
-  return n.trim().toLowerCase();
+  return n.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function matchLoanByName(
+  loans: { employeeName: string; department: string }[],
+  name: string,
+  department?: string,
+) {
+  const q = normName(name);
+  if (!q) return null;
+  const sameName = loans.filter(l => normName(l.employeeName) === q);
+  if (!sameName.length) return null;
+  if (department) {
+    const dept = sameName.find(l => l.department === department);
+    if (dept) return dept;
+    // One person in the ledger → allow (legacy rows without a team split)
+    return sameName.length === 1 ? sameName[0] : null;
+  }
+  return sameName[0];
 }
 
 export async function listPayrollLoans(req: AuthRequest, res: Response) {
@@ -13,7 +31,7 @@ export async function listPayrollLoans(req: AuthRequest, res: Response) {
     let loans = await prisma.payrollLoan.findMany({ orderBy: { updatedAt: "desc" } });
     if (name) {
       const q = normName(name);
-      loans = loans.filter(l => normName(l.employeeName).includes(q));
+      loans = loans.filter(l => normName(l.employeeName) === q);
     }
     if (department) {
       loans = loans.filter(l => l.department === department);
@@ -31,9 +49,9 @@ export async function lookupPayrollLoan(req: AuthRequest, res: Response) {
     if (!name) {
       return res.status(400).json({ success: false, message: "Name required." });
     }
+    const department = String(req.query.department ?? "").trim();
     const loans = await prisma.payrollLoan.findMany({ orderBy: { updatedAt: "desc" } });
-    const q = normName(name);
-    const match = loans.find(l => normName(l.employeeName) === q) ?? null;
+    const match = matchLoanByName(loans, name, department || undefined);
     return res.json({ success: true, loan: match });
   } catch (err) {
     console.log(err);
@@ -69,8 +87,7 @@ export async function upsertPayrollLoan(req: AuthRequest, res: Response) {
       loan = await prisma.payrollLoan.update({ where: { id }, data: payload });
     } else {
       const all = await prisma.payrollLoan.findMany();
-      const q = normName(name);
-      const existing = all.find(l => normName(l.employeeName) === q);
+      const existing = matchLoanByName(all, name, payload.department) ?? matchLoanByName(all, name);
       loan = existing
         ? await prisma.payrollLoan.update({ where: { id: existing.id }, data: payload })
         : await prisma.payrollLoan.create({ data: payload });

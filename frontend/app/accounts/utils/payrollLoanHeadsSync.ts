@@ -129,8 +129,8 @@ const HEAD_ORDER: LoanHeadKey[] = [
 const LEGACY_LOAN_LABELS = new Set(["loan issued", "loans", "loan"]);
 
 /**
- * Rewrite Loans heads from Team Salaries loan fields (this month / outstanding).
- * Keeps manual loan rows that are not in payroll.
+ * Rewrite Loans heads from Team Salaries remaining (Total − Paid − This month).
+ * Each department table lists only that team's people; head Total is their sum.
  */
 export function syncLoanHeadsFromSalaries(data: IncomeStatementData): IncomeStatementData {
   const contributions = collectLoansFromTeamSalaries(data.teamSalaries ?? []);
@@ -177,12 +177,6 @@ export function syncLoanHeadsFromSalaries(data: IncomeStatementData): IncomeStat
       }
     }
 
-    for (const s of prevSubs) {
-      if (matched.has(s.id)) continue;
-      if (contribs.some(c => normName(c.name) === normName(s.label))) continue;
-      nextSubs.push(s);
-    }
-
     return {
       ...base,
       label,
@@ -212,10 +206,10 @@ export function syncLoanHeadsFromSalaries(data: IncomeStatementData): IncomeStat
     nextHeads.push({ ...h, amount: lineAmount(h) });
   }
 
-  // Hide empty auto-heads when nothing to show (keeps UI clean) — still keep if any contrib existed
+  // Always keep Sales / Admin / Technical / Executive heads so each table shows its total
   const pruned = nextHeads.filter(h => {
-    if (!HEAD_ORDER.includes(h.label as LoanHeadKey)) return true;
-    return (h.subHeads ?? []).length > 0 || contributions.some(c => c.head === h.label);
+    if (HEAD_ORDER.includes(h.label as LoanHeadKey)) return true;
+    return (h.subHeads ?? []).length > 0 || (Number(h.amount) || 0) > 0;
   });
 
   // Always keep at least the seeded structure when there are contributions

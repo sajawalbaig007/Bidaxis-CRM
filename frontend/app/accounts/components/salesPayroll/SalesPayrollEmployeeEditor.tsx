@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { currency } from "../../types";
 import {
   calcSalesCommission,
@@ -109,16 +109,12 @@ export default function SalesPayrollEmployeeEditor({
         loanPaid: Number(current.loanPaid) || 0,
         loanThisMonth: Number(current.loanThisMonth) || 0,
       },
-      { force },
+      { force, department: variant === "team_lead" ? "sales_team_lead" : "sales_team" },
     );
     if (!patch) return;
     // Merge onto latest employee so occasional / other edits aren't wiped mid-request
     onChangeRef.current({ ...employeeRef.current, ...patch });
-  }, []);
-
-  useEffect(() => {
-    if (open || embedded) void lookupLoan(false);
-  }, [open, embedded, employee.name, lookupLoan]);
+  }, [variant]);
 
   const assignedReps = allData.salesTeamMembers.filter(m =>
     isRepAssignedToLead(m, employee.id),

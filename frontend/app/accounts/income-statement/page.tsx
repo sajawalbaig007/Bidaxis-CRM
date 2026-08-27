@@ -30,7 +30,6 @@ import {
 import { recomputePayrollSubAmounts } from "../utils/payrollAmountSync";
 import { syncProvidentFundFromSalaries } from "../utils/payrollPfSync";
 import { syncLoanHeadsFromSalaries } from "../utils/payrollLoanHeadsSync";
-import { hydrateIncomeStatementPendingLoans } from "../utils/loanLedgerApply";
 import {
   clearPersonLoanFromTeamSalaries,
   deletePayrollLoanByName,
@@ -202,21 +201,6 @@ export default function IncomeStatementPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
   }, [acc.loading, acc.recordDate, currencyTotal]);
-
-  /** Pending loans from shared ledger → salary / salesPayroll loan fields */
-  useEffect(() => {
-    if (acc.loading) return;
-    let cancelled = false;
-    void (async () => {
-      const hydrated = await hydrateIncomeStatementPendingLoans(acc.data);
-      if (cancelled || hydrated === acc.data) return;
-      acc.setData(() => normalizeIncomeStatement(hydrated, currencyTotal));
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per loaded record date
-  }, [acc.loading, acc.recordDate]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
     try {
@@ -522,7 +506,7 @@ export default function IncomeStatementPage() {
               title="Loans"
               accent="#EA580C"
               addLabel="Add Loan Head"
-              emptyLabel="Pending loans only — fully paid employees drop off automatically."
+              emptyLabel="Each team’s remaining total (Admin, Sales, Technical, Executive). Only people who still owe appear."
               rows={(data.loanHeads ?? []).map(opexToHead)}
               onChange={(rows, opts) => commit({ loanHeads: rows.map(headToOpex) }, opts)}
               onDeleteSubHead={({ sub, nextRows }) => {

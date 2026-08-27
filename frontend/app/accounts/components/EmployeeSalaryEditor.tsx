@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import {
   computeAdminSalary,
   computeSalary,
@@ -9,6 +9,8 @@ import {
   type EmployeeSalaryDetail,
 } from "../utils/payrollFormula";
 import { fetchAndApplyPendingLoan } from "../utils/loanLedgerApply";
+import { departmentForPayrollKind } from "../utils/payrollLoanSync";
+import { resolvePayrollKind } from "../utils/salesPayrollBridge";
 import { currency } from "../types";
 import AmountInput from "./AmountInput";
 
@@ -101,17 +103,21 @@ export default function EmployeeSalaryEditor({
         loanPaid: Number(current.loanPaid) || 0,
         loanThisMonth: Number(current.loanThisMonth) || 0,
       },
-      { force },
+      {
+        force,
+        department: teamHint
+          ? departmentForPayrollKind(resolvePayrollKind(teamHint))
+          : variant === "admin"
+            ? "administration"
+            : variant === "technical_manager"
+              ? "technical_manager"
+              : "technical_team",
+      },
     );
     if (!patch) return;
     // Merge onto latest salary so in-flight edits (e.g. occasional) are not wiped
     onChangeRef.current(emptySalaryDetail({ ...dRef.current, ...patch }));
-  }, [enableLoanLookup, name]);
-
-  useEffect(() => {
-    void lookupLoan(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate when person opens / name changes
-  }, [name]);
+  }, [enableLoanLookup, name, teamHint, variant]);
 
   return (
     <div className="space-y-3 rounded-xl border border-crm-border bg-crm-surface p-3">
@@ -285,7 +291,7 @@ export default function EmployeeSalaryEditor({
           )}
         </div>
         <p className="text-[10px] text-orange-700/80">
-          Pending loan auto-fills from the shared ledger. Clearance: deduct from salary or pay separately in cash. Remaining = Total − Paid − This month.
+          Remaining = Total − Paid − This month. Only this employee’s figures — it does not copy onto other people.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Total Loan Amount" value={d.loanTotal} onChange={v => set("loanTotal", v)} />
