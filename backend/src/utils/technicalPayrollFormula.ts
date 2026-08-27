@@ -20,6 +20,11 @@ export type TechnicalSalaryDetail = {
   pfAuto: boolean;
   pfOverride?: number | null;
   remarks: string;
+  /** HR profile — kept on income-statement salary rows for GPS salary slips */
+  employeeId?: string;
+  address?: string;
+  phone?: string;
+  cnic?: string;
 };
 
 export type TechnicalPayrollEmployee = TechnicalSalaryDetail & {
@@ -76,6 +81,10 @@ export function emptyTechnicalSalary(partial?: Partial<TechnicalSalaryDetail>): 
     pfAuto: true,
     pfOverride: null,
     remarks: "",
+    employeeId: "",
+    address: "",
+    phone: "",
+    cnic: "",
     ...partial,
   };
   merged.occasionalAmount = Math.max(0, Number(merged.occasionalAmount) || 0);

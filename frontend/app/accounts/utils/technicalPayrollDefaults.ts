@@ -73,6 +73,10 @@ export function normalizeTechnicalPayrollData(raw: unknown): TechnicalPayrollDat
       pfAuto: e.pfAuto !== false,
       pfOverride: e.pfOverride ?? null,
       remarks: String(e.remarks ?? ""),
+      employeeId: String(e.employeeId ?? e.code ?? ""),
+      address: String(e.address ?? ""),
+      phone: String(e.phone ?? ""),
+      cnic: String(e.cnic ?? ""),
     });
     employees.push({
       id: String(e.id ?? `tech-${i + 1}`),
