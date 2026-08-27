@@ -6,11 +6,11 @@ function normName(n: string) {
   return n.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function matchLoanByName(
-  loans: { employeeName: string; department: string }[],
+function matchLoanByName<T extends { employeeName: string; department: string; id: string }>(
+  loans: T[],
   name: string,
   department?: string,
-) {
+): T | null {
   const q = normName(name);
   if (!q) return null;
   const sameName = loans.filter(l => normName(l.employeeName) === q);
