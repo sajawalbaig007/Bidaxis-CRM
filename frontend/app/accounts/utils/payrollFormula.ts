@@ -364,17 +364,19 @@ export function computeExecutiveSalary(
 
 /**
  * Hydrate executive salary for editors / tables.
- * Prefer salary.basic; fall back to the sub-head amount so totals never wipe to 0.
+ * Keep explicit basic including 0. Only fall back to sub-head amount when basic was never set.
  */
 export function ensureExecutiveSalaryDetail(
   salary: Partial<EmployeeSalaryDetail> | undefined | null,
   amountFallback = 0,
   opts?: { commissionPct?: number },
 ): EmployeeSalaryDetail {
-  const basicFromSalary = Number(salary?.basic);
+  const rawBasic = salary?.basic;
+  const hasExplicitBasic = rawBasic !== undefined && rawBasic !== null && String(rawBasic) !== "";
+  const basicFromSalary = Number(rawBasic);
   const basic =
-    Number.isFinite(basicFromSalary) && basicFromSalary > 0
-      ? basicFromSalary
+    hasExplicitBasic && Number.isFinite(basicFromSalary)
+      ? Math.max(0, basicFromSalary)
       : Math.max(0, Number(amountFallback) || 0);
   return emptySalaryDetail({
     ...(salary ?? {}),

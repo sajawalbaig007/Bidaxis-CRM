@@ -70,12 +70,19 @@ function newTeamId(): string {
   return `team-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function isSalesHead(team: string): boolean {
-  return /sales team/i.test(team);
-}
-
 function isSalesLeadHead(team: string): boolean {
   return /sales team lead/i.test(team);
+}
+
+function isSalesHead(team: string): boolean {
+  return /sales team/i.test(team) && !isSalesLeadHead(team);
+}
+
+function isSeededLeadPlaceholder(sub: SubHead): boolean {
+  const id = String(sub.id ?? "");
+  if (id.startsWith("staff-emp-")) return false;
+  const label = String(sub.label ?? "").trim().toLowerCase();
+  return id === "stl-hammad" || label === "hammad";
 }
 
 function isAdminHead(team: string): boolean {
@@ -260,6 +267,7 @@ export function mergeStaffPayrollIntoIncomeStatement(
 
     // Drop roster-synced rows no longer assigned to this head / active
     let subs = (team.subHeads ?? []).filter(s => {
+      if (isSalesLeadHead(head) && isSeededLeadPlaceholder(s)) return false;
       if (!isStaffPayrollSubId(s.id)) return true;
       if (!activeIds.has(String(s.id))) return false;
       // Keep only if still assigned to THIS head

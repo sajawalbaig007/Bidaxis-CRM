@@ -76,7 +76,7 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           Basic + Commission + Loan+ve − Loan−ve + Occasional − PF = amount due to this executive
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Read label="Basic" value={currency(b.basic)} />
+          <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
           <Read label="+ Commission" value={currency(b.commission)} accent="text-emerald-700" />
           <Read label="+ Loan owed to them" value={currency(b.loanPositive)} accent="text-orange-700" />
           <Read label="− Loan they owe" value={currency(b.loanNegative)} accent="text-red-600" />
@@ -116,7 +116,6 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
         <Read label="Commission" value={currency(b.commission)} accent="text-emerald-700" />
         <Read
           label="Total Salary"

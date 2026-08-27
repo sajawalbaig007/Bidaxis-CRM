@@ -541,7 +541,7 @@ export default function HeadDetailModal({
                               value={sal}
                               profitBase={execProfitBase}
                               onChange={next => {
-                                const hydrated = ensureExecutiveSalaryDetail(next, next.basic || s.amount);
+                                const hydrated = ensureExecutiveSalaryDetail(next, next.basic ?? 0);
                                 const total = computeExecutiveSalary(hydrated, execProfitBase).totalPayable;
                                 updateSub(s.id, { salary: hydrated, amount: total });
                               }}

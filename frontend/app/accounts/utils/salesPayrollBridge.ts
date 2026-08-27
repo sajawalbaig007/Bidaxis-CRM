@@ -48,8 +48,16 @@ export function resolveSubPayrollKind(
 }
 
 export function isHammadSub(sub: { id?: string; label?: string }): boolean {
+  const id = String(sub.id ?? "");
   const label = String(sub.label ?? "").trim().toLowerCase();
-  return sub.id === HAMMAD_TEAM_LEAD_ID || label === "hammad" || label.startsWith("hammad ");
+  return id === HAMMAD_TEAM_LEAD_ID || label === "hammad";
+}
+
+/** Template “Hammad” row — never a roster staff-emp-* person. */
+export function isSeededTeamLeadPlaceholder(sub: { id?: string; label?: string }): boolean {
+  const id = String(sub.id ?? "");
+  if (id.startsWith("staff-emp-")) return false;
+  return isHammadSub(sub);
 }
 
 export function isSalesLeadSub(sub: SubHeadEntry): boolean {
@@ -119,13 +127,9 @@ export function normalizeSalesTeamSubs(
       });
   }
   if (kind === "sales_lead") {
-    let leads = (subs ?? []).filter(s => isSalesLeadSub(s));
-    if (!leads.length) {
-      leads = [{ id: HAMMAD_TEAM_LEAD_ID, label: "Hammad", amount: 0, filledAt: new Date().toISOString().slice(0, 10) }];
-    }
+    const leads = (subs ?? []).filter(s => isSalesLeadSub(s));
     return leads.map(s => {
       const sp = ensureSalesPayrollFromSub(s, "team_lead");
-      if (isHammadSub(s)) sp.id = HAMMAD_TEAM_LEAD_ID;
       sp.role = "team_lead";
       const leadId = sp.id || s.id;
       const extra = tlExtraFromPeers(leadId, salesPeers);
