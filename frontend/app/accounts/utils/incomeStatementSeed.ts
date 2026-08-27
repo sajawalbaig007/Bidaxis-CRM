@@ -6,9 +6,9 @@ import {
   resolvePayrollKind,
   isHammadSub,
   isSalesLeadSub,
+  isSeededTeamLeadPlaceholder,
   normalizeSalesTeamSubs,
 } from "./salesPayrollBridge";
-import { HAMMAD_TEAM_LEAD_ID } from "./salesPayrollDefaults";
 
 const COLUMN_HEADERS = new Set([
   "basic salary",
@@ -219,7 +219,7 @@ const TEAM_SEED: Record<
   },
   "Sales Team Lead Salaries": {
     total: 0,
-    people: [{ label: "Hammad", amount: 0, id: HAMMAD_TEAM_LEAD_ID }],
+    people: [],
     salesTeamLead: true,
   },
   "Technical Manager Salaries": {
@@ -398,20 +398,22 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
       subHeads: reps,
       totalSalary: lineAmount({ ...salesTeam, subHeads: reps }),
     };
-    const hammad = leadSubs.find(isHammadSub) ?? leadSubs[0];
-    if (hammad) {
+    if (leadSubs.length) {
       const leadTeam =
         leadIdx >= 0 ? teamSalariesIn[leadIdx] : seedTeam("Sales Team Lead Salaries");
-      const hammadSub = salesSub("Hammad", hammad.amount, "team_lead", HAMMAD_TEAM_LEAD_ID);
-      const existing = (leadTeam.subHeads ?? []).filter(s => !isHammadSub(s));
+      const byId = new Set((leadTeam.subHeads ?? []).map(s => s.id));
+      const merged = [...(leadTeam.subHeads ?? [])];
+      for (const s of leadSubs) {
+        if (s.id && byId.has(s.id)) continue;
+        merged.push(s);
+        if (s.id) byId.add(s.id);
+      }
+      const realLeads = merged.filter(s => !isSeededTeamLeadPlaceholder(s));
       const nextLead = {
         ...leadTeam,
-        subHeads: [...existing, hammadSub],
-        totalSalary: lineAmount({
-          ...leadTeam,
-          subHeads: [...existing, hammadSub],
-        }),
+        subHeads: realLeads.length ? realLeads : merged.filter(s => !isHammadSub(s)),
       };
+      nextLead.totalSalary = lineAmount(nextLead);
       if (leadIdx >= 0) teamSalariesIn[leadIdx] = nextLead;
       else {
         teamSalariesIn.push(nextLead);
@@ -433,7 +435,9 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
         teamName === "Sales Team Lead Salaries"
           ? ensureTeamSalarySubs(existingTeams.get("Sales Team Salaries")?.subHeads, "Sales Team Salaries")
           : [];
-      const subHeads = ensureTeamSalarySubs(current.subHeads, teamName, salesPeers);
+      const subHeads = ensureTeamSalarySubs(current.subHeads, teamName, salesPeers).filter(s =>
+        teamName === "Sales Team Lead Salaries" ? !isSeededTeamLeadPlaceholder(s) : true,
+      );
       return {
         ...current,
         subHeads,

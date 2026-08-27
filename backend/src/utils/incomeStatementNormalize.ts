@@ -41,6 +41,15 @@ function isExecutiveTeam(team?: string): boolean {
   return String(team ?? "").toLowerCase().includes("executive");
 }
 
+function executiveStoredBasic(s: SubHead): number {
+  const raw = s.salary?.basic;
+  if (raw !== undefined && raw !== null && String(raw) !== "") {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return Math.max(0, n);
+  }
+  return Math.max(0, Number(s.amount) || 0);
+}
+
 function execPctForLabel(label: string): number {
   for (const [re, pct] of EXEC_COMMISSION_DEFAULTS) {
     if (re.test(label)) return pct;
@@ -61,10 +70,7 @@ function ensureExecutiveSalaryDefaults(data: Record<string, unknown>): Record<st
         existing?.commissionPct != null && Number.isFinite(Number(existing.commissionPct))
           ? Number(existing.commissionPct)
           : execPctForLabel(label);
-      const basic =
-        Number(existing?.basic) > 0
-          ? Number(existing?.basic)
-          : Number(s.amount) || 0;
+      const basic = executiveStoredBasic(s);
       const loanPositive = Number(existing?.loanPositive) || 0;
       const loanNegative = Number(existing?.loanNegative) || 0;
       const remarks = String(existing?.remarks ?? "");
@@ -125,8 +131,7 @@ export function recomputeExecutiveTeamInIncomeStatement(
   const team = teams[idx];
   let changed = withDefaults !== data;
   const subHeads = (team.subHeads ?? []).map(s => {
-    const basic =
-      Number(s.salary?.basic) > 0 ? Number(s.salary?.basic) : Number(s.amount) || 0;
+    const basic = executiveStoredBasic(s);
     const pct = Number(s.salary?.commissionPct) || 0;
     const loanPositive = Number(s.salary?.loanPositive) || 0;
     const loanNegative = Number(s.salary?.loanNegative) || 0;
@@ -178,27 +183,31 @@ export function recomputeExecutiveTeamInIncomeStatement(
 }
 
 function isHammadSub(sub: SubHead): boolean {
+  const id = String(sub.id ?? "");
   const label = String(sub.label ?? "").trim().toLowerCase();
-  return sub.id === HAMMAD_TEAM_LEAD_ID || label === "hammad" || label.startsWith("hammad ");
+  return id === HAMMAD_TEAM_LEAD_ID || label === "hammad";
+}
+
+function isSeededLeadPlaceholder(sub: SubHead): boolean {
+  const id = String(sub.id ?? "");
+  if (id.startsWith("staff-emp-")) return false;
+  return isHammadSub(sub);
 }
 
 function rid(prefix: string, n: number) {
   return `${prefix}-${n}`;
 }
 
-function defaultLeadTeam(hammad?: SubHead): TeamRow {
-  const sub: SubHead = hammad
-    ? { ...hammad, id: HAMMAD_TEAM_LEAD_ID, label: "Hammad" }
-    : { id: HAMMAD_TEAM_LEAD_ID, label: "Hammad", amount: 0, filledAt: "" };
+function emptyLeadTeam(): TeamRow {
   return {
     id: rid("t", 6),
     team: SALES_TEAM_LEAD,
-    totalSalary: lineTotal({ subHeads: [sub] }),
-    subHeads: [sub],
+    totalSalary: 0,
+    subHeads: [],
   };
 }
 
-/** Split Hammad into Sales Team Lead Salaries; ensure both sales heads exist. */
+/** Split leftover seed Hammad out of Sales Team; never re-inject a placeholder lead. */
 export function normalizeIncomeStatementData(data: Record<string, unknown>): Record<string, unknown> {
   const raw = [...((data.teamSalaries as TeamRow[] | undefined) ?? [])];
   if (!raw.length) return data;
@@ -209,29 +218,28 @@ export function normalizeIncomeStatementData(data: Record<string, unknown>): Rec
 
   if (salesIdx >= 0) {
     const sales = teams[salesIdx];
-    const hammad = (sales.subHeads ?? []).find(isHammadSub);
-    const reps = (sales.subHeads ?? []).filter(s => !isHammadSub(s));
+    const hammad = (sales.subHeads ?? []).find(isSeededLeadPlaceholder);
+    const reps = (sales.subHeads ?? []).filter(s => !isSeededLeadPlaceholder(s));
     teams[salesIdx] = { ...sales, subHeads: reps, totalSalary: lineTotal({ subHeads: reps }) };
 
-    if (hammad) {
-      if (leadIdx >= 0) {
-        const lead = teams[leadIdx];
-        const hasHammad = (lead.subHeads ?? []).some(isHammadSub);
-        const subHeads = hasHammad
-          ? (lead.subHeads ?? []).map(s => (isHammadSub(s) ? { ...hammad, id: HAMMAD_TEAM_LEAD_ID, label: "Hammad" } : s))
-          : [...(lead.subHeads ?? []), { ...hammad, id: HAMMAD_TEAM_LEAD_ID, label: "Hammad" }];
-        teams[leadIdx] = { ...lead, subHeads, totalSalary: lineTotal({ subHeads }) };
-      } else {
-        teams.push(defaultLeadTeam(hammad));
-        leadIdx = teams.length - 1;
-      }
+    if (hammad && leadIdx >= 0) {
+      const lead = teams[leadIdx];
+      const others = (lead.subHeads ?? []).filter(s => !isSeededLeadPlaceholder(s));
+      // Real assigned leads win — drop the seed instead of keeping both
+      const subHeads = others.length ? others : [];
+      teams[leadIdx] = { ...lead, subHeads, totalSalary: lineTotal({ subHeads }) };
     }
   }
 
   if (leadIdx < 0) {
-    const lead = defaultLeadTeam();
-    teams.push(lead);
+    teams.push(emptyLeadTeam());
     leadIdx = teams.length - 1;
+  } else {
+    const lead = teams[leadIdx];
+    const others = (lead.subHeads ?? []).filter(s => !isSeededLeadPlaceholder(s));
+    if (others.length !== (lead.subHeads ?? []).length) {
+      teams[leadIdx] = { ...lead, subHeads: others, totalSalary: lineTotal({ subHeads: others }) };
+    }
   }
 
   // Stable order: insert Sales Team Lead right after Sales Team
