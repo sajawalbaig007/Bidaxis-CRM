@@ -27,7 +27,7 @@ export default function ExtraProjectCodesPopup({
           e.stopPropagation();
           toggle();
         }}
-        className="bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0 hover:bg-[#8b0d22] transition-colors"
+        className="inline-flex items-center bg-[#B8112D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0 hover:bg-[#8b0d22] transition-colors leading-none"
         title={`${extras.length} more project${extras.length === 1 ? "" : "s"}`}
       >
         +{extras.length}

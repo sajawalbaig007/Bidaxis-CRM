@@ -244,6 +244,26 @@ export function projectAddedDay(iso?: string | Date | null): string | null {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** YYYY-MM of the client deadline (date-only, no timezone shift). */
+export function projectDeadlineYearMonth(deadline?: string | Date | null): string | null {
+  if (!deadline) return null;
+  if (typeof deadline === "string") {
+    const m = deadline.trim().match(/^(\d{4}-\d{2})/);
+    if (m) return m[1];
+  }
+  return projectAddedYearMonth(deadline);
+}
+
+/** YYYY-MM-DD of the client deadline (date-only, no timezone shift). */
+export function projectDeadlineDay(deadline?: string | Date | null): string | null {
+  if (!deadline) return null;
+  if (typeof deadline === "string") {
+    const m = deadline.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  return projectAddedDay(deadline);
+}
+
 export function formatPaymentMoney(amount: string | number, currency?: PaymentCurrency | null): string {
   const n = parseMoney(amount);
   if (n <= 0) return "—";

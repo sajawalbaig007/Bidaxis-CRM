@@ -12,6 +12,7 @@ import {
   type ProjectPaymentEntry,
 } from "./projectPayments";
 import { paymentAccountsMonth } from "./projectCurrencyCollections";
+import { paymentsChannelPkr } from "./currencyFormula";
 
 export type ChannelCurrencyTotals = {
   USD: number;
@@ -52,6 +53,7 @@ export type ProjectPaymentSummaryRow = {
   paidLabel: string;
   percent: number;
   status: "full" | "partial" | "unpaid";
+  discarded?: boolean;
   payments: PaymentEntrySummary[];
 };
 
@@ -64,6 +66,7 @@ export type ChannelSummary = {
   paymentCount: number;
   projectCount: number;
   activeCurrencies: PaymentCurrency[];
+  pkrFormula: number;
 };
 
 export type PaymentsSummaryPayload = {
@@ -184,6 +187,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       status: true,
       inBin: true,
       createdAt: true,
+      paymentDiscarded: true,
     },
     orderBy: { updatedAt: "desc" },
     take: 5000,
@@ -238,14 +242,18 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     const remainingDue = quoted > 0 ? Math.max(0, quoted - paidTotalAllTime) : 0;
     const hasMonthPay = paidInScope.length > 0;
 
+    const createdMonth = calendarMonthUtc(lead.createdAt);
+    const unpaidQuotedThisMonth =
+      quoted > 0 && paidTotalAllTime <= 0 && createdMonth === monthFilter;
+
     /**
      * Month filter:
-     * - Include projects with payments this month (activity)
-     * - Also include projects still owing money (so Outstanding / Quoted aren't incomplete)
-     * - Skip fully-paid-earlier projects with no activity this month
+     * - Projects that received a payment in this month
+     * - Unpaid quoted projects created this month
+     * Do not dump every outstanding project from prior months into the tables.
      */
     if (monthFilter) {
-      if (!hasMonthPay && remainingDue <= 0) continue;
+      if (!hasMonthPay && !unpaidQuotedThisMonth) continue;
     } else if (quoted <= 0 && allPayments.length === 0) {
       continue;
     }
@@ -264,7 +272,6 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       } else {
         quotedAmount += quoted;
       }
-      const createdMonth = calendarMonthUtc(lead.createdAt);
       if (createdMonth === thisMonthKey) quotedThisMonth += quoted;
       else if (createdMonth === prevMonthKey) quotedPrevMonth += quoted;
     }
@@ -272,7 +279,6 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
     // Outstanding = remaining after ALL payments (never re-opens for prior-month halves)
     if (quoted > 0) {
       outstandingAmount += remainingDue;
-      const createdMonth = calendarMonthUtc(lead.createdAt);
       if (createdMonth === thisMonthKey) outstandingThisMonth += remainingDue;
       else outstandingPrevMonths += remainingDue;
     }
@@ -307,12 +313,7 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       }
     }
 
-    const rowById = new Map(paidInScope.map(e => [e.id, e]));
-    for (const entry of allPayments) {
-      const hasLink = typeof entry.link === "string" && entry.link.trim().length > 0;
-      if (hasLink || !monthFilter) rowById.set(entry.id, entry);
-    }
-    const rowPayments = [...rowById.values()]
+    const rowPayments = (monthFilter ? paidInScope : allPayments)
       .map(entrySummary)
       .sort((a, b) => {
         const ta = a.paidAt || a.createdAt || "";
@@ -342,31 +343,38 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       paidLabel: paidTotalDisplay > 0 ? `$${paidTotalDisplay.toLocaleString()}` : "—",
       percent: Math.round(pctAllTime * 10) / 10,
       status,
+      discarded: Boolean(lead.paymentDiscarded),
       payments: rowPayments,
     };
 
     if (status === "full") {
-      // Month view: only list full if they paid this month (otherwise noise from old completes)
       if (!monthFilter || hasMonthPay) {
         fullPaidCount += 1;
         fullPaidProjects.push(row);
       }
     } else if (status === "partial") {
-      partialPaidCount += 1;
-      partialPaidProjects.push(row);
+      if (!monthFilter || hasMonthPay) {
+        partialPaidCount += 1;
+        partialPaidProjects.push(row);
+      }
     } else if (quoted > 0) {
-      unpaidWithQuoteCount += 1;
-      unpaidProjects.push(row);
+      if (!monthFilter || unpaidQuotedThisMonth) {
+        unpaidWithQuoteCount += 1;
+        unpaidProjects.push(row);
+      }
     }
   }
 
   fullPaidProjects.sort((a, b) => b.paidTotal - a.paidTotal);
   partialPaidProjects.sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal);
-  unpaidProjects.sort((a, b) => b.quoted - a.quoted);
+  unpaidProjects.sort((a, b) => Number(a.discarded) - Number(b.discarded) || b.quoted - a.quoted);
 
   const channels: ChannelSummary[] = PAYMENT_CHANNELS.map((k) => {
     const ch = channelMap.get(k)!;
     ch.activeCurrencies.sort();
+    const pkrFormula = paymentsChannelPkr(k, ch.totals);
+    const activeCurrencies = [...ch.activeCurrencies];
+    if (pkrFormula > 0 && !activeCurrencies.includes("PKR")) activeCurrencies.push("PKR");
     return {
       key: ch.key,
       label: ch.label,
@@ -374,7 +382,8 @@ export async function buildPaymentsSummary(month?: string | null): Promise<Payme
       totalAmount: ch.totalAmount,
       paymentCount: ch.paymentCount,
       projectCount: ch.projectIds.size,
-      activeCurrencies: ch.activeCurrencies,
+      activeCurrencies,
+      pkrFormula,
     };
   });
 

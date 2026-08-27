@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import {
   AlertCircle,
+  Ban,
   CheckCircle2,
   ChevronDown,
   DollarSign,
@@ -16,7 +17,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { Cell, Pie, PieChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
-import { apiErrorMessage } from "@/lib/api";
+import API, { apiErrorMessage } from "@/lib/api";
+import { peekAuthMe } from "@/lib/authMeCache";
 import { StaffSidebar } from "@/app/hooks/useStaffSidebar";
 import DashboardNavbar from "@/app/admin/components/layout/Navbar";
 import RechartsBox from "@/app/components/charts/RechartsBox";
@@ -62,14 +64,16 @@ function formatReceiveDate(month: string | null | undefined): string {
 function CurrencyBreakdown({
   totals,
   accent,
+  pkrFormula,
 }: {
   totals: ChannelCurrencyTotals;
   accent?: string;
+  pkrFormula?: number;
 }) {
   return (
     <div className="mt-3 grid grid-cols-3 gap-1.5">
       {CURRENCY_ORDER.map((key) => {
-        const value = totals[key] ?? 0;
+        const value = key === "PKR" && (pkrFormula ?? 0) > 0 ? pkrFormula! : (totals[key] ?? 0);
         const active = value > 0;
         return (
           <div
@@ -198,18 +202,40 @@ function paymentStatusBadge(pay: PaymentEntrySummary) {
   return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300";
 }
 
+function collectedCapsule(status: ProjectPaymentSummaryRow["status"]) {
+  if (status === "full") {
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300";
+  }
+  if (status === "partial") {
+    return "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300";
+  }
+  return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300";
+}
+
+function collectedLabel(status: ProjectPaymentSummaryRow["status"]) {
+  if (status === "full") return "Full paid";
+  if (status === "partial") return "Partial paid";
+  return "Unpaid";
+}
+
 function ProjectList({
   title,
   subtitle,
   rows,
   tone,
   emptyText,
+  perRowStatus = false,
+  canDiscard = false,
+  onDiscard,
 }: {
   title: string;
   subtitle: string;
   rows: ProjectPaymentSummaryRow[];
   tone: "emerald" | "amber" | "red";
   emptyText: string;
+  perRowStatus?: boolean;
+  canDiscard?: boolean;
+  onDiscard?: (leadId: string, discarded: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toneCls =
@@ -271,11 +297,15 @@ function ProjectList({
                   ];
 
             return (
-              <div key={p.leadId} className="px-3 sm:px-4 py-3">
+              <div
+                key={p.leadId}
+                className={`px-3 sm:px-4 py-3 ${p.discarded ? "opacity-45 grayscale" : ""}`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => setExpanded((prev) => ({ ...prev, [p.leadId]: !open }))}
-                  className="w-full text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                  className="min-w-0 flex-1 text-left"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -294,12 +324,24 @@ function ProjectList({
                     </p>
                     <p className="text-[11px] text-crm-text-faint mt-0.5">
                       Quoted {p.quotedLabel} · Collected {p.paidLabel} · {p.percent}%
+                      {p.discarded ? " · Payment not expected" : ""}
                     </p>
                   </div>
+                </button>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${badgeCls}`}>
-                      {p.payments.length} payment{p.payments.length === 1 ? "" : "s"}
-                    </span>
+                    {perRowStatus || p.status === "unpaid" ? (
+                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full ${collectedCapsule(p.status)}`}>
+                        {collectedLabel(p.status)}
+                        <span className="opacity-80">·</span>
+                        {p.paidLabel}
+                        <span className="opacity-80">·</span>
+                        {p.percent}%
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${badgeCls}`}>
+                        {p.payments.length} payment{p.payments.length === 1 ? "" : "s"}
+                      </span>
+                    )}
                     {p.payments.length > 1 ? (
                       <span
                         className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-crm-text text-white"
@@ -308,12 +350,34 @@ function ProjectList({
                         +{p.payments.length - 1}
                       </span>
                     ) : null}
+                    {canDiscard && p.status === "unpaid" ? (
+                      <button
+                        type="button"
+                        onClick={() => onDiscard?.(p.leadId, !p.discarded)}
+                        className={`h-8 px-2.5 rounded-xl text-[10px] font-bold inline-flex items-center gap-1 border ${
+                          p.discarded
+                            ? "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                            : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                        }`}
+                        title={p.discarded ? "Payment may still come — undo discard" : "No further payment expected"}
+                      >
+                        <Ban size={11} />
+                        {p.discarded ? "Undo" : "Discard"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setExpanded((prev) => ({ ...prev, [p.leadId]: !open }))}
+                      className="p-1"
+                      aria-label={open ? "Collapse" : "Expand"}
+                    >
                     <ChevronDown
                       size={14}
                       className={`text-crm-text-faint transition-transform ${open ? "rotate-180" : ""}`}
                     />
+                    </button>
                   </div>
-                </button>
+                </div>
 
                 {open ? (
                   <div className="mt-3 rounded-xl border border-crm-border-subtle overflow-hidden bg-crm-surface-muted/40">
@@ -452,6 +516,7 @@ function ProjectList({
 export default function AdminPaymentsPage() {
   const pathname = usePathname();
   const basePath = pathname?.startsWith("/manager") ? "/manager" : "/admin";
+  const canDiscard = peekAuthMe()?.role === "admin";
 
   const [month, setMonth] = useState<string>("");
   const [data, setData] = useState<PaymentsSummaryPayload | null>(null);
@@ -473,6 +538,24 @@ export default function AdminPaymentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleDiscard = async (leadId: string, discarded: boolean) => {
+    try {
+      await API.post(`/admin/project/${leadId}/discard-payment`, { discarded });
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          unpaidProjects: prev.unpaidProjects
+            .map((r) => (r.leadId === leadId ? { ...r, discarded } : r))
+            .sort((a, b) => Number(a.discarded) - Number(b.discarded) || b.quoted - a.quoted),
+        };
+      });
+      toast.success(discarded ? "Project dimmed — payment not expected." : "Discard cleared.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not update discard."));
+    }
+  };
 
   const t = data?.totals;
   const status = data?.statusBreakdown;
@@ -799,7 +882,10 @@ export default function AdminPaymentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {channels.map((ch) => {
                 const style = CHANNEL_STYLES[ch.key];
-                const active = CURRENCY_ORDER.filter((c) => (ch.totals[c] ?? 0) > 0);
+                const active = CURRENCY_ORDER.filter((c) => {
+                  if (c === "PKR") return (ch.pkrFormula ?? 0) > 0 || (ch.totals.PKR ?? 0) > 0;
+                  return (ch.totals[c] ?? 0) > 0;
+                });
                 const primary =
                   active.length === 1
                     ? formatMoneyAlways(ch.totals[active[0]!], active[0])
@@ -833,35 +919,36 @@ export default function AdminPaymentsPage() {
                       {ch.projectCount} project{ch.projectCount === 1 ? "" : "s"}
                       {active.length > 0 ? ` · ${active.join(" + ")}` : " · No currency yet"}
                     </p>
-                    <CurrencyBreakdown totals={ch.totals} accent={style.color} />
+                    <CurrencyBreakdown totals={ch.totals} accent={style.color} pkrFormula={ch.pkrFormula} />
                   </div>
                 );
               })}
             </div>
           </section>
 
-          {/* Project lists — full width so payment detail table stays readable */}
+          {/* Project lists — collected (full+partial) + unpaid */}
           <div className="space-y-4">
             <ProjectList
-              title="Full paid"
-              subtitle="Quoted amount fully collected — expand for client & payment details"
-              rows={data?.fullPaidProjects ?? []}
+              key={`collected-${data?.month ?? "all"}`}
+              title="Collected"
+              subtitle="Full paid and partial paid in one list — status capsule shows amount and %"
+              rows={[
+                ...(data?.fullPaidProjects ?? []),
+                ...(data?.partialPaidProjects ?? []),
+              ].sort((a, b) => b.percent - a.percent || b.paidTotal - a.paidTotal)}
               tone="emerald"
-              emptyText="No fully paid projects in this period."
+              emptyText="No collected projects in this period."
+              perRowStatus
             />
             <ProjectList
-              title="Partial paid"
-              subtitle="Expand to see channel, link, payment & receive dates"
-              rows={data?.partialPaidProjects ?? []}
-              tone="amber"
-              emptyText="No partial payments in this period."
-            />
-            <ProjectList
+              key={`unpaid-${data?.month ?? "all"}`}
               title="Unpaid (with quote)"
-              subtitle="Quoted but nothing collected yet — expand for client details"
+              subtitle="Quoted but nothing collected yet — admin can discard if payment is not expected"
               rows={data?.unpaidProjects ?? []}
               tone="red"
               emptyText="No unpaid quoted projects."
+              canDiscard={canDiscard}
+              onDiscard={(leadId, discarded) => void handleDiscard(leadId, discarded)}
             />
           </div>
         </div>

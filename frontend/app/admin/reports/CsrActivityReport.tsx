@@ -45,22 +45,26 @@ type ReportResponse = {
   summary: SummaryRow[];
 };
 
-function pstTodayYmd(): string {
+const ADMIN_SESSION_TZ = "Asia/Karachi";
+const ADMIN_SESSION_TZ_LABEL = "Pakistan Time (PKT)";
+const ADMIN_SESSION_TZ_ABBR = "PKT";
+
+function pktTodayYmd(): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
+    timeZone: ADMIN_SESSION_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
 }
 
-/** ISO → YYYY-MM-DDTHH:mm in America/Los_Angeles for datetime-local. */
-function toPstLocalInput(iso: string | null | undefined): string {
+/** ISO → YYYY-MM-DDTHH:mm in Asia/Karachi for datetime-local. */
+function toPktLocalInput(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
+    timeZone: ADMIN_SESSION_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -73,7 +77,7 @@ function toPstLocalInput(iso: string | null | undefined): string {
   return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}`;
 }
 
-function pstWeekStart(ymd: string): string {
+function pktWeekStart(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   const utc = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
   utc.setUTCDate(utc.getUTCDate() - utc.getUTCDay());
@@ -85,14 +89,14 @@ const ALL_TIME_FROM = "2020-01-01";
 
 function rangeForPeriod(period: PeriodPreset, today: string): { from: string; to: string } {
   if (period === "daily") return { from: today, to: today };
-  if (period === "weekly") return { from: pstWeekStart(today), to: today };
+  if (period === "weekly") return { from: pktWeekStart(today), to: today };
   if (period === "monthly") return { from: `${today.slice(0, 7)}-01`, to: today };
   return { from: ALL_TIME_FROM, to: today };
 }
 
 function periodFromDates(from: string, to: string, today: string): PeriodPreset | "custom" {
   if (from === today && to === today) return "daily";
-  if (from === pstWeekStart(today) && to === today) return "weekly";
+  if (from === pktWeekStart(today) && to === today) return "weekly";
   if (from === `${today.slice(0, 7)}-01` && to === today) return "monthly";
   if (from === ALL_TIME_FROM && to === today) return "all";
   return "custom";
@@ -102,8 +106,8 @@ function downloadCsv(rows: SessionRow[], filename: string, personLabel: string) 
   const headers = [
     personLabel,
     "Code",
-    "Check In (PST)",
-    "Check Out (PST)",
+    `Check In (${ADMIN_SESSION_TZ_ABBR})`,
+    `Check Out (${ADMIN_SESSION_TZ_ABBR})`,
     "On Dashboard",
     "Away",
     "Total",
@@ -152,8 +156,9 @@ function downloadExcel(
   filename: string,
   personLabel: string,
   title: string,
+  timezoneLabel: string = ADMIN_SESSION_TZ_LABEL,
 ) {
-  const sessionHeader = [personLabel, "Code", "Check In (PST)", "Check Out (PST)", "On Dashboard", "Away", "Total", "Status", "Browser", "IP", "Closed Reason"];
+  const sessionHeader = [personLabel, "Code", `Check In (${ADMIN_SESSION_TZ_ABBR})`, `Check Out (${ADMIN_SESSION_TZ_ABBR})`, "On Dashboard", "Away", "Total", "Status", "Browser", "IP", "Closed Reason"];
   const sessionBody = sessions.map(r => [
     r.csrName,
     r.csrCode ?? "",
@@ -185,7 +190,7 @@ function downloadExcel(
 <head><meta charset="UTF-8"></head>
 <body>
 <h2>${escHtml(title)}</h2>
-<p>All times in Pacific Time (PST/PDT)</p>
+<p>All times in ${escHtml(timezoneLabel)}</p>
 <h3>Per session</h3>
 ${table(sessionHeader, sessionBody)}
 <h3>Per ${escHtml(personLabel)}</h3>
@@ -210,7 +215,7 @@ export default function CsrActivityReport({
   allowEdit?: boolean;
   defaultOpen?: boolean;
 }) {
-  const today = pstTodayYmd();
+  const today = pktTodayYmd();
   const isEstimator = staffRole === "estimator";
   const title = isEstimator ? "Estimator Check In / Check Out" : "CSR Check In / Check Out";
   const personLabel = isEstimator ? "Estimator" : "CSR";
@@ -223,7 +228,7 @@ export default function CsrActivityReport({
   const [csrs, setCsrs] = useState<CsrOption[]>([]);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [timezoneLabel, setTimezoneLabel] = useState("Pacific Time (PST/PDT)");
+  const [timezoneLabel, setTimezoneLabel] = useState(ADMIN_SESSION_TZ_LABEL);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
   const [view, setView] = useState<"sessions" | "summary">("sessions");
@@ -240,8 +245,8 @@ export default function CsrActivityReport({
 
   const openEdit = (row: SessionRow) => {
     setEditing(row);
-    setEditCheckIn(toPstLocalInput(row.loginAt));
-    setEditCheckOut(toPstLocalInput(row.logoutAt));
+    setEditCheckIn(toPktLocalInput(row.loginAt));
+    setEditCheckOut(toPktLocalInput(row.logoutAt));
     setEditStillOpen(row.status === "active" || !row.logoutAt);
     setEditNote("admin_adjusted");
   };
@@ -304,7 +309,7 @@ export default function CsrActivityReport({
       const res = await API.get<ReportResponse>(`/admin/csr-session-report?${params}`);
       setSessions(res.data.sessions ?? []);
       setSummary(res.data.summary ?? []);
-      setTimezoneLabel(res.data.timezoneLabel ?? "Pacific Time (PST/PDT)");
+      setTimezoneLabel(res.data.timezoneLabel ?? ADMIN_SESSION_TZ_LABEL);
       setHasLoaded(true);
     } catch (err) {
       toast.error(apiErrorMessage(err, `Failed to load ${personLabel} activity report.`));
@@ -323,7 +328,7 @@ export default function CsrActivityReport({
   const activePeriod = periodFromDates(fromDate, toDate, today);
 
   const applyPeriod = (period: PeriodPreset) => {
-    const range = rangeForPeriod(period, pstTodayYmd());
+    const range = rangeForPeriod(period, pktTodayYmd());
     setFromDate(range.from);
     setToDate(range.to);
   };
@@ -471,6 +476,7 @@ export default function CsrActivityReport({
                 `${isEstimator ? "estimator" : "csr"}-activity-${fromDate}-${toDate}`,
                 personLabel,
                 title,
+                timezoneLabel,
               )}
               disabled={!sessions.length && !summary.length}
               className="h-10 px-4 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
@@ -514,7 +520,7 @@ export default function CsrActivityReport({
               <table className="w-full" style={{ minWidth: "980px" }}>
                 <thead>
                   <tr className="border-b border-gray-100 text-left bg-[#FAFAFB]">
-                    {[personLabel, "Check In (PST)", "Check Out (PST)", "On Dashboard", "Away", "Total", "Status", "Closed By", ...(allowEdit ? [""] : [])].map(h => (
+                    {[personLabel, `Check In (${ADMIN_SESSION_TZ_ABBR})`, `Check Out (${ADMIN_SESSION_TZ_ABBR})`, "On Dashboard", "Away", "Total", "Status", "Closed By", ...(allowEdit ? [""] : [])].map(h => (
                       <th key={h || "actions"} className="px-3 py-2.5 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -638,7 +644,7 @@ export default function CsrActivityReport({
               <div>
                 <h3 className="text-base font-bold text-[#111827]">Adjust session times</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {editing.csrName} · times in Pacific (PST/PDT)
+                  {editing.csrName} · times in {timezoneLabel}
                 </p>
               </div>
               <button

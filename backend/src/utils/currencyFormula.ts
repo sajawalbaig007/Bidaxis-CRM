@@ -111,6 +111,34 @@ function normalize(raw: CurrencyBlock | undefined | null): Record<"AH" | "SN" | 
   };
 }
 
+/** PKR equivalent for Payments source cards — same tax/rate formula as Accounts. */
+export function paymentsChannelPkr(
+  channel: "AH" | "SN" | "CHQ" | "HM",
+  totals: { USD: number; CAD: number; PKR: number },
+): number {
+  const d = TAB_DEFAULTS[channel];
+  if (channel === "CHQ" || channel === "HM") {
+    const usdRate = 280;
+    const cadRate = 200;
+    const pkrGross =
+      (Number(totals.PKR) || 0) +
+      (Number(totals.USD) || 0) * usdRate +
+      (Number(totals.CAD) || 0) * cadRate;
+    const tax = Number(d.taxDeductionRate) || 0;
+    return roundMoney(pkrGross - pkrGross * tax);
+  }
+  return roundMoney(calcTab({
+    ...d,
+    usdAmount: totals.USD,
+    cadAmount: totals.CAD,
+    pkrAmount: totals.PKR,
+  }));
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 /** Merged AH+SN+CHQ+HM net — Income Statement Total Revenue source. */
 export function currencyFormulaTotalFromDashboard(data: Record<string, unknown> | null | undefined): number {
   const currency = (data?.currency as CurrencyBlock | undefined) ?? null;

@@ -1133,7 +1133,7 @@ export default function CommentCell({
         }
         className={`relative inline-flex gap-1.5 px-2 py-1.5 rounded-xl border transition-all shadow-sm overflow-hidden ${
           showRowPreview
-            ? "w-full max-w-full min-w-0 min-h-[56px] items-start"
+            ? "w-full max-w-full min-w-0 min-h-[56px] items-center"
             : "min-w-[44px] h-9 items-center justify-center"
         } ${
           count > 0
@@ -1141,7 +1141,7 @@ export default function CommentCell({
             : "bg-gray-50 border-dashed border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
         }`}
       >
-        <StickyNote size={13} className="shrink-0 text-amber-700 mt-0.5" />
+        <StickyNote size={13} className="shrink-0 text-amber-700" />
         {showRowPreview ? (
           <>
             <span className="min-w-0 flex-1 flex flex-col items-start gap-0.5 text-left overflow-hidden">
@@ -1155,7 +1155,7 @@ export default function CommentCell({
               </span>
             </span>
             {extraNotesCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0 mt-0.5">
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full bg-amber-700 text-white text-[10px] font-extrabold tabular-nums shrink-0">
                 +{extraNotesCount}
         </span>
             )}

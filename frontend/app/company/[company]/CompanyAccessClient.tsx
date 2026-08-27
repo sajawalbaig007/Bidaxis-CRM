@@ -203,9 +203,6 @@ export default function CompanyAccessPage({ company }: { company: PortalCompany 
                 <p className="mt-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
                   {showPassword ? "Not looking…" : focusedField ? "Peeking" : "Watching"}
                 </p>
-                <p className="mt-1 text-[12px] text-white/70 text-center max-w-[220px] leading-relaxed">
-                  {meta.portalsLabel}
-                </p>
               </div>
 
               <div className="md:col-span-7 rounded-[1.5rem] sm:rounded-[1.85rem] border border-white/20 bg-white/[0.09] backdrop-blur-xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.5)] p-5 sm:p-7 flex flex-col justify-center">

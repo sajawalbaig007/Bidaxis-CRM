@@ -118,6 +118,7 @@ export type AdminIdentityLead = {
   projectCode?: string | null;
   interestedService?: string | null;
   updatedAt?: Date | string;
+  notes?: { createdAt?: Date | string }[];
 };
 
 export type ExtraProjectCode = {
@@ -320,6 +321,8 @@ export const ADMIN_LEAD_LIST_SELECT = {
 
   email:             true,
 
+  website:           true,
+
   state:             true,
 
   status:            true,
@@ -355,7 +358,7 @@ export const ADMIN_LEAD_LIST_SELECT = {
   uploadFile: { select: { companyName: true } },
 
   subContacts: {
-    select: { id: true, phone: true, email: true, name: true },
+    select: { id: true, phone: true, email: true, name: true, designation: true },
   },
 
   _count: { select: { notes: true } },
