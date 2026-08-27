@@ -32,9 +32,9 @@ export async function lookupPayrollLoan(req: AuthRequest, res: Response) {
       return res.status(400).json({ success: false, message: "Name required." });
     }
     const loans = await prisma.payrollLoan.findMany({ orderBy: { updatedAt: "desc" } });
-    const match = loans.find(l => normName(l.employeeName) === normName(name))
-      ?? loans.find(l => normName(l.employeeName).includes(normName(name)));
-    return res.json({ success: true, loan: match ?? null });
+    const q = normName(name);
+    const match = loans.find(l => normName(l.employeeName) === q) ?? null;
+    return res.json({ success: true, loan: match });
   } catch (err) {
     console.log(err);
     return res.status(500).json({ success: false, message: "Loan lookup failed." });
@@ -69,9 +69,8 @@ export async function upsertPayrollLoan(req: AuthRequest, res: Response) {
       loan = await prisma.payrollLoan.update({ where: { id }, data: payload });
     } else {
       const all = await prisma.payrollLoan.findMany();
-      const existing =
-        all.find(l => normName(l.employeeName) === normName(name)) ??
-        all.find(l => normName(l.employeeName).includes(normName(name)));
+      const q = normName(name);
+      const existing = all.find(l => normName(l.employeeName) === q);
       loan = existing
         ? await prisma.payrollLoan.update({ where: { id: existing.id }, data: payload })
         : await prisma.payrollLoan.create({ data: payload });

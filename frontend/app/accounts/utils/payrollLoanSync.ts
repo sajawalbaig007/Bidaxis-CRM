@@ -116,7 +116,7 @@ export function clearPersonLoanFromTeamSalaries(
     ...team,
     subHeads: (team.subHeads ?? []).map(sub => {
       const name = normLoanName(sub.label || sub.salesPayroll?.name || "");
-      if (!name || (name !== q && !name.includes(q) && !q.includes(name))) return sub;
+      if (!name || name !== q) return sub;
       let next = sub;
       if (sub.salesPayroll) {
         next = {

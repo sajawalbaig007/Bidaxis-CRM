@@ -10,6 +10,7 @@ import { resolvePayrollKind } from "./salesPayrollBridge";
 
 export type LedgerLoan = {
   employeeName: string;
+  department?: string;
   totalAmount: number;
   paidAmount: number;
 };
@@ -29,15 +30,11 @@ export function ledgerPending(loan: { totalAmount?: number; paidAmount?: number 
   return Math.max(0, (Number(loan.totalAmount) || 0) - (Number(loan.paidAmount) || 0));
 }
 
-/** Find best ledger match for an employee name. */
+/** Find ledger row for this employee only — exact name (no substring / other people). */
 export function matchLedgerLoan(loans: LedgerLoan[], name: string): LedgerLoan | null {
   const q = normName(name);
   if (!q) return null;
-  return (
-    loans.find(l => normName(l.employeeName) === q) ??
-    loans.find(l => normName(l.employeeName).includes(q) || q.includes(normName(l.employeeName))) ??
-    null
-  );
+  return loans.find(l => normName(l.employeeName) === q) ?? null;
 }
 
 /**
@@ -95,7 +92,11 @@ export async function fetchAndApplyPendingLoan(
   try {
     const res = await API.get(`/accounts/payroll-loans/lookup?name=${encodeURIComponent(name.trim())}`);
     const loan = res.data.loan as LedgerLoan | null;
-    return applyPendingLoanFromLedger(current, loan, opts);
+    return applyPendingLoanFromLedger(
+      current,
+      loan ?? { employeeName: name, totalAmount: 0, paidAmount: 0 },
+      opts,
+    );
   } catch {
     return null;
   }
@@ -135,7 +136,8 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
     const name = (sub.salesPayroll?.name || sub.label || sub.name || "").trim();
     if (!name) return sub;
     const ledger = matchLedgerLoan(loans, name);
-    if (!ledger) return sub;
+    // No exact person match → strip copied totals so 20k/9k/1k never land on someone else
+    const ledgerOrClear = ledger ?? { employeeName: name, totalAmount: 0, paidAmount: 0 };
 
     let patchSub = sub;
 
@@ -145,7 +147,7 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
         loanPaid: Number(sub.salesPayroll.loanPaid) || 0,
         loanThisMonth: Number(sub.salesPayroll.loanThisMonth) || 0,
       };
-      const patch = applyPendingLoanFromLedger(cur, ledger);
+      const patch = applyPendingLoanFromLedger(cur, ledgerOrClear);
       if (patch) {
         changed = true;
         patchSub = {
@@ -161,7 +163,7 @@ export function hydrateSubsFromLedgerLoans<T extends LoanBearing>(
         loanPaid: Number(sub.salary.loanPaid) || 0,
         loanThisMonth: Number(sub.salary.loanThisMonth) || 0,
       };
-      const patch = applyPendingLoanFromLedger(cur, ledger);
+      const patch = applyPendingLoanFromLedger(cur, ledgerOrClear);
       if (patch) {
         changed = true;
         patchSub = {
