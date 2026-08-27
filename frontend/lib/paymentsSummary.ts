@@ -27,6 +27,7 @@ export type PaymentEntrySummary = {
 
 export type ProjectPaymentSummaryRow = {
   leadId: string;
+  rowKey?: string;
   projectCode: string | null;
   projectTitle: string | null;
   clientName: string | null;
@@ -39,6 +40,9 @@ export type ProjectPaymentSummaryRow = {
   status: "full" | "partial" | "unpaid";
   /** Admin marked that no further payment is expected */
   discarded?: boolean;
+  sumAmount?: number;
+  remainingDue?: number;
+  unpaidFromPartial?: boolean;
   payments: PaymentEntrySummary[];
 };
 
