@@ -48,6 +48,8 @@ import {
   PAYMENT_TYPE_FILTER_OPTIONS,
   matchesPaymentCollectionFilter,
   paymentPercent,
+  projectAddedYearMonth,
+  projectAddedDay,
 } from "@/lib/projectFields";
 
 function phaseLabel(value: string) {
@@ -1148,8 +1150,8 @@ export default function AdminProjectsPage() {
       if (!silent) setLoading(true);
       const { leads, total } = await fetchAllAdminProjects<Project>({
         csrId: filterCSR !== "all" ? filterCSR : undefined,
-        from: dateFrom || undefined,
-        to: dateTo || undefined,
+        from: hideClientFinanceCols ? (dateFrom || undefined) : undefined,
+        to: hideClientFinanceCols ? (dateTo || undefined) : undefined,
         search: search.trim() || undefined,
       });
       const purged = leads.filter((p) => !deletedIdsRef.current.has(p.id));
@@ -1157,18 +1159,14 @@ export default function AdminProjectsPage() {
       setStats({
         total: Math.max(0, total - (leads.length - purged.length)),
         withBudget: purged.filter((p) => !!p.projectBudget).length,
-        thisMonth: purged.filter((p) => {
-          const d = new Date(p.updatedAt);
-          const now = new Date();
-          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-        }).length,
+        thisMonth: purged.filter((p) => projectAddedYearMonth(p.createdAt) === projectAddedYearMonth(new Date())).length,
       });
     } catch {
       if (!silent) toast.error("Failed to load projects");
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [filterCSR, dateFrom, dateTo, search]);
+  }, [filterCSR, search, hideClientFinanceCols, dateFrom, dateTo]);
 
   useEffect(() => {
     API.get("/admin/csrs")
@@ -1211,17 +1209,21 @@ export default function AdminProjectsPage() {
     const matchState = matchesStateLocationFilter(p.state, p.phone, stateFilter);
     const matchPhone = matchesPhoneAreaCodeFilter(p.phone, phoneFilter);
     const matchCsr = filterCSR === "all" || p.csr?.id === filterCSR;
-    const matchMonth = !monthFilter || (() => {
-      const iso = p.createdAt || p.updatedAt;
-      if (!iso) return false;
-      return iso.slice(0, 7) === monthFilter;
-    })();
+    const addedDay = projectAddedDay(p.createdAt);
+    const addedMonth = projectAddedYearMonth(p.createdAt);
+    const matchDates =
+      hideClientFinanceCols ||
+      (!dateFrom && !dateTo) ||
+      (!!addedDay &&
+        (!dateFrom || addedDay >= dateFrom) &&
+        (!dateTo || addedDay <= dateTo));
+    const matchMonth = !monthFilter || addedMonth === monthFilter;
     const matchPaymentType = matchesPaymentCollectionFilter(
       paymentTypeFilter,
       parsePayments(p.projectPayments),
       p.projectBudget,
     );
-    return matchSearch && matchState && matchPhone && matchCsr && matchMonth && matchPaymentType;
+    return matchSearch && matchState && matchPhone && matchCsr && matchDates && matchMonth && matchPaymentType;
   });
 
   const allProjects    = baseFiltered;
@@ -1368,12 +1370,14 @@ export default function AdminProjectsPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-            <div className="flex items-center gap-2 flex-1 sm:max-w-md">
+            <div className="flex items-center gap-2 flex-1 sm:max-w-lg">
               <Calendar size={15} className="text-gray-400 shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Added</span>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                aria-label="Added from date"
                 className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
               />
               <span className="text-xs text-gray-400 shrink-0">to</span>
@@ -1381,6 +1385,7 @@ export default function AdminProjectsPage() {
                 type="date"
                 value={dateTo}
                 onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                aria-label="Added to date"
                 className="flex-1 h-10 sm:h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm outline-none focus:border-[#B8112D]"
               />
             </div>
@@ -1396,13 +1401,14 @@ export default function AdminProjectsPage() {
 
           {!hideClientFinanceCols && (
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-              <div className="relative flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white shadow-sm w-full sm:w-auto sm:min-w-[200px]">
+              <div className="relative flex items-center gap-2 h-10 sm:h-11 px-3 rounded-xl border border-gray-200 bg-white shadow-sm w-full sm:w-auto sm:min-w-[220px]">
                 <Calendar size={14} className="text-gray-400 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0">Added</span>
                 <input
                   type="month"
                   value={monthFilter}
                   onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
-                  aria-label="Filter by month"
+                  aria-label="Filter by month the project was added"
                   className="outline-none bg-transparent text-sm font-semibold text-[#0F172A] min-w-0 flex-1"
                 />
                 {monthFilter ? (
