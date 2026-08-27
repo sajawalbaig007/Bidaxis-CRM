@@ -69,6 +69,10 @@ function coerceEmployee(raw: unknown, fallbackIndex: number): TechnicalPayrollEm
     pfAuto: o.pfAuto !== false,
     pfOverride: o.pfOverride == null ? null : Number(o.pfOverride),
     remarks: String(o.remarks ?? ""),
+    employeeId: String(o.employeeId ?? o.code ?? ""),
+    address: String(o.address ?? ""),
+    phone: String(o.phone ?? ""),
+    cnic: String(o.cnic ?? ""),
   });
 
   const id = String(o.id ?? "").trim() || rid("tech", fallbackIndex + 1);
@@ -112,15 +116,28 @@ type TeamRow = {
   [key: string]: unknown;
 };
 
+function isTechnicalManagerTeam(name: string): boolean {
+  const t = name.trim().toLowerCase();
+  return t.includes("technical manager") || t.includes("tech manager") || t.includes("technical team lead");
+}
+
+/** Technical Team only — not Technical Manager / Team Lead (those use 09:00 late). */
 function isTechnicalTeam(name: string): boolean {
   const t = name.trim().toLowerCase();
+  if (isTechnicalManagerTeam(t)) return false;
   return t.includes("technical") && t.includes("sal");
 }
 
-function salaryFromSub(sub: SubHead): TechnicalSalaryDetail {
-  const s = sub.salary ?? {};
+function strField(v: unknown): string {
+  if (v == null) return "";
+  const s = String(v).trim();
+  return s === "undefined" || s === "null" ? "" : String(v);
+}
+
+function salaryFromSub(sub: SubHead): TechnicalSalaryDetail & Record<string, unknown> {
+  const s = (sub.salary ?? {}) as Record<string, unknown>;
   const amount = Number(sub.amount) || 0;
-  return emptyTechnicalSalary({
+  const payroll = emptyTechnicalSalary({
     basic: Number(s.basic) || amount,
     allowance: Number(s.allowance) || 0,
     weekdayOtHours: Number(s.weekdayOtHours) || 0,
@@ -142,7 +159,19 @@ function salaryFromSub(sub: SubHead): TechnicalSalaryDetail {
     pfAuto: s.pfAuto !== false,
     pfOverride: s.pfOverride == null ? null : Number(s.pfOverride),
     remarks: String(s.remarks ?? ""),
+    employeeId: strField(s.employeeId) || strField(s.code),
+    address: strField(s.address),
+    phone: strField(s.phone),
+    cnic: strField(s.cnic),
   });
+  return {
+    ...s,
+    ...payroll,
+    employeeId: strField(s.employeeId) || strField(s.code),
+    address: strField(s.address),
+    phone: strField(s.phone),
+    cnic: strField(s.cnic),
+  };
 }
 
 /**
