@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import {
   DIVISION_OPTIONS,
+  PROJECT_TYPE_DIVISIONS,
   formatDivisionSummary,
   formatScopeSummary,
   type TechnicalAssignment,
@@ -94,8 +95,36 @@ function DivisionMultiSelect({
         <ChevronDown size={14} className={`text-gray-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg p-1.5 space-y-0.5">
-          {DIVISION_OPTIONS.map((opt) => {
+        <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg p-1.5 space-y-0.5">
+          <p className="px-2.5 pt-1 pb-0.5 text-[9px] font-extrabold uppercase tracking-wider text-gray-400">
+            Project type
+          </p>
+          {PROJECT_TYPE_DIVISIONS.map((opt) => {
+            const active = value.includes(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggle(opt)}
+                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-sm transition-colors ${
+                  active ? "bg-[#FFF1F3] text-[#B8112D] font-bold" : "hover:bg-gray-50 text-[#0F172A] font-medium"
+                }`}
+              >
+                <span
+                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    active ? "bg-[#B8112D] border-[#B8112D]" : "border-gray-300 bg-white"
+                  }`}
+                >
+                  {active && <Check size={10} className="text-white" />}
+                </span>
+                {opt}
+              </button>
+            );
+          })}
+          <p className="px-2.5 pt-2 pb-0.5 text-[9px] font-extrabold uppercase tracking-wider text-gray-400">
+            CSI divisions
+          </p>
+          {DIVISION_OPTIONS.filter((opt) => !(PROJECT_TYPE_DIVISIONS as readonly string[]).includes(opt)).map((opt) => {
             const active = value.includes(opt);
             return (
               <button

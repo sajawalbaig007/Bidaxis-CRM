@@ -47,8 +47,15 @@ function rangeDiv(from: number, to: number): string[] {
   return out;
 }
 
+export const PROJECT_TYPE_DIVISIONS = [
+  "GC Residential",
+  "GC Commercial",
+  "Renovation",
+] as const;
+
 /** CSI-style divisions available when assigning estimators (gaps between 1–48 skipped). */
 export const DIVISION_OPTIONS = [
+  ...PROJECT_TYPE_DIVISIONS,
   ...rangeDiv(1, 14),
   ...rangeDiv(21, 23),
   ...rangeDiv(25, 28),

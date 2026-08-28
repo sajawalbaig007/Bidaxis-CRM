@@ -35,7 +35,7 @@ import {
   deletePayrollLoanByName,
 } from "../utils/payrollLoanSync";
 import { normalizeSalesTeamSubs, isSalesTeamTitle, resolvePayrollKind } from "../utils/salesPayrollBridge";
-import { normalizePeriodPreset } from "../utils/accountsPeriodFilters";
+import { normalizePeriodPreset, periodDateRange, currentMonthValue } from "../utils/accountsPeriodFilters";
 import { currencyFormulaTotal } from "../utils/currencyFormula";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
 
@@ -107,9 +107,59 @@ function headToOpex(h: ExpandableHeadRow): OpexRow {
     label: h.title,
     amount: lineAmount(h),
     filledAt: h.filledAt,
-    subHeads: h.subHeads ?? [],
+    subHeads: (h.subHeads ?? [])
+      .filter(s => !String(s.id).startsWith("pf-all-"))
+      .map(s => {
+        const rest = { ...s };
+        delete rest.periodAmount;
+        delete rest.allTimeAmount;
+        return rest;
+      }),
     notes: h.notes ?? [],
   };
+}
+
+type PfBreakdownPerson = { name: string; period: number; allTime: number };
+type PfBreakdown = Record<string, Record<string, PfBreakdownPerson>>;
+
+function normPfName(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function mergePfDisplayRows(heads: OpexRow[], byHead: PfBreakdown | null): ExpandableHeadRow[] {
+  return (heads ?? []).map(h => {
+    const bucket = byHead?.[h.label] ?? {};
+    const seen = new Set<string>();
+    const subs = (h.subHeads ?? []).map(s => {
+      const key = normPfName(s.label);
+      seen.add(key);
+      const hit = bucket[key];
+      const fallback = Number(s.amount) || 0;
+      return {
+        ...s,
+        periodAmount: hit?.period ?? fallback,
+        allTimeAmount: hit?.allTime ?? fallback,
+      };
+    });
+    for (const [key, hit] of Object.entries(bucket)) {
+      if (seen.has(key)) continue;
+      subs.push({
+        id: `pf-all-${h.id}-${key.replace(/\s+/g, "-")}`,
+        label: hit.name,
+        amount: hit.period,
+        filledAt: "",
+        periodAmount: hit.period,
+        allTimeAmount: hit.allTime,
+      });
+    }
+    const periodAmount = subs.reduce((a, s) => a + (Number(s.periodAmount) || 0), 0);
+    const allTimeAmount = subs.reduce((a, s) => a + (Number(s.allTimeAmount) || 0), 0);
+    return {
+      ...opexToHead({ ...h, subHeads: subs, amount: periodAmount }),
+      periodAmount,
+      allTimeAmount,
+    };
+  });
 }
 
 export default function IncomeStatementPage() {
@@ -134,6 +184,24 @@ export default function IncomeStatementPage() {
   } | null>(null);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [budgetChartKey, setBudgetChartKey] = useState(0);
+  const [pfBreakdown, setPfBreakdown] = useState<PfBreakdown | null>(null);
+
+  const pfPeriod = useMemo(() => {
+    const mode = normalizePeriodPreset(acc.periodPreset);
+    if (mode === "daily") {
+      const day = acc.recordDate || todayIso();
+      return { from: day, to: day, label: "This day" };
+    }
+    if (mode === "month") {
+      const range = periodDateRange("month", { month: acc.filterMonth });
+      return { from: range.from, to: range.to, label: "Per month" };
+    }
+    if (mode === "date_range") {
+      return { from: acc.filterFrom, to: acc.filterTo, label: "This range" };
+    }
+    const range = periodDateRange("month", { month: currentMonthValue() });
+    return { from: range.from, to: range.to, label: "Per month" };
+  }, [acc.periodPreset, acc.recordDate, acc.filterMonth, acc.filterFrom, acc.filterTo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +247,23 @@ export default function IncomeStatementPage() {
     };
   }, [acc.recordDate, acc.periodPreset, acc.dirty, acc.saving]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (pfPeriod.from) params.set("from", pfPeriod.from);
+    if (pfPeriod.to) params.set("to", pfPeriod.to);
+    API.get(`/accounts/income-statement/pf-breakdown?${params}`)
+      .then(res => {
+        if (!cancelled) setPfBreakdown(res.data.byHead ?? {});
+      })
+      .catch(() => {
+        if (!cancelled) setPfBreakdown(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pfPeriod.from, pfPeriod.to, acc.saving, acc.dirty]);
+
   /** All-time rollup only applies in All Time preset — avoid sync clear in the effect above */
   const activeRollup =
     normalizePeriodPreset(acc.periodPreset) === "all_time" ? periodRollup : null;
@@ -187,6 +272,11 @@ export default function IncomeStatementPage() {
   const data = useMemo(
     () => normalizeIncomeStatement(acc.data, currencyTotal),
     [acc.data, currencyTotal],
+  );
+
+  const pfRows = useMemo(
+    () => mergePfDisplayRows(data.providentFundHeads ?? [], pfBreakdown),
+    [data.providentFundHeads, pfBreakdown],
   );
 
   /** Net profit before executive salaries — commission base for Executive payroll */
@@ -530,8 +620,9 @@ export default function IncomeStatementPage() {
               title="Provident Fund"
               accent="#0D9488"
               addLabel="Add PF Head"
-              emptyLabel="PF fills automatically from Team Salaries (employee name + this period’s PF)."
-              rows={(data.providentFundHeads ?? []).map(opexToHead)}
+              emptyLabel="PF fills automatically from Team Salaries. Per month / this period vs all-time are listed separately."
+              rows={pfRows}
+              amountSplit={{ periodLabel: pfPeriod.label, allTimeLabel: "All time" }}
               onChange={(rows, opts) => commit({ providentFundHeads: rows.map(headToOpex) }, opts)}
               onPersist={() => void acc.save()}
               saving={acc.saving}

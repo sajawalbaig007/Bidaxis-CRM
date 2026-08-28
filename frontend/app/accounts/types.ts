@@ -40,6 +40,10 @@ export type SubHeadEntry = {
   unitPrice?: number;
   /** Asset inventory category (IT / Electrical / Furniture). */
   inventoryCategory?: string;
+  /** Display-only: PF for the selected period (income statement). */
+  periodAmount?: number;
+  /** Display-only: PF across all saved records. */
+  allTimeAmount?: number;
 };
 
 /** Date-tagged note on a table row / head. */

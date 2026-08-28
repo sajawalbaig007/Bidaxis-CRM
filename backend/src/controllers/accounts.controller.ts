@@ -801,3 +801,59 @@ export async function getIncomeBudgetActuals(req: AuthRequest, res: Response) {
     return res.status(500).json({ success: false, message: "Failed to load budget actuals." });
   }
 }
+
+function normPfName(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+type PfHeadBucket = Record<string, { name: string; period: number; allTime: number }>;
+
+/** GET /api/accounts/income-statement/pf-breakdown?from=&to= */
+export async function getProvidentFundBreakdown(req: AuthRequest, res: Response) {
+  try {
+    const from = String(req.query.from ?? "").trim();
+    const to = String(req.query.to ?? "").trim();
+    const recs = await prisma.accountsRecord.findMany({
+      where: { page: "income_statement" },
+      select: { recordDate: true, data: true },
+    });
+
+    const byHead: Record<string, PfHeadBucket> = {};
+    const bump = (head: string, name: string, amount: number, inPeriod: boolean) => {
+      const n = Number(amount) || 0;
+      const trimmed = name.trim();
+      if (!trimmed || n === 0) return;
+      const key = normPfName(trimmed);
+      if (!byHead[head]) byHead[head] = {};
+      const prev = byHead[head]![key] ?? { name: trimmed, period: 0, allTime: 0 };
+      prev.allTime = Math.round((prev.allTime + n) * 100) / 100;
+      if (inPeriod) prev.period = Math.round((prev.period + n) * 100) / 100;
+      byHead[head]![key] = prev;
+    };
+
+    for (const rec of recs) {
+      const inPeriod =
+        (!from || rec.recordDate >= from) &&
+        (!to || rec.recordDate <= to);
+      const data = preparePageData(
+        "income_statement",
+        (rec.data as Record<string, unknown> | undefined) ?? {},
+      );
+      const heads = (data.providentFundHeads as Array<{
+        label?: string;
+        subHeads?: Array<{ label?: string; amount?: number }>;
+      }>) ?? [];
+      for (const head of heads) {
+        const headLabel = (head.label || "Provident Fund").trim() || "Provident Fund";
+        for (const sub of head.subHeads ?? []) {
+          bump(headLabel, sub.label || "", Number(sub.amount) || 0, inPeriod);
+        }
+      }
+    }
+
+    return res.json({ success: true, from: from || null, to: to || null, byHead });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ success: false, message: "Failed to load PF breakdown." });
+  }
+}
