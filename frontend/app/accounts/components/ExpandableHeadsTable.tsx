@@ -36,6 +36,8 @@ export type ExpandableHeadRow = {
   note?: string;
   subHeads?: SubHeadEntry[];
   notes?: DatedNote[];
+  periodAmount?: number;
+  allTimeAmount?: number;
 };
 
 type ExpandableHeadsTableProps = {
@@ -68,6 +70,8 @@ type ExpandableHeadsTableProps = {
     sub: SubHeadEntry;
     nextRows: ExpandableHeadRow[];
   }) => boolean | void;
+  /** Show Per month + All time amount columns (Provident Fund). */
+  amountSplit?: { periodLabel: string; allTimeLabel: string };
 };
 
 export default function ExpandableHeadsTable({
@@ -86,6 +90,7 @@ export default function ExpandableHeadsTable({
   recordDate = todayIso(),
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
   onDeleteSubHead,
+  amountSplit,
 }: ExpandableHeadsTableProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
@@ -285,14 +290,21 @@ export default function ExpandableHeadsTable({
               <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-faint">Head</th>
               <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-crm-text-faint min-w-[160px]">Notes</th>
               <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[100px]">Filled</th>
-              <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[110px]">Total</th>
+              {amountSplit ? (
+                <>
+                  <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[110px]">{amountSplit.periodLabel}</th>
+                  <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[110px]">{amountSplit.allTimeLabel}</th>
+                </>
+              ) : (
+                <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-crm-text-faint w-[110px]">Total</th>
+              )}
               <th className="w-24 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-crm-text-faint">Actions</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-12 text-center text-crm-text-faint text-sm">{emptyLabel}</td>
+                <td colSpan={amountSplit ? 7 : 6} className="px-3 py-12 text-center text-crm-text-faint text-sm">{emptyLabel}</td>
               </tr>
             ) : (
               rows.map((row, idx) => {
@@ -320,6 +332,12 @@ export default function ExpandableHeadsTable({
                         return a + ex.totalPayable;
                       }, 0)
                     : lineAmount(row);
+                const periodAmt = amountSplit
+                  ? (row.periodAmount ?? subs.reduce((a, s) => a + (Number(s.periodAmount ?? s.amount) || 0), 0))
+                  : amt;
+                const allTimeAmt = amountSplit
+                  ? (row.allTimeAmount ?? subs.reduce((a, s) => a + (Number(s.allTimeAmount) || 0), 0))
+                  : 0;
                 return (
                   <Fragment key={row.id}>
                     <tr className={`border-b border-crm-border-subtle transition-colors ${idx % 2 === 0 ? "bg-crm-surface" : "bg-crm-surface-muted"} hover:bg-crm-surface-raised`}>
@@ -352,7 +370,14 @@ export default function ExpandableHeadsTable({
                         />
                       </td>
                       <td className="px-3 py-2.5 text-center text-xs text-crm-text-muted tabular-nums">{row.filledAt || "—"}</td>
-                      <td className="px-3 py-2.5 text-right font-bold tabular-nums text-crm-text">{currency(amt)}</td>
+                      {amountSplit ? (
+                        <>
+                          <td className="px-3 py-2.5 text-right font-bold tabular-nums text-crm-text">{currency(periodAmt)}</td>
+                          <td className="px-3 py-2.5 text-right font-bold tabular-nums text-teal-800">{currency(allTimeAmt)}</td>
+                        </>
+                      ) : (
+                        <td className="px-3 py-2.5 text-right font-bold tabular-nums text-crm-text">{currency(amt)}</td>
+                      )}
                       <td className="px-2 py-2 text-center">
                         <div className="inline-flex items-center gap-1">
                           {salaryMode && (
@@ -397,7 +422,7 @@ export default function ExpandableHeadsTable({
                     </tr>
                     {expanded && (
                       <tr className="bg-[#F8FAFC]">
-                        <td colSpan={6} className="px-4 py-2.5">
+                        <td colSpan={amountSplit ? 7 : 6} className="px-4 py-2.5">
                           {subs.length === 0 ? (
                             <p className="text-[11px] text-crm-text-faint py-1">No individual heads — open Edit to add sub-heads.</p>
                           ) : isInventoryRow ? (
@@ -745,7 +770,14 @@ export default function ExpandableHeadsTable({
                                     {allowProofUpload && (
                                       <th className="px-3 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[120px]">Image</th>
                                     )}
-                                    <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[100px]">Amount</th>
+                                    {amountSplit ? (
+                                      <>
+                                        <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[110px]">{amountSplit.periodLabel}</th>
+                                        <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[110px]">{amountSplit.allTimeLabel}</th>
+                                      </>
+                                    ) : (
+                                      <th className="px-3 py-2 text-right font-bold uppercase tracking-wide text-[10px] w-[100px]">Amount</th>
+                                    )}
                                     {onPersist && <th className="px-2 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[50px]">Save</th>}
                                     <th className="px-2 py-2 text-center font-bold uppercase tracking-wide text-[10px] w-[50px]">Del</th>
                                   </tr>
@@ -773,7 +805,14 @@ export default function ExpandableHeadsTable({
                                           />
                                         </td>
                                       )}
-                                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-crm-text">{currency(s.amount)}</td>
+                                      {amountSplit ? (
+                                        <>
+                                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-crm-text">{currency(Number(s.periodAmount ?? s.amount) || 0)}</td>
+                                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-teal-800">{currency(Number(s.allTimeAmount) || 0)}</td>
+                                        </>
+                                      ) : (
+                                        <td className="px-3 py-2 text-right font-semibold tabular-nums text-crm-text">{currency(s.amount)}</td>
+                                      )}
                                       {onPersist && (
                                         <td className="px-2 py-2 text-center">
                                           <button
