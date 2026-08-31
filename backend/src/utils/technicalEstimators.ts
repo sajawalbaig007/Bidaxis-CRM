@@ -1,4 +1,5 @@
 import prisma from "../config/db";
+import { estDateYmd } from "./estTime";
 
 /** Estimator roster for Technical Active Projects. */
 export type TechnicalEstimator = {
@@ -201,6 +202,52 @@ export const MIN_COMPLETE_TIMER_SECONDS = 30;
 
 export function canCompleteAfterTimer(elapsedSeconds: number): boolean {
   return Math.max(0, Math.floor(elapsedSeconds)) >= MIN_COMPLETE_TIMER_SECONDS;
+}
+
+/**
+ * Running timer left overnight (or >12h continuous) must pause —
+ * never auto-complete; estimator resumes next day from timerSeconds.
+ */
+export function isAssignmentTimerStale(
+  timerStartedAt: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!timerStartedAt) return false;
+  const started = new Date(timerStartedAt);
+  if (Number.isNaN(started.getTime())) return false;
+  if (estDateYmd(started) !== estDateYmd(now)) return true;
+  return now.getTime() - started.getTime() > 12 * 60 * 60 * 1000;
+}
+
+/** Pause stale running timers for this estimator (overnight leave → resume later). */
+export async function pauseStaleTimersForEstimator(
+  user: { id: string; name: string },
+): Promise<number> {
+  const raw = await prisma.lead.findMany({
+    where: { technicalAssignments: { not: null } },
+    select: { id: true, technicalAssignments: true },
+    take: 500,
+  });
+  const now = Date.now();
+  let paused = 0;
+  for (const lead of raw) {
+    const list = parseTechnicalAssignments(lead.technicalAssignments);
+    let changed = false;
+    const next = list.map((a) => {
+      if (!assignmentBelongsToEstimator(a, user)) return a;
+      if (a.takeoffDone || !a.timerStartedAt) return a;
+      if (!isAssignmentTimerStale(a.timerStartedAt, new Date(now))) return a;
+      changed = true;
+      paused += 1;
+      return pauseAssignmentTimer(a, now);
+    });
+    if (!changed) continue;
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { technicalAssignments: serializeTechnicalAssignments(next) },
+    });
+  }
+  return paused;
 }
 
 /** Pause running timers for this estimator on specific leads (fast path). */

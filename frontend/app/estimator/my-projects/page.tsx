@@ -24,7 +24,7 @@ import {
 } from "@/app/components/projects/ProjectTableCells";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import RechartsBox from "@/app/components/charts/RechartsBox";
-import API from "@/lib/api";
+import API, { getClientAuthToken, resolveBaseURL } from "@/lib/api";
 import {
   projectReceiveDate,
   formatElapsed,
@@ -199,13 +199,17 @@ function TimerControls({
           ) : null}
         </button>
       </div>
-      {!canComplete ? (
-        <p className="text-[9px] text-gray-400 leading-snug">
-          {running || elapsed > 0
+      <p className="text-[9px] text-gray-400 leading-snug">
+        {!canComplete
+          ? running || elapsed > 0
             ? `Complete unlocks in ${waitLeft}s`
-            : `Start timer — Complete after ${MIN_COMPLETE_TIMER_SECONDS}s`}
-        </p>
-      ) : null}
+            : `Start timer — Complete after ${MIN_COMPLETE_TIMER_SECONDS}s`
+          : running
+            ? "Pause before leaving — tomorrow Resume from same time"
+            : elapsed > 0
+              ? "Paused — Start resumes from here (not auto-complete)"
+              : "Start when you begin work · Pause when you leave"}
+      </p>
     </div>
   );
 }
@@ -255,12 +259,48 @@ export default function EstimatorMyProjectsPage() {
     );
     if (!running?.myAssignment) return;
     const base = running.myAssignment.timerSeconds ?? 0;
+    const startedMs = new Date(running.myAssignment.timerStartedAt!).getTime();
+    const already =
+      Number.isFinite(startedMs) ? Math.max(0, Math.floor((Date.now() - startedMs) / 1000)) : 0;
     setLiveClock({
       projectId: running.id,
-      baseSeconds: base,
+      baseSeconds: base + already,
       startedAtMs: Date.now(),
     });
   }, [projects]);
+
+  /** Tab close / leave: pause running timer so overnight does not keep counting. */
+  useEffect(() => {
+    const pauseOnLeave = () => {
+      const clock = liveClockRef.current;
+      if (!clock) return;
+      const secs = Math.max(0, Math.floor(clock.baseSeconds + (Date.now() - clock.startedAtMs) / 1000));
+      const token = getClientAuthToken();
+      const body = JSON.stringify({
+        action: "pause",
+        clientElapsedSeconds: secs,
+      });
+      const base = resolveBaseURL().replace(/\/$/, "");
+      const path = `${base}/estimator/project/${encodeURIComponent(clock.projectId)}/timer`;
+      try {
+        void fetch(path, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body,
+          credentials: "include",
+          keepalive: true,
+        });
+      } catch {
+        /* best-effort */
+      }
+      setLiveClock(null);
+    };
+    window.addEventListener("pagehide", pauseOnLeave);
+    return () => window.removeEventListener("pagehide", pauseOnLeave);
+  }, []);
 
   const getElapsed = useCallback(
     (p: Project) => {
@@ -316,6 +356,18 @@ export default function EstimatorMyProjectsPage() {
 
   useEffect(() => {
     void fetchProjects("initial");
+  }, [fetchProjects]);
+
+  useEffect(() => {
+    const onCheckInChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ checkedIn?: boolean }>).detail;
+      if (detail?.checkedIn === false) {
+        setLiveClock(null);
+        void fetchProjects("silent");
+      }
+    };
+    window.addEventListener("estimator-checkin-changed", onCheckInChanged);
+    return () => window.removeEventListener("estimator-checkin-changed", onCheckInChanged);
   }, [fetchProjects]);
 
   useEffect(() => {

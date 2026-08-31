@@ -15,6 +15,7 @@ import {
   startAssignmentTimer,
   pauseOtherRunningTimersForEstimator,
   pauseTimersOnLeadIds,
+  pauseStaleTimersForEstimator,
   syncPhaseFromAssignments,
   assignmentElapsedSeconds,
   canCompleteAfterTimer,
@@ -90,6 +91,9 @@ router.get("/projects", async (req: AuthRequest, res) => {
     const me = await currentEstimator(req);
     if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
 
+    /* Overnight / forgotten Start → Pause (keep timerSeconds); never auto-Complete */
+    await pauseStaleTimersForEstimator(me);
+
     const raw = await prisma.lead.findMany({
       where: {
         ...buildProjectLeadWhere(),
@@ -133,6 +137,8 @@ router.get("/dashboard", async (req: AuthRequest, res) => {
   try {
     const me = await currentEstimator(req);
     if (!me) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    await pauseStaleTimersForEstimator(me);
 
     const raw = await prisma.lead.findMany({
       where: {
@@ -732,13 +738,20 @@ router.post("/check-in", async (req: AuthRequest, res) => {
 
 router.post("/check-out", async (req: AuthRequest, res) => {
   try {
+    const me = await currentEstimator(req);
+    /* Leaving for the day: pause project timers so tomorrow resumes from same time */
+    if (me) {
+      await pauseOtherRunningTimersForEstimator(me);
+    }
     const closed = await checkOutCsrWorkSession(req.user!.id);
     return res.json({
       success: true,
       closed,
       checkedIn: false,
       session: null,
-      message: closed ? "Checked out successfully." : "No active check-in.",
+      message: closed
+        ? "Checked out — project timers paused. Resume tomorrow from the same time."
+        : "No active check-in.",
     });
   } catch (error) {
     console.log(error);
