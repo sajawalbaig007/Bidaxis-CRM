@@ -9,6 +9,7 @@ import { lineAmount, newRowId, todayIso } from "../types";
 import { computeAdminSalary, computeExecutiveSalary, computeSalary, computeTechnicalManagerSalary, emptySalaryDetail } from "./payrollFormula";
 import {
   computeSalesEmployeePayroll,
+  type SalesPayrollCalcOpts,
   type SalesPayrollEmployee,
 } from "./salesPayrollFormula";
 import {
@@ -46,6 +47,7 @@ export function pfFromSalarySub(
   sub: SubHeadEntry,
   kind: PayrollKind,
   salesExtra = 0,
+  opts?: SalesPayrollCalcOpts,
 ): number {
   if (kind === "executive") {
     const sal = emptySalaryDetail(sub.salary ?? { basic: Number(sub.amount) || 0 });
@@ -69,6 +71,7 @@ export function pfFromSalarySub(
         pfOverride: sp.pfOverride ?? null,
       },
       salesExtra,
+      opts,
     ).pf;
   }
 

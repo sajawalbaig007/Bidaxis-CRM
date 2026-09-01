@@ -1,9 +1,13 @@
 /** Sales team payroll defaults — Hammad (Team Lead) + Sales Team members */
 
+export type ProjectCurrency = "USD" | "CAD";
+
 export type FixClientProject = {
   id: string;
   clientName: string;
   projectPay: number;
+  currency?: ProjectCurrency;
+  fxRate?: number;
 };
 
 export type SalesCommissionFields = {

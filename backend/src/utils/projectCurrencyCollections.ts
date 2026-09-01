@@ -51,6 +51,27 @@ export function yearMonthFromDate(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
+/** Inclusive YYYY-MM list covering [fromIso, toIso]. */
+export function yearMonthsInclusive(fromIso: string, toIso: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromIso) || !/^\d{4}-\d{2}-\d{2}$/.test(toIso)) return [];
+  const start = fromIso <= toIso ? fromIso : toIso;
+  const end = fromIso <= toIso ? toIso : fromIso;
+  const out: string[] = [];
+  let y = Number(start.slice(0, 4));
+  let m = Number(start.slice(5, 7));
+  const endY = Number(end.slice(0, 4));
+  const endM = Number(end.slice(5, 7));
+  while (y < endY || (y === endY && m <= endM)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
+
 /** @deprecated use paymentAccountsMonth — kept for call sites expecting a day */
 export function paymentPaidDateIso(entry: ProjectPaymentEntry): string | null {
   const ym = paymentAccountsMonth(entry);
@@ -203,6 +224,19 @@ export async function aggregateCollectionsForMonths(
   for (const entry of entries) {
     const ym = paymentAccountsMonth(entry);
     if (!ym || !monthSet.has(ym)) continue;
+    accumulatePaymentIntoDay(map.get(ym)!, entry);
+  }
+  return map;
+}
+
+/** Every calendar month that has at least one paid project collection. */
+export async function aggregateAllCollectionMonths(): Promise<Map<string, DayCollections>> {
+  const map = new Map<string, DayCollections>();
+  const entries = await loadAllPaymentEntries();
+  for (const entry of entries) {
+    const ym = paymentAccountsMonth(entry);
+    if (!ym) continue;
+    if (!map.has(ym)) map.set(ym, emptyDayCollections());
     accumulatePaymentIntoDay(map.get(ym)!, entry);
   }
   return map;

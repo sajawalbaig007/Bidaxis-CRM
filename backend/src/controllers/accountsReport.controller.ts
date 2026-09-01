@@ -11,8 +11,17 @@ import {
 import { recomputeTechnicalTeamInIncomeStatement } from "../utils/technicalPayrollDefaults";
 import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import { ACCOUNTS_CLOUDINARY_FOLDERS } from "../utils/accountsStorage";
-import { calcSalesCommission } from "../utils/salesPayrollFormula";
+import { calcSalesCommission, type SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
 import type { SalesCommissionFields } from "../utils/salesPayrollDefaults";
+import {
+  aggregateAllCollectionMonths,
+  applyCollectionsToDashboardData,
+  emptyDayCollections,
+  monthStartIso,
+  yearMonthFromDate,
+} from "../utils/projectCurrencyCollections";
+import { defaultAccountsData } from "../utils/accountsDefaults";
+import { fetchLiveFxRates } from "../utils/fxRates";
 
 /**
  * Monthly Executive Summary — aggregates ALL daily income_statement records
@@ -45,7 +54,13 @@ type SubHead = {
       oldClientProjects?: number;
       oldClientPartialCount?: number;
       newClientProjects?: number;
-      fixClientProjects?: { id?: string; clientName?: string; projectPay?: number }[];
+      fixClientProjects?: {
+        id?: string;
+        clientName?: string;
+        projectPay?: number;
+        currency?: "USD" | "CAD";
+        fxRate?: number;
+      }[];
     };
   };
 };
@@ -77,7 +92,9 @@ function lineTotal(row: HeadRow): number {
 }
 
 function isRowExpense(data: Record<string, unknown>): number {
-  const cats = ["teamSalaries", "opexHeads", "loanHeads", "providentFundHeads"] as const;
+  // Align with Income Statement / dashboard: Total Expense = payroll + OPEX
+  // (PF and loans already sit inside net salaries — don't double-count).
+  const cats = ["teamSalaries", "opexHeads"] as const;
   return cats.reduce((sum, key) => {
     const rows = (data[key] as HeadRow[]) ?? [];
     return sum + rows.reduce((a, r) => a + lineTotal(r), 0);
@@ -232,7 +249,11 @@ function emptyCsrRow(name: string, teamTitle: string, sub: SubHead): CsrPerforma
   };
 }
 
-function csrRowFromSub(teamTitle: string, sub: SubHead): CsrPerformanceRow | null {
+function csrRowFromSub(
+  teamTitle: string,
+  sub: SubHead,
+  opts?: SalesPayrollCalcOpts,
+): CsrPerformanceRow | null {
   const name = String(sub.salesPayroll?.name || sub.label || "").trim();
   if (!name) return null;
   const row = emptyCsrRow(name, teamTitle, sub);
@@ -245,9 +266,11 @@ function csrRowFromSub(teamTitle: string, sub: SubHead): CsrPerformanceRow | nul
       id: String(p.id ?? `fix-${i}`),
       clientName: String(p.clientName ?? ""),
       projectPay: Number(p.projectPay) || 0,
+      currency: p.currency === "CAD" ? "CAD" : "USD",
+      fxRate: Number(p.fxRate) || 0,
     })),
   };
-  const calc = calcSalesCommission(commission, row.role);
+  const calc = calcSalesCommission(commission, row.role, opts);
   const fixPay = commission.fixClientProjects.reduce((s, p) => s + (Number(p.projectPay) || 0), 0);
   return {
     ...row,
@@ -269,7 +292,10 @@ function csrRowFromSub(teamTitle: string, sub: SubHead): CsrPerformanceRow | nul
  * with separate columns for each project / commission field.
  * Last daily entry in the month wins per person.
  */
-function aggregateCsrFromSalesPayroll(records: Record<string, unknown>[]): CsrPerformanceReport {
+function aggregateCsrFromSalesPayroll(
+  records: Record<string, unknown>[],
+  opts?: SalesPayrollCalcOpts,
+): CsrPerformanceReport {
   const byName = new Map<string, CsrPerformanceRow>();
   for (const data of records) {
     const teams = (data.teamSalaries as HeadRow[]) ?? [];
@@ -277,7 +303,7 @@ function aggregateCsrFromSalesPayroll(records: Record<string, unknown>[]): CsrPe
       const title = String(team.team ?? "");
       if (!isSalesCsrTeam(title)) continue;
       for (const s of team.subHeads ?? []) {
-        const row = csrRowFromSub(title, s);
+        const row = csrRowFromSub(title, s, opts);
         if (!row) continue;
         byName.set(row.name, row);
       }
@@ -342,23 +368,55 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       dashRecords.map(r => [r.recordDate, r.data as Record<string, unknown>]),
     );
 
+    const collectionsByMonth = await aggregateAllCollectionMonths();
+    const dashForMonth = (ym: string) => {
+      const monthStart = monthStartIso(ym);
+      const raw =
+        dashByDate.get(monthStart) ??
+        [...dashByDate.entries()].find(([d]) => yearMonthFromDate(d) === ym)?.[1] ??
+        defaultAccountsData("dashboard");
+      return applyCollectionsToDashboardData(
+        raw,
+        collectionsByMonth.get(ym) ?? emptyDayCollections(),
+      );
+    };
+    const revenueForMonth = (ym: string) => currencyFormulaTotalFromDashboard(dashForMonth(ym));
+
     const byMonth = new Map<string, { revenue: number; cost: number; days: number; lastDate: string }>();
     const monthRecords: Record<string, unknown>[] = [];
     let lastDateInMonth: string | null = null;
 
+    const allMonths = new Set<string>([
+      month,
+      ...[...collectionsByMonth.keys()],
+      ...dashRecords.map(r => yearMonthFromDate(r.recordDate)),
+      ...isRecords.map(r => yearMonthFromDate(r.recordDate)),
+    ]);
+
+    for (const ym of allMonths) {
+      byMonth.set(ym, {
+        revenue: revenueForMonth(ym),
+        cost: 0,
+        days: 0,
+        lastDate: monthStartIso(ym),
+      });
+    }
+
     for (const rec of isRecords) {
       const data = prepareIncomeStatementData(rec.data as Record<string, unknown>);
-      const revenue = currencyFormulaTotalFromDashboard(dashByDate.get(rec.recordDate));
-      const synced = { ...data, totalRevenue: revenue };
       const m = rec.recordDate.slice(0, 7);
-      const entry = byMonth.get(m) ?? { revenue: 0, cost: 0, days: 0, lastDate: rec.recordDate };
-      entry.revenue += revenue;
-      entry.cost += isRowExpense(synced);
+      const entry = byMonth.get(m) ?? {
+        revenue: revenueForMonth(m),
+        cost: 0,
+        days: 0,
+        lastDate: rec.recordDate,
+      };
+      entry.cost += isRowExpense(data);
       entry.days += 1;
       if (rec.recordDate > entry.lastDate) entry.lastDate = rec.recordDate;
       byMonth.set(m, entry);
       if (m === month) {
-        monthRecords.push(synced);
+        monthRecords.push({ ...data, totalRevenue: entry.revenue });
         if (!lastDateInMonth || rec.recordDate > lastDateInMonth) lastDateInMonth = rec.recordDate;
       }
     }
@@ -378,16 +436,17 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     if (!history.some(h => h.month === month)) {
       history.push({
         month,
-        revenue: 0,
+        revenue: revenueForMonth(month),
         cost: 0,
-        net: 0,
+        net: revenueForMonth(month),
         days: 0,
         lastDate: monthEnd,
       });
       history.sort((a, b) => a.month.localeCompare(b.month));
     }
 
-    const revenue = monthRecords.reduce((a, d) => a + (Number(d.totalRevenue) || 0), 0);
+    const monthEntry = byMonth.get(month);
+    const revenue = monthEntry?.revenue ?? revenueForMonth(month);
     const salaryTeams = aggregateCategory(monthRecords, "teamSalaries", "team");
     const opexHeads = aggregateCategory(monthRecords, "opexHeads", "label");
     const loanHeads = aggregateCategory(monthRecords, "loanHeads", "label");
@@ -398,7 +457,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     const opex = opexHeads.reduce((a, t) => a + t.total, 0);
     const loans = loanHeads.reduce((a, t) => a + t.total, 0);
     const pf = pfHeads.reduce((a, t) => a + t.total, 0);
-    const totalCost = payroll + opex + loans + pf;
+    const totalCost = payroll + opex;
     const netProfit = revenue - totalCost;
 
     const cfRecords = await prisma.accountsRecord.findMany({
@@ -440,7 +499,17 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       balance: bankTotals.get(bank) ?? 0,
     }));
 
-    const csr = aggregateCsrFromSalesPayroll(monthRecords);
+    const csrOpts: SalesPayrollCalcOpts = { recordDate: `${month}-01` };
+    if (month >= "2026-09") {
+      try {
+        const fx = await fetchLiveFxRates();
+        csrOpts.usdToPkr = fx.usdToPkr;
+        csrOpts.cadToPkr = fx.cadToPkr;
+      } catch {
+        /* stored project fxRate still applies */
+      }
+    }
+    const csr = aggregateCsrFromSalesPayroll(monthRecords, csrOpts);
 
     return res.json({
       success: true,

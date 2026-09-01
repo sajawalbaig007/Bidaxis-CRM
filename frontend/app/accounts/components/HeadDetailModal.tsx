@@ -22,7 +22,7 @@ import {
   salesSubsFromPeerRows,
   isSalesTeamTitle,
 } from "../utils/salesPayrollBridge";
-import type { SalesPayrollData } from "../utils/salesPayrollFormula";
+import type { SalesPayrollData, SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "../utils/salesPayrollDefaults";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
@@ -64,6 +64,7 @@ type HeadDetailModalProps = {
   saving?: boolean;
   /** Date used for salary-slip month label. */
   recordDate?: string;
+  calcOpts?: SalesPayrollCalcOpts;
   /** Company slip format (BEM Solutions now; GPS/BDS later). */
   salarySlipCompany?: SalarySlipCompanyKey;
   /** BEM Asset inventory tables (qty × unit price). */
@@ -85,9 +86,11 @@ export default function HeadDetailModal({
   execProfitBase = 0,
   saving = false,
   recordDate = todayIso(),
+  calcOpts: calcOptsProp,
   salarySlipCompany = DEFAULT_SALARY_SLIP_COMPANY,
   inventoryMode: inventoryModeProp = false,
 }: HeadDetailModalProps) {
+  const calcOpts = calcOptsProp ?? { recordDate };
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [openSalaryIds, setOpenSalaryIds] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<HeadDetailModel | null>(null);
@@ -437,8 +440,8 @@ export default function HeadDetailModal({
                         : "sales";
                     const sp = ensureSalesPayrollFromSub(s, role);
                     const extra =
-                      payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0;
-                    const net = netFromSalesSub({ ...s, salesPayroll: sp }, role, extra);
+                      payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers, calcOpts) : 0;
+                    const net = netFromSalesSub({ ...s, salesPayroll: sp }, role, extra, calcOpts);
                     return (
                       <div key={s.id} className="rounded-xl border border-emerald-200 overflow-hidden">
                         <div className="flex items-center gap-2 px-2.5 py-2 bg-[#ECFDF3]">
@@ -471,11 +474,13 @@ export default function HeadDetailModal({
                               allData={salesPayrollContext()}
                               embedded
                               defaultOpen
+                              calcOpts={calcOpts}
                               onChange={next => {
                                 const amount = netFromSalesSub(
                                   { ...s, salesPayroll: next, label: next.name },
                                   role,
-                                  payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0,
+                                  payrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers, calcOpts) : 0,
+                                  calcOpts,
                                 );
                                 updateSub(s.id, {
                                   label: next.name,
@@ -491,7 +496,7 @@ export default function HeadDetailModal({
                                       const sp2 = ensureSalesPayrollFromSub(assigned, "sales");
                                       updateSub(s.id, {
                                         salesPayroll: sp2,
-                                        amount: netFromSalesSub({ ...assigned, salesPayroll: sp2 }, "sales"),
+                                        amount: netFromSalesSub({ ...assigned, salesPayroll: sp2 }, "sales", 0, calcOpts),
                                         salary: undefined,
                                       });
                                     }

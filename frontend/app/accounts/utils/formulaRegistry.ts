@@ -150,7 +150,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Sales Team",
     title: "Project Commission",
     expression:
-      "Old client = 1,000/project (partial = 500) · New client = 3,000/project · Fix client = 2.5% of project pay",
+      "Through Aug 2026: Old = 1,000/project (partial 500) · New = 3,000/project · Fix = 2.5% of pay. From Sep 2026: Fix = amount × slab% × 0.89 × live FX (≤$1k 3% · $1,001–3k 3.5% · $3,001–5k 4% · $5,001–10k 4.5% · $10,001+ 5%)",
     appliesTo: "Sales team member commissions",
   },
   {
@@ -164,7 +164,8 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     id: "sales-tl",
     section: "Payroll — Sales Team",
     title: "Team Lead Commission",
-    expression: "TL extra = assigned members' projects × 1,000 + 0.5% of their fix-client pay",
+    expression:
+      "Through Aug 2026: assigned projects × 1,000 + 0.5% of fix-client pay. From Sep 2026: each team project amount × 0.5% × 0.89 × live FX (USD or CAD rate at that time)",
     appliesTo: "Sales Team Lead Salaries (Hammad)",
   },
 
