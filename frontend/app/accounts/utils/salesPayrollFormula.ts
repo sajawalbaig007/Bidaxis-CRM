@@ -1,9 +1,20 @@
 /** Sales team payroll — commission + 6 PM late (no overtime) */
 
+export type ProjectCurrency = "USD" | "CAD";
+
 export type FixClientProject = {
   id: string;
   clientName: string;
   projectPay: number;
+  currency?: ProjectCurrency;
+  /** PKR per 1 unit of project currency, captured when the project was entered. */
+  fxRate?: number;
+};
+
+export type SalesPayrollCalcOpts = {
+  recordDate?: string;
+  usdToPkr?: number;
+  cadToPkr?: number;
 };
 
 export type SalesCommissionFields = {
@@ -68,6 +79,45 @@ const OLD_RATE = 1000;
 const NEW_RATE = 3000;
 const TL_PER_PROJECT = 1000;
 const TL_FIX_PCT = 0.005;
+/** September 2026 onward — slab % × 0.89 tax × live FX. */
+export const PROJECT_SLAB_FROM_MONTH = "2026-09";
+export const PROJECT_TAX_FACTOR = 0.89;
+
+export function usesProjectSlabRules(recordDate?: string | null): boolean {
+  const d = String(recordDate ?? "").trim();
+  if (!/^\d{4}-\d{2}/.test(d)) return false;
+  return d.slice(0, 7) >= PROJECT_SLAB_FROM_MONTH;
+}
+
+/** $0–1000 = 3% · $1001–3000 = 3.5% · $3001–5000 = 4% · $5001–10,000 = 4.5% · $10,001+ = 5% */
+export function projectSlabRate(amount: number): number {
+  const a = Math.max(0, Number(amount) || 0);
+  if (a <= 1000) return 0.03;
+  if (a <= 3000) return 0.035;
+  if (a <= 5000) return 0.04;
+  if (a <= 10000) return 0.045;
+  return 0.05;
+}
+
+function projectFxRate(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
+  const stored = Number(p.fxRate);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  const currency = p.currency === "CAD" ? "CAD" : "USD";
+  const live = currency === "CAD" ? Number(opts?.cadToPkr) : Number(opts?.usdToPkr);
+  return Number.isFinite(live) && live > 0 ? live : 0;
+}
+
+/** amount × slab% × 0.89 × FX  (e.g. 300 × 0.03 × 0.89 × 277) */
+export function projectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
+  const amount = Number(p.projectPay) || 0;
+  return amount * projectSlabRate(amount) * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
+}
+
+/** Team-lead share of a team project: amount × 0.5% × 0.89 × FX */
+export function tlProjectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
+  const amount = Number(p.projectPay) || 0;
+  return amount * 0.005 * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
+}
 
 export function timeToMinutes(t: string | undefined | null): number | null {
   if (!t || !/^\d{1,2}:\d{2}$/.test(t.trim())) return null;
@@ -99,25 +149,36 @@ export function calcSalesLateDeduction(
   return { amount: daySalary / 2, rule: "20:00+ → half day" };
 }
 
-export function calcSalesCommission(commission: SalesCommissionFields, role: "sales" | "team_lead") {
+export function calcSalesCommission(
+  commission: SalesCommissionFields,
+  _role: "sales" | "team_lead",
+  opts?: SalesPayrollCalcOpts,
+) {
   const oldCount = Number(commission.oldClientProjects) || 0;
   const partial = Math.min(Number(commission.oldClientPartialCount) || 0, oldCount);
   const oldFull = oldCount - partial;
   const oldComm = oldFull * OLD_RATE + partial * (OLD_RATE * 0.5);
   const newComm = (Number(commission.newClientProjects) || 0) * NEW_RATE;
+  const slab = usesProjectSlabRules(opts?.recordDate);
   const fixComm = (commission.fixClientProjects ?? []).reduce(
-    (s, p) => s + (Number(p.projectPay) || 0) * 0.025,
+    (s, p) => s + (slab ? projectCommissionPkr(p, opts) : (Number(p.projectPay) || 0) * 0.025),
     0,
   );
   const totalProjects =
     oldCount + (Number(commission.newClientProjects) || 0) + (commission.fixClientProjects?.length ?? 0);
   const totalCommission = oldComm + newComm + fixComm;
-  return { oldComm, newComm, fixComm, totalProjects, totalCommission };
+  return { oldComm, newComm, fixComm, totalProjects, totalCommission, slab };
 }
 
-export function calcTlAssignedCommission(rep: SalesPayrollEmployee) {
+export function calcTlAssignedCommission(rep: SalesPayrollEmployee, opts?: SalesPayrollCalcOpts) {
   if (!rep.assignedToLead) return 0;
-  const { totalProjects } = calcSalesCommission(rep.commission, "sales");
+  if (usesProjectSlabRules(opts?.recordDate)) {
+    return (rep.commission.fixClientProjects ?? []).reduce(
+      (s, p) => s + tlProjectCommissionPkr(p, opts),
+      0,
+    );
+  }
+  const { totalProjects } = calcSalesCommission(rep.commission, "sales", opts);
   const fixPay = (rep.commission.fixClientProjects ?? []).reduce(
     (s, p) => s + (Number(p.projectPay) || 0),
     0,
@@ -125,12 +186,16 @@ export function calcTlAssignedCommission(rep: SalesPayrollEmployee) {
   return totalProjects * TL_PER_PROJECT + fixPay * TL_FIX_PCT;
 }
 
-export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarning = 0) {
+export function computeSalesEmployeePayroll(
+  emp: SalesPayrollEmployee,
+  extraEarning = 0,
+  opts?: SalesPayrollCalcOpts,
+) {
   const basic = Number(emp.basic) || 0;
   const allowance = Number(emp.allowance) || 0;
   const homeAllowance = emp.role === "team_lead" ? Number(emp.homeAllowance) || 0 : 0;
   const daySalary = (basic + allowance + homeAllowance) / 30;
-  const comm = calcSalesCommission(emp.commission, emp.role);
+  const comm = calcSalesCommission(emp.commission, emp.role, opts);
   const late = calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;
   const unpaidLeaveDeduction = unpaidDays * daySalary;
@@ -164,8 +229,14 @@ export function computeSalesEmployeePayroll(emp: SalesPayrollEmployee, extraEarn
   };
 }
 
-export function newFixClientProject(): FixClientProject {
-  return { id: `fix-${Date.now()}`, clientName: "", projectPay: 0 };
+export function newFixClientProject(init?: Partial<FixClientProject>): FixClientProject {
+  return {
+    id: init?.id ?? `fix-${Date.now()}`,
+    clientName: init?.clientName ?? "",
+    projectPay: Number(init?.projectPay) || 0,
+    currency: init?.currency === "CAD" ? "CAD" : "USD",
+    fxRate: Number(init?.fxRate) || 0,
+  };
 }
 
 export function newRowId(prefix: string) {

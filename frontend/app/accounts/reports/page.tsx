@@ -760,6 +760,7 @@ export default function AccountsReportsPage() {
         { name: "Provident Fund", value: report.totals.pf, color: "#6D28D9" },
       ].filter(c => c.value > 0)
     : [];
+  const costMixSum = costMix.reduce((a, c) => a + c.value, 0);
 
   const kpis = report
     ? [
@@ -831,8 +832,9 @@ export default function AccountsReportsPage() {
           ) : (
             <>
               <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed">
-                <b className="text-crm-text">Daily mode:</b> Values added each day on the Income Statement
-                are <b>summed</b> into this month&apos;s sections (Team Salaries, OPEX, Loans, PF, Executives, Revenue)
+                <b className="text-crm-text">Month compile:</b> Revenue is that month&apos;s project collections
+                (once, not per day). Team Salaries, OPEX, Loans, PF and Executives are summed from every
+                Income Statement day in the month
                 — {report.daysRecorded} day(s) recorded
                 {report.sourceDate ? ` · last entry ${report.sourceDate}` : ""}.{" "}
                 <b>Save Report</b> downloads a Word file and archives it to Cloudinary.
@@ -1070,7 +1072,7 @@ export default function AccountsReportsPage() {
                               {c.name}
                             </span>
                             <span className="text-[11px] font-bold tabular-nums text-crm-text">
-                              {((c.value / Math.max(report.totals.totalCost, 1)) * 100).toFixed(1)}%
+                              {((c.value / Math.max(costMixSum, 1)) * 100).toFixed(1)}%
                             </span>
                           </div>
                         ))}

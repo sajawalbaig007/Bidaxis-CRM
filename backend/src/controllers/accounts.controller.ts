@@ -25,10 +25,12 @@ import { currencyFormulaTotalFromDashboard } from "../utils/currencyFormula";
 import {
   aggregateCollectionsForDate,
   aggregateCollectionsForMonths,
+  aggregateAllCollectionMonths,
   applyCollectionsToDashboardData,
   emptyDayCollections,
   monthStartIso,
   yearMonthFromDate,
+  yearMonthsInclusive,
 } from "../utils/projectCurrencyCollections";
 import { accountsUploadFolder } from "../utils/accountsStorage";
 import {
@@ -333,8 +335,15 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
   try {
     const mode = String(req.query.mode ?? "day").trim().toLowerCase();
     const toDate = String(req.query.to ?? req.query.date ?? todayIsoDate()).trim();
+    const fromDate = String(req.query.from ?? "").trim();
     if (!isValidRecordDate(toDate)) {
       return res.status(400).json({ success: false, message: "Invalid date." });
+    }
+    const useRange = mode === "all_time" || mode === "range" || mode === "month";
+    if (useRange && mode !== "all_time") {
+      if (!isValidRecordDate(fromDate)) {
+        return res.status(400).json({ success: false, message: "Invalid from date." });
+      }
     }
 
     const sumLines = (
@@ -417,29 +426,46 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     let recordDate = toDate;
     let dashData: Record<string, unknown> = defaultAccountsData("dashboard");
 
-    if (mode === "all_time") {
-      // Flow statements: sum every saved day through `toDate`. Stock: latest snapshot ≤ toDate.
+    if (useRange) {
+      // Flow: sum every saved IS day in range (All Time = through toDate).
+      // Revenue: project collections once per calendar month (no day double-count).
+      const flowWhere =
+        mode === "all_time" ? { lte: toDate } : { gte: fromDate, lte: toDate };
+      const stockWhere = { lte: toDate };
+      const rangeMonths = mode === "all_time" ? [] : yearMonthsInclusive(fromDate, toDate);
+      const rangeMonthStarts = rangeMonths.map(monthStartIso);
+      const dashWhere =
+        mode === "all_time"
+          ? { page: "dashboard" as const, recordDate: { lte: toDate } }
+          : {
+              page: "dashboard" as const,
+              OR: [
+                { recordDate: { gte: fromDate, lte: toDate } },
+                { recordDate: { in: rangeMonthStarts } },
+              ],
+            };
+
       const [dashRecs, isRecs, bsRecs, cfRecs, taRecs] = await Promise.all([
         prisma.accountsRecord.findMany({
-          where: { page: "dashboard", recordDate: { lte: toDate } },
+          where: dashWhere,
           orderBy: { recordDate: "asc" },
         }),
         prisma.accountsRecord.findMany({
-          where: { page: "income_statement", recordDate: { lte: toDate } },
+          where: { page: "income_statement", recordDate: flowWhere },
           orderBy: { recordDate: "asc" },
         }),
         prisma.accountsRecord.findMany({
-          where: { page: "balance_sheet", recordDate: { lte: toDate } },
+          where: { page: "balance_sheet", recordDate: stockWhere },
           orderBy: { recordDate: "desc" },
           take: 1,
         }),
         prisma.accountsRecord.findMany({
-          where: { page: "cash_flow", recordDate: { lte: toDate } },
+          where: { page: "cash_flow", recordDate: stockWhere },
           orderBy: { recordDate: "desc" },
           take: 1,
         }),
         prisma.accountsRecord.findMany({
-          where: { page: "total_assets", recordDate: { lte: toDate } },
+          where: { page: "total_assets", recordDate: stockWhere },
           orderBy: { recordDate: "desc" },
           take: 1,
         }),
@@ -449,10 +475,19 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
         dashRecs.map(r => [r.recordDate, r.data as Record<string, unknown>]),
       );
 
+      const paidMonths =
+        mode === "all_time"
+          ? [...(await aggregateAllCollectionMonths()).keys()].filter(m => m <= toDate.slice(0, 7))
+          : [];
       const collectionMonths = [
         ...new Set([
-          ...dashRecs.map((r) => yearMonthFromDate(r.recordDate)),
-          ...isRecs.map((r) => yearMonthFromDate(r.recordDate)),
+          ...(mode === "all_time"
+            ? [
+                ...dashRecs.map(r => yearMonthFromDate(r.recordDate)),
+                ...isRecs.map(r => yearMonthFromDate(r.recordDate)),
+                ...paidMonths,
+              ]
+            : rangeMonths),
         ]),
       ];
       const collectionsByMonth = await aggregateCollectionsForMonths(collectionMonths);
@@ -605,8 +640,9 @@ export async function getAccountsDashboardSummary(req: AuthRequest, res: Respons
     return res.json({
       success: true,
       recordDate,
-      mode: mode === "all_time" ? "all_time" : "day",
+      mode: mode === "all_time" ? "all_time" : useRange ? "range" : "day",
       throughDate: toDate,
+      fromDate: useRange && mode !== "all_time" ? fromDate : undefined,
       summaries,
       dashboard: dashData,
       persisted: {

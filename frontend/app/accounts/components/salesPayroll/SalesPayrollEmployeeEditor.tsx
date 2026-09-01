@@ -7,8 +7,13 @@ import {
   calcTlAssignedCommission,
   computeSalesEmployeePayroll,
   newFixClientProject,
+  projectCommissionPkr,
+  projectSlabRate,
+  usesProjectSlabRules,
+  type SalesPayrollCalcOpts,
   type SalesPayrollEmployee,
   type SalesPayrollData,
+  type ProjectCurrency,
 } from "../../utils/salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "../../utils/salesPayrollDefaults";
 import { isRepAssignedToLead } from "../../utils/salesPayrollBridge";
@@ -24,6 +29,7 @@ type Props = {
   defaultOpen?: boolean;
   /** Inside Income Statement modal — skip outer collapse, show fields directly */
   embedded?: boolean;
+  calcOpts?: SalesPayrollCalcOpts;
 };
 
 function Num({
@@ -68,9 +74,11 @@ export default function SalesPayrollEmployeeEditor({
   onAssignToLead,
   defaultOpen = false,
   embedded = false,
+  calcOpts,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen || embedded);
   const isSales = variant === "sales";
+  const slab = usesProjectSlabRules(calcOpts?.recordDate);
   const employeeRef = useRef(employee);
   employeeRef.current = employee;
   const onChangeRef = useRef(onChange);
@@ -80,11 +88,11 @@ export default function SalesPayrollEmployeeEditor({
     variant === "team_lead"
       ? allData.salesTeamMembers
           .filter(m => isRepAssignedToLead(m, employee.id))
-          .reduce((s, m) => s + calcTlAssignedCommission(m), 0)
+          .reduce((s, m) => s + calcTlAssignedCommission(m, calcOpts), 0)
       : 0;
 
-  const breakdown = computeSalesEmployeePayroll(employee, assignedTlTotal);
-  const comm = calcSalesCommission(employee.commission, employee.role);
+  const breakdown = computeSalesEmployeePayroll(employee, assignedTlTotal, calcOpts);
+  const comm = calcSalesCommission(employee.commission, employee.role, calcOpts);
 
   const set = useCallback(
     <K extends keyof SalesPayrollEmployee>(key: K, val: SalesPayrollEmployee[K]) => {
@@ -150,10 +158,21 @@ export default function SalesPayrollEmployeeEditor({
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 space-y-3">
             <p className="text-[11px] font-extrabold uppercase text-emerald-800">Project Commission</p>
             <p className="text-[10px] text-emerald-900/80">
-              {isSales
-                ? "Old $1,000/project (partial 50%) · New $3,000 · Fix 2.5% · No overtime"
-                : "New $3,000/project · Fix 2.5% · Old projects count in total · No overtime"}
+              {slab
+                ? isSales
+                  ? "Old $1,000 / New $3,000 · Fix: slab% × 0.89 × live FX (from Sep 2026) · No overtime"
+                  : "New $3,000 · Fix: slab% × 0.89 × live FX · Team project TL share 0.5% × 0.89 × FX"
+                : isSales
+                  ? "Old $1,000/project (partial 50%) · New $3,000 · Fix 2.5% · No overtime"
+                  : "New $3,000/project · Fix 2.5% · Old projects count in total · No overtime"}
             </p>
+            {slab && (
+              <p className="text-[10px] text-emerald-800">
+                Slabs: $0–1,000 = 3% · $1,001–3,000 = 3.5% · $3,001–5,000 = 4% · $5,001–10,000 = 4.5% · $10,001+ = 5%
+                {calcOpts?.usdToPkr ? ` · Live USD ${calcOpts.usdToPkr}` : ""}
+                {calcOpts?.cadToPkr ? ` · CAD ${calcOpts.cadToPkr}` : ""}
+              </p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
               {isSales && (
                 <>
@@ -167,13 +186,23 @@ export default function SalesPayrollEmployeeEditor({
               )}
               <Num label="New Client Projects" value={employee.commission.newClientProjects} onChange={v => setComm({ newClientProjects: v })} />
               <Read label="New Commission" value={currency(comm.newComm)} accent="text-emerald-800" />
-              <Read label="Fix Commission (2.5%)" value={currency(comm.fixComm)} accent="text-emerald-800" />
+              <Read
+                label={slab ? "Fix Commission (slab × 0.89 × FX)" : "Fix Commission (2.5%)"}
+                value={currency(comm.fixComm)}
+                accent="text-emerald-800"
+              />
               <Read label="Total Projects" value={String(comm.totalProjects)} />
               <Read label="Total Commission" value={currency(comm.totalCommission)} accent="text-emerald-900" />
             </div>
 
-            {employee.commission.fixClientProjects.map(p => (
-              <div key={p.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+            {employee.commission.fixClientProjects.map(p => {
+              const cur: ProjectCurrency = p.currency === "CAD" ? "CAD" : "USD";
+              const liveFx = cur === "CAD" ? Number(calcOpts?.cadToPkr) || 0 : Number(calcOpts?.usdToPkr) || 0;
+              const fx = Number(p.fxRate) > 0 ? Number(p.fxRate) : liveFx;
+              const pct = projectSlabRate(p.projectPay) * 100;
+              const rowComm = slab ? projectCommissionPkr(p, calcOpts) : p.projectPay * 0.025;
+              return (
+              <div key={p.id} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
                 <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
                   Client
                   <input
@@ -186,8 +215,29 @@ export default function SalesPayrollEmployeeEditor({
                     className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm"
                   />
                 </label>
+                {slab && (
+                  <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
+                    Currency
+                    <select
+                      value={cur}
+                      onChange={e => {
+                        const nextCur = e.target.value === "CAD" ? "CAD" : "USD";
+                        const nextFx = nextCur === "CAD" ? Number(calcOpts?.cadToPkr) || 0 : Number(calcOpts?.usdToPkr) || 0;
+                        setComm({
+                          fixClientProjects: employee.commission.fixClientProjects.map(x =>
+                            x.id === p.id ? { ...x, currency: nextCur, fxRate: nextFx } : x,
+                          ),
+                        });
+                      }}
+                      className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
+                    >
+                      <option value="USD">USD</option>
+                      <option value="CAD">CAD</option>
+                    </select>
+                  </label>
+                )}
                 <Num
-                  label="Project Pay ($)"
+                  label={slab ? `Project Pay (${cur})` : "Project Pay ($)"}
                   value={p.projectPay}
                   onChange={v => setComm({
                     fixClientProjects: employee.commission.fixClientProjects.map(x =>
@@ -195,7 +245,14 @@ export default function SalesPayrollEmployeeEditor({
                     ),
                   })}
                 />
-                <Read label="Commission 2.5%" value={currency(p.projectPay * 0.025)} accent="text-emerald-800" />
+                {slab ? (
+                  <>
+                    <Read label={`${cur} → PKR`} value={fx ? fx.toFixed(4) : "—"} accent="text-emerald-800" />
+                    <Read label={`Slab ${pct}% × 0.89 × FX`} value={currency(rowComm)} accent="text-emerald-800" />
+                  </>
+                ) : (
+                  <Read label="Commission 2.5%" value={currency(rowComm)} accent="text-emerald-800" />
+                )}
                 <button
                   type="button"
                   onClick={() => setComm({
@@ -206,11 +263,18 @@ export default function SalesPayrollEmployeeEditor({
                   Remove
                 </button>
               </div>
-            ))}
+              );
+            })}
             <button
               type="button"
               onClick={() => setComm({
-                fixClientProjects: [...employee.commission.fixClientProjects, newFixClientProject()],
+                fixClientProjects: [
+                  ...employee.commission.fixClientProjects,
+                  newFixClientProject({
+                    currency: "USD",
+                    fxRate: Number(calcOpts?.usdToPkr) || 0,
+                  }),
+                ],
               })}
               className="h-8 px-3 rounded-lg border border-dashed border-emerald-300 text-emerald-700 text-[11px] font-bold"
             >
@@ -235,7 +299,11 @@ export default function SalesPayrollEmployeeEditor({
           {variant === "team_lead" && (
             <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-2">
               <p className="text-[11px] font-extrabold uppercase text-indigo-800">Assigned Sales Reps — TL Commission</p>
-              <p className="text-[10px] text-indigo-700">$1,000 × projects · Fix client 0.5% for TL</p>
+              <p className="text-[10px] text-indigo-700">
+                {slab
+                  ? "Team project: amount × 0.5% × 0.89 × live FX (USD/CAD at that time)"
+                  : "$1,000 × projects · Fix client 0.5% for TL"}
+              </p>
               {assignedReps.length === 0 ? (
                 <p className="text-xs text-crm-text-muted">No sales reps assigned yet.</p>
               ) : (
@@ -252,8 +320,8 @@ export default function SalesPayrollEmployeeEditor({
                       {assignedReps.map(r => (
                         <tr key={r.id} className="border-t border-indigo-100">
                           <td className="py-2 pr-2 font-semibold">{r.name}</td>
-                          <td className="py-2 pr-2">{calcSalesCommission(r.commission, "sales").totalProjects}</td>
-                          <td className="py-2 font-bold text-indigo-800">{currency(calcTlAssignedCommission(r))}</td>
+                          <td className="py-2 pr-2">{calcSalesCommission(r.commission, "sales", calcOpts).totalProjects}</td>
+                          <td className="py-2 font-bold text-indigo-800">{currency(calcTlAssignedCommission(r, calcOpts))}</td>
                         </tr>
                       ))}
                     </tbody>

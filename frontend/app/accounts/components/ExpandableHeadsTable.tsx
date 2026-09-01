@@ -17,6 +17,7 @@ import {
   type PayrollKind,
 } from "../utils/salesPayrollBridge";
 import { computeSalesEmployeePayroll } from "../utils/salesPayrollFormula";
+import { useSalesPayrollCalcOpts } from "../hooks/useSalesPayrollCalcOpts";
 import AccountsNotesCell from "./AccountsNotesCell";
 import HeadDetailModal, { type HeadDetailModel } from "./HeadDetailModal";
 import ProofUploadField from "./ProofUploadField";
@@ -95,6 +96,7 @@ export default function ExpandableHeadsTable({
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<HeadDetailModel | null>(null);
   const [slipEditorKind, setSlipEditorKind] = useState<PayrollKind | null>(null);
+  const calcOpts = useSalesPayrollCalcOpts(recordDate);
 
   const toggle = (id: string) => {
     setOpenIds(prev => {
@@ -134,15 +136,16 @@ export default function ExpandableHeadsTable({
           )
         : rows.map(r => ({ title: r.title, subHeads: r.subHeads }))
       ),
+      calcOpts,
     );
     // After sales / sales-lead edits, refresh lead nets so assigned TL commission lands in amount
     const nextRows = rows.map(r => {
       if (r.id === next.id) {
         const subHeads =
           next.payrollKind === "sales_lead"
-            ? normalizeSalesTeamSubs(next.subHeads, next.title, salesPeers)
+            ? normalizeSalesTeamSubs(next.subHeads, next.title, salesPeers, calcOpts)
             : next.payrollKind === "sales"
-              ? normalizeSalesTeamSubs(next.subHeads, next.title)
+              ? normalizeSalesTeamSubs(next.subHeads, next.title, [], calcOpts)
               : next.subHeads;
         return {
           ...r,
@@ -160,8 +163,8 @@ export default function ExpandableHeadsTable({
         const peers =
           next.payrollKind === "sales"
             ? next.subHeads
-            : salesSubsFromPeerRows(rows.map(x => ({ title: x.title, subHeads: x.subHeads })));
-        const subHeads = normalizeSalesTeamSubs(r.subHeads, r.title, peers);
+            : salesSubsFromPeerRows(rows.map(x => ({ title: x.title, subHeads: x.subHeads })), calcOpts);
+        const subHeads = normalizeSalesTeamSubs(r.subHeads, r.title, peers, calcOpts);
         return {
           ...r,
           subHeads,
@@ -216,8 +219,8 @@ export default function ExpandableHeadsTable({
   const openEdit = (row: ExpandableHeadRow) => {
     const kind = salaryMode ? resolvePayrollKind(row.title, row.subHeads) : "technical";
     const isSales = kind === "sales" || kind === "sales_lead" || isSalesTeamTitle(row.title, row.subHeads);
-    const salesPeers = salesSubsFromPeerRows(rows.map(r => ({ title: r.title, subHeads: r.subHeads })));
-    const subHeads = isSales ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers) : (row.subHeads ?? []);
+    const salesPeers = salesSubsFromPeerRows(rows.map(r => ({ title: r.title, subHeads: r.subHeads })), calcOpts);
+    const subHeads = isSales ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers, calcOpts) : (row.subHeads ?? []);
     if (isSales) {
       onChange(
         rows.map(r =>
@@ -255,8 +258,8 @@ export default function ExpandableHeadsTable({
       );
     }
     if (kind === "sales" || kind === "sales_lead" || isSalesTeamTitle(r.title, r.subHeads)) {
-      const peers = salesSubsFromPeerRows(rows);
-      const subs = normalizeSalesTeamSubs(r.subHeads, r.title, peers);
+      const peers = salesSubsFromPeerRows(rows, calcOpts);
+      const subs = normalizeSalesTeamSubs(r.subHeads, r.title, peers, calcOpts);
       return a + subs.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
     }
     return a + lineAmount(r);
@@ -315,9 +318,9 @@ export default function ExpandableHeadsTable({
                   (rowPayrollKind === "sales" ||
                     rowPayrollKind === "sales_lead" ||
                     isSalesTeamTitle(row.title, row.subHeads));
-                const salesPeers = salesSubsFromPeerRows(rows);
+                const salesPeers = salesSubsFromPeerRows(rows, calcOpts);
                 const subs = isSalesRow
-                  ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers)
+                  ? normalizeSalesTeamSubs(row.subHeads, row.title, salesPeers, calcOpts)
                   : (row.subHeads ?? []);
                 const isExecRow = salaryMode && rowPayrollKind === "executive";
                 const isInventoryRow = isInventoryAssetHead(row.title, row.subHeads);
@@ -647,8 +650,8 @@ export default function ExpandableHeadsTable({
                                     if (isSalesRow) {
                                       const role = rowPayrollKind === "sales_lead" ? "team_lead" : "sales";
                                       const sp = ensureSalesPayrollFromSub(s, role);
-                                      const extra = rowPayrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers) : 0;
-                                      const b = computeSalesEmployeePayroll(sp, extra);
+                                      const extra = rowPayrollKind === "sales_lead" ? tlExtraFromPeers(s.id, salesPeers, calcOpts) : 0;
+                                      const b = computeSalesEmployeePayroll(sp, extra, calcOpts);
                                       return (
                                         <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
                                           <td className="px-2 py-2 text-crm-text-secondary font-medium whitespace-nowrap">{s.label}</td>
@@ -895,6 +898,7 @@ export default function ExpandableHeadsTable({
         saving={saving}
         execProfitBase={execProfitBase}
         recordDate={recordDate}
+        calcOpts={calcOpts}
         salarySlipCompany={salarySlipCompany}
         payrollKind={editing?.payrollKind ?? (editing ? resolvePayrollKind(editing.title, editing.subHeads) : undefined)}
         peerTeamRows={rows.map(r => ({

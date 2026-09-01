@@ -14,6 +14,7 @@ import type { SalesPayrollData, SalesPayrollEmployee } from "../../utils/salesPa
 import { computeSalesEmployeePayroll, calcTlAssignedCommission } from "../../utils/salesPayrollFormula";
 import { isRepAssignedToLead } from "../../utils/salesPayrollBridge";
 import { currency } from "../../types";
+import { useSalesPayrollCalcOpts } from "../../hooks/useSalesPayrollCalcOpts";
 
 type Props = {
   variant: "sales" | "team_lead";
@@ -26,6 +27,7 @@ export default function SalesPayrollPageContent({ variant }: Props) {
   });
 
   const data = normalizeSalesPayrollData(acc.data);
+  const calcOpts = useSalesPayrollCalcOpts(acc.recordDate);
   const employees = variant === "sales" ? data.salesTeamMembers : data.salesTeamLeads;
 
   const updateMember = useCallback(
@@ -66,16 +68,16 @@ export default function SalesPayrollPageContent({ variant }: Props) {
       variant === "team_lead"
         ? data.salesTeamMembers
             .filter(m => isRepAssignedToLead(m, e.id))
-            .reduce((x, m) => x + calcTlAssignedCommission(m), 0)
+            .reduce((x, m) => x + calcTlAssignedCommission(m, calcOpts), 0)
         : 0;
-    return s + computeSalesEmployeePayroll(e, extra).netSalary;
+    return s + computeSalesEmployeePayroll(e, extra, calcOpts).netSalary;
   }, 0);
 
   const title = variant === "sales" ? "Sales Team Payroll" : "Sales Team Lead Payroll";
   const subtitle =
     variant === "sales"
-      ? "Project commission only — old/new/fix client · Assign to Hammad (Team Lead)"
-      : "Hammad & team leads — own commission + assigned sales rep commission";
+      ? "Project commission — old/new plus slab × 0.89 × live FX from Sep 2026 · Assign to Hammad"
+      : "Hammad & team leads — own commission + 0.5% × 0.89 × FX on team projects (from Sep 2026)";
 
   return (
     <AccountsPageShell
@@ -108,6 +110,7 @@ export default function SalesPayrollPageContent({ variant }: Props) {
             variant={variant}
             allData={data}
             defaultOpen={i === 0}
+            calcOpts={calcOpts}
             onChange={next =>
               variant === "sales" ? updateMember(emp.id, next) : updateLead(emp.id, next)
             }

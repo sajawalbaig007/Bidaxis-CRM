@@ -4,6 +4,7 @@ import {
   computeSalesEmployeePayroll,
   calcTlAssignedCommission,
   calcSalesCommission,
+  type SalesPayrollCalcOpts,
 } from "./salesPayrollFormula";
 import { HAMMAD_TEAM_LEAD_ID } from "./salesPayrollDefaults";
 
@@ -115,6 +116,7 @@ export function normalizeSalesTeamSubs(
   teamName: string,
   /** Sales Team reps — required so Sales Team Lead net includes assigned TL commission */
   salesPeers: SubHeadEntry[] = [],
+  opts?: SalesPayrollCalcOpts,
 ): SubHeadEntry[] {
   const kind = resolvePayrollKind(teamName, subs);
   if (kind === "sales") {
@@ -122,7 +124,7 @@ export function normalizeSalesTeamSubs(
       .filter(s => !isSalesLeadSub(s))
       .map(s => {
         const sp = ensureSalesPayrollFromSub(s, "sales");
-        const amount = netFromSalesSub({ ...s, salesPayroll: sp, salary: undefined }, "sales");
+        const amount = netFromSalesSub({ ...s, salesPayroll: sp, salary: undefined }, "sales", 0, opts);
         return { ...s, salesPayroll: sp, amount, salary: undefined };
       });
   }
@@ -132,8 +134,8 @@ export function normalizeSalesTeamSubs(
       const sp = ensureSalesPayrollFromSub(s, "team_lead");
       sp.role = "team_lead";
       const leadId = sp.id || s.id;
-      const extra = tlExtraFromPeers(leadId, salesPeers);
-      const amount = netFromSalesSub({ ...s, salesPayroll: sp, salary: undefined }, "team_lead", extra);
+      const extra = tlExtraFromPeers(leadId, salesPeers, opts);
+      const amount = netFromSalesSub({ ...s, salesPayroll: sp, salary: undefined }, "team_lead", extra, opts);
       return { ...s, id: leadId, salesPayroll: sp, amount, salary: undefined };
     });
   }
@@ -225,9 +227,14 @@ export function ensureSalesPayrollFromSub(
   };
 }
 
-export function netFromSalesSub(sub: SubHeadEntry, role: "sales" | "team_lead", extraEarning = 0): number {
+export function netFromSalesSub(
+  sub: SubHeadEntry,
+  role: "sales" | "team_lead",
+  extraEarning = 0,
+  opts?: SalesPayrollCalcOpts,
+): number {
   const emp = ensureSalesPayrollFromSub(sub, role);
-  return computeSalesEmployeePayroll(emp, extraEarning).netSalary;
+  return computeSalesEmployeePayroll(emp, extraEarning, opts).netSalary;
 }
 
 /** Whether a sales rep’s assign-to-lead points at this team lead. */
@@ -243,18 +250,20 @@ export function isRepAssignedToLead(rep: SalesPayrollEmployee, leadId: string): 
 export function tlExtraFromPeers(
   leadSubId: string,
   salesTeamSubs: SubHeadEntry[],
+  opts?: SalesPayrollCalcOpts,
 ): number {
   return salesTeamSubs
     .filter(s => isRepAssignedToLead(ensureSalesPayrollFromSub(s, "sales"), leadSubId))
-    .reduce((sum, s) => sum + calcTlAssignedCommission(ensureSalesPayrollFromSub(s, "sales")), 0);
+    .reduce((sum, s) => sum + calcTlAssignedCommission(ensureSalesPayrollFromSub(s, "sales"), opts), 0);
 }
 
 export function salesSubsFromPeerRows(
   peerRows: { title: string; subHeads?: SubHeadEntry[] }[],
+  opts?: SalesPayrollCalcOpts,
 ): SubHeadEntry[] {
   const salesRow = peerRows.find(r => payrollKindForTeamTitle(r.title) === "sales");
   if (!salesRow) return [];
-  return normalizeSalesTeamSubs(salesRow.subHeads, salesRow.title);
+  return normalizeSalesTeamSubs(salesRow.subHeads, salesRow.title, [], opts);
 }
 
 export function assignSalesSubToLead(sub: SubHeadEntry, leadId: string = HAMMAD_TEAM_LEAD_ID): SubHeadEntry {
@@ -273,17 +282,18 @@ export function subAmountForPayrollKind(
   sub: SubHeadEntry,
   kind: PayrollKind,
   salesPeers: SubHeadEntry[],
+  opts?: SalesPayrollCalcOpts,
 ): number {
   if (kind === "sales") {
-    return netFromSalesSub(sub, "sales");
+    return netFromSalesSub(sub, "sales", 0, opts);
   }
   if (kind === "sales_lead") {
-    return netFromSalesSub(sub, "team_lead", tlExtraFromPeers(sub.id, salesPeers));
+    return netFromSalesSub(sub, "team_lead", tlExtraFromPeers(sub.id, salesPeers, opts), opts);
   }
   return sub.amount;
 }
 
-export function commissionSummary(sub: SubHeadEntry, role: "sales" | "team_lead") {
+export function commissionSummary(sub: SubHeadEntry, role: "sales" | "team_lead", opts?: SalesPayrollCalcOpts) {
   const emp = ensureSalesPayrollFromSub(sub, role);
-  return calcSalesCommission(emp.commission, role);
+  return calcSalesCommission(emp.commission, role, opts);
 }

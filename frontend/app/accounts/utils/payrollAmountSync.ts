@@ -18,6 +18,7 @@ import {
   tlExtraFromPeers,
   type PayrollKind,
 } from "./salesPayrollBridge";
+import type { SalesPayrollCalcOpts } from "./salesPayrollFormula";
 
 /** Net / payable for one salary sub-head from its stored payroll fields. */
 export function computeSubHeadPayrollAmount(
@@ -25,14 +26,15 @@ export function computeSubHeadPayrollAmount(
   teamTitle: string,
   teamKind?: PayrollKind,
   salesPeers: SubHeadEntry[] = [],
+  opts?: SalesPayrollCalcOpts,
 ): number {
   const kind = resolveSubPayrollKind(sub, teamTitle, teamKind ?? resolvePayrollKind(teamTitle, [sub]));
 
   if (kind === "sales") {
-    return netFromSalesSub(sub, "sales");
+    return netFromSalesSub(sub, "sales", 0, opts);
   }
   if (kind === "sales_lead") {
-    return netFromSalesSub(sub, "team_lead", tlExtraFromPeers(sub.id, salesPeers));
+    return netFromSalesSub(sub, "team_lead", tlExtraFromPeers(sub.id, salesPeers, opts), opts);
   }
   if (kind === "executive") {
     // Executive uses profit base — handled by recomputeExecutiveTeam.
@@ -52,10 +54,11 @@ export function withSyncedPayrollAmount(
   teamTitle: string,
   teamKind?: PayrollKind,
   salesPeers: SubHeadEntry[] = [],
+  opts?: SalesPayrollCalcOpts,
 ): SubHeadEntry {
   const kind = resolveSubPayrollKind(sub, teamTitle, teamKind ?? resolvePayrollKind(teamTitle, [sub]));
   if (kind === "executive") return sub;
-  const amount = computeSubHeadPayrollAmount(sub, teamTitle, teamKind, salesPeers);
+  const amount = computeSubHeadPayrollAmount(sub, teamTitle, teamKind, salesPeers, opts);
   if (Math.abs((Number(sub.amount) || 0) - amount) < 0.005) return sub;
   return { ...sub, amount };
 }
@@ -64,7 +67,10 @@ export function withSyncedPayrollAmount(
  * Recompute non-executive team salary amounts from salary / salesPayroll
  * so occasional (and other formula fields) always land in head totals.
  */
-export function recomputePayrollSubAmounts(data: IncomeStatementData): IncomeStatementData {
+export function recomputePayrollSubAmounts(
+  data: IncomeStatementData,
+  opts?: SalesPayrollCalcOpts,
+): IncomeStatementData {
   const teams = data.teamSalaries ?? [];
   if (!teams.length) return data;
 
@@ -79,7 +85,7 @@ export function recomputePayrollSubAmounts(data: IncomeStatementData): IncomeSta
 
     let teamChanged = false;
     const subHeads = (team.subHeads ?? []).map(s => {
-      const next = withSyncedPayrollAmount(s, team.team, teamKind, salesPeers);
+      const next = withSyncedPayrollAmount(s, team.team, teamKind, salesPeers, opts);
       if (next !== s) teamChanged = true;
       return next;
     });

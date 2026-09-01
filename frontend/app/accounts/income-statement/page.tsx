@@ -38,6 +38,8 @@ import { normalizeSalesTeamSubs, isSalesTeamTitle, resolvePayrollKind } from "..
 import { normalizePeriodPreset, periodDateRange, currentMonthValue } from "../utils/accountsPeriodFilters";
 import { currencyFormulaTotal } from "../utils/currencyFormula";
 import { uploadAccountsProof } from "../utils/uploadAccountsProof";
+import { useSalesPayrollCalcOpts } from "../hooks/useSalesPayrollCalcOpts";
+import type { SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
 
 function defaultData(): IncomeStatementData {
   return ensureIncomeStatementPeople(seededIncomeStatementData());
@@ -47,6 +49,7 @@ function defaultData(): IncomeStatementData {
 function normalizeIncomeStatement(
   raw: IncomeStatementData,
   totalRevenue: number,
+  opts?: SalesPayrollCalcOpts,
 ): IncomeStatementData {
   return syncLoanHeadsFromSalaries(
     syncProvidentFundFromSalaries(
@@ -56,19 +59,24 @@ function normalizeIncomeStatement(
             ...raw,
             totalRevenue,
           }),
+          opts,
         ),
       ),
     ),
   );
 }
 
-function teamToHead(t: TeamSalaryRow, allTeams: TeamSalaryRow[] = []): ExpandableHeadRow {
+function teamToHead(
+  t: TeamSalaryRow,
+  allTeams: TeamSalaryRow[] = [],
+  opts?: SalesPayrollCalcOpts,
+): ExpandableHeadRow {
   const salesPeers =
     resolvePayrollKind(t.team, t.subHeads) === "sales_lead"
       ? (allTeams.find(x => resolvePayrollKind(x.team, x.subHeads) === "sales")?.subHeads ?? [])
       : [];
   const subHeads = isSalesTeamTitle(t.team, t.subHeads)
-    ? normalizeSalesTeamSubs(t.subHeads, t.team, salesPeers)
+    ? normalizeSalesTeamSubs(t.subHeads, t.team, salesPeers, opts)
     : (t.subHeads ?? []);
   return {
     id: t.id,
@@ -170,6 +178,7 @@ export default function IncomeStatementPage() {
     defaultPreset: "daily",
   });
   useScrollToHash(!acc.loading);
+  const salesCalcOpts = useSalesPayrollCalcOpts(acc.recordDate);
 
   /** Total Revenue = Currency Formula; All Time rolls up every day through today. */
   const [currencyTotal, setCurrencyTotal] = useState(0);
@@ -270,8 +279,8 @@ export default function IncomeStatementPage() {
 
   /** Always apply sales-team split + payroll migration + executive commission + PF sync */
   const data = useMemo(
-    () => normalizeIncomeStatement(acc.data, currencyTotal),
-    [acc.data, currencyTotal],
+    () => normalizeIncomeStatement(acc.data, currencyTotal, salesCalcOpts),
+    [acc.data, currencyTotal, salesCalcOpts],
   );
 
   const pfRows = useMemo(
@@ -285,12 +294,12 @@ export default function IncomeStatementPage() {
   useLayoutEffect(() => {
     if (acc.loading) return;
     const before = JSON.stringify(acc.data);
-    const synced = normalizeIncomeStatement(acc.data, currencyTotal);
+    const synced = normalizeIncomeStatement(acc.data, currencyTotal, salesCalcOpts);
     if (JSON.stringify(synced) !== before) {
       acc.setData(() => synced);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
-  }, [acc.loading, acc.recordDate, currencyTotal]);
+  }, [acc.loading, acc.recordDate, currencyTotal, salesCalcOpts]);
 
   const uploadOpexProof = useCallback(async (file: File) => {
     try {
@@ -363,11 +372,12 @@ export default function IncomeStatementPage() {
           totalRevenue: currencyTotal,
         },
         currencyTotal,
+        salesCalcOpts,
       );
       acc.setData(() => next);
       if (opts?.persist) void acc.save(next);
     },
-    [data, acc, currencyTotal],
+    [data, acc, currencyTotal, salesCalcOpts],
   );
 
   return (
@@ -569,7 +579,7 @@ export default function IncomeStatementPage() {
               execProfitBase={execProfitBase}
               recordDate={acc.recordDate}
               salarySlipCompany="BEM"
-              rows={(data.teamSalaries ?? []).map(t => teamToHead(t, data.teamSalaries ?? []))}
+              rows={(data.teamSalaries ?? []).map(t => teamToHead(t, data.teamSalaries ?? [], salesCalcOpts))}
               onChange={(rows, opts) => commit({ teamSalaries: rows.map(headToTeam) }, opts)}
               onPersist={() => void acc.save()}
               saving={acc.saving}

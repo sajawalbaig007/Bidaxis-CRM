@@ -245,7 +245,9 @@ export default function AccountsDashboardPage() {
         const qs =
           mode === "all_time"
             ? `mode=all_time&to=${todayIso()}`
-            : `date=${acc.recordDate}`;
+            : (mode === "month" || mode === "date_range") && acc.filterFrom && acc.filterTo
+              ? `mode=range&from=${acc.filterFrom}&to=${acc.filterTo}`
+              : `date=${acc.recordDate}`;
         const res = await API.get(`/accounts/dashboard/summary?${qs}`);
         if (!cancelled) setSummaries(res.data.summaries ?? {});
       } catch {
@@ -253,7 +255,7 @@ export default function AccountsDashboardPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [acc.recordDate, acc.periodPreset, acc.dirty, acc.saving]);
+  }, [acc.recordDate, acc.periodPreset, acc.filterFrom, acc.filterTo, acc.dirty, acc.saving]);
 
   useEffect(() => {
     let cancelled = false;

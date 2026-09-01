@@ -241,7 +241,7 @@ export function buildSalarySlipFromSub(opts: {
       address: sp?.address || "",
       phone: sp?.phone || "",
     };
-    const b = computeSalesEmployeePayroll(emp, salesExtra);
+    const b = computeSalesEmployeePayroll(emp, salesExtra, { recordDate });
     return {
       companyKey,
       template,
