@@ -11,6 +11,7 @@ import {
   FolderKanban, GitBranch, Loader2, RefreshCw, Star, Target, Users,
 } from "lucide-react";
 import TechnicalPageShell from "../components/TechnicalPageShell";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { starsLabel } from "@/lib/estimatorKpiRecords";
 import {
@@ -166,8 +167,8 @@ export default function TechnicalReportsPage() {
     <TechnicalPageShell bgClass="bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <Toaster position="top-right" />
 
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
-          <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#B8112D]/10 bg-white shadow-sm">
+        <div className={STAFF_PAGE_PAD}>
+          <header className={`relative overflow-hidden ${BENTO_CARD}`}>
             <div
               className="absolute inset-0 opacity-[0.55]"
               style={{
@@ -245,7 +246,7 @@ export default function TechnicalReportsPage() {
           </section>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+            <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
                 <BarChart3 size={16} className="text-[#B8112D]" />
                 Pipeline stages
@@ -266,7 +267,7 @@ export default function TechnicalReportsPage() {
               </RechartsBox>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+            <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
                 <Target size={16} className="text-[#B8112D]" />
                 Assignment workload
@@ -296,7 +297,7 @@ export default function TechnicalReportsPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+            <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
                 <Users size={16} className="text-[#B8112D]" />
                 Estimator scoreboard
@@ -313,7 +314,7 @@ export default function TechnicalReportsPage() {
               </RechartsBox>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+            <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-2 mb-1">
                 <Star size={16} className="text-amber-500 fill-amber-400" />
                 Monthly KPI marks — {monthLabel(month)}
@@ -338,7 +339,7 @@ export default function TechnicalReportsPage() {
             </div>
           </div>
 
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <section className={`${BENTO_CARD} overflow-hidden`}>
             <div className="px-4 sm:px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-[#0F172A]">Monthly KPI ledger — {monthLabel(month)}</h2>
@@ -414,7 +415,7 @@ export default function TechnicalReportsPage() {
           </section>
 
           {kpi?.scoreboard.length ? (
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <section className={`${BENTO_CARD} overflow-hidden`}>
               <div className="px-4 sm:px-5 py-4 border-b border-gray-100">
                 <h2 className="text-sm font-bold text-[#0F172A]">Live team detail</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5">Current assignment snapshot (included in Word export)</p>

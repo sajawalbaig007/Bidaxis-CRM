@@ -12,6 +12,7 @@ import {
   normalizePeriodPreset,
   type AccountsPeriodPreset,
 } from "../utils/accountsPeriodFilters";
+import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
 
 type AccountsPageShellProps = {
   title: string;
@@ -82,9 +83,9 @@ export default function AccountsPageShell({
   const pickSavedDate = onSelectSavedDate ?? onRecordDateChange;
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-7 space-y-5">
+    <div className={STAFF_PAGE_PAD}>
       {/* Page hero */}
-      <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-crm-border bg-crm-surface shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]">
+      <header className="relative overflow-hidden rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]">
         <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-[#B8112D] via-[#E11D48] to-[#FB7185]" />
         <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#B8112D]/[0.04] dark:bg-[#B8112D]/10" />
         <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 sm:px-6 py-5">
@@ -138,7 +139,7 @@ export default function AccountsPageShell({
       </header>
 
       {/* Filters */}
-      <section className="rounded-2xl sm:rounded-3xl border border-crm-border-subtle bg-crm-surface shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+      <section className="rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] via-white to-[#F8FAFC] dark:from-rose-500/10 dark:via-crm-surface dark:to-crm-muted flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-xl bg-[#FFF1F3] dark:bg-rose-500/20 text-[#B8112D] dark:text-rose-300 inline-flex items-center justify-center">

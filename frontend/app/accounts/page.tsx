@@ -37,6 +37,7 @@ import { useScrollToHash } from "./hooks/useScrollToHash";
 import { normalizePeriodPreset } from "./utils/accountsPeriodFilters";
 import type { CurrencyTabKey, DashboardCurrency, DashboardCurrencyTab, DashboardData, FormulasState } from "./types";
 import { CURRENCY_TAB_LABELS, CURRENCY_TAB_SHORT, currency, isLocalPaymentTab, todayIso } from "./types";
+import { BENTO_CARD } from "@/lib/staffPageLayout";
 
 const TAB_DEFAULTS: Record<CurrencyTabKey, DashboardCurrencyTab> = {
   // Ahmed Hamza — USD/CAD × 0.89 → × FX (example USD rate 285)
@@ -475,7 +476,7 @@ export default function AccountsDashboardPage() {
             </button>
           </div>
 
-          <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#0B1220] text-white shadow-2xl shadow-black/20">
+          <section className="relative overflow-hidden rounded-[1.5rem] sm:rounded-[1.75rem] bg-[#0B1220] text-white shadow-2xl shadow-black/20">
             <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-[#B8112D]/35 blur-3xl" />
             <div className="absolute -bottom-28 left-1/4 w-80 h-80 rounded-full bg-[#0B84F3]/25 blur-3xl" />
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
@@ -528,7 +529,7 @@ export default function AccountsDashboardPage() {
             {metrics.map(m => (
               <div
                 key={m.label}
-                className={`group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 text-white shadow-lg shadow-black/10 bg-gradient-to-br ${m.color} transition-transform duration-200 hover:-translate-y-0.5`}
+                className={`group relative overflow-hidden rounded-[1.5rem] sm:rounded-[1.75rem] p-3.5 sm:p-4 text-white shadow-lg shadow-black/10 bg-gradient-to-br ${m.color} transition-transform duration-200 hover:-translate-y-0.5`}
               >
                 <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 transition-transform duration-300 group-hover:scale-125" />
                 <div className="absolute -right-2 bottom-0 w-16 h-16 rounded-full bg-white/5" />
@@ -547,7 +548,7 @@ export default function AccountsDashboardPage() {
           </section>
 
           <section className="mt-5 w-full space-y-4">
-            <div id="live-fx" className="w-full bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
+            <div id="live-fx" className={`w-full ${BENTO_CARD} overflow-hidden scroll-mt-[80px]`}>
               <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#EFF8FF] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Live FX Rates — USD & CAD → PKR</h2>
@@ -636,7 +637,7 @@ export default function AccountsDashboardPage() {
               </div>
             </div>
 
-            <div id="currency-formula" className="w-full bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] overflow-hidden scroll-mt-[80px]">
+            <div id="currency-formula" className={`w-full ${BENTO_CARD} overflow-hidden scroll-mt-[80px]`}>
               <div className="px-4 sm:px-5 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Currency Payment Formula</h2>
@@ -877,7 +878,7 @@ export default function AccountsDashboardPage() {
                   key={p.label}
                   href={p.href}
                   prefetch={false}
-                  className="group relative overflow-hidden bg-crm-surface rounded-2xl border border-crm-border-subtle/90 p-4 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]"
+                  className={`group relative overflow-hidden ${BENTO_CARD} p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_-12px_rgba(15,23,42,0.18)]`}
                 >
                   <div
                     className="absolute inset-x-0 top-0 h-0.5 opacity-70 group-hover:opacity-100 transition-opacity"

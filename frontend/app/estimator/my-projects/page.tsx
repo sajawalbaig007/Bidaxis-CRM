@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { peekAuthMe } from "@/lib/authMeCache";
 import EstimatorPageShell from "../components/EstimatorPageShell";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import CommentCell from "@/app/csr/components/shared/CommentCell";
 import { NoteEntry } from "@/app/csr/hooks/useLeadsData";
 import { buildNoteHistory } from "@/app/csr/utils/noteHistory";
@@ -661,8 +662,9 @@ export default function EstimatorMyProjectsPage() {
   ];
 
   return (
-    <EstimatorPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 overflow-x-hidden">
+    <EstimatorPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className="overflow-x-hidden">
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
+      <div className={STAFF_PAGE_PAD}>
         <div className="mb-4 sm:mb-6 flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="min-w-0">
@@ -684,7 +686,7 @@ export default function EstimatorMyProjectsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-3 sm:p-4 min-w-0">
+            <div className={`${BENTO_CARD} p-3 sm:p-4 min-w-0`}>
               <h2 className="font-bold text-crm-text text-sm">Assignment mix</h2>
               <p className="text-[11px] text-crm-text-faint mt-0.5 mb-2">Pending · overdue · takeoff done</p>
               {loading && projects.length === 0 ? (
@@ -726,7 +728,7 @@ export default function EstimatorMyProjectsPage() {
                 </div>
               )}
             </div>
-            <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle shadow-sm p-3 sm:p-4 min-w-0">
+            <div className={`${BENTO_CARD} p-3 sm:p-4 min-w-0`}>
               <h2 className="font-bold text-crm-text text-sm">Workload snapshot</h2>
               <p className="text-[11px] text-crm-text-faint mt-0.5 mb-2">Your assigned pipeline</p>
               {loading && projects.length === 0 ? (
@@ -995,6 +997,7 @@ export default function EstimatorMyProjectsPage() {
             </div>
           )}
         </div>
+      </div>
     </EstimatorPageShell>
   );
 }

@@ -15,6 +15,7 @@ import {
   Star,
 } from "lucide-react";
 import TechnicalPageShell from "../components/TechnicalPageShell";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import CapsuleTabs from "@/app/components/CapsuleTabs";
 import { formatDivisionSummary, formatElapsed } from "@/lib/technicalAssignments";
 import {
@@ -202,7 +203,7 @@ export default function TechnicalTeamPage() {
 
   return (
     <TechnicalPageShell>
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
+        <div className={STAFF_PAGE_PAD}>
           <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#B8112D] mb-1">
@@ -333,7 +334,7 @@ export default function TechnicalTeamPage() {
                 return (
                   <article
                     key={m.estimatorId}
-                    className="bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle shadow-sm overflow-hidden"
+                    className={`${BENTO_CARD} overflow-hidden`}
                   >
                     <button
                       type="button"

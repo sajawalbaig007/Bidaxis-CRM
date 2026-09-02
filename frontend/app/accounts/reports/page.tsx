@@ -10,6 +10,7 @@ import { ACCOUNTS_MAIN_OFFSET } from "../components/layout/headerOffset";
 import RechartsBox from "@/app/components/charts/RechartsBox";
 import { currency } from "../types";
 import { useScrollToHash } from "../hooks/useScrollToHash";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 
 type CategoryGroup = {
   name: string;
@@ -628,7 +629,7 @@ function MiniBar({ pct, color }: { pct: number; color: string }) {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+    <div className={`${BENTO_CARD} overflow-hidden`}>
       <div className="px-4 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#FFF8F9] to-white">
         <h2 className="font-extrabold text-crm-text text-sm tracking-tight">{title}</h2>
       </div>
@@ -777,8 +778,8 @@ export default function AccountsReportsPage() {
     <div className="flex min-h-screen accounts-page-bg">
       <AccountsSidebar />
       <main className={`flex-1 min-w-0 overflow-x-hidden ${ACCOUNTS_MAIN_OFFSET}`}>
-        <div id="monthly-report" className="max-w-[1200px] mx-auto px-3 sm:px-5 py-5 space-y-4 scroll-mt-[80px]">
-          <div className="bg-crm-surface rounded-2xl sm:rounded-3xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div id="monthly-report" className={`${STAFF_PAGE_PAD} scroll-mt-[80px]`}>
+          <div className={`${BENTO_CARD} px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3`}>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="w-9 h-9 rounded-xl bg-[#B8112D] text-white inline-flex items-center justify-center shadow-md shadow-[#B8112D]/25">
@@ -841,7 +842,7 @@ export default function AccountsReportsPage() {
               </section>
 
               {saved.length > 0 && (
-                <section className="bg-crm-surface rounded-2xl border border-crm-border-subtle/90 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.08)] overflow-hidden">
+                <section className={`${BENTO_CARD} overflow-hidden`}>
                   <div className="px-4 py-3 border-b border-crm-border-subtle bg-gradient-to-r from-[#EFF8FF] to-white flex items-center gap-2">
                     <Cloud size={14} className="text-[#0B84F3]" />
                     <h2 className="font-extrabold text-crm-text text-sm tracking-tight">Cloudinary Archives — {label}</h2>

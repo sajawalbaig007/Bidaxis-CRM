@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { BENTO_CARD } from "@/lib/staffPageLayout";
 
 type AccountsChartCardProps = {
   title: string;
@@ -22,7 +23,7 @@ export default function AccountsChartCard({
 }: AccountsChartCardProps) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl border border-crm-border-subtle bg-crm-surface shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] ${className}`}
+      className={`relative overflow-hidden ${BENTO_CARD} ${className}`}
     >
       <div
         className="absolute inset-x-0 top-0 h-1 opacity-90"

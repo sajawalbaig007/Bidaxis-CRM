@@ -43,6 +43,7 @@ import {
 import AssignEstimatorsModal from "../components/AssignEstimatorsModal";
 import MoveTechnicalStageModal from "../components/MoveTechnicalStageModal";
 import TechnicalPageShell from "../components/TechnicalPageShell";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import API, { apiErrorMessage } from "@/lib/api";
 import { fetchAllAdminProjects } from "@/lib/fetchAdminProjects";
 import {
@@ -1501,7 +1502,7 @@ export function TechnicalActiveProjectsPageInner({
         : TECHNICAL_PROJECT_COLS;
 
   return (
-    <TechnicalPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className="p-3 sm:p-4 md:p-5 lg:p-6 overflow-x-hidden">
+    <TechnicalPageShell bgClass="bg-[#F5F6FA] dark:bg-crm-bg" className={`${STAFF_PAGE_PAD} overflow-x-hidden`}>
       <Toaster position="top-right" toastOptions={{ style: { borderRadius: "16px", fontSize: "14px" } }} />
         <DashboardNavbar />
 
@@ -1537,7 +1538,7 @@ export function TechnicalActiveProjectsPageInner({
 
           {!isRevisions && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4 min-w-0">
+              <div className={`${BENTO_CARD} p-3 sm:p-4 min-w-0`}>
                 <h2 className="font-bold text-gray-800 text-sm">Project mix</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5 mb-2">On track · overdue · final</p>
                 {loading ? (
@@ -1579,7 +1580,7 @@ export function TechnicalActiveProjectsPageInner({
                   </div>
                 )}
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4 min-w-0">
+              <div className={`${BENTO_CARD} p-3 sm:p-4 min-w-0`}>
                 <h2 className="font-bold text-gray-800 text-sm">By workflow stage</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5 mb-2">Counts across tabs</p>
                 {loading ? (
