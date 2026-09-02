@@ -152,10 +152,19 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
   }
 
   const dropped = new Set((data.pfDroppedNames ?? []).map(k => k.trim().toLowerCase()).filter(Boolean));
+  const nameDropped = (head: string, name: string) => {
+    const key = pfDropKey(head, name).toLowerCase();
+    if (dropped.has(key)) return true;
+    const n = normName(name);
+    for (const d of dropped) {
+      if (d === n || d.endsWith(`::${n}`)) return true;
+    }
+    return false;
+  };
 
   const contribByHead = new Map<PfHeadKey, PfContribution[]>();
   for (const c of contributions) {
-    if (dropped.has(pfDropKey(c.head, c.name).toLowerCase())) continue;
+    if (nameDropped(c.head, c.name)) continue;
     const list = contribByHead.get(c.head) ?? [];
     list.push(c);
     contribByHead.set(c.head, list);
@@ -199,7 +208,7 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
     for (const s of prevSubs) {
       if (matched.has(s.id)) continue;
       if (contribs.some(c => normName(c.name) === normName(s.label))) continue;
-      if (dropped.has(pfDropKey(label, s.label).toLowerCase())) continue;
+      if (nameDropped(label, s.label)) continue;
       if (!s.manual) continue;
       nextSubs.push(s);
     }

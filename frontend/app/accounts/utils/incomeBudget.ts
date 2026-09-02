@@ -1,12 +1,15 @@
 /**
  * Income Statement 3-month budget — From/To selects 3 months.
- * Sales+Lead / Technical+Manager combined. OPEX = heads only (no sub-heads). No Loans/PF.
+ * Sales / Technical salaries are split from commission and overtime.
+ * OPEX = heads only (no sub-heads). No Loans/PF.
  */
 
 export type CoreBudgetKey =
   | "revenue"
   | "sales"
+  | "sales_commission"
   | "technical"
+  | "technical_overtime"
   | "email_marketing"
   | "administration"
   | "executive"
@@ -63,7 +66,9 @@ export const INCOME_BUDGET_STORE_DATE = "2000-01-01";
 export const CORE_BUDGET_LINE_DEFS: { key: CoreBudgetKey; label: string }[] = [
   { key: "revenue", label: "Total Revenue" },
   { key: "sales", label: "Sales Team (incl. Team Lead)" },
+  { key: "sales_commission", label: "Sales Team Commission (incl. Team Lead)" },
   { key: "technical", label: "Technical Team (incl. Manager)" },
+  { key: "technical_overtime", label: "Technical Overtime (incl. Manager)" },
   { key: "email_marketing", label: "Email Marketing" },
   { key: "administration", label: "Administration" },
   { key: "executive", label: "Executive" },
@@ -489,7 +494,9 @@ export function predictNextPeriodBudget(
 export function payrollKeys(): Set<string> {
   return new Set([
     "sales",
+    "sales_commission",
     "technical",
+    "technical_overtime",
     "email_marketing",
     "administration",
     "executive",

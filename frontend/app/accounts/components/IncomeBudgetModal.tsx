@@ -236,7 +236,8 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
               Income Statement Budget Planner
             </h2>
             <p className="text-[11px] text-crm-text-muted mt-1 leading-relaxed">
-              One table for revenue, team salaries, and OPEX heads. Sub-heads excluded · Loans / PF excluded.
+              One table for revenue, team salaries (plus sales commission and technical overtime), and OPEX heads.
+              Sub-heads excluded · Loans / PF excluded.
             </p>
           </div>
           <button
@@ -376,9 +377,18 @@ export default function IncomeBudgetModal({ open, onClose }: Props) {
                           >
                             <td className="px-3 py-2 font-semibold text-crm-text sticky left-0 bg-inherit z-10">
                               {line.label}
-                              {(line.key === "sales" || line.key === "technical") && (
+                              {(line.key === "sales" ||
+                                line.key === "sales_commission" ||
+                                line.key === "technical" ||
+                                line.key === "technical_overtime") && (
                                 <span className="block text-[10px] font-normal text-crm-text-faint">
-                                  {line.key === "sales" ? "Sales Team + Lead" : "Technical Team + Manager"}
+                                  {line.key === "sales"
+                                    ? "Salaries · Sales Team + Lead (excludes commission)"
+                                    : line.key === "sales_commission"
+                                      ? "Commission · Sales Team + Lead"
+                                      : line.key === "technical"
+                                        ? "Salaries · Technical Team + Manager (excludes overtime)"
+                                        : "Overtime · Technical Team + Manager"}
                                 </span>
                               )}
                               {line.kind === "opex_head" && (

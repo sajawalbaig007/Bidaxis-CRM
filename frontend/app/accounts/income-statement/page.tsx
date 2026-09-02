@@ -50,20 +50,19 @@ function normalizeIncomeStatement(
   raw: IncomeStatementData,
   totalRevenue: number,
   opts?: SalesPayrollCalcOpts,
+  flags?: { skipPfSync?: boolean },
 ): IncomeStatementData {
-  return syncLoanHeadsFromSalaries(
-    syncProvidentFundFromSalaries(
-      recomputeExecutiveTeam(
-        recomputePayrollSubAmounts(
-          ensureIncomeStatementPeople({
-            ...raw,
-            totalRevenue,
-          }),
-          opts,
-        ),
-      ),
+  const core = recomputeExecutiveTeam(
+    recomputePayrollSubAmounts(
+      ensureIncomeStatementPeople({
+        ...raw,
+        totalRevenue,
+      }),
+      opts,
     ),
   );
+  const withPf = flags?.skipPfSync ? core : syncProvidentFundFromSalaries(core);
+  return syncLoanHeadsFromSalaries(withPf);
 }
 
 function teamToHead(
@@ -143,11 +142,12 @@ function mergePfDisplayRows(heads: OpexRow[], byHead: PfBreakdown | null): Expan
       const fallback = Number(s.amount) || 0;
       return {
         ...s,
-        periodAmount: hit?.period ?? fallback,
+        // Editable column = this record. Do not overlay API period (that made the box read-only / stale).
+        periodAmount: fallback,
         allTimeAmount: hit?.allTime ?? fallback,
       };
     });
-    const periodAmount = subs.reduce((a, s) => a + (Number(s.periodAmount) || 0), 0);
+    const periodAmount = subs.reduce((a, s) => a + (Number(s.amount) || 0), 0);
     const allTimeAmount = subs.reduce((a, s) => a + (Number(s.allTimeAmount) || 0), 0);
     return {
       ...opexToHead({ ...h, subHeads: subs, amount: periodAmount }),
@@ -284,9 +284,6 @@ export default function IncomeStatementPage() {
     const synced = normalizeIncomeStatement(before, currencyTotal, salesCalcOpts);
     if (JSON.stringify(synced) === JSON.stringify(before)) return;
     acc.setData(() => synced);
-    const pfChanged =
-      JSON.stringify(before.providentFundHeads ?? []) !== JSON.stringify(synced.providentFundHeads ?? []);
-    if (pfChanged) void acc.save(synced);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
   }, [acc.loading, acc.recordDate, currencyTotal, salesCalcOpts]);
 
@@ -354,6 +351,7 @@ export default function IncomeStatementPage() {
   const commit = useCallback(
     (patch: Partial<IncomeStatementData>, opts?: { persist?: boolean }) => {
       // Revenue from Currency Formula; refresh executive commissions + PF from salaries
+      // unless this patch is the PF table itself (edit/delete must not be overwritten).
       const next = normalizeIncomeStatement(
         {
           ...data,
@@ -362,6 +360,7 @@ export default function IncomeStatementPage() {
         },
         currencyTotal,
         salesCalcOpts,
+        { skipPfSync: !!patch.providentFundHeads || !!patch.pfDroppedNames },
       );
       acc.setData(() => next);
       if (opts?.persist) void acc.save(next);
@@ -619,12 +618,11 @@ export default function IncomeStatementPage() {
               title="Provident Fund"
               accent="#0D9488"
               addLabel="Add PF Head"
-              emptyLabel="PF follows this day’s Team Salaries. Delete a name to hide it. Amounts come from 8% of basic unless you edit them."
+              emptyLabel="PF follows this day’s Team Salaries. Edit an amount to override 8% of basic. Delete a name to hide it."
               rows={pfRows}
               amountSplit={{
                 periodLabel: pfPeriod.label,
                 allTimeLabel: "All time",
-                periodReadOnly: pfPeriod.from !== pfPeriod.to,
               }}
               lockedHeadTitles={["Sales Team PF", "Administration PF", "Technical Team PF"]}
               onChange={(rows, opts) => {
