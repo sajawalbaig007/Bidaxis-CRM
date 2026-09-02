@@ -20,8 +20,9 @@ import {
   type SalarySlipPayload,
 } from "./salarySlipShared";
 
-const M = 12;
-const FOOTER_H = 22;
+const M = 11;
+const FOOTER_H = 18;
+const SIG_H = 22;
 const SLIP_FOOTER_TEL = "Tel: 0323-6431991";
 const SLIP_FOOTER_ADDRESS = "425, J-03 Block, Phase 2 Johar Town, Lahore";
 
@@ -165,23 +166,23 @@ function drawFooterBar(doc: JsPdfWithAutoTable, company: SalarySlipCompany, them
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text(company.legalName || "Salary Slip", M, footerY + 7);
+  doc.setFontSize(7.4);
+  doc.text(company.legalName || "Salary Slip", M, footerY + 5.6);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.2);
+  doc.setFontSize(6.6);
   doc.setTextColor(230, 230, 230);
-  doc.text(SLIP_FOOTER_TEL, M, footerY + 12.2);
-  doc.text(SLIP_FOOTER_ADDRESS, M, footerY + 17.2);
+  doc.text(SLIP_FOOTER_TEL, M, footerY + 10);
+  doc.text(SLIP_FOOTER_ADDRESS, M, footerY + 14.4);
 
   const rightBits = [company.website, company.email].filter(Boolean);
   if (rightBits.length) {
-    doc.setFontSize(7);
-    doc.text(rightBits.join("  ·  "), pageW - M, footerY + 12.2, { align: "right" });
+    doc.setFontSize(6.4);
+    doc.text(rightBits.join("  ·  "), pageW - M, footerY + 10, { align: "right" });
   }
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(190, 190, 196);
-  doc.text("Computer generated payslip", pageW - M, footerY + 17.2, { align: "right" });
+  doc.text("Computer generated payslip", pageW - M, footerY + 14.4, { align: "right" });
 }
 
 function drawPageChrome(
@@ -215,21 +216,10 @@ function drawPageChrome(
   drawFooterBar(doc, company, theme);
 }
 
-function ensureSpace(
-  doc: JsPdfWithAutoTable,
-  y: number,
-  need: number,
-  company: SalarySlipCompany,
-  theme: SlipTheme,
-): number {
-  const pageH = doc.internal.pageSize.getHeight();
-  if (y + need <= pageH - FOOTER_H - 3) return y;
-  doc.addPage();
-  const pageW = doc.internal.pageSize.getWidth();
-  doc.setFillColor(...theme.paper);
-  doc.rect(0, 0, pageW, pageH, "F");
-  drawPageChrome(doc, company, theme, true);
-  return 16;
+function dropExtraPages(doc: JsPdfWithAutoTable) {
+  while (doc.getNumberOfPages() > 1) {
+    doc.deletePage(doc.getNumberOfPages());
+  }
 }
 
 async function drawHeaderBand(
@@ -239,45 +229,45 @@ async function drawHeaderBand(
   theme: SlipTheme,
 ): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
-  const headerH = 34;
+  const headerH = 28;
   doc.setFillColor(...theme.header);
   doc.rect(0, 2.4, pageW, headerH, "F");
 
   const logoKey = theme.id === "gps" ? "GPS" : "BEM";
-  const logo = await drawLogo(doc, company, logoKey, M, 7.5, theme.id === "gps" ? 58 : 40, 20);
+  const logo = await drawLogo(doc, company, logoKey, M, 6.4, theme.id === "gps" ? 50 : 36, 17);
 
   const textX = M + (logo.w > 0 ? logo.w + 8 : 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...theme.headerInk);
-  doc.text(company.legalName.toUpperCase(), textX, 13);
+  doc.text(company.legalName.toUpperCase(), textX, 11.4);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.6);
+  doc.setTextColor(210, 214, 220);
+  doc.text(company.brandLine || "Official Payslip", textX, 16);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(...theme.headerInk);
+  doc.text("PAYSLIP", pageW - M, 12.2, { align: "right" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(210, 214, 220);
-  doc.text(company.brandLine || "Official Payslip", textX, 18.2);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(...theme.headerInk);
-  doc.text("PAYSLIP", pageW - M, 14, { align: "right" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
   doc.setTextColor(theme.id === "bem" ? 255 : 191, theme.id === "bem" ? 200 : 219, theme.id === "bem" ? 205 : 254);
-  doc.text("CONFIDENTIAL  ·  FOR EMPLOYEE USE", pageW - M, 20, { align: "right" });
+  doc.text("CONFIDENTIAL  ·  FOR EMPLOYEE USE", pageW - M, 17.6, { align: "right" });
 
   const pill = payload.monthLabel;
-  const pillW = Math.max(32, doc.getTextWidth(pill) + 10);
+  const pillW = Math.max(30, doc.getTextWidth(pill) + 8);
   const pillX = pageW - M - pillW;
   doc.setFillColor(...theme.accent);
-  doc.roundedRect(pillX, 23.5, pillW, 8, 1.6, 1.6, "F");
+  doc.roundedRect(pillX, 20.6, pillW, 7, 1.4, 1.4, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(7.4);
   doc.setTextColor(255, 255, 255);
-  doc.text(pill, pillX + pillW / 2, 28.8, { align: "center" });
+  doc.text(pill, pillX + pillW / 2, 25.2, { align: "center" });
 
-  return 2.4 + headerH + 4;
+  return 2.4 + headerH + 2.4;
 }
 
 function drawMetaRow(
@@ -288,7 +278,7 @@ function drawMetaRow(
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
   const w = pageW - M * 2;
-  const h = 12;
+  const h = 10;
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
   doc.setLineWidth(0.25);
@@ -310,13 +300,13 @@ function drawMetaRow(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.2);
     doc.setTextColor(...theme.muted);
-    doc.text(label.toUpperCase(), x + 4, y + 4.4);
+    doc.text(label.toUpperCase(), x + 4, y + 3.6);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
+    doc.setFontSize(7.6);
     doc.setTextColor(...theme.ink);
-    doc.text(value, x + 4, y + 9.2);
+    doc.text(value, x + 4, y + 7.8);
   });
-  return y + h + 4;
+  return y + h + 2.4;
 }
 
 function drawEmployeeCard(
@@ -339,9 +329,9 @@ function drawEmployeeCard(
   }
 
   const cols = 2;
-  const rowH = 11;
+  const rowH = 9;
   const gridRows = Math.ceil(rows.length / cols);
-  const h = 8 + gridRows * rowH + (theme.fieldBoxes ? 1 : 0);
+  const h = 7 + gridRows * rowH + (theme.fieldBoxes ? 1 : 0);
 
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
@@ -353,13 +343,13 @@ function drawEmployeeCard(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   doc.setTextColor(...theme.accent);
-  doc.text("EMPLOYEE DETAILS", M + 6, y + 5.2);
+  doc.text("EMPLOYEE DETAILS", M + 6, y + 4.6);
 
   rows.forEach(([label, value], i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = M + 6 + col * (w / cols);
-    const yy = y + 9 + row * rowH;
+    const yy = y + 7.6 + row * rowH;
     const maxW = w / cols - 12;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.2);
@@ -373,10 +363,10 @@ function drawEmployeeCard(
     doc.setFontSize(8.2);
     doc.setTextColor(...theme.ink);
     const lines = doc.splitTextToSize(value, maxW);
-    doc.text(Array.isArray(lines) ? lines[0] : lines, x, yy + 5.4);
+    doc.text(Array.isArray(lines) ? lines[0] : lines, x, yy + 4.8);
   });
 
-  return y + h + 5;
+  return y + h + 2.4;
 }
 
 function earningsDeductionTables(
@@ -384,22 +374,20 @@ function earningsDeductionTables(
   payload: SalarySlipPayload,
   y: number,
   theme: SlipTheme,
-  company: SalarySlipCompany,
 ) {
   const pageW = doc.internal.pageSize.getWidth();
   const earningsSum = earningsTotal(payload.earnings);
   const deductionsTotalAmt = payload.deductions.reduce((a, r) => a + (Number(r.amount) || 0), 0);
   const mid = pageW / 2;
   const colW = mid - M - 2;
-  const bottom = FOOTER_H + 6;
-  const onExtraPage = (hook: { pageNumber: number }) => {
-    if (hook.pageNumber > 1) drawPageChrome(doc, company, theme, true);
-  };
+  const bottom = FOOTER_H + 2;
+  const tablePad = { font: "helvetica" as const, lineColor: theme.line, lineWidth: 0.18, cellPadding: 1.35 };
 
   autoTable(doc, {
     startY: y,
     margin: { left: M, right: mid + 2, bottom },
     tableWidth: colW,
+    pageBreak: "avoid",
     head: [
       [{ content: "EARNINGS", colSpan: 3, styles: { halign: "center" } }],
       ["Description", "Qty / Days", "Amount (PKR)"],
@@ -413,15 +401,15 @@ function earningsDeductionTables(
       [{ content: "Total earnings", colSpan: 2, styles: { fontStyle: "bold" } }, money(earningsSum)],
     ],
     theme: "grid",
-    styles: { font: "helvetica", lineColor: theme.line, lineWidth: 0.2, cellPadding: 2.1 },
+    styles: tablePad,
     headStyles: {
       fillColor: theme.tableHead,
       textColor: theme.tableHeadText,
-      fontSize: 7.5,
+      fontSize: 7,
       fontStyle: "bold",
       halign: "center",
     },
-    bodyStyles: { fontSize: 7.6, textColor: theme.ink },
+    bodyStyles: { fontSize: 7.2, textColor: theme.ink },
     alternateRowStyles: { fillColor: theme.zebra },
     columnStyles: {
       0: { cellWidth: colW * 0.48, halign: "left" },
@@ -441,7 +429,6 @@ function earningsDeductionTables(
         if (data.column.index === 0) data.cell.styles.fontStyle = "italic";
       }
     },
-    didDrawPage: onExtraPage,
   });
 
   const leftY = doc.lastAutoTable?.finalY ?? y;
@@ -450,6 +437,7 @@ function earningsDeductionTables(
     startY: y,
     margin: { left: mid + 2, right: M, bottom },
     tableWidth: colW,
+    pageBreak: "avoid",
     head: [
       [{ content: "DEDUCTIONS", colSpan: 2, styles: { halign: "center" } }],
       ["Description", "Amount (PKR)"],
@@ -459,15 +447,15 @@ function earningsDeductionTables(
       [{ content: "Total deductions", styles: { fontStyle: "bold" } }, money(deductionsTotalAmt)],
     ],
     theme: "grid",
-    styles: { font: "helvetica", lineColor: theme.line, lineWidth: 0.2, cellPadding: 2.1 },
+    styles: tablePad,
     headStyles: {
       fillColor: theme.deductHead,
       textColor: 255,
-      fontSize: 7.5,
+      fontSize: 7,
       fontStyle: "bold",
       halign: "center",
     },
-    bodyStyles: { fontSize: 7.6, textColor: theme.ink },
+    bodyStyles: { fontSize: 7.2, textColor: theme.ink },
     alternateRowStyles: { fillColor: theme.zebra },
     columnStyles: {
       0: { cellWidth: colW * 0.64, halign: "left" },
@@ -480,11 +468,10 @@ function earningsDeductionTables(
         data.cell.styles.textColor = theme.ink;
       }
     },
-    didDrawPage: onExtraPage,
   });
 
   const rightY = doc.lastAutoTable?.finalY ?? y;
-  return { y: Math.max(leftY, rightY) + 5, earningsSum, deductionsTotalAmt };
+  return { y: Math.max(leftY, rightY) + 3, earningsSum, deductionsTotalAmt };
 }
 
 function drawKpiStrip(
@@ -499,7 +486,7 @@ function drawKpiStrip(
   const pageW = doc.internal.pageSize.getWidth();
   const gap = 3;
   const w = (pageW - M * 2 - gap * 2) / 3;
-  const h = 16;
+  const h = 13;
   const cards: { label: string; value: string; bg: Rgb; ink: Rgb }[] = [
     { label: "Total earnings", value: pkr(earningsSum), bg: theme.accentSoft, ink: theme.ink },
     { label: "Total deductions", value: pkr(deductionsTotalAmt), bg: [254, 242, 242], ink: BEM_RED },
@@ -513,13 +500,13 @@ function drawKpiStrip(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.4);
     doc.setTextColor(...(c.ink[0] > 200 ? ([230, 230, 230] as Rgb) : theme.muted));
-    doc.text(c.label.toUpperCase(), x + 4, y + 5);
+    doc.text(c.label.toUpperCase(), x + 4, y + 4.2);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(...c.ink);
-    doc.text(c.value, x + 4, y + 12);
+    doc.text(c.value, x + 4, y + 10);
   });
-  return y + h + 4;
+  return y + h + 2.4;
 }
 
 function drawPfAndOccasional(
@@ -543,12 +530,12 @@ function drawPfAndOccasional(
 
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
-  doc.roundedRect(M, y, pageW - M * 2, 9, 1.6, 1.6, "FD");
+  doc.roundedRect(M, y, pageW - M * 2, 7.4, 1.4, 1.4, "FD");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.2);
+  doc.setFontSize(6.8);
   doc.setTextColor(...theme.muted);
-  doc.text(bits.join("     ·     "), M + 4, y + 5.6);
-  return y + 13;
+  doc.text(bits.join("     ·     "), M + 4, y + 4.7);
+  return y + 10;
 }
 
 function drawComments(
@@ -560,20 +547,20 @@ function drawComments(
   const pageW = doc.internal.pageSize.getWidth();
   const text = payload.comments?.trim() || "No comments for this period.";
   const lines = doc.splitTextToSize(text, pageW - M * 2 - 10) as string[];
-  const h = Math.max(16, 9 + lines.length * 4.2);
+  const h = Math.max(12, 7.5 + lines.length * 3.6);
 
   doc.setFillColor(...theme.card);
   doc.setDrawColor(...theme.line);
-  doc.roundedRect(M, y, pageW - M * 2, h, 1.8, 1.8, "FD");
+  doc.roundedRect(M, y, pageW - M * 2, h, 1.4, 1.4, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.2);
   doc.setTextColor(...theme.accent);
-  doc.text("REMARKS", M + 4, y + 4.6);
+  doc.text("REMARKS", M + 4, y + 3.8);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(7.4);
   doc.setTextColor(...theme.ink);
-  doc.text(lines, M + 4, y + 9.4);
-  return y + h + 5;
+  doc.text(lines, M + 4, y + 7.8);
+  return y + h + 2.4;
 }
 
 async function drawSignatures(
@@ -587,36 +574,38 @@ async function drawSignatures(
   const x = pageW - M - boxW;
   const sig = await loadLogoForPdf("/images/hr-signature.png", { stripWhite: true });
   const stamp = formatSlipSignedAt(payload.signedAt);
-  const h = sig ? 36 : 26;
+  const pageH = doc.internal.pageSize.getHeight();
+  const maxH = Math.max(16, pageH - FOOTER_H - y - 1);
+  const h = Math.min(SIG_H, maxH);
 
   doc.setDrawColor(...theme.line);
   doc.setFillColor(...theme.card);
-  doc.roundedRect(x, y, boxW, h, 1.8, 1.8, "FD");
+  doc.roundedRect(x, y, boxW, h, 1.4, 1.4, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(...theme.muted);
-  doc.text("FOR THE COMPANY", x + 4, y + 5);
+  doc.text("FOR THE COMPANY", x + 4, y + 4.2);
 
   if (sig) {
-    const box = fitLogoBox(sig.width, sig.height, boxW - 16, 16);
+    const box = fitLogoBox(sig.width, sig.height, boxW - 18, Math.max(7, h - 14));
     const imgX = x + (boxW - box.w) / 2;
-    const imgY = y + 6.5;
+    const imgY = y + 5.2;
     doc.addImage(sig.dataUrl, sig.format, imgX, imgY, box.w, box.h);
   } else {
     doc.setDrawColor(...theme.ink);
     doc.setLineWidth(0.3);
-    doc.line(x + 8, y + h - 11, x + boxW - 8, y + h - 11);
+    doc.line(x + 8, y + h - 9, x + boxW - 8, y + h - 9);
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(7.4);
   doc.setTextColor(...theme.ink);
-  doc.text("HR", x + boxW / 2, y + h - 6.2, { align: "center" });
+  doc.text("HR", x + boxW / 2, y + h - 5.4, { align: "center" });
   if (stamp) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.2);
+    doc.setFontSize(5.8);
     doc.setTextColor(...theme.muted);
-    doc.text(stamp, x + boxW / 2, y + h - 2.4, { align: "center" });
+    doc.text(stamp, x + boxW / 2, y + h - 2, { align: "center" });
   }
   return y + h;
 }
@@ -637,36 +626,34 @@ async function renderPremiumSlip(
     payload,
     y,
     theme,
-    company,
   );
   y = tableY;
 
   const occasional = Math.max(0, Number(payload.occasionalAmount) || 0);
   const netPay = slipNetPayment(payload);
-  y = ensureSpace(doc, y, 34, company, theme);
   y = drawKpiStrip(doc, y, earningsSum, deductionsTotalAmt, netPay, occasional, theme);
   y = drawPfAndOccasional(doc, payload, y, theme);
-  y = ensureSpace(doc, y, 22, company, theme);
   y = drawComments(doc, payload, y, theme);
 
   if (theme.thankYou) {
-    y = ensureSpace(doc, y, 10, company, theme);
     const pageW = doc.internal.pageSize.getWidth();
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(8.5);
     doc.setTextColor(...theme.ink);
     const a = "THANK YOU SO MUCH FOR YOUR ";
     const b = "EFFORTS!";
     const totalW = doc.getTextWidth(a) + doc.getTextWidth(b);
     const start = (pageW - totalW) / 2;
-    doc.text(a, start, y + 2);
+    doc.text(a, start, y + 1.6);
     doc.setTextColor(...theme.accent);
-    doc.text(b, start + doc.getTextWidth(a), y + 2);
-    y += 8;
+    doc.text(b, start + doc.getTextWidth(a), y + 1.6);
+    y += 5.5;
   }
 
-  y = ensureSpace(doc, y, 40, company, theme);
-  await drawSignatures(doc, payload, y, theme);
+  const pageH = doc.internal.pageSize.getHeight();
+  const ySig = Math.min(y, pageH - FOOTER_H - SIG_H - 1);
+  await drawSignatures(doc, payload, ySig, theme);
+  dropExtraPages(doc);
 }
 
 /** Global / GPS — technical team */
