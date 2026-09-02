@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import TechnicalPageShell from "./components/TechnicalPageShell";
 import RechartsBox from "@/app/components/charts/RechartsBox";
+import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
 import UploadActionBento, { type UploadBentoItem } from "@/app/admin/components/uploads/UploadActionBento";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
@@ -401,7 +402,7 @@ export default function TechnicalDashboardPage() {
 
   return (
     <TechnicalPageShell>
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
+        <div className={STAFF_PAGE_PAD}>
 
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">

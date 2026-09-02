@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import TechnicalPageShell from "../components/TechnicalPageShell";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import EstimatorKpiEntryModal from "../components/EstimatorKpiEntryModal";
 import KpiChartsBento, { type KpiChartRow, type KpiDeliveredPoint } from "../components/KpiChartsBento";
 import {
@@ -498,9 +499,9 @@ export default function TechnicalKpiPage() {
   return (
     <TechnicalPageShell bgClass="bg-[#EEF1F7] dark:bg-crm-bg-subtle">
       <Toaster position="top-right" />
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5">
+        <div className={STAFF_PAGE_PAD}>
           {/* Hero header */}
-          <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#B8112D]/10 bg-crm-surface shadow-sm">
+          <header className={`relative overflow-hidden ${BENTO_CARD}`}>
             <div
               className="absolute inset-0 opacity-[0.55]"
               style={{

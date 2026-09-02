@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import EstimatorPageShell from "./components/EstimatorPageShell";
 import RechartsBox from "@/app/components/charts/RechartsBox";
+import { STAFF_PAGE_PAD, BENTO_CARD } from "@/lib/staffPageLayout";
 import { CSR_THEAD } from "@/app/csr/components/shared/csrTableStyles";
 import { PROJECT_TABLE_HEAD } from "@/app/components/projects/ProjectTableCells";
 import API from "@/lib/api";
@@ -99,7 +100,7 @@ export default function EstimatorDashboardPage() {
 
   return (
     <EstimatorPageShell>
-        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
+        <div className={STAFF_PAGE_PAD}>
           <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-crm-text tracking-tight">
@@ -190,7 +191,7 @@ export default function EstimatorDashboardPage() {
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            <div className="bg-crm-surface rounded-2xl sm:rounded-3xl shadow-sm border border-crm-border-subtle p-4 sm:p-5">
+            <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="font-bold text-crm-text text-sm sm:text-base">Assignment mix</h2>
               <p className="text-[11px] sm:text-xs text-crm-text-faint mt-0.5 mb-3">Pending · overdue · takeoff done</p>
               {loading ? (
@@ -236,7 +237,7 @@ export default function EstimatorDashboardPage() {
               )}
             </div>
 
-            <div className="bg-crm-surface rounded-2xl sm:rounded-3xl shadow-sm border border-crm-border-subtle p-4 sm:p-5">
+            <div className={`${BENTO_CARD} p-4 sm:p-5`}>
               <h2 className="font-bold text-crm-text text-sm sm:text-base">Workload snapshot</h2>
               <p className="text-[11px] sm:text-xs text-crm-text-faint mt-0.5 mb-3">Your assigned pipeline at a glance</p>
               {loading ? (
@@ -266,7 +267,7 @@ export default function EstimatorDashboardPage() {
 
           <Link
             href="/estimator/my-projects"
-            className="group bg-crm-surface rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-crm-border-subtle hover:border-[#7C3AED]/30 hover:shadow-md transition-all flex items-start justify-between gap-3"
+            className={`group ${BENTO_CARD} p-4 sm:p-5 hover:border-[#7C3AED]/30 hover:shadow-md transition-all flex items-start justify-between gap-3`}
           >
             <div>
               <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-500/15 text-[#7C3AED] flex items-center justify-center mb-3">
@@ -280,7 +281,7 @@ export default function EstimatorDashboardPage() {
             <ArrowRight size={16} className="text-crm-text-faint group-hover:text-[#7C3AED] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
           </Link>
 
-          <section className="bg-crm-surface rounded-2xl sm:rounded-3xl shadow-sm border border-crm-border-subtle overflow-hidden">
+          <section className={`${BENTO_CARD} overflow-hidden`}>
             <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-crm-border-subtle">
               <div>
                 <h2 className="font-bold text-crm-text text-sm sm:text-base">Recent Assignments</h2>

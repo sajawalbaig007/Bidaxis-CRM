@@ -5,6 +5,7 @@ import { Users, UserCog, Calendar, Save, Upload, Info, Ban } from "lucide-react"
 import SalesPayrollEmployeePanel from "./SalesPayrollEmployeePanel";
 import { MOCK_SALES_TEAM, MOCK_SALES_TEAM_LEADS } from "./mockData";
 import { fmt } from "./uiHelpers";
+import { STAFF_PAGE_PAD } from "@/lib/staffPageLayout";
 
 type Tab = "sales" | "team_lead";
 
@@ -27,8 +28,8 @@ export default function SalesPayrollDesignView() {
   const totalNet = previewNet(employees);
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-6 lg:px-8 py-6 space-y-5">
-      <header className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/60 bg-crm-surface shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)]">
+    <div className={STAFF_PAGE_PAD}>
+      <header className="relative overflow-hidden rounded-[1.5rem] sm:rounded-[1.75rem] border border-gray-100/90 dark:border-crm-border bg-crm-surface shadow-[0_10px_40px_-24px_rgba(15,23,42,0.35)]">
         <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-[#12B76A] via-[#0B84F3] to-[#7C3AED]" />
         <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 sm:px-6 py-5">
           <div className="min-w-0 pl-2">
