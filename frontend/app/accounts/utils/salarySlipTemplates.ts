@@ -12,6 +12,7 @@ import {
   BEM_RED,
   earningsTotal,
   fitLogoBox,
+  formatSlipSignedAt,
   loadLogoForPdf,
   money,
   slipNetPayment,
@@ -404,7 +405,11 @@ function earningsDeductionTables(
       ["Description", "Qty / Days", "Amount (PKR)"],
     ],
     body: [
-      ...payload.earnings.map(r => [r.label, r.qty || "—", money(r.amount)]),
+      ...payload.earnings.map(r => [
+        r.indent ? `    ${r.label}` : r.label,
+        r.indent ? "" : r.qty || "—",
+        money(r.amount),
+      ]),
       [{ content: "Total earnings", colSpan: 2, styles: { fontStyle: "bold" } }, money(earningsSum)],
     ],
     theme: "grid",
@@ -428,6 +433,12 @@ function earningsDeductionTables(
         data.cell.styles.fontStyle = "bold";
         data.cell.styles.fillColor = theme.accentSoft;
         data.cell.styles.textColor = theme.ink;
+      }
+      const earn = payload.earnings[data.row.index];
+      if (data.section === "body" && earn?.indent) {
+        data.cell.styles.fontSize = 6.8;
+        data.cell.styles.textColor = theme.muted;
+        if (data.column.index === 0) data.cell.styles.fontStyle = "italic";
       }
     },
     didDrawPage: onExtraPage,
@@ -565,43 +576,48 @@ function drawComments(
   return y + h + 5;
 }
 
-function drawSignatures(
+async function drawSignatures(
   doc: JsPdfWithAutoTable,
-  company: SalarySlipCompany,
+  payload: SalarySlipPayload,
   y: number,
   theme: SlipTheme,
-): number {
+): Promise<number> {
   const pageW = doc.internal.pageSize.getWidth();
-  const colW = (pageW - M * 2 - 10) / 2;
-  const h = theme.showApproval ? 28 : 24;
+  const boxW = Math.min(92, pageW - M * 2);
+  const x = pageW - M - boxW;
+  const sig = await loadLogoForPdf("/images/hr-signature.png", { stripWhite: true });
+  const stamp = formatSlipSignedAt(payload.signedAt);
+  const h = sig ? 36 : 26;
 
-  const boxes: { title: string; name: string; hint: string }[] = [
-    { title: "Employee acknowledgement", name: "", hint: "Signature / date" },
-    {
-      title: theme.showApproval ? "Approved by — Accounts Officer" : "For the company",
-      name: company.accountOfficer || "Muhammad Bilal",
-      hint: theme.showApproval ? "Authorised signatory" : "Accounts / HR",
-    },
-  ];
+  doc.setDrawColor(...theme.line);
+  doc.setFillColor(...theme.card);
+  doc.roundedRect(x, y, boxW, h, 1.8, 1.8, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.setTextColor(...theme.muted);
+  doc.text("FOR THE COMPANY", x + 4, y + 5);
 
-  boxes.forEach((b, i) => {
-    const x = M + i * (colW + 10);
-    doc.setDrawColor(...theme.line);
-    doc.setFillColor(...theme.card);
-    doc.roundedRect(x, y, colW, h, 1.8, 1.8, "FD");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
-    doc.setTextColor(...theme.muted);
-    doc.text(b.title.toUpperCase(), x + 4, y + 5);
+  if (sig) {
+    const box = fitLogoBox(sig.width, sig.height, boxW - 16, 16);
+    const imgX = x + (boxW - box.w) / 2;
+    const imgY = y + 6.5;
+    doc.addImage(sig.dataUrl, sig.format, imgX, imgY, box.w, box.h);
+  } else {
     doc.setDrawColor(...theme.ink);
     doc.setLineWidth(0.3);
-    doc.line(x + 8, y + h - 9, x + colW - 8, y + h - 9);
+    doc.line(x + 8, y + h - 11, x + boxW - 8, y + h - 11);
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...theme.ink);
+  doc.text("HR", x + boxW / 2, y + h - 6.2, { align: "center" });
+  if (stamp) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(...theme.ink);
-    const caption = b.name ? `${b.name}  ·  ${b.hint}` : b.hint;
-    doc.text(caption, x + colW / 2, y + h - 4.2, { align: "center" });
-  });
+    doc.setFontSize(6.2);
+    doc.setTextColor(...theme.muted);
+    doc.text(stamp, x + boxW / 2, y + h - 2.4, { align: "center" });
+  }
   return y + h;
 }
 
@@ -649,8 +665,8 @@ async function renderPremiumSlip(
     y += 8;
   }
 
-  y = ensureSpace(doc, y, 30, company, theme);
-  drawSignatures(doc, company, y, theme);
+  y = ensureSpace(doc, y, 40, company, theme);
+  await drawSignatures(doc, payload, y, theme);
 }
 
 /** Global / GPS — technical team */

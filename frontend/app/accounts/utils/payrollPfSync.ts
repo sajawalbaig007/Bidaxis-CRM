@@ -137,8 +137,9 @@ function ensurePfHead(heads: OpexRow[], label: PfHeadKey): OpexRow {
 }
 
 /**
- * Rewrite Provident Fund heads so each payroll person's this-period PF
- * appears under their name. Keeps unknown/manual PF rows that are not in payroll.
+ * Rewrite Provident Fund heads so each current Team Salaries person appears.
+ * Departed employees (previous months, no longer on payroll) are dropped.
+ * User-added `manual` lines are kept. Saved amounts stay editable.
  */
 export function syncProvidentFundFromSalaries(data: IncomeStatementData): IncomeStatementData {
   const contributions = collectPfFromTeamSalaries(data.teamSalaries ?? []);
@@ -173,7 +174,8 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
         nextSubs.push({
           ...old,
           label: c.name,
-          amount: c.amount,
+          // Keep saved / user-edited amount; new people get formula PF below.
+          amount: Number.isFinite(Number(old.amount)) ? Number(old.amount) : c.amount,
           filledAt: old.filledAt || todayIso(),
         });
       } else {
@@ -186,10 +188,11 @@ export function syncProvidentFundFromSalaries(data: IncomeStatementData): Income
       }
     }
 
-    // Keep manual / orphan PF people (not in this period's payroll) at their saved amounts
+    // Keep only user-added lines (not leftover names from a previous month’s payroll).
     for (const s of prevSubs) {
       if (matched.has(s.id)) continue;
       if (contribs.some(c => normName(c.name) === normName(s.label))) continue;
+      if (!s.manual) continue;
       nextSubs.push(s);
     }
 

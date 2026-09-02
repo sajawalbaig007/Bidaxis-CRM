@@ -28,6 +28,10 @@ export async function downloadSalarySlipPdf(payload: SalarySlipPayload): Promise
     throw new Error(`${company.label} salary-slip format is not ready yet.`);
   }
 
-  const doc = await renderSalarySlipByTemplate(payload, company, key);
-  doc.save(safeSlipFileName(payload, SALARY_SLIP_COMPANIES[key].label));
+  const signed: SalarySlipPayload = {
+    ...payload,
+    signedAt: payload.signedAt || new Date().toISOString(),
+  };
+  const doc = await renderSalarySlipByTemplate(signed, company, key);
+  doc.save(safeSlipFileName(signed, SALARY_SLIP_COMPANIES[key].label));
 }

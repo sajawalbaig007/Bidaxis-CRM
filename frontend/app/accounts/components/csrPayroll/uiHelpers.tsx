@@ -88,8 +88,8 @@ export function fmt(n: number) {
   return currency(n);
 }
 
-export function daySalary(basic: number, allowance: number) {
-  return (basic + allowance) / 30;
+export function daySalary(basic: number, _allowance?: number) {
+  return (Number(basic) || 0) / 30;
 }
 
 export function pfAmount(basic: number) {

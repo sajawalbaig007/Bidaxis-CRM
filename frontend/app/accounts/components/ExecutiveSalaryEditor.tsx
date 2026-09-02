@@ -73,10 +73,13 @@ export default function ExecutiveSalaryEditor({ name, value, onChange, profitBas
           Total payable this period
         </p>
         <p className="text-[10px] text-crm-text-muted">
-          Basic + Commission + Loan+ve − Loan−ve + Occasional − PF = amount due to this executive
+          Basic + Allowances + Commission + Loan+ve − Loan−ve + Occasional − PF = amount due to this executive
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
+          <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+          <Num label="Fuel Allowance" value={d.fuelAllowance ?? 0} onChange={v => set("fuelAllowance", v)} />
+          <Num label="Med Allowance" value={d.medicalAllowance ?? 0} onChange={v => set("medicalAllowance", v)} />
           <Read label="+ Commission" value={currency(b.commission)} accent="text-emerald-700" />
           <Read label="+ Loan owed to them" value={currency(b.loanPositive)} accent="text-orange-700" />
           <Read label="− Loan they owe" value={currency(b.loanNegative)} accent="text-red-600" />

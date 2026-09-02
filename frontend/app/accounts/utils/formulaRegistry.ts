@@ -66,7 +66,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     id: "pay-day",
     section: "Payroll — Common",
     title: "Day / Hour Salary",
-    expression: "1 Day Salary = (Basic + Allowance) ÷ 30 · 1 Hour Salary = Day ÷ 8",
+    expression: "1 Day Salary = Basic ÷ 30 · 1 Hour Salary = Day ÷ 8 (allowances excluded)",
     appliesTo: "All payroll calculations (late, unpaid leave, overtime)",
   },
   {
@@ -150,7 +150,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Sales Team",
     title: "Project Commission",
     expression:
-      "Through Jul 2026: Old = 1,000/project (partial 500) · New = 3,000/project · Fix = 2.5% of pay. From Aug 2026: pick commission range ($0–1k 3% · $1,001–3k 3.5% · $3,001–5k 4% · $5,001–10k 4.5% · $10,001+ 5%), enter project count + total amount → selected range % × 0.89 × live FX (range is chosen, not inferred from amount)",
+      "From Aug 2026: pick commission range, enter project count + total amount → selected range % × 0.89 × live FX. Assign to Lead sends 0.5% × 0.89 of that final total (PKR) to the team lead. Through Jul 2026: Old = 1,000/project · New = 3,000/project · Fix = 2.5%.",
     appliesTo: "Sales team member commissions",
   },
   {
@@ -165,7 +165,7 @@ export const BUILTIN_FORMULAS: FormulaDef[] = [
     section: "Payroll — Sales Team",
     title: "Team Lead Commission",
     expression:
-      "Through Jul 2026: assigned projects × 1,000 + 0.5% of fix-client pay. From Aug 2026: each team project amount × 0.5% × 0.89 × live FX (USD or CAD rate at that time)",
+      "Through Jul 2026: assigned projects × 1,000 + 0.5% of fix-client pay. From Aug 2026: 0.5% × 0.89 of the assigned rep’s final total (sum of each range’s total amount × FX).",
     appliesTo: "Sales Team Lead Salaries (Hammad)",
   },
 

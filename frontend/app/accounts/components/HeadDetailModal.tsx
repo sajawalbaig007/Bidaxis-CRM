@@ -17,13 +17,11 @@ import {
   ensureSalesPayrollFromSub,
   netFromSalesSub,
   tlExtraFromPeers,
-  assignSalesSubToLead,
   emptySalesPayrollEmployee,
   salesSubsFromPeerRows,
   isSalesTeamTitle,
 } from "../utils/salesPayrollBridge";
 import type { SalesPayrollData, SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
-import { HAMMAD_TEAM_LEAD_ID } from "../utils/salesPayrollDefaults";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
@@ -126,7 +124,10 @@ export default function HeadDetailModal({
     (salaryMode && isSalesTeamTitle(draft.title, draft.subHeads)) ||
     (salaryMode && /sales team/i.test(draft.title) && !/technical/i.test(draft.title)) ||
     draft.subHeads.some(s => !!s.salesPayroll);
-  const salesPeers = salesSubsFromPeerRows(peerTeamRows.map(r => ({ title: r.title, subHeads: r.subHeads })));
+  const salesPeers = salesSubsFromPeerRows(
+    peerTeamRows.map(r => ({ title: r.title, subHeads: r.subHeads })),
+    calcOpts,
+  );
   const inventoryMode =
     inventoryModeProp || isInventoryAssetHead(draft.title, draft.subHeads);
 
@@ -203,7 +204,7 @@ export default function HeadDetailModal({
           label: salaryMode ? "New employee" : "New person / line",
           amount,
           filledAt: todayIso(),
-          ...(salary ? { salary } : {}),
+          ...(salary ? { salary } : { manual: true }),
         },
       ];
       return { ...prev, subHeads, amount: sumSubHeads(subHeads) };
@@ -489,19 +490,6 @@ export default function HeadDetailModal({
                                   salary: undefined,
                                 });
                               }}
-                              onAssignToLead={
-                                payrollKind === "sales"
-                                  ? () => {
-                                      const assigned = assignSalesSubToLead(s, HAMMAD_TEAM_LEAD_ID);
-                                      const sp2 = ensureSalesPayrollFromSub(assigned, "sales");
-                                      updateSub(s.id, {
-                                        salesPayroll: sp2,
-                                        amount: netFromSalesSub({ ...assigned, salesPayroll: sp2 }, "sales", 0, calcOpts),
-                                        salary: undefined,
-                                      });
-                                    }
-                                  : undefined
-                              }
                             />
                           </div>
                         )}

@@ -137,29 +137,16 @@ function normPfName(label: string): string {
 function mergePfDisplayRows(heads: OpexRow[], byHead: PfBreakdown | null): ExpandableHeadRow[] {
   return (heads ?? []).map(h => {
     const bucket = byHead?.[h.label] ?? {};
-    const seen = new Set<string>();
     const subs = (h.subHeads ?? []).map(s => {
       const key = normPfName(s.label);
-      seen.add(key);
       const hit = bucket[key];
       const fallback = Number(s.amount) || 0;
       return {
         ...s,
-        periodAmount: hit?.period ?? fallback,
+        periodAmount: fallback,
         allTimeAmount: hit?.allTime ?? fallback,
       };
     });
-    for (const [key, hit] of Object.entries(bucket)) {
-      if (seen.has(key)) continue;
-      subs.push({
-        id: `pf-all-${h.id}-${key.replace(/\s+/g, "-")}`,
-        label: hit.name,
-        amount: hit.period,
-        filledAt: "",
-        periodAmount: hit.period,
-        allTimeAmount: hit.allTime,
-      });
-    }
     const periodAmount = subs.reduce((a, s) => a + (Number(s.periodAmount) || 0), 0);
     const allTimeAmount = subs.reduce((a, s) => a + (Number(s.allTimeAmount) || 0), 0);
     return {
@@ -293,11 +280,13 @@ export default function IncomeStatementPage() {
 
   useLayoutEffect(() => {
     if (acc.loading) return;
-    const before = JSON.stringify(acc.data);
-    const synced = normalizeIncomeStatement(acc.data, currencyTotal, salesCalcOpts);
-    if (JSON.stringify(synced) !== before) {
-      acc.setData(() => synced);
-    }
+    const before = acc.data;
+    const synced = normalizeIncomeStatement(before, currencyTotal, salesCalcOpts);
+    if (JSON.stringify(synced) === JSON.stringify(before)) return;
+    acc.setData(() => synced);
+    const pfChanged =
+      JSON.stringify(before.providentFundHeads ?? []) !== JSON.stringify(synced.providentFundHeads ?? []);
+    if (pfChanged) void acc.save(synced);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when load/currency settles
   }, [acc.loading, acc.recordDate, currencyTotal, salesCalcOpts]);
 
@@ -630,7 +619,7 @@ export default function IncomeStatementPage() {
               title="Provident Fund"
               accent="#0D9488"
               addLabel="Add PF Head"
-              emptyLabel="PF fills automatically from Team Salaries. Per month / this period vs all-time are listed separately."
+              emptyLabel="PF lists this day’s Team Salaries people. Delete leftover names — they stay gone if the person is no longer an employee. Amounts are editable."
               rows={pfRows}
               amountSplit={{ periodLabel: pfPeriod.label, allTimeLabel: "All time" }}
               onChange={(rows, opts) => commit({ providentFundHeads: rows.map(headToOpex) }, opts)}

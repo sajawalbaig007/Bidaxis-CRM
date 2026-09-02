@@ -14,13 +14,19 @@ import {
   currencyFormulaTotalFromDashboard,
 } from "../utils/currencyFormula";
 import { ACCOUNTS_CLOUDINARY_FOLDERS } from "../utils/accountsStorage";
-import { calcSalesCommission, fixRowProjectCount, type SalesPayrollCalcOpts } from "../utils/salesPayrollFormula";
-import type { ProjectSlabKey, SalesCommissionFields } from "../utils/salesPayrollDefaults";
+import {
+  calcSalesCommission,
+  calcTlAssignedCommission,
+  computeSalesEmployeePayroll,
+  fixRowProjectCount,
+  type SalesPayrollCalcOpts,
+} from "../utils/salesPayrollFormula";
+import type { ProjectSlabKey, SalesCommissionFields, SalesPayrollEmployee } from "../utils/salesPayrollDefaults";
+import { computeTechnicalSalary, emptyTechnicalSalary } from "../utils/technicalPayrollFormula";
 import {
   aggregateAllCollectionMonths,
   applyCollectionsToDashboardData,
   emptyDayCollections,
-  listPaidCollectionsForMonth,
   monthStartIso,
   yearMonthFromDate,
 } from "../utils/projectCurrencyCollections";
@@ -28,9 +34,9 @@ import { defaultAccountsData } from "../utils/accountsDefaults";
 import { fetchLiveFxRates } from "../utils/fxRates";
 
 /**
- * Monthly Executive Summary — aggregates ALL daily income_statement records
- * in the selected month into each section (Team Salaries, OPEX, Loans, PF, etc.).
- * Daily adds roll up into that month’s report.
+ * Monthly Executive Summary — Total Cost / salaries / OPEX / loans / PF come from
+ * the latest Income Statement day in the selected month (same Total Expense card).
+ * Financial history is the selected month plus the previous 5 months.
  */
 
 function prepareIncomeStatementData(data: Record<string, unknown>): Record<string, unknown> {
@@ -40,20 +46,60 @@ function prepareIncomeStatementData(data: Record<string, unknown>): Record<strin
 }
 
 type SubHead = {
+  id?: string;
   label?: string;
   amount?: number;
+  filledAt?: string;
+  proofName?: string;
   salary?: {
     basic?: number;
+    allowance?: number;
+    homeAllowance?: number;
+    fuelAllowance?: number;
+    medicalAllowance?: number;
+    travelAllowance?: number;
+    weekdayOtHours?: number;
+    weekendOtHours?: number;
+    checkIn?: string;
+    checkOut?: string;
+    lateDeductionOverride?: number | null;
+    paidLeaveDays?: number;
+    unpaidLeaveDays?: number;
+    loanTotal?: number;
+    loanPaid?: number;
+    loanThisMonth?: number;
+    loanPaymentMode?: string;
+    incomeTax?: number;
+    occasionalAmount?: number;
+    pfAuto?: boolean;
+    pfOverride?: number | null;
+    remarks?: string;
     commissionPct?: number;
     loanPositive?: number;
     loanNegative?: number;
-    remarks?: string;
   };
   salesPayroll?: {
+    id?: string;
     name?: string;
     code?: string;
     role?: "sales" | "team_lead";
+    basic?: number;
+    allowance?: number;
+    homeAllowance?: number;
+    fuelAllowance?: number;
+    medicalAllowance?: number;
     assignedToLead?: boolean;
+    assignedTeamLeadId?: string | null;
+    checkIn?: string;
+    lateDeductionOverride?: number | null;
+    paidLeaveDays?: number;
+    unpaidLeaveDays?: number;
+    loanTotal?: number;
+    loanPaid?: number;
+    loanThisMonth?: number;
+    incomeTax?: number;
+    remarks?: string;
+    occasionalAmount?: number;
     commission?: {
       oldClientProjects?: number;
       oldClientPartialCount?: number;
@@ -76,6 +122,9 @@ type HeadRow = {
   label?: string;
   amount?: number;
   totalSalary?: number;
+  filledAt?: string;
+  note?: string;
+  notes?: { text?: string }[];
   subHeads?: SubHead[];
 };
 
@@ -212,6 +261,8 @@ export type CsrPerformanceRow = {
   fixComm: number;
   totalCommission: number;
   share: number;
+  status: string;
+  note: string;
   fixClients: { clientName: string; projectPay: number; currency: string }[];
 };
 
@@ -252,6 +303,8 @@ function emptyCsrRow(name: string, teamTitle: string, sub: SubHead): CsrPerforma
     fixComm: 0,
     totalCommission: 0,
     share: 0,
+    status: "Active",
+    note: "",
     fixClients: [],
   };
 }
@@ -301,6 +354,273 @@ function csrRowFromSub(
   };
 }
 
+function monthShortName(ym: string): string {
+  const [y, mm] = ym.split("-").map(Number);
+  if (!y || !mm) return ym;
+  return new Date(Date.UTC(y, mm - 1, 1)).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+}
+
+function shiftMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function lastNMonthsInclusive(endYm: string, n: number): string[] {
+  return Array.from({ length: n }, (_, i) => shiftMonth(endYm, i - (n - 1)));
+}
+
+function notesText(row: { notes?: { text?: string }[]; note?: string }): string {
+  const notes = (row.notes ?? []).map(n => String(n.text ?? "").trim()).filter(Boolean);
+  if (notes.length) return notes.join(" · ");
+  return String(row.note ?? "").trim();
+}
+
+function money(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+const HAMMAD_TEAM_LEAD_ID = "stl-hammad";
+
+function tlExtraForLead(
+  lead: SalesPayrollEmployee,
+  salesPeers: SalesPayrollEmployee[],
+  opts?: SalesPayrollCalcOpts,
+): number {
+  const leadId = String(lead.id || "").trim();
+  const isHammad = leadId === HAMMAD_TEAM_LEAD_ID || /^hammad$/i.test(lead.name.trim());
+  return salesPeers
+    .filter(p => {
+      if (!p.assignedToLead) return false;
+      const tid = String(p.assignedTeamLeadId || "").trim();
+      if (!tid) return isHammad;
+      return tid === leadId || (isHammad && tid === HAMMAD_TEAM_LEAD_ID);
+    })
+    .reduce((sum, p) => sum + calcTlAssignedCommission(p, opts), 0);
+}
+
+function storedAmount(sub: SubHead, fallback: number): number {
+  const n = Number(sub.amount);
+  return Number.isFinite(n) ? money(n) : money(fallback);
+}
+
+function salesEmpFromSub(teamTitle: string, sub: SubHead): SalesPayrollEmployee {
+  const sp = sub.salesPayroll;
+  const role: "sales" | "team_lead" =
+    sp?.role === "team_lead" || /lead/i.test(teamTitle) ? "team_lead" : "sales";
+  const raw = sp?.commission;
+  return {
+    id: String(sp?.id || sub.id || sub.label || "sales"),
+    name: String(sp?.name || sub.label || ""),
+    code: String(sp?.code ?? ""),
+    role,
+    basic: Number(sp?.basic) || 0,
+    allowance: Number(sp?.allowance) || 0,
+    homeAllowance: Number(sp?.homeAllowance) || 0,
+    fuelAllowance: Number(sp?.fuelAllowance) || 0,
+    medicalAllowance: Number(sp?.medicalAllowance) || 0,
+    commission: {
+      oldClientProjects: Number(raw?.oldClientProjects) || 0,
+      oldClientPartialCount: Number(raw?.oldClientPartialCount) || 0,
+      newClientProjects: Number(raw?.newClientProjects) || 0,
+      fixClientProjects: (raw?.fixClientProjects ?? []).map((p, i) => ({
+        id: String(p.id ?? `fix-${i}`),
+        clientName: String(p.clientName ?? ""),
+        projectPay: Number(p.projectPay) || 0,
+        currency: p.currency === "CAD" ? "CAD" : "USD",
+        fxRate: Number(p.fxRate) || 0,
+        slabKey: p.slabKey as ProjectSlabKey | undefined,
+        projectCount: Number(p.projectCount) || undefined,
+      })),
+    },
+    assignedToLead: !!sp?.assignedToLead,
+    assignedTeamLeadId: sp?.assignedTeamLeadId ?? null,
+    checkIn: String(sp?.checkIn || "18:00"),
+    lateDeductionOverride: sp?.lateDeductionOverride ?? null,
+    paidLeaveDays: Number(sp?.paidLeaveDays) || 0,
+    unpaidLeaveDays: Number(sp?.unpaidLeaveDays) || 0,
+    loanTotal: Number(sp?.loanTotal) || 0,
+    loanPaid: Number(sp?.loanPaid) || 0,
+    loanThisMonth: Number(sp?.loanThisMonth) || 0,
+    incomeTax: Number(sp?.incomeTax) || 0,
+    remarks: String(sp?.remarks ?? ""),
+  };
+}
+
+export type SalaryFieldTable = {
+  name: string;
+  kind: string;
+  total: number;
+  filledAt?: string;
+  columns: string[];
+  rows: { employee: string; cells: (string | number)[] }[];
+};
+
+export type OpexFieldTable = {
+  name: string;
+  amount: number;
+  filledAt: string;
+  notes: string;
+  lines: { label: string; amount: number; filledAt: string; proofName: string }[];
+};
+
+function buildSalaryTables(data: Record<string, unknown>, opts?: SalesPayrollCalcOpts): SalaryFieldTable[] {
+  const teams = (data.teamSalaries as HeadRow[]) ?? [];
+  const salesPeers = teams
+    .filter(t => isSalesCsrTeam(String(t.team ?? "")) && !/lead/i.test(String(t.team ?? "")))
+    .flatMap(t => (t.subHeads ?? []).map(s => salesEmpFromSub(String(t.team ?? ""), s)));
+
+  return teams.map(team => {
+    const title = String(team.team ?? "Untitled");
+    const lower = title.toLowerCase();
+    const isLead = lower.includes("sales team lead") || lower.includes("team lead sal");
+    const isSales = isSalesCsrTeam(title);
+    const isExec = lower.includes("executive");
+    const subs = team.subHeads ?? [];
+
+    if (isSales) {
+      const columns = [
+        "Employee", "Commission", "Basic", "Allowance", "Late", "Unpaid",
+        "Loan", "Baqiya", "PF", "Tax", "Deduct", "Occas.", "Net",
+      ];
+      const rows = subs.map(s => {
+        const sp = salesEmpFromSub(title, s);
+        const extra = isLead ? tlExtraForLead(sp, salesPeers, opts) : 0;
+        const b = computeSalesEmployeePayroll(sp, extra, opts);
+        const cells: (string | number)[] = [
+          s.label || sp.name,
+          money(b.totalCommission + extra),
+          money(sp.basic),
+          money(sp.allowance),
+          money(b.lateDeduction),
+          money(b.unpaidLeaveDeduction),
+          money(sp.loanThisMonth),
+          money(b.loanRemaining),
+          money(b.pf),
+          money(sp.incomeTax),
+          money(b.totalDeduction),
+          money(Number(s.salesPayroll?.occasionalAmount) || 0),
+          storedAmount(s, b.netSalary),
+        ];
+        return { employee: String(s.label || sp.name), cells };
+      });
+      return {
+        name: title,
+        kind: isLead ? "sales_lead" : "sales",
+        total: lineTotal(team),
+        filledAt: team.filledAt,
+        columns,
+        rows,
+      };
+    }
+
+    if (isExec) {
+      const columns = [
+        "Executive", "Basic", "Comm. %", "Commission", "Salary", "Loan +ve", "Loan −ve", "Occas.", "PF", "Total due",
+      ];
+      const rows = subs.map(s => {
+        const sal = s.salary;
+        const basic = Number(sal?.basic) || 0;
+        const total = Number(s.amount) || 0;
+        const loanPositive = Number(sal?.loanPositive) || 0;
+        const loanNegative = Number(sal?.loanNegative) || 0;
+        const occasional = Number(sal?.occasionalAmount) || 0;
+        const commission = Math.max(0, total - basic - loanPositive + loanNegative - occasional);
+        const cells: (string | number)[] = [
+          String(s.label ?? "—"),
+          money(basic),
+          Number(sal?.commissionPct) || 0,
+          money(commission),
+          money(basic + commission),
+          money(loanPositive),
+          money(loanNegative),
+          money(occasional),
+          0,
+          money(total),
+        ];
+        return { employee: String(s.label ?? "—"), cells };
+      });
+      return {
+        name: title,
+        kind: "executive",
+        total: lineTotal(team),
+        filledAt: team.filledAt,
+        columns,
+        rows,
+      };
+    }
+
+    const columns = [
+      "Employee", "Basic", "Allowance", "OT", "Earning", "Late", "Unpaid",
+      "Loan", "Baqiya", "PF", "Tax", "Deduct", "Occas.", "Net",
+    ];
+    const rows = subs.map(s => {
+      const sal = s.salary;
+      const detail = emptyTechnicalSalary({
+        basic: Number(sal?.basic) || 0,
+        allowance: Number(sal?.allowance) || 0,
+        weekdayOtHours: Number(sal?.weekdayOtHours) || 0,
+        weekendOtHours: Number(sal?.weekendOtHours) || 0,
+        checkIn: String(sal?.checkIn || "07:00"),
+        checkOut: String(sal?.checkOut || "16:00"),
+        lateDeductionOverride: sal?.lateDeductionOverride ?? null,
+        paidLeaveDays: Number(sal?.paidLeaveDays) || 0,
+        unpaidLeaveDays: Number(sal?.unpaidLeaveDays) || 0,
+        loanTotal: Number(sal?.loanTotal) || 0,
+        loanPaid: Number(sal?.loanPaid) || 0,
+        loanThisMonth: Number(sal?.loanThisMonth) || 0,
+        incomeTax: Number(sal?.incomeTax) || 0,
+        occasionalAmount: Number(sal?.occasionalAmount) || 0,
+        pfAuto: sal?.pfAuto !== false,
+        pfOverride: sal?.pfOverride ?? null,
+        remarks: String(sal?.remarks ?? ""),
+      });
+      const b = computeTechnicalSalary(detail);
+      const net = storedAmount(s, b.totalSalary);
+      const cells: (string | number)[] = [
+        String(s.label ?? "—"),
+        money(detail.basic),
+        money(detail.allowance),
+        money(b.totalOvertime),
+        money(b.totalEarning),
+        money(b.lateDeduction),
+        money(b.unpaidLeaveDeduction),
+        money(b.loanThisMonth),
+        money(b.loanRemaining),
+        money(b.pf),
+        money(b.incomeTax),
+        money(b.totalDeduction),
+        money(b.occasionalAmount),
+        money(net),
+      ];
+      return { employee: String(s.label ?? "—"), cells };
+    });
+    return {
+      name: title,
+      kind: "technical",
+      total: lineTotal(team),
+      filledAt: team.filledAt,
+      columns,
+      rows,
+    };
+  });
+}
+
+function buildOpexTables(data: Record<string, unknown>, key: "opexHeads" | "loanHeads" | "providentFundHeads"): OpexFieldTable[] {
+  return ((data[key] as HeadRow[]) ?? []).map(row => ({
+    name: String(row.label ?? "Untitled").trim() || "Untitled",
+    amount: lineTotal(row),
+    filledAt: String(row.filledAt ?? ""),
+    notes: notesText(row),
+    lines: (row.subHeads ?? []).map(s => ({
+      label: String(s.label ?? "—").trim() || "—",
+      amount: Number(s.amount) || 0,
+      filledAt: String(s.filledAt ?? ""),
+      proofName: String(s.proofName ?? ""),
+    })),
+  }));
+}
+
 /**
  * CSR Team Performance — every Sales Team + Sales Team Lead person as their own row,
  * with separate columns for each project / commission field.
@@ -309,6 +629,7 @@ function csrRowFromSub(
 function aggregateCsrFromSalesPayroll(
   records: Record<string, unknown>[],
   opts?: SalesPayrollCalcOpts,
+  monthYm?: string,
 ): CsrPerformanceReport {
   const byName = new Map<string, CsrPerformanceRow>();
   for (const data of records) {
@@ -332,10 +653,23 @@ function aggregateCsrFromSalesPayroll(
   );
 
   const totalProjects = rows.reduce((a, r) => a + r.projects, 0);
-  const withShare = rows.map(r => ({
-    ...r,
-    share: totalProjects > 0 ? (r.projects / totalProjects) * 100 : 0,
-  }));
+  const monthLabel = monthYm ? monthShortName(monthYm) : "";
+  const withShare = rows.map((r, i) => {
+    const share = totalProjects > 0 ? (r.projects / totalProjects) * 100 : 0;
+    const status =
+      r.projects <= 0 ? "Below Expectation" : i === 0 && share > 0 ? "Top Performer" : "Active";
+    const note =
+      r.projects <= 0
+        ? `No projects closed in ${monthLabel || "this month"}`
+        : i === 0
+          ? "Highest individual contribution"
+          : share >= 30
+            ? "Consistent top performer"
+            : r.projects < 5
+              ? "New — building momentum"
+              : "Active contributor";
+    return { ...r, share, status, note };
+  });
 
   return {
     totalProjects,
@@ -400,103 +734,52 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     };
     const revenueForMonth = (ym: string) => currencyFormulaTotalFromDashboard(dashForMonth(ym));
 
-    const byMonth = new Map<string, { revenue: number; cost: number; days: number; lastDate: string }>();
-    const monthRecords: Record<string, unknown>[] = [];
-    const dayLines: {
-      date: string;
-      payroll: number;
-      opex: number;
-      loans: number;
-      pf: number;
-      cost: number;
-    }[] = [];
-    let lastDateInMonth: string | null = null;
-
-    const allMonths = new Set<string>([
-      month,
-      ...[...collectionsByMonth.keys()],
-      ...dashRecords.map(r => yearMonthFromDate(r.recordDate)),
-      ...isRecords.map(r => yearMonthFromDate(r.recordDate)),
-    ]);
-
-    for (const ym of allMonths) {
-      byMonth.set(ym, {
-        revenue: revenueForMonth(ym),
-        cost: 0,
-        days: 0,
-        lastDate: monthStartIso(ym),
-      });
-    }
-
+    const lastByMonth = new Map<string, { date: string; data: Record<string, unknown>; days: number }>();
     for (const rec of isRecords) {
       const data = prepareIncomeStatementData(rec.data as Record<string, unknown>);
       const m = rec.recordDate.slice(0, 7);
-      const entry = byMonth.get(m) ?? {
-        revenue: revenueForMonth(m),
-        cost: 0,
-        days: 0,
-        lastDate: rec.recordDate,
-      };
-      entry.cost += isRowExpense(data);
-      entry.days += 1;
-      if (rec.recordDate > entry.lastDate) entry.lastDate = rec.recordDate;
-      byMonth.set(m, entry);
-      if (m === month) {
-        monthRecords.push({ ...data, totalRevenue: entry.revenue });
-        if (!lastDateInMonth || rec.recordDate > lastDateInMonth) lastDateInMonth = rec.recordDate;
-        const payroll = categorySum(data, "teamSalaries");
-        const opex = categorySum(data, "opexHeads");
-        const loans = categorySum(data, "loanHeads");
-        const pf = categorySum(data, "providentFundHeads");
-        dayLines.push({
-          date: rec.recordDate,
-          payroll,
-          opex,
-          loans,
-          pf,
-          cost: payroll + opex,
-        });
-      }
-    }
-
-    const history = [...byMonth.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([m, v]) => ({
-        month: m,
-        revenue: v.revenue,
-        cost: v.cost,
-        net: v.revenue - v.cost,
-        days: v.days,
-        lastDate: v.lastDate,
-      }))
-      .filter(h => h.revenue !== 0 || h.cost !== 0 || h.month === month);
-
-    if (!history.some(h => h.month === month)) {
-      history.push({
-        month,
-        revenue: revenueForMonth(month),
-        cost: 0,
-        net: revenueForMonth(month),
-        days: 0,
-        lastDate: monthEnd,
+      const prev = lastByMonth.get(m);
+      lastByMonth.set(m, {
+        date: rec.recordDate,
+        data,
+        days: (prev?.days ?? 0) + 1,
       });
-      history.sort((a, b) => a.month.localeCompare(b.month));
     }
 
-    const monthEntry = byMonth.get(month);
-    const revenue = monthEntry?.revenue ?? revenueForMonth(month);
+    const windowMonths = lastNMonthsInclusive(month, 6);
+    const history = windowMonths.map(ym => {
+      const snap = lastByMonth.get(ym);
+      const revenueM = revenueForMonth(ym);
+      const cost = snap ? isRowExpense(snap.data) : 0;
+      return {
+        month: ym,
+        revenue: revenueM,
+        cost,
+        net: revenueM - cost,
+        days: snap?.days ?? 0,
+        lastDate: snap?.date ?? monthStartIso(ym),
+      };
+    });
+
+    const monthSnap = lastByMonth.get(month);
+    const lastDateInMonth = monthSnap?.date ?? null;
+    const snapshot = monthSnap?.data ?? {};
+    const monthRecords = monthSnap ? [{ ...snapshot, totalRevenue: revenueForMonth(month) }] : [];
+    const revenue = revenueForMonth(month);
     const revenueChannels = currencyFormulaBreakdownFromDashboard(dashForMonth(month));
-    const collections = await listPaidCollectionsForMonth(month);
     const salaryTeams = aggregateCategory(monthRecords, "teamSalaries", "team");
     const opexHeads = aggregateCategory(monthRecords, "opexHeads", "label");
     const loanHeads = aggregateCategory(monthRecords, "loanHeads", "label");
     const pfHeads = aggregateCategory(monthRecords, "providentFundHeads", "label");
     const executives = aggregateExecutives(monthRecords);
+    const opexTables = monthSnap ? buildOpexTables(snapshot, "opexHeads") : [];
+    const loanTables = monthSnap ? buildOpexTables(snapshot, "loanHeads") : [];
+    const pfTables = monthSnap ? buildOpexTables(snapshot, "providentFundHeads") : [];
 
-    const payroll = salaryTeams.reduce((a, t) => a + t.total, 0);
-    const opex = opexHeads.reduce((a, t) => a + t.total, 0);
-    const loans = loanHeads.reduce((a, t) => a + t.total, 0);
-    const pf = pfHeads.reduce((a, t) => a + t.total, 0);
+    const payroll = monthSnap ? categorySum(snapshot, "teamSalaries") : 0;
+    const opex = monthSnap ? categorySum(snapshot, "opexHeads") : 0;
+    const loans = monthSnap ? categorySum(snapshot, "loanHeads") : 0;
+    const pf = monthSnap ? categorySum(snapshot, "providentFundHeads") : 0;
     const totalCost = payroll + opex;
     const netProfit = revenue - totalCost;
 
@@ -592,7 +875,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
       net,
     }));
 
-    const csrOpts: SalesPayrollCalcOpts = { recordDate: `${month}-01` };
+    const csrOpts: SalesPayrollCalcOpts = { recordDate: lastDateInMonth || `${month}-01` };
     if (month >= "2026-08") {
       try {
         const fx = await fetchLiveFxRates();
@@ -602,23 +885,26 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
         /* stored project fxRate still applies */
       }
     }
-    const csr = aggregateCsrFromSalesPayroll(monthRecords, csrOpts);
+    const salaryTables = monthSnap ? buildSalaryTables(snapshot, csrOpts) : [];
+    const csr = aggregateCsrFromSalesPayroll(monthRecords, csrOpts, month);
 
     return res.json({
       success: true,
       month,
       sourceDate: lastDateInMonth,
       monthEnd,
-      mode: "daily_aggregate",
+      mode: "income_statement_snapshot",
       totals: { revenue, payroll, opex, loans, pf, totalCost, netProfit },
       revenueChannels,
-      collections,
-      days: dayLines,
       history,
       salaryTeams,
+      salaryTables,
       opexHeads,
+      opexTables,
       loanHeads,
+      loanTables,
       pfHeads,
+      pfTables,
       executives,
       cash: {
         banks: cashBanks,
@@ -630,7 +916,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
         ledger: cashLedger,
       },
       csr,
-      daysRecorded: monthRecords.length,
+      daysRecorded: monthSnap?.days ?? 0,
     });
   } catch (err) {
     console.log(err);

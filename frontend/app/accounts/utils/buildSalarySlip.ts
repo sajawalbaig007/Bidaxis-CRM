@@ -2,6 +2,7 @@
 
 import type { SubHeadEntry } from "../types";
 import {
+  allowanceParts,
   computeAdminSalary,
   computeExecutiveSalary,
   computeSalary,
@@ -99,6 +100,22 @@ function commissionQtyLabels(c: SalesCommissionFields) {
   };
 }
 
+function allowanceSlipLines(detail: {
+  allowance?: number;
+  homeAllowance?: number;
+  fuelAllowance?: number;
+  medicalAllowance?: number;
+}): SalarySlipLine[] {
+  const p = allowanceParts(detail);
+  return [
+    { label: "Allowances", amount: p.total },
+    { label: "Misc Allowance", amount: p.misc, indent: true, includeInTotal: false },
+    { label: "Home Allowance", amount: p.home, indent: true, includeInTotal: false },
+    { label: "Fuel Allowance", amount: p.fuel, indent: true, includeInTotal: false },
+    { label: "Medical Allowance", amount: p.medical, indent: true, includeInTotal: false },
+  ];
+}
+
 function buildSalesSlipEarnings(
   emp: SalesPayrollEmployee,
   b: ReturnType<typeof computeSalesEmployeePayroll>,
@@ -110,14 +127,7 @@ function buildSalesSlipEarnings(
   const projectComm = b.oldComm + b.newComm;
   const lines: SalarySlipLine[] = [
     { label: "Basic Salary", amount: emp.basic },
-    { label: "Misc Allowance", amount: emp.allowance },
-  ];
-
-  if (kind === "sales_lead") {
-    lines.push({ label: "Home Allowance", amount: Number(emp.homeAllowance) || 0 });
-  }
-
-  lines.push(
+    ...allowanceSlipLines(emp),
     {
       label: "Project Based Comm",
       amount: projectComm,
@@ -128,7 +138,7 @@ function buildSalesSlipEarnings(
       amount: b.fixComm,
       qty: qty.fix,
     },
-  );
+  ];
 
   if (kind === "sales_lead" && salesExtra > 0) {
     lines.push({
@@ -144,11 +154,10 @@ function buildSalesSlipEarnings(
 function buildTechnicalManagerEarnings(
   sal: EmployeeSalaryDetail,
 ): SalarySlipLine[] {
-  const home = Number(sal.homeAllowance) || 0;
   const b = computeTechnicalManagerSalary(sal);
   return [
     { label: "Basic Salary", amount: sal.basic },
-    { label: "Allowances", amount: sal.allowance + home },
+    ...allowanceSlipLines(sal),
     {
       label: "Weekday Overtime (1.5x)",
       amount: b.weekdayOtPay,
@@ -217,7 +226,9 @@ export function buildSalarySlipFromSub(opts: {
       role,
       basic: Number(sp?.basic) || 0,
       allowance: Number(sp?.allowance) || 0,
-      homeAllowance: role === "team_lead" ? Number(sp?.homeAllowance) || Number(sub.salary?.homeAllowance) || 0 : 0,
+      homeAllowance: Number(sp?.homeAllowance) || Number(sub.salary?.homeAllowance) || 0,
+      fuelAllowance: Number(sp?.fuelAllowance) || Number(sub.salary?.fuelAllowance) || 0,
+      medicalAllowance: Number(sp?.medicalAllowance) || Number(sub.salary?.medicalAllowance) || 0,
       commission: sp?.commission ?? {
         oldClientProjects: 0,
         oldClientPartialCount: 0,
@@ -286,13 +297,12 @@ export function buildSalarySlipFromSub(opts: {
       ...profile,
       earnings: [
         { label: "BasicSalary", amount: ex.basic },
-        { label: "MiscAllowance", amount: 0 },
-        { label: "HomeAllowance", amount: 0 },
+        ...allowanceSlipLines(sal),
         { label: "Commission", amount: ex.commission, qty: `${ex.commissionPct}%` },
         ...(ex.loanPositive > 0
           ? [{ label: "Loan (company owes)", amount: ex.loanPositive }]
           : []),
-      ].filter(r => r.amount !== 0 || r.label === "BasicSalary"),
+      ].filter(r => r.amount !== 0 || r.label === "BasicSalary" || r.indent || r.label === "Allowances"),
       deductions: [
         { label: "Income Tax", amount: 0 },
         { label: "Unpaid Leaves", amount: 0 },
@@ -316,7 +326,6 @@ export function buildSalarySlipFromSub(opts: {
       ? computeAdminSalary(sal)
       : computeSalary(sal);
   const profile = profileFromSalary(sal);
-  const home = Number(sal.homeAllowance) || 0;
 
   return {
     companyKey: isTechnical ? salarySlipCompanyForKind(kind, companyKey) : companyKey,
@@ -330,7 +339,7 @@ export function buildSalarySlipFromSub(opts: {
         ? buildTechnicalManagerEarnings(sal)
         : [
             { label: "Basic Salary", amount: sal.basic },
-            { label: "Allowances", amount: sal.allowance + home },
+            ...allowanceSlipLines(sal),
             {
               label: "Weekday Overtime (1.5x)",
               amount: b.weekdayOtPay,
@@ -344,8 +353,7 @@ export function buildSalarySlipFromSub(opts: {
           ]
       : [
           { label: "Basic Salary", amount: sal.basic },
-          { label: "Misc Allowance", amount: sal.allowance },
-          { label: "Home Allowance", amount: home },
+          ...allowanceSlipLines(sal),
           ...(b.totalOvertime > 0 ? [{ label: "Overtime", amount: b.totalOvertime }] : []),
         ],
     deductions: standardDeductions(

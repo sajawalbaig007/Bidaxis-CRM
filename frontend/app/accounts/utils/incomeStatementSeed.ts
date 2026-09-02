@@ -500,15 +500,8 @@ export function ensureIncomeStatementPeople(data: IncomeStatementData): IncomeSt
   const providentFundHeads = Object.keys(PF_SEED).map(label => {
     const current = existingPf.get(label);
     if (!current) return seedPf(label);
-    if (current.subHeads && current.subHeads.length > 0) {
-      return { ...current, amount: lineAmount(current) };
-    }
-    const seeded = seedPf(label);
-    return {
-      ...current,
-      subHeads: seeded.subHeads,
-      amount: lineAmount(seeded),
-    };
+    // Never re-seed leftover people onto a saved head — PF roster follows Team Salaries.
+    return { ...current, amount: lineAmount(current) };
   });
 
   for (const pf of data.providentFundHeads ?? []) {

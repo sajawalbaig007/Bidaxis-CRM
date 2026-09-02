@@ -36,6 +36,9 @@ export type SalesPayrollEmployee = {
   role: "sales" | "team_lead";
   basic: number;
   allowance: number;
+  homeAllowance?: number;
+  fuelAllowance?: number;
+  medicalAllowance?: number;
   commission: SalesCommissionFields;
   /** Sales rep assigned to team lead for TL commission */
   assignedToLead: boolean;
