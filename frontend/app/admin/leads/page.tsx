@@ -218,7 +218,6 @@ function ClientsPageContent() {
       ));
       setShowReassignModal(false);
       setReassignClient(null);
-      refreshTabCounts();
       setRefreshToken(t => t + 1);
     } catch { toast.error("Failed to reassign lead."); }
     finally { setIsReassigning(false); }
@@ -263,7 +262,7 @@ function ClientsPageContent() {
   });
   const [totalRecords, setTotalRecords] = useState(0);
   const [recordsView, setRecordsView] = useState<ClientView | null>(null);
-  const [csrOptions, setCsrOptions] = useState<string[]>([]);
+  const [csrOptions, setCsrOptions] = useState<{ id: string; name: string }[]>([]);
   const [searchDebounced, setSearchDebounced] = useState("");
   const [impSearchDebounced, setImpSearchDebounced] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
@@ -271,11 +270,10 @@ function ClientsPageContent() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
-    void getAdminTabCounts(true)
-      .then(tc => setTabCounts(tc))
-      .catch(() => {});
     API.get("/admin/csrs")
-      .then(res => setCsrOptions((res.data.csrs ?? []).map((c: { name: string }) => c.name)))
+      .then(res => setCsrOptions(
+        (res.data.csrs ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
+      ))
       .catch(() => {});
   }, []);
 
@@ -298,7 +296,10 @@ function ClientsPageContent() {
     return STATE_AREA_CODES[stateFilter] ?? [];
   }, [stateFilter]);
 
-  // Refresh tab counts whenever search / location / area-code filters change
+  const scheduleDateForCounts =
+    effectiveView === "schedule" && impFilterDate ? impFilterDate : undefined;
+
+  // Refresh tab counts when search / location / CSR filters change (not on every tab click)
   useEffect(() => {
     let cancelled = false;
     const filters = {
@@ -306,9 +307,8 @@ function ClientsPageContent() {
       state: stateFilter.trim() || undefined,
       phone: phoneFilter.replace(/\D/g, "") || undefined,
       areaCodes: filterAreaCodes.length ? filterAreaCodes : undefined,
-      scheduleDate:
-        effectiveView === "schedule" && impFilterDate ? impFilterDate : undefined,
-      csr: csrFilter !== "all" ? csrFilter : undefined,
+      scheduleDate: scheduleDateForCounts,
+      csrId: csrFilter !== "all" ? csrFilter : undefined,
     };
     const hasFilters = !!(
       filters.search ||
@@ -316,10 +316,10 @@ function ClientsPageContent() {
       filters.phone ||
       filters.scheduleDate ||
       (filters.areaCodes?.length ?? 0) > 0 ||
-      filters.csr
+      filters.csrId
     );
 
-    void getAdminTabCounts(hasFilters, hasFilters ? filters : undefined)
+    void getAdminTabCounts(true, hasFilters ? filters : undefined)
       .then(tc => {
         if (!cancelled) setTabCounts(tc);
       })
@@ -331,9 +331,9 @@ function ClientsPageContent() {
     stateFilter,
     phoneFilter,
     filterAreaCodes,
-    effectiveView,
-    impFilterDate,
+    scheduleDateForCounts,
     csrFilter,
+    refreshToken,
   ]);
 
   useEffect(() => {
@@ -351,7 +351,7 @@ function ClientsPageContent() {
           sort: sortBy,
           dir: sortDir,
         });
-        if (csrFilter !== "all") params.set("csr", csrFilter);
+        if (csrFilter !== "all") params.set("csrId", csrFilter);
         if (activeSearchQ.trim()) params.set("search", activeSearchQ.trim());
         if (effectiveView === "schedule" && impFilterDate) {
           params.set("scheduleDate", impFilterDate);
@@ -401,12 +401,6 @@ function ClientsPageContent() {
     sortBy,
     sortDir,
   ]);
-
-  const refreshTabCounts = () => {
-    void getAdminTabCounts(true)
-      .then(tc => setTabCounts(tc))
-      .catch(() => {});
-  };
 
   const displayCount = recordsView === effectiveView ? totalRecords : tabCounts[effectiveView];
   const totalPagesClients = Math.max(1, Math.ceil(displayCount / PAGE_SIZE));
@@ -513,7 +507,6 @@ function ClientsPageContent() {
         const created = formatAdminLead(res.data.lead);
         setClients((prev) => [created, ...prev]);
         toast.success("Client added successfully.");
-        refreshTabCounts();
         setRefreshToken(t => t + 1);
       } catch (err) {
         toast.error(apiErrorMessage(err, "Failed to add client."));
@@ -532,7 +525,6 @@ function ClientsPageContent() {
       await API.delete(`/admin/lead/${clientToDelete}`);
       setClients((prev) => prev.filter((c) => c.id !== clientToDelete));
       toast.success("Client deleted successfully.");
-      refreshTabCounts();
       setRefreshToken(t => t + 1);
       setShowDeleteModal(false);
       setClientToDelete(null);
@@ -646,7 +638,11 @@ function ClientsPageContent() {
               tabs={visibleTabs}
               activeKey={effectiveView as ClientView}
               onChange={key => {
-                setLoading(true);
+                if (key !== effectiveView) {
+                  setLoading(true);
+                  setRecordsView(null);
+                  hasRowsRef.current = false;
+                }
                 setView(key);
                 setPage(1);
                 router.replace(`${staffBase}/leads?tab=${key}`);
@@ -662,13 +658,16 @@ function ClientsPageContent() {
                 onChange={(e) => {
                   setCsrFilter(e.target.value);
                   setPage(1);
+                  setLoading(true);
+                  setRecordsView(null);
+                  hasRowsRef.current = false;
                 }}
                 className="h-9 sm:h-10 border border-gray-200 rounded-xl px-2 sm:px-3 text-xs sm:text-sm outline-none focus:border-[#B8112D] bg-white text-gray-700 font-medium"
               >
                 <option value="all">All CSR</option>
                 {csrOptions.map((csr) => (
-                  <option key={csr} value={csr}>
-                    {csr}
+                  <option key={csr.id} value={csr.id}>
+                    {csr.name}
                   </option>
                 ))}
               </select>

@@ -40,6 +40,5 @@ export function markThrottledHeal(csrId: string, ttlMs = 120_000): void {
 
 /** Clear admin leads list + summary caches after any lead mutation */
 export function flushAdminClientsCache(): void {
-  invalidateCache("admin:clients:summary", "admin:clients:tab-counts");
-  invalidatePattern("admin:clients:list:");
+  invalidatePattern("admin:clients:");
 }

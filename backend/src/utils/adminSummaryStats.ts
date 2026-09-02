@@ -276,17 +276,19 @@ export async function buildAdminTabCountsPayload(filters?: {
   areaCodes?: string[];
   scheduleDate?: string;
   csrName?: string;
+  csrId?: string;
 }) {
   const extras = {
     state: filters?.state,
     phonePrefix: filters?.phonePrefix,
     areaCodes: filters?.areaCodes,
+    csrId: filters?.csrId,
   };
   const search = filters?.search;
   const scheduleDate = filters?.scheduleDate;
   const csrName = filters?.csrName;
 
-  /* Same uniqueness as /admin/clients table: phone for pipeline tabs, client-code family for Closed */
+  /* Same uniqueness as /admin/clients table: phone for pipeline tabs, client-code family for Closed / All */
   const rows = await prisma.lead.findMany({
     where: buildAdminClientListWhere("all", csrName, search, undefined, extras),
     select: {
@@ -298,7 +300,6 @@ export async function buildAdminTabCountsPayload(filters?: {
       status: true,
       nextSchedule: true,
     },
-    orderBy: { updatedAt: "desc" },
   });
 
   const buckets: Record<AdminClientBucket, typeof rows> = {
@@ -318,7 +319,7 @@ export async function buildAdminTabCountsPayload(filters?: {
   return {
     success: true,
     tabCounts: {
-      all: uniqueClosedLeadsByClientCode(rows).length,
+      all: uniqueLeadsByPhone(rows).length,
       important: uniqueLeadsByPhone(buckets.important).length,
       schedule: uniqueLeadsByPhone(buckets.schedule).length,
       interested: uniqueLeadsByPhone(buckets.interested).length,

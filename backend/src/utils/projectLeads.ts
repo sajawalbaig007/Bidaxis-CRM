@@ -5,11 +5,13 @@ export const PROJECT_LEAD_STATUSES = ["Close Client", "completed", "close client
 
 export function wonClientStatusWhere(): Prisma.LeadWhereInput {
   return {
-    OR: [
-      { status: { equals: "Close Client", mode: "insensitive" } },
-      { status: { equals: "completed", mode: "insensitive" } },
-      { status: { equals: "closed", mode: "insensitive" } },
-    ],
+    status: {
+      in: [
+        "Close Client", "close client", "CLOSE CLIENT", "Close client",
+        "completed", "Completed", "COMPLETED",
+        "closed", "Closed", "CLOSED",
+      ],
+    },
   };
 }
 

@@ -10,12 +10,27 @@ export type AdminClientView = "all" | "important" | "schedule" | "interested" | 
  * Do not OR with boolean flags alone — stale important/interested flags
  * were putting leads on the wrong CSR pages after status changes.
  */
+/** Index-friendly equality — `mode: "insensitive"` cannot use Mongo status indexes. */
+function statusIn(values: string[]): Prisma.LeadWhereInput {
+  const variants = new Set<string>();
+  for (const v of values) {
+    const t = v.trim();
+    if (!t) continue;
+    variants.add(t);
+    variants.add(t.toLowerCase());
+    variants.add(t.toUpperCase());
+    const titled = t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+    variants.add(titled);
+  }
+  return { status: { in: [...variants] } };
+}
+
 export function isImportantStatusWhere(): Prisma.LeadWhereInput {
-  return { status: { equals: "important", mode: "insensitive" } };
+  return statusIn(["important"]);
 }
 
 export function isInterestedStatusWhere(): Prisma.LeadWhereInput {
-  return { status: { equals: "interested", mode: "insensitive" } };
+  return statusIn(["interested"]);
 }
 
 
@@ -250,14 +265,18 @@ export function buildAdminClientListWhere(
     state?: string;
     phonePrefix?: string;
     areaCodes?: string[];
+    csrId?: string;
   },
 ): Prisma.LeadWhereInput {
   const parts: Prisma.LeadWhereInput[] = [
     view === "important_status" ? isImportantStatusWhere() : buildAdminClientViewWhere(view),
   ];
 
-  if (csrName && csrName !== "all") {
-    parts.push({ csr: { name: csrName } });
+  const csrId = extras?.csrId?.trim();
+  if (csrId && csrId !== "all") {
+    parts.push({ assignedTo: csrId });
+  } else if (csrName && csrName !== "all") {
+    parts.push({ csr: { is: { name: csrName } } });
   }
 
   if (scheduleDate && view === "schedule") {
