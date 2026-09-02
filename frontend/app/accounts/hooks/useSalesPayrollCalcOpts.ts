@@ -7,7 +7,7 @@ import {
   type SalesPayrollCalcOpts,
 } from "../utils/salesPayrollFormula";
 
-/** Live USD/CAD→PKR for Sept 2026+ project slabs; empty rates otherwise. */
+/** Live USD/CAD→PKR for Aug 2026+ project slabs; empty rates otherwise. */
 export function useSalesPayrollCalcOpts(recordDate?: string): SalesPayrollCalcOpts {
   const slab = usesProjectSlabRules(recordDate);
   const [usdToPkr, setUsdToPkr] = useState(0);

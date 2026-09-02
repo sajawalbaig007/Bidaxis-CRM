@@ -12,7 +12,7 @@ import ActiveProjectsWidget from "./components/widgets/ActiveProjectsWidget";
 import { getAdminSummary, peekAdminSummary, subscribeAdminSummaryStale, type AdminDashboardSummary } from "@/lib/adminSummaryCache";
 import {
   Users, PhoneCall, CheckCircle2, Clock3, Star,
-  TrendingUp, Trophy, RefreshCw,
+  TrendingUp, Trophy, RefreshCw, Calculator, Ruler,
 } from "lucide-react";
 
 const PerformanceChart = dynamic(() => import("./components/charts/PerformanceChart"), {
@@ -66,6 +66,7 @@ function sharePct(part: number, whole: number): number {
 export default function DashboardPage() {
   const router = useRouter();
   const staffBase = useStaffBase();
+  const isAdminPortal = staffBase === "/admin";
   const [selectedRange, setSelectedRange] = useState("week");
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [stats, setStats] = useState<QuickStats | null>(null);
@@ -154,15 +155,39 @@ export default function DashboardPage() {
                 Pipeline overview · CSR activity · live presence
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void loadOverview(true)}
-              disabled={loadingOverview}
-              className="h-11 px-5 rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-surface text-sm font-semibold text-gray-700 dark:text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-muted disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
-            >
-              <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
-              {loadingOverview ? "Refreshing…" : "Refresh stats"}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+              {isAdminPortal && (
+                <>
+                  <a
+                    href="/technical"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-11 px-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 text-sm font-semibold text-amber-900 dark:text-amber-200 inline-flex items-center justify-center gap-2 hover:border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50 shadow-sm"
+                  >
+                    <Ruler size={15} />
+                    Chief Estimator
+                  </a>
+                  <a
+                    href="/accounts"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-11 px-4 rounded-2xl border border-sky-200 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-950/30 text-sm font-semibold text-sky-900 dark:text-sky-200 inline-flex items-center justify-center gap-2 hover:border-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/50 shadow-sm"
+                  >
+                    <Calculator size={15} />
+                    Accounts
+                  </a>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => void loadOverview(true)}
+                disabled={loadingOverview}
+                className="h-11 px-5 rounded-2xl border border-gray-200 dark:border-crm-border bg-white dark:bg-crm-surface text-sm font-semibold text-gray-700 dark:text-crm-text-secondary inline-flex items-center justify-center gap-2 hover:border-[#B8112D]/40 hover:text-[#B8112D] hover:bg-[#FFF6F7] dark:hover:bg-crm-muted disabled:opacity-60 shadow-sm w-full sm:w-auto shrink-0"
+              >
+                <RefreshCw size={15} className={loadingOverview ? "animate-spin" : ""} />
+                {loadingOverview ? "Refreshing…" : "Refresh stats"}
+              </button>
+            </div>
           </header>
 
           <section

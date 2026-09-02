@@ -98,7 +98,7 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/manager") && role !== "manager") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
-  if (pathname.startsWith("/technical") && role !== "technical_manager") {
+  if (pathname.startsWith("/technical") && role !== "technical_manager" && role !== "admin") {
     return NextResponse.redirect(new URL(homeForRole(role), request.url));
   }
   if (pathname.startsWith("/accounts") && role !== "accounts" && role !== "admin") {
