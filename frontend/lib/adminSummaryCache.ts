@@ -180,6 +180,7 @@ export async function getAdminTabCounts(
     areaCodes?: string[];
     scheduleDate?: string;
     csr?: string;
+    csrId?: string;
   },
 ): Promise<AdminTabCounts> {
   const hasFilters = !!(
@@ -188,6 +189,7 @@ export async function getAdminTabCounts(
     filters?.phone?.trim() ||
     filters?.scheduleDate?.trim() ||
     (filters?.areaCodes?.length ?? 0) > 0 ||
+    (filters?.csrId?.trim() && filters.csrId !== "all") ||
     (filters?.csr?.trim() && filters.csr !== "all")
   );
 
@@ -201,14 +203,15 @@ export async function getAdminTabCounts(
   if (filters?.phone?.trim()) params.phone = filters.phone.trim();
   if (filters?.scheduleDate?.trim()) params.scheduleDate = filters.scheduleDate.trim();
   if (filters?.areaCodes?.length) params.areaCodes = filters.areaCodes.join(",");
-  if (filters?.csr?.trim() && filters.csr !== "all") params.csr = filters.csr.trim();
+  if (filters?.csrId?.trim() && filters.csrId !== "all") params.csrId = filters.csrId.trim();
+  else if (filters?.csr?.trim() && filters.csr !== "all") params.csr = filters.csr.trim();
 
   if (hasFilters) {
     const res = await API.get("/admin/clients/tab-counts", { params });
     return res.data.tabCounts as AdminTabCounts;
   }
 
-  if (tabCountsInflight) return tabCountsInflight;
+  if (!force && tabCountsInflight) return tabCountsInflight;
 
   tabCountsInflight = API.get("/admin/clients/tab-counts")
     .then(res => {

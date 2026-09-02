@@ -97,6 +97,20 @@ import {
 const router = express.Router();
 router.use(enforceAdminIpAllowlist);
 
+async function resolveCsrAssignedTo(csrIdRaw?: string, csrNameRaw?: string): Promise<{ csrId?: string; csrName?: string }> {
+  const csrId = csrIdRaw?.trim();
+  const csrName = csrNameRaw?.trim();
+  if (csrId && csrId !== "all") return { csrId };
+  if (csrName && csrName !== "all") {
+    const u = await prisma.user.findFirst({
+      where: { role: "csr", name: csrName },
+      select: { id: true },
+    });
+    if (u) return { csrId: u.id, csrName };
+  }
+  return {};
+}
+
 router.get("/company-credentials", verifyToken, allowRoles("admin"), listCompanyCredentials);
 router.put("/company-credentials/:company", verifyToken, allowRoles("admin"), upsertCompanyCredential);
 router.delete("/company-credentials/:company", verifyToken, allowRoles("admin"), deleteCompanyCredential);
@@ -324,21 +338,23 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
     const phonePrefix = req.query.phone ? String(req.query.phone) : undefined;
     const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
     const csrName = req.query.csr ? String(req.query.csr) : undefined;
+    const csrIdRaw = req.query.csrId ? String(req.query.csrId) : undefined;
     const areaCodesRaw = req.query.areaCodes ? String(req.query.areaCodes) : "";
     const areaCodes = areaCodesRaw
       .split(",")
       .map(s => s.trim())
       .filter(Boolean);
 
-    const hasFilters = !!(search || state || phonePrefix || scheduleDate || areaCodes.length || (csrName && csrName !== "all"));
+    const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
+    const hasFilters = !!(
+      search || state || phonePrefix || scheduleDate || areaCodes.length || assignee.csrId
+    );
     const CACHE_KEY = hasFilters
-      ? `admin:clients:tab-counts:v7:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${csrName ?? "all"}`
-      : "admin:clients:tab-counts:v7";
+      ? `admin:clients:tab-counts:v8:${search ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${scheduleDate ?? ""}:${areaCodes.join(",")}:${assignee.csrId ?? "all"}`
+      : "admin:clients:tab-counts:v8";
 
-    if (!hasFilters) {
-      const cached = getCache<object>(CACHE_KEY);
-      if (cached) return res.json(cached);
-    }
+    const cached = getCache<object>(CACHE_KEY);
+    if (cached) return res.json(cached);
 
     const payload = await buildAdminTabCountsPayload(
       hasFilters
@@ -348,11 +364,12 @@ router.get("/clients/tab-counts", verifyToken, allowRoles("admin", "manager", "t
             phonePrefix,
             areaCodes,
             scheduleDate,
-            csrName: csrName && csrName !== "all" ? csrName : undefined,
+            csrName: assignee.csrName,
+            csrId: assignee.csrId,
           }
         : undefined,
     );
-    if (!hasFilters) setCache(CACHE_KEY, payload, 60_000);
+    setCache(CACHE_KEY, payload, hasFilters ? 20_000 : 60_000);
     return res.json(payload);
   } catch (error) {
     console.log(error);
@@ -383,6 +400,7 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
     const csrName = req.query.csr ? String(req.query.csr) : undefined;
+    const csrIdRaw = req.query.csrId ? String(req.query.csrId) : undefined;
     const search = req.query.search ? String(req.query.search) : undefined;
     const scheduleDate = req.query.scheduleDate ? String(req.query.scheduleDate) : undefined;
     const state = req.query.state ? String(req.query.state) : undefined;
@@ -394,16 +412,18 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const sortRaw = String(req.query.sort || "notes").toLowerCase();
     const sortBy = sortRaw === "clientcode" || sortRaw === "client_code" ? "clientCode" : "notes";
     const sortDir = String(req.query.dir || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+    const assignee = await resolveCsrAssignedTo(csrIdRaw, csrName);
 
-    const cacheKey = `admin:clients:list:v11:${view}:${page}:${limit}:${sortBy}:${sortDir}:${csrName ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
+    const cacheKey = `admin:clients:list:v12:${view}:${page}:${limit}:${sortBy}:${sortDir}:${assignee.csrId ?? "all"}:${search ?? ""}:${scheduleDate ?? ""}:${state ?? ""}:${phonePrefix ?? ""}:${areaCodes.join(",")}`;
     const cached = getCache<object>(cacheKey);
     if (cached) return res.json(cached);
 
     const fetchView = view === "important" || view === "schedule" ? "important_status" : view;
-    const where = buildAdminClientListWhere(fetchView, csrName, search, undefined, {
+    const where = buildAdminClientListWhere(fetchView, assignee.csrName, search, undefined, {
       state,
       phonePrefix,
       areaCodes,
+      csrId: assignee.csrId,
     });
 
     const identitySelect = {
@@ -420,7 +440,6 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
     const identityRows = await prisma.lead.findMany({
       where,
       select: identitySelect,
-      orderBy: { createdAt: "asc" },
     });
     const viewRows =
       view === "important" ? identityRows.filter(l => !leadHasMeetingDate(l.nextSchedule))
@@ -430,15 +449,15 @@ router.get("/clients", verifyToken, allowRoles("admin", "manager", "technical_ma
           return true;
         })
       : identityRows;
-    const preferClientCode = view === "closed" || view === "all";
+    const preferClientCode = view === "closed";
     const { unique, extraProjectCountById, extraProjectsById } = dedupeAdminLeads(viewRows, preferClientCode);
     const codeKey = (code: string | null | undefined) => (code || "").trim();
 
     const latestNoteMs = new Map<string, number>();
     if (sortBy === "notes" && viewRows.length) {
       const noteIds = [...new Set(viewRows.map(l => l.id))];
-      for (let i = 0; i < noteIds.length; i += 400) {
-        const chunk = noteIds.slice(i, i + 400);
+      for (let i = 0; i < noteIds.length; i += 800) {
+        const chunk = noteIds.slice(i, i + 800);
         const grouped = await prisma.leadNote.groupBy({
           by: ["leadId"],
           where: { leadId: { in: chunk } },
