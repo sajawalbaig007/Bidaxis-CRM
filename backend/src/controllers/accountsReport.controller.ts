@@ -500,7 +500,7 @@ export async function getMonthlyAccountsReport(req: AuthRequest, res: Response) 
     }));
 
     const csrOpts: SalesPayrollCalcOpts = { recordDate: `${month}-01` };
-    if (month >= "2026-09") {
+    if (month >= "2026-08") {
       try {
         const fx = await fetchLiveFxRates();
         csrOpts.usdToPkr = fx.usdToPkr;

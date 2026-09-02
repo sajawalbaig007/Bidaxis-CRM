@@ -79,8 +79,8 @@ const OLD_RATE = 1000;
 const NEW_RATE = 3000;
 const TL_PER_PROJECT = 1000;
 const TL_FIX_PCT = 0.005;
-/** September 2026 onward — slab % × 0.89 tax × live FX. */
-export const PROJECT_SLAB_FROM_MONTH = "2026-09";
+/** August 2026 onward — slab % × 0.89 tax × live FX. */
+export const PROJECT_SLAB_FROM_MONTH = "2026-08";
 export const PROJECT_TAX_FACTOR = 0.89;
 
 export function usesProjectSlabRules(recordDate?: string | null): boolean {

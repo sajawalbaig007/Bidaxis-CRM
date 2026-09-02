@@ -164,7 +164,7 @@ export default function ProjectWorkbenchModal({
   const paidNum = paidTotal(data.projectPayments);
   const pct = paymentPercent(data.projectPayments, data.projectBudget);
   const remaining = Math.max(0, budgetNum - paidNum);
-  const quoteLocked = !createMode && parseMoney(initial.projectBudget) > 0;
+  const quoteLocked = mode !== "admin" && !createMode && parseMoney(initial.projectBudget) > 0;
   const quotedOn = (() => {
     const iso = data.projectCreatedAt || initial.projectCreatedAt;
     if (!iso) return "";
@@ -623,7 +623,9 @@ export default function ProjectWorkbenchModal({
                 <p className="text-[10px] text-gray-400 mt-1">
                   {quoteLocked
                     ? `Original quote from the day this project was created${quotedOn ? ` (${quotedOn})` : ""}. Payments below do not change it.`
-                    : "Enter the quoted amount for this project. It stays as the original quote after save."}
+                    : mode === "admin"
+                      ? "Quoted amount can be edited. Payment % uses this figure."
+                      : "Enter the quoted amount for this project. It stays as the original quote after save."}
                 </p>
               </div>
             </div>

@@ -160,7 +160,7 @@ export default function SalesPayrollEmployeeEditor({
             <p className="text-[10px] text-emerald-900/80">
               {slab
                 ? isSales
-                  ? "Old $1,000 / New $3,000 · Fix: slab% × 0.89 × live FX (from Sep 2026) · No overtime"
+                  ? "Old $1,000 / New $3,000 · Fix: slab% × 0.89 × live FX (from Aug 2026) · No overtime"
                   : "New $3,000 · Fix: slab% × 0.89 × live FX · Team project TL share 0.5% × 0.89 × FX"
                 : isSales
                   ? "Old $1,000/project (partial 50%) · New $3,000 · Fix 2.5% · No overtime"
