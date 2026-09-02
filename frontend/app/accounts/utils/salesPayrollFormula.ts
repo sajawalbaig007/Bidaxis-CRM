@@ -45,8 +45,10 @@ export type SalesPayrollEmployee = {
   role: "sales" | "team_lead";
   basic: number;
   allowance: number;
-  /** Team lead only — home allowance on salary slip & net pay */
+  /** Allowances on salary slip & net pay */
   homeAllowance?: number;
+  fuelAllowance?: number;
+  medicalAllowance?: number;
   commission: SalesCommissionFields;
   assignedToLead: boolean;
   assignedTeamLeadId: string | null;
@@ -97,10 +99,19 @@ const TL_FIX_PCT = 0.005;
 export const PROJECT_SLAB_FROM_MONTH = "2026-08";
 export const PROJECT_TAX_FACTOR = 0.89;
 
-export function usesProjectSlabRules(recordDate?: string | null): boolean {
+export function yearMonthKey(recordDate?: string | null): string | null {
   const d = String(recordDate ?? "").trim();
-  if (!/^\d{4}-\d{2}/.test(d)) return false;
-  return d.slice(0, 7) >= PROJECT_SLAB_FROM_MONTH;
+  const iso = d.match(/^(\d{4})-(\d{1,2})/);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}`;
+  const us = d.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  if (us) return `${us[3]}-${us[1].padStart(2, "0")}`;
+  return null;
+}
+
+export function usesProjectSlabRules(recordDate?: string | null): boolean {
+  const ym = yearMonthKey(recordDate);
+  if (!ym) return false;
+  return ym >= PROJECT_SLAB_FROM_MONTH;
 }
 
 /** $0–1000 = 3% · $1001–3000 = 3.5% · $3001–5000 = 4% · $5001–10,000 = 4.5% · $10,001+ = 5% */
@@ -150,10 +161,22 @@ export function projectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCal
   return amount * rate * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
 }
 
-/** Team-lead share of a team project: amount × 0.5% × 0.89 × FX */
+/** Gross PKR of a range row's total amount (amount × FX, no tax). */
+export function projectAmountPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
+  return (Number(p.projectPay) || 0) * projectFxRate(p, opts);
+}
+
+export function rangeFinalTotalPkr(rows: FixClientProject[] | undefined, opts?: SalesPayrollCalcOpts): number {
+  return (rows ?? []).reduce((s, p) => s + projectAmountPkr(p, opts), 0);
+}
+
+/** Team-lead share: 0.5% × 0.89 of that row's total amount in PKR */
 export function tlProjectCommissionPkr(p: FixClientProject, opts?: SalesPayrollCalcOpts): number {
-  const amount = Number(p.projectPay) || 0;
-  return amount * 0.005 * PROJECT_TAX_FACTOR * projectFxRate(p, opts);
+  return projectAmountPkr(p, opts) * 0.005 * PROJECT_TAX_FACTOR;
+}
+
+export function tlShareFromFinalTotal(rows: FixClientProject[] | undefined, opts?: SalesPayrollCalcOpts): number {
+  return rangeFinalTotalPkr(rows, opts) * 0.005 * PROJECT_TAX_FACTOR;
 }
 
 export function timeToMinutes(t: string | undefined | null): number | null {
@@ -191,31 +214,46 @@ export function calcSalesCommission(
   _role: "sales" | "team_lead",
   opts?: SalesPayrollCalcOpts,
 ) {
+  const slab = usesProjectSlabRules(opts?.recordDate);
+  const rows = commission.fixClientProjects ?? [];
+  if (slab) {
+    const fixComm = rows.reduce((s, p) => s + projectCommissionPkr(p, opts), 0);
+    const totalProjects = rows.reduce((s, p) => s + fixRowProjectCount(p), 0);
+    return {
+      oldComm: 0,
+      newComm: 0,
+      fixComm,
+      totalProjects,
+      totalCommission: fixComm,
+      slab: true,
+      finalTotalPkr: rangeFinalTotalPkr(rows, opts),
+      leadShare: tlShareFromFinalTotal(rows, opts),
+    };
+  }
   const oldCount = Number(commission.oldClientProjects) || 0;
   const partial = Math.min(Number(commission.oldClientPartialCount) || 0, oldCount);
   const oldFull = oldCount - partial;
   const oldComm = oldFull * OLD_RATE + partial * (OLD_RATE * 0.5);
   const newComm = (Number(commission.newClientProjects) || 0) * NEW_RATE;
-  const slab = usesProjectSlabRules(opts?.recordDate);
-  const fixComm = (commission.fixClientProjects ?? []).reduce(
-    (s, p) => s + (slab ? projectCommissionPkr(p, opts) : (Number(p.projectPay) || 0) * 0.025),
-    0,
-  );
-  const totalProjects =
-    oldCount +
-    (Number(commission.newClientProjects) || 0) +
-    (commission.fixClientProjects ?? []).reduce((s, p) => s + fixRowProjectCount(p), 0);
+  const fixComm = rows.reduce((s, p) => s + (Number(p.projectPay) || 0) * 0.025, 0);
+  const totalProjects = oldCount + (Number(commission.newClientProjects) || 0) + rows.length;
   const totalCommission = oldComm + newComm + fixComm;
-  return { oldComm, newComm, fixComm, totalProjects, totalCommission, slab };
+  return {
+    oldComm,
+    newComm,
+    fixComm,
+    totalProjects,
+    totalCommission,
+    slab: false,
+    finalTotalPkr: 0,
+    leadShare: 0,
+  };
 }
 
 export function calcTlAssignedCommission(rep: SalesPayrollEmployee, opts?: SalesPayrollCalcOpts) {
   if (!rep.assignedToLead) return 0;
   if (usesProjectSlabRules(opts?.recordDate)) {
-    return (rep.commission.fixClientProjects ?? []).reduce(
-      (s, p) => s + tlProjectCommissionPkr(p, opts),
-      0,
-    );
+    return tlShareFromFinalTotal(rep.commission.fixClientProjects, opts);
   }
   const { totalProjects } = calcSalesCommission(rep.commission, "sales", opts);
   const fixPay = (rep.commission.fixClientProjects ?? []).reduce(
@@ -232,8 +270,10 @@ export function computeSalesEmployeePayroll(
 ) {
   const basic = Number(emp.basic) || 0;
   const allowance = Number(emp.allowance) || 0;
-  const homeAllowance = emp.role === "team_lead" ? Number(emp.homeAllowance) || 0 : 0;
-  const daySalary = (basic + allowance + homeAllowance) / 30;
+  const homeAllowance = Number(emp.homeAllowance) || 0;
+  const fuelAllowance = Number(emp.fuelAllowance) || 0;
+  const medicalAllowance = Number(emp.medicalAllowance) || 0;
+  const daySalary = basic / 30;
   const comm = calcSalesCommission(emp.commission, emp.role, opts);
   const late = calcSalesLateDeduction(daySalary, emp.checkIn, emp.lateDeductionOverride);
   const unpaidDays = Number(emp.unpaidLeaveDays) || 0;
@@ -243,7 +283,8 @@ export function computeSalesEmployeePayroll(
   const pfAuto = emp.pfAuto !== false;
   const pf = pfAuto ? basic * 0.08 : Math.max(0, Number(emp.pfOverride) || 0);
   const incomeTax = Number(emp.incomeTax) || 0;
-  const totalEarning = basic + allowance + homeAllowance + comm.totalCommission + extraEarning;
+  const totalEarning =
+    basic + allowance + homeAllowance + fuelAllowance + medicalAllowance + comm.totalCommission + extraEarning;
   const baseDeduction = late.amount + unpaidLeaveDeduction + pf + incomeTax;
   const totalDeduction = baseDeduction + loanFromSalary;
   const occasionalAmount = Math.max(0, Number(emp.occasionalAmount) || 0);

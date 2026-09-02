@@ -133,6 +133,8 @@ export default function EmployeeSalaryEditor({
         <Num label="Basic Salary" value={d.basic} onChange={v => set("basic", v)} />
         <Num label="Misc Allowance" value={d.allowance} onChange={v => set("allowance", v)} />
         <Num label="Home Allowance" value={d.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+        <Num label="Fuel Allowance" value={d.fuelAllowance ?? 0} onChange={v => set("fuelAllowance", v)} />
+        <Num label="Med Allowance" value={d.medicalAllowance ?? 0} onChange={v => set("medicalAllowance", v)} />
         <Read label="Monthly (Basic+Allow)" value={currency(b.monthlySalary)} />
         <Read label="1 Day Salary (/30)" value={currency(b.daySalary)} />
         <Read label="1 Hour Salary (/8)" value={currency(b.hourSalary)} />

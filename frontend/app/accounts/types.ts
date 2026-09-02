@@ -44,6 +44,8 @@ export type SubHeadEntry = {
   periodAmount?: number;
   /** Display-only: PF across all saved records. */
   allTimeAmount?: number;
+  /** User-added PF line — keep even if the person is not in Team Salaries. */
+  manual?: boolean;
 };
 
 /** Date-tagged note on a table row / head. */

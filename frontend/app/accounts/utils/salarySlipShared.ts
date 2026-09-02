@@ -11,6 +11,7 @@ export type SalarySlipLine = {
   amount: number;
   qty?: string;
   includeInTotal?: boolean;
+  indent?: boolean;
 };
 
 export type SalarySlipTemplate = "gps_technical" | "bem_sales" | "bem_csr_full";
@@ -37,6 +38,8 @@ export type SalarySlipPayload = {
   employeePf?: number;
   employerPf?: number;
   projectCount?: number;
+  /** ISO timestamp captured at download — printed on HR digital signature. */
+  signedAt?: string;
 };
 
 export type JsPdfWithAutoTable = import("jspdf").jsPDF & { lastAutoTable?: { finalY: number } };
@@ -59,6 +62,21 @@ export function salarySlipMonthLabel(recordDate: string): string {
   const d = new Date(`${recordDate.slice(0, 10)}T12:00:00`);
   if (Number.isNaN(d.getTime())) return recordDate;
   return d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+}
+
+export function formatSlipSignedAt(iso?: string): string {
+  const d = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-GB", {
+    timeZone: "Asia/Karachi",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 }
 
 export function salarySlipMonthCompact(recordDate: string): string {

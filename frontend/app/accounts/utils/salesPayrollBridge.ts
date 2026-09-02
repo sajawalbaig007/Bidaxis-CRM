@@ -161,7 +161,9 @@ export function emptySalesPayrollEmployee(
     role,
     basic,
     allowance,
-    homeAllowance: role === "team_lead" ? 0 : undefined,
+    homeAllowance: 0,
+    fuelAllowance: 0,
+    medicalAllowance: 0,
     commission: {
       oldClientProjects: 0,
       oldClientPartialCount: 0,
@@ -194,6 +196,7 @@ export function ensureSalesPayrollFromSub(
 ): SalesPayrollEmployee {
   if (sub.salesPayroll) {
     const sp = sub.salesPayroll;
+    const sal = sub.salary;
     return {
       ...sp,
       name: sub.label,
@@ -202,6 +205,9 @@ export function ensureSalesPayrollFromSub(
       occasionalRemark: sp.occasionalRemark ?? "",
       pfAuto: sp.pfAuto !== false,
       pfOverride: sp.pfOverride ?? null,
+      homeAllowance: Number(sp.homeAllowance ?? sal?.homeAllowance) || 0,
+      fuelAllowance: Number(sp.fuelAllowance ?? sal?.fuelAllowance) || 0,
+      medicalAllowance: Number(sp.medicalAllowance ?? sal?.medicalAllowance) || 0,
     };
   }
   const sal = sub.salary;
@@ -223,7 +229,9 @@ export function ensureSalesPayrollFromSub(
     occasionalRemark: sal?.occasionalRemark ?? "",
     pfAuto: sal?.pfAuto !== false,
     pfOverride: sal?.pfOverride ?? null,
-    ...(role === "team_lead" ? { homeAllowance: Number(sal?.homeAllowance) || 0 } : {}),
+    homeAllowance: Number(sal?.homeAllowance) || 0,
+    fuelAllowance: Number(sal?.fuelAllowance) || 0,
+    medicalAllowance: Number(sal?.medicalAllowance) || 0,
   };
 }
 

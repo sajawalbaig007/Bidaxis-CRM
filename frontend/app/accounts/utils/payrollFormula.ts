@@ -5,6 +5,7 @@ export type EmployeeSalaryDetail = {
   allowance: number;
   /** Optional home allowance line on salary slip (Misc = allowance). */
   homeAllowance?: number;
+  fuelAllowance?: number;
   /** Technical manager / itemized allowance lines */
   medicalAllowance?: number;
   travelAllowance?: number;
@@ -103,10 +104,32 @@ export function occasionalOf(detail: { occasionalAmount?: number | null }): numb
   return Math.max(0, Number(detail.occasionalAmount) || 0);
 }
 
+export function allowanceParts(detail: {
+  allowance?: number | null;
+  homeAllowance?: number | null;
+  fuelAllowance?: number | null;
+  medicalAllowance?: number | null;
+}): { misc: number; home: number; fuel: number; medical: number; total: number } {
+  const misc = Number(detail.allowance) || 0;
+  const home = Number(detail.homeAllowance) || 0;
+  const fuel = Number(detail.fuelAllowance) || 0;
+  const medical = Number(detail.medicalAllowance) || 0;
+  return { misc, home, fuel, medical, total: misc + home + fuel + medical };
+}
+
+/** 1 day = Basic ÷ 30 · 1 hour = Day ÷ 8 (allowances never enter this base). */
+export function dayHourFromBasic(basic: number): { daySalary: number; hourSalary: number } {
+  const daySalary = (Number(basic) || 0) / 30;
+  return { daySalary, hourSalary: daySalary / 8 };
+}
+
 export function emptySalaryDetail(partial?: Partial<EmployeeSalaryDetail>): EmployeeSalaryDetail {
   const merged: EmployeeSalaryDetail = {
     basic: 0,
     allowance: 0,
+    homeAllowance: 0,
+    fuelAllowance: 0,
+    medicalAllowance: 0,
     weekdayOtHours: 0,
     weekendOtHours: 0,
     checkIn: "07:00",
@@ -245,13 +268,10 @@ export function calcAdminLateDeduction(
  */
 export function computeAdminSalary(detail: EmployeeSalaryDetail): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
-  const allowance = Number(detail.allowance) || 0;
-  const homeAllowance = Number(detail.homeAllowance) || 0;
-  const medicalAllowance = Number(detail.medicalAllowance) || 0;
+  const parts = allowanceParts(detail);
   const travelAllowance = Number(detail.travelAllowance) || 0;
-  const monthlySalary = basic + allowance + homeAllowance + medicalAllowance + travelAllowance;
-  const daySalary = monthlySalary / 30;
-  const hourSalary = daySalary / 8;
+  const monthlySalary = basic + parts.total + travelAllowance;
+  const { daySalary, hourSalary } = dayHourFromBasic(basic);
 
   const totalEarning = monthlySalary;
 
@@ -346,7 +366,7 @@ export function computeExecutiveSalary(
   const occasionalAmount = occasionalOf(detail);
   const pfAuto = detail.pfAuto !== false;
   const pf = resolvePfAmount(detail);
-  const totalSalary = basic + commission;
+  const totalSalary = basic + commission + allowanceParts(detail).total;
   return {
     basic,
     commissionPct,
@@ -395,13 +415,10 @@ export function computeSalary(
   opts?: { /** Technical Team = 7 · Technical Manager = 9 */ lateShiftHour?: 7 | 9 },
 ): SalaryBreakdown {
   const basic = Number(detail.basic) || 0;
-  const allowance = Number(detail.allowance) || 0;
-  const homeAllowance = Number(detail.homeAllowance) || 0;
-  const medicalAllowance = Number(detail.medicalAllowance) || 0;
+  const parts = allowanceParts(detail);
   const travelAllowance = Number(detail.travelAllowance) || 0;
-  const monthlySalary = basic + allowance + homeAllowance + medicalAllowance + travelAllowance;
-  const daySalary = monthlySalary / 30;
-  const hourSalary = daySalary / 8;
+  const monthlySalary = basic + parts.total + travelAllowance;
+  const { daySalary, hourSalary } = dayHourFromBasic(basic);
 
   const weekdayOtHours = Number(detail.weekdayOtHours) || 0;
   const weekendOtHours = Number(detail.weekendOtHours) || 0;
@@ -409,7 +426,7 @@ export function computeSalary(
   const weekendOtPay = weekendOtHours * hourSalary * 2;
   const totalOvertime = weekdayOtPay + weekendOtPay;
 
-  const totalEarning = basic + allowance + homeAllowance + medicalAllowance + travelAllowance + totalOvertime;
+  const totalEarning = monthlySalary + totalOvertime;
 
   const late = calcLateDeduction(
     daySalary,

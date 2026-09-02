@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { currency } from "../../types";
 import {
   calcSalesCommission,
@@ -9,6 +9,7 @@ import {
   inferSlabKey,
   newFixClientProject,
   PROJECT_SLABS,
+  projectAmountPkr,
   projectCommissionPkr,
   projectSlabRateFromKey,
   usesProjectSlabRules,
@@ -74,7 +75,6 @@ export default function SalesPayrollEmployeeEditor({
   variant,
   allData,
   onChange,
-  onAssignToLead,
   defaultOpen = false,
   embedded = false,
   calcOpts,
@@ -110,6 +110,35 @@ export default function SalesPayrollEmployeeEditor({
     },
     [employee, onChange],
   );
+
+  useEffect(() => {
+    if (!slab) return;
+    const current = employeeRef.current;
+    if ((current.commission.fixClientProjects ?? []).length > 0) return;
+    onChangeRef.current({
+      ...current,
+      commission: {
+        ...current.commission,
+        fixClientProjects: [
+          newFixClientProject({
+            currency: "USD",
+            fxRate: Number(calcOpts?.usdToPkr) || 0,
+            slabKey: "0-1000",
+            projectCount: 1,
+          }),
+        ],
+      },
+    });
+  }, [slab, calcOpts?.usdToPkr, calcOpts?.recordDate]);
+
+  const toggleAssignToLead = useCallback(() => {
+    const nextAssigned = !employee.assignedToLead;
+    onChange({
+      ...employee,
+      assignedToLead: nextAssigned,
+      assignedTeamLeadId: nextAssigned ? HAMMAD_TEAM_LEAD_ID : null,
+    });
+  }, [employee, onChange]);
 
   const lookupLoan = useCallback(async (force = false) => {
     const current = employeeRef.current;
@@ -162,20 +191,18 @@ export default function SalesPayrollEmployeeEditor({
             <p className="text-[11px] font-extrabold uppercase text-emerald-800">Project Commission</p>
             <p className="text-[10px] text-emerald-900/80">
               {slab
-                ? isSales
-                  ? "Old $1,000 / New $3,000 · Project amount: pick range, then projects + total → that range % × 0.89 × FX · No overtime"
-                  : "New $3,000 · Project amount: selected range % × 0.89 × FX · Team project TL share 0.5% × 0.89 × FX"
+                ? "Pick a range, enter projects + total amount. Selected range % × 0.89 × FX applies even if amount is outside the band. Each range’s total amount (× FX) rolls into Final total."
                 : isSales
                   ? "Old $1,000/project (partial 50%) · New $3,000 · Fix 2.5% · No overtime"
                   : "New $3,000/project · Fix 2.5% · Old projects count in total · No overtime"}
             </p>
             {slab && (
               <p className="text-[10px] text-emerald-800">
-                Range is selected — that % applies even if total amount is outside the band.
-                {calcOpts?.usdToPkr ? ` · Live USD ${calcOpts.usdToPkr}` : ""}
+                {calcOpts?.usdToPkr ? `Live USD ${calcOpts.usdToPkr}` : "Live USD —"}
                 {calcOpts?.cadToPkr ? ` · CAD ${calcOpts.cadToPkr}` : ""}
               </p>
             )}
+            {!slab && (
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
               {isSales && (
                 <>
@@ -190,14 +217,14 @@ export default function SalesPayrollEmployeeEditor({
               <Num label="New Client Projects" value={employee.commission.newClientProjects} onChange={v => setComm({ newClientProjects: v })} />
               <Read label="New Commission" value={currency(comm.newComm)} accent="text-emerald-800" />
               <Read
-                label={slab ? "Range Commission (selected % × 0.89 × FX)" : "Fix Commission (2.5%)"}
+                label="Fix Commission (2.5%)"
                 value={currency(comm.fixComm)}
                 accent="text-emerald-800"
               />
               <Read label="Total Projects" value={String(comm.totalProjects)} />
               <Read label="Total Commission" value={currency(comm.totalCommission)} accent="text-emerald-900" />
             </div>
-
+            )}
             {employee.commission.fixClientProjects.map(p => {
               const cur: ProjectCurrency = p.currency === "CAD" ? "CAD" : "USD";
               const liveFx = cur === "CAD" ? Number(calcOpts?.cadToPkr) || 0 : Number(calcOpts?.usdToPkr) || 0;
@@ -211,59 +238,66 @@ export default function SalesPayrollEmployeeEditor({
               if (slab) {
                 const slabKey = (p.slabKey && PROJECT_SLABS.some(s => s.key === p.slabKey) ? p.slabKey : inferSlabKey(p.projectPay)) as ProjectSlabKey;
                 const pct = projectSlabRateFromKey(slabKey, p.projectPay) * 100;
-                const rowComm = projectCommissionPkr({ ...p, slabKey }, calcOpts);
+                const rowWithKey = { ...p, slabKey };
+                const rowComm = projectCommissionPkr(rowWithKey, calcOpts);
+                const rowPkr = projectAmountPkr(rowWithKey, calcOpts);
                 return (
-                  <div key={p.id} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 items-end rounded-lg border border-emerald-100 bg-white/70 p-2">
-                    <label className="block text-[10px] font-bold uppercase text-crm-text-muted col-span-2 sm:col-span-1">
-                      Commission range
-                      <select
-                        value={slabKey}
-                        onChange={e => patch({ slabKey: e.target.value as ProjectSlabKey })}
-                        className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
+                  <div key={p.id} className="rounded-lg border border-emerald-100 bg-white/70 p-2 space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
+                      <label className="block text-[10px] font-bold uppercase text-crm-text-muted col-span-2 sm:col-span-1">
+                        Commission range
+                        <select
+                          value={slabKey}
+                          onChange={e => patch({ slabKey: e.target.value as ProjectSlabKey })}
+                          className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
+                        >
+                          {PROJECT_SLABS.map(s => (
+                            <option key={s.key} value={s.key}>
+                              {s.label} · {s.rate * 100}%
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <Num
+                        label="No. of projects"
+                        value={p.projectCount ?? 1}
+                        onChange={v => patch({ projectCount: v, slabKey: p.slabKey ?? inferSlabKey(p.projectPay) })}
+                      />
+                      <Num
+                        label={`Total amount (${cur})`}
+                        value={p.projectPay}
+                        onChange={v => patch({ projectPay: v, slabKey: p.slabKey ?? inferSlabKey(p.projectPay) })}
+                      />
+                      <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
+                        Currency
+                        <select
+                          value={cur}
+                          onChange={e => {
+                            const nextCur = e.target.value === "CAD" ? "CAD" : "USD";
+                            const nextFx = nextCur === "CAD" ? Number(calcOpts?.cadToPkr) || 0 : Number(calcOpts?.usdToPkr) || 0;
+                            patch({ currency: nextCur, fxRate: nextFx });
+                          }}
+                          className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="CAD">CAD</option>
+                        </select>
+                      </label>
+                      <Read label={`${cur} → PKR`} value={fx ? fx.toFixed(4) : "—"} accent="text-emerald-800" />
+                      <button
+                        type="button"
+                        onClick={() => setComm({
+                          fixClientProjects: employee.commission.fixClientProjects.filter(x => x.id !== p.id),
+                        })}
+                        className="h-9 rounded-lg border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50"
                       >
-                        {PROJECT_SLABS.map(s => (
-                          <option key={s.key} value={s.key}>
-                            {s.label} · {s.rate * 100}%
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Num
-                      label="No. of projects"
-                      value={p.projectCount ?? 1}
-                      onChange={v => patch({ projectCount: v, slabKey: p.slabKey ?? inferSlabKey(p.projectPay) })}
-                    />
-                    <Num
-                      label={`Total amount (${cur})`}
-                      value={p.projectPay}
-                      onChange={v => patch({ projectPay: v, slabKey: p.slabKey ?? inferSlabKey(p.projectPay) })}
-                    />
-                    <label className="block text-[10px] font-bold uppercase text-crm-text-muted">
-                      Currency
-                      <select
-                        value={cur}
-                        onChange={e => {
-                          const nextCur = e.target.value === "CAD" ? "CAD" : "USD";
-                          const nextFx = nextCur === "CAD" ? Number(calcOpts?.cadToPkr) || 0 : Number(calcOpts?.usdToPkr) || 0;
-                          patch({ currency: nextCur, fxRate: nextFx });
-                        }}
-                        className="mt-1 h-9 w-full rounded-lg border border-crm-border px-2 text-sm bg-crm-surface"
-                      >
-                        <option value="USD">USD</option>
-                        <option value="CAD">CAD</option>
-                      </select>
-                    </label>
-                    <Read label={`${cur} → PKR`} value={fx ? fx.toFixed(4) : "—"} accent="text-emerald-800" />
-                    <Read label={`${pct}% × 0.89 × FX`} value={currency(rowComm)} accent="text-emerald-800" />
-                    <button
-                      type="button"
-                      onClick={() => setComm({
-                        fixClientProjects: employee.commission.fixClientProjects.filter(x => x.id !== p.id),
-                      })}
-                      className="h-9 rounded-lg border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <Read label="This range PKR (amount × FX)" value={currency(rowPkr)} accent="text-emerald-800" />
+                      <Read label={`${pct}% × 0.89 × FX`} value={currency(rowComm)} accent="text-emerald-800" />
+                    </div>
                   </div>
                 );
               }
@@ -314,10 +348,10 @@ export default function SalesPayrollEmployeeEditor({
               {slab ? "+ Add commission range" : "+ Add Fix Client Project"}
             </button>
 
-            {isSales && onAssignToLead && (
+            {isSales && !slab && (
               <button
                 type="button"
-                onClick={onAssignToLead}
+                onClick={toggleAssignToLead}
                 className={`h-9 px-4 rounded-xl text-xs font-bold inline-flex items-center gap-2 ${
                   employee.assignedToLead
                     ? "bg-indigo-100 text-indigo-800 border border-indigo-200"
@@ -327,6 +361,35 @@ export default function SalesPayrollEmployeeEditor({
                 {employee.assignedToLead ? "Assigned to Hammad (Team Lead)" : "Assign to Lead"}
               </button>
             )}
+            {isSales && slab && (
+              <div className={`rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center gap-3 ${
+                employee.assignedToLead ? "border-indigo-200 bg-indigo-50/60" : "border-indigo-100 bg-white"
+              }`}>
+                <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Read label="Total projects" value={String(comm.totalProjects)} />
+                  <Read label="Your commission" value={currency(comm.totalCommission)} accent="text-emerald-900" />
+                  <Read label="Final total (PKR)" value={currency(comm.finalTotalPkr ?? 0)} accent="text-emerald-800" />
+                  <Read
+                    label="Lead share (0.5% × 0.89)"
+                    value={currency(comm.leadShare ?? 0)}
+                    accent="text-indigo-800"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleAssignToLead}
+                  className={`h-10 px-4 rounded-xl text-xs font-bold shrink-0 ${
+                    employee.assignedToLead
+                      ? "bg-indigo-100 text-indigo-800 border border-indigo-200"
+                      : "bg-indigo-600 text-white hover:bg-indigo-700"
+                  }`}
+                >
+                  {employee.assignedToLead
+                    ? `Assigned to lead · ${currency(comm.leadShare ?? 0)}`
+                    : `Assign to Lead · 0.5% = ${currency(comm.leadShare ?? 0)}`}
+                </button>
+              </div>
+            )}
           </div>
 
           {variant === "team_lead" && (
@@ -334,7 +397,7 @@ export default function SalesPayrollEmployeeEditor({
               <p className="text-[11px] font-extrabold uppercase text-indigo-800">Assigned Sales Reps — TL Commission</p>
               <p className="text-[10px] text-indigo-700">
                 {slab
-                  ? "Team project: amount × 0.5% × 0.89 × live FX (USD/CAD at that time)"
+                  ? "Each assigned rep: 0.5% × 0.89 of their final total (all range amounts × FX)"
                   : "$1,000 × projects · Fix client 0.5% for TL"}
               </p>
               {assignedReps.length === 0 ? (
@@ -345,18 +408,21 @@ export default function SalesPayrollEmployeeEditor({
                     <thead>
                       <tr className="text-[10px] uppercase text-indigo-700">
                         <th className="text-left py-1 pr-2">Rep</th>
-                        <th className="text-left py-1 pr-2">Projects</th>
+                        <th className="text-left py-1 pr-2">{slab ? "Final total" : "Projects"}</th>
                         <th className="text-left py-1">TL Commission</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {assignedReps.map(r => (
+                      {assignedReps.map(r => {
+                        const rc = calcSalesCommission(r.commission, "sales", calcOpts);
+                        return (
                         <tr key={r.id} className="border-t border-indigo-100">
                           <td className="py-2 pr-2 font-semibold">{r.name}</td>
-                          <td className="py-2 pr-2">{calcSalesCommission(r.commission, "sales", calcOpts).totalProjects}</td>
+                          <td className="py-2 pr-2">{slab ? currency(rc.finalTotalPkr ?? 0) : rc.totalProjects}</td>
                           <td className="py-2 font-bold text-indigo-800">{currency(calcTlAssignedCommission(r, calcOpts))}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 border-indigo-200">
@@ -374,20 +440,21 @@ export default function SalesPayrollEmployeeEditor({
           <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
             <p className="text-[11px] font-extrabold uppercase text-blue-800">Total Earning</p>
             <p className="text-[10px] text-blue-700">
-              Basic + Allowance{variant === "team_lead" ? " + Home" : ""} + Own Commission
+              Basic + Misc + Home + Fuel + Med Allowance + Own Commission
               {variant === "team_lead" ? " + Assigned TL Commission" : ""} = Total Earning
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Num label="Basic Salary" value={employee.basic} onChange={v => set("basic", v)} />
-              <Num label="Allowance" value={employee.allowance} onChange={v => set("allowance", v)} />
-              {variant === "team_lead" && (
-                <Num label="Home Allowance" value={employee.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
-              )}
+              <Num label="Misc Allowance" value={employee.allowance} onChange={v => set("allowance", v)} />
+              <Num label="Home Allowance" value={employee.homeAllowance ?? 0} onChange={v => set("homeAllowance", v)} />
+              <Num label="Fuel Allowance" value={employee.fuelAllowance ?? 0} onChange={v => set("fuelAllowance", v)} />
+              <Num label="Med Allowance" value={employee.medicalAllowance ?? 0} onChange={v => set("medicalAllowance", v)} />
               <Read label="Own Commission" value={currency(comm.totalCommission)} accent="text-emerald-700" />
               {variant === "team_lead" && (
                 <Read label="Assigned TL Commission" value={currency(assignedTlTotal)} accent="text-indigo-800" />
               )}
               <Read label="Total Earning" value={currency(breakdown.totalEarning)} accent="text-blue-800" />
+              <Read label="1 Day Salary (/30)" value={currency(breakdown.daySalary)} />
             </div>
           </div>
 

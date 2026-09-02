@@ -13,6 +13,7 @@ export type SlipAmountSource =
   | "basic"
   | "allowance"
   | "homeAllowance"
+  | "fuelAllowance"
   | "medicalAllowance"
   | "travelAllowance"
   | "utilityAllowance"
@@ -119,11 +120,12 @@ export const SLIP_AMOUNT_SOURCE_OPTIONS: { value: SlipAmountSource; label: strin
   { value: "basic", label: "Basic salary" },
   { value: "allowance", label: "Misc / allowance" },
   { value: "homeAllowance", label: "Home allowance" },
+  { value: "fuelAllowance", label: "Fuel allowance" },
   { value: "medicalAllowance", label: "Medical allowance" },
   { value: "travelAllowance", label: "Travel allowance" },
   { value: "utilityAllowance", label: "Utility allowance" },
   { value: "grossSalary", label: "Gross salary (tech manager)" },
-  { value: "allowancesCombined", label: "Allowances (misc + home)" },
+  { value: "allowancesCombined", label: "Allowances (home + fuel + med + misc)" },
   { value: "weekdayOt", label: "Weekday overtime" },
   { value: "weekendOt", label: "Weekend overtime" },
   { value: "overtimeTotal", label: "Total overtime" },
@@ -206,7 +208,10 @@ export const DEFAULT_SLIP_TEMPLATES: Record<SlipPayrollKind, SlipKindTemplate> =
     employeeFields: standardEmployee(true),
     earnings: [
       line("e-basic", "Basic Salary", "basic"),
-      line("e-misc", "Misc Allowance", "allowance"),
+      line("e-all", "Allowances", "allowancesCombined"),
+      line("e-home", "Home Allowance", "homeAllowance"),
+      line("e-fuel", "Fuel Allowance", "fuelAllowance"),
+      line("e-med", "Medical Allowance", "medicalAllowance"),
       line("e-proj", "Project Based Comm", "projectComm"),
       line("e-fix", "Fixed Client Comm", "fixComm"),
     ],

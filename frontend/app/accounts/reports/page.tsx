@@ -23,6 +23,23 @@ type CategoryGroup = {
   lines: { label: string; amount: number }[];
 };
 
+type SalaryFieldTable = {
+  name: string;
+  kind: string;
+  total: number;
+  filledAt?: string;
+  columns: string[];
+  rows: { employee: string; cells: (string | number)[] }[];
+};
+
+type OpexFieldTable = {
+  name: string;
+  amount: number;
+  filledAt: string;
+  notes: string;
+  lines: { label: string; amount: number; filledAt: string; proofName: string }[];
+};
+
 type MonthlyReport = {
   month: string;
   sourceDate?: string | null;
@@ -45,29 +62,15 @@ type MonthlyReport = {
     pkr: number;
     netPkr: number;
   }[];
-  collections?: {
-    client: string;
-    projectCode: string;
-    channel: string;
-    channelLabel: string;
-    currency: string;
-    amount: number;
-    paidAt: string;
-    type: string;
-  }[];
-  days?: {
-    date: string;
-    payroll: number;
-    opex: number;
-    loans: number;
-    pf: number;
-    cost: number;
-  }[];
   history: { month: string; revenue: number; cost: number; net: number; days?: number; lastDate?: string }[];
   salaryTeams: CategoryGroup[];
+  salaryTables?: SalaryFieldTable[];
   opexHeads: CategoryGroup[];
+  opexTables?: OpexFieldTable[];
   loanHeads: CategoryGroup[];
+  loanTables?: OpexFieldTable[];
   pfHeads: CategoryGroup[];
+  pfTables?: OpexFieldTable[];
   executives: {
     name: string;
     basic: number;
@@ -125,6 +128,8 @@ type MonthlyReport = {
       fixComm: number;
       totalCommission: number;
       share: number;
+      status?: string;
+      note?: string;
       fixClients?: { clientName: string; projectPay: number; currency: string }[];
     }[];
   };
@@ -163,6 +168,15 @@ function monthShort(m: string): string {
     timeZone: "UTC",
   });
   return `${name} '${String(y).slice(2)}`;
+}
+
+function monthNameOnly(m: string): string {
+  const [y, mm] = m.split("-").map(Number);
+  if (!y || !mm) return m;
+  return new Date(Date.UTC(y, mm - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  });
 }
 
 const pkr = (n: number) => `PKR ${currency(n)}`;
@@ -218,7 +232,6 @@ function buildWordHtml(report: MonthlyReport): string {
   const GREEN_D = "#027A48";
   const RED_TXT = "#DC2626";
   const BLUE = "#0B84F3";
-  const AMBER = "#D97706";
   const VIOLET = "#7C3AED";
   const TEAL = "#0D9488";
   const SLATE = "#334155";
@@ -228,7 +241,6 @@ function buildWordHtml(report: MonthlyReport): string {
   const thC = `style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:center;"`;
   const td = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;"`;
   const tdR = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:right;"`;
-  const tdC = `style="padding:5px 8px;border:1px solid #E2E8F0;font-size:10px;text-align:center;"`;
   const sub = `style="padding:3px 8px 3px 22px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;background:#FCFCFD;"`;
   const subR = `style="padding:3px 8px;border:1px solid #F1F5F9;font-size:9.5px;color:#64748B;text-align:right;background:#FCFCFD;"`;
 
@@ -296,15 +308,6 @@ function buildWordHtml(report: MonthlyReport): string {
     )
     .join("");
 
-  const costMix: { name: string; total: number; color: string }[] = [
-    { name: "Team Salaries", total: report.totals.payroll, color: RED },
-    { name: "OPEX", total: report.totals.opex, color: BLUE },
-    { name: "Loans", total: report.totals.loans, color: AMBER },
-    { name: "Provident Fund", total: report.totals.pf, color: VIOLET },
-  ];
-  const maxCostMix = Math.max(...costMix.map(c => c.total), 1);
-  const costMixBars = costMix.map(c => barRow(c.name, c.total, maxCostMix, c.color, pkr(c.total))).join("");
-
   const cashBanks = report.cash.banks;
   const cashDcMax = Math.max(...cashBanks.flatMap(b => [b.debit ?? 0, b.credit ?? 0]), 1);
   const cashNetMax = Math.max(...cashBanks.map(b => Math.abs(b.balance)), 1);
@@ -340,77 +343,86 @@ function buildWordHtml(report: MonthlyReport): string {
     { revenue: 0, cost: 0, net: 0 },
   );
 
-  const movement = (name: string, v: number | null, goodWhenUp: boolean) => {
-    if (v == null) return "";
-    const good = goodWhenUp ? v >= 0 : v < 0;
-    return `<tr>
-      <td ${td}><b>${name}</b></td>
-      <td ${tdR}><b style="color:${good ? GREEN_D : RED_TXT};">${signed(v)}</b></td>
-      ${good ? statusCell("Favorable", "#D1FADF", GREEN_D) : statusCell("Unfavorable", "#FEE4E2", RED_TXT)}
-    </tr>`;
+  const csrStatusHtml = (status: string) => {
+    if (status === "Top Performer") {
+      return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${GREEN_D};font-size:10px;">Top Performer</b></td>`;
+    }
+    if (status === "Below Expectation") {
+      return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;"><b style="color:${RED_TXT};font-size:10px;">Below Expectation</b></td>`;
+    }
+    return `<td style="padding:5px 8px;border:1px solid #E2E8F0;text-align:center;color:${NAVY};font-size:10px;">Active</td>`;
   };
+  const csrRows = report.csr.rows
+    .map((r, i) => `<tr style="background:${i % 2 === 0 ? "#EFF6FF" : "#FFFFFF"};">
+        <td ${td}><b>${r.name}</b></td>
+        <td ${tdR}><b>${r.projects}</b></td>
+        <td ${tdR}>${r.share.toFixed(1)}%</td>
+        ${csrStatusHtml(r.status || (r.projects > 0 ? "Active" : "Below Expectation"))}
+        <td ${td}>${r.note || "—"}</td>
+      </tr>`)
+    .join("");
+  const csrBarMax = Math.max(...report.csr.rows.map(r => r.projects), 1);
+  const csrBars = report.csr.rows
+    .map(r => barRow(r.name, r.projects, csrBarMax, r.projects > 0 ? GREEN : "#F97066", String(r.projects)))
+    .join("");
 
-  const categoryRows = (groups: CategoryGroup[]) =>
-    groups
-      .map(g => {
-        const head = `<tr style="background:#FFF1F3;">
-          <td ${td}><b>${g.name}</b></td>
-          <td ${tdR}><b>${currency(g.total)}</b></td>
-        </tr>`;
-        const lines = g.lines
-          .map(l => `<tr><td ${sub}>– ${l.label}</td><td ${subR}>${currency(l.amount)}</td></tr>`)
+  const salaryTableHtml = (tables: SalaryFieldTable[]) =>
+    tables
+      .map(t => {
+        const head = t.columns.map((c, i) => (i === 0 ? `<td ${th}>${c}</td>` : `<td ${thR}>${c}</td>`)).join("");
+        const body = t.rows
+          .map(r => {
+            const tds = r.cells
+              .map((c, i) => {
+                const col = t.columns[i] ?? "";
+                const txt =
+                  typeof c === "number" ? (/%/.test(col) ? `${c}%` : currency(c)) : c;
+                return i === 0 ? `<td ${td}><b>${txt}</b></td>` : `<td ${tdR}>${txt}</td>`;
+              })
+              .join("");
+            return `<tr>${tds}</tr>`;
+          })
           .join("");
-        return head + lines;
+        return `<h3 style="color:${NAVY};font-size:12px;margin:14px 0 6px;">${t.name}</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      <tr>${head}</tr>
+      ${body || tdEmpty(t.columns.length, "No employees.")}
+      <tr style="background:#FFF1F3;"><td ${td}><b>TOTAL</b></td><td ${tdR} colspan="${Math.max(t.columns.length - 1, 1)}"><b style="color:${RED};">${currency(t.total)}</b></td></tr>
+    </table>`;
       })
       .join("");
 
-  const catSection = (title: string, groups: CategoryGroup[], total: number) => `
+  const opexTableHtml = (title: string, tables: OpexFieldTable[], total: number) => `
     <h2>${title}</h2>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-      <tr><td ${th}>Head</td><td ${thR}>Amount (PKR)</td></tr>
-      ${categoryRows(groups) || tdEmpty(2, "No entries this month.")}
-      <tr style="background:#FFF1F3;"><td ${td}><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
+      <tr><td ${th}>Head</td><td ${th}>Individual</td><td ${th}>Filled date</td><td ${th}>Notes / Image</td><td ${thR}>Amount (PKR)</td></tr>
+      ${
+        tables.length
+          ? tables
+              .flatMap(h => {
+                const headRow = `<tr style="background:#FFF1F3;">
+                  <td ${td}><b>${h.name}</b></td>
+                  <td ${td}></td>
+                  <td ${td}>${h.filledAt || "—"}</td>
+                  <td ${td}>${h.notes || "—"}</td>
+                  <td ${tdR}><b>${currency(h.amount)}</b></td>
+                </tr>`;
+                const lines = h.lines.map(
+                  l => `<tr>
+                    <td ${sub}></td>
+                    <td ${sub}>${l.label}</td>
+                    <td ${sub}>${l.filledAt || "—"}</td>
+                    <td ${sub}>${l.proofName || "—"}</td>
+                    <td ${subR}>${currency(l.amount)}</td>
+                  </tr>`,
+                );
+                return [headRow, ...lines];
+              })
+              .join("")
+          : tdEmpty(5, "No entries this month.")
+      }
+      <tr style="background:#FFF1F3;"><td ${td} colspan="4"><b>TOTAL</b></td><td ${tdR}><b style="color:${RED};">${currency(total)}</b></td></tr>
     </table>`;
-
-  const csrColSpan = 15;
-  const csrRows = report.csr.rows
-    .map(r => {
-      const status =
-        r.share >= 30
-          ? statusCell("Top Performer", "#D1FADF", GREEN_D)
-          : r.projects > 0
-            ? statusCell("Active", "#DBEAFE", "#1D4ED8")
-            : statusCell("Below Expectation", "#FEE4E2", RED_TXT);
-      return `<tr>
-        <td ${td}><b>${r.name}</b>${r.code ? `<br/><span style="color:#64748B;font-size:9px;">${r.code}</span>` : ""}</td>
-        <td ${td}>${r.roleLabel}</td>
-        <td ${tdC}>${r.assignedToLead ? "Yes" : "—"}</td>
-        <td ${tdR}>${r.oldProjects}</td>
-        <td ${tdR}>${r.partialCount}</td>
-        <td ${tdR}>${r.newProjects}</td>
-        <td ${tdR}>${r.fixProjects}</td>
-        <td ${tdR}>${currency(r.fixPay)}</td>
-        <td ${tdR}><b>${r.projects}</b></td>
-        <td ${tdR}>${currency(r.oldComm)}</td>
-        <td ${tdR}>${currency(r.newComm)}</td>
-        <td ${tdR}>${currency(r.fixComm)}</td>
-        <td ${tdR}><b style="color:${GREEN_D};">${currency(r.totalCommission)}</b></td>
-        <td ${tdR}>${r.share.toFixed(1)}%</td>
-        ${status}
-      </tr>`;
-    })
-    .join("");
-  const ct = report.csr.totals ?? {
-    oldProjects: 0,
-    partialCount: 0,
-    newProjects: 0,
-    fixProjects: 0,
-    fixPay: 0,
-    oldComm: 0,
-    newComm: 0,
-    fixComm: 0,
-    totalCommission: 0,
-  };
 
   const execRows = report.executives
     .map(
@@ -451,32 +463,6 @@ function buildWordHtml(report: MonthlyReport): string {
     )
     .join("");
 
-  const collectionRows = (report.collections ?? [])
-    .map(
-      c => `<tr>
-        <td ${td}>${c.paidAt || "—"}</td>
-        <td ${td}><b>${c.client}</b>${c.projectCode ? `<br/><span style="color:#64748B;font-size:9px;">${c.projectCode}</span>` : ""}</td>
-        <td ${td}>${c.channelLabel || c.channel}</td>
-        <td ${td}>${c.type || "—"}</td>
-        <td ${tdC}>${c.currency}</td>
-        <td ${tdR}><b>${currency(c.amount)}</b></td>
-      </tr>`,
-    )
-    .join("");
-
-  const dayRows = (report.days ?? [])
-    .map(
-      d => `<tr>
-        <td ${td}>${d.date}</td>
-        <td ${tdR}>${currency(d.payroll)}</td>
-        <td ${tdR}>${currency(d.opex)}</td>
-        <td ${tdR}>${currency(d.loans)}</td>
-        <td ${tdR}>${currency(d.pf)}</td>
-        <td ${tdR}><b>${currency(d.cost)}</b></td>
-      </tr>`,
-    )
-    .join("");
-
   const ledgerHeads = cashBanks.map(b => b.bank);
   const ledgerColSpan = 3 + ledgerHeads.length * 2 + 1;
   const ledgerRows = (report.cash.ledger ?? [])
@@ -497,19 +483,6 @@ function buildWordHtml(report: MonthlyReport): string {
     })
     .join("");
 
-  const fixRows = report.csr.rows
-    .flatMap(r =>
-      (r.fixClients ?? []).map(
-        p => `<tr>
-          <td ${td}><b>${r.name}</b></td>
-          <td ${td}>${p.clientName}</td>
-          <td ${tdC}>${p.currency}</td>
-          <td ${tdR}>${currency(p.projectPay)}</td>
-        </tr>`,
-      ),
-    )
-    .join("");
-
   const generatedAt = new Date().toLocaleString("en-GB");
 
   return `<!DOCTYPE html>
@@ -528,7 +501,7 @@ function buildWordHtml(report: MonthlyReport): string {
 
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
     ${card("Revenue", pkr(report.totals.revenue), ins.revenueVsPrev != null ? `${signed(ins.revenueVsPrev)} vs prev month` : "Month collections", "#EFF6FF")}
-    ${card("Total cost", pkr(report.totals.totalCost), ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, "#FFF1F3")}
+    ${card("Total cost", pkr(report.totals.totalCost), report.sourceDate ? `Matches IS Total Expense · ${report.sourceDate}` : ins.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`, "#FFF1F3")}
     ${card("Net profit", signed(net), ins.profitNote, net >= 0 ? "#ECFDF5" : "#FFF7ED")}
     ${card("Cash (net)", pkr(report.cash.closingNet), report.cash.asOf ? `As of ${report.cash.asOf}` : "Closing position", "#F5F3FF")}
   </tr></table>
@@ -548,35 +521,7 @@ function buildWordHtml(report: MonthlyReport): string {
     </tr>
   </table>
 
-  <h2>Revenue — each collection</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Paid</td><td ${th}>Client / Code</td><td ${th}>Channel</td><td ${th}>Type</td><td ${thC}>Ccy</td><td ${thR}>Amount</td>
-    </tr>
-    ${collectionRows || tdEmpty(6, "No paid project collections this month.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td} colspan="5"><b>${(report.collections ?? []).length} payment(s)</b></td>
-      <td ${tdR}><b>${currency((report.collections ?? []).reduce((a, c) => a + c.amount, 0))}</b></td>
-    </tr>
-  </table>
-
-  <h2>Daily income statement — ${label}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>Date</td><td ${thR}>Payroll</td><td ${thR}>OPEX</td><td ${thR}>Loans</td><td ${thR}>PF</td><td ${thR}>Day cost</td>
-    </tr>
-    ${dayRows || tdEmpty(6, "No income statement days recorded.")}
-    <tr style="background:#FFF1F3;">
-      <td ${td}><b>TOTAL (${report.daysRecorded} day${report.daysRecorded === 1 ? "" : "s"})</b></td>
-      <td ${tdR}><b>${currency(report.totals.payroll)}</b></td>
-      <td ${tdR}><b>${currency(report.totals.opex)}</b></td>
-      <td ${tdR}><b>${currency(report.totals.loans)}</b></td>
-      <td ${tdR}><b>${currency(report.totals.pf)}</b></td>
-      <td ${tdR}><b>${currency(report.totals.totalCost)}</b></td>
-    </tr>
-  </table>
-
-  <h2>Financial performance — month by month</h2>
+  <h2>Financial performance — ${label} and previous 5 months</h2>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr>
       <td ${th}>Month</td><td ${thR}>Revenue (PKR)</td><td ${thR}>Total Cost (PKR)</td><td ${thR}>Net P/L (PKR)</td><td ${thC}>Status</td>
@@ -598,21 +543,6 @@ function buildWordHtml(report: MonthlyReport): string {
   <h2>Revenue vs total cost</h2>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${revCostBars || tdEmpty(3, "No history data.")}</table>
   <p style="margin:6px 0 0;font-size:9px;color:#64748B;"><b style="color:${BLUE};">■</b> Revenue &nbsp; <b style="color:#F97066;">■</b> Total Cost</p>
-
-  ${
-    ins.prev
-      ? `<h2>Key movements — vs ${monthShort(ins.prev.month)}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr><td ${th}>Metric</td><td ${thR}>Change (PKR)</td><td ${thC}>Direction</td></tr>
-    ${movement("Revenue", ins.revenueVsPrev, true)}
-    ${movement("Total Cost", ins.costVsPrev, false)}
-    ${movement("Net Profit Swing", ins.netVsPrev, true)}
-  </table>`
-      : ""
-  }
-
-  <h2>Cost mix — ${pkr(report.totals.totalCost)}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${costMixBars}</table>
 
   <h2>Cash flow statement${report.cash.asOf ? ` — as of ${report.cash.asOf}` : ""}</h2>
   <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
@@ -686,54 +616,38 @@ function buildWordHtml(report: MonthlyReport): string {
   </table>
 
   <h2>CSR team performance — ${label}</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>CSR</td>
-      <td ${th}>Role</td>
-      <td ${thC}>Assigned TL</td>
-      <td ${thR}>Old Proj</td>
-      <td ${thR}>Partial</td>
-      <td ${thR}>New Proj</td>
-      <td ${thR}>Fix Proj</td>
-      <td ${thR}>Fix Pay</td>
-      <td ${thR}>Total Proj</td>
-      <td ${thR}>Old Comm</td>
-      <td ${thR}>New Comm</td>
-      <td ${thR}>Fix Comm</td>
-      <td ${thR}>Total Comm</td>
-      <td ${thR}>Share %</td>
-      <td ${thC}>Status</td>
-    </tr>
-    ${csrRows || tdEmpty(csrColSpan, "No sales / team-lead CSRs recorded this month.")}
-    <tr style="background:#F8FAFC;">
-      <td ${td} colspan="3"><b>TOTAL</b></td>
-      <td ${tdR}><b>${ct.oldProjects}</b></td>
-      <td ${tdR}><b>${ct.partialCount}</b></td>
-      <td ${tdR}><b>${ct.newProjects}</b></td>
-      <td ${tdR}><b>${ct.fixProjects}</b></td>
-      <td ${tdR}><b>${currency(ct.fixPay)}</b></td>
-      <td ${tdR}><b>${report.csr.totalProjects}</b></td>
-      <td ${tdR}><b>${currency(ct.oldComm)}</b></td>
-      <td ${tdR}><b>${currency(ct.newComm)}</b></td>
-      <td ${tdR}><b>${currency(ct.fixComm)}</b></td>
-      <td ${tdR}><b style="color:${GREEN_D};">${currency(ct.totalCommission)}</b></td>
-      <td ${tdR}><b>100%</b></td>
-      <td ${td}></td>
-    </tr>
-  </table>
+  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td width="62%" valign="top" style="padding-right:10px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr>
+          <td ${th}>CSR</td>
+          <td ${thR}>Projects – ${monthNameOnly(report.month)}</td>
+          <td ${thR}>Share %</td>
+          <td ${thC}>Status</td>
+          <td ${th}>Note</td>
+        </tr>
+        ${csrRows || tdEmpty(5, "No sales / team-lead CSRs recorded this month.")}
+        <tr>
+          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"><b>TOTAL</b></td>
+          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;"><b>${report.csr.totalProjects}</b></td>
+          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;text-align:right;"><b>100%</b></td>
+          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:10px;"></td>
+          <td style="background:${NAVY};color:#fff;padding:6px 8px;font-size:9px;">Closing rate tracking live from ${monthNameOnly(report.month)}</td>
+        </tr>
+      </table>
+    </td>
+    <td width="38%" valign="top">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:bold;color:${NAVY};">Projects by CSR</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${csrBars || tdEmpty(3, "No CSR project counts.")}</table>
+    </td>
+  </tr></table>
 
-  <h2>CSR fix projects — each client</h2>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-    <tr>
-      <td ${th}>CSR</td><td ${th}>Client</td><td ${thC}>Currency</td><td ${thR}>Project pay</td>
-    </tr>
-    ${fixRows || tdEmpty(4, "No fix-client projects this month.")}
-  </table>
+  <h2>Team salaries — ${pkr(report.totals.payroll)}</h2>
+  ${salaryTableHtml(report.salaryTables ?? []) || `<p style="font-size:10px;color:#94A3B8;">No team salaries on the latest Income Statement for this month.</p>`}
 
-  ${catSection(`Team salaries — cost breakdown (${pkr(report.totals.payroll)})`, report.salaryTeams, report.totals.payroll)}
-  ${catSection(`Operating expenses (${pkr(report.totals.opex)})`, report.opexHeads, report.totals.opex)}
-  ${catSection(`Loans (${pkr(report.totals.loans)})`, report.loanHeads, report.totals.loans)}
-  ${catSection(`Provident fund (${pkr(report.totals.pf)})`, report.pfHeads, report.totals.pf)}
+  ${opexTableHtml(`Operating expenses (${pkr(report.totals.opex)})`, report.opexTables ?? [], report.totals.opex)}
+  ${opexTableHtml(`Loans (${pkr(report.totals.loans)})`, report.loanTables ?? [], report.totals.loans)}
+  ${opexTableHtml(`Provident fund (${pkr(report.totals.pf)})`, report.pfTables ?? [], report.totals.pf)}
 
   <h2>Executive salaries — ${label}</h2>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
@@ -798,15 +712,6 @@ function TrendArrow({ v, goodWhenUp }: { v: number | null; goodWhenUp: boolean }
   );
 }
 
-/** Slim horizontal share bar. */
-function MiniBar({ pct, color }: { pct: number; color: string }) {
-  return (
-    <div className="w-full h-2 rounded-full bg-crm-muted overflow-hidden">
-      <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, pct > 0 ? 3 : 0), 100)}%`, background: color }} />
-    </div>
-  );
-}
-
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className={`${BENTO_CARD} overflow-hidden`}>
@@ -823,29 +728,51 @@ function SectionCard({ title, children }: { title: string; children: React.React
 const thCls = "px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white";
 const tdCls = "px-3 py-2 text-xs";
 
-function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: number }) {
+function formatSalaryCell(col: string, value: string | number) {
+  if (typeof value === "string") return value;
+  if (/%/.test(col)) return `${value}%`;
+  return currency(value);
+}
+
+function SalaryFieldTableView({ table }: { table: SalaryFieldTable }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm min-w-130">
+      <table className="w-full text-sm min-w-200">
         <thead className="bg-[#0B1220]">
           <tr className="border-b border-crm-border/80">
-            <th className={`${thCls} text-left`}>Head</th>
-            <th className={`${thCls} text-right w-40`}>Amount (PKR)</th>
+            {table.columns.map((c, i) => (
+              <th key={c} className={`${thCls} ${i === 0 ? "text-left" : "text-right"}`}>{c}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {groups.length === 0 ? (
-            <tr><td colSpan={2} className="px-3 py-6 text-center text-crm-text-faint text-xs">No entries this month.</td></tr>
+          {table.rows.length === 0 ? (
+            <tr>
+              <td colSpan={table.columns.length} className="px-3 py-6 text-center text-crm-text-faint text-xs">
+                No employees on this Income Statement head.
+              </td>
+            </tr>
           ) : (
-            groups.map(g => (
-              <FragmentRows key={g.name} group={g} />
+            table.rows.map(r => (
+              <tr key={r.employee} className="border-b border-crm-border-subtle">
+                {r.cells.map((c, i) => (
+                  <td
+                    key={`${r.employee}-${table.columns[i] ?? i}`}
+                    className={`${tdCls} ${i === 0 ? "font-semibold text-crm-text" : "text-right tabular-nums"} ${i === r.cells.length - 1 ? "font-bold text-[#B8112D]" : ""}`}
+                  >
+                    {formatSalaryCell(table.columns[i] ?? "", c)}
+                  </td>
+                ))}
+              </tr>
             ))
           )}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
             <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL</td>
-            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs">{currency(total)}</td>
+            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs" colSpan={Math.max(table.columns.length - 1, 1)}>
+              {currency(table.total)}
+            </td>
           </tr>
         </tfoot>
       </table>
@@ -853,20 +780,51 @@ function CategoryTable({ groups, total }: { groups: CategoryGroup[]; total: numb
   );
 }
 
-function FragmentRows({ group }: { group: CategoryGroup }) {
+function OpexFieldTableView({ tables, total }: { tables: OpexFieldTable[]; total: number }) {
   return (
-    <>
-      <tr className="border-b border-crm-border-subtle bg-crm-surface">
-        <td className={`${tdCls} font-bold text-crm-text`}>{group.name}</td>
-        <td className={`${tdCls} text-right font-bold tabular-nums text-crm-text`}>{currency(group.total)}</td>
-      </tr>
-      {group.lines.map(l => (
-        <tr key={`${group.name}-${l.label}`} className="border-b border-crm-border-subtle bg-[#FCFCFD]">
-          <td className="px-3 py-1.5 pl-8 text-[11px] text-crm-text-muted">– {l.label}</td>
-          <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-crm-text-muted">{currency(l.amount)}</td>
-        </tr>
-      ))}
-    </>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm min-w-160">
+        <thead className="bg-[#0B1220]">
+          <tr className="border-b border-crm-border/80">
+            <th className={`${thCls} text-left`}>Head</th>
+            <th className={`${thCls} text-left`}>Individual</th>
+            <th className={`${thCls} text-center`}>Filled date</th>
+            <th className={`${thCls} text-left`}>Notes / Image</th>
+            <th className={`${thCls} text-right`}>Amount (PKR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tables.length === 0 ? (
+            <tr><td colSpan={5} className="px-3 py-6 text-center text-crm-text-faint text-xs">No entries this month.</td></tr>
+          ) : (
+            tables.flatMap(h => [
+              <tr key={h.name} className="border-b border-crm-border-subtle bg-crm-surface">
+                <td className={`${tdCls} font-bold text-crm-text`}>{h.name}</td>
+                <td className={tdCls} />
+                <td className={`${tdCls} text-center text-crm-text-muted`}>{h.filledAt || "—"}</td>
+                <td className={`${tdCls} text-crm-text-muted`}>{h.notes || "—"}</td>
+                <td className={`${tdCls} text-right font-bold tabular-nums`}>{currency(h.amount)}</td>
+              </tr>,
+              ...h.lines.map(l => (
+                <tr key={`${h.name}-${l.label}-${l.filledAt}`} className="border-b border-crm-border-subtle bg-[#FCFCFD]">
+                  <td className={tdCls} />
+                  <td className="px-3 py-1.5 pl-6 text-[11px] text-crm-text-muted">{l.label}</td>
+                  <td className="px-3 py-1.5 text-center text-[11px] text-crm-text-faint">{l.filledAt || "—"}</td>
+                  <td className="px-3 py-1.5 text-[11px] text-crm-text-faint">{l.proofName || "—"}</td>
+                  <td className="px-3 py-1.5 text-right text-[11px] tabular-nums text-crm-text-muted">{currency(l.amount)}</td>
+                </tr>
+              )),
+            ])
+          )}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-[#B8112D]/20 bg-[#B8112D]/5">
+            <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={4}>TOTAL</td>
+            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-[#B8112D] text-xs">{currency(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 
@@ -935,16 +893,6 @@ export default function AccountsReportsPage() {
     { revenue: 0, cost: 0, net: 0 },
   );
 
-  const costMix = report
-    ? [
-        { name: "Team Salaries", value: report.totals.payroll, color: "#B8112D" },
-        { name: "OPEX", value: report.totals.opex, color: "#0B84F3" },
-        { name: "Loans", value: report.totals.loans, color: "#F59E0B" },
-        { name: "Provident Fund", value: report.totals.pf, color: "#6D28D9" },
-      ].filter(c => c.value > 0)
-    : [];
-  const costMixSum = costMix.reduce((a, c) => a + c.value, 0);
-
   const kpis = report
     ? [
         {
@@ -956,7 +904,12 @@ export default function AccountsReportsPage() {
         {
           label: "Total cost",
           value: pkr(report.totals.totalCost),
-          note: ins?.costVsPrev != null ? `${signed(ins.costVsPrev)} vs prev month` : `Payroll ${pkr(report.totals.payroll)}`,
+          note:
+            report.sourceDate
+              ? `Matches IS Total Expense · ${report.sourceDate}`
+              : ins?.costVsPrev != null
+                ? `${signed(ins.costVsPrev)} vs prev month`
+                : `Payroll ${pkr(report.totals.payroll)}`,
           bg: "bg-[#FFF1F3]",
         },
         {
@@ -1043,10 +996,9 @@ export default function AccountsReportsPage() {
             <>
               <section className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-[11px] text-crm-text-secondary leading-relaxed">
                 <b className="text-crm-text">Month compile:</b> Revenue is that month&apos;s project collections
-                (once, not per day). Team Salaries, OPEX, Loans, PF and Executives are summed from every
-                Income Statement day in the month
-                — {report.daysRecorded} day(s) recorded
-                {report.sourceDate ? ` · last entry ${report.sourceDate}` : ""}.{" "}
+                (once). Total cost, team salaries, OPEX, loans and PF match the latest Income Statement
+                day in the month{report.sourceDate ? ` (${report.sourceDate})` : ""} — same Total Expense as
+                that IS card. Financial performance shows the selected month plus the previous 5 months.{" "}
                 <b>Save Report</b> downloads a Word file and archives it to Cloudinary.
               </section>
 
@@ -1156,92 +1108,7 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`Revenue — each collection (${(report.collections ?? []).length})`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-180">
-                    <thead className="bg-[#0B1220]">
-                      <tr>
-                        <th className={`${thCls} text-left`}>Paid</th>
-                        <th className={`${thCls} text-left`}>Client / Code</th>
-                        <th className={`${thCls} text-left`}>Channel</th>
-                        <th className={`${thCls} text-left`}>Type</th>
-                        <th className={`${thCls} text-center`}>Ccy</th>
-                        <th className={`${thCls} text-right`}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(report.collections ?? []).length === 0 ? (
-                        <tr><td colSpan={6} className="px-3 py-6 text-center text-crm-text-faint text-xs">No paid project collections this month.</td></tr>
-                      ) : (
-                        (report.collections ?? []).map((c, i) => (
-                          <tr key={`${c.client}-${c.paidAt}-${i}`} className="border-b border-crm-border-subtle">
-                            <td className={`${tdCls} text-crm-text-secondary`}>{c.paidAt || "—"}</td>
-                            <td className={`${tdCls} font-semibold text-crm-text`}>
-                              {c.client}
-                              {c.projectCode ? <span className="block text-[10px] font-normal text-crm-text-faint">{c.projectCode}</span> : null}
-                            </td>
-                            <td className={`${tdCls} text-crm-text-secondary`}>{c.channelLabel || c.channel}</td>
-                            <td className={`${tdCls} text-crm-text-muted`}>{c.type || "—"}</td>
-                            <td className={`${tdCls} text-center`}>{c.currency}</td>
-                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(c.amount)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-[#0B84F3]/20 bg-[#EFF6FF]">
-                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={5}>{(report.collections ?? []).length} payment(s)</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency((report.collections ?? []).reduce((a, c) => a + c.amount, 0))}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </SectionCard>
-
-              <SectionCard title={`Daily income statement — ${label}`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-160">
-                    <thead className="bg-[#0B1220]">
-                      <tr>
-                        <th className={`${thCls} text-left`}>Date</th>
-                        <th className={`${thCls} text-right`}>Payroll</th>
-                        <th className={`${thCls} text-right`}>OPEX</th>
-                        <th className={`${thCls} text-right`}>Loans</th>
-                        <th className={`${thCls} text-right`}>PF</th>
-                        <th className={`${thCls} text-right`}>Day cost</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(report.days ?? []).length === 0 ? (
-                        <tr><td colSpan={6} className="px-3 py-6 text-center text-crm-text-faint text-xs">No income statement days recorded.</td></tr>
-                      ) : (
-                        (report.days ?? []).map(d => (
-                          <tr key={d.date} className="border-b border-crm-border-subtle">
-                            <td className={`${tdCls} font-bold text-crm-text`}>{d.date}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.payroll)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.opex)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.loans)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(d.pf)}</td>
-                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(d.cost)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-[#B8112D]/20 bg-[#FFF1F3]">
-                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs">TOTAL ({report.daysRecorded} day{report.daysRecorded === 1 ? "" : "s"})</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.payroll)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.opex)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.loans)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.totals.pf)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-[#B8112D]">{currency(report.totals.totalCost)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Financial performance — month by month">
+              <SectionCard title={`Financial performance — ${label} + previous 5 months`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-160">
                     <thead className="bg-[#0B1220]">
@@ -1351,69 +1218,6 @@ export default function AccountsReportsPage() {
                       {pkr(report.totals.revenue)} revenue vs {pkr(report.totals.totalCost)} cost.
                     </p>
                   </div>
-                </SectionCard>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <SectionCard title={`Key movements${ins?.prev ? ` — vs ${monthShort(ins.prev.month)}` : ""}`}>
-                  {ins?.prev ? (
-                    <div className="divide-y divide-gray-50">
-                      {[
-                        { name: "Revenue", v: ins.revenueVsPrev ?? 0, goodWhenUp: true },
-                        { name: "Total Cost", v: ins.costVsPrev ?? 0, goodWhenUp: false },
-                        { name: "Net Profit Swing", v: ins.netVsPrev ?? 0, goodWhenUp: true },
-                      ].map(m => {
-                        const good = m.goodWhenUp ? m.v >= 0 : m.v < 0;
-                        return (
-                          <div key={m.name} className="px-4 py-3 flex items-center justify-between gap-3">
-                            <p className="text-xs font-bold text-crm-text-secondary">{m.name}</p>
-                            <div className="flex items-center gap-2.5">
-                              <span className={`text-sm font-extrabold tabular-nums ${good ? "text-emerald-600" : "text-red-500"}`}>
-                                {signed(m.v)}
-                              </span>
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${good ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
-                                {good ? "Favorable" : "Unfavorable"}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="px-4 py-8 text-center text-crm-text-faint text-xs">No previous-month data — comparison is not available.</p>
-                  )}
-                </SectionCard>
-
-                <SectionCard title={`Cost mix — ${pkr(report.totals.totalCost)}`}>
-                  {costMix.length === 0 ? (
-                    <p className="px-4 py-8 text-center text-crm-text-faint text-xs">No cost entries this month.</p>
-                  ) : (
-                    <div className="p-4" id="report-chart-costmix">
-                      <RechartsBox height={200}>
-                        <PieChart>
-                          <Pie data={costMix} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={3} strokeWidth={2}>
-                            {costMix.map(c => (
-                              <Cell key={c.name} fill={c.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={v => pkr(Number(v ?? 0))} />
-                        </PieChart>
-                      </RechartsBox>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
-                        {costMix.map(c => (
-                          <div key={c.name} className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-crm-text-secondary">
-                              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: c.color }} />
-                              {c.name}
-                            </span>
-                            <span className="text-[11px] font-bold tabular-nums text-crm-text">
-                              {((c.value / Math.max(costMixSum, 1)) * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </SectionCard>
               </div>
 
@@ -1648,136 +1452,111 @@ export default function AccountsReportsPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title={`CSR team performance — ${label}`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[1100px]">
-                    <thead className="bg-[#0B1220]">
-                      <tr className="border-b border-crm-border/80">
-                        <th className={`${thCls} text-left`}>CSR</th>
-                        <th className={`${thCls} text-left`}>Role</th>
-                        <th className={`${thCls} text-center`}>Assigned TL</th>
-                        <th className={`${thCls} text-right`}>Old Proj</th>
-                        <th className={`${thCls} text-right`}>Partial</th>
-                        <th className={`${thCls} text-right`}>New Proj</th>
-                        <th className={`${thCls} text-right`}>Fix Proj</th>
-                        <th className={`${thCls} text-right`}>Fix Pay</th>
-                        <th className={`${thCls} text-right`}>Total Proj</th>
-                        <th className={`${thCls} text-right`}>Old Comm</th>
-                        <th className={`${thCls} text-right`}>New Comm</th>
-                        <th className={`${thCls} text-right`}>Fix Comm</th>
-                        <th className={`${thCls} text-right`}>Total Comm</th>
-                        <th className={`${thCls} text-right`}>Share %</th>
-                        <th className={`${thCls} text-center`}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.csr.rows.length === 0 ? (
-                        <tr>
-                          <td colSpan={15} className="px-3 py-6 text-center text-crm-text-faint text-xs">
-                            No sales / team-lead CSRs recorded this month.
-                          </td>
-                        </tr>
-                      ) : (
-                        report.csr.rows.map(r => (
-                          <tr key={`${r.code}-${r.name}`} className="border-b border-crm-border-subtle">
-                            <td className={`${tdCls} font-semibold text-crm-text-secondary`}>
-                              {r.name}
-                              {r.code ? <span className="block text-[10px] font-normal text-crm-text-faint">{r.code}</span> : null}
-                            </td>
-                            <td className={`${tdCls} text-crm-text-secondary`}>{r.roleLabel}</td>
-                            <td className={`${tdCls} text-center text-crm-text-secondary`}>{r.assignedToLead ? "Yes" : "—"}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.oldProjects}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.partialCount}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.newProjects}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.fixProjects}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.fixPay)}</td>
-                            <td className={`${tdCls} text-right tabular-nums font-bold`}>{r.projects}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.oldComm)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.newComm)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{currency(r.fixComm)}</td>
-                            <td className={`${tdCls} text-right tabular-nums font-bold text-emerald-700`}>{currency(r.totalCommission)}</td>
-                            <td className={`${tdCls} text-right tabular-nums`}>{r.share.toFixed(1)}%</td>
-                            <td className={`${tdCls} text-center`}>
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                r.share >= 30
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : r.projects > 0
-                                    ? "bg-blue-50 text-blue-600"
-                                    : "bg-red-50 text-red-600"
-                              }`}>
-                                {r.share >= 30 ? "Top Performer" : r.projects > 0 ? "Active" : "Below Expectation"}
-                              </span>
-                            </td>
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+                <div className="xl:col-span-7">
+                  <SectionCard title={`CSR team performance — ${label}`}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-140">
+                        <thead className="bg-[#0B1220]">
+                          <tr className="border-b border-crm-border/80">
+                            <th className={`${thCls} text-left`}>CSR</th>
+                            <th className={`${thCls} text-right`}>Projects – {monthNameOnly(report.month)}</th>
+                            <th className={`${thCls} text-right`}>Share %</th>
+                            <th className={`${thCls} text-center`}>Status</th>
+                            <th className={`${thCls} text-left`}>Note</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-crm-border bg-[#FAFBFC]">
-                        <td className="px-3 py-2.5 font-extrabold text-crm-text text-xs" colSpan={3}>TOTAL</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.oldProjects ?? 0}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.partialCount ?? 0}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.newProjects ?? 0}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totals?.fixProjects ?? 0}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.fixPay ?? 0)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{report.csr.totalProjects}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.oldComm ?? 0)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.newComm ?? 0)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">{currency(report.csr.totals?.fixComm ?? 0)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs text-emerald-700">{currency(report.csr.totals?.totalCommission ?? 0)}</td>
-                        <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-xs">100%</td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="CSR fix projects — each client">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-140">
-                    <thead className="bg-[#0B1220]">
-                      <tr>
-                        <th className={`${thCls} text-left`}>CSR</th>
-                        <th className={`${thCls} text-left`}>Client</th>
-                        <th className={`${thCls} text-center`}>Currency</th>
-                        <th className={`${thCls} text-right`}>Project pay</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.csr.rows.every(r => !(r.fixClients ?? []).length) ? (
-                        <tr><td colSpan={4} className="px-3 py-6 text-center text-crm-text-faint text-xs">No fix-client projects this month.</td></tr>
-                      ) : (
-                        report.csr.rows.flatMap(r =>
-                          (r.fixClients ?? []).map((p, i) => (
-                            <tr key={`${r.name}-${p.clientName}-${i}`} className="border-b border-crm-border-subtle">
-                              <td className={`${tdCls} font-semibold text-crm-text`}>{r.name}</td>
-                              <td className={`${tdCls} text-crm-text-secondary`}>{p.clientName}</td>
-                              <td className={`${tdCls} text-center`}>{p.currency}</td>
-                              <td className={`${tdCls} text-right tabular-nums font-bold`}>{currency(p.projectPay)}</td>
+                        </thead>
+                        <tbody>
+                          {report.csr.rows.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-3 py-6 text-center text-crm-text-faint text-xs">
+                                No sales / team-lead CSRs recorded this month.
+                              </td>
                             </tr>
-                          )),
-                        )
-                      )}
-                    </tbody>
-                  </table>
+                          ) : (
+                            report.csr.rows.map((r, i) => {
+                              const status = r.status || (r.projects > 0 ? "Active" : "Below Expectation");
+                              return (
+                                <tr key={`${r.code}-${r.name}`} className={`border-b border-crm-border-subtle ${i % 2 === 0 ? "bg-[#EFF6FF]" : "bg-crm-surface"}`}>
+                                  <td className={`${tdCls} font-semibold text-crm-text`}>{r.name}</td>
+                                  <td className={`${tdCls} text-right tabular-nums font-bold`}>{r.projects}</td>
+                                  <td className={`${tdCls} text-right tabular-nums`}>{r.share.toFixed(1)}%</td>
+                                  <td className={`${tdCls} text-center`}>
+                                    <span className={`text-[11px] font-bold ${
+                                      status === "Top Performer"
+                                        ? "text-emerald-600"
+                                        : status === "Below Expectation"
+                                          ? "text-red-600"
+                                          : "text-crm-text"
+                                    }`}>
+                                      {status}
+                                    </span>
+                                  </td>
+                                  <td className={`${tdCls} text-crm-text-secondary`}>{r.note || "—"}</td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 bg-[#0B1220]">
+                            <td className="px-3 py-2.5 font-extrabold text-white text-xs">TOTAL</td>
+                            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-white text-xs">{report.csr.totalProjects}</td>
+                            <td className="px-3 py-2.5 text-right font-extrabold tabular-nums text-white text-xs">100%</td>
+                            <td />
+                            <td className="px-3 py-2.5 text-[10px] text-white/70">Closing rate tracking live from {monthNameOnly(report.month)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </SectionCard>
                 </div>
-              </SectionCard>
+                <div className="xl:col-span-5">
+                  <SectionCard title="Projects by CSR">
+                    <div className="p-4">
+                      <RechartsBox height={Math.max(220, report.csr.rows.length * 36)}>
+                        <BarChart
+                          data={report.csr.rows.map(r => ({ name: r.name, projects: r.projects }))}
+                          layout="vertical"
+                          margin={{ left: 8, right: 12 }}
+                          barSize={14}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                          <XAxis type="number" tick={{ fontSize: 10 }} />
+                          <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fontWeight: 600 }} />
+                          <Tooltip />
+                          <Bar dataKey="projects" name="Projects" fill="#0B84F3" radius={[0, 6, 6, 0]} />
+                        </BarChart>
+                      </RechartsBox>
+                    </div>
+                  </SectionCard>
+                </div>
+              </div>
 
-              <SectionCard title={`Team salaries — cost breakdown (${pkr(report.totals.payroll)})`}>
-                <CategoryTable groups={report.salaryTeams} total={report.totals.payroll} />
-              </SectionCard>
+              {(report.salaryTables ?? []).length === 0 ? (
+                <SectionCard title={`Team salaries (${pkr(report.totals.payroll)})`}>
+                  <p className="px-4 py-6 text-center text-xs text-crm-text-faint">
+                    No employees on the latest Income Statement for this month.
+                  </p>
+                </SectionCard>
+              ) : (
+                (report.salaryTables ?? []).map(t => (
+                  <SectionCard key={t.name} title={`${t.name} (${pkr(t.total)})`}>
+                    <SalaryFieldTableView table={t} />
+                  </SectionCard>
+                ))
+              )}
 
               <SectionCard title={`Operating expenses (${pkr(report.totals.opex)})`}>
-                <CategoryTable groups={report.opexHeads} total={report.totals.opex} />
+                <OpexFieldTableView tables={report.opexTables ?? []} total={report.totals.opex} />
               </SectionCard>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <SectionCard title={`Loans (${pkr(report.totals.loans)})`}>
-                  <CategoryTable groups={report.loanHeads} total={report.totals.loans} />
+                  <OpexFieldTableView tables={report.loanTables ?? []} total={report.totals.loans} />
                 </SectionCard>
                 <SectionCard title={`Provident fund (${pkr(report.totals.pf)})`}>
-                  <CategoryTable groups={report.pfHeads} total={report.totals.pf} />
+                  <OpexFieldTableView tables={report.pfTables ?? []} total={report.totals.pf} />
                 </SectionCard>
               </div>
 

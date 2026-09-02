@@ -2,13 +2,12 @@
 
 import { useCallback } from "react";
 import AccountsPageShell from "../AccountsPageShell";
-import SalesPayrollEmployeeEditor, { assignMemberToLead } from "./SalesPayrollEmployeeEditor";
+import SalesPayrollEmployeeEditor from "./SalesPayrollEmployeeEditor";
 import { accountsShellProps } from "../../utils/accountsShellProps";
 import { useAccountsPage } from "../../hooks/useAccountsPage";
 import {
   defaultSalesPayrollData,
   normalizeSalesPayrollData,
-  HAMMAD_TEAM_LEAD_ID,
 } from "../../utils/salesPayrollDefaults";
 import type { SalesPayrollData, SalesPayrollEmployee } from "../../utils/salesPayrollFormula";
 import { computeSalesEmployeePayroll, calcTlAssignedCommission } from "../../utils/salesPayrollFormula";
@@ -52,13 +51,6 @@ export default function SalesPayrollPageContent({ variant }: Props) {
           salesTeamLeads: d.salesTeamLeads.map(m => (m.id === id ? next : m)),
         };
       });
-    },
-    [acc],
-  );
-
-  const handleAssign = useCallback(
-    (memberId: string) => {
-      acc.setData(prev => assignMemberToLead(normalizeSalesPayrollData(prev), memberId, HAMMAD_TEAM_LEAD_ID));
     },
     [acc],
   );
@@ -113,9 +105,6 @@ export default function SalesPayrollPageContent({ variant }: Props) {
             calcOpts={calcOpts}
             onChange={next =>
               variant === "sales" ? updateMember(emp.id, next) : updateLead(emp.id, next)
-            }
-            onAssignToLead={
-              variant === "sales" ? () => handleAssign(emp.id) : undefined
             }
           />
         ))}

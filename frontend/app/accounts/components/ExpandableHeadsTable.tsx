@@ -24,6 +24,7 @@ import ProofUploadField from "./ProofUploadField";
 import SalarySlipDownloadButton from "./SalarySlipDownloadButton";
 import SalarySlipTemplateEditorModal from "./SalarySlipTemplateEditorModal";
 import { ensureSalaryDetail } from "./EmployeeSalaryEditor";
+import AmountInput from "./AmountInput";
 import type { SalarySlipCompanyKey } from "../utils/salarySlipCompanies";
 import { DEFAULT_SALARY_SLIP_COMPANY } from "../utils/salarySlipCompanies";
 import { slipKindTitle } from "../utils/salarySlipFieldConfig";
@@ -196,6 +197,21 @@ export default function ExpandableHeadsTable({
               subHeads: (r.subHeads ?? []).map(s => (s.id === subId ? { ...s, ...proof } : s)),
             },
       ),
+    );
+  };
+
+  const patchSub = (rowId: string, subId: string, patch: Partial<SubHeadEntry>, persist = false) => {
+    onChange(
+      rows.map(r => {
+        if (r.id !== rowId) return r;
+        const subHeads = (r.subHeads ?? []).map(s => (s.id === subId ? { ...s, ...patch } : s));
+        return {
+          ...r,
+          subHeads,
+          amount: subHeads.length > 0 ? sumSubHeads(subHeads) : 0,
+        };
+      }),
+      persist ? { persist: true } : undefined,
     );
   };
 
@@ -788,8 +804,23 @@ export default function ExpandableHeadsTable({
                                 <tbody>
                                   {subs.map(s => (
                                     <tr key={s.id} className="border-b border-crm-border-subtle last:border-0">
-                                      <td className="px-3 py-2 text-crm-text-secondary font-medium">{s.label}</td>
-                                      <td className="px-3 py-2 text-center text-crm-text-muted tabular-nums">{s.filledAt || "—"}</td>
+                                      <td className="px-3 py-2">
+                                        <input
+                                          value={s.label}
+                                          onChange={e => patchSub(row.id, s.id, { label: e.target.value })}
+                                          onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                          className="w-full h-8 rounded-lg border border-crm-border bg-crm-surface px-2 text-xs font-medium text-crm-text-secondary outline-none focus:ring-2 focus:ring-[#0D9488]/30"
+                                          placeholder="Name"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <input
+                                          type="date"
+                                          value={s.filledAt || ""}
+                                          onChange={e => patchSub(row.id, s.id, { filledAt: e.target.value }, true)}
+                                          className="h-8 rounded-lg border border-crm-border bg-crm-surface px-1 text-[10px] text-crm-text-muted outline-none"
+                                        />
+                                      </td>
                                       {allowProofUpload && (
                                         <td className="px-3 py-2 text-center">
                                           <ProofUploadField
@@ -810,11 +841,25 @@ export default function ExpandableHeadsTable({
                                       )}
                                       {amountSplit ? (
                                         <>
-                                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-crm-text">{currency(Number(s.periodAmount ?? s.amount) || 0)}</td>
+                                          <td className="px-3 py-2 text-right">
+                                            <AmountInput
+                                              value={Number(s.amount) || 0}
+                                              onChange={n => patchSub(row.id, s.id, { amount: n, periodAmount: n })}
+                                              onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                              className="h-8 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-xs text-right font-semibold outline-none focus:ring-2 focus:ring-[#0D9488]/30"
+                                            />
+                                          </td>
                                           <td className="px-3 py-2 text-right font-semibold tabular-nums text-teal-800">{currency(Number(s.allTimeAmount) || 0)}</td>
                                         </>
                                       ) : (
-                                        <td className="px-3 py-2 text-right font-semibold tabular-nums text-crm-text">{currency(s.amount)}</td>
+                                        <td className="px-3 py-2 text-right">
+                                          <AmountInput
+                                            value={Number(s.amount) || 0}
+                                            onChange={n => patchSub(row.id, s.id, { amount: n })}
+                                            onBlur={() => patchSub(row.id, s.id, {}, true)}
+                                            className="h-8 w-full rounded-lg border border-crm-border bg-crm-surface px-2 text-xs text-right font-semibold outline-none focus:ring-2 focus:ring-[#0D9488]/30"
+                                          />
+                                        </td>
                                       )}
                                       {onPersist && (
                                         <td className="px-2 py-2 text-center">
